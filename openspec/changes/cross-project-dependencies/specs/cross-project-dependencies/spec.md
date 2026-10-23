@@ -1477,3 +1477,28 @@ An adopted supervisor SHALL require the closed version-1 ordinary policy bound t
 - **AND** the read-only preflight requires the same ordinary policy and no retained markers without reading config or taking the runtime lifetime lock
 - **AND** policy remains separate from the four installed artifacts and normal installation never initializes it
 - **AND** adopted unit observation requires fixed config followed by --admission=policy and refuses legacy argv
+
+### Requirement: Retained-owner solver refusal preserves controlled terminal evidence
+
+A solver startup SHALL classify only a successfully observed retained owner marker as controlled refusal with exit 78. Canonical readable state validation SHALL precede marker classification, which SHALL run both before runtime-lock acquisition and inside that lock. Ordinary configuration, filesystem, unknown and callback failures, and lock contention without a marker, SHALL retain exit 1. The installed unit SHALL prevent automatic restart on exit 78.
+
+#### Scenario: Retained marker and occupied runtime refuse coherently
+
+- **WHEN** a retained owner marker exists while the runtime lock is occupied
+- **THEN** supervisor and fixture startup exit 78 without entering configuration, sweep or listener startup
+- **AND** a marker published after the outer check is refused by the check inside the acquired runtime lock
+- **AND** a fixture receipt identifies the typed retained-owner reason rather than inferring authority from diagnostic text
+
+#### Scenario: Ordinary failures do not become controlled refusal
+
+- **WHEN** canonical state cannot be read, configuration or arguments are invalid, a startup callback fails, or runtime contention exists without a retained marker
+- **THEN** startup exits 1
+- **AND** marker-like diagnostic text or an untrusted reason field cannot produce controlled refusal
+
+#### Scenario: Owner-bound drain preserves a controlled failed unit
+
+- **WHEN** native unit state is failed/failed with Result=exit-code and ExecMainStatus=78
+- **THEN** drain and fixture cleanup may recognize quiescence only with effective RestartPreventExitStatus=78, zero MainPID and ControlPID, no job and an empty current cgroup
+- **AND** inactive/dead remains an accepted stopped state under the same process/job/current-cgroup checks
+- **AND** original-cgroup emptiness and installed-tuple identity remain independently required
+- **AND** active-service observation rejects the failed state and no reset-failed erases its evidence

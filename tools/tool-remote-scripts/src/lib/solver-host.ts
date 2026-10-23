@@ -13,7 +13,11 @@ import {
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_UNIT,
 } from './solver-supervisor-install-contract';
-import { observeSolverUnit, SOLVER_UNIT_PROPERTIES } from './solver-unit-observation';
+import {
+  isStoppedSolverUnit,
+  observeSolverUnit,
+  SOLVER_UNIT_PROPERTIES,
+} from './solver-unit-observation';
 
 export interface SolverPins {
   readonly version: 1;
@@ -198,52 +202,54 @@ export function parseSolverUnit(
   active: boolean,
   expectedState = SOLVER_EDGE_STATE,
 ): SolverUnit {
-  const fields: Partial<Record<string, string>> = {};
+  const fields = new Map<string, string>();
   for (const line of stdout.trimEnd().split('\n')) {
     const equals = line.indexOf('=');
     const key = line.slice(0, equals);
-    if (equals < 1 || !SOLVER_UNIT_PROPERTIES.includes(key) || Object.hasOwn(fields, key))
+    if (equals < 1 || !SOLVER_UNIT_PROPERTIES.includes(key) || fields.has(key))
       throw new Error('solver service properties are unknown or duplicate');
-    fields[key] = line.slice(equals + 1);
+    fields.set(key, line.slice(equals + 1));
   }
   // Proof: adopted-unit omission accepted legacy argv in solver-exclusion.test.ts (exit 1).
   // Proof: unit-environment fault accepted a different edge admission namespace (solver-exclusion.test.ts).
   if (
-    Object.keys(fields).length !== SOLVER_UNIT_PROPERTIES.length ||
-    fields['LoadState'] !== 'loaded' ||
-    fields['Id'] !== SOLVER_SUPERVISOR_SERVICE ||
-    fields['Names'] !== SOLVER_SUPERVISOR_SERVICE ||
-    fields['FragmentPath'] !== SOLVER_SUPERVISOR_UNIT ||
-    fields['DropInPaths'] !== '' ||
-    fields['Transient'] !== 'no' ||
-    fields['NeedDaemonReload'] !== 'no' ||
-    fields['Restart'] !== 'always' ||
-    fields['KillMode'] !== 'control-group' ||
-    fields['Environment'] !== `WBS_EDGE_STATE=${expectedState}` ||
-    fields['ExecStartPre'] !== '' ||
-    fields['ExecStartPost'] !== '' ||
-    fields['ExecStop'] !== '' ||
+    fields.size !== SOLVER_UNIT_PROPERTIES.length ||
+    fields.get('LoadState') !== 'loaded' ||
+    fields.get('Id') !== SOLVER_SUPERVISOR_SERVICE ||
+    fields.get('Names') !== SOLVER_SUPERVISOR_SERVICE ||
+    fields.get('FragmentPath') !== SOLVER_SUPERVISOR_UNIT ||
+    fields.get('DropInPaths') !== '' ||
+    fields.get('Transient') !== 'no' ||
+    fields.get('NeedDaemonReload') !== 'no' ||
+    fields.get('Restart') !== 'always' ||
+    // Proof: effective-prevent omission accepted alien restart authority in solver-unit-observation.test.ts (1 failure).
+    fields.get('RestartPreventExitStatus') !== '78' ||
+    fields.get('KillMode') !== 'control-group' ||
+    fields.get('Environment') !== `WBS_EDGE_STATE=${expectedState}` ||
+    fields.get('ExecStartPre') !== '' ||
+    fields.get('ExecStartPost') !== '' ||
+    fields.get('ExecStop') !== '' ||
     !execMatches(
-      fields['ExecStart'] ?? '',
+      fields.get('ExecStart') ?? '',
       SOLVER_SUPERVISOR_BUN,
       `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
     ) ||
     !execMatches(
-      fields['ExecStopPost'] ?? '',
+      fields.get('ExecStopPost') ?? '',
       '/bin/rm',
       '/bin/rm -f /run/user/1000/wbs-solver/supervisor.sock',
     )
   )
     throw new Error('solver effective service authority is unrecognized');
-  const pid = Number(fields['MainPID']);
-  const cgroup = readString(fields['ControlGroup']);
-  const invocation = readString(fields['InvocationID']);
-  if (fields['ControlPID'] !== '0' || !['', '0'].includes(fields['Job'] ?? 'missing'))
+  const pid = Number(fields.get('MainPID'));
+  const cgroup = readString(fields.get('ControlGroup'));
+  const invocation = readString(fields.get('InvocationID'));
+  if (fields.get('ControlPID') !== '0' || !['', '0'].includes(fields.get('Job') ?? 'missing'))
     throw new Error('solver service has control process or pending job');
   if (active) {
     if (
-      fields['ActiveState'] !== 'active' ||
-      fields['SubState'] !== 'running' ||
+      fields.get('ActiveState') !== 'active' ||
+      fields.get('SubState') !== 'running' ||
       !Number.isSafeInteger(pid) ||
       pid < 1 ||
       !/^[a-f0-9]{32}$/.test(invocation) ||
@@ -252,13 +258,7 @@ export function parseSolverUnit(
       !cgroup.endsWith(`/${SOLVER_SUPERVISOR_SERVICE}`)
     )
       throw new Error('solver initial service process is not recognized');
-  } else if (
-    fields['ActiveState'] !== 'inactive' ||
-    fields['SubState'] !== 'dead' ||
-    fields['MainPID'] !== '0' ||
-    cgroup !== ''
-  )
-    throw new Error('solver service did not stop');
+  } else if (!isStoppedSolverUnit(fields)) throw new Error('solver service did not stop');
   return { pid, invocation, cgroup };
 }
 

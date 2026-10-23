@@ -44,6 +44,9 @@ function unit(active: boolean, edgeState: string) {
     ExecStop: '',
     ExecStopPost: exec('/bin/rm', '/bin/rm -f /run/user/1000/wbs-solver/supervisor.sock'),
     Restart: 'always',
+    RestartPreventExitStatus: '78',
+    Result: 'success',
+    ExecMainStatus: '0',
     KillMode: 'control-group',
     Environment: `WBS_EDGE_STATE=${edgeState}`,
     ActiveState: active ? 'active' : 'inactive',
@@ -1046,4 +1049,40 @@ test('in-flight solver recognition cannot return proof after token expiry and ru
     },
     f.root,
   );
+});
+
+test('final drain accepts the controlled restart refusal while retaining native failed evidence', async () => {
+  const f = await fixture();
+  let restartRefused = false;
+  const ports: SolverPorts = {
+    ...f.ports,
+    runHost: async (command, signal) => {
+      const stdout = await f.ports.runHost(command, signal);
+      if (command.kind !== 'show' || !restartRefused) return stdout;
+      return stdout
+        .replace('ActiveState=inactive\n', 'ActiveState=failed\n')
+        .replace('SubState=dead\n', 'SubState=failed\n')
+        .replace('Result=success\n', 'Result=exit-code\n')
+        .replace('ExecMainStatus=0\n', 'ExecMainStatus=78\n');
+    },
+  };
+  await withDependencyOwner(
+    f.plan,
+    async (owner) => {
+      await withSolverDrainUnderOwner(
+        owner,
+        f.layouts,
+        f.pins,
+        ports,
+        performance.now() + 5000,
+        () => {
+          restartRefused = true;
+          return Promise.resolve();
+        },
+      );
+    },
+    f.root,
+  );
+  expect(restartRefused).toBe(true);
+  expect(await ports.runHost({ kind: 'show' })).toContain('ActiveState=failed\n');
 });

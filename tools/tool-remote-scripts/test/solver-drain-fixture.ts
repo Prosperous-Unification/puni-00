@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import { isRetainedEdgeOwnerRefusal } from '../src/lib/edge-admission';
 import {
   withSolverPolicyAdmission,
   withSolverRuntimeAdmission,
@@ -56,9 +57,14 @@ if (import.meta.main) {
     if (!argument?.startsWith('--config=/')) throw cause;
     await writeFile(
       join(dirname(argument.slice('--config='.length)), 'refused.json'),
-      JSON.stringify({ pid: process.pid, error: String(cause) }),
+      JSON.stringify({
+        pid: process.pid,
+        reason: isRetainedEdgeOwnerRefusal(cause) ? cause.reason : 'startup-error',
+        error: String(cause),
+      }),
       { mode: 0o600 },
     );
-    process.exit(78);
+    // Proof: fixture maps only retained owner refusal to 78; missing manifest/policy remain 1.
+    process.exit(isRetainedEdgeOwnerRefusal(cause) ? 78 : 1);
   }
 }

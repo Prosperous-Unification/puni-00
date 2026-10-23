@@ -856,6 +856,7 @@ The [proposed identity-broker followup](../solver-supervisor-identity-broker/pro
       real runtime admission, systemd serialization, cgroup and Docker lifecycle.
 - [x] Prove runner refusals, command bounds and fixture-only effects locally.
 - [x] Repair shared native omitted-empty-hook observations and exact ownership-guarded full Docker inspection in the disposable runner; [focused evidence and watched omissions](verify-systemd-empty-hooks.md).
+- [x] Align typed retained-owner startup refusal, installed restart suppression and controlled failed-unit drain/cleanup recognition; [local checks and watched proofs](verify-solver-controlled-refusal.md). Physical acceptance and retained host cleanup remain open.
 - [ ] Independently review then execute exact-SHA runner under host heavy lock;
       retain private receipt and distinguish positive host proof from fault packet.
 

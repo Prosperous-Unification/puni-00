@@ -14,6 +14,9 @@ export const SOLVER_UNIT_PROPERTIES = [
   'ExecStop',
   'ExecStopPost',
   'Restart',
+  'RestartPreventExitStatus',
+  'Result',
+  'ExecMainStatus',
   'KillMode',
   'Environment',
   'ActiveState',
@@ -26,7 +29,8 @@ export const SOLVER_UNIT_PROPERTIES = [
 ];
 const EMPTY_HOOKS = ['ExecStartPre', 'ExecStartPost', 'ExecStop'];
 type RunCommand = (argv: string[], signal?: AbortSignal) => Promise<string>;
-function readProjection(stdout: string): Map<string, string> {
+/** Validates the closed native projection; only the three typed-proof empty hooks may be omitted. */
+export function readSolverUnitProjection(stdout: string): Map<string, string> {
   const fields = new Map<string, string>();
   for (const line of stdout.replace(/\n$/, '').split('\n')) {
     const equals = line.indexOf('=');
@@ -67,7 +71,7 @@ export async function observeSolverUnit(
     ...SOLVER_UNIT_PROPERTIES.map((property) => `--property=${property}`),
   ];
   const first = await run(argv, signal);
-  const fields = readProjection(first);
+  const fields = readSolverUnitProjection(first);
   const missing = EMPTY_HOOKS.filter((key) => !fields.has(key));
   if (missing.length === 0) return first;
   const loaded = readBus(
@@ -126,9 +130,32 @@ export async function observeSolverUnit(
     )
       throw new Error('solver omitted hook is not proven empty');
   }
-  const second = readProjection(await run(argv, signal));
+  const second = readSolverUnitProjection(await run(argv, signal));
   // Proof: raced PID/invocation/cgroup/authority and changed omission set negatives reject mixed observations.
   if (fields.size !== second.size || [...fields].some(([key, value]) => second.get(key) !== value))
     throw new Error('solver service changed during hook observation');
   return first + (first.endsWith('\n') ? '' : '\n') + missing.map((key) => `${key}=\n`).join('');
+}
+
+/** Recognizes quiescence without resetting a controlled refusal's native failed evidence.
+ * Callers supply the complete validated projection and separately prove the original cgroup empty.
+ */
+export function isStoppedSolverUnit(fields: ReadonlyMap<string, string>): boolean {
+  // Proof: independently removing each PID/job/cgroup/prevent guard failed the actual cleanup terminal test in solver-drain-transport.test.ts.
+  if (
+    fields.get('MainPID') !== '0' ||
+    fields.get('ControlPID') !== '0' ||
+    !['', '0'].includes(fields.get('Job') ?? 'missing') ||
+    fields.get('ControlGroup') !== '' ||
+    fields.get('RestartPreventExitStatus') !== '78'
+  )
+    return false;
+  if (fields.get('ActiveState') === 'inactive' && fields.get('SubState') === 'dead') return true;
+  // Proof: independently omitting each failed-state/result/status guard failed the actual cleanup terminal test in solver-drain-transport.test.ts.
+  return (
+    fields.get('ActiveState') === 'failed' &&
+    fields.get('SubState') === 'failed' &&
+    fields.get('Result') === 'exit-code' &&
+    fields.get('ExecMainStatus') === '78'
+  );
 }

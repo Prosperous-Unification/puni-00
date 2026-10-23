@@ -217,6 +217,7 @@ test('effective unit refuses prefix drop-ins and extra commands before initial s
     Transient: 'no',
     NeedDaemonReload: 'no',
     Restart: 'always',
+    RestartPreventExitStatus: '78',
     KillMode: 'control-group',
   }))
     fields.set(property, value);
@@ -263,6 +264,7 @@ test('effective preflight blocks actual guarded unit start and cleanup stop effe
         Transient: 'no',
         NeedDaemonReload: 'no',
         Restart: 'always',
+        RestartPreventExitStatus: '78',
         KillMode: 'control-group',
       }))
         fields.set(key, entry);
@@ -327,4 +329,52 @@ test('native full inspect remains unchanged and ownership guarded in the runner 
     'foreign owner',
   );
   expect(executed).toBe(false);
+});
+
+test('actual cleanup terminal boundary preserves controlled refusal and refuses independent terminal faults', async () => {
+  const { assertFixtureStoppedUnit, FIXTURE_UNIT_PROPERTIES, runFixtureEffect } =
+    await import('./solver-drain-transport');
+  const fields = new Map(FIXTURE_UNIT_PROPERTIES.map((key) => [key, '']));
+  for (const [key, value] of Object.entries({
+    ActiveState: 'failed',
+    SubState: 'failed',
+    MainPID: '0',
+    ControlPID: '0',
+    RestartPreventExitStatus: '78',
+    Result: 'exit-code',
+    ExecMainStatus: '78',
+  }))
+    fields.set(key, value);
+  const stdout = (observed: ReadonlyMap<string, string>) =>
+    [...observed].map(([key, value]) => `${key}=${value}\n`).join('');
+  assertFixtureStoppedUnit(stdout(fields));
+  for (const [key, value] of Object.entries({
+    ActiveState: 'inactive',
+    SubState: 'dead',
+    MainPID: '1',
+    ControlPID: '1',
+    Job: '1',
+    ControlGroup: '/survivor',
+    RestartPreventExitStatus: '',
+    Result: 'success',
+    ExecMainStatus: '1',
+  })) {
+    let protectedWork = false;
+    await refuses(
+      runFixtureEffect(
+        ['remove-owned-unit'],
+        'fixture',
+        () => {
+          assertFixtureStoppedUnit(stdout(new Map([...fields, [key, value]])));
+          return Promise.resolve();
+        },
+        () => {
+          protectedWork = true;
+          return Promise.resolve('');
+        },
+      ),
+      'fixture unit',
+    );
+    expect(protectedWork).toBe(false);
+  }
 });

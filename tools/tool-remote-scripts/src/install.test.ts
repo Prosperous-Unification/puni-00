@@ -176,6 +176,7 @@ describe('host-wide solver supervisor contract', () => {
       `ExecStart=${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
     );
     expect(unit).toContain('Restart=always');
+    expect(unit).toContain('RestartPreventExitStatus=78');
     expect(unit).toContain('Environment=WBS_EDGE_STATE=/home/puni1/wbs/state');
     expect(unit).toContain('KillMode=control-group');
     expect(unit).toContain(`RuntimeDirectory=${SOLVER_SUPERVISOR_RUNTIME_DIRECTORY}`);

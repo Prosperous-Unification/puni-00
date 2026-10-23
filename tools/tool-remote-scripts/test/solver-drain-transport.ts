@@ -1,4 +1,5 @@
 import { type SolverContainer, solverIdentity, solverInspectArgs } from '../src/lib/solver-cohort';
+import { isStoppedSolverUnit, readSolverUnitProjection } from '../src/lib/solver-unit-observation';
 
 /** Fixture transport only: bounded real subprocess, exact argv, no shell expansion. */
 export async function boundedCommand(
@@ -179,6 +180,7 @@ export function assertFixtureUnitAuthority(
     Transient: 'no',
     NeedDaemonReload: 'no',
     Restart: 'always',
+    RestartPreventExitStatus: '78',
     KillMode: 'control-group',
     ExecStartPre: '',
     ExecStartPost: '',
@@ -204,4 +206,11 @@ export async function runFixtureDockerCommand(
     throw new Error('unexpected exact-ID argv');
   // Proof: ownership omission admits foreign full inspect in solver-drain-transport.test.ts.
   return runFixtureEffect(args, id, verify, run);
+}
+
+/** Cleanup preserves native failure evidence and refuses every non-quiescent or uncontrolled failed unit. */
+export function assertFixtureStoppedUnit(stdout: string): void {
+  // Proof: cleanup-consumer omission made the actual cleanup terminal test fail in solver-drain-transport.test.ts.
+  if (!isStoppedSolverUnit(readSolverUnitProjection(stdout)))
+    throw new Error('fixture unit still active or failed without controlled refusal');
 }

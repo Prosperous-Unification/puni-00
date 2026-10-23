@@ -24,13 +24,16 @@ const fields = {
   NeedDaemonReload: 'no',
   ExecStart: execution(
     SOLVER_SUPERVISOR_BUN,
-    `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG}`,
+    `${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
   ),
   ExecStartPre: '',
   ExecStartPost: '',
   ExecStop: '',
   ExecStopPost: execution('/bin/rm', '/bin/rm -f /run/user/1000/wbs-solver/supervisor.sock'),
   Restart: 'always',
+  RestartPreventExitStatus: '78',
+  Result: 'success',
+  ExecMainStatus: '0',
   KillMode: 'control-group',
   Environment: 'WBS_EDGE_STATE=/home/puni1/wbs/state',
   ActiveState: 'inactive',
@@ -132,6 +135,9 @@ for (const first of [
   });
 for (const [key, value] of Object.entries({
   MainPID: '3',
+  Result: 'exit-code',
+  ExecMainStatus: '78',
+  RestartPreventExitStatus: '1',
   InvocationID: 'a'.repeat(32),
   ControlGroup: '/changed',
   Environment: 'secret',
@@ -169,3 +175,54 @@ async function refuses(promise: Promise<unknown>): Promise<void> {
   expect(failure).toBeInstanceOf(Error);
   if (failure instanceof Error) expect(failure.message).not.toContain('secret');
 }
+
+const controlled = {
+  ...fields,
+  ActiveState: 'failed',
+  SubState: 'failed',
+  Result: 'exit-code',
+  ExecMainStatus: '78',
+};
+test('controlled retained-owner refusal is terminal without erasing native failure evidence', () => {
+  expect(parseSolverUnit(projection(controlled, []), false).pid).toBe(0);
+  expect(() => parseSolverUnit(projection(controlled, []), true)).toThrow();
+});
+for (const [key, value] of Object.entries({
+  ActiveState: 'inactive',
+  SubState: 'dead',
+  Result: 'signal',
+  ExecMainStatus: '1',
+  MainPID: '1',
+  ControlPID: '1',
+  Job: '1',
+  ControlGroup: '/survivor',
+  RestartPreventExitStatus: '',
+}))
+  test(`controlled terminal refuses changed ${key}`, () => {
+    expect(() => parseSolverUnit(projection({ ...controlled, [key]: value }, []), false)).toThrow();
+  });
+
+for (const key of ['Result', 'ExecMainStatus', 'RestartPreventExitStatus'])
+  test(`native observer refuses missing mandatory ${key}`, async () => {
+    await refuses(
+      observe(
+        projection(fields).replace(`${key}=${fields[key as keyof typeof fields]}\n`, ''),
+        empty,
+      ),
+    );
+  });
+test('active authority requires the controlled-refusal restart prevention', () => {
+  const active = {
+    ...fields,
+    ActiveState: 'active',
+    SubState: 'running',
+    MainPID: '123',
+    InvocationID: 'a'.repeat(32),
+    ControlGroup: '/user.slice/wbs-solver-supervisor.service',
+  };
+  expect(parseSolverUnit(projection(active, []), true).pid).toBe(123);
+  for (const value of ['', '0', '1', '78 79'])
+    expect(() =>
+      parseSolverUnit(projection({ ...active, RestartPreventExitStatus: value }, []), true),
+    ).toThrow();
+});

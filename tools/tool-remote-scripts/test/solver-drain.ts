@@ -12,6 +12,7 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
+import { isRetainedEdgeOwnerRefusal } from '../src/lib/edge-admission';
 import { withDependencyOwner } from '../src/lib/edge-ownership';
 import { initializeOrdinaryEdgePolicy } from '../src/lib/edge-policy';
 import { envLayout } from '../src/lib/env';
@@ -35,6 +36,7 @@ import {
 import { observeSolverUnit } from '../src/lib/solver-unit-observation';
 import {
   assertFixtureContainer,
+  assertFixtureStoppedUnit,
   assertFixtureUnitAuthority,
   boundedCommand,
   removeFixtureContainer,
@@ -518,7 +520,7 @@ export async function runSolverDrainAcceptance(): Promise<void> {
             throw new Error('manual guarded launch admitted');
           } catch (cause) {
             requireProof(
-              !admission.entered && /lock held|owner|pending|committed/.test(describe(cause)),
+              !admission.entered && isRetainedEdgeOwnerRefusal(cause),
               'manual admission refusal not proven',
             );
           }
@@ -533,9 +535,8 @@ export async function runSolverDrainAcceptance(): Promise<void> {
           requireProof(
             typeof refusal === 'object' &&
               refusal !== null &&
-              'error' in refusal &&
-              typeof refusal.error === 'string' &&
-              /lock held|owner|pending|committed/.test(refusal.error),
+              'reason' in refusal &&
+              refusal.reason === 'retained-edge-owner',
             'restart admission refusal not proven',
           );
           await unitEffect('stop');
@@ -563,21 +564,8 @@ export async function runSolverDrainAcceptance(): Promise<void> {
     if (unitIntended)
       await cleanup('exact unit stop', async () => {
         await unitEffect('stop');
-        const output = await execute([
-          'systemctl',
-          '--user',
-          'show',
-          service,
-          '--property=MainPID',
-          '--property=ControlPID',
-          '--property=ActiveState',
-        ]);
-        requireProof(
-          output.split('\n').includes('MainPID=0') &&
-            output.split('\n').includes('ControlPID=0') &&
-            output.split('\n').includes('ActiveState=inactive'),
-          'fixture unit still active',
-        );
+        const output = await observeSolverUnit(service, execute);
+        assertFixtureStoppedUnit(output);
         if (physicalGroup !== '')
           requireProof(
             !(await observeSolverCgroup(physicalGroup, true))?.populated,

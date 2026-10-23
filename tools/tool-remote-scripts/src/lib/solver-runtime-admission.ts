@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises';
+import { lstat, readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import { assertNoEdgeOwner, edgeStateDirectory } from './edge-admission';
@@ -14,13 +14,9 @@ export async function withSolverRuntimeAdmission<T>(
   action: () => Promise<T>,
   directory = edgeStateDirectory(),
 ): Promise<T> {
-  // Proof: omitting normalized spelling guard admitted alias state callback
-  // in solver-runtime-admission.test.ts (runtime-canonical mutation, exit 1).
-  if (!isAbsolute(directory) || resolve(directory) !== directory)
-    throw new Error('solver runtime requires canonical absolute state directory');
-  // Proof: omitting enumeration admitted execute/write-only trusted state in
-  // solver-runtime-admission.test.ts (runtime-directory mutation, exit 1).
-  await readdir(directory);
+  await assertSolverStateDirectory(directory);
+  // Proof: runtime-precheck omission yielded exit 1 for 2 retained-owner/runtime-contention cases in solver-runtime-admission.proc.test.ts.
+  await assertNoEdgeOwner(directory);
   // Proof: substituting wrong-runtime.lock lost actual ready CLI contention
   // in solver-runtime-admission.proc.test.ts (runtime-lock mutation, exit 1).
   return withCanonicalLock(join(directory, 'solver-runtime.lock'), async () => {
@@ -36,9 +32,9 @@ export async function withSolverPolicyAdmission<T>(
   action: () => Promise<T>,
   directory = edgeStateDirectory(),
 ): Promise<T> {
-  if (!isAbsolute(directory) || resolve(directory) !== directory)
-    throw new Error('solver runtime requires canonical absolute state directory');
-  await readdir(directory);
+  await assertSolverStateDirectory(directory);
+  // Proof: policy-precheck omission yielded exit 1 for 2 retained-owner/runtime-contention cases in solver-runtime-admission.proc.test.ts.
+  await assertNoEdgeOwner(directory);
   return withCanonicalLock(join(directory, 'solver-runtime.lock'), async () => {
     // Proof: runtime-policy omission reached absent config with no policy;
     // solver-runtime-admission.proc.test.ts exited 1.
@@ -48,4 +44,16 @@ export async function withSolverPolicyAdmission<T>(
     await assertNoEdgeOwner(directory);
     return action();
   });
+}
+
+async function assertSolverStateDirectory(directory: string): Promise<void> {
+  // Proof: runtime canonical state tests refuse alias spellings before marker classification.
+  if (!isAbsolute(directory) || resolve(directory) !== directory)
+    throw new Error('solver runtime requires canonical absolute state directory');
+  const state = await lstat(directory);
+  // Proof: state-real-directory omission yielded exit 78 for 2 symlink-state cases in solver-runtime-admission.proc.test.ts.
+  if (!state.isDirectory() || (await realpath(directory)) !== directory)
+    throw new Error('solver runtime requires canonical real state directory');
+  // Proof: state-readable omission yielded exit 78 for 2 unreadable-state cases in solver-runtime-admission.proc.test.ts.
+  await readdir(directory);
 }

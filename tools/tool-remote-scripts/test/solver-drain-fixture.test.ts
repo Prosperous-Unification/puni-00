@@ -91,7 +91,9 @@ test('retained marker refuses creator before readiness or during-stop effects', 
     expect(await child.exited).toBe(78);
     expect(await Bun.file(join(root, 'ready.json')).exists()).toBe(false);
     expect(await Bun.file(join(root, 'during-stop.id')).exists()).toBe(false);
-    expect(await readFile(join(root, 'refused.json'), 'utf8')).toContain('owner');
+    expect(JSON.parse(await readFile(join(root, 'refused.json'), 'utf8'))).toMatchObject({
+      reason: 'retained-edge-owner',
+    });
   } finally {
     clearTimeout(timeout);
     if (child.exitCode === null) child.kill('SIGKILL');
@@ -114,9 +116,31 @@ test('policy creator refuses missing policy before reading its missing manifest'
       ],
       { env: { ...process.env, WBS_EDGE_STATE: edge }, stdout: 'ignore', stderr: 'ignore' },
     );
-    expect(await child.exited).toBe(78);
+    expect(await child.exited).toBe(1);
     expect(await readFile(join(root, 'refused.json'), 'utf8')).toContain('edge-policy.json');
     expect(await Bun.file(join(root, 'ready.json')).exists()).toBe(false);
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+test('creator ordinary manifest failure exits 1 with a startup-error reason', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'solver-creator-error-'));
+  const edge = join(root, 'edge');
+  await mkdir(edge);
+  try {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        join(import.meta.dir, 'solver-drain-fixture.ts'),
+        `--config=${join(root, 'config.json')}`,
+      ],
+      { env: { ...process.env, WBS_EDGE_STATE: edge }, stdout: 'ignore', stderr: 'ignore' },
+    );
+    expect(await child.exited).toBe(1);
+    expect(JSON.parse(await readFile(join(root, 'refused.json'), 'utf8'))).toMatchObject({
+      reason: 'startup-error',
+    });
   } finally {
     await rm(root, { recursive: true });
   }

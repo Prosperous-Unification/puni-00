@@ -1,4 +1,8 @@
-import { assertNoEdgeOwner, edgeStateDirectory } from './lib/edge-admission';
+import {
+  assertNoEdgeOwner,
+  edgeStateDirectory,
+  isRetainedEdgeOwnerRefusal,
+} from './lib/edge-admission';
 import { readOrdinaryEdgePolicy } from './lib/edge-policy';
 import {
   withSolverPolicyAdmission,
@@ -230,6 +234,7 @@ if (import.meta.main) {
   operation.catch((error: unknown) => {
     const message = error instanceof Error ? error.message : 'unknown failure';
     console.error(`[wbs-solver-supervisor] startup failed: ${message}`);
-    process.exit(1);
+    // Proof: controlled refusal maps to 78; config, unknown and lock-only errors stay 1 in real CLI tests.
+    process.exit(isRetainedEdgeOwnerRefusal(error) ? 78 : 1);
   });
 }

@@ -8,6 +8,16 @@ export function edgeStateDirectory(): string {
   return process.env['WBS_EDGE_STATE'] ?? '/home/puni1/wbs/state';
 }
 
+class RetainedEdgeOwnerRefusal extends Error {
+  readonly reason = 'retained-edge-owner';
+}
+
+/** Recognizes only the refusal produced after a successful retained-marker observation. */
+export function isRetainedEdgeOwnerRefusal(cause: unknown): cause is RetainedEdgeOwnerRefusal {
+  // Proof: widening to generic Error made the real CLI callback fault exit 78 in solver-runtime-admission.proc.test.ts (1 failure).
+  return cause instanceof RetainedEdgeOwnerRefusal;
+}
+
 /**
  * Refuses every retained owner publication, including incomplete or unreadable
  * publications. Absence means legacy deployment, never activation permission.
@@ -18,13 +28,17 @@ export async function assertNoEdgeOwner(stateDirectory = edgeStateDirectory()): 
   for (const name of ['edge-owner.json', 'edge-owner.pending']) {
     const path = join(stateDirectory, name);
     try {
+      // Proof: omitted lstat classified absent markers as controlled refusal; real CLI tests failed 19 cases.
       await lstat(path);
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') continue;
       throw error;
     }
     // Proof: omitted this refusal; both retained-marker swap and devsync CLI negatives reached later preflight.
-    throw new Error(`shared edge owner admission closed: ${path}; retained marker; no activation`);
+    // Proof: replacing this typed refusal with Error broke 12 real CLI marker cases in solver-runtime-admission.proc.test.ts.
+    throw new RetainedEdgeOwnerRefusal(
+      `shared edge owner admission closed: ${path}; retained marker; no activation`,
+    );
   }
 }
 

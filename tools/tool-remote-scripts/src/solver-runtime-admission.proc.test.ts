@@ -1,4 +1,4 @@
-import { chmod, lstat, writeFile } from 'node:fs/promises';
+import { chmod, lstat, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -73,7 +73,7 @@ for (const marker of ['edge-owner.pending', 'edge-owner.json']) {
     const { directory, spawn } = await fixture();
     await writeFile(`${directory}/${marker}`, 'retained');
     const child = spawn(false, [`--config=${directory}/absent.json`]);
-    expect(await child.exited).toBe(1);
+    expect(await child.exited).toBe(78);
     expect(await new Response(child.stderr).text()).toContain('admission closed');
     expect(await Bun.file(`${directory}/docker.calls`).exists()).toBe(false);
   });
@@ -204,8 +204,9 @@ test('installed bundle refuses marker and occupied runtime before config; mappin
   await writeFile(bundle, await output.text());
   await writeFile(`${directory}/edge-owner.pending`, 'retained');
   const retained = spawn(false, [`--config=${directory}/absent.json`], bundle);
-  expect(await retained.exited).toBe(1);
+  expect(await retained.exited).toBe(78);
   expect(await new Response(retained.stderr).text()).toContain('admission closed');
+  await unlink(`${directory}/edge-owner.pending`);
   await withCanonicalLock(`${directory}/solver-runtime.lock`, async () => {
     const occupied = spawn(false, [`--config=${directory}/absent.json`], bundle);
     expect(await occupied.exited).toBe(1);
@@ -260,7 +261,7 @@ for (const fault of [
         `--config=${directory}/absent-config.json`,
         '--admission=policy',
       ]);
-      expect(await child.exited).toBe(1);
+      expect(await child.exited).toBe(fault === 'owner' || fault === 'pending' ? 78 : 1);
       const stderr = await new Response(child.stderr).text();
       if (fault === 'valid') expect(stderr).toContain('absent-config.json');
       else {
@@ -307,7 +308,7 @@ test('actual read-only policy preflight never reads config or takes runtime life
   });
   await writeFile(`${directory}/edge-owner.pending`, 'retained');
   const refused = spawn(false, ['--check-edge-policy']);
-  expect(await refused.exited).toBe(1);
+  expect(await refused.exited).toBe(78);
   expect(await new Response(refused.stderr).text()).toContain('admission closed');
   expect(await Bun.file(`${directory}/docker.calls`).exists()).toBe(false);
 });
@@ -344,3 +345,120 @@ for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
     await withCanonicalLock(`${directory}/solver-runtime.lock`, () => Promise.resolve());
   });
 }
+
+for (const admission of ['legacy', 'policy'])
+  for (const marker of ['edge-owner.pending', 'edge-owner.json'])
+    test(`controlled ${admission} refusal wins over simultaneous runtime occupancy for ${marker}`, async () => {
+      const { directory, spawn } = await fixture();
+      await writeFile(`${directory}/${marker}`, 'retained');
+      await withCanonicalLock(`${directory}/solver-runtime.lock`, async () => {
+        const child = spawn(false, [
+          `--config=${directory}/absent.json`,
+          ...(admission === 'policy' ? ['--admission=policy'] : []),
+        ]);
+        expect(await child.exited).toBe(78);
+        expect(await new Response(child.stderr).text()).toContain('admission closed');
+      });
+    });
+
+for (const admission of ['legacy', 'policy'])
+  for (const permission of [0o333, 0o444])
+    test(`actual ${admission} CLI unreadable state ${permission.toString(8)} remains ordinary failure with marker`, async () => {
+      const { directory, spawn } = await fixture();
+      await writeFile(`${directory}/edge-owner.pending`, 'retained');
+      await chmod(directory, permission);
+      try {
+        const child = spawn(false, [
+          `--config=${directory}/absent.json`,
+          ...(admission === 'policy' ? ['--admission=policy'] : []),
+        ]);
+        expect(await child.exited).toBe(1);
+        expect(await new Response(child.stderr).text()).not.toContain('admission closed');
+      } finally {
+        await chmod(directory, 0o700);
+      }
+    });
+
+for (const fault of [
+  "new Error('shared edge owner admission closed: retained marker')",
+  "{ reason: 'retained-edge-owner' }",
+  '42',
+])
+  test(`actual CLI startup callback fault ${fault} remains ordinary failure`, async () => {
+    const { directory } = await fixture();
+    const injection = `${directory}/callback.ts`;
+    await writeFile(
+      injection,
+      `import { mock } from 'bun:test'; mock.module(${JSON.stringify(resolve(import.meta.dir, 'lib/solver-supervisor-runtime.ts'))}, () => ({ startSolverSupervisor() { throw ${fault}; } }));`,
+    );
+    const child = Bun.spawn(
+      [process.execPath, '--preload', injection, executable, `--config=${directory}/config.json`],
+      { env: { ...process.env, WBS_EDGE_STATE: directory }, stdout: 'pipe', stderr: 'pipe' },
+    );
+    expect(await child.exited).toBe(1);
+  });
+
+test('actual CLI malformed configuration remains ordinary failure', async () => {
+  const { directory, spawn } = await fixture();
+  await writeFile(`${directory}/config.json`, '{');
+  expect(await spawn().exited).toBe(1);
+});
+
+test('actual CLI unknown argument remains ordinary failure before retained marker inspection', async () => {
+  const { directory, spawn } = await fixture();
+  await writeFile(`${directory}/edge-owner.pending`, 'retained');
+  expect(await spawn(false, ['--unknown']).exited).toBe(1);
+});
+
+for (const admission of ['legacy', 'policy'])
+  test(`actual ${admission} CLI symlink state remains ordinary failure with marker`, async () => {
+    const { directory } = await fixture();
+    const { symlink } = await import('node:fs/promises');
+    await writeFile(`${directory}/edge-owner.pending`, 'retained');
+    const alias = `${directory}-alias`;
+    await symlink(directory, alias);
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        executable,
+        `--config=${directory}/absent.json`,
+        ...(admission === 'policy' ? ['--admission=policy'] : []),
+      ],
+      { env: { ...process.env, WBS_EDGE_STATE: alias }, stdout: 'pipe', stderr: 'pipe' },
+    );
+    expect(await child.exited).toBe(1);
+    expect(await new Response(child.stderr).text()).not.toContain('admission closed');
+    await unlink(alias);
+  });
+
+for (const admission of ['legacy', 'policy'])
+  test(`actual ${admission} CLI refuses a marker published after precheck before runtime acquisition`, async () => {
+    const { directory } = await fixture();
+    await writeFile(
+      `${directory}/edge-policy.json`,
+      JSON.stringify({
+        format: 'dependency-edge-policy',
+        version: 1,
+        phase: 'ordinary',
+        edgeState: directory,
+      }),
+    );
+    const injection = `${directory}/raced-marker.ts`;
+    await writeFile(
+      injection,
+      `import { mock } from 'bun:test'; import * as fs from 'node:fs'; const open = fs.openSync; const write = fs.writeFileSync; mock.module('node:fs', () => ({...fs, openSync(path, ...args) { if(path === ${JSON.stringify(`${directory}/solver-runtime.lock`)}) write(${JSON.stringify(`${directory}/edge-owner.pending`)}, 'retained'); return open(path,...args); }}));`,
+    );
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '--preload',
+        injection,
+        executable,
+        `--config=${directory}/absent.json`,
+        ...(admission === 'policy' ? ['--admission=policy'] : []),
+      ],
+      { env: { ...process.env, WBS_EDGE_STATE: directory }, stdout: 'pipe', stderr: 'pipe' },
+    );
+    expect(await child.exited).toBe(78);
+    expect(await new Response(child.stderr).text()).toContain('admission closed');
+  });
