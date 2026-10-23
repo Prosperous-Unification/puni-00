@@ -119,7 +119,14 @@ test('preserves optional fields, nulls and unresolved references without normali
     },
     { kind: 'setAssignee', stepId: 's', personId: null, personRef: 'unresolved' },
     { kind: 'patchTeam', teamRef: 'new', patch: { name: '', serviceIds: ['x'] } },
-    { kind: 'createPerson', ref: 'new', name: 'x', teamIds: [], teamRefs: ['new'] },
+    {
+      kind: 'createPerson',
+      ref: 'new',
+      name: 'x',
+      teamIds: [],
+      teamRefs: ['new'],
+      personKind: 'future',
+    },
   ] satisfies PlanCommandWire[])
     expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
 });
@@ -127,6 +134,7 @@ test('preserves optional fields, nulls and unresolved references without normali
 test('rejects malformed structures and nested extras including derived numbering', async () => {
   for (const command of [
     { kind: 'invented' },
+    { kind: 'createPerson', name: 'x', personKind: 1 },
     { kind: 'setActual', stepId: 's', days: '1' },
     { kind: 'setProgress', stepId: 's', state: 'not_started' },
     { kind: 'setStepBlocked', stepId: 's' },

@@ -1,19 +1,21 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes eleven local commands:
+and exposes thirteen local commands:
 
-| Command                                                                                                                          | What it does                                                                                                                                                                                     |
-| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bootstrap-authority <repository>`                                                                                               | the only command that creates an authority; the other authority commands refuse an absent one                                                                                                    |
-| `inspect-authority <repository> [--session <id>]`                                                                                | prints the authority state, read-only                                                                                                                                                            |
-| `recover-publication <repository> --integration-id <id>`                                                                         | finishes an interrupted publication from its durable record                                                                                                                                      |
-| `submit-admission <repository> <packet-json> <staged\|committed> <revision-or-base>`                                             | freezes a bound packet's candidate and prints its submission report; judges the packet through Twilight Burokrat's [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts)            |
-| `render-observation-units <layout.json> <new-dir>`                                                                               | renders the uninstalled `twilight-dash-observation.{service,timer}` units and their `runtime.sha256` into a new directory; see the [observation service runbook](src/activation/units/README.md) |
-| `run-activation-checks --candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs <new-dir>` | runs a candidate's activation checks and writes the CheckRun ledger both Burokrat preparers take as `--check-runs`; see [activation checks](#activation-checks)                                  |
-| `bootstrap-observation`, `migrate-observation`                                                                                   | create or migrate the observation store; see [observation store](#observation-store)                                                                                                             |
-| `plan-enrollment`                                                                                                                | delegates enrollment planning to the existing fleet CLI; see [`plan-enrollment`](#plan-enrollment)                                                                                               |
-| `record-progress`, `record-progress-v2`                                                                                          | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                      |
+| Command                                                                                                                                                                   | What it does                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bootstrap-authority <repository>`                                                                                                                                        | the only command that creates an authority; the other authority commands refuse an absent one                                                                                                    |
+| `inspect-authority <repository> [--session <id>]`                                                                                                                         | prints the authority state, read-only                                                                                                                                                            |
+| `recover-publication <repository> --integration-id <id>`                                                                                                                  | finishes an interrupted publication from its durable record                                                                                                                                      |
+| `submit-admission <repository> <packet-json> <staged\|committed> <revision-or-base>`                                                                                      | freezes a bound packet's candidate and prints its submission report; judges the packet through Twilight Burokrat's [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts)            |
+| `render-observation-units <layout.json> <new-dir>`                                                                                                                        | renders the uninstalled `twilight-dash-observation.{service,timer}` units and their `runtime.sha256` into a new directory; see the [observation service runbook](src/activation/units/README.md) |
+| `run-activation-checks --candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs <new-dir>`                                          | runs a candidate's activation checks and writes the CheckRun ledger both Burokrat preparers take as `--check-runs`; see [activation checks](#activation-checks)                                  |
+| `bootstrap-observation`, `migrate-observation`                                                                                                                            | create or migrate the observation store; see [observation store](#observation-store)                                                                                                             |
+| `plan-enrollment`                                                                                                                                                         | delegates enrollment planning to the existing fleet CLI; see [`plan-enrollment`](#plan-enrollment)                                                                                               |
+| `record-progress`, `record-progress-v2`                                                                                                                                   | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                      |
+| `account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...` | writes the period's efficiency breakdown: cost per accepted outcome from harness logs; see [`account-outcomes`](#account-outcomes)                                                               |
+| `report-capacity --config <owner-only file>`                                                                                                                              | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                       |
 
 ## Activation controller
 
@@ -156,3 +158,137 @@ Navigator `admit-progress` requires this version and an independently supplied
 `--accepted-reference`; its proposed batch is admitted only relative to that caller selection.
 Digests do not authenticate records or establish current WBS freshness. `record-progress`
 continues producing schema 1 for the existing conversion workflow.
+
+## `report-capacity`
+
+Measures the resources a tenant's hosts fulfil and reports each to WBS as a capacity report
+(`openspec/changes/compute-providers` P8 to P11; port in [`src/compute`](src/compute/provider.ts)):
+
+```sh
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts report-capacity --config /path/to/reporter.json
+```
+
+The configuration is the binding; WBS holds only the provider instance id on the resource. It
+must be a regular file owned by the running user with mode `0600`, because it holds the
+credential:
+
+```json
+{
+  "schemaVersion": 1,
+  "wbsOrigin": "https://wbs.example",
+  "credential": "<wbs_mk_ API key of an agent person>",
+  "cadenceSeconds": 300,
+  "instances": [
+    {
+      "instanceId": "<WBS compute provider id>",
+      "kind": "ssh_host",
+      "host": "h4claw",
+      "sshTransportFile": "/home/puni1/.puni/fleet/ops/ssh-transport.json",
+      "bindings": [
+        { "resourceId": "<WBS resource id>", "measure": "memory_gib" },
+        { "resourceId": "<WBS resource id>", "measure": "disk_gib", "path": "/tmp" },
+        { "resourceId": "<WBS resource id>", "measure": "cpu_cores" },
+        { "resourceId": "<WBS resource id>", "measure": "agent_slots", "slots": 4 }
+      ]
+    },
+    {
+      "instanceId": "<WBS compute provider id>",
+      "kind": "docker",
+      "dockerContext": "h4claw",
+      "runImage": "alpine:3",
+      "bindings": [
+        { "resourceId": "<WBS resource id>", "measure": "memory_gib" },
+        { "resourceId": "<WBS resource id>", "measure": "cpu_cores" },
+        { "resourceId": "<WBS resource id>", "measure": "disk_gib", "ceilingGib": 400 }
+      ]
+    }
+  ]
+}
+```
+
+- `wbsOrigin` is an origin only: `https:`, or `http:` on loopback. `cadenceSeconds` defaults to
+  300 (30 to 86,400). A resource is bound once in the whole file.
+- `ssh_host` reaches `host` through the `sshTransportFile` that fleet discovery uses
+  ([`readSshTransport`](../../../../tools/tool-fleet/src/ssh-transport.ts)): the remote user, an
+  owner-only `known_hosts` pinning `host`, and the agent in `SSH_AUTH_SOCK`. `ssh` must be on
+  `PATH`. Measures: `memory_gib` (`/proc/meminfo` `MemTotal`, in use = total minus
+  `MemAvailable`), `disk_gib` (`df -kP <path>` 1024-blocks and used), `cpu_cores` (`nproc`, in
+  use = one-minute load, floored and capped), `agent_slots` (`slots`, in use = runs this process
+  started; it reports 0 until a caller runs agents through the port). All are floored to whole
+  units.
+- `docker` runs every command as `docker --context <dockerContext>` (a context name: letters,
+  digits, `_ . + -`, 2 to 64, never a leading `-`), with only `PATH`, `HOME`,
+  `DOCKER_CONFIG` and `SSH_AUTH_SOCK` passed to the CLI; `docker` must be on `PATH` once a
+  docker instance is configured. Measures: `memory_gib` (`docker info` `MemTotal`; in use = the
+  `docker stats --no-stream` memory of the running containers labelled
+  `puni.compute-provider=<instanceId>`, which `docker ps --filter label=…` names; other
+  containers' rows are skipped unread, and a labelled row whose sample failed (`--`, a container
+  removed mid-sample) adds nothing and is counted `in transit` in the evidence), `cpu_cores`
+  (`NCPU`; in use = the same containers' `CPUPerc` summed, 100 % per core, floored and capped),
+  `disk_gib` (in use = every `docker system df` row summed, the daemon's whole disk; capacity =
+  the binding's `ceilingGib`, because the daemon states no disk size; no `path`). No
+  `agent_slots`. A run is `docker run --rm --label puni.compute-provider=<instanceId>` of
+  `runImage` with the allow-listed `--env`; without `runImage` the instance measures only.
+  The daemon refusing or forbidding its socket, and a `tcp://` or `ssh://` context's transport
+  fault, report `unreachable`; an unknown context or any other failure ends the command.
+  Configure a named context (`docker context create h4claw --docker host=ssh://puni1@h4claw`),
+  not `default`: `DOCKER_HOST` is not passed, and rootless Docker's `default` resolves its
+  socket from it. Because `HOME` and `DOCKER_CONFIG` are passed, `docker run` pulls a private
+  `runImage` with the reporter user's own registry credentials and credential helpers. A memory
+  or cores observation is three commands (`info`, `ps`, `stats`) and each such binding samples
+  again, so one tick takes two `stats` samples when both are bound.
+- Loading refuses before any connection: `config_absent`, `config_unreadable`,
+  `credential_not_owner_only`, `config_malformed` (naming field paths, never values),
+  `provider_kind_not_available` (`puni_pool`, a slot with no adapter),
+  `provider_not_implemented` (`kubernetes`, whose adapter is a stub answering
+  `not_implemented`), `unsupported_measure`, and the SSH transport's own refusals.
+
+Each tick observes every binding and `PUT`s one report per binding with `cadenceSeconds`; a tick
+runs every cadence and right after a run starts or ends. Each report prints one JSON line on
+stdout (instance, resource, `observedAt`, outcome, evidence or reason, WBS's answer). An
+unreachable host (connection refused, timeout, host-key mismatch, authentication failure, name
+or route fault) is reported as `unreachable`; any other answer the adapter cannot parse ends the
+command with that error. The command exits 1 with one `error:` line on: three consecutive
+`report_superseded` on one binding (`another_reporter`), any `4xx` or redirect (`refused`, with
+the status and WBS's error code), or a `5xx` or transport fault to WBS that repeats on the retry
+one cadence later (`wbs_unavailable`). The credential appears only in the `Authorization`
+header; no output, refusal or error carries it.
+
+## `account-outcomes`
+
+Turn one period's harness logs into an [efficiency breakdown](../../../../docs/twilight-structure/CONTEXT.md):
+money per accepted outcome, with its evidence and its remainder.
+
+```sh
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts account-outcomes \
+  --repository /path/to/checkout-with-main \
+  --since 2026-10-15T00:00:00Z --until 2026-10-22T00:00:00Z \
+  --rate-card apps/twilight-structure/twilight-dash/cli/rate-cards/2026-10-22-list-prices.json \
+  --claude-projects ~/.claude/projects/-home-df-wd-puni-puni-00 \
+  --codex-sessions ~/.codex/sessions \
+  --output /path/to/new-directory
+```
+
+The period is two required UTC instants; Dash reads no clock. An **accepted outcome** is a
+first-parent merge into `main` whose subject names a pull request; pull requests merged into a
+plan branch count through their parent merge and their head branches become its member
+branches. Usage comes from Claude Code transcripts (one row per request from its last line,
+since output grows while a response streams; subagent transcripts under a session directory
+included) and Codex rollouts (one row per `token_count` event from the advance of the
+cumulative counter, which makes repeated events count once). A line that is not JSON, which a
+session still writing can leave, is skipped and counted in the output. Rows are priced from the
+rate card by model and category in micro-units; a model the card does not list, or a category
+it does not price, is reported as unpriced tokens and never as zero.
+
+Attribution follows one stated order per row: a session that referenced exactly one accepted
+pull request in its tool output, then the row's branch against the outcomes' branches, else
+unattributed with a reason (`on-default-branch`, `no-branch`, `branch-not-accepted`,
+`ambiguous-references`). The blended figure, priced cost over accepted outcomes, needs no
+attribution; coverage says how much of the priced cost the per-outcome figures explain.
+
+The output must be a new directory inside an existing parent. Dash writes
+`harness-usage.json`, `efficiency-breakdown.json` and `efficiency-breakdown.md` as owner-only
+files and prints one summary line. Invalid grammar, an existing output path, an absent or
+malformed input, a repeated Claude request id whose input or cache counts disagree, or a Codex
+counter that falls without a restart refuse before anything is written. The figures are API-equivalent
+list prices from the named card, not subscription actuals.

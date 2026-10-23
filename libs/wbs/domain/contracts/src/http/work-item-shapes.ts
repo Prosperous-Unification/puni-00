@@ -123,6 +123,13 @@ const occupancyHolder = type({
   runId: 'string | null',
   workItemId: 'string',
 });
+/** One short resource of `resources_exhausted`: asked, free and its holders. */
+const resourceShortage = {
+  resourceId: 'string',
+  asked: 'number',
+  free: 'number',
+  holders: occupancyHolder.array(),
+} as const;
 export const commandResults = responseSchema(appliedResults);
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
 // Proof: removing origin or weakening write scope reached malformed JSON,400 instead of403 in the mounted policy cases.
@@ -217,6 +224,8 @@ const batchRefusals = [
           'unknown_type',
           'unknown_system',
           'unknown_resource',
+          // `patchResource.providerId` naming no provider instance.
+          'unknown_provider',
           'unknown_attempt',
           // `patchPerson.accountId` naming no member of the person's organization.
           'unknown_account',
@@ -230,6 +239,8 @@ const batchRefusals = [
       type.or(
         plainRefusals(
           'cycle',
+          // `patchResource.providerId` naming another organization's instance.
+          'provider_not_in_organization',
           // Retired at ADR 0023 and deliberately kept: no release since refuses a
           // move for a frozen number, but an outgoing be-01 can answer a browser
           // holding the incoming fe-01 for the length of a swap, and an arm this
@@ -335,10 +346,8 @@ const batchRefusals = [
         type({
           ...context,
           error: "'resources_exhausted'",
-          resourceId: 'string',
-          asked: 'number',
-          free: 'number',
-          holders: occupancyHolder.array(),
+          ...resourceShortage,
+          resources: type(resourceShortage).array(),
         }),
         // An organization limit (`wbs-organization-limits` L9).
         // Proof: with this arm removed, the three directory refusals of
@@ -377,7 +386,13 @@ const batchRefusals = [
         error: "'in_use'",
         usage,
         // Present on a resource removal (`wbs-resources` R8), absent on every other.
-        'counts?': { demands: 'number', capacities: 'number', occupancies: 'number' },
+        'counts?': {
+          demands: 'number',
+          capacities: 'number',
+          occupancies: 'number',
+          // `compute-providers` P3; absent from an outgoing be-01 mid-swap.
+          'providerId?': 'string | null',
+        },
       }),
     ),
   },

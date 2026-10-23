@@ -21,6 +21,14 @@ import {
   updateCalendarMarker,
 } from './calendar-marker-shapes';
 import { readCapacityMode, switchCapacityMode } from './capacity-mode-shapes';
+import { renewClaimLeases } from './claim-lease-shapes';
+import {
+  listComputeProviders,
+  putCapacityReport,
+  registerComputeProvider,
+  removeComputeProvider,
+  updateComputeProvider,
+} from './compute-provider-shapes';
 import {
   listExternalSystems,
   listPeople,
@@ -188,6 +196,11 @@ export const httpShapes = [
   listTrustedIssuers,
   registerTrustedIssuer,
   removeTrustedIssuer,
+  listComputeProviders,
+  registerComputeProvider,
+  updateComputeProvider,
+  removeComputeProvider,
+  putCapacityReport,
   rotateDomainProof,
   readSessionPolicy,
   setSessionPolicy,
@@ -239,6 +252,7 @@ export const httpShapes = [
   readStartableWork,
   readBudgetHeadroom,
   readPersonWork,
+  renewClaimLeases,
   readProjectResources,
   listMeasures,
   applyProjectCommands,

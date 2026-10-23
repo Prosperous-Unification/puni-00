@@ -106,6 +106,9 @@
       "reason": "`work-item-deadline` 8.9's repository assertion. It parses `.tsx` sources with the TypeScript parser and reads them off disk, which is a file-system job and not a browser one."
     },
     {
+      "file": "src/lib/compute-provider-words.test.ts"
+    },
+    {
       "file": "src/lib/local-write.test.ts"
     },
     {
@@ -241,6 +244,9 @@
     },
     {
       "file": "src/components/wbs/capacity-limit-words.test.ts"
+    },
+    {
+      "file": "src/components/wbs/compute-provider-refusal-words.test.ts"
     },
     {
       "file": "src/components/wbs/organization-limit-words.test.ts"

@@ -46,16 +46,26 @@ export interface BelowDeclaredDemand {
 }
 
 /**
- * A claim that would take more of a resource than the project has free.
- * `free` is the stated capacity minus what other leaves hold; it reads below
- * 0 when a capacity was lowered under units already held.
+ * One resource a claim would take more of than the project has free. `free`
+ * is the stated capacity minus what other leaves hold; it reads below 0 when
+ * a capacity was lowered under units already held.
  */
-export interface ResourcesExhausted {
-  readonly reason: 'resources_exhausted';
+export interface ResourceShortage {
   readonly resourceId: string;
   readonly asked: number;
   readonly free: number;
   readonly holders: readonly OccupancyHolder[];
+}
+
+/**
+ * A claim short of one resource or more. `resources` names every short
+ * resource in resource-id order, so an agent knows everything it would wait
+ * for; the top-level fields repeat its first entry, the shape every reader
+ * had before the list existed.
+ */
+export interface ResourcesExhausted extends ResourceShortage {
+  readonly reason: 'resources_exhausted';
+  readonly resources: readonly ResourceShortage[];
 }
 
 /** A later claim on a held leaf asking for less of a resource than the leaf holds. */
@@ -239,6 +249,7 @@ export function refuseOccupancy(request: {
   const others = occupancyByResource(
     request.occupancy.filter((row) => row.workItemId !== request.workItemId),
   );
+  const short: ResourceShortage[] = [];
   for (const { resourceId, units } of [...request.asked].sort(byResource)) {
     const capacity = capacityOf.get(resourceId);
     // Proof: with the held comparison removed, `lets a leaf already holding
@@ -247,17 +258,16 @@ export function refuseOccupancy(request: {
     if (capacity === undefined || units <= (held.get(resourceId) ?? 0)) continue;
     const taken = others.find((each) => each.resourceId === resourceId);
     const free = capacity - (taken?.occupied ?? 0);
-    if (units > free) {
-      return {
-        reason: 'resources_exhausted',
-        resourceId,
-        asked: units,
-        free,
-        holders: taken?.holders ?? [],
-      };
-    }
+    // Every short resource, not the first: an agent waiting on RAM alone
+    // would claim again and be refused for the worktree it was never told of.
+    // Proof: keeping only the first, `names every resource a claim is short
+    // of…` (claim-occupancy.test.ts) listed RAM alone (17 pass, 1 fail);
+    // watched 2026-10-23.
+    if (units > free) short.push({ resourceId, asked: units, free, holders: taken?.holders ?? [] });
   }
-  return null;
+  const first = short.at(0);
+  if (first === undefined) return null;
+  return { reason: 'resources_exhausted', ...first, resources: short };
 }
 
 function compare(left: string, right: string): number {

@@ -221,7 +221,15 @@ describe('one modal for the project’s five settings', () => {
     const list = screen.getByRole('tablist');
     expect(
       [...list.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
-    ).toEqual(['Teams', 'Priorities', 'Steps', 'Estimating', 'Optimization', 'Timezone']);
+    ).toEqual([
+      'Teams',
+      'Priorities',
+      'Steps',
+      'Estimating',
+      'Optimization',
+      'Timezone',
+      'Resources',
+    ]);
     // The first section is showing, and it is the teams'.
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: 'Teams' })).toBeVisible();
@@ -266,10 +274,12 @@ describe('one modal for the project’s five settings', () => {
     fireEvent.keyDown(tab('Optimization'), { key: 'ArrowRight' });
     expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Timezone'), { key: 'ArrowRight' });
+    expect(tab('Resources')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Resources'), { key: 'ArrowRight' });
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Teams'), { key: 'End' });
-    expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
-    fireEvent.keyDown(tab('Timezone'), { key: 'Home' });
+    expect(tab('Resources')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Resources'), { key: 'Home' });
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -550,7 +560,15 @@ describe('closing over an edit', () => {
     mounted();
     open();
     const footers: string[] = [];
-    for (const name of ['Teams', 'Priorities', 'Steps', 'Estimating', 'Optimization', 'Timezone']) {
+    for (const name of [
+      'Teams',
+      'Priorities',
+      'Steps',
+      'Estimating',
+      'Optimization',
+      'Timezone',
+      'Resources',
+    ]) {
       fireEvent.click(tab(name));
       await settle();
       const panel = screen.getByRole('tabpanel');

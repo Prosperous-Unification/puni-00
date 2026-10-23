@@ -162,6 +162,8 @@ export type * from './step-values';
 export * from './step-blockage';
 // Claims and releases of steps and subtrees (wbs-team-claims D1-D8).
 export * from './claim';
+// The lease an agent's claim carries (wbs-claim-leases L1-L5).
+export * from './claim-lease';
 // The units a claim holds of its leaf's demand (wbs-resources R3, R4).
 export * from './occupancy';
 // Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
@@ -174,6 +176,8 @@ export * from './measure-fact';
 export * from './money-basis';
 // Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
 export * from './machine-credential';
+// Provider instances and capacity reports beside a declared capacity (compute-providers P2-P7).
+export * from './compute-provider';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

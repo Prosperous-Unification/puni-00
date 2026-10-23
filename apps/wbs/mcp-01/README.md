@@ -18,7 +18,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-87 tools in all:
+88 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
@@ -27,7 +27,9 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   the tightest budget per measure with what is spent, held and remaining, set with the `setBudget`
   and `clearBudget` batch kinds);
 - the by-person read (`getApiProjectsByIdPeopleByPersonIdWork`: one person's assignments and
-  claims in a project);
+  claims in a project, each claim with its lease expiry);
+- the agent heartbeat (`postApiClaimsRenew`: renews every claim lease of the calling agent; a
+  claim an agent takes for itself is released 15 minutes after its last write unless renewed);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the
   project's capacities and demands);
 - the measure definition read (`getApiMeasures`: the organization's measure definitions, the five

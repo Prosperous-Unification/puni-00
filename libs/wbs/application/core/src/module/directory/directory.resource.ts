@@ -23,7 +23,7 @@ import type {
   PersonPatch,
   PersonWithTeams,
   Resource,
-  ResourcePatch,
+  ResourcePatchInput,
   ResourceUsageRows,
   ServiceTeam,
   TeamPatch,
@@ -438,24 +438,47 @@ export class DirectoryService {
   }
 
   /**
-   * Renames a resource or changes its unit label through the caller's access,
-   * announcing to every project whose demands or capacities name it. Under
-   * scoped access only the organization's own resource is found, and the name
-   * moves in the organization alone.
+   * Renames a resource, changes its unit label or sets its provider reference
+   * through the caller's access, announcing to every project whose demands or
+   * capacities name it. Under scoped access only the organization's own
+   * resource is found, and the name moves in the organization alone.
+   *
+   * The provider reference (`compute-providers` P3) is written first, so a
+   * refused instance leaves the name and label untouched as well:
+   * `unknown_provider` for an id no instance holds,
+   * `provider_not_in_organization` for another organization's.
    */
   async patchResourceWithin(
     resourceId: string,
     actorId: string,
-    patch: ResourcePatch,
+    patch: ResourcePatchInput,
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<Resource>> {
     this.refuseStandaloneResourceWrite();
-    if (patch.name === undefined && patch.unitLabel === undefined)
+    if (patch.name === undefined && patch.unitLabel === undefined && patch.providerId === undefined)
       return { ok: false, reason: 'nothing_to_change' };
     const clean = patch.name === undefined ? undefined : cleanName(patch.name);
     if (clean === null) return { ok: false, reason: 'name_required' };
     const stamp = this.clock.stampFor(actorId);
     if (access.kind === 'legacy') {
+      if (patch.providerId !== undefined) {
+        const referenced = await this.opts.directory.setResourceProvider(
+          resourceId,
+          patch.providerId,
+          null,
+          stamp,
+        );
+        if (!referenced.ok) return { ok: false, reason: referenced.reason };
+        await this.announce(referenced.projectIds);
+        if (clean === undefined && patch.unitLabel === undefined) {
+          const unchanged = (await this.opts.directory.listResources()).find(
+            (each) => each.id === resourceId,
+          );
+          if (unchanged === undefined)
+            throw new Error(`resource "${resourceId}" vanished mid-patch`);
+          return { ok: true, value: unchanged };
+        }
+      }
       const written = await this.opts.directory.patchResource(
         resourceId,
         {
@@ -475,6 +498,17 @@ export class DirectoryService {
     if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
       return { ok: false, reason: 'not_found' };
     await this.refuseForeignReach('resources', resourceId, scope);
+    if (patch.providerId !== undefined) {
+      const referenced = await this.opts.directory.setResourceProvider(
+        resourceId,
+        patch.providerId,
+        scope.organizationId,
+        stamp,
+      );
+      if (!referenced.ok) return { ok: false, reason: referenced.reason };
+      await this.refuseForeignProjects(referenced.projectIds, scope);
+      await this.announce(referenced.projectIds);
+    }
     if (clean !== undefined) {
       const renamed = await this.renameLocal('resources', resourceId, clean, actorId, scope);
       if (!renamed.ok) return renamed;
@@ -1303,15 +1337,25 @@ export class DirectoryService {
   /**
    * {@link addPerson} through the caller's access. Under scoped access every
    * team must be the organization's; an existing person of that local name
-   * joins them, as the legacy add does, and a new one gets an opaque root.
+   * joins them, as the legacy add does, and keeps its own kind, as the plan
+   * import's does; a new one gets an opaque root.
+   *
+   * `kind` is a `string` for {@link PersonPatchInput}'s reason: `createPerson`
+   * carries it from a JSON body as `personKind`, and a kind outside
+   * {@link PERSON_KINDS} is `invalid_kind` before anything is read. A new
+   * agent passes the same cap `patchPerson` does, inside the batch's turn.
    */
   async addPersonWithin(
     actorId: string,
     name: string,
     teamIds: readonly string[],
     access: ResourceAccess,
-    kind?: PersonKind,
+    kind?: string,
   ): Promise<DirectoryOutcome<Person>> {
+    // Proof: with this check removed, `refuses a kind outside the set, writing
+    // nothing` (agent-person-limit.controller.db.test.ts) answered 500 from the
+    // person table's CHECK constraint instead of 400; watched 2026-10-23.
+    if (kind !== undefined && !holdsKind(kind)) return { ok: false, reason: 'invalid_kind' };
     if (this.opts.standaloneWrite !== undefined)
       return this.opts.standaloneWrite(
         { kind: 'add-person', teamIds, access },
@@ -1356,7 +1400,10 @@ export class DirectoryService {
     }
     // Proof: with this check removed, `refuses adding an agent at the cap,
     // creating and mapping nothing` (directory.resource.test.ts) created and
-    // mapped the agent; watched 2026-10-22.
+    // mapped the agent; watched 2026-10-22. With it bypassed again,
+    // `refuses the fifth agent created directly…` and `refuses a batch
+    // creating two agents…` (agent-person-limit.controller.db.test.ts) were
+    // applied through createPerson (18 pass, 2 fail); watched 2026-10-23.
     if (kind === 'agent') {
       const crossed = await this.refuseAgentPersons(scope, 1);
       if (crossed !== null) return { ok: false, reason: 'agent_person_limit', ...crossed };

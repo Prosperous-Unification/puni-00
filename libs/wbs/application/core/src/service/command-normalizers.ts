@@ -374,6 +374,7 @@ export const commandNormalizers = {
       ...normalizeNamed('createPerson', raw),
       teamIds: asOptionalIds(raw.teamIds, 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
       teamRefs: asOptionalIds(raw.teamRefs, 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
+      personKind: asOptionalText(raw.personKind, 'personKind'),
     }),
   patchPerson(raw: CommandInput<'patchPerson'>) {
     const patch = raw.patch;
@@ -479,6 +480,7 @@ export const commandNormalizers = {
       patch: present({
         name: asOptionalText(patch.name, 'name'),
         unitLabel: patch.unitLabel === undefined ? undefined : asUnitLabel(patch.unitLabel),
+        providerId: 'providerId' in patch ? asIdOrNull(patch.providerId, 'providerId') : undefined,
       }),
     });
   },

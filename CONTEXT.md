@@ -511,6 +511,13 @@ who does the work. Refused where the step is blocked, held, done or already clai
 back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
 
+**Claim lease**:
+The instant by which a claim an agent took for itself must be renewed, or the coordinator
+releases it: every committed write of that agent, or its heartbeat, renews it; revoking the
+agent's last live credential ends it. A human's claim has none and is never released by
+expiry.
+_Avoid_: TTL, heartbeat lock, expiry (alone), lease (alone, which a claim is not)
+
 **Delegated claim**:
 A claim that names a subtree claim as its parent and is written by the same account: how a
 superagent lets its subagents claim leaves inside its subtree. Released with its parent.
@@ -588,6 +595,25 @@ of the leaf's units, the leaf holds the largest copy, a later claim may raise it
 that claim lowers it, and the last release frees it. Clockless; read by the claim path and the
 startable read, never by a schedule.
 _Avoid_: Lease, hold, lock, allocation
+
+**Compute provider**:
+A kind of thing Twilight Dash can measure a resource on and run an agent against: a tenant's
+SSH host, a Docker daemon, a Kubernetes cluster, or later a PUNI pool. WBS stores the kind and
+never dials it.
+_Avoid_: Provider (alone: an identity provider or an adapter elsewhere), backend, executor, host (that is one kind)
+
+**Provider instance**:
+One registered compute provider of one organization, with a name and a display locator, that
+a resource may name as what fulfils its units. Additive: a schedule, a claim and an occupancy
+never read it.
+_Avoid_: Host record, node, machine, pool
+
+**Capacity report**:
+The latest measurement a provider instance's Dash reporter put on one resource: capacity and
+usage in the resource's own unit, or that the provider was unreachable, with when it was
+observed and which agent person reported it. Informational beside the declared capacity until
+an admin adopts it as a typed number.
+_Avoid_: Receipt (that is progress), heartbeat, usage report, telemetry
 
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:

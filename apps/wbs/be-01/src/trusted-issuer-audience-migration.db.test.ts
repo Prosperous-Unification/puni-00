@@ -11,7 +11,10 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
 const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
-/** The newer organization limits migrations, which reverse first. */
+/** The two compute-provider migrations newer than the organization limits, newest first. */
+const COMPUTE_PROVIDERS =
+  '20261022140100_widen_organization_audit_compute_providers, 20261022140000_add_resource_provider';
+/** The organization limits migrations, which reverse after the compute providers. */
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
 const MEASURE = '20261023140000_add_measure';
 /** The measure-keyed facts, which reverse first over legacy facts alone. */
@@ -19,6 +22,7 @@ const MEASURE_FACTS = '20261023150000_key_step_measure';
 const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
+const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const ISSUER = 'https://token.actions.githubusercontent.com';
 const SUBJECT = 'repo:acme/wbs:ref:refs/heads/main';
 const roots: string[] = [];
@@ -116,7 +120,7 @@ describe(AUDIENCE_SCOPE, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
+      `rolled back: ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
     );
     runMigrations(dbPath, join(root, 'drizzle'));
   }, 60_000);

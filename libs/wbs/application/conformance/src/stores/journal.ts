@@ -511,5 +511,34 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
         history: expectedFlipHistory(seed),
       });
     }),
+    // A coordinator's act (`wbs-claim-leases` L10): history gains the event,
+    // no account's stack gains an entry, and a redo branch stays.
+    storeCase(
+      'journal',
+      'journal.appendEvent:history-only',
+      open,
+      async ({ port, readers, seed }) => {
+        const undone = entry('history-only-undone', seed.projectIds[0], seed.ownerIds[0], 101);
+        await port.append(
+          structuredClone(undone),
+          event(undone.id, undone.projectId, undone.userId, undone.createdAt),
+        );
+        await port.flip(undone.id, true, structuredClone(undone.preconditions));
+        const reap = event('history-only-reap', seed.projectIds[0], seed.ownerIds[0], 102);
+        await port.appendEvent(structuredClone(reap));
+        expect(await readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0])).toEqual([
+          stored(undone, 1, true),
+        ]);
+        expect(await readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[0])).toEqual({
+          undoable: false,
+          redoable: true,
+        });
+        expect(await readers.planEvents.listFor(seed.projectIds[0], {})).toEqual([
+          reap,
+          event(undone.id, undone.projectId, undone.userId, undone.createdAt),
+        ]);
+        expect(await readers.planEvents.listFor(seed.projectIds[1], {})).toEqual([]);
+      },
+    ),
   ];
 }
