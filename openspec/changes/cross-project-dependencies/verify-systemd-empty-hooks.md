@@ -37,7 +37,17 @@ service authority is unrecognized`; initial matrix reported 14 failures.
 - `openspec validate --all --json`: 277 passed, 0 failed. Prettier check and
   `git diff --check`: passed.
 - Full configured unit command first encountered sandbox Unix-socket `EPERM`;
-  the equivalent local run with socket support is being rerun.
+  that known-failed run was stopped by exact cwd/argv/log-descriptor PID
+  identification (exit 137 after SIGTERM did not exit). The equivalent local
+  run with Unix-socket support completed: 1762 passed, 2 skipped, 0 failed,
+  10958 assertions across 79 files (292.67s). The two skipped tests require
+  real Docker: merely-created timer-setup cleanup and already-stopped
+  container wait/removal. Nx `test:caddy`, actual-host solver acceptance and
+  the host heavy gate were not run locally.
+- Three additional malformed-array negatives passed (28 observer tests).
+  Independently removing the hook and LoadUnit array-type guards in isolated
+  source copies each produced 27 passes and 1 expected failure; ordinary
+  objects with array-like length/index fields cannot stand in for arrays.
 - Watched independent production guard faults: native key validation (2 test
   failures), required non-hook property (1), closed bus envelope (2), loaded
   unit signature (1), typed empty hook (2), stable second native observation

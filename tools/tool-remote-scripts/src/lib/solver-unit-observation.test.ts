@@ -115,6 +115,8 @@ for (const bus of [
   '{}',
   JSON.stringify({ type: 'as', data: [] }),
   JSON.stringify({ type: 'a(sasbttttuii)', data: [[]] }),
+  JSON.stringify({ type: 'a(sasbttttuii)', data: { length: 0 } }),
+  JSON.stringify({ type: 'a(sasbttttuii)', data: null }),
   JSON.stringify({ type: 'a(sasbttttuii)', data: [], extra: true }),
 ])
   test(`rejects unproven hook ${bus}`, async () => {
@@ -145,6 +147,7 @@ test('refuses changed omission set', async () => {
 for (const load of [
   JSON.stringify({ type: 'o', data: ['/wrong'] }),
   JSON.stringify({ type: 's', data: [objectPath] }),
+  JSON.stringify({ type: 'o', data: { 0: objectPath, length: 1 } }),
   JSON.stringify({ type: 'o', data: [objectPath], extra: true }),
 ])
   test('refuses unbound loaded unit identity', async () => {
