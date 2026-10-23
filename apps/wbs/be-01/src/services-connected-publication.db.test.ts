@@ -385,7 +385,7 @@ test('mounted child publishes improved durable ready candidate and replays exact
   expect(f.errors).toEqual([]);
 });
 
-// Proof: accepting invalid objective metrics fails the failed-state assertion (validator.log); removing the mounted Retry binding returns 503 rather than the expected stale 409 (retry-route.log).
+// Proof: accepting invalid objective metrics fails the failed-state assertion (validator.log); removing the mounted Retry binding keeps HTTP 409 but returns not-retryable/idle instead of stale-input-hash (retry-route.log).
 test('mounted current-hash Retry alone recovers failed objective without retrying healthy sibling', async () => {
   const f = await fixture();
   const stage = await f.capture();

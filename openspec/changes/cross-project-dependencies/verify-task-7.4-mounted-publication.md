@@ -42,13 +42,13 @@ one failing. Adjacent `Proof:` comments link the affected acceptance assertions.
 Outputs are under `evidence/task-7.4-mounted-publication/`; literal NUL key
 separators are rendered as `\u0000` for readable text diffs.
 
-| Fault                                                                                        | Observed failure                                                    | Evidence                  |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------- |
-| Return `{ok:true,published:true}` immediately from connected wire revalidation               | Invalid movement becomes ready rather than failed in the Retry test | `validator.log`           |
-| Force real connected publication's `worse` predicate true                                    | Selected target offsets remain Fast rather than improved            | `publication.log`         |
-| Replace cached candidate response with the fixture's valid raw candidate before revalidation | Candidate tamper becomes ready rather than corrupt                  | `cached-revalidation.log` |
-| Remove stored comparison equality                                                            | Comparison tamper becomes ready rather than corrupt                 | `cached-comparison.log`   |
-| Pass `undefined` instead of the optimizer into mounted project routes                        | Retry returns unavailable 503 instead of stale-hash 409             | `retry-route.log`         |
+| Fault                                                                                        | Observed failure                                                                         | Evidence                  |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------- |
+| Return `{ok:true,published:true}` immediately from connected wire revalidation               | Invalid movement becomes ready rather than failed in the Retry test                      | `validator.log`           |
+| Force real connected publication's `worse` predicate true                                    | Selected target offsets remain Fast rather than improved                                 | `publication.log`         |
+| Replace cached candidate response with the fixture's valid raw candidate before revalidation | Candidate tamper becomes ready rather than corrupt                                       | `cached-revalidation.log` |
+| Remove stored comparison equality                                                            | Comparison tamper becomes ready rather than corrupt                                      | `cached-comparison.log`   |
+| Pass `undefined` instead of the optimizer into mounted project routes                        | HTTP 409 remains, but Retry returns `not-retryable`/`idle` instead of `stale-input-hash` | `retry-route.log`         |
 
 These are scoped proofs, not independent evidence for every underlying guard.
 For example, skipping wire validation still leaves the real resource replay
