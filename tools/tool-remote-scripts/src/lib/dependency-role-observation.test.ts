@@ -113,10 +113,15 @@ for (const [role, tier] of roles) {
                 ? 'process.exit(4)'
                 : fault === 'stalled'
                   ? `setTimeout(() => console.log(${JSON.stringify(JSON.stringify({ protocol: 'wbs-dependency-runtime', version: 1, role, semantics: [] }))}), 250)`
-                  : '',
+                  : `console.log(${JSON.stringify(JSON.stringify({ protocol: 'wbs-dependency-runtime', version: 1, role, semantics: [] }))})`,
           );
         if (fault === 'unreadable') {
           expect(process.geteuid?.()).not.toBe(0);
+          expect(
+            await observeDependencyCapabilities(imageFor(tier), role, (_args, signal) =>
+              execute(script, signal),
+            ),
+          ).toEqual({ image: imageFor(tier), semantics: [] });
           await chmod(script, 0);
         }
         await rejects(
