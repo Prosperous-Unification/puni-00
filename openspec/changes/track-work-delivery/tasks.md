@@ -15,6 +15,12 @@
 
 - [x] 4.1 Add an explicit delivery panel to the existing links modal and typed API integration. Test: `delivery-panel.test.tsx` successful reading, empty checks, unsupported/unavailable, partial timing, stale clock, failed refresh and late responses after link/work-item/organization changes. Negative: remove stale/context protection and observe the corresponding production-component test fail. Preserve existing link-edit tests and add focused browser coverage for opening the panel from a real linked row.
 
+## Task 6: Review fixes 2026-10-24
+
+- [x] 6.1 Stop the attempt/job scan inside the request budget with partial inventories (S2-2). Test: `reader.test.ts` five suites of three attempts and truncated job pages; `transport.test.ts` 33rd GET. Negative: removing each stop answers unavailable.
+- [x] 6.2 Add `DeliveryGate` (cache, per-organization bucket, in-flight cap) with typed 429/503 refusals, server `servedAt`, semantic response validation and request `AbortSignal` (S2-3, S3-3, S3-5, S3-6). Test: `delivery-gate.test.ts`, `delivery.controller.db.test.ts`, `delivery-shapes.test.ts`, `delivery-panel.test.tsx`. Negative: removing each guard fails its named test.
+      Follow-up (WBS, outside this change; S3-1): resolve the delivery reference through organization admission and work-item rows instead of `treeWithin`, which may reserve a solver seat; keep refusal parity tests.
+
 ## Task 5: End-to-end proof and review
 
 - [x] 5.1 Demonstrate one real Puni change through an organization-scoped local WBS read and the GitHub adapter; record source identity, timing basis, coverage and provider limits in `verify.md`. Verify OpenSpec, formatting and focused tests/lint/typecheck/build; obtain independent review and fix findings. Record the failure-proof table and every skipped/unavailable check. Complete this implementation record before publication.

@@ -384,3 +384,61 @@ Ruling: correct the directly blocking browser CI budget in a separate narrow Ope
 ```text
 Ruling: review the browser budget declarations and their Actions deadline evidence together as one bounded CI correction — neither is acceptable without the other, and the user asked to avoid unnecessary repeated reviews — costs one combined review instead of separate overlapping reviews of the same four declarations.
 ```
+
+## Review fixes 2026-10-24
+
+Fixes for the Fable review on head `70bafc2d7` (PR #692 comment), stacked on `c538ad196`. `origin/main` merged first: already up to date.
+
+- S2-2: the GitHub reader stops the attempt/job scan when the remaining GETs cannot cover another attempt pair plus the closing PR re-read; runs keep `attemptsComplete: false`, `coverage.runs` is `partial` with a budget note, and the PR plus checks are still returned. The transport's 33rd-GET refusal stays as the hard bound (`transport.test.ts`).
+- S2-3: `DeliveryGate` (`libs/wbs/application/core/src/service/delivery-gate.ts`) caches readings per URL (60 s), limits each organization to 30 provider reads per 10 minutes (429 `delivery_rate_limited`, `retryAfterSeconds`, `Retry-After`), and caps provider reads at 4 per process (5 s wait, then 503 `delivery_busy`). Assumptions A1–A3 are in `design.md`.
+- S3-3: `validateDeliveryReading` now runs at the route's response boundary; it checks chronology, revision identity, real instants and unique performed executions beyond the wire schema.
+- S3-5: the route answers `{ reading, servedAt }`; the panel ages a reading on the server clock.
+- S3-6: `RequestMetadata.signal` carries the request's `AbortSignal` from the Elysia mount to the gate and reader; the mount ends an aborted request with 499 instead of reporting a server fault. This supersedes the earlier ruling that retained the request abstraction without `AbortSignal` propagation.
+- S3-2, S3-4: `Proof:` comments rewritten in the repo form after rerunning each fault; LLM_README routes both delivery libraries; the adapter has a README.
+- S3-1 is deferred (design.md, tasks.md follow-up).
+
+Fault proofs, each restored afterwards (observed 2026-10-24):
+
+| Injected fault                                            | Observed failing test                                                                                                                                     |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| attempt-scan stop removed                                 | `five suites of three attempts stop at the request budget` and `truncated job pages stop at the request budget`: unavailable instead of observed          |
+| job-page stop removed                                     | `truncated job pages stop at the request budget`: unavailable                                                                                             |
+| transport allows request 33                               | `refuses the 33rd GET of one read`: resolved a body                                                                                                       |
+| gate cache skipped                                        | unit `serves a second read inside the TTL from the cache`, db `serves the cached reading inside the TTL with its original observedAt`: two provider reads |
+| empty bucket admitted                                     | unit `refuses the 31st provider read …`, db `answers 429 delivery_rate_limited …`: 200 instead of 429                                                     |
+| slot cap skipped                                          | unit and db `answers busy when every provider read slot stays taken`: late read started, timed out                                                        |
+| busy refund dropped                                       | `a waiting read takes the next free slot and busy refunds its token`: waiting read refused                                                                |
+| route passes a fresh signal / mount passes a fresh signal | `cancels the provider read when the request aborts`: provider signal still open                                                                           |
+| mount cancellation exit removed                           | `ends a cancelled request without reporting a server fault`: 500 instead of 499                                                                           |
+| route skips `validateDeliveryReading`                     | `rejects semantically impossible reader output at the response boundary`: 200 instead of 500                                                              |
+| response schema widened to unknown                        | `refuses a bare reading without servedAt at the client boundary`: success instead of failure                                                              |
+| 429 refusal declared as 409                               | `validates the 429 and 503 delivery refusals at the client boundary`                                                                                      |
+| panel 429 / 503 branch dropped                            | `renders the 429 delivery refusal as its own state` / its 503 case: generic failure text                                                                  |
+| panel ignores `serverAheadMs`                             | `ages on the server clock, not a skewed browser clock`: still current                                                                                     |
+| each route guard and shape policy (rerun for S3-2)        | as named in the adjacent `Proof:` comments in `delivery.routes.ts` and `delivery-shapes.ts`                                                               |
+
+One rerun corrected an old comment: the params schema never guarded the caller-selected `?url=`; the absent query schema does (declaring an optional `url` query made `refuses caller-selected URLs without provider reads` answer 200 instead of 400).
+
+Commands, all with `env -u CLAUDECODE`, from the worktree root unless noted:
+
+| Command                                                                                                                                          | Result                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `bun test libs/shared/adapters/delivery-github/src/reader.test.ts libs/shared/adapters/delivery-github/src/transport.test.ts`                    | 90 pass, 0 fail                                                                                                             |
+| `bun test libs/shared/domain/delivery/src`                                                                                                       | 46 pass, 0 fail                                                                                                             |
+| `bun test libs/wbs/application/core/src/service/delivery-gate.test.ts`                                                                           | 6 pass, 0 fail                                                                                                              |
+| `bun test apps/wbs/be-01/src/controller/delivery.controller.db.test.ts`                                                                          | 17 pass, 0 fail                                                                                                             |
+| `bun test apps/wbs/be-01/src/http/elysia/mount.test.ts`                                                                                          | 45 pass, 0 fail                                                                                                             |
+| `bun test libs/wbs/domain/contracts/src/http/delivery-shapes.test.ts`                                                                            | 3 pass, 0 fail                                                                                                              |
+| `bun test apps/wbs/mcp-01/src/generated-document.test.ts`                                                                                        | 12 pass, 0 fail                                                                                                             |
+| `contracts-boot-memory.test.ts`                                                                                                                  | not on this branch; skipped                                                                                                 |
+| `cd apps/wbs/fe-01 && bunx vitest run src/test-tiers.test.ts`                                                                                    | 6 passed                                                                                                                    |
+| `cd apps/wbs/fe-01 && bunx vitest run src/components/wbs/delivery-panel.test.tsx`                                                                | 19 passed                                                                                                                   |
+| `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-contracts,wbs-be-01,wbs-fe-01,wbs-mcp-01,shared-delivery,shared-delivery-github` | Successfully ran targets for 7 projects                                                                                     |
+| `bunx nx run-many -t lint -p shared-delivery-github,shared-delivery,wbs-core,wbs-contracts,wbs-be-01,wbs-fe-01,wbs-mcp-01`                       | Successfully ran target lint for 7 projects                                                                                 |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                                                  | 921 pass, 0 fail (first two runs: 1 fail each, kinds.json missing `delivery-gate.ts`, then an untracked README; both fixed) |
+| `bunx nx run tool-devsync:typecheck`                                                                                                             | Successfully ran target typecheck                                                                                           |
+| `bunx nx format:check --all`                                                                                                                     | exit 0                                                                                                                      |
+| `bunx openspec validate --all --json`                                                                                                            | 276 items, 276 passed, 0 failed                                                                                             |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                      | exit 0                                                                                                                      |
+
+Not run: full be-01 and fe-01 suites, Playwright `external-refs.spec.ts` (its mocked body now uses `{ reading, servedAt }`) and the host gate; CI carries them.

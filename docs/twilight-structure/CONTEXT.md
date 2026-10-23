@@ -585,7 +585,7 @@ One initial or repeated invocation within a delivery run.
 _Avoid_: A new change request
 
 **Delivery execution**:
-One execution of a check or job within a delivery attempt, with its observed timing and execution resource attribution.
+One execution of a check or job within a delivery attempt, with its observed timing and execution resource attribution. It is a provider observation, not an `agent_minutes` measure, which the budgets change derives from attempt spans.
 _Avoid_: Runner as the identity of work
 
 **Carried execution**:

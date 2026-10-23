@@ -37,6 +37,11 @@ The initial adapter SHALL read public GitHub PR state, checks and attempt histor
 - **WHEN** the adapter reads a public puni-00 PR with completed CI
 - **THEN** it reports attributed change state, current checks and observed timings, with merged commit only when the PR is merged
 
+#### Scenario: Attempt history exceeds the request budget
+
+- **WHEN** a PR's associated runs and attempts would need more GETs than the read's request budget
+- **THEN** the adapter stops the attempt and job scan while the closing PR re-read still fits, returns the PR and its checks, and marks run and attempt inventories partial with a coverage note
+
 #### Scenario: Provider faults and revision race
 
 - **WHEN** reads encounter a redirect, invalid response, timeout, rate limit, missing record, exceeded scan budget or changed PR head
@@ -56,9 +61,33 @@ WBS SHALL resolve organization access and the project/work-item/reference associ
 - **WHEN** a member opens delivery for an existing reference on an accessible work item
 - **THEN** the endpoint returns the reader's validated observation and leaves work-item progress and references unchanged
 
+### Requirement: Shared provider quota
+
+WBS SHALL serve a reading for the same reference URL from a short in-process cache, limit provider reads per organization and cap concurrent provider reads across the process. Limits SHALL answer typed refusals, never an unavailable reading. A served reading SHALL carry the server's clock so freshness does not depend on the browser clock. A closed request SHALL cancel its provider read.
+
+#### Scenario: Refresh inside the cache window
+
+- **WHEN** any member reads the same reference URL again within the cache window
+- **THEN** the endpoint answers the cached reading with its original observation time and makes no provider read
+
+#### Scenario: One organization exhausts its reads
+
+- **WHEN** an organization starts more provider reads than its window allows
+- **THEN** the endpoint answers 429 `delivery_rate_limited` with `retryAfterSeconds` and makes no provider read, while other organizations are still served
+
+#### Scenario: Every read slot is taken
+
+- **WHEN** a provider read cannot start within the bounded wait because the process cap is in use
+- **THEN** the endpoint answers 503 `delivery_busy`
+
+#### Scenario: The client goes away
+
+- **WHEN** the request's signal aborts during a provider read
+- **THEN** the provider read's signal aborts
+
 ### Requirement: Explicit delivery UI states
 
-The links editor SHALL provide an on-demand delivery view for saved references with loading, error, unsupported, unavailable, empty, partial and stale states. It SHALL show observation time, change revision/state, merged commit when present, check outcomes and labeled timing. Readings older than five minutes SHALL be stale; late responses for a changed context SHALL NOT replace the current panel. Merged SHALL NOT be presented as deployed, accepted or completed work.
+The links editor SHALL provide an on-demand delivery view for saved references with loading, error, rate-limited, busy, unsupported, unavailable, empty, partial and stale states. It SHALL show observation time, change revision/state, merged commit when present, check outcomes and labeled timing. Readings older than five minutes SHALL be stale; late responses for a changed context SHALL NOT replace the current panel. Merged SHALL NOT be presented as deployed, accepted or completed work.
 
 #### Scenario: Fresh, stale and failed refresh
 

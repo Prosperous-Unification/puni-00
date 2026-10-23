@@ -22,9 +22,23 @@ Read the PR, checks for its observed head, and associated Actions runs/attempts/
 
 Declare `GET /api/projects/:id/work-items/:workItemId/refs/:refId/delivery` in WBS contracts and its endpoint inventory. Resolve organization access, project/work-item membership and the stored ref before invoking a `DeliveryReader`. The caller cannot submit an arbitrary fetch URL. Return an observation envelope or an explicit unsupported/unavailable reading. Foreign and missing work items/refs answer alike and make zero provider reads. Composition supplies the GitHub adapter, with an injected reader for tests. No database schema or command changes.
 
+### Provider quota gate (review fixes 2026-10-24)
+
+Anonymous GitHub allows 60 requests per hour per server IP and one read may spend up to 32, so the route reads through a `DeliveryGate` in `@wbs/core` (not the adapter): a reading cache keyed by reference URL, a token bucket per organization (one bucket for the pre-activation legacy deployment) and a process-wide cap on concurrent provider reads. The adapter itself stops its attempt and job scan when the remaining request budget cannot cover another attempt and the closing PR re-read, returning PR and checks with partial run/attempt inventories; `budget-exceeded` remains for reads whose PR, merge events or checks cannot be read. The route answers `{ reading, servedAt }`, validates the reading semantically with `validateDeliveryReading` before replying, and passes the request's `AbortSignal` to the gate and reader. State is per process, so blue and green mid-swap admit at most twice the limits.
+
+Assumptions, recorded rather than asked (constructor options with these defaults, `DELIVERY_GATE_LIMITS`):
+
+- A1 cache TTL 60 s. A refresh inside the TTL returns the cached reading; its unchanged `observedAt` says so. Refresh does not invalidate the cache.
+- A2 30 provider reads per 10 minutes per organization (bucket refills one read per 20 s); cache hits are free. Refusal: 429 `delivery_rate_limited` with `retryAfterSeconds` and a `Retry-After` header.
+- A3 4 concurrent provider reads per process; an excess read waits up to 5 s for a slot, then 503 `delivery_busy`. A read that never reached the provider refunds its token.
+
+### Deferred: lighter lookup for the delivery route
+
+The route resolves the reference through `workItems.treeWithin`, which may reserve a solver seat for an optimized project (`work-item.resource.ts` `treeWithin`) although a reference lookup needs only organization admission and the work-item rows. Left unchanged here because the route's refusal parity with the tree read (409 `engine_unavailable`) is pinned by tests; a follow-up should read only admission and rows.
+
 ### UI and freshness
 
-Extend the existing links modal with an explicitly triggered delivery panel for a saved reference. Use the typed HTTP client and existing scoped request context. Show loading, failed fetch, unsupported, unavailable, empty checks, partial coverage and observed timestamp. A reading older than five minutes is visibly stale; refreshing replaces it, and a failed refresh must not leave an old reading labeled current. Cancel or discard reads after reference/work-item/organization changes. Show change state, revision, merge commit, checks, attempts and labeled timing. Never equate merged with done, deployed or accepted. Link edits retain existing behavior.
+Extend the existing links modal with an explicitly triggered delivery panel for a saved reference. Use the typed HTTP client and existing scoped request context. Show loading, failed fetch, unsupported, unavailable, empty checks, partial coverage and observed timestamp. A reading older than five minutes on the server's clock (`servedAt` minus `observedAt`, plus browser time elapsed since receipt) is visibly stale; refreshing replaces it, and a failed refresh must not leave an old reading labeled current. Cancel or discard reads after reference/work-item/organization changes. Show change state, revision, merge commit, checks, attempts and labeled timing. Never equate merged with done, deployed or accepted. Link edits retain existing behavior.
 
 ## Risks / Trade-offs
 
