@@ -5519,8 +5519,30 @@ to rollback lists and fixes historical baselines/ledger expectations where
 additional migrations had changed the set. It changes only test fixtures and
 preserves exact-set assertions. The isolated focused packet passed 33/33;
 the further five-file regression passed 194/194
-(`/tmp/puni-migration-regression.log`). Full SQLite testing and the separate
-claim-fixture repair remain in progress.
+(`/tmp/puni-migration-regression.log`), and all 32 changed files passed 584/584
+with 1,716 assertions (`/tmp/puni-migration-final-changed-tests.log`). Its
+configured lint/typecheck passed. A broader configured SQLite test was stopped
+after 4m58s with 754 observed passes, three stale pre-repair failures and three
+sandbox child-process failures; full-project success is unverified.
+
+The independent SQLite assignee fixture correction makes Review explicitly in
+progress before claiming a later step, preserving production prerequisite
+admission. The old case had 13 failures; the integrated one-file suite passes
+13 tests, with one existing skip and 65 assertions
+(`/tmp/puni-sqlite-claim-integrated.log`). Configured SQLite lint/typecheck and
+normal hooks passed.
+
+The SQLite audit repair preserves the original creation stamp when incident
+links are restored while placing `auditOnCreate` in each physical insert where
+the source audit can inspect it. Only machine-generated optimization boundary
+certificates join the explicit no-general-audit-column exemptions. Four DB
+cases cover local/external authored and legacy-null restoration by a different
+actor. Separately removing each helper or creation override failed the named
+DB/source-audit proof; adding audit columns to the exempt certificate schema
+failed the exemption guard. The isolated combined packet passed 99/99 plus
+configured SQLite lint/typecheck; the integrated production audit passed 6/6
+(`/tmp/puni-sqlite-audit-integrated.log`). The former old-gate SQLite failure
+classes are now repaired in bounded checks; a full exact-head gate is pending.
 
 The k3s status-image fix binds the accepted bare digest to the verified OCI
 config fetched through the pinned manifest/index and selected platform child,
