@@ -50,6 +50,8 @@
 - [x] 4.4 Export version, import of older versions, saved plan compare — test: byte round-trip
       and legacy import; negative: drop the version bump and compare misses a measure change.
 - [x] 4.5 CONTEXT.md terms and the WBS docs; `check-indexes` green — test: docs check.
-- [ ] 4.6 Follow-up (design D63): Twilight Navigator, Burokrat and Dash admit plan document
-      version 11 — test: each reads a version-11 export; negative: drop 11 from its admitted
-      versions and the read refuses.
+
+Follow-up outside this change (design D63; tracked as WBS item 060.2 in project PUNI budgeting):
+Twilight Navigator, Burokrat and Dash admit plan document version 11 — each must read a
+version-11 export, with a negative that drops 11 from its admitted versions. They refuse
+version 11 loudly until then.
