@@ -233,33 +233,16 @@ export async function auditUnmanagedMounts(
       }
     }
     if (mounts.length === 0) continue;
-    const remaining = deadline - performance.now();
-    if (remaining <= 0) throw new Error('backend fence namespace audit deadline exceeded');
-    // Proof: opaque-source/hidden-RW/rebound-source production adapter cases require real initialized namespace receipts;
-    // suppressing this invocation admits aliases and is caught by those negatives and the positive ACK count.
-    try {
-      await runDockerBefore(
-        [],
-        async () => {
-          await namespaceProof(
-            container,
-            mounts.map((mount) => mount.target),
-            database.host,
-            image,
-            runDocker,
-            null,
-            { totalMs: remaining, cleanupMs: Math.min(20000, remaining / 2) },
-          );
-          return '';
-        },
-        deadline,
-      );
-    } catch (cause) {
-      throw new Error(
-        `backend fence actual namespace audit refused for container ${id}; attended maintenance or a dedicated daemon required; no unrelated container was stopped: ${cause instanceof Error ? cause.message : String(cause)}`,
-        { cause },
-      );
-    }
+    await auditNamespace(
+      container,
+      mounts.map((mount) => mount.target),
+      database,
+      image,
+      runDocker,
+      deadline,
+      namespaceProof,
+      null,
+    );
   }
 }
 
@@ -307,7 +290,7 @@ async function observeBackendCohort(
     const image = backends.blue?.imageRef ?? backends.green?.imageRef;
     if (image === undefined) throw new Error('backend fence lost pinned audit image');
     const inventory = inventoryIdentity(containers);
-    if (performAudit)
+    if (performAudit) {
       await auditUnmanagedMounts(
         containers,
         cohort,
@@ -317,6 +300,21 @@ async function observeBackendCohort(
         deadline,
         namespaceProof,
       );
+      for (const color of COLORS) {
+        const backend = backends[color];
+        if (backend === null) continue;
+        const raw = containers.find((entry) => readFields(entry)['Id'] === backend.id);
+        // Proof: omitting managed census admits rebound Source and split-colour families; all three rebound lifecycle negatives fail (exit 1).
+        await auditManagedMounts(
+          raw,
+          backend.database,
+          backend.imageRef,
+          runDocker,
+          deadline,
+          namespaceProof,
+        );
+      }
+    }
     observations.push({ cohort: backends, inventory });
   });
   const cohort = observations.at(0);
@@ -383,4 +381,84 @@ export async function inspectBackendCohort(
   );
   assertSame(before.cohort, after.cohort, 'backend database/cohort after namespace audit');
   return after.cohort;
+}
+
+async function auditNamespace(
+  container: unknown,
+  destinations: readonly string[],
+  database: DatabaseIdentity,
+  image: string,
+  runDocker: RunDocker,
+  deadline: number,
+  namespaceProof: typeof verifyContainerNamespace,
+  databasePath: string | null,
+): Promise<void> {
+  const id = readIdentity(readFields(container)['Id']);
+  await assertCapturedDatabase(database);
+  const remaining = deadline - performance.now();
+  if (remaining <= 0) throw new Error('backend fence namespace audit deadline exceeded');
+  // Proof: opaque-source/hidden-RW/rebound-source production adapter cases require real initialized namespace receipts;
+  // suppressing this invocation admits aliases and is caught by those negatives and the positive ACK count.
+  try {
+    await runDockerBefore(
+      [],
+      async () => {
+        await namespaceProof(
+          container,
+          destinations,
+          database.host,
+          image,
+          runDocker,
+          databasePath,
+          { totalMs: remaining, cleanupMs: Math.min(20000, remaining / 2) },
+        );
+        return '';
+      },
+      deadline,
+    );
+  } catch (cause) {
+    throw new Error(
+      `backend fence actual namespace audit refused for container ${id}; attended maintenance or a dedicated daemon required; no unrelated container was stopped: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+  }
+  await assertCapturedDatabase(database);
+}
+
+async function assertCapturedDatabase(database: DatabaseIdentity): Promise<void> {
+  const directory = await lstat(posix.dirname(database.host), { bigint: true });
+  const file = await lstat(database.host, { bigint: true });
+  if (!directory.isDirectory() || !file.isFile())
+    throw new Error('backend fence captured database family is not regular');
+  // Proof: removing the captured-family anchor admits before/after-census replacements; both managed identity negatives fail (exit 1).
+  assertSame(
+    { directory: database.directoryIdentity, file: database.fileIdentity },
+    {
+      directory: `${String(directory.dev)}:${String(directory.ino)}`,
+      file: `${String(file.dev)}:${String(file.ino)}`,
+    },
+    'captured database family identity',
+  );
+}
+
+/** Prove a running managed member's actual mounted family against the captured host inode, before/after census. */
+export async function auditManagedMounts(
+  container: unknown,
+  database: DatabaseIdentity,
+  image: string,
+  runDocker: RunDocker,
+  deadline: number,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
+): Promise<void> {
+  await auditNamespace(
+    container,
+    readMounts(readFields(container)).map((mount) => mount.target),
+    database,
+    image,
+    runDocker,
+    deadline,
+    namespaceProof,
+    // Proof: null mode admits the blue-only rebound Source lifecycle negative (exit 1).
+    database.path,
+  );
 }

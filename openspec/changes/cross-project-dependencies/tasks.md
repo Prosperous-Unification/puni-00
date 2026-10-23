@@ -694,3 +694,5 @@ Parent 5.2 stays unchecked pending the broader writer audit and integrated gate.
 
 - [x] Reuse actual initialized `verifyContainerNamespace` admission for every unmanaged persistent mount even after host Source success/EACCES/ENOENT; preserve explicit unsupported BuildKit refusal and require fresh complete inventory after audits before intent.
 - [x] Watch independent namespace-invocation, namespace identity, mount completeness, inventory cardinality/membership and post-audit identity comparison omissions fail; cover opaque/rebound/read-only/nested/hardlinked aliases, tools/receipt/timeout/reap failures and unsupported security/init/PID targets.
+
+- [x] Correct managed Source rebinding with actual managed-mode census, captured main/directory anchors, exact directory receipt/readback; watch blue-only, split-colour and all-hardlinked-directory lifecycle failures plus six independent check omissions.

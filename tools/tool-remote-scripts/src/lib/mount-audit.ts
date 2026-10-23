@@ -152,6 +152,14 @@ async function readFamily(path: string): Promise<FamilyFile[]> {
   }
   return family;
 }
+async function readFamilyDirectory(path: string): Promise<{ device: bigint; inode: bigint }> {
+  const directory = await lstat(posix.dirname(path), { bigint: true });
+  if (!directory.isDirectory()) throw new Error('trusted SQLite family directory is not regular');
+  return { device: directory.dev, inode: directory.ino };
+}
+function directoryIdentity(directory: { device: bigint; inode: bigint }): string {
+  return `${directory.device.toString()}:${directory.inode.toString()}`;
+}
 function requireMounts(mounts: string | null): string {
   if (mounts === null) throw new Error('required mount snapshot is absent');
   return mounts;
@@ -171,6 +179,8 @@ function familyIdentity(family: readonly FamilyFile[]): string {
  * Static exclusion assumes trusted, nonadversarial quiescence: no transient
  * alias/mount ABA or already-open deleted SQLite aliases. It proves the observed
  * persistent namespace and full SQLite family, not arbitrary hostile processes.
+ * Managed database-path mode additionally binds the mounted parent directory and
+ * existing family to captured host inodes, with host identity readback after census.
  * Every remote scanner has a verified private group and an independent 15s EOF/
  * ACK deadline. Init reaps forced descendants; uncertainty refuses with exact
  * container/session context. No writer is stopped or restarted here.
@@ -214,6 +224,8 @@ export async function verifyContainerNamespace(
   const end = performance.now() + bounds.totalMs;
   const workEnd = end - bounds.cleanupMs;
   const family = await readFamily(databaseHostPath);
+  const directory = databasePath === null ? null : await readFamilyDirectory(databaseHostPath);
+  let seenDirectory = false;
   const inspect = async (): Promise<unknown> =>
     JSON.parse(
       await runDockerBefore(
@@ -355,6 +367,17 @@ export async function verifyContainerNamespace(
           .at(0);
         if (mount === undefined) throw new Error('exec entry effective mount is unavailable');
         if (databasePath !== null) {
+          if (path === posix.dirname(databasePath)) {
+            // Proof: an all-hardlinked family under a rebound Source passed file-only census; directory mismatch regression fails without this equality.
+            if (
+              directory === null ||
+              kind !== 0x4000n ||
+              BigInt(device) !== directory.device ||
+              BigInt(inode) !== directory.inode
+            )
+              throw new Error('managed actual mounted SQLite directory differs');
+            seenDirectory = true;
+          }
           const suffix = ['', '-wal', '-shm', '-journal'].find(
             (ending) => path === `${databasePath}${ending}`,
           );
@@ -397,10 +420,11 @@ export async function verifyContainerNamespace(
           Number(count) > (mode === 'cleanup' ? 10000 : 100000)
         )
           throw new Error('exec complete receipt is malformed');
+        // Proof: omitting directory membership admits the missing-directory receipt negative (exit 1).
         if (
           databasePath !== null &&
           mode === 'census' &&
-          family.some((file) => !seen.has(file.suffix))
+          (!seenDirectory || family.some((file) => !seen.has(file.suffix)))
         )
           throw new Error('managed actual mounted SQLite family is incomplete');
         state.done = true;
@@ -511,5 +535,11 @@ export async function verifyContainerNamespace(
   // Proof: omitting host identity readback admitted the held-old-file replacement negative.
   if (familyIdentity(await readFamily(databaseHostPath)) !== familyIdentity(family))
     throw new Error('trusted host SQLite family changed during namespace admission');
+  // Proof: deleting this readback admits host-directory-race despite identical hardlinked file inodes (exit 1).
+  if (
+    directory !== null &&
+    directoryIdentity(await readFamilyDirectory(databaseHostPath)) !== directoryIdentity(directory)
+  )
+    throw new Error('trusted host SQLite directory changed during namespace admission');
   assertSameNamespace(subject, await inspect());
 }

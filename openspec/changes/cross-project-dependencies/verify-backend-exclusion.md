@@ -139,7 +139,7 @@ collected 108 files and reported generated-output alias/path errors (1,546 pass,
 2 skip, 89 fail/29 errors). That command does not establish a source-suite failure
 or success. The corrected elevated run uses the configured project cwd and
 `bun test ./src --preload ../test/scratch/preload.ts --timeout=10000`, which
-excludes generated test copies; its final result is recorded below when complete.
+excludes generated test copies; its final result is recorded below.
 
 After namespace integration the focused seven-file lifecycle/admission/namespace
 suite passed: 435 tests, 0 failures, 1,345 assertions. Configured uncached lint,
@@ -197,3 +197,74 @@ The corrected elevated full-source run has separately observed release-config
 fixture timeouts at 120 seconds and gateway boot child exitCode null/10-second
 timeout. Its broader result is not substituted for the focused green proof and
 will be recorded on completion.
+
+## Managed actual-family review correction
+
+Review of `5da30e7af7ab430b7a2923338f5bc0cd2927a057` reproduced a host
+Source rename/replacement: the managed backend retained the old bind inode while
+the receipt identified the replacement path. Managed members now use the same
+actual namespace census before first publication, in managed database-path mode.
+Each audit is anchored before/after against the originally captured host main
+file and parent-directory device/inode. The census requires the actual mounted
+parent directory and every existing SQLite-family member to match. Parent
+identity matters even when replacement directories contain hardlinks of every
+current file, because future WAL/SHM/journal paths must share that directory.
+The existing mount audit performs an additional host-directory readback.
+
+The three production lifecycle negatives were observed red before the relevant
+checks: blue-only rebound Source, blue/green retaining distinct directories, and
+an all-hardlinked file family in a replacement directory. Tests run the existing
+actual scanner programs and receipt parser through the shared namespace fixture;
+the fixture preserves the bind's captured directory identity across renames.
+No second scanner or managed-ID exemption was added. Six independent mutations
+were restored after observed exit 1; external receipt:
+`/tmp/backend-managed-mutation-report.json`.
+
+| Omitted production check               | Observed failures                                                       |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| Managed namespace invocation           | All three rebound lifecycle negatives                                   |
+| Managed database-path mode             | Blue-only rebound lifecycle negative                                    |
+| Originally captured host family anchor | Before/after-census replacements, two failures                          |
+| Actual mounted directory equality      | Hardlinked-family lifecycle and direct directory mismatch, two failures |
+| Directory receipt completeness         | Missing-directory receipt negative                                      |
+| Host directory readback                | Directory race with unchanged file inodes                               |
+
+`inspectBackendFenceUnderLock` is exported for another lock-owning read-only
+inspector. It requires the caller to hold the selected layout's deploy.lock,
+shares its deadline, acquires no nested lock and proves only the managed DB
+cohort. Public inspection still owns the lock.
+
+The corrected elevated full-source run completed with **1,329 pass, 2 skip,
+4 fail, 7,649 assertions across 54 source files (538.62 seconds)**. The four
+failures were existing release-config fixtures in `src/lib/docker.test.ts`:
+backend required keys and backend value shapes each exceeded 120 seconds;
+gateway healthy boot had child exitCode null/10-second timeout; gateway required
+keys exceeded 120 seconds. The two skipped real-Docker exceptional-cleanup cases
+require their separate opt-in fixture. Log: `/tmp/backend-full-source-exact.log`.
+This is not a green full-source suite. It predates the managed review correction;
+focused results for that correction are recorded below. No further full suite,
+build or Docker acceptance ran after the correction because shared disk space
+was constrained and the parent reserved Docker inventory for another probe.
+
+The clean diagnostic acceptance at source
+`5da30e7af7ab430b7a2923338f5bc0cd2927a057` repeated both actual backend HTTP
+200 proofs, supported opaque-volume namespace proof, unchanged sentinel/process
+inventory and gateway runtime exclusion. Receipt:
+`/tmp/backend-fence-docker-5da30e7af.json`. Global admission refused exact
+container `9438214c5c1b9556b22069a37561cabf0341f19bf46c6b0197310b821098c144`
+with missing/malformed Docker Init metadata before backend intent/effects; all
+owned acceptance resources were verified removed, zero cleanup failures. The
+backend health reports `commit:null`: image provenance is the exact installed
+digest, not attested application source revision. A successful real full backend
+fence remains unverified on this shared daemon. MCP, ingress, host processes and
+external supervisors remain outside this bounded packet; no complete participant
+exclusion or semantic activation authority follows from it. The integrated SHA
+still requires the parent-owned isolated h2/h4 gate and architecture rereview.
+
+Final correction checks: seven explicit backend/gateway lifecycle and admission
+files passed **444 tests, zero failures, 1,565 assertions** (11.83 seconds), log
+`/tmp/backend-managed-focused-final.log`. Explicit spec TypeScript `--noEmit` and
+changed-source ESLint passed. Normal structured OpenSpec validation reported one
+passed change, zero failed; its 18 previously baseline-compared long-requirement
+warnings remain, so strict validation is not claimed. No configured build or
+integrated host gate was rerun after the managed review correction.

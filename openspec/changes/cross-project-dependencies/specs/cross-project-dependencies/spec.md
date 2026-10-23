@@ -1006,3 +1006,13 @@ membership SHALL refuse without implying that a store is excluded.
 - **AND** the existing initialized bounded namespace census must prove the exact participant, all mount destinations and full SQLite family without writable aliases or unclean scanner sessions
 - **AND** unavailable, malformed, incomplete, timed-out, unreaped or unsupported privilege/capability/init/PID namespaces refuse
 - **AND** a fresh complete joint inventory after all audits must preserve membership, mount/security/config/network and PID/start/restart identities before durable intent publication
+
+#### Scenario: Managed backend retains a replaced source directory
+
+- **WHEN** a running managed backend retains an earlier mounted directory after
+  its Docker Source pathname is replaced, including when another colour uses the
+  replacement or every current SQLite-family file is hardlinked into it
+- **THEN** actual namespace main-file and parent-directory identity admission
+  MUST refuse before backend intent or effects
+- **AND** a missing directory receipt or changed captured host identity before or
+  after census MUST refuse rather than adopt a newly resolved family

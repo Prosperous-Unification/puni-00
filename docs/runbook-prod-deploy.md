@@ -872,6 +872,14 @@ browsers, background/host processes nor external Docker supervisors; cooperating
 administrators remain an assumption. Continuous participant exclusion and safe
 activation remain separate parent tasks.
 
+Every running managed backend additionally proves its actual mounted main file
+and parent directory against the captured canonical host family. Replacing a
+Source pathname, splitting colours between old/new directories, or hardlinking
+all current files into a replacement directory refuses before intent. Captured
+host identities and complete inventory are read back after census. This remains
+only the managed backend/gateway DB cohort; MCP, ingress and external supervisors
+require their separate participant preflight.
+
 Unmanaged mount inspection uses the existing initialized actual-namespace census,
 including Docker-read-only mounts and host Source paths that cannot be traversed.
 Host EACCES/ENOENT is unknown, never clean exclusion; only complete namespace

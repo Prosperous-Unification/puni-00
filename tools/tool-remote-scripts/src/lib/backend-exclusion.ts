@@ -23,6 +23,7 @@ import {
   readRecord,
   readString,
 } from './managed-cohort';
+import { verifyContainerNamespace } from './mount-audit';
 
 const MARKER = '{"format":"dependency-backend-fence","version":1}\n';
 const INTENT = 'dependency-backend-intent.json';
@@ -175,6 +176,7 @@ export async function fenceBackends(
   sha: string,
   runDocker: RunDocker,
   totalMs = 60000,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
 ): Promise<BackendCompletion> {
   if (!SHA.test(sha) || !Number.isFinite(totalMs) || totalMs <= 0)
     throw new Error('backend fence requires full git SHA and finite positive deadline');
@@ -186,7 +188,7 @@ export async function fenceBackends(
     // Proof: missing-gateway and resumed-gateway production invocations refuse before backend publication/effects.
     await inspectGatewayFenceUnderLock(layout, runDocker, deadline);
     const gateway = await gatewayBinding(layout);
-    const cohort = await inspectCohort(layout, runDocker, deadline, gateway);
+    const cohort = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
     try {
       await publishRecord(`${layout.stateDir}/dependency-backend-fence.json`, MARKER);
       const intent: Intent = {
@@ -205,7 +207,7 @@ export async function fenceBackends(
       await publishRecord(`${layout.stateDir}/${INTENT}`, contents);
       assertSame(
         cohort,
-        await inspectCohort(layout, runDocker, deadline, gateway),
+        await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof),
         'pre-effect cohort',
       );
       for (const color of COLORS) {
@@ -213,7 +215,7 @@ export async function fenceBackends(
         if (backend === null) continue;
         // Proof: suppressing update fails both-colours success at independent policy readback (exit 1).
         await runDockerBefore(['update', '--restart=no', backend.id], runDocker, deadline);
-        const observed = await inspectCohort(layout, runDocker, deadline, gateway);
+        const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
         const expected: Cohort = structuredClone(cohort);
         const updated = expected[color];
         if (updated === null) throw new Error('backend fence lost known cohort member');
@@ -227,7 +229,7 @@ export async function fenceBackends(
         if (backend === null) continue;
         // Proof: suppressing stop fails both-colours success at fresh process/PID exclusion (exit 1).
         await runDockerBefore(['stop', '--time', '10', backend.id], runDocker, deadline);
-        const observed = await inspectCohort(layout, runDocker, deadline, gateway);
+        const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
         assertSame(
           projectIdentities(cohort),
           projectIdentities(observed),
@@ -240,7 +242,7 @@ export async function fenceBackends(
           if (other !== color) assertSame(cohort[other], observed[other], 'unaffected member');
         cohort[color] = stopped;
       }
-      const stopped = await inspectCohort(layout, runDocker, deadline, gateway);
+      const stopped = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
       assertSame(cohort, stopped, 'fresh stopped cohort');
       assertExcluded(stopped);
       const completion: BackendCompletion = {
@@ -255,7 +257,7 @@ export async function fenceBackends(
       const retained = await readCompletion(layout);
       assertSame(completion, retained.completion, 'completion readback');
       // Proof: substituting historical stopped state admits completion-drift; its production-path negative fails (exit 1).
-      const final = await inspectCohort(layout, runDocker, deadline, gateway);
+      const final = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
       assertSame(stopped, final, 'final current cohort');
       assertExcluded(final);
       return completion;
@@ -272,23 +274,34 @@ export async function fenceBackends(
 export async function inspectBackendFence(
   layout: EnvLayout,
   runDocker: RunDocker,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
 ): Promise<BackendCompletion> {
   // Proof: holding the actual flock makes both backend executor/inspector refuse before Docker.
   return await withLock(`${layout.stateDir}/deploy.lock`, async () => {
-    return await inspectBackendFenceUnderLock(layout, runDocker, performance.now() + 60000);
+    return await inspectBackendFenceUnderLock(
+      layout,
+      runDocker,
+      performance.now() + 60000,
+      namespaceProof,
+    );
   });
 }
 
-/** Caller must hold this layout's deploy.lock; shares the owner's total Docker deadline. */
-async function inspectBackendFenceUnderLock(
+/**
+ * Freshly inspect retained backend/gateway exclusion while the caller holds this
+ * layout's deploy.lock. Shares the owner's total Docker deadline; never acquires
+ * another lock and establishes no completeness beyond this managed DB cohort.
+ */
+export async function inspectBackendFenceUnderLock(
   layout: EnvLayout,
   runDocker: RunDocker,
-  deadline: number,
+  deadline: number = performance.now() + 60000,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
 ): Promise<BackendCompletion> {
   await assertRoot(layout);
   const { completion, intent } = await readCompletion(layout);
   const gateway = intent.gateway;
-  const observed = await inspectCohort(layout, runDocker, deadline, gateway);
+  const observed = await inspectCohort(layout, runDocker, deadline, gateway, namespaceProof);
   // Proof: deleting current-cohort equality admits a replaced main DB inode; replaced-main-file negative fails (exit 1).
   assertSame(completion.cohort, observed, 'current completed cohort');
   assertExcluded(observed);

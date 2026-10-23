@@ -1132,3 +1132,12 @@ and process/PID/start/restart identity before intent can be published. Source
 rebinds, hardlinks and nested writable aliases are covered by the existing census
 contract; it retains its documented trusted-quiescence/static-namespace limits.
 No BuildKit/controller exemption or automatic stop is authorized.
+
+Before publication every running managed backend additionally proves its actual
+mounted main file and parent directory against the captured canonical family with
+the shared managed-mode namespace census. Host source resolution alone is not
+evidence: a running bind can retain an old directory after Source replacement.
+Captured host main/directory identities are checked before and after each census;
+parent directory identity and a complete directory receipt are required even if
+all current files are hardlinks. Host directory readback closes the census race.
+This continues to prove only the managed backend/gateway DB cohort.

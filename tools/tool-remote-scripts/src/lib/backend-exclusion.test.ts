@@ -1,19 +1,41 @@
-import { link, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
-import { fenceBackends, inspectBackendFence } from './backend-exclusion';
+import { createNamespaceFixture } from '../../test/fixtures/namespace-audit';
+import {
+  fenceBackends as runFenceBackends,
+  inspectBackendFence as runInspectBackendFence,
+} from './backend-exclusion';
 import { assertNoBackendFence } from './backend-fence';
 import type { RunDocker } from './docker-deadline';
-import { envLayout } from './env';
+import { type EnvLayout, envLayout } from './env';
 import { fenceGateways } from './gateway-exclusion';
 import { withLock } from './lock';
+import { verifyContainerNamespace } from './mount-audit';
 
 const id = 'a'.repeat(64);
 const imageId = `sha256:${'b'.repeat(64)}`;
 const image = `registry/wbs-be-01@sha256:${'c'.repeat(64)}`;
 const sha = 'd'.repeat(40);
+const namespaces = new Map<string, typeof verifyContainerNamespace>();
+function namespaceFor(layout: EnvLayout): typeof verifyContainerNamespace {
+  const namespace = namespaces.get(layout.root);
+  if (namespace === undefined) throw new Error('missing fixture namespace binding');
+  return namespace;
+}
+async function fenceBackends(
+  layout: EnvLayout,
+  sourceSha: string,
+  runner: RunDocker,
+  totalMs = 60000,
+) {
+  return await runFenceBackends(layout, sourceSha, runner, totalMs, namespaceFor(layout));
+}
+async function inspectBackendFence(layout: EnvLayout, runner: RunDocker) {
+  return await runInspectBackendFence(layout, runner, namespaceFor(layout));
+}
 
 async function refuses(promise: Promise<unknown>, message?: string): Promise<void> {
   let refused = false;
@@ -107,10 +129,97 @@ async function fixture() {
     }
     throw new Error(`unexpected Docker call ${args.join(' ')}`);
   };
+  const mountedNamespaces = new Map<string, Awaited<ReturnType<typeof createNamespaceFixture>>>();
+  const boundDirectories = new Map<string, string>();
+  const namespaceCalls: { id: string; databasePath: string | null }[] = [];
+  async function bindNamespace(identity: string) {
+    const proof = await createNamespaceFixture(
+      'managed-match',
+      `${root}/db/wbs.db`,
+      `${root}/namespace-${identity}`,
+    );
+    const directory = await lstat(`${root}/db`, { bigint: true });
+    boundDirectories.set(identity, `${String(directory.dev)}:${String(directory.ino)}`);
+    mountedNamespaces.set(identity, proof);
+    return proof;
+  }
+  await bindNamespace(id);
+  namespaces.set(
+    root,
+    async (subject, destinations, database, candidate, docker, databasePath, bounds) => {
+      if (subject === null || typeof subject !== 'object')
+        throw new Error('fixture namespace subject absent');
+      const identity: unknown = Reflect.get(subject, 'Id');
+      if (typeof identity !== 'string') throw new Error('fixture namespace identity absent');
+      if (databasePath === undefined) throw new Error('fixture namespace mode absent');
+      namespaceCalls.push({ id: identity, databasePath });
+      let proof = mountedNamespaces.get(identity);
+      if (proof === undefined) {
+        if (databasePath === null)
+          throw new Error('unmanaged namespace needs actual mounted adapter fixture');
+        proof = await bindNamespace(identity);
+      }
+      const bound = boundDirectories.get(identity);
+      if (bound === undefined) throw new Error('fixture lost bound directory identity');
+      let directory: string | undefined;
+      for (const entry of await readdir(root, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const candidate = `${root}/${entry.name}`;
+        const metadata = await lstat(candidate, { bigint: true });
+        if (`${String(metadata.dev)}:${String(metadata.ino)}` === bound) {
+          directory = candidate;
+          break;
+        }
+      }
+      if (directory === undefined)
+        throw new Error('fixture cannot resolve retained directory bind');
+      // Preserve the inode of the bound directory across Source rebinds, while reflecting file creation/removal within it.
+      for (const suffix of ['', '-wal', '-shm', '-journal']) {
+        const target = `${proof.root}/namespace/data/wbs.db${suffix}`;
+        try {
+          await unlink(target);
+        } catch (cause) {
+          if (!(cause instanceof Error) || !('code' in cause) || cause.code !== 'ENOENT')
+            throw cause;
+        }
+        try {
+          await link(`${directory}/wbs.db${suffix}`, target);
+        } catch (cause) {
+          if (suffix !== '' && cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')
+            continue;
+          throw cause;
+        }
+      }
+      const inspect: RunDocker = async (args, signal) => {
+        const output = await docker(args, signal);
+        if (args[0] !== 'inspect' || args[1] !== '--format') return output;
+        const parsed: unknown = JSON.parse(output);
+        if (!Array.isArray(parsed)) return output;
+        const member: unknown = parsed.find(
+          (entry: unknown) =>
+            entry !== null && typeof entry === 'object' && Reflect.get(entry, 'Id') === identity,
+        );
+        if (member === undefined) throw new Error('fixture namespace target replaced');
+        return JSON.stringify(member);
+      };
+      await verifyContainerNamespace(
+        subject,
+        destinations,
+        database,
+        candidate,
+        inspect,
+        databasePath,
+        bounds,
+        proof.exec,
+      );
+    },
+  );
   await fenceGateways(layout, sha, runner);
   calls.length = 0;
   return {
     gateway,
+    bindNamespace,
+    namespaceCalls,
     root,
     layout,
     container,
@@ -136,6 +245,12 @@ test('fences both backend colours after fresh gateway exclusion and binds databa
   const receipt = await fenceBackends(f.layout, sha, f.runner);
   expect(receipt.cohort.blue?.id).toBe(id);
   expect(receipt.cohort.green?.id).toBe(green.Id);
+  expect(
+    f.namespaceCalls.some((call) => call.id === id && call.databasePath === '/data/wbs.db'),
+  ).toBe(true);
+  expect(
+    f.namespaceCalls.some((call) => call.id === green.Id && call.databasePath === '/data/wbs.db'),
+  ).toBe(true);
   expect(f.calls.filter((call) => ['update', 'stop'].includes(call[0] ?? ''))).toEqual([
     ['update', '--restart=no', id],
     ['update', '--restart=no', green.Id],
@@ -230,7 +345,7 @@ for (const fault of [
         f.container.State.Pid = 42;
       return output;
     };
-    await refuses(fenceBackends(f.layout, sha, runner, fault === 'timeout' ? 100 : 60000));
+    await refuses(fenceBackends(f.layout, sha, runner, fault === 'timeout' ? 1000 : 60000));
     expect(await readFile(`${f.root}/dependency-backend-intent.json`, 'utf8')).toContain(id);
     expect(f.calls.some((call) => ['start', 'restart', 'rm'].includes(call[0] ?? ''))).toBe(false);
     if (fault === 'skipped-restart') expect(f.calls.some((call) => call[0] === 'stop')).toBe(false);
@@ -369,7 +484,7 @@ for (const suffix of ['', '-wal', '-shm', '-journal']) {
     f.containers.push(foreign);
     await refuses(fenceBackends(f.layout, sha, f.runner));
     expect(f.calls.some((call) => ['update', 'stop'].includes(call[0] ?? ''))).toBe(false);
-    expect(f.calls.some((call) => call[0] === 'inspect' && call[1] === '--format')).toBe(false);
+    expect(f.namespaceCalls.some((call) => call.databasePath === null)).toBe(false);
   });
 }
 for (const suffix of ['-wal', '-shm', '-journal']) {
@@ -458,3 +573,27 @@ test('refuses a foreign full-inventory inspected ID before backend intent', asyn
   await refuses(fenceBackends(f.layout, sha, runner));
   expect((await readdir(f.root)).some((name) => name.startsWith('dependency-backend'))).toBe(false);
 });
+
+for (const colors of ['blue-only', 'two-colour-distinct-family', 'hardlinked-family-directory']) {
+  test(`managed actual namespace refuses rebound Source ${colors} before intent`, async () => {
+    const f = await fixture();
+    await rename(`${f.root}/db`, `${f.root}/retained-db`);
+    await mkdir(`${f.root}/db`);
+    if (colors === 'hardlinked-family-directory')
+      await link(`${f.root}/retained-db/wbs.db`, `${f.root}/db/wbs.db`);
+    else await writeFile(`${f.root}/db/wbs.db`, 'replacement family');
+    if (colors === 'two-colour-distinct-family') {
+      const green = structuredClone(f.container);
+      green.Id = 'f'.repeat(64);
+      green.Name = '/be-01-green';
+      green.Config.Labels['com.docker.compose.service'] = 'be-01-green';
+      f.containers.push(green);
+      await f.bindNamespace(green.Id);
+    }
+    await refuses(fenceBackends(f.layout, sha, f.runner));
+    expect((await readdir(f.root)).some((name) => name.startsWith('dependency-backend'))).toBe(
+      false,
+    );
+    expect(f.calls.some((args) => ['update', 'stop'].includes(args[0] ?? ''))).toBe(false);
+  });
+}
