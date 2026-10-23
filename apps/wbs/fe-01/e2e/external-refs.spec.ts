@@ -265,30 +265,33 @@ test.describe('the ref column, in a browser', () => {
       deliveryReads += 1;
       await route.fulfill({
         json: {
-          kind: 'observed',
-          observation: {
-            version: 1,
-            observedAt,
-            change: {
-              source: source('change'),
-              title: 'Observed saved change request',
-              revision: 'revision-with-a-long-opaque-identity-'.repeat(5),
-              state: 'merged',
-              mergedRevision: 'merge:observed',
-            },
-            checks: Array.from({ length: 14 }, (_, index) => ({
-              source: source(`check:${String(index)}`),
-              name: `Check ${String(index + 1)} ${'very-long-check-name-'.repeat(8)}`,
-              revision: 'revision-with-a-long-opaque-identity-'.repeat(5),
-              state: index === 0 ? 'failed' : 'passed',
-              startedAt: null,
-              completedAt: null,
-            })),
-            runs: [],
-            coverage: {
-              checks: 'complete',
-              runs: 'partial',
-              notes: ['Checks exclude merge policy and legacy commit statuses.'],
+          servedAt: observedAt,
+          reading: {
+            kind: 'observed',
+            observation: {
+              version: 1,
+              observedAt,
+              change: {
+                source: source('change'),
+                title: 'Observed saved change request',
+                revision: 'revision-with-a-long-opaque-identity-'.repeat(5),
+                state: 'merged',
+                mergedRevision: 'merge:observed',
+              },
+              checks: Array.from({ length: 14 }, (_, index) => ({
+                source: source(`check:${String(index)}`),
+                name: `Check ${String(index + 1)} ${'very-long-check-name-'.repeat(8)}`,
+                revision: 'revision-with-a-long-opaque-identity-'.repeat(5),
+                state: index === 0 ? 'failed' : 'passed',
+                startedAt: null,
+                completedAt: null,
+              })),
+              runs: [],
+              coverage: {
+                checks: 'complete',
+                runs: 'partial',
+                notes: ['Checks exclude merge policy and legacy commit statuses.'],
+              },
             },
           },
         },

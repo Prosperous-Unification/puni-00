@@ -153,6 +153,7 @@ test('keeps a verified organization binding on this request when authentication 
       url: new URL('https://backend.example/identity'),
       method: 'GET',
       headers: new Headers({ authorization: `Bearer ${fixture.token}` }),
+      signal: new AbortController().signal,
     });
     if (!first.ok || !('id' in first.principal)) throw new Error('first request was not a user');
     expect(first.principal.organizationBinding?.credential.userId).toBe(shared.id);
@@ -160,6 +161,7 @@ test('keeps a verified organization binding on this request when authentication 
       url: new URL('https://backend.example/identity'),
       method: 'GET',
       headers: new Headers(),
+      signal: new AbortController().signal,
     });
     if (!second.ok || !('id' in second.principal)) throw new Error('second request was not a user');
     expect(second.principal.organizationBinding).toBeUndefined();

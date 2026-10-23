@@ -125,6 +125,36 @@ describe('endpoint policies before Elysia parsing', () => {
     expect(failures[0]).toBeInstanceOf(Error);
     expect((failures[0] as Error).message).toBe('account store offline');
   });
+  test('ends a cancelled request without reporting a server fault', async () => {
+    const failures: unknown[] = [];
+    const app = appFor(
+      [
+        bind(
+          echoShape,
+          (input) =>
+            new Promise((_resolve, reject) => {
+              input.request.signal.addEventListener('abort', () => {
+                reject(new DOMException('Delivery read cancelled', 'AbortError'));
+              });
+            }),
+        ),
+      ],
+      (caught) => void failures.push(caught),
+    );
+    const closed = new AbortController();
+    const answer = app.handle(
+      new Request('https://backend.example/echo', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"text":"x"}',
+        signal: closed.signal,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    closed.abort();
+    expect((await answer).status).toBe(499);
+    expect(failures).toEqual([]);
+  });
   test('blocks missing or foreign cookie origins while admitting bearer-only writes', async () => {
     const writes: string[] = [];
     const failures: unknown[] = [];

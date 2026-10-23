@@ -47,7 +47,12 @@ test('typed undo and redo preserve actor and details without exposing journal en
         query: undefined,
         body: undefined,
         principal: actor,
-        request: { method: 'POST', url: new URL('http://localhost'), headers: new Headers() },
+        request: {
+          method: 'POST',
+          url: new URL('http://localhost'),
+          headers: new Headers(),
+          signal: new AbortController().signal,
+        },
       }),
     ).toEqual({ ok: true, status: 200, body: { done: 'Undo change', detail: 'Work' } });
     expect(call).toHaveBeenCalledWith('p', 'owner', { kind: 'legacy' });

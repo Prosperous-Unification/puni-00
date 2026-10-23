@@ -10,7 +10,12 @@ const input = {
   query: undefined,
   body: undefined,
   principal: { id: 'reader', username: 'reader', scopes: [] },
-  request: { method: 'GET', url: new URL('https://app.example/api/teams'), headers: new Headers() },
+  request: {
+    method: 'GET',
+    url: new URL('https://app.example/api/teams'),
+    headers: new Headers(),
+    signal: new AbortController().signal,
+  },
 };
 
 test('direct directory bindings return every service list without inventing a project restriction', async () => {

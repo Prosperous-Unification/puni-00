@@ -70,6 +70,7 @@ describe('POST /api/smoke/echo', () => {
         url: new URL('http://localhost/api/smoke/echo'),
         method: 'POST',
         headers: new Headers(),
+        signal: new AbortController().signal,
       },
     });
     expect(reply).toEqual({ ok: true, status: 200, body: { echoed: 'direct' } });

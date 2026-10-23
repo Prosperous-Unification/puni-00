@@ -31,6 +31,7 @@ import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
+import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
@@ -593,6 +594,7 @@ export class OrganizationHarness {
   static openComposedWith({
     withOptimizer = false,
     delivery,
+    deliveryLimits,
     afterResolve,
     spawn = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
@@ -689,6 +691,7 @@ export class OrganizationHarness {
     );
     const app = buildApp({
       ...(delivery === undefined ? {} : { delivery }),
+      ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
       appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,
@@ -998,6 +1001,8 @@ export class OrganizationHarness {
 export interface ComposedHarnessOptions {
   /** Trusted external delivery reader; absent exercises production composition. */
   readonly delivery?: DeliveryReader;
+  /** Delivery gate limits; absent uses the production defaults. */
+  readonly deliveryLimits?: DeliveryGateLimits;
   readonly sessionBinding?: boolean;
   /** The services clock's time source; real time unless a test fixes it. */
   readonly now?: () => number;

@@ -107,8 +107,12 @@ function panel(referenceValue = reference, workItemId = 'work-a', organization =
     </OrganizationResourcesProvider>
   );
 }
-function respond(reading: DeliveryReading) {
-  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(answerJson(200, reading));
+/** The route's 200 body; `servedAt` is the server clock when it answered. */
+const served = (reading: DeliveryReading, servedAt = observedAt) => ({ reading, servedAt });
+function respond(reading: DeliveryReading, servedAt = observedAt) {
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValue(answerJson(200, served(reading, servedAt)));
   vi.stubGlobal('fetch', fetch);
   return fetch;
 }
@@ -214,6 +218,42 @@ describe('delivery observations', () => {
     expect(screen.queryByText('Current observation')).toBeNull();
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+  it('ages on the server clock, not a skewed browser clock', async () => {
+    vi.useFakeTimers();
+    // The browser runs ten minutes behind; the server served the reading one second after observing it.
+    vi.setSystemTime(Date.parse(observedAt) - 600_000);
+    respond({ kind: 'observed', observation: observation() }, '2026-10-23T10:00:01.000Z');
+    render(panel());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText('Current observation')).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(298_000);
+    });
+    expect(screen.getByText('Current observation')).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(screen.getByText('Stale observation — more than five minutes old')).toBeInTheDocument();
+  });
+  it.each([
+    {
+      status: 429,
+      body: { error: 'delivery_rate_limited', retryAfterSeconds: 40 },
+      says: 'Your organization has used its delivery reads for now. Try again in 40 s.',
+    },
+    {
+      status: 503,
+      body: { error: 'delivery_busy' },
+      says: 'Delivery reads are busy right now. Try again in a few seconds.',
+    },
+  ])('renders the $status delivery refusal as its own state', async ({ status, body, says }) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(answerJson(status, body)));
+    render(panel());
+    expect(await screen.findByRole('alert')).toHaveTextContent(says);
+    expect(screen.getByRole('button', { name: 'Refresh delivery' })).toBeEnabled();
+  });
   it('clears old successful checks when refresh fails and offers a retry', async () => {
     const fetch = respond({ kind: 'observed', observation: observation() });
     render(panel());
@@ -251,12 +291,12 @@ describe('delivery observations', () => {
       const newest = observation();
       newest.change.title = 'New context';
       await act(async () => {
-        current.resolve(answerJson(200, { kind: 'observed', observation: newest }));
+        current.resolve(answerJson(200, served({ kind: 'observed', observation: newest })));
         await current.promise;
       });
       expect(await screen.findByText('New context')).toBeInTheDocument();
       await act(async () => {
-        old.resolve(answerJson(200, { kind: 'observed', observation: observation() }));
+        old.resolve(answerJson(200, served({ kind: 'observed', observation: observation() })));
         await old.promise;
       });
       expect(screen.getByText('New context')).toBeInTheDocument();
@@ -324,7 +364,8 @@ describe('delivery boundary faults', () => {
   });
   it.each([
     { status: 404, body: { error: 'not_found' } },
-    { status: 200, body: { kind: 'observed', observation: {} } },
+    { status: 200, body: { reading: { kind: 'observed', observation: {} }, servedAt: observedAt } },
+    { status: 200, body: { kind: 'unsupported', reason: 'unwrapped reading' } },
   ])('renders a failed read for an HTTP $status boundary refusal', async ({ status, body }) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(answerJson(status, body)));
     render(panel());

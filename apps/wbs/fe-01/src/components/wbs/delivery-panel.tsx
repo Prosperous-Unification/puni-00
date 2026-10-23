@@ -22,12 +22,16 @@ interface DeliveryPanelProps {
 type ReadingState =
   | { kind: 'loading'; identity: string }
   | { kind: 'failed'; identity: string }
-  | { kind: 'ready'; identity: string; reading: DeliveryReading };
+  | { kind: 'limited'; identity: string; retryAfterSeconds: number }
+  | { kind: 'busy'; identity: string }
+  /** `serverAheadMs` is the server clock minus the browser clock when the reading arrived. */
+  | { kind: 'ready'; identity: string; reading: DeliveryReading; serverAheadMs: number };
 
 /**
  * Reads a saved reference only while explicitly mounted by the links editor.
  * Reference URL and resource ownership fence requests even when an ID is reused.
- * Refresh discards the previous reading; freshness updates never fetch a provider.
+ * Refresh discards the previous reading; freshness updates never fetch a provider. The server
+ * may answer a refresh from its short reading cache, which the unchanged `observedAt` shows.
  */
 export function DeliveryPanel({ projectId, workItemId, reference }: DeliveryPanelProps) {
   const client = useResourceClient(DELIVERY_SHAPES);
@@ -53,10 +57,23 @@ export function DeliveryPanel({ projectId, workItemId, reference }: DeliveryPane
       if (!isCurrent || !scope.isCurrent()) return;
       switch (reply.kind) {
         case 'success':
-          setState({ kind: 'ready', identity, reading: reply.body });
+          setState({
+            kind: 'ready',
+            identity,
+            reading: reply.body.reading,
+            serverAheadMs: Date.parse(reply.body.servedAt) - Date.now(),
+          });
           return;
         case 'refusal':
-          setState({ kind: 'failed', identity });
+          // Proof: dropping either branch made 'renders the 429 delivery refusal as its own state' or its 503 case read the generic failure (2026-10-24).
+          if (reply.body.error === 'delivery_rate_limited')
+            setState({
+              kind: 'limited',
+              identity,
+              retryAfterSeconds: reply.body.retryAfterSeconds,
+            });
+          else if (reply.body.error === 'delivery_busy') setState({ kind: 'busy', identity });
+          else setState({ kind: 'failed', identity });
           return;
         case 'failure':
           if (reply.failure.code !== 'cancelled') setState({ kind: 'failed', identity });
@@ -96,8 +113,14 @@ export function DeliveryPanel({ projectId, workItemId, reference }: DeliveryPane
         <p role="alert" className="text-destructive">
           Delivery could not be read. Try refreshing.
         </p>
+      ) : owned.kind === 'limited' ? (
+        <p role="alert">
+          {`Your organization has used its delivery reads for now. Try again in ${String(owned.retryAfterSeconds)} s.`}
+        </p>
+      ) : owned.kind === 'busy' ? (
+        <p role="alert">Delivery reads are busy right now. Try again in a few seconds.</p>
       ) : (
-        <Reading reading={owned.reading} />
+        <Reading reading={owned.reading} serverAheadMs={owned.serverAheadMs} />
       )}
     </section>
   );
@@ -116,7 +139,7 @@ function SourceLink({ url, children }: { url: string; children: ReactNode }) {
   );
 }
 
-function Reading({ reading }: { reading: DeliveryReading }) {
+function Reading({ reading, serverAheadMs }: { reading: DeliveryReading; serverAheadMs: number }) {
   switch (reading.kind) {
     case 'unsupported':
       return (
@@ -136,15 +159,27 @@ function Reading({ reading }: { reading: DeliveryReading }) {
         </div>
       );
     case 'observed':
-      return <Observation key={reading.observation.observedAt} observation={reading.observation} />;
+      return (
+        <Observation
+          key={reading.observation.observedAt}
+          observation={reading.observation}
+          serverAheadMs={serverAheadMs}
+        />
+      );
     default:
       return unreachable(reading);
   }
 }
 
-/** A one-shot display timer marks an observation stale without starting another request. */
-function Freshness({ observedAt }: { observedAt: string }) {
-  const deadline = Date.parse(observedAt) + FRESHNESS_MS;
+/**
+ * A one-shot display timer marks an observation stale without starting another request.
+ * Age is measured on the server's clock: the browser deadline is shifted by how far the
+ * server clock ran ahead when the reading was served, so a skewed browser clock cannot
+ * make a fresh reading stale or a stale one fresh.
+ */
+function Freshness({ observedAt, serverAheadMs }: { observedAt: string; serverAheadMs: number }) {
+  // Proof: dropping serverAheadMs made 'ages on the server clock, not a skewed browser clock' still read Current five server minutes after observation (2026-10-24).
+  const deadline = Date.parse(observedAt) + FRESHNESS_MS - serverAheadMs;
   const [clock, setClock] = useState(Date.now);
   useEffect(() => {
     const delay = Math.max(0, deadline - Date.now() + 1);
@@ -182,7 +217,13 @@ function Measurement({ label, measurement }: { label: string; measurement: Deliv
   );
 }
 
-function Observation({ observation }: { observation: DeliveryObservation }) {
+function Observation({
+  observation,
+  serverAheadMs,
+}: {
+  observation: DeliveryObservation;
+  serverAheadMs: number;
+}) {
   const timing = summarizeDeliveryTiming(observation);
   const hasPartialCoverage =
     observation.coverage.checks === 'partial' ||
@@ -193,7 +234,7 @@ function Observation({ observation }: { observation: DeliveryObservation }) {
     );
   return (
     <div className="min-w-0 space-y-3">
-      <Freshness observedAt={observation.observedAt} />
+      <Freshness observedAt={observation.observedAt} serverAheadMs={serverAheadMs} />
       <p className="text-muted-foreground">
         Observed <time dateTime={observation.observedAt}>{observation.observedAt}</time>
       </p>
