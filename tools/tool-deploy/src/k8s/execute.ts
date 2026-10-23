@@ -17,6 +17,7 @@ import {
   type MigrationSetIdentity,
   sealMigrationCapture,
 } from './migration-capture';
+import type { ConfigDigestReader } from './registry';
 import {
   admittedBackendImages,
   assertDownMigrationsUnchanged,
@@ -890,6 +891,8 @@ const BACKEND_CRONJOBS = [
 ] as const;
 
 export interface KubectlSettings {
+  /** Required for dependency observations; optional only for non-observation consumers. Composition owns auth/transport. */
+  readConfigDigest?: ConfigDigestReader;
   kubectl: string;
   /** `null` uses kubectl's own resolution (`KUBECONFIG` or `~/.kube/config`). */
   kubeconfig: string | null;
@@ -1790,18 +1793,21 @@ export function kubectlEffects(
     inspectStorageFence(flux, expected) {
       return inspectStorageFence({ namespace: backend, flux }, kubectl, expected);
     },
+    // Proof: substituting one constant config reader fails the distinct-config candidate/previous adapter test.
     observeDependencyBinaries(attempt, candidate, previous) {
       return observeDependencyBinaries(
         { namespace: backend, attempt, timeoutSeconds: settings.jobTimeoutSeconds },
         candidate,
         previous,
         observeCall,
+        settings.readConfigDigest,
       );
     },
     observeDependencyStore(attempt, image) {
       return observeDependencyStore(
         { namespace: backend, attempt, image, timeoutSeconds: settings.jobTimeoutSeconds },
         observeCall,
+        settings.readConfigDigest,
       );
     },
     currentRelease,

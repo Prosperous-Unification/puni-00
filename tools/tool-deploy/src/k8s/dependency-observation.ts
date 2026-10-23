@@ -11,6 +11,8 @@ import {
 } from '@tools/deploy-contract';
 import { assertDigestPinnedRef } from '@tools/docker';
 
+import type { ConfigDigestReader } from './registry';
+
 /** An invocation identity binds output to one exact Job, Pod, image and coordinator command. */
 export interface DependencyJobEvidence {
   observationId: string;
@@ -330,6 +332,7 @@ function readPod(
   observed: unknown,
   jobUid: string,
   expectedUid: string | null,
+  configDigest: string,
 ) {
   const pod = readRecord(observed, 'Pod');
   const metadata = readRecord(pod['metadata'], 'Pod metadata');
@@ -365,9 +368,9 @@ function readPod(
     throw new Error('missing task status');
   const task = readRecord(status['containerStatuses'][0], 'task status');
   assertEqual(task['name'], 'task', 'status container');
-  // Proof: bypassing this comparison made the foreign-status-image observation
-  // complete instead of refusing and retaining its Pod evidence (2026-10-23).
-  if (task['image'] !== request.image)
+  // Proof: bypassing config equality admits status-config-wrong with the correct runtime imageID;
+  // status-config-after-logs independently refuses a replaced status after logs.
+  if (task['image'] !== request.image && task['image'] !== configDigest)
     throw new DependencyStatusImageMismatch({
       observationId: request.observationId,
       purpose: request.purpose,
@@ -415,14 +418,23 @@ function readPod(
 
 /**
  * Fresh create-only transport, never schema Job reuse. Validate Job and single owned Pod on every
- * poll and after Pod/container-specific logs. Deadline and output bound apply even to valid stdout.
+ * poll and after Pod/container-specific logs. Resolves verified config identity before any kubectl call;
+ * status.image may repeat that exact identity, while spec and runtime imageID remain pinned.
+ * Registry resolution, kubectl and logs share one deadline; output is bounded even when valid.
  * This does not prove stopped source writers or grant release admission.
  */
 export async function observeDependencyJob(
   request: ObservationRequest,
   call: ObservationCall,
+  readConfig?: ConfigDigestReader,
 ): Promise<{ evidence: DependencyJobEvidence; stdout: string }> {
   const deadline = performance.now() + request.timeoutSeconds * 1000;
+  // Proof: absent/failure/malformed reader cases refuse before create; deadline case delays a valid identity.
+  if (readConfig === undefined) throw new Error('dependency observation config reader is required');
+  const configDigest = await readConfig(request.image, Math.ceil(deadline - performance.now()));
+  // Proof: removing syntax validation admits the malformed reader even when status repeats the pinned ref.
+  if (!/^sha256:[0-9a-f]{64}$/.test(configDigest))
+    throw new Error('malformed verified config digest');
   const namespace = request.manifest.metadata.namespace;
   const name = request.manifest.metadata.name;
   async function invoke(args: readonly string[], stdin: string | null = null) {
@@ -509,7 +521,7 @@ export async function observeDependencyJob(
     )
       throw new Error('dependency observation requires exactly one owned Pod');
     if (pods['items'].length === 0) return null;
-    const pod = readPod(request, pods['items'][0], jobUid, podUid);
+    const pod = readPod(request, pods['items'][0], jobUid, podUid, configDigest);
     podUid = pod.uid;
     return { ...pod, complete: pod.complete && complete };
   }
@@ -548,6 +560,7 @@ export async function observeDependencyBinaries(
   candidate: string,
   previous: string,
   call: ObservationCall,
+  readConfig?: ConfigDigestReader,
 ): Promise<readonly DependencyBinaryObservation[]> {
   assertDigestPinnedRef(candidate, 'be');
   assertDigestPinnedRef(previous, 'be');
@@ -560,6 +573,7 @@ export async function observeDependencyBinaries(
     const observation = await observeDependencyJob(
       buildDependencyObservationJob({ ...options, purpose, image }),
       call,
+      readConfig,
     );
     observations.push({
       evidence: observation.evidence,
@@ -573,10 +587,12 @@ export async function observeDependencyBinaries(
 export async function observeDependencyStore(
   options: Omit<ObservationOptions, 'purpose'>,
   call: ObservationCall,
+  readConfig?: ConfigDigestReader,
 ): Promise<DependencyStoreObservation> {
   const observation = await observeDependencyJob(
     buildDependencyObservationJob({ ...options, purpose: 'store' }),
     call,
+    readConfig,
   );
   return {
     evidence: observation.evidence,

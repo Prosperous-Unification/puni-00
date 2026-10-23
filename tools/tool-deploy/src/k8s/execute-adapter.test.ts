@@ -24,6 +24,7 @@ import {
 import { CrashSignal, FakeCluster } from './fake-cluster';
 import { fileJournal, type JournalRecord } from './journal';
 import { sealMigrationCapture } from './migration-capture';
+import type { ConfigDigestReader } from './registry';
 import type { ReleaseIdentity, ReleaseRequest } from './release';
 
 const CAPTURE_ID = {
@@ -927,6 +928,7 @@ if(args.includes('create')) {
  const spec=job.spec.template.spec;
  if(fault==='pod-image') spec.containers[0].image='foreign';
  const pod={metadata:{name:'pod-'+name,namespace:job.metadata.namespace,uid:'pod-uid-'+name,labels:job.spec.template.metadata.labels,ownerReferences:[{apiVersion:'batch/v1',kind:'Job',name,uid:job.metadata.uid,controller:true}]},spec,status:{phase:'Succeeded',containerStatuses:[{name:'task',image:spec.containers[0].image,imageID:'containerd://'+spec.containers[0].image,restartCount:0,state:{terminated:{exitCode:0,reason:'Completed'}},volumeMounts:[{name:'source',mountPath:'/data',readOnly:true,recursiveReadOnly:fault==='recursive-status'?'Disabled':'Enabled'}]}]}};
+ if(fault==='config-status') pod.status.containerStatuses[0].image='sha256:'+(spec.containers[0].image.endsWith('a'.repeat(64))?'c':'d').repeat(64);
  emit({items:[pod]});
 } else if(args.includes('logs')) {
  const name=readFileSync(join(root,'last-job'),'utf8');
@@ -953,11 +955,18 @@ if(args.includes('create')) {
   chmodSync(path, 0o755);
   return { path, log };
 }
-function observationEffects(root: string, fault = '', stateDir = root) {
+function observationEffects(
+  root: string,
+  fault = '',
+  stateDir = root,
+  readConfigDigest: ConfigDigestReader | undefined = () =>
+    Promise.resolve(`sha256:${'c'.repeat(64)}`),
+) {
   const kubectl = observationKubectl(root, fault);
   return {
     kubectl,
     effects: kubectlEffects({
+      readConfigDigest,
       kubectl: kubectl.path,
       kubeconfig: null,
       context: 'lab',
@@ -1250,6 +1259,51 @@ describe('release binary preflight through the mounted kubectl adapter', () => {
     });
 });
 describe('dependency observations through kubectlEffects', () => {
+  it('passes the injected config reader to store observations before kubectl', async () => {
+    const root = scratchSync('k8s-config-store-');
+    roots.push(root);
+    const { effects, kubectl } = observationEffects(root, '', root, () =>
+      Promise.reject(new Error('store config unavailable')),
+    );
+    expect(await rejection(effects.observeDependencyStore('tx', dependencyImage))).toContain(
+      'store config unavailable',
+    );
+    expect(readFileSync(kubectl.log, 'utf8')).toBe('');
+  });
+
+  it('resolves distinct verified configs for candidate and previous through the injected reader', async () => {
+    const root = scratchSync('k8s-config-adapter-');
+    roots.push(root);
+    const previous = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
+    const reads: string[] = [];
+    const { effects } = observationEffects(root, 'config-status', root, (ref, timeoutMs) => {
+      expect(timeoutMs).toBeGreaterThan(0);
+      expect(timeoutMs).toBeLessThanOrEqual(1000);
+      reads.push(ref);
+      return Promise.resolve(`sha256:${(ref === dependencyImage ? 'c' : 'd').repeat(64)}`);
+    });
+    expect(
+      (await effects.observeDependencyBinaries('tx', dependencyImage, previous)).map(
+        (observation) => observation.evidence.image,
+      ),
+    ).toEqual([dependencyImage, previous]);
+    expect(reads).toEqual([dependencyImage, previous]);
+  });
+  it('refuses candidate config substitution for the retained image with matching imageID', async () => {
+    const root = scratchSync('k8s-config-substitution-');
+    roots.push(root);
+    const { effects } = observationEffects(root, 'config-status');
+    expect(
+      await rejection(
+        effects.observeDependencyBinaries(
+          'tx',
+          dependencyImage,
+          `registry/wbs-be-01@sha256:${'b'.repeat(64)}`,
+        ),
+      ),
+    ).toContain('status image differs');
+  });
+
   it('independently invokes equal images with fresh roles while backend remains live', async () => {
     const root = scratchSync('k8s-dependency-adapter-');
     roots.push(root);

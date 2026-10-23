@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { chmodSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -6,6 +7,8 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 
 import { buildDependencyObservationJob, observeDependencyJob } from './dependency-observation';
+import { fakeRegistry } from './fake-registry';
+import { registryConfigDigestReader } from './registry';
 const image = `registry/wbs-be-01@sha256:${'a'.repeat(64)}`;
 const options = {
   namespace: 'wbs-solver',
@@ -28,8 +31,15 @@ function setField(subject: unknown, path: string, value: unknown) {
   if (value === undefined) Reflect.deleteProperty(cursor, leaf);
   else cursor[leaf] = value;
 }
-function fixture(fault = '', purpose: 'candidate' | 'store' = 'candidate') {
-  const request = buildDependencyObservationJob({ ...options, purpose });
+const configDigest = `sha256:${'c'.repeat(64)}`;
+const readConfig = () => Promise.resolve(configDigest);
+function fixture(
+  fault = '',
+  purpose: 'candidate' | 'previous' | 'store' = 'candidate',
+  statusImage = image,
+  pinnedImage = image,
+) {
+  const request = buildDependencyObservationJob({ ...options, purpose, image: pinnedImage });
   const job = {
     ...structuredClone(request.manifest),
     metadata: { ...request.manifest.metadata, uid: 'job-uid' },
@@ -57,8 +67,8 @@ function fixture(fault = '', purpose: 'candidate' | 'store' = 'candidate') {
       containerStatuses: [
         {
           name: 'task',
-          image,
-          imageID: `containerd://${image}`,
+          image: statusImage,
+          imageID: `containerd://${pinnedImage}`,
           restartCount: 0,
           volumeMounts: [
             { name: 'source', mountPath: '/data', readOnly: true, recursiveReadOnly: 'Enabled' },
@@ -156,6 +166,8 @@ function fixture(fault = '', purpose: 'candidate' | 'store' = 'candidate') {
         'status-phase': ['status.phase', 'Unknown'],
         'status-missing-phase': ['status.phase', undefined],
         'status-image': ['status.containerStatuses.0.image', 'foreign'],
+        'status-config': ['status.containerStatuses.0.image', configDigest],
+        'status-config-wrong': ['status.containerStatuses.0.image', `sha256:${'d'.repeat(64)}`],
         'status-image-long': ['status.containerStatuses.0.image', 'x'.repeat(4096)],
         'status-image-missing': ['status.containerStatuses.0.image', undefined],
         'status-image-malformed': ['status.containerStatuses.0.image', { name: 'foreign' }],
@@ -196,6 +208,12 @@ function fixture(fault = '', purpose: 'candidate' | 'store' = 'candidate') {
       };
       const field = fields[fault];
       if (field !== undefined) setField(observedPod, field[0], field[1]);
+      if (fault === 'status-config-after-logs')
+        setField(
+          observedPod,
+          'status.containerStatuses.0.image',
+          logged ? `sha256:${'d'.repeat(64)}` : configDigest,
+        );
       return JSON.stringify(
         args.includes('pods')
           ? {
@@ -213,7 +231,7 @@ function fixture(fault = '', purpose: 'candidate' | 'store' = 'candidate') {
 }
 test('fresh capability Job has no storage and returns Pod-attributed evidence', async () => {
   const cluster = fixture();
-  const observation = await observeDependencyJob(cluster.request, cluster.call);
+  const observation = await observeDependencyJob(cluster.request, cluster.call, readConfig);
   expect(observation.evidence).toMatchObject({
     jobUid: 'job-uid',
     podUid: 'pod-uid',
@@ -237,7 +255,7 @@ test('fresh capability Job has no storage and returns Pod-attributed evidence', 
 test('status image mismatch retains bounded observation identity for the lab diagnostic', async () => {
   const cluster = fixture('status-image');
   try {
-    await observeDependencyJob(cluster.request, cluster.call);
+    await observeDependencyJob(cluster.request, cluster.call, readConfig);
     throw new Error('status image mismatch was accepted');
   } catch (failure) {
     expect(failure).toMatchObject({
@@ -266,7 +284,7 @@ test.each([
 ])('status image diagnostic bounds %s without accepting it', async (fault, suffix) => {
   const cluster = fixture(fault);
   try {
-    await observeDependencyJob(cluster.request, cluster.call);
+    await observeDependencyJob(cluster.request, cluster.call, readConfig);
     throw new Error('status image mismatch was accepted');
   } catch (failure) {
     expect(failure).toMatchObject({
@@ -368,7 +386,7 @@ for (const fault of [
 ])
   test(`observation refuses ${fault}`, async () => {
     const cluster = fixture(fault);
-    const refusal = await observeDependencyJob(cluster.request, cluster.call).then(
+    const refusal = await observeDependencyJob(cluster.request, cluster.call, readConfig).then(
       () => 'resolved',
       (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)),
     );
@@ -395,7 +413,7 @@ for (const fault of [
   test(`store refuses ${fault}`, async () => {
     const cluster = fixture(fault, 'store');
     expect(
-      await observeDependencyJob(cluster.request, cluster.call).then(
+      await observeDependencyJob(cluster.request, cluster.call, readConfig).then(
         () => 'resolved',
         () => 'refused',
       ),
@@ -403,9 +421,9 @@ for (const fault of [
   });
 test('store requires positive runtime recursive readonly evidence', async () => {
   const cluster = fixture('', 'store');
-  expect((await observeDependencyJob(cluster.request, cluster.call)).evidence.podUid).toBe(
-    'pod-uid',
-  );
+  expect(
+    (await observeDependencyJob(cluster.request, cluster.call, readConfig)).evidence.podUid,
+  ).toBe('pod-uid');
 });
 const backend = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
 function executeCommand(command: readonly string[], path: string) {
@@ -502,17 +520,123 @@ test('builder refuses mutable backend image', () => {
 for (const location of ['create', 'pod', 'both'])
   test(`accepts matching serviceAccount alias in ${location} responses`, async () => {
     const cluster = fixture(`alias-${location}`);
-    const observation = await observeDependencyJob(cluster.request, cluster.call);
+    const observation = await observeDependencyJob(cluster.request, cluster.call, readConfig);
     expect(observation.evidence.podUid).toBe('pod-uid');
     expect(cluster.calls.some((call) => call.includes('pods'))).toBe(true);
   });
 for (const location of ['create', 'pod'])
   test(`refuses mismatched serviceAccount alias in ${location} response`, async () => {
     const cluster = fixture(`alias-${location}-foreign`);
-    const refusal = await observeDependencyJob(cluster.request, cluster.call).then(
+    const refusal = await observeDependencyJob(cluster.request, cluster.call, readConfig).then(
       () => 'resolved',
       (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)),
     );
     expect(refusal).toContain('serviceAccount alias');
     expect(cluster.calls.some((call) => call.includes('pods'))).toBe(location === 'pod');
   });
+
+for (const purpose of ['candidate', 'previous', 'store'] as const) {
+  test(`accepts verified config digest status for ${purpose}`, async () => {
+    const cluster = fixture('status-config', purpose);
+    expect(
+      (await observeDependencyJob(cluster.request, cluster.call, readConfig)).evidence.image,
+    ).toBe(image);
+  });
+}
+for (const fault of ['status-config-wrong', 'status-config-after-logs']) {
+  test(`refuses ${fault} despite matching runtime imageID`, async () => {
+    const cluster = fixture(fault);
+    expect(
+      await observeDependencyJob(cluster.request, cluster.call, readConfig).then(
+        () => 'accepted',
+        (error: unknown) => String(error),
+      ),
+    ).toContain('status image differs');
+  });
+}
+for (const fault of ['absent', 'failure', 'malformed', 'deadline']) {
+  test(`refuses config reader ${fault} before Job creation`, async () => {
+    const cluster = fixture();
+    const reader =
+      fault === 'absent'
+        ? undefined
+        : async () => {
+            if (fault === 'failure') throw new Error('config unavailable');
+            if (fault === 'deadline') await Bun.sleep(1100);
+            return fault === 'malformed' ? 'invalid' : configDigest;
+          };
+    expect(
+      await observeDependencyJob(cluster.request, cluster.call, reader).then(
+        () => 'accepted',
+        (error: unknown) => String(error),
+      ),
+    ).not.toBe('accepted');
+    expect(cluster.calls).toHaveLength(0);
+  });
+}
+
+for (const fault of [
+  'image-id',
+  'pod-image',
+  'pod-uid',
+  'status-image-missing',
+  'status-image-malformed',
+]) {
+  test(`verified config status retains ${fault} refusal`, async () => {
+    const cluster = fixture(fault, 'candidate', configDigest);
+    expect(
+      await observeDependencyJob(cluster.request, cluster.call, readConfig).then(
+        () => 'accepted',
+        (error: unknown) => String(error),
+      ),
+    ).not.toBe('accepted');
+  });
+}
+
+for (const foreign of [false, true]) {
+  test(`verified registry config identity ${foreign ? 'refuses foreign' : 'accepts bare'} status with pinned imageID`, async () => {
+    const registry = fakeRegistry({ 'wbs-be-01': 'a'.repeat(40) });
+    try {
+      const pinned = registry.ref('wbs-be-01');
+      const read = registryConfigDigestReader(null);
+      const verified = await read(pinned, 1000);
+      const cluster = fixture(
+        '',
+        'candidate',
+        foreign ? `sha256:${'f'.repeat(64)}` : verified,
+        pinned,
+      );
+      const observation = await observeDependencyJob(cluster.request, cluster.call, read).then(
+        (observed) => observed.evidence.image,
+        (error: unknown) => String(error),
+      );
+      if (foreign) expect(observation).toContain('status image differs');
+      else expect(observation).toBe(pinned);
+    } finally {
+      await registry.stop();
+    }
+  });
+}
+
+test('missing verified registry config refuses before any kubectl call', async () => {
+  const manifest = JSON.stringify({ schemaVersion: 2 });
+  const digest = `sha256:${createHash('sha256').update(manifest).digest('hex')}`;
+  const registry = Bun.serve({ port: 0, fetch: () => new Response(manifest) });
+  try {
+    const pinned = `127.0.0.1:${String(registry.port)}/wbs-be-01@${digest}`;
+    const cluster = fixture('', 'candidate', pinned, pinned);
+    expect(
+      await observeDependencyJob(
+        cluster.request,
+        cluster.call,
+        registryConfigDigestReader(null),
+      ).then(
+        () => 'accepted',
+        (error: unknown) => String(error),
+      ),
+    ).toContain('manifest names no valid config');
+    expect(cluster.calls).toHaveLength(0);
+  } finally {
+    await registry.stop(true);
+  }
+});

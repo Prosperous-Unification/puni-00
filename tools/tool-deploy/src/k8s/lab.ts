@@ -23,6 +23,7 @@ import {
   run,
 } from './execute';
 import { fileJournal } from './journal';
+import { labConfigDigestReader } from './lab-registry';
 import { K8S_TIERS, type K8sTier, type ReleaseIdentity, type ReleaseRequest } from './release';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
@@ -855,6 +856,7 @@ async function main(): Promise<void> {
       await k(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
     ).trim();
     const settings = {
+      readConfigDigest: labConfigDigestReader(port),
       kubectl,
       kubeconfig: join(state, 'kubeconfig'),
       context: CONTEXT,
@@ -964,6 +966,8 @@ async function main(): Promise<void> {
     const cli = [
       'bun',
       join(ROOT, 'tools/tool-deploy/src/k8s/deploy-k3s.ts'),
+      '--lab-registry-port',
+      String(port),
       '--request',
       requestPath,
       '--journal',
@@ -1046,6 +1050,8 @@ async function main(): Promise<void> {
     const concurrentCli = [
       'bun',
       join(ROOT, 'tools/tool-deploy/src/k8s/deploy-k3s.ts'),
+      '--lab-registry-port',
+      String(port),
       '--request',
       concurrentRequest,
       '--journal',

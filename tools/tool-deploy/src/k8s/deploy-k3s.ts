@@ -12,6 +12,7 @@ import {
   run,
 } from './execute';
 import { fileJournal } from './journal';
+import { labConfigDigestReader } from './lab-registry';
 import {
   assertProtectedStateDirectory,
   checkDescriptor,
@@ -22,7 +23,11 @@ import {
   stagingProofFor,
   stagingProofPath,
 } from './promotion';
-import { assertImageRevisions, registryRevisionReader } from './registry';
+import {
+  assertImageRevisions,
+  registryConfigDigestReader,
+  registryRevisionReader,
+} from './registry';
 import {
   assertRequest,
   initialState,
@@ -254,6 +259,10 @@ async function prepareFromDescriptor(
 
 export async function main(args: readonly string[], root: string): Promise<void> {
   const kubectl = flag(args, '--kubectl') ?? 'kubectl';
+  const labPort = flag(args, '--lab-registry-port');
+  // Proof: descriptor lab registry rewrite refuses before even probing the kubectl binary.
+  if (labPort !== null && flag(args, '--descriptor') !== null)
+    throw new Error('--lab-registry-port requires the local F8 lab request');
   let prepared: Prepared;
   if (flag(args, '--descriptor') !== null) {
     await assertKubectl(kubectl, lockedKubectlVersion(root));
@@ -270,6 +279,16 @@ export async function main(args: readonly string[], root: string): Promise<void>
   }
   const { request, journalPath } = prepared;
   assertRequest(request);
+  // Proof: deploy-k3s.test.ts refuses production and foreign-context registry rewrites before cluster calls.
+  if (
+    labPort !== null &&
+    (request.environment !== 'local' || request.cluster.context !== 'k3d-puni-f8-lab')
+  )
+    throw new Error('--lab-registry-port requires the local F8 lab request');
+  const readConfigDigest =
+    labPort === null
+      ? registryConfigDigestReader(process.env['PUNI_REGISTRY_AUTH'] ?? null)
+      : labConfigDigestReader(Number(labPort));
   const journal = fileJournal(journalPath);
   const existing = journal.read();
   const state =
@@ -287,6 +306,7 @@ export async function main(args: readonly string[], root: string): Promise<void>
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   const bounds = boundsFor(request.environment);
   const effects = kubectlEffects({
+    readConfigDigest,
     kubectl,
     kubeconfig: flag(args, '--kubeconfig'),
     context: request.cluster.context,

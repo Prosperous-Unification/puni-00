@@ -9,7 +9,7 @@ import { descriptorSha256, renderDescriptor, sealDescriptor } from './descriptor
 import { fakeRegistry } from './fake-registry';
 import { fileJournal } from './journal';
 import { checkDescriptor, readDeliveryTarget, requestFor } from './promotion';
-import { initialState } from './release';
+import { initialState, type ReleaseRequest } from './release';
 import { sealReplayReceipt } from './replay-receipt';
 import { sealStorageOwnership } from './storage-ownership';
 
@@ -272,4 +272,70 @@ describe('deploy-k3s descriptor mode', () => {
       spy.mockRestore();
     }
   });
+});
+
+for (const [environment, context] of [
+  ['prod', 'k3d-puni-f8-lab'],
+  ['local', 'foreign-context'],
+] as const) {
+  it(`refuses lab registry rewrite for ${environment} ${context} before cluster calls`, async () => {
+    const root = scratchSync('k8s-lab-registry-cli-');
+    roots.push(root);
+    const request: ReleaseRequest = {
+      environment,
+      cluster: { context, uid: 'uid-lab' },
+      namespaces: { app: 'wbs', backend: 'wbs-solver' },
+      release: { sourceSha: 'a'.repeat(40), images: descriptor.images },
+      expectedCurrent: { sourceSha: 'b'.repeat(40), images: descriptor.images },
+      admission: { package: 'pkg', activation: 'act' },
+      flux:
+        environment === 'prod'
+          ? {
+              namespace: 'flux-system',
+              kustomization: 'wbs',
+              gitRepository: 'deploy',
+              desiredRevision: 'c'.repeat(40),
+              previousRevision: 'd'.repeat(40),
+            }
+          : null,
+      recovers: null,
+    };
+    const requestPath = join(root, 'request.json');
+    writeFileSync(requestPath, JSON.stringify(request));
+    expect(
+      await main(
+        [
+          '--request',
+          requestPath,
+          '--journal',
+          join(root, 'journal.json'),
+          '--lab-registry-port',
+          '12345',
+        ],
+        ROOT,
+      ).then(
+        () => 'accepted',
+        (error: unknown) => String(error),
+      ),
+    ).toContain('--lab-registry-port requires the local F8 lab request');
+  });
+}
+
+it('refuses descriptor lab registry rewrite before preparation', async () => {
+  expect(
+    await main(
+      [
+        '--descriptor',
+        'absent.json',
+        '--lab-registry-port',
+        '12345',
+        '--kubectl',
+        '/absent-kubectl',
+      ],
+      ROOT,
+    ).then(
+      () => 'accepted',
+      (error: unknown) => String(error),
+    ),
+  ).toContain('--lab-registry-port requires the local F8 lab request');
 });
