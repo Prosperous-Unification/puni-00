@@ -2,7 +2,7 @@
  * It never reads process environments, emits raw configuration, signals participants or reconstructs authority.
  */
 export const AUTHORITY_COLLECTOR = String.raw`
-import os, stat, json, hashlib, time, subprocess, selectors, pwd, errno, re
+import os, stat, json, hashlib, time, subprocess, selectors, pwd, errno, re, ctypes
 
 class Refusal(Exception): pass
 
@@ -39,8 +39,39 @@ def read_crontab(user, query):
     require(code==0 and stderr==b'','crontab observation unavailable')
     return stdout
 
+class SelfDescriptors:
+    def __init__(self,host,pid): self.host=host; self.pid=pid; self.directory=None
+    def __enter__(self):
+        if self.pid!=os.getpid(): return self
+        class Dirent(ctypes.Structure):
+            _fields_=[('inode',ctypes.c_ulong),('offset',ctypes.c_long),('length',ctypes.c_ushort),('kind',ctypes.c_ubyte),('name',ctypes.c_char*256)]
+        require(ctypes.sizeof(ctypes.c_ulong)==8,'self census requires Linux 64-bit dirent')
+        self.libc=ctypes.CDLL(None,use_errno=True)
+        self.libc.opendir.argtypes=[ctypes.c_char_p];self.libc.opendir.restype=ctypes.c_void_p
+        self.libc.readdir.argtypes=[ctypes.c_void_p];self.libc.readdir.restype=ctypes.POINTER(Dirent)
+        self.libc.rewinddir.argtypes=[ctypes.c_void_p];self.libc.closedir.argtypes=[ctypes.c_void_p]
+        self.directory=self.libc.opendir(('/proc/'+str(self.pid)+'/fd').encode())
+        require(bool(self.directory),'self descriptor directory unavailable')
+        self.host.fd_directory=self
+        return self
+    def listing(self,limit):
+        self.libc.rewinddir(self.directory);names=[];ctypes.set_errno(0)
+        while True:
+            entry=self.libc.readdir(self.directory)
+            if not entry:
+                require(ctypes.get_errno()==0,'self descriptor enumeration unreadable');break
+            name=entry.contents.name.decode()
+            if name not in ['.','..']:names.append(name)
+            require(len(names)<=limit,'collector membership bound exceeded')
+        return sorted(names)
+    def __exit__(self,kind,cause,trace):
+        if self.directory is not None:
+            self.host.fd_directory=None
+            require(self.libc.closedir(self.directory)==0,'self descriptor directory close failed')
+
+
 class Host:
-    def __init__(self, deadline): self.deadline=deadline; self.children=[]; self.internal_processes={}
+    def __init__(self, deadline): self.deadline=deadline; self.children=[]; self.internal_processes={};self.solver_process=None
     def check(self): require(time.monotonic()<self.deadline,'collector deadline exceeded')
     def read(self,path,limit):
         self.check()
@@ -57,6 +88,8 @@ class Host:
         self.check(); return os.path.lexists(path)
     def listing(self,path,limit):
         self.check()
+        directory=getattr(self,'fd_directory',None)
+        if directory is not None and path=='/proc/'+str(os.getpid())+'/fd':return directory.listing(limit)
         names=os.listdir(path)
         require(len(names)<=limit,'collector membership bound exceeded')
         return sorted(names)
@@ -312,6 +345,23 @@ def ended_process(host,pid,start):
         return True
     return current!=start
 
+def capture_internal_process(host,pid):
+    base='/proc/'+str(pid);start=process_start(host,pid)[0]
+    group=parse_cgroup(host.read(base+'/cgroup',1024*1024));command=host.read(base+'/cmdline',1024*1024)
+    status=host.read(base+'/status',1024*1024).decode();uids=[line.split()[1:] for line in status.splitlines() if line.startswith('Uid:')]
+    require(len(uids)==1 and len(uids[0])==4,'internal uid malformed')
+    metadata=host.metadata(base+'/exe');path=host.link(base+'/exe');cwd=host.link(base+'/cwd')
+    executable={'device':str(metadata.st_dev),'inode':str(metadata.st_ino),'sha256':digest(host.read(base+'/exe',128*1024*1024))}
+    with open(base+'/stat','rb') as stream:content=stream.read(1024*1024)
+    fields=content[content.rfind(b') ')+2:].split();require(len(fields)>=20,'internal parent malformed')
+    require(process_start(host,pid)[0]==start and parse_cgroup(host.read(base+'/cgroup',1024*1024))==group and host.read(base+'/cmdline',1024*1024)==command and identity(host.metadata(base+'/exe'))==identity(metadata),'internal process changed during capture')
+    return {'identity':{'pid':pid,'startTime':start,'uid':int(uids[0][0]),'cgroup':group,'executable':executable,'argvSha256':digest(command),'cwd':cwd},'parent':int(fields[1]),'argv':command.rstrip(b'\x00').split(b'\x00'),'path':path}
+
+def assert_internal_processes(host):
+    # Proof: retained-internal-liveness omission admitted a vanished native bound-process identity.
+    for pid,expected in getattr(host,'internal_processes',{}).items():
+        require(capture_internal_process(host,pid)['identity']==expected,'retained internal process ended or changed')
+
 def relevant_executor(argv,cwd,executable,known_paths):
     text='\x00'.join(argv)
     return any(path in text or executable==path for path in known_paths) or '/home/puni1/wbs-build/' in text or '/home/puni1/wbs-dev/bin/sync.' in text or (cwd is not None and cwd.startswith('/home/puni1/wbs-build/') and any(part.endswith(('.ts','.js','.sh')) for part in argv))
@@ -338,38 +388,48 @@ def observe_process(host,pid,families,known_paths,coordinator):
                 executable={'device':str(metadata.st_dev),'inode':str(metadata.st_ino),'sha256':None}
             relevant=relevant_executor(argv,cwd,executable_path,known_paths)
             exact=pid==coordinator['pid'] and start==coordinator['startTime'] and cgroup==coordinator['cgroup']
-            internal=getattr(host,'internal_processes',{}).get(pid)=={'startTime':start,'cgroup':cgroup}
-            solver=executable_path=='/home/puni1/.local/lib/wbs-solver/bun' and '/home/puni1/.local/lib/wbs-solver/solver-supervisor.js' in argv
-            # Proof: prior-interpreter guard omission failed reports all database openers.
-            if relevant and not exact and not solver and not internal: raise Refusal('prior or unclassified host executor remains')
-            if relevant or solver:
+            if relevant or pid in getattr(host,'internal_processes',{}):
                 require(executable is not None,'relevant executor missing executable')
                 executable['sha256']=digest(host.read(base+'/exe',128*1024*1024))
+            current={'pid':pid,'startTime':start,'uid':uid,'cgroup':cgroup,'executable':executable,'argvSha256':digest(command),'cwd':cwd}
+            # Proof: internal-full-identity weakening admitted native transport argv identity drift.
+            internal=getattr(host,'internal_processes',{}).get(pid)==current
+            require(pid not in getattr(host,'internal_processes',{}) or internal,'internal process identity changed')
+            expected_solver=getattr(host,'solver_process',None)
+            solver_candidate=executable_path=='/home/puni1/.local/lib/wbs-solver/bun' and '/home/puni1/.local/lib/wbs-solver/solver-supervisor.js' in argv
+            # Proof: solver-kernel-binding omission admitted the real manually launched supervisor with wrong unit identities.
+            solver=solver_candidate and expected_solver is not None and all(current[key]==value for key,value in expected_solver.items())
+            # Proof: solver-coordinator-alias omission let a manual supervisor reuse the coordinator exception while the unit was stopped.
+            require(not solver_candidate or solver,'unmanaged solver supervisor remains')
+            # Proof: prior-interpreter guard omission failed reports all database openers.
+            if relevant and not exact and not solver and not internal: raise Refusal('prior or unclassified host executor remains')
             openers=[]
-            for fd_attempt in range(3):
-                descriptors=host.listing(base+'/fd',65536)
-                require(all(name.isdecimal() for name in descriptors),'process descriptor roster malformed')
-                captured=[]; raced=False
-                for fd in descriptors:
-                    host.fd_count+=1; require(host.fd_count<=1000000,'total descriptor bound exceeded')
-                    try:
-                        target=host.link(base+'/fd/'+fd); metadata=host.metadata(base+'/fd/'+fd)
-                    except FileNotFoundError:
-                        raced=True; break
-                    try:
-                        if identity(host.metadata(base+'/fd/'+fd))!=identity(metadata) or host.link(base+'/fd/'+fd)!=target:
+            # Proof: self-listing-fd omission made the real unchanged self-census fail all three FD retries.
+            with SelfDescriptors(host,pid):
+                for fd_attempt in range(3):
+                    descriptors=host.listing(base+'/fd',65536)
+                    require(all(name.isdecimal() for name in descriptors),'process descriptor roster malformed')
+                    captured=[]; raced=False
+                    for fd in descriptors:
+                        host.fd_count+=1; require(host.fd_count<=1000000,'total descriptor bound exceeded')
+                        try:
+                            target=host.link(base+'/fd/'+fd); metadata=host.metadata(base+'/fd/'+fd)
+                        except FileNotFoundError:
                             raced=True; break
-                    except FileNotFoundError:
-                        raced=True; break
-                    # Proof: fd-inode guard omission failed reports all database openers.
-                    selected=[family for family in families if family['identity']==identity(metadata)]
-                    if target.endswith(' (deleted)') and (selected or any(target[:-10]==family['path'] for family in families)):
-                        raise Refusal('deleted selected database alias remains')
-                    for family in selected:
-                        captured.append({'environment':family['environment'],'suffix':family['suffix'],'pid':pid,'startTime':start,'uid':uid,'cgroup':cgroup,'fd':int(fd),'executable':executable})
-                if not raced and host.listing(base+'/fd',65536)==descriptors:
-                    openers=captured; break
-            else: raise Refusal('process descriptor census did not converge')
+                        try:
+                            if identity(host.metadata(base+'/fd/'+fd))!=identity(metadata) or host.link(base+'/fd/'+fd)!=target:
+                                raced=True; break
+                        except FileNotFoundError:
+                            raced=True; break
+                        # Proof: fd-inode guard omission failed reports all database openers.
+                        selected=[family for family in families if family['identity']==identity(metadata)]
+                        if target.endswith(' (deleted)') and (selected or any(target[:-10]==family['path'] for family in families)):
+                            raise Refusal('deleted selected database alias remains')
+                        for family in selected:
+                            captured.append({'environment':family['environment'],'suffix':family['suffix'],'pid':pid,'startTime':start,'uid':uid,'cgroup':cgroup,'fd':int(fd),'executable':executable})
+                    if not raced and host.listing(base+'/fd',65536)==descriptors:
+                        openers=captured; break
+                else: raise Refusal('process descriptor census did not converge')
             require(not special or not descriptors,'special process retains descriptors')
             if openers and executable is not None and executable['sha256'] is None:
                 executable['sha256']=digest(host.read(base+'/exe',128*1024*1024))
@@ -393,6 +453,7 @@ def observe_process(host,pid,families,known_paths,coordinator):
     raise Refusal('process identity did not converge')
 
 def collect_processes(host,families,known_paths,coordinator):
+    assert_internal_processes(host)
     identities={}; openers={}; relevant={}; host.fd_count=0
     for round_number in range(3):
         roster=[int(name) for name in host.listing('/proc',65536) if name.isdecimal()]
@@ -426,12 +487,17 @@ WRITER_NAMES=['prod-swap','prod-smoke','dev-swap','dev-smoke','dev-poller','dev-
 FIXED_WRITERS=['/home/puni1/wbs/bin/swap.js','/home/puni1/wbs/bin/smoke.js','/home/puni1/wbs-dev/bin/swap.js','/home/puni1/wbs-dev/bin/smoke.js','/home/puni1/wbs-dev/bin/poll.sh','/home/puni1/wbs-dev/bin/dev-poll-sync.sh','/home/puni1/wbs-dev/bin/bun']
 
 def validate_request(request):
-    require(type(request)==dict and set(request)=={'nonce','writerManifestSha256','coordinator','databases','layouts','writerPaths'},'collector request malformed')
+    require(type(request)==dict and set(request)=={'nonce','writerManifestSha256','coordinator','databases','layouts','writerPaths','solver'},'collector request malformed')
     require(type(request['nonce'])==str and re.fullmatch('[a-f0-9]{64}',request['nonce']) is not None,'collector nonce malformed')
     require(type(request['writerManifestSha256'])==str and re.fullmatch('[a-f0-9]{64}',request['writerManifestSha256']) is not None,'writer manifest binding malformed')
     require(request['layouts']==['prod','dev'],'collector layouts differ')
     coordinator=request['coordinator']
     require(type(coordinator)==dict and set(coordinator)=={'pid','startTime','cgroup'} and type(coordinator['pid'])==int and coordinator['pid']>0 and type(coordinator['startTime'])==str and coordinator['startTime'].isdecimal() and type(coordinator['cgroup'])==str and parse_cgroup(('0::'+coordinator['cgroup']).encode())==coordinator['cgroup'],'coordinator identity malformed')
+    solver=request['solver']
+    if solver is not None:
+        require(type(solver)==dict and set(solver)=={'pid','startTime','uid','cgroup','executable','argvSha256'},'solver process binding malformed')
+        require(type(solver['pid'])==int and solver['pid']>0 and solver['uid']==1000 and type(solver['startTime'])==str and solver['startTime'].isdecimal() and parse_cgroup(('0::'+solver['cgroup']).encode())==solver['cgroup'],'solver kernel identity malformed')
+        require(type(solver['executable'])==dict and set(solver['executable'])=={'device','inode','sha256'} and all(type(solver['executable'][key])==str and solver['executable'][key].isdecimal() for key in ['device','inode']) and re.fullmatch('[a-f0-9]{64}',solver['executable']['sha256']) is not None and re.fullmatch('[a-f0-9]{64}',solver['argvSha256']) is not None,'solver executable binding malformed')
     paths=request['writerPaths']
     # Proof: writer-roster guard omission failed finite private matching.
     require(type(paths)==list and len(paths)==12,'writer path roster differs')
@@ -447,6 +513,7 @@ def validate_request(request):
 
 def collect(request,host):
     known_paths=validate_request(request)
+    host.solver_process=request['solver']
     require(os.geteuid()==0 and pwd.getpwnam('puni1').pw_uid==1000,'collector requires fixed root and user identities')
     machine=host.read('/etc/machine-id',1024)
     require(re.fullmatch(b'[a-f0-9]{32}\n?',machine) is not None,'machine identity malformed')
@@ -458,13 +525,15 @@ def collect(request,host):
     # Proof: coordinator-binding guard omission failed coordinator, final host.
     require(process_start(host,coordinator['pid'])[0]==coordinator['startTime'] and parse_cgroup(host.read('/proc/'+str(coordinator['pid'])+'/cgroup',1024*1024))==coordinator['cgroup'],'coordinator identity changed')
     openers,relevant=collect_processes(host,families,known_paths,coordinator)
+    if host.solver_process is not None:require(sum(all(process[key]==value for key,value in host.solver_process.items()) for process in relevant)==1,'effective solver missing from complete census')
     # Proof: db-sidecar-drift guard omission failed whole collector.
     require(capture_database_family(host,request['databases'])==families,'database family changed')
     # Proof: launch-final guard omission failed coordinator, final host.
     require(collect_launch(host,known_paths)==launch,'launch configuration changed')
     # Proof: host-final guard omission failed coordinator, final host.
     require(host.read('/etc/machine-id',1024)==machine and host.read('/proc/sys/kernel/random/boot_id',1024)==boot,'host identity changed')
-    return {'nonce':request['nonce'],'writerManifestSha256':request['writerManifestSha256'],'complete':True,'version':1,'euid':0,'hostMachineIdSha256':digest(machine),'bootId':boot.decode().strip(),'launchConfigurationSha256':launch,'databaseOpeners':openers,'relevantProcesses':relevant}
+    assert_internal_processes(host)
+    return {'nonce':request['nonce'],'writerManifestSha256':request['writerManifestSha256'],'complete':True,'version':1,'euid':0,'hostMachineIdSha256':digest(machine),'bootId':boot.decode().strip(),'launchConfigurationSha256':launch,'databaseOpeners':openers,'relevantProcesses':relevant,'internalProcesses':list(host.internal_processes.values())}
 
 def main(request,deadline):
     try:

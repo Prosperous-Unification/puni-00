@@ -102,6 +102,13 @@ function stoppedUnit(): string {
 
 test.each([
   'positive',
+  'solver-positive',
+  'solver-extra',
+  'solver-missing',
+  'solver-wrong-start',
+  'solver-wrong-cgroup',
+  'solver-wrong-exe',
+  'stopped-extra',
   'installed-hash',
   'owner-final',
   'file-final',
@@ -204,6 +211,17 @@ test.each([
     },
   ];
   let collections = 0;
+  const running = fault.startsWith('solver-') && fault !== 'solver-final';
+  const group =
+    '/user.slice/user-1000.slice/user@1000.service/app.slice/' + SOLVER_SUPERVISOR_SERVICE;
+  const unit = running
+    ? stoppedUnit()
+        .replace('ActiveState=inactive', 'ActiveState=active')
+        .replace('SubState=dead', 'SubState=running')
+        .replace('MainPID=0', 'MainPID=42')
+        .replace('InvocationID=\n', 'InvocationID=' + 'a'.repeat(32) + '\n')
+        .replace('ControlGroup=\n', 'ControlGroup=' + group + '\n')
+    : stoppedUnit();
   const ports: InstalledAuthorityPorts = {
     withFiles: async (paths, action) => {
       if (
@@ -222,7 +240,8 @@ test.each([
     },
     solver: {
       ...solverHostPorts(),
-      runHost: () => Promise.resolve(stoppedUnit()),
+      runHost: () => Promise.resolve(unit),
+      observeProcess: () => Promise.resolve({ pid: 42, startTime: '123', cgroup: group }),
       captureFile: async (path, maximum, decode) => {
         const index = solverPaths.indexOf(path);
         if (index < 0) throw new Error('fixture rejected changed production solver fragment');
@@ -265,13 +284,46 @@ test.each([
         await rename(join(directory, 'solver-0'), join(directory, 'old-solver'));
         await writeFile(join(directory, 'solver-0'), 'fixture bun', { mode: 0o755 });
       }
+      if (
+        [
+          'solver-extra',
+          'solver-missing',
+          'solver-wrong-start',
+          'solver-wrong-cgroup',
+          'solver-wrong-exe',
+          'stopped-extra',
+        ].includes(fault)
+      ) {
+        const envelope = JSON.parse(stdout) as { relevantProcesses: Record<string, unknown>[] };
+        const first = envelope.relevantProcesses.at(0);
+        if (fault === 'solver-missing') envelope.relevantProcesses = [];
+        else if (fault === 'stopped-extra')
+          envelope.relevantProcesses.push({
+            pid: 99,
+            startTime: '123',
+            uid: 1000,
+            cgroup: '/manual/unmanaged.scope',
+            executable: { device: '7', inode: '99', sha256: hash('fixture bun') },
+            argvSha256: hash('manual'),
+            cwd: '/src',
+          });
+        else {
+          if (first === undefined) throw new Error('fixture solver projection missing');
+          if (fault === 'solver-extra') envelope.relevantProcesses.push({ ...first, pid: 43 });
+          if (fault === 'solver-wrong-start') first['startTime'] = '124';
+          if (fault === 'solver-wrong-cgroup') first['cgroup'] = '/manual/unmanaged.scope';
+          if (fault === 'solver-wrong-exe')
+            first['executable'] = { device: '7', inode: '99', sha256: hash('wrong executable') };
+        }
+        return JSON.stringify(envelope);
+      }
       return stdout;
     },
   };
   await withDependencyOwner(
     { sha: sourceSha, layouts: [layouts.prod, layouts.dev] },
     async (owner) => {
-      if (fault === 'positive') {
+      if (fault === 'positive' || fault === 'solver-positive') {
         const observed = await observeInstalledAuthority(
           owner,
           layouts,
@@ -283,6 +335,7 @@ test.each([
         );
         expect(observed.activation).toBe('blocked');
         expect(observed.databaseOpeners).toHaveLength(1);
+        expect(observed.relevantProcesses).toHaveLength(running ? 1 : 0);
         expect(JSON.stringify(observed)).not.toContain('private secret');
       } else {
         let refusal = '';
@@ -307,6 +360,12 @@ test.each([
             'solver-final': 'solver changed',
             host: 'collector binding',
             launch: 'collector binding',
+            'solver-extra': 'not an exact owned participant',
+            'solver-missing': 'solver missing',
+            'solver-wrong-start': 'not an exact owned participant',
+            'solver-wrong-cgroup': 'not an exact owned participant',
+            'solver-wrong-exe': 'not an exact owned participant',
+            'stopped-extra': 'not an exact owned participant',
           }[fault],
         );
       }

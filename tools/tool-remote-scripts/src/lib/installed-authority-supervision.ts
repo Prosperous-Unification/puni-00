@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { AUTHORITY_COLLECTOR } from './installed-authority-collector';
 import { AUTHORITY_SUPERVISOR } from './installed-authority-supervisor';
 import { readClosed, readString } from './managed-cohort';
+import { observeSolverProcess } from './solver-host';
 
 /** Marks a retained-owner refusal when descendant cleanup cannot be established. */
 export class AuthorityCleanupUnknown extends Error {
@@ -49,7 +50,21 @@ export async function joinAuthoritySupervisor(
     session.malformed = true;
   });
   const remaining = deadline - performance.now();
-  child.stdin.write(JSON.stringify({ request, budgetSeconds: remaining / 1000 }) + '\n');
+  if (child.pid === undefined) {
+    await exited.catch(() => null);
+    await closed;
+    throw new AuthorityCleanupUnknown();
+  }
+  let transport;
+  try {
+    transport = await observeSolverProcess(child.pid);
+  } catch {
+    child.stdin.destroy();
+    await exited.catch(() => null);
+    await closed;
+    throw new AuthorityCleanupUnknown();
+  }
+  child.stdin.write(JSON.stringify({ request, transport, budgetSeconds: remaining / 1000 }) + '\n');
   const requestCancellation = () => {
     cancellationRequested = true;
     if (session.ready) send('cancel');
@@ -183,6 +198,7 @@ export async function collectAuthorityHost(request: unknown, deadline: number): 
     'databases',
     'layouts',
     'writerPaths',
+    'solver',
   ]);
   const nonce = readString(requestFields['nonce']);
   const remaining = deadline - performance.now();

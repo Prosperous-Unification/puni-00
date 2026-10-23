@@ -36,6 +36,7 @@ async function request() {
   return {
     nonce: 'a'.repeat(64),
     writerManifestSha256: 'b'.repeat(64),
+    solver: null,
     coordinator: await observeSolverProcess(process.pid),
     databases: [],
     layouts: ['prod', 'dev'],
@@ -200,7 +201,7 @@ os.write=kill_after_ready
   5000,
 );
 
-test.each(['coordinator-death', 'cleanup-gate', 'missing-echild'] as const)(
+test.each(['wrong-coordinator', 'cleanup-gate', 'missing-echild'] as const)(
   'finite supervisor requires %s convergence',
   async (fault) => {
     const root = scratchSync('authority-converge-');
@@ -241,7 +242,7 @@ os.waitpid=missing_echild
     });
     if (coordinator.pid === undefined) throw new Error('coordinator fixture not spawned');
     const inputs = await request();
-    if (fault === 'coordinator-death')
+    if (fault === 'wrong-coordinator')
       inputs.coordinator = await observeSolverProcess(coordinator.pid);
     const abort = new AbortController();
     const started = performance.now();
@@ -252,19 +253,12 @@ os.waitpid=missing_echild
       performance.now() + (fault === 'missing-echild' ? 450 : 2000),
       abort.signal,
     );
-    if (fault !== 'missing-echild') {
+    if (fault !== 'missing-echild' && fault !== 'wrong-coordinator') {
       for (let attempt = 0; attempt < 100; attempt++) {
         if ((await readFile(pidPath, 'utf8')).length > 0) break;
         await Bun.sleep(5);
       }
-      if (fault === 'coordinator-death') {
-        coordinator.kill('SIGKILL');
-        await new Promise<void>((resolve) =>
-          coordinator.once('close', () => {
-            resolve();
-          }),
-        );
-      } else abort.abort();
+      abort.abort();
     }
     let refusal = '';
     try {
@@ -274,13 +268,16 @@ os.waitpid=missing_echild
     }
     try {
       expect(refusal).toContain(
-        fault === 'missing-echild' ? 'cleanup unknown' : 'complete descendant cleanup',
+        fault === 'missing-echild' || fault === 'wrong-coordinator'
+          ? 'cleanup unknown'
+          : 'complete descendant cleanup',
       );
       if (fault === 'cleanup-gate') expect(performance.now() - started).toBeGreaterThan(300);
-      const pid = Number(await readFile(pidPath, 'utf8'));
-      expect(exists(pid)).toBe(false);
+      const recorded = await readFile(pidPath, 'utf8');
+      if (fault === 'wrong-coordinator') expect(recorded).toBe('');
+      else expect(exists(Number(recorded))).toBe(false);
     } finally {
-      if (fault !== 'coordinator-death') {
+      {
         coordinator.kill('SIGKILL');
         await new Promise<void>((resolve) =>
           coordinator.once('close', () => {
@@ -362,3 +359,147 @@ print('ok')
   expect(stdout).toBe('ok\n');
   expect(stderr).toBe('');
 });
+
+test.each([
+  'exact',
+  'wrong-invocation',
+  'wrong-executable',
+  'wrong-start',
+  'wrong-cgroup',
+  'identity-drift',
+  'ended-internal',
+] as const)(
+  'native sudo-shaped transport enforces %s and rejects same-executable outsiders',
+  async (fault) => {
+    const launcher =
+      'import subprocess,sys;child=subprocess.Popen(sys.argv[2:]);raise SystemExit(child.wait())';
+    const fixedExecutable = "TRANSPORT_EXECUTABLE='/usr/bin/sudo'";
+    const fixedPrefix = "TRANSPORT_PREFIX=['/usr/bin/sudo','-n']";
+    if (
+      !AUTHORITY_SUPERVISOR.includes(fixedExecutable) ||
+      !AUTHORITY_SUPERVISOR.includes(fixedPrefix)
+    )
+      throw new Error('fixture rejected changed fixed transport fragments');
+    let supervisor = AUTHORITY_SUPERVISOR.replace(
+      fixedExecutable,
+      "TRANSPORT_EXECUTABLE='/usr/bin/python3'",
+    ).replace(
+      fixedPrefix,
+      'TRANSPORT_PREFIX=' + JSON.stringify(['/usr/bin/python3', '-I', '-c', launcher, '-n']),
+    );
+    if (fault === 'wrong-invocation')
+      supervisor = supervisor.replace('TRANSPORT_PREFIX=', "TRANSPORT_PREFIX= ['unexpected']+");
+    if (fault === 'wrong-executable')
+      supervisor = supervisor.replace(
+        "TRANSPORT_EXECUTABLE='/usr/bin/python3'",
+        "TRANSPORT_EXECUTABLE='/bin/sleep'",
+      );
+    if (fault === 'wrong-start' || fault === 'wrong-cgroup')
+      supervisor += `\noriginal_bind=bind_transport\ndef bind_transport(request,transport,host):\n    transport=dict(transport)\n    transport[${JSON.stringify(fault === 'wrong-start' ? 'startTime' : 'cgroup')}]=${JSON.stringify(fault === 'wrong-start' ? '0' : '/foreign/transport')}\n    return original_bind(request,transport,host)\n`;
+    const worker = String.raw`
+def fixture_worker(request,host):
+    known=validate_request(request);seen=[];host.fd_count=0
+    if ${JSON.stringify(fault)}=='ended-internal':
+        ended=subprocess.Popen(['/usr/bin/python3','-I','-c','import time;time.sleep(30)'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        host.internal_processes[ended.pid]=capture_internal_process(host,ended.pid)['identity']
+        ended.kill();ended.wait();assert_internal_processes(host);return {'seen':[]}
+    if ${JSON.stringify(fault)}=='identity-drift':
+        for pid in host.internal_processes:
+            if pid not in [os.getpid(),os.getppid()]:host.internal_processes[pid]['argvSha256']='0'*64
+    for pid in sorted(host.internal_processes):
+        observed,openers,relevant=observe_process(host,pid,[],known,request['coordinator'])
+        require(relevant and not openers,'native exact transport identity was not observed');seen.append(pid)
+    outsider=subprocess.Popen(['/usr/bin/python3','-I','-c','import time;time.sleep(30)',os.readlink('/proc/self/exe'),str(known)],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    try:
+        try:observe_process(host,outsider.pid,[],known,request['coordinator'])
+        except Refusal:pass
+        else:raise AssertionError('blanket-exempted same-executable outsider')
+    finally:outsider.kill();outsider.wait()
+    return {'seen':seen}
+supervisor_entry(fixture_worker)
+`;
+    const program = AUTHORITY_COLLECTOR + '\n' + supervisor + '\n' + worker;
+    const child = spawn(
+      '/usr/bin/python3',
+      ['-I', '-c', launcher, '-n', '/usr/bin/python3', '-I', '-c', program],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    const inputs = await request();
+    let output = '';
+    let refusal = '';
+    try {
+      output = await joinAuthoritySupervisor(child, inputs, inputs.nonce, performance.now() + 3000);
+    } catch (error) {
+      refusal = String(error);
+    }
+    if (fault !== 'exact') {
+      expect(refusal).toContain(
+        fault === 'identity-drift' || fault === 'ended-internal'
+          ? 'complete descendant cleanup'
+          : 'cleanup unknown',
+      );
+      return;
+    }
+    expect(refusal).toBe('');
+    const observed: unknown = JSON.parse(output);
+    if (
+      observed === null ||
+      typeof observed !== 'object' ||
+      !('seen' in observed) ||
+      !Array.isArray(observed.seen)
+    )
+      throw new Error('native transport fixture inventory missing');
+    expect(observed.seen).toHaveLength(3);
+    expect(observed.seen).toContain(child.pid);
+  },
+  5000,
+);
+
+test('native coordinator death cleans the bound supervisor worker and is fully reaped by its scratch parent', async () => {
+  const root = scratchSync('authority-native-coordinator-');
+  const pidPath = root + '/pids';
+  const worker = String.raw`
+def fixture_worker(request,host):
+    with open(${JSON.stringify(pidPath)},'w') as stream:json.dump(list(host.internal_processes),stream);stream.flush()
+    time.sleep(30);return {}
+supervisor_entry(fixture_worker)
+`;
+  const program = AUTHORITY_COLLECTOR + '\n' + AUTHORITY_SUPERVISOR + '\n' + worker;
+  const inputs = await request();
+  const harness = `import {spawn} from 'node:child_process';import {joinAuthoritySupervisor} from ${JSON.stringify(import.meta.dir + '/installed-authority-supervision.ts')};import {observeSolverProcess} from ${JSON.stringify(import.meta.dir + '/solver-host.ts')};const request=${JSON.stringify(inputs)};request.coordinator=await observeSolverProcess(process.pid);const child=spawn('/usr/bin/python3',['-I','-c',${JSON.stringify(program)}],{stdio:['pipe','pipe','pipe']});await joinAuthoritySupervisor(child,request,request.nonce,performance.now()+3500);`;
+  const driver = String.raw`
+import ctypes,os,subprocess,time,json,signal
+libc=ctypes.CDLL(None);assert libc.prctl(36,1,0,0,0)==0
+coordinator=subprocess.Popen([${JSON.stringify(process.execPath)},'-e',${JSON.stringify(harness)}],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+try:
+    deadline=time.monotonic()+3
+    while not os.path.exists(${JSON.stringify(pidPath)}):
+        assert coordinator.poll() is None and time.monotonic()<deadline
+        time.sleep(0.01)
+    with open(${JSON.stringify(pidPath)}) as stream:pids=json.load(stream)
+    coordinator.kill();coordinator.wait()
+    deadline=time.monotonic()+4
+    while True:
+        try:pid,status=os.waitpid(-1,os.WNOHANG)
+        except ChildProcessError:break
+        assert time.monotonic()<deadline
+        if pid==0:time.sleep(0.01)
+    assert all(not os.path.exists('/proc/'+str(pid)) for pid in pids)
+finally:
+    if coordinator.poll() is None:coordinator.kill()
+    coordinator.wait()
+print('ok')
+`;
+  const child = Bun.spawn(['/usr/bin/python3', '-I', '-c', driver], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  expect(code).toBe(0);
+  expect(stdout).toBe('ok\n');
+  expect(stderr).toBe('');
+}, 8000);

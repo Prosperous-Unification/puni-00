@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { readFile, readlink } from 'node:fs/promises';
 import { normalize } from 'node:path';
 
 import { runDockerBefore } from './docker-deadline';
@@ -9,6 +10,7 @@ import { collectAuthorityHost } from './installed-authority-supervision';
 import { decodeWriterManifest, WRITER_MEMBERS, type WriterMemberName } from './installed-writers';
 import { readClosed, readString } from './managed-cohort';
 import {
+  captureSolverFile,
   captureSolverTuple,
   observeSolverProcess,
   parseSolverUnit,
@@ -17,6 +19,11 @@ import {
   type SolverPorts,
 } from './solver-host';
 import { decodeSolverPins, type SolverPins } from './solver-host';
+import {
+  SOLVER_SUPERVISOR_BUN,
+  SOLVER_SUPERVISOR_BUNDLE,
+  SOLVER_SUPERVISOR_CONFIG,
+} from './solver-supervisor-install-contract';
 
 export interface InstalledAuthorityPins {
   readonly format: 'installed-dependency-authority-pins';
@@ -104,6 +111,7 @@ interface CollectorObservation {
   readonly launchConfigurationSha256: string;
   readonly databaseOpeners: readonly DatabaseOpener[];
   readonly relevantProcesses: readonly HostProcessIdentity[];
+  readonly internalProcesses: readonly HostProcessIdentity[];
 }
 function readInteger(value: unknown, minimum: number): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum)
@@ -135,6 +143,58 @@ function readExecutable(value: unknown): HostProcessIdentity['executable'] {
     sha256: readDigest(executable['sha256']),
   };
 }
+function readProcessInventory(values: unknown): HostProcessIdentity[] {
+  if (!Array.isArray(values) || values.length > 65536)
+    throw new Error('authority process inventory malformed');
+  const pids = new Set<number>();
+  return values.map((value: unknown): HostProcessIdentity => {
+    const process = readClosed(value, [
+      'pid',
+      'startTime',
+      'uid',
+      'cgroup',
+      'executable',
+      'argvSha256',
+      'cwd',
+    ]);
+    const pid = readInteger(process['pid'], 1);
+    if (pids.has(pid)) throw new Error('authority duplicate process');
+    pids.add(pid);
+    const cwd = process['cwd'] === null ? null : readString(process['cwd']);
+    if (cwd !== null && !cwd.startsWith('/')) throw new Error('authority process cwd malformed');
+    return {
+      pid,
+      startTime: readTicks(process['startTime']),
+      uid: readInteger(process['uid'], 0),
+      cgroup: readCgroup(process['cgroup']),
+      executable: readExecutable(process['executable']),
+      argvSha256: readDigest(process['argvSha256']),
+      cwd,
+    };
+  });
+}
+function sameExecutable(
+  left: HostProcessIdentity['executable'],
+  right: HostProcessIdentity['executable'],
+): boolean {
+  return left === null || right === null
+    ? left === right
+    : left.device === right.device && left.inode === right.inode && left.sha256 === right.sha256;
+}
+function sameProcess(
+  process: HostProcessIdentity,
+  expected: HostProcessIdentity | undefined,
+): boolean {
+  return (
+    process.pid === expected?.pid &&
+    process.startTime === expected.startTime &&
+    process.uid === expected.uid &&
+    process.cgroup === expected.cgroup &&
+    process.argvSha256 === expected.argvSha256 &&
+    process.cwd === expected.cwd &&
+    sameExecutable(process.executable, expected.executable)
+  );
+}
 /** Closed decoder is evidence-only; completion and nonce never become a callback grant. */
 export function decodeAuthorityCollection(
   contents: string,
@@ -159,6 +219,7 @@ export function decodeAuthorityCollection(
     'launchConfigurationSha256',
     'databaseOpeners',
     'relevantProcesses',
+    'internalProcesses',
   ]);
   if (
     observed['nonce'] !== nonce ||
@@ -217,40 +278,15 @@ export function decodeAuthorityCollection(
       executable: readExecutable(opener['executable']),
     };
   });
-  const pids = new Set<number>();
-  const relevantProcesses = observed['relevantProcesses'].map(
-    (value: unknown): HostProcessIdentity => {
-      const process = readClosed(value, [
-        'pid',
-        'startTime',
-        'uid',
-        'cgroup',
-        'executable',
-        'argvSha256',
-        'cwd',
-      ]);
-      const pid = readInteger(process['pid'], 1);
-      if (pids.has(pid)) throw new Error('authority duplicate process');
-      pids.add(pid);
-      const cwd = process['cwd'] === null ? null : readString(process['cwd']);
-      if (cwd !== null && !cwd.startsWith('/')) throw new Error('authority process cwd malformed');
-      return {
-        pid,
-        startTime: readTicks(process['startTime']),
-        uid: readInteger(process['uid'], 0),
-        cgroup: readCgroup(process['cgroup']),
-        executable: readExecutable(process['executable']),
-        argvSha256: readDigest(process['argvSha256']),
-        cwd,
-      };
-    },
-  );
+  const relevantProcesses = readProcessInventory(observed['relevantProcesses']);
+  const internalProcesses = readProcessInventory(observed['internalProcesses']);
   return {
     hostMachineIdSha256: pins.hostMachineIdSha256,
     bootId,
     launchConfigurationSha256: pins.launchConfigurationSha256,
     databaseOpeners,
     relevantProcesses,
+    internalProcesses,
   };
 }
 
@@ -272,6 +308,7 @@ export interface InstalledAuthorityObservation {
     readonly tuple: readonly SolverFile[];
   };
   readonly databaseOpeners: readonly DatabaseOpener[];
+  readonly relevantProcesses: readonly HostProcessIdentity[];
   readonly scope: 'fresh-read-only-host-observation';
 }
 const FIXED_WRITER_PATHS: Partial<Record<WriterMemberName, string>> = {
@@ -408,11 +445,52 @@ export async function observeInstalledAuthority(
       if (solverProcess !== null && solverProcess.cgroup !== unit.cgroup)
         throw new Error('authority solver process differs');
       const coordinator = await observeSolverProcess(process.pid);
+      if (process.getuid === undefined) throw new Error('Linux coordinator UID unavailable');
+      const coordinatorFile = await captureSolverFile(process.execPath, 128 * 1024 * 1024);
+      const coordinatorIdentity: HostProcessIdentity = {
+        ...coordinator,
+        uid: process.getuid(),
+        executable: {
+          device: coordinatorFile.device,
+          inode: coordinatorFile.inode,
+          sha256: coordinatorFile.sha256,
+        },
+        argvSha256: createHash('sha256')
+          .update(await readFile('/proc/self/cmdline'))
+          .digest('hex'),
+        cwd: await readlink('/proc/self/cwd'),
+      };
+      const interpreter = tuple.find((file) => file.path === SOLVER_SUPERVISOR_BUN);
+      if (interpreter === undefined) throw new Error('authority solver interpreter tuple missing');
+      const solver =
+        solverProcess === null
+          ? null
+          : {
+              ...solverProcess,
+              uid: 1000,
+              executable: {
+                device: interpreter.device,
+                inode: interpreter.inode,
+                sha256: interpreter.sha256,
+              },
+              argvSha256: createHash('sha256')
+                .update(
+                  [
+                    SOLVER_SUPERVISOR_BUN,
+                    SOLVER_SUPERVISOR_BUNDLE.remote,
+                    '--config=' + SOLVER_SUPERVISOR_CONFIG,
+                    '--admission=policy',
+                    '',
+                  ].join('\0'),
+                )
+                .digest('hex'),
+            };
       const nonce = randomBytes(32).toString('hex');
       const request = {
         nonce,
         writerManifestSha256: pins.writerManifestSha256,
         coordinator,
+        solver,
         databases,
         layouts: ['prod', 'dev'],
         writerPaths: members.map((member) => ({ member: member.member, path: member.hostPath })),
@@ -422,6 +500,33 @@ export async function observeInstalledAuthority(
         nonce,
         pins,
       );
+      const matches = (process: HostProcessIdentity, expected: typeof solver) =>
+        expected !== null &&
+        process.pid === expected.pid &&
+        process.startTime === expected.startTime &&
+        process.uid === expected.uid &&
+        process.cgroup === expected.cgroup &&
+        process.argvSha256 === expected.argvSha256 &&
+        sameExecutable(process.executable, expected.executable);
+      const internals = new Map(
+        observed.internalProcesses.map((process) => [process.pid, process]),
+      );
+      for (const process of observed.relevantProcesses) {
+        if (
+          sameProcess(process, coordinatorIdentity) ||
+          sameProcess(process, internals.get(process.pid)) ||
+          matches(process, solver)
+        )
+          continue;
+        // Proof: extra-relevant-process omission admitted an extra live collector-derived solver or a stopped-unit manual process.
+        throw new Error('authority relevant process is not an exact owned participant');
+      }
+      // Proof: missing-effective-solver omission admitted a removed kernel solver projection after real collection.
+      if (
+        solver !== null &&
+        observed.relevantProcesses.filter((process) => matches(process, solver)).length !== 1
+      )
+        throw new Error('authority effective solver missing from relevant census');
       await recheck();
       if (
         JSON.stringify(await captureSolverTuple(pins.solver, solverPorts.captureFile)) !==
@@ -464,6 +569,8 @@ export async function observeInstalledAuthority(
           tuple,
         },
         databaseOpeners: observed.databaseOpeners,
+        // Proof: retained-relevant-inventory omission failed the exact active-solver observation assertion.
+        relevantProcesses: observed.relevantProcesses,
         scope: 'fresh-read-only-host-observation',
       };
     },

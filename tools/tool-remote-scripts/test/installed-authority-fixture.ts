@@ -36,10 +36,16 @@ class Launch:
             return 0,encode({'type':'a(sasbttttuii)','data':entries}),b''
         raise AssertionError(argv)
 class Complete(Launch):
-    def __init__(self): super().__init__(); self.fd_count=0; self.children=[]
+    def __init__(self): super().__init__(); self.fd_count=0; self.children=[]; self.internal_processes={}
     def check(self): pass
     def resolve(self,path): return path
     def read(self,path,limit):
+        solver=REQUEST.get('solver')
+        if solver is not None and path.startswith('/proc/'+str(solver['pid'])+'/'):
+            if path.endswith('/stat'):return b'42 (solver) S 1 '+b'0 '*17+solver['startTime'].encode()+b' 0'
+            if path.endswith('/cgroup'):return ('0::'+solver['cgroup']+'\n').encode()
+            if path.endswith('/cmdline'):return b'/home/puni1/.local/lib/wbs-solver/bun\x00/home/puni1/.local/lib/wbs-solver/solver-supervisor.js\x00--config=/home/puni1/.config/wbs-solver/solver-supervisor.json\x00--admission=policy\x00'
+            if path.endswith('/exe'):return b'fixture bun'
         if path=='/etc/machine-id': return b'a'*32+b'\n'
         if path=='/proc/sys/kernel/random/boot_id': return b'12345678-1234-1234-1234-123456789abc\n'
         if path.endswith('/stat'): return b'41 (backend) S 1 '+b'0 '*17+REQUEST['coordinator']['startTime'].encode()+b' 0'
@@ -49,14 +55,19 @@ class Complete(Launch):
         if path.endswith('/exe'): return b'executable'
         raise AssertionError(path)
     def metadata(self,path,follow=True):
+        solver=REQUEST.get('solver')
+        if solver is not None and path=='/proc/'+str(solver['pid'])+'/exe':return SimpleNamespace(st_dev=int(solver['executable']['device']),st_ino=int(solver['executable']['inode']))
         if path.endswith(('-wal','-shm','-journal')): raise FileNotFoundError()
         inode=20 if '/wbs-dev/' in path else 10
         return SimpleNamespace(st_mode=stat.S_IFDIR if path.endswith('/data') else stat.S_IFREG,st_dev=7,st_ino=inode,st_size=3,st_mtime_ns=4,st_ctime_ns=5)
     def listing(self,path,limit):
-        if path=='/proc': return [str(REQUEST['coordinator']['pid'])]
+        if path=='/proc': return [str(REQUEST['coordinator']['pid'])]+([str(REQUEST['solver']['pid'])] if REQUEST.get('solver') is not None else [])
+        if REQUEST.get('solver') is not None and path=='/proc/'+str(REQUEST['solver']['pid'])+'/fd':return []
         if path.endswith('/fd'): return ['7']
         return []
     def link(self,path):
+        solver=REQUEST.get('solver')
+        if solver is not None and path=='/proc/'+str(solver['pid'])+'/exe':return '/home/puni1/.local/lib/wbs-solver/bun'
         if path.endswith('/exe'): return '/usr/bin/bun'
         if path.endswith('/cwd'): return '/src'
         return '/different-spelling'

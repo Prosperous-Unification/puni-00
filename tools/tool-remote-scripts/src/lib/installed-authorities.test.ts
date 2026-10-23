@@ -86,6 +86,7 @@ test('closed collector decoder rejects replay, incomplete census and private pay
     launchConfigurationSha256: pins.launchConfigurationSha256,
     databaseOpeners: [],
     relevantProcesses: [],
+    internalProcesses: [],
   };
   expect(
     authority.decodeAuthorityCollection(JSON.stringify(envelope), 'expected', pins).databaseOpeners,

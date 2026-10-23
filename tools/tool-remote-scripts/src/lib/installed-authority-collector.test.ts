@@ -175,7 +175,7 @@ print('ok')
 
 test('real collector validates the finite private matching needles without using them as read selectors', async () => {
   const observed = await python(String.raw`
-request={'nonce':'a'*64,'writerManifestSha256':'b'*64,'coordinator':{'pid':41,'startTime':'123','cgroup':'/fixture'},'databases':[],'layouts':['prod','dev'],'writerPaths':[{'member':name,'path':FIXED_WRITERS[index] if index<7 else '/private/needle/'+name} for index,name in enumerate(WRITER_NAMES)]}
+request={'nonce':'a'*64,'writerManifestSha256':'b'*64,'solver':None,'coordinator':{'pid':41,'startTime':'123','cgroup':'/fixture'},'databases':[],'layouts':['prod','dev'],'writerPaths':[{'member':name,'path':FIXED_WRITERS[index] if index<7 else '/private/needle/'+name} for index,name in enumerate(WRITER_NAMES)]}
 assert '/private/needle/declared-manual-launcher' in validate_request(request)
 for mutation in ['extra','missing','alias','relative','roster','fixed']:
     fault=json.loads(json.dumps(request))
@@ -199,7 +199,7 @@ test('real collector completes a fresh kernel/query fixture and keeps private la
     launchFixture +
       String.raw`
 class Complete(Launch):
-    def __init__(self): super().__init__(); self.fd_count=0; self.children=[]
+    def __init__(self): super().__init__(); self.fd_count=0; self.children=[]; self.internal_processes={}
     def check(self): pass
     def resolve(self,path): return path
     def read(self,path,limit):
@@ -225,7 +225,7 @@ class Complete(Launch):
         return '/different-spelling'
 os.geteuid=lambda:0
 pwd.getpwnam=lambda name:SimpleNamespace(pw_uid=1000)
-request={'nonce':'a'*64,'writerManifestSha256':'b'*64,'coordinator':{'pid':41,'startTime':'123','cgroup':'/fixture'},'databases':[{'environment':environment,'host':'/home/puni1/'+root+'/data/main','directoryIdentity':'7:'+str(inode),'fileIdentity':'7:'+str(inode)} for environment,root,inode in [('prod','wbs',10),('dev','wbs-dev',20)]],'layouts':['prod','dev'],'writerPaths':[{'member':name,'path':FIXED_WRITERS[index] if index<7 else '/private/needle/'+name} for index,name in enumerate(WRITER_NAMES)]}
+request={'nonce':'a'*64,'writerManifestSha256':'b'*64,'solver':None,'coordinator':{'pid':41,'startTime':'123','cgroup':'/fixture'},'databases':[{'environment':environment,'host':'/home/puni1/'+root+'/data/main','directoryIdentity':'7:'+str(inode),'fileIdentity':'7:'+str(inode)} for environment,root,inode in [('prod','wbs',10),('dev','wbs-dev',20)]],'layouts':['prod','dev'],'writerPaths':[{'member':name,'path':FIXED_WRITERS[index] if index<7 else '/private/needle/'+name} for index,name in enumerate(WRITER_NAMES)]}
 host=Complete()
 observation=collect(request,host)
 assert observation['complete'] and observation['nonce']==request['nonce']
@@ -324,7 +324,7 @@ test('real whole collector refuses coordinator, final host, database and launch 
   const observed = await python(
     AUTHORITY_FIXTURE_PROGRAM +
       String.raw`
-REQUEST={'nonce':'a'*64,'writerManifestSha256':'b'*64,'coordinator':{'pid':41,'startTime':'123','cgroup':'/fixture'},'databases':[{'environment':environment,'host':'/home/puni1/'+root+'/data/main','directoryIdentity':'7:'+str(inode),'fileIdentity':'7:'+str(inode)} for environment,root,inode in [('prod','wbs',10),('dev','wbs-dev',20)]],'layouts':['prod','dev'],'writerPaths':[{'member':name,'path':FIXED_WRITERS[index] if index<7 else '/private/needle/'+name} for index,name in enumerate(WRITER_NAMES)]}
+REQUEST={'nonce':'a'*64,'writerManifestSha256':'b'*64,'solver':None,'coordinator':{'pid':41,'startTime':'123','cgroup':'/fixture'},'databases':[{'environment':environment,'host':'/home/puni1/'+root+'/data/main','directoryIdentity':'7:'+str(inode),'fileIdentity':'7:'+str(inode)} for environment,root,inode in [('prod','wbs',10),('dev','wbs-dev',20)]],'layouts':['prod','dev'],'writerPaths':[{'member':name,'path':FIXED_WRITERS[index] if index<7 else '/private/needle/'+name} for index,name in enumerate(WRITER_NAMES)]}
 class Drift(Complete):
     def __init__(self,fault): super().__init__();self.fault=fault;self.boot_reads=0;self.machine_reads=0;self.main_reads=0;self.inventories=0;self.proc_scans=0
     def read(self,path,limit):
@@ -428,7 +428,7 @@ test('real complete census converges unrelated arrivals and refuses late writers
   const observed = await python(
     AUTHORITY_FIXTURE_PROGRAM +
       String.raw`
-REQUEST={'nonce':'a'*64,'writerManifestSha256':'b'*64,'coordinator':{'pid':41,'startTime':'123','cgroup':'/fixture'}}
+REQUEST={'nonce':'a'*64,'writerManifestSha256':'b'*64,'solver':None,'coordinator':{'pid':41,'startTime':'123','cgroup':'/fixture'}}
 families=[{'environment':'prod','suffix':'','path':'/home/puni1/wbs/data/main','identity':'7:10'}]
 class Churn(Complete):
     def __init__(self,fault):super().__init__();self.fault=fault;self.scans=0
@@ -532,6 +532,66 @@ else:raise AssertionError('accepted transient canonical WBS unit')
 print('ok')
 `,
   );
+  expect(observed.code).toBe(0);
+  expect(observed.stdout).toBe('ok\n');
+});
+
+test('real collector observes its unchanged own descriptors without phantom listing FD retries', async () => {
+  const observed = await python(String.raw`
+kernel=Host(time.monotonic()+2);kernel.fd_count=0
+coordinator={'pid':os.getpid(),'startTime':process_start(kernel,os.getpid())[0],'cgroup':parse_cgroup(kernel.read('/proc/self/cgroup',1024*1024))}
+identity_value,openers,relevant=observe_process(kernel,os.getpid(),[],[],coordinator)
+assert identity_value['pid']==os.getpid() and openers==[]
+import tempfile
+with tempfile.NamedTemporaryFile() as selected:
+    metadata=os.fstat(selected.fileno())
+    families=[{'environment':'prod','suffix':'','path':'/fixture/selected','identity':identity(metadata)}]
+    observed,openers,relevant=observe_process(kernel,os.getpid(),families,[],coordinator)
+    assert len(openers)==1 and openers[0]['fd']==selected.fileno()
+print('ok')
+`);
+  expect(observed.code).toBe(0);
+  expect(observed.stdout).toBe('ok\n');
+});
+
+test('native manually launched supervisor is refused when the effective unit is stopped', async () => {
+  const observed = await python(String.raw`
+import tempfile,shutil,signal
+with tempfile.TemporaryDirectory(prefix='authority-unmanaged-solver-') as directory:
+    interpreter=directory+'/bun';script=directory+'/solver-supervisor.js'
+    shutil.copyfile('/bin/sh',interpreter);os.chmod(interpreter,0o755)
+    with open(script,'w') as stream:stream.write('while :; do sleep 1; done\n')
+    source=${JSON.stringify(AUTHORITY_COLLECTOR)}
+    assert source.count('/home/puni1/.local/lib/wbs-solver/bun')>0 and source.count('/home/puni1/.local/lib/wbs-solver/solver-supervisor.js')>0
+    namespace={};exec(source.replace('/home/puni1/.local/lib/wbs-solver/bun',interpreter).replace('/home/puni1/.local/lib/wbs-solver/solver-supervisor.js',script),namespace)
+    child=subprocess.Popen([interpreter,script],start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    try:
+        for attempt in range(100):
+            if os.readlink('/proc/'+str(child.pid)+'/exe')==interpreter:break
+            time.sleep(0.005)
+        kernel=namespace['Host'](time.monotonic()+2);kernel.fd_count=0
+        coordinator={'pid':os.getpid(),'startTime':process_start(kernel,os.getpid())[0],'cgroup':parse_cgroup(kernel.read('/proc/self/cgroup',1024*1024))}
+        actual=namespace['capture_internal_process'](kernel,child.pid)['identity']
+        expected={key:actual[key] for key in ['pid','startTime','uid','cgroup','executable','argvSha256']}
+        for fault in ['stopped','pid','startTime','cgroup','executable','argvSha256','coordinator-alias']:
+            selected=json.loads(json.dumps(expected))
+            if fault=='stopped' or fault=='coordinator-alias':selected=None
+            elif fault=='pid':selected['pid']+=1
+            elif fault=='startTime':selected['startTime']=str(int(selected['startTime'])+1)
+            elif fault=='cgroup':selected['cgroup']='/user.slice/foreign.service'
+            elif fault=='executable':selected['executable']['inode']=str(int(selected['executable']['inode'])+1)
+            elif fault=='argvSha256':selected['argvSha256']='0'*64
+            kernel.solver_process=selected
+            selected_coordinator={key:actual[key] for key in ['pid','startTime','cgroup']} if fault=='coordinator-alias' else coordinator
+            try:namespace['observe_process'](kernel,child.pid,[],[interpreter,script],selected_coordinator)
+            except namespace['Refusal']:pass
+            else:raise AssertionError('accepted unmanaged supervisor with '+fault+' identity')
+        kernel.solver_process=expected
+        observed,opened,relevant=namespace['observe_process'](kernel,child.pid,[],[interpreter,script],coordinator)
+        assert relevant and observed['pid']==child.pid and opened==[]
+    finally:os.killpg(child.pid,signal.SIGKILL);child.wait()
+print('ok')
+`);
   expect(observed.code).toBe(0);
   expect(observed.stdout).toBe('ok\n');
 });

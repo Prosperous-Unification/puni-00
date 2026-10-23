@@ -148,3 +148,65 @@ complete exclusion interval or decide which observed DB opener is a valid partic
 No Caddy integration tests, raw full Nx test target, full h2/h4 host gate, fresh frozen
 install, actual sudo policy acceptance or live cleanup acceptance were executed.
 The coordinator owns exact-SHA host acceptance after independent review.
+
+## Independent review corrections after 039b1d34b
+
+Astra identified three production gaps hidden by the original fixtures. The follow-up
+commit fixes them without invoking sudo, systemd or other live host operations.
+
+1. Python `os.listdir('/proc/self/fd')` reported its own already-closed enumeration
+   FD. The collector now retains a real libc directory stream throughout both FD
+   passes, reads it with `readdir`, and inspects every returned FD including that
+   live enumeration descriptor. It does not ignore holes or exempt self from DB
+   opener matching. A native unchanged self-census failed before the fix, passes
+   afterward, and reports an ordinary scratch file held open by that same process.
+2. The waiting sudo transport also contains the embedded program in its argv. The
+   private supervisor envelope now binds the actual spawned transport PID/start/
+   cgroup. Before worker fork, the supervisor proves the finite kernel parent chain
+   from itself through that exact transport to the exact coordinator. It checks
+   the initial fixed invocation and executable inode, snapshots full exe/hash,
+   argv-hash, PID/start/cgroup/UID/cwd identities, and rechecks them. Sudo monitor
+   records are exact snapshots of that proven chain, not name/UID/ancestor patterns.
+   The worker registers precisely those records plus itself. A native Python
+   launcher fixture substitutes only checked fixed sudo executable/prefix fragments
+   and uses the actual production invocation shape; no sudo call occurs. Exact
+   transport succeeds, same-executable outsiders and invocation/executable/start/
+   cgroup/full-identity drift refuse.
+3. Solver path/argv spelling no longer exempts a process. A closed private solver
+   projection is derived from the strict effective unit, actual kernel PID/start/
+   cgroup and independently pinned interpreter tuple/argv. Stopped units explicitly
+   supply null. The collector accepts only that exact solver and refuses every
+   manual/additional instance, including attempts to reuse the coordinator exception.
+   TypeScript independently checks every returned relevant process against the exact
+   coordinator, retained internal process records or exact effective solver, and
+   requires exactly one effective solver when running. The blocked public observation
+   retains typed `relevantProcesses`; the full inventory is no longer discarded.
+
+Native tests execute a manually launched scratch supervisor through a checked mapping
+of the two fixed solver path fragments. Stopped/wrong PID/start/cgroup/executable/
+argv identities refuse and an exact projection succeeds. Real owner/collector
+orchestration additionally rejects missing, extra and altered solver records after
+actual collection; its positive running-unit observation retains the exact process.
+A separate native harness kills an actual child Bun coordinator, then its scratch
+subreaper proves the supervisor/worker descendants are fully reaped. The former
+foreign-coordinator fixture is now correctly a pre-fork refusal test, rather than
+being mislabeled as coordinator death.
+
+Twelve additional production guard/dependency omissions were watched red and
+restored: retained self-listing stream, transport census registration, initial
+transport argv/executable/kernel identity, complete internal identity matching,
+solver kernel binding/coordinator-alias refusal, extra relevant process rejection,
+missing effective solver rejection, retained public inventory and required internal-process liveness. These are separate
+from the original 35 watched implementation faults.
+
+The follow-up remains on the exact standalone clone's pinned Bun **1.4.2**, with
+`package.json` and `bun.lock` still equal to its dependency source before final
+checks. It does not claim acceptance against the separately advancing main branch's
+Bun 1.4.4 pin. The coordinator owns that merge/retest and fresh independent review.
+
+Follow-up focused verification: **124 passed, 0 failed, 266 assertions** across seven
+files. Configured lint and typecheck passed uncached with actual Nx output. The
+configured executor build passed (three unchanged dependency targets used local
+cache), and the explicit observer bundle compiled. Full OpenSpec validation passed
+277/277 items. Normal commit-hook results accompany the exact follow-up commit
+report; no hook bypass or full host gate is claimed.

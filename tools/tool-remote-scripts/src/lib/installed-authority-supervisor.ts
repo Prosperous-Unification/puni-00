@@ -13,12 +13,40 @@ def coordinator_alive(request):
         return start==request['coordinator']['startTime'] and group==request['coordinator']['cgroup']
     except (OSError,Refusal): return False
 
-def supervise(request,deadline,worker):
+TRANSPORT_EXECUTABLE='/usr/bin/sudo'
+TRANSPORT_PREFIX=['/usr/bin/sudo','-n']
+
+def bind_transport(request,transport,host):
+    require(type(transport)==dict and set(transport)=={'pid','startTime','cgroup'} and type(transport['pid'])==int and transport['pid']>0,'transport kernel binding malformed')
+    supervisor=capture_internal_process(host,os.getpid())
+    require(supervisor['argv'][:3]==[b'/usr/bin/python3',b'-I',b'-c'] and len(supervisor['argv'])==4,'supervisor invocation differs')
+    python=host.metadata('/usr/bin/python3')
+    require(supervisor['identity']['executable']['device']==str(python.st_dev) and supervisor['identity']['executable']['inode']==str(python.st_ino),'supervisor executable differs')
+    records={os.getpid():supervisor['identity']};current=supervisor;visited=set()
+    if transport['pid']!=os.getpid():
+        fixed=host.metadata(TRANSPORT_EXECUTABLE)
+        for depth in range(4):
+            pid=current['parent'];require(pid not in visited and pid!=request['coordinator']['pid'],'transport chain differs');visited.add(pid)
+            current=capture_internal_process(host,pid);executable=current['identity']['executable']
+            # Proof: transport-exe omission admitted the native wrong fixed-executable binding.
+            require(executable['device']==str(fixed.st_dev) and executable['inode']==str(fixed.st_ino),'transport executable differs')
+            records[pid]=current['identity']
+            if pid==transport['pid']:
+                # Proof: transport-argv omission admitted the native wrong fixed-invocation binding.
+                require(current['argv']==[part.encode() for part in TRANSPORT_PREFIX]+supervisor['argv'],'transport invocation differs');break
+        else:raise Refusal('transport chain exceeds fixed bound')
+    # Proof: transport-kernel omission admitted a wrong transport start identity in the native launch shape.
+    require(all(current['identity'][key]==value for key,value in transport.items()) and current['parent']==request['coordinator']['pid'],'transport kernel identity differs')
+    for pid,expected in records.items():require(capture_internal_process(host,pid)['identity']==expected,'transport identity changed')
+    return records
+
+def supervise(request,deadline,worker,transport):
     nonce=request['nonce']; libc=ctypes.CDLL(None,use_errno=True); enabled=ctypes.c_int()
     # Proof: subreaper-required omission failed subreaper-unavailable before any worker fork.
     require(libc.prctl(36,1,0,0,0)==0 and libc.prctl(37,ctypes.byref(enabled),0,0,0)==0 and enabled.value==1,'subreaper unavailable')
     require(hasattr(os,'pidfd_open') and hasattr(signal,'pidfd_send_signal'),'pidfd unavailable')
     require(coordinator_alive(request),'coordinator unavailable before collection')
+    internal_processes=bind_transport(request,transport,Host(deadline))
     os.set_blocking(0,False); os.set_blocking(1,False)
     poll=selectors.DefaultSelector();poll.register(0,selectors.EVENT_READ,'control')
     outgoing=bytearray(encode({'phase':'ready','nonce':nonce,'monotonic':time.monotonic()})+b'\n')
@@ -119,8 +147,9 @@ def supervise(request,deadline,worker):
                                         poll.close()
                                         require(time.monotonic()<collection_deadline,'worker deadline exceeded')
                                         kernel=Host(collection_deadline)
-                                        for internal_pid in [os.getpid(),os.getppid()]:
-                                            kernel.internal_processes[internal_pid]={'startTime':process_start(kernel,internal_pid)[0],'cgroup':parse_cgroup(kernel.read('/proc/'+str(internal_pid)+'/cgroup',1024*1024))}
+                                        # Proof: transport-census-registration omission rejected the actual waiting transport as a prior executor.
+                                        kernel.internal_processes=dict(internal_processes)
+                                        kernel.internal_processes[os.getpid()]=capture_internal_process(kernel,os.getpid())['identity']
                                         observed=worker(request,kernel)
                                         contents=encode(observed)
                                         require(len(contents)<=32*1024*1024,'worker output oversized')
@@ -168,12 +197,6 @@ def supervise(request,deadline,worker):
         poll.close()
         for descriptor,start in owned.values():os.close(descriptor)
 
-def supervised_main(request,deadline):
-    try:code=supervise(request,deadline,collect)
-    except BaseException:
-        os.write(2,b'installed authority cleanup unknown\n');code=2
-    raise SystemExit(code)
-
 def supervisor_entry(worker):
     startup=time.monotonic()+120
     contents=bytearray()
@@ -188,13 +211,13 @@ def supervisor_entry(worker):
         line,remaining=contents.split(b'\n',1)
         require(not remaining,'unexpected prefork control bytes')
         envelope=json.loads(line)
-        require(type(envelope)==dict and set(envelope)=={'request','budgetSeconds'},'supervisor request malformed')
+        require(type(envelope)==dict and set(envelope)=={'request','transport','budgetSeconds'},'supervisor request malformed')
         request=envelope['request'];budget=envelope['budgetSeconds']
         require(type(budget) in [int,float] and 0<budget<=120,'supervisor budget malformed')
         deadline=time.monotonic()+budget
         validate_request(request)
         require(type(deadline) in [int,float] and 0<deadline-time.monotonic()<=120,'supervisor deadline malformed')
-        code=supervise(request,deadline,worker)
+        code=supervise(request,deadline,worker,envelope['transport'])
     except BaseException:
         os.write(2,b'installed authority cleanup unknown\n');code=2
     raise SystemExit(code)
