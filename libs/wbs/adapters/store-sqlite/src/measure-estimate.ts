@@ -89,6 +89,9 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
           if (singlePoint) {
             // The CHECK `measure_estimate_single_point` holds the trio's half;
             // the legacy row would otherwise carry a figure the trio does not.
+            // Proof: with this check made to pass, `refuses to write a
+            // single-point trio that is not an equal tokens trio, writing
+            // nothing` (targeted-readers.db.test.ts) resolved; watched 2026-10-24.
             if (!(
               key === TOKEN_ESTIMATE_KEY &&
               optimistic === realistic &&

@@ -8,16 +8,29 @@ flags `threePoint`, `showByDefault` and `schedulesWork`, an order, and a currenc
 Every organization SHALL be seeded with `time` (duration, schedulesWork, showByDefault),
 `tokens` (count, integer), `hours` (duration, real, no three-point), `cost` (money, integer
 micro-units) and `agent_minutes` (duration, integer, derived, no three-point). `createMeasure`,
-`patchMeasure` and `deleteMeasure` SHALL be directory commands; a second `schedulesWork`
-definition SHALL be refused `409 second_scheduling_measure`; deleting a definition that an
-estimate, fact or budget references SHALL be refused `409 measure_in_use` unless cascade is
-explicit. The key SHALL never change.
+`patchMeasure` and `deleteMeasure` SHALL be directory commands that only an organization admin
+or a super-admin may send, refused `403 forbidden` to every other role; a plan import that would
+create a definition SHALL be refused the same way. A second `schedulesWork` definition SHALL be
+refused `409 second_scheduling_measure`; deleting a definition SHALL be refused
+`409 measure_in_use` while any estimate, fact or budget references it, and there SHALL be no
+cascade. The key SHALL never change.
 
 #### Scenario: A new measure is a command
 
 - **WHEN** an admin creates measure `gpu_minutes` of kind `duration`, scale `integer`
 - **THEN** it is listed after the seeded five, with no estimates, facts or budgets, and
   `setMeasure` accepts facts in it
+
+#### Scenario: Only an admin defines measures
+
+- **WHEN** an organization member who is not an admin sends `createMeasure`, or imports a file
+  whose measure the organization does not define
+- **THEN** it is refused `403 forbidden` and no definition is written
+
+#### Scenario: A definition in use
+
+- **WHEN** `deleteMeasure` targets a definition one fact references
+- **THEN** it is refused `measure_in_use` and the definition and the fact remain
 
 #### Scenario: Two scheduling measures
 
@@ -65,9 +78,11 @@ measure SHALL keep its existing estimate and actual storage and commands.
 
 A work item SHALL hold at most one budget per measure with a cap in the measure's unit, a
 policy among `strict` and `advisory`, and a source among `stated` and `derived`; `setBudget`
-and `clearBudget` SHALL be plan commands. A derived budget SHALL be computed as the pessimistic
-point times the project's budget factor when the measure has an estimate, shown as derived and
-never stored as stated. A budget on a parent SHALL bound the summed facts of its subtree.
+and `clearBudget` SHALL be plan commands. A derived budget SHALL be computed as the subtree's
+pessimistic points times the project's budget factor when the subtree holds a three-point trio
+in the measure, shown as derived and never stored as stated; it SHALL exist only where every
+leaf step node holding a fact in the measure also holds a three-point trio in it. A
+single-point tokens trio (the legacy token estimate) SHALL seed no derived budget. A budget on a parent SHALL bound the summed facts of its subtree.
 Facts that cross a strict budget SHALL still be recorded; the read SHALL report `exceeded`
 with the remaining amount. A project-scoped read SHALL list remaining budget per measure for
 each claimed or startable step, with holds for attempts whose usage is unknown reducing the
@@ -78,6 +93,16 @@ remainder until they end.
 - **WHEN** a parent holds a strict tokens budget of 1,000 and its three leaves record 400, 400
   and 400
 - **THEN** the parent reads `exceeded` with remaining −200 and each leaf reads its own share
+
+#### Scenario: The legacy token estimate seeds no budget
+
+- **WHEN** a leaf holds only a single-point tokens trio of 500 and a tokens fact of 900
+- **THEN** it reads no tokens budget, neither derived nor exceeded
+
+#### Scenario: A step spends without a trio
+
+- **WHEN** a leaf holds a three-point tokens trio on `dev` and a tokens fact on `qa` only
+- **THEN** neither the leaf nor its ancestors read a derived tokens budget
 
 #### Scenario: Unknown spend holds
 

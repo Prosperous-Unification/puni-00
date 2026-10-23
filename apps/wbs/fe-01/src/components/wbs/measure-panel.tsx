@@ -320,7 +320,7 @@ function BudgetView({
           className="text-xs font-medium"
           style={{ color: 'var(--status-in-progress)' }}
         >
-          Budget unknown: its facts mix rate cards ({basisWords(reading.bases[0])} and{' '}
+          Budget unknown: its {reading.of} mix rate cards ({basisWords(reading.bases[0])} and{' '}
           {basisWords(reading.bases[1])}). Treat it as unknown, not unbounded.
         </p>
       );

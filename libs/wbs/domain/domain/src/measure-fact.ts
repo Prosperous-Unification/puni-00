@@ -103,7 +103,12 @@ export function decideMeasureFact(
   if (requested === 'token_estimate') return { ok: true, metric: requested };
   const key = definitionKeyOf(requested);
   const definition = definitionsOrUnowned(definitions).find((each) => each.key === key);
+  // Proof: with this lookup falling back to `cost`, `refuses a key the
+  // organization does not define` (measure-fact.test.ts) accepted the key;
+  // watched 2026-10-24.
   if (definition === undefined) return { ok: false, reason: 'unknown_measure' };
+  // Proof: with this test removed, `refuses a fact, and a clear, on a derived
+  // measure` (measure-fact.test.ts) accepted an `agent_minutes` fact; watched 2026-10-24.
   if (definition.derived) return { ok: false, reason: 'derived_measure' };
   // Proof: with this test removed, `refuses a fact, and a clear, in the
   // scheduling measure` (measure-fact.test.ts) accepted a `time` fact;

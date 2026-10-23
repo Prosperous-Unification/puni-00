@@ -6,6 +6,7 @@ import {
   decideMeasureCreate,
   definitionsOrUnowned,
   type LimitCrossed,
+  mayDefineMeasuresInOrganization,
   type MeasureDefinition,
 } from '@wbs/domain';
 
@@ -182,7 +183,7 @@ async function resolveMeasures(
   newId: () => string,
 ): Promise<
   | { ok: true; definitions: MeasureDefinition[] | null; created: boolean }
-  | { ok: false; refusal: ImportSourceRefusal }
+  | { ok: false; refusal: ImportSourceRefusal | ImportForbidden }
 > {
   const refused = (path: string, detail: string) =>
     ({ ok: false, refusal: { ok: false, code: 'source_refused', path, detail } }) as const;
@@ -204,6 +205,12 @@ async function resolveMeasures(
     // legacy access, writing no project` (import-service-source-contract.ts)
     // threw from `addMeasureWithin` instead; watched 2026-10-23.
     if (held === null) return refused(`${path}.key`, 'unknown_measure');
+    // Defining a measure is an admin's act (design D70), whichever way it arrives.
+    // Proof: with this refusal skipped, `refuses a member's import that would
+    // define a measure, writing nothing` (measure-export.controller.db.test.ts)
+    // answered 201 with gpu_minutes defined; watched 2026-10-24.
+    if (access.kind === 'scoped' && !mayDefineMeasuresInOrganization(access.scope.role))
+      return { ok: false, refusal: { ok: false, code: 'forbidden', path: '', detail: null } };
     if (definition.derived) return refused(`${path}.derived`, 'derived_measure');
     const measure: MeasureDefinition = { id: newId(), ...definition };
     const decided = decideMeasureCreate(held, measure);

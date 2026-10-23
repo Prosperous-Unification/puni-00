@@ -20,13 +20,16 @@ let h: OrganizationHarness;
 
 beforeEach(async () => {
   h = OrganizationHarness.openComposed();
-  for (const username of ['ada', 'grace']) await h.register(username);
+  for (const username of ['ada', 'grace', 'moe']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-b', 'grace', 'member');
+  // Defining a measure, directly or by import, is an admin's act (design D70).
+  h.member('org-a', 'ada', 'admin');
+  h.member('org-b', 'grace', 'admin');
+  h.member('org-b', 'moe', 'member');
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
+  h.bind('moe', 'org-b');
   h.activate();
 });
 
@@ -252,6 +255,25 @@ it('refuses a definition the organization holds in another shape, writing nothin
     },
   });
   expect(counted()).toEqual(before);
+});
+
+it("refuses a member's import that would define a measure, writing nothing", async () => {
+  const source = await exported('ada', await measuredPlan());
+  const counted = () =>
+    h.sqlite
+      .query<{ projects: number; measures: number }, []>(
+        'SELECT (SELECT COUNT(*) FROM project) AS projects, (SELECT COUNT(*) FROM measure) AS measures',
+      )
+      .get();
+  const before = counted();
+  expect(await h.call('moe', 'POST', '/api/projects/import', source)).toEqual({
+    status: 403,
+    body: { error: 'forbidden' },
+  });
+  expect(counted()).toEqual(before);
+  // Once an admin has defined it, the member's import only matches it.
+  await batch('grace', '/api/directory/commands', [GPU]);
+  expect((await h.call('moe', 'POST', '/api/projects/import', source)).status).toBe(201);
 });
 
 it('imports a version-10 file onto the seeded definitions, mapping its legacy metrics', async () => {

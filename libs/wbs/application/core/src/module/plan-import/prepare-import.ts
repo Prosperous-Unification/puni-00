@@ -867,7 +867,16 @@ function prepareMeasures(
     path: string,
   ): Refusal | null => {
     const definition = definitions.get(key);
-    if (basis === null) return null;
+    // A command refuses an unpriced write in a money measure
+    // (`rate_card_required`, design D43); the import names that code as its
+    // detail, since D65 adds no refusal code.
+    // Proof: with this refusal skipped, `refuses a version-11 file whose
+    // measures do not hold together: an unpriced money fact` and `: an
+    // unpriced money trio` (prepare-import.test.ts) prepared ok; watched 2026-10-24.
+    if (basis === null)
+      return definition?.kind === 'money'
+        ? refuses('invalid_body', path, 'rate_card_required')
+        : null;
     if (definition?.kind !== 'money') return refuses('invalid_body', path);
     // A command derives the basis currency from the definition (`money-basis.ts`),
     // so a basis naming another one is a figure no command could have written.

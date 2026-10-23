@@ -509,6 +509,40 @@ describe('demand replay vocabulary', () => {
       );
   });
 
+  it('refuses a budget clear that names no whole budget', () => {
+    expect(readCommand({ do: 'clear_budget', workItemId: 'w1', key: 'tokens' })).toMatchObject({
+      key: 'tokens',
+    });
+    for (const malformed of [
+      { do: 'clear_budget', workItemId: 'w1' },
+      { do: 'clear_budget', workItemId: 7, key: 'tokens' },
+    ])
+      expect(() => readCommand(malformed)).toThrow('a journal budget clear is malformed');
+  });
+
+  it('refuses a measure estimate clear that names no whole step node and key', () => {
+    for (const malformed of [
+      { do: 'clear_measure_estimate', workItemId: 'w1', stepId: 's1' },
+      { do: 'clear_measure_estimate', workItemId: 'w1', key: 'tokens' },
+    ])
+      expect(() => readCommand(malformed)).toThrow('a journal measure estimate clear is malformed');
+  });
+
+  it('refuses a subtree replay whose removed trios name no whole step node and key', () => {
+    const removed = (value: unknown) => ({
+      do: 'restore_subtree',
+      rows: [],
+      removedMeasureEstimates: value,
+    });
+    expect(readCommand(removed([{ workItemId: 'w1', stepId: 's1', key: 'tokens' }]))).toMatchObject(
+      { removedMeasureEstimates: [{ key: 'tokens' }] },
+    );
+    for (const malformed of [removed('trios'), removed([{ workItemId: 'w1', stepId: 's1' }])])
+      expect(() => readCommand(malformed)).toThrow(
+        'a journal subtree replay holds malformed removedMeasureEstimates',
+      );
+  });
+
   it('refuses a malformed budget or basis replay', () => {
     const budget = {
       workItemId: 'w1',

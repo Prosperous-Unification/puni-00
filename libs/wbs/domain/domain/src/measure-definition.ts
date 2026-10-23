@@ -216,9 +216,15 @@ export function decideMeasureCreate(
   // Proof: with this test removed, `refuses a key that is a legacy metric
   // name` (measure-definition.test.ts) answered null; watched 2026-10-23.
   if ((MEASURE_METRICS as readonly string[]).includes(fields.key)) return 'measure_key_taken';
+  // Proof: with this test removed, `refuses a key the organization already
+  // holds` (measure-definition.test.ts) answered null; watched 2026-10-24.
   if (held.some((each) => each.key === fields.key)) return 'measure_key_taken';
+  // Proof: with this test removed, `refuses a second scheduling measure`
+  // (measure-definition.test.ts) answered null; watched 2026-10-24.
   if (fields.schedulesWork && held.some((each) => each.schedulesWork))
     return 'second_scheduling_measure';
+  // Proof: with this test removed, `refuses an empty or whitespace unit
+  // label` (measure-definition.test.ts) answered null; watched 2026-10-24.
   if (fields.unit.trim() === '') return 'unit_required';
   return refuseCurrency(fields);
 }
@@ -237,15 +243,25 @@ export function decideMeasurePatch(
   target: MeasureDefinition,
   patch: MeasureDefinitionPatch,
 ): MeasurePatchDecision {
+  // Proof: with this test removed, `refuses a patch that changes the key`
+  // (measure-definition.test.ts) answered ok; watched 2026-10-24.
   if (patch.key !== undefined && patch.key !== target.key)
     return { ok: false, reason: 'measure_key_immutable' };
+  // Proof: with this refusal answering the target unchanged, `refuses a patch
+  // that changes the kind or the scale` (measure-definition.test.ts) answered
+  // ok; watched 2026-10-24.
   if (
     (patch.kind !== undefined && patch.kind !== target.kind) ||
     (patch.scale !== undefined && patch.scale !== target.scale)
   )
     return { ok: false, reason: 'measure_shape_immutable' };
+  // Proof: with this test removed, `refuses a second scheduling measure and
+  // keeps time scheduling` (measure-definition.test.ts) cleared `time`'s flag;
+  // watched 2026-10-24.
   if (target.schedulesWork && patch.schedulesWork === false)
     return { ok: false, reason: 'scheduling_measure_fixed' };
+  // Proof: with the other-holder test made `false`, the same case
+  // (measure-definition.test.ts) gave `tokens` the flag beside `time`; watched 2026-10-24.
   if (
     !target.schedulesWork &&
     patch.schedulesWork === true &&
@@ -262,7 +278,12 @@ export function decideMeasurePatch(
     ...(patch.order === undefined ? {} : { order: patch.order }),
     ...(patch.currency === undefined ? {} : { currency: patch.currency }),
   };
+  // Proof: with this test removed, `refuses an empty or whitespace unit
+  // label` (measure-definition.test.ts) accepted a blank unit by patch; watched 2026-10-24.
   if (next.unit.trim() === '') return { ok: false, reason: 'unit_required' };
+  // Proof: with this rule answering null, `keeps a money measure priced and
+  // refuses a currency elsewhere` (measure-definition.test.ts) answered ok;
+  // watched 2026-10-24.
   const currency = refuseCurrency(next);
   return currency === null ? { ok: true, next } : { ok: false, reason: currency };
 }
@@ -287,6 +308,11 @@ export function refuseMeasureRemoval(
   target: MeasureDefinition,
   usage: MeasureUsage,
 ): 'measure_in_use' | null {
+  // Proof: with this test removed, `refuses removing a seeded definition, or
+  // one anything references` (measure-definition.test.ts) answered null for
+  // `tokens`; watched 2026-10-24.
   if (isSeededMeasureKey(target.key)) return 'measure_in_use';
+  // Proof: with the reference count ignored, the same case answered null for
+  // a referenced definition; watched 2026-10-24.
   return usage.references > 0 ? 'measure_in_use' : null;
 }

@@ -2,6 +2,7 @@ import {
   cleanName,
   decideMeasureCreate,
   decideMeasurePatch,
+  mayDefineMeasuresInOrganization,
   type MeasureDefinition,
   type MeasureDefinitionPatch,
   type MeasureDefinitionRefusal,
@@ -25,11 +26,14 @@ import type { ResourceAccess } from '../../ports/organization-access';
  * - `not_found`: an id the organization does not hold, another
  *   organization's included, so a foreign definition is indistinguishable
  *   from an absent one;
- * - `name_required` and `nothing_to_change`, as for every directory write.
+ * - `name_required` and `nothing_to_change`, as for every directory write;
+ * - `forbidden`: a scoped caller who is neither an admin nor a super-admin
+ *   (design D70), answered before anything is read.
  */
 export type MeasureRefusalReason =
   | MeasureDefinitionRefusal
   | 'measure_in_use'
+  | 'forbidden'
   | 'organization_required'
   | 'not_found'
   | 'name_required'
@@ -106,6 +110,10 @@ export class MeasureDefinitions {
     access: ResourceAccess,
   ): Promise<MeasureOutcome<MeasureDefinition>> {
     this.refuseStandaloneWrite();
+    // Proof: with this refusal skipped, `refuses a member every definition
+    // write, an admin and a super-admin allowed` (measure-organization.controller.db.test.ts)
+    // answered the member's createMeasure 200; watched 2026-10-24.
+    if (!mayDefineMeasures(access)) return { ok: false, reason: 'forbidden' };
     const owner = await this.ownerOf(access);
     if (owner === null) return { ok: false, reason: 'organization_required' };
     const name = cleanName(input.name);
@@ -147,6 +155,10 @@ export class MeasureDefinitions {
     access: ResourceAccess,
   ): Promise<MeasureOutcome<MeasureDefinition>> {
     this.refuseStandaloneWrite();
+    // Proof: with this refusal skipped, `refuses a member every definition
+    // write, an admin and a super-admin allowed` (measure-organization.controller.db.test.ts)
+    // answered the member's patchMeasure 200; watched 2026-10-24.
+    if (!mayDefineMeasures(access)) return { ok: false, reason: 'forbidden' };
     if (Object.values(patch).every((value) => value === undefined))
       return { ok: false, reason: 'nothing_to_change' };
     const owner = await this.ownerOf(access);
@@ -179,6 +191,11 @@ export class MeasureDefinitions {
     access: ResourceAccess,
   ): Promise<MeasureOutcome<null>> {
     this.refuseStandaloneWrite();
+    // Proof: with this refusal skipped, `refuses a member every definition
+    // write, an admin and a super-admin allowed` (measure-organization.controller.db.test.ts)
+    // answered the member's deleteMeasure of tokens 409 measure_in_use instead
+    // of 403; watched 2026-10-24.
+    if (!mayDefineMeasures(access)) return { ok: false, reason: 'forbidden' };
     const owner = await this.ownerOf(access);
     if (owner === null) return { ok: false, reason: 'organization_required' };
     const target = (await this.opts.directory.listMeasures(owner)).find(
@@ -215,4 +232,13 @@ export class MeasureDefinitions {
   private refuseStandaloneWrite(): void {
     if (this.opts.standalone) throw new Error('measure writes run only inside a command batch');
   }
+}
+
+/**
+ * Whether `access` may write measure definitions (design D70): under scoped
+ * access an admin or a super-admin; legacy access carries no role, and every
+ * legacy caller already writes the whole directory, so it may.
+ */
+function mayDefineMeasures(access: ResourceAccess): boolean {
+  return access.kind === 'legacy' || mayDefineMeasuresInOrganization(access.scope.role);
 }
