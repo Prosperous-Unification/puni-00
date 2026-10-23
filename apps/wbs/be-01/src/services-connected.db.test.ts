@@ -94,9 +94,9 @@ function compose(source: SqliteSource, optimizer?: OptimizerRuntime) {
       () => 12,
     ),
   });
-  const tree = async (mounted = app) => {
+  const tree = async (mounted = app, projectId = 'a1') => {
     const response = await mounted.handle(
-      new Request('http://localhost/api/projects/a1/work-items', {
+      new Request(`http://localhost/api/projects/${projectId}/work-items`, {
         headers: { 'X-WBS-Expected-Organization': 'org-a' },
       }),
     );
@@ -938,4 +938,331 @@ test('displaced mounted Retry accepts retained B hash and refuses final composit
   expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
   expect(f.probe.open).toBe(0);
   expect(f.errors).toEqual([]);
+});
+
+async function interleavingFixture() {
+  const f = await fixture(true, 'isolated', true);
+  f.sqlite.run('DELETE FROM external_dependency');
+  f.sqlite.run('DELETE FROM estimate');
+  f.sqlite.run('DELETE FROM work_item');
+  f.sqlite.run('DELETE FROM step');
+  f.sqlite.run(
+    "UPDATE project SET schedule_engine='optimized',schedule_objective='pri',optimization_enabled=1 WHERE id IN ('a1','a2')",
+  );
+  f.sqlite.run(
+    "INSERT INTO project_rank(project_id,organization_id,position,created_at,created_by) VALUES('a2','org-a',0,1,'ada'),('a1','org-a',0,1,'ada')",
+  );
+  for (const project of ['a1', 'a2']) {
+    f.sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [project, project]);
+    f.sqlite.run(
+      "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES(?,'org-a',?)",
+      [project, project],
+    );
+    f.sqlite.run(
+      'INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES(?,?,1)',
+      [project, project],
+    );
+    const steps = project === 'a1' ? ['design', 'test'] : ['build'];
+    for (const [position, step] of steps.entries())
+      f.sqlite.run('INSERT INTO step(id,project_id,name,position) VALUES(?,?,?,?)', [
+        step,
+        project,
+        step,
+        position,
+      ]);
+    for (const [position, suffix] of ['long', 'short'].entries()) {
+      const id = project + '-' + suffix;
+      f.sqlite.run(
+        'INSERT INTO work_item(id,project_id,position,name,priority) VALUES(?,?,?,?,1)',
+        [id, project, position, id],
+      );
+      f.sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [id, project]);
+      for (const step of steps) {
+        const days = suffix === 'long' && step !== 'test' ? 2 : 1;
+        f.sqlite.run(
+          'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,?,?,?)',
+          [id, step, days, days, days],
+        );
+      }
+    }
+  }
+  for (const predecessor of ['long', 'short'])
+    for (const successor of ['long', 'short'])
+      for (const [from, to, fromStep, toStep] of [
+        ['a1', 'a2', 'design', 'build'],
+        ['a2', 'a1', 'build', 'test'],
+      ])
+        f.sqlite.run(
+          "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES(?,'org-a',?,?,?,?,'node','node',?,?,'FS')",
+          [
+            from + predecessor + to + successor,
+            from,
+            to,
+            from + '-' + predecessor,
+            to + '-' + successor,
+            fromStep,
+            toStep,
+          ],
+        );
+  const capture = async () => {
+    const observed = await f.bound.stores.livePlans?.read('a1', access);
+    if (observed?.kind !== 'connected' || observed.projection.placement.kind !== 'scheduled')
+      throw Error('interleaving placement missing');
+    return observed.projection.placement;
+  };
+  const seed = (
+    stage: Parameters<typeof captureConnectedQuestion>[0],
+    objective: 'pri' | 'time',
+    days: Readonly<Record<string, number>>,
+  ) => {
+    const question = captureConnectedQuestion(stage, objective, installed);
+    const { stageBytes, ...identity } = question;
+    expect(stageBytes).toBe(canonicalConnectedStageInput(stage));
+    const prepared = buildConnectedSolverRequest(stage, identity, installed, objective);
+    if (prepared.kind !== 'request') throw Error('interleaving request missing');
+    const request = prepared.request;
+    const offsets = Object.fromEntries(
+      Object.entries(days).map(([key, start]) => [key, start * 48]),
+    );
+    const finishes = request.slices.map((slice) => offsets[slice.key] + slice.durationUnits);
+    const term = (value: number) => ({ value, stageValue: value, bound: 0, status: 'feasible' });
+    const success = encodeConnectedSuccess(
+      stage,
+      identity,
+      request,
+      JSON.stringify({
+        wireVersion: 5,
+        scope: {
+          kind: 'connected-stage',
+          projectId: stage.projectId,
+          inputHash: question.inputHash,
+          questionHash: question.questionHash,
+        },
+        status: 'feasible',
+        offsets,
+        objectiveValues: {
+          makespan: term(Math.max(...finishes)),
+          priority: term(
+            request.slices.reduce(
+              (sum, slice, index) => sum + slice.priorityWeight * finishes[index],
+              0,
+            ),
+          ),
+          movement: term(
+            request.slices.reduce(
+              (sum, slice) =>
+                sum + Math.abs(offsets[slice.key] - request.movementReferenceOffsets[slice.key]),
+              0,
+            ),
+          ),
+        },
+      }),
+      hashConnectedBytes,
+    );
+    f.source.db
+      .insert(optimizedScheduleCache)
+      .values({
+        ...question,
+        generation: 1,
+        status: 'ok',
+        resultJson: JSON.stringify(success),
+        createdAt: 12,
+      })
+      .run();
+    return question;
+  };
+  const initial = await capture();
+  const a = initial.stages.find((selection) => selection.stage.projectId === 'a1');
+  if (a === undefined) throw Error('A stage missing');
+  const aDays = {
+    'a1-long\u0000design': 1,
+    'a1-short\u0000design': 0,
+    'a1-long\u0000test': 7,
+    'a1-short\u0000test': 6,
+  };
+  seed(a.stage, 'pri', aDays);
+  seed(
+    a.stage,
+    'time',
+    Object.fromEntries([...a.stage.starts].filter(([key]) => key.startsWith('a1-'))),
+  );
+  const afterA = await capture();
+  const b = afterA.stages.find((selection) => selection.stage.projectId === 'a2');
+  if (b === undefined) throw Error('B stage missing');
+  seed(b.stage, 'pri', { 'a2-long\u0000build': 4, 'a2-short\u0000build': 3 });
+  seed(b.stage, 'time', { 'a2-long\u0000build': 3, 'a2-short\u0000build': 5 });
+  return { ...f, capture, initial, afterA, a: a.stage, b: b.stage };
+}
+
+// Proof: inverted ordering, original-Fast stage reuse, wrong objective, and double visits each fail this mounted test; final-stage substitution fails its retained bytes. See verify-task-7.3-interleaving.md.
+test('mounted interleaving selects both durable Pri candidates once and retains stage identities', async () => {
+  const f = await interleavingFixture();
+  const selected = await f.capture();
+  expect(selected.stages.map((selection) => selection.stage.projectId)).toEqual(['a1', 'a2']);
+  expect(selected.stages.map((selection) => selection.chosen?.chosen)).toEqual([
+    'optimized',
+    'optimized',
+  ]);
+  expect([...selected.combined.slices].map(([key, slice]) => [key, slice.earliestStart])).toEqual([
+    ['a1-long\u0000design', 1],
+    ['a1-long\u0000test', 7],
+    ['a1-short\u0000design', 0],
+    ['a1-short\u0000test', 6],
+    ['a2-long\u0000build', 4],
+    ['a2-short\u0000build', 3],
+  ]);
+  expect(f.b.starts.get('a1-short\u0000design')).toBe(0);
+  expect(f.a.starts.get('a2-short\u0000build')).toBe(5);
+  expect(selected.stages.map((selection) => canonicalConnectedStageInput(selection.stage))).toEqual(
+    [canonicalConnectedStageInput(f.a), canonicalConnectedStageInput(f.b)],
+  );
+  expect(
+    selected.stages.every(
+      (selection) =>
+        selection.optimization?.variants.pri.state === 'ready' &&
+        selection.optimization.variants.time.state === 'ready',
+    ),
+  ).toBe(true);
+  for (const selection of selected.stages) {
+    const bytes = canonicalConnectedStageInput(selection.stage);
+    expect(selection.optimization?.candidates.pri?.question.stageBytes).toBe(bytes);
+    expect(selection.optimization?.candidates.time?.question.stageBytes).toBe(bytes);
+  }
+  for (let repeat = 0; repeat < 2; repeat++) {
+    const opened = f.probe.opened;
+    const tree = await f.tree();
+    expect(f.probe.opened - opened).toBe(1);
+    expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
+      ['a1-long\u0000design', 1],
+      ['a1-long\u0000test', 7],
+      ['a1-short\u0000design', 0],
+      ['a1-short\u0000test', 6],
+    ]);
+    expect(tree).toMatchObject({
+      optimization: { inputHash: captureConnectedQuestion(f.a, 'pri', installed).inputHash },
+    });
+    const bTree = await f.tree(f.app, 'a2');
+    expect(bTree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
+      ['a2-long\u0000build', 4],
+      ['a2-short\u0000build', 3],
+    ]);
+    expect(bTree).toMatchObject({
+      optimization: { inputHash: captureConnectedQuestion(f.b, 'pri', installed).inputHash },
+    });
+    expect(await f.capture()).toEqual(selected);
+  }
+  expect(f.launched).toEqual([]);
+  expect(f.errors).toEqual([]);
+});
+
+for (const state of ['idle', 'pending', 'failed', 'corrupt', 'boundary-infeasible'] as const) {
+  test(`mounted interleaving ${state} B retains exact valid A-selected composite`, async () => {
+    const f = await interleavingFixture();
+    if (state === 'failed')
+      f.sqlite.run(
+        "UPDATE optimized_schedule_cache SET status='failed',failure_reason='timeout',result_json=NULL WHERE project_id='a2' AND objective='pri'",
+      );
+    else if (state === 'corrupt')
+      f.sqlite.run(
+        "UPDATE optimized_schedule_cache SET result_json='{' WHERE project_id='a2' AND objective='pri'",
+      );
+    else
+      f.sqlite.run(
+        "DELETE FROM optimized_schedule_cache WHERE project_id='a2' AND objective='pri'",
+      );
+    if (state === 'pending' || state === 'boundary-infeasible') {
+      const response = await f.app.handle(
+        new Request('http://localhost/api/projects/a2/work-items', {
+          headers: { 'X-WBS-Expected-Organization': 'org-a' },
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(f.launched.map((asked) => [asked.key.projectId, asked.objective])).toEqual([
+        ['a2', 'pri'],
+      ]);
+      if (state === 'boundary-infeasible') {
+        f.finishChildren();
+        await f.services.optimizer?.drain();
+      }
+    }
+    const selected = await f.capture();
+    expect(selected.combined).toEqual(f.afterA.combined);
+    expect(selected.stages.map((selection) => selection.chosen?.chosen ?? null)).toEqual([
+      'optimized',
+      null,
+    ]);
+    expect(selected.stages[1]?.optimization?.variants.pri.state).toBe(state);
+    expect(selected.stages[1]?.optimization?.variants.time.state).toBe('ready');
+    expect(canonicalConnectedStageInput(selected.stages[1].stage)).toBe(
+      canonicalConnectedStageInput(f.b),
+    );
+    if (state === 'boundary-infeasible') {
+      expect(selected.stages[1]?.optimization?.variants.pri).toMatchObject({
+        state,
+        certificate: { kind: state, question: captureConnectedQuestion(f.b, 'pri', installed) },
+      });
+      const opened = f.probe.opened;
+      await f.tree();
+      expect(f.probe.opened - opened).toBe(1);
+      expect(f.launched).toHaveLength(1);
+    }
+    const tree = await f.tree(f.app, 'a2');
+    expect(tree).toMatchObject({ optimization: { variants: { pri: { state } } } });
+    expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
+      ['a2-long\u0000build', 3],
+      ['a2-short\u0000build', 5],
+    ]);
+    expect(f.errors).toEqual([]);
+  });
+}
+
+for (const choice of ['fast', 'disabled', 'time'] as const) {
+  test(`mounted interleaving ${choice} B retains configured selection and A foreign starts`, async () => {
+    const f = await interleavingFixture();
+    if (choice === 'fast') f.sqlite.run("UPDATE project SET schedule_engine='fast' WHERE id='a2'");
+    else if (choice === 'disabled')
+      f.sqlite.run("UPDATE project SET optimization_enabled=0 WHERE id='a2'");
+    else f.sqlite.run("UPDATE project SET schedule_objective='time' WHERE id='a2'");
+    const selected = await f.capture();
+    expect(selected.combined).toEqual(f.afterA.combined);
+    expect(selected.stages[0]?.chosen?.chosen).toBe('optimized');
+    expect(selected.stages[1]?.chosen?.chosen ?? null).toBe(choice === 'time' ? 'optimized' : null);
+    expect(selected.stages[1]?.optimization === null).toBe(choice === 'disabled');
+    if (choice !== 'disabled') {
+      expect(selected.stages[1]?.optimization?.variants.pri.state).toBe('ready');
+      expect(selected.stages[1]?.optimization?.variants.time.state).toBe('ready');
+    }
+    expect(selected.combined.slices.get('a1-short\u0000design')?.earliestStart).toBe(0);
+    const tree = await f.tree(f.app, 'a2');
+    expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
+      ['a2-long\u0000build', 3],
+      ['a2-short\u0000build', 5],
+    ]);
+    expect(f.launched).toEqual([]);
+  });
+}
+
+test('mounted interleaving held member has no stage or optimization request', async () => {
+  const f = await interleavingFixture();
+  f.sqlite.run("UPDATE work_item SET hold='on_hold' WHERE project_id='a2'");
+  const selected = await f.capture();
+  expect(selected.stages.map((selection) => selection.stage.projectId)).toEqual(['a1']);
+  expect([...selected.combined.slices.keys()].some((key) => key.startsWith('a2-'))).toBe(false);
+  const tree = await f.tree();
+  expect(tree.slices.some((slice) => slice.id.startsWith('a2-'))).toBe(false);
+  expect(f.launched.every((asked) => asked.key.projectId === 'a1')).toBe(true);
+  expect(f.errors).toEqual([]);
+});
+
+test('mounted interleaving rank precedes bytewise ID in the single stage pass', async () => {
+  const f = await interleavingFixture();
+  f.sqlite.run("UPDATE project_rank SET position=-1 WHERE project_id='a2'");
+  const selected = await f.capture();
+  expect(selected.stages.map((selection) => selection.stage.projectId)).toEqual(['a2', 'a1']);
+  expect(selected.stages.map((selection) => selection.optimization?.variants.pri.state)).toEqual([
+    'idle',
+    'idle',
+  ]);
+  expect(selected.combined).toEqual(f.initial.combined);
+  expect(f.launched).toEqual([]);
 });

@@ -514,3 +514,16 @@ subscription lookup fail independently. Evidence and limits:
 [evidence/real-socket-delivery/report.md](evidence/real-socket-delivery/report.md).
 Browser reconciliation, remaining writer coverage and rollout remain open;
 parent 5.2 stays unchecked.
+
+### Bounded task 7.3 mounted interleaving and stage-state acceptance (2026-10-23)
+
+Eleven mounted SQLite cases now exercise two optimized projects across
+`A.design → B.build → A.test`, strict durable Pri/Time alternatives, exact
+selected dates, immutable single-visit stage identity, repeated settled reads,
+rank/ID order, Fast/disabled/objective/held choices, and retention of the exact
+valid composite for idle/pending/failed/corrupt/boundary-infeasible states.
+Independent selector and final-stage faults were watched red and restored;
+upstream sorting masks a selector-only omission on the mounted path, so the
+existing adversarial selector test supplies that independent omission proof.
+See [the bounded packet](verify-task-7.3-interleaving.md). Production is unchanged;
+parent 7.3 and separate 7.4/8.4 obligations remain open.

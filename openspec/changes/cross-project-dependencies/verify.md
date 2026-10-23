@@ -5827,3 +5827,16 @@ allow exactly the established selected stale-entry pruning. The delta spec now
 states that exception explicitly. Production behavior is unchanged. Independent
 Astra High review approved the bounded proof after an evidence count correction.
 Parent 4.4, activation and full host/CI delivery gates remain open.
+
+## Task 7.3 bounded mounted interleaving and stage-state acceptance — 2026-10-23
+
+[The interleaving packet](verify-task-7.3-interleaving.md) adds two optimized
+members across `A.design → B.build → A.test` using actual SQLite capture and
+strict durable candidate acceptance. Eleven cases assert literal final dates,
+per-stage Pri/Time identity, single visits, stable settled reads, rank/ID order,
+engine/enablement/objective/held choices, and exact valid-composite retention for
+idle, pending, failed, corrupt and boundary-infeasible states. Required faults
+were independently watched red and restored; selector sort omission is proved
+by the existing adversarial selector test because mounted derivation pre-sorts
+members, with a separate inverted-sort mounted fault. No production behavior
+changed. Parent 7.3, persistence/retry 7.4, historical 8.4 and activation stay open.
