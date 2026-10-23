@@ -1,7 +1,10 @@
 import {
   type CapacityLimitCrossed,
+  type MeasureDefinition,
   type PriorityBand,
   refuseCapacityStatement,
+  type StoredBudget,
+  type StoredMeasureEstimate,
   type StoredStepBlockage,
 } from '@wbs/domain';
 
@@ -55,6 +58,13 @@ export interface ImportTransaction {
     act: (plan: ImportedPlan) => Promise<ImportDecision<T>>,
   ): Promise<T>;
 }
+
+/**
+ * What defining a file's measure answered: stored, or the organization's
+ * unique indexes refusing it after `decideMeasureCreate` admitted it.
+ */
+export type MeasureDefined =
+  { ok: true } | { ok: false; reason: 'measure_key_taken' | 'second_scheduling_measure' };
 
 /** The labels a created row receives once every directory entry it names exists. */
 export type ImportedLabels = Required<
@@ -200,6 +210,12 @@ export class ImportedPlanResource {
     });
   }
 
+  /** The organization owning measure definitions through `access`, as `MeasureDefinitions` decides it. */
+  async #measureOwnerOf(access: ResourceAccess): Promise<string | null> {
+    if (access.kind === 'scoped') return access.scope.organizationId;
+    return await this.#scope.stores.directory.legacyOrganizationId();
+  }
+
   /** @throws when a created row refuses its demand (`wbs-resources`). */
   async setDemand(
     workItemId: string,
@@ -216,6 +232,56 @@ export class ImportedPlanResource {
     const written = await this.#scope.stores.calendarMarkers.create(marker);
     if (!written.ok)
       throw new Error(`created project refused its calendar marker: ${written.reason}`);
+  }
+
+  /**
+   * The measure definitions the created project's figures are decided
+   * against (`wbs-measure-budgets` design D65): the organization's under
+   * scoped access; under legacy access the legacy organization's, which owns
+   * every project created before activation (`project_organization_bridge`)
+   * and every legacy-access definition (`MeasureDefinitions`); null only
+   * when no legacy organization exists, where the created project answers the
+   * seeded four (design D19).
+   *
+   * Proof: answering null under legacy access again made `before activation,
+   * with a legacy organization: re-import of its own v11 export succeeds and
+   * matches its definitions` (measure-export.controller.db.test.ts) answer
+   * 409 where 201 was expected; watched 2026-10-23.
+   */
+  async measureDefinitionsWithin(access: ResourceAccess): Promise<MeasureDefinition[] | null> {
+    const owner = await this.#measureOwnerOf(access);
+    return owner === null ? null : await this.#scope.stores.directory.listMeasures(owner);
+  }
+
+  /**
+   * Defines a measure the file names and the owning organization does not
+   * hold, where {@link measureDefinitionsWithin} named one; the caller has
+   * decided it with `decideMeasureCreate`, as a directory command would.
+   *
+   * @throws under legacy access with no legacy organization, where none would own it.
+   */
+  async addMeasureWithin(
+    access: ResourceAccess,
+    measure: MeasureDefinition,
+    stamp: WriteStamp,
+  ): Promise<MeasureDefined> {
+    const owner = await this.#measureOwnerOf(access);
+    if (owner === null)
+      throw new Error('a legacy import tried to define a measure no organization would own');
+    const added = await this.#scope.stores.directory.addMeasure(owner, measure, stamp);
+    return added.ok ? { ok: true } : { ok: false, reason: added.reason };
+  }
+
+  /** @throws when the created leaf refuses its trio: preparation admitted its step. */
+  async setMeasureEstimate(estimate: StoredMeasureEstimate, stamp: WriteStamp): Promise<void> {
+    const written = await this.#scope.stores.measureEstimates.set(estimate, stamp);
+    if (written !== 'written')
+      throw new Error(`created leaf refused its measure estimate: ${written}`);
+  }
+
+  /** Writes a created row's stated budget; the caller decided its key with `decideBudget`. */
+  async setBudget(budget: StoredBudget, stamp: WriteStamp): Promise<void> {
+    await this.#scope.stores.budgets.set(budget, stamp);
   }
 
   /** Inserts the whole prepared tree, parents first, with its step values and edges. */

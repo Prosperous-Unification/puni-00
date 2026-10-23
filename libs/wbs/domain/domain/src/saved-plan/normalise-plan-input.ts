@@ -66,7 +66,41 @@ export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Ma
   [6, (body) => ({ ...body, schemaVersion: 7, stepBlockages: [] })],
   // Proof: empty collection omitted; historical schema7 upgrade negative failed (legacy-upgrade.txt), 2026-10-17.
   [7, (body) => ({ ...body, schemaVersion: 8, stepParallels: [] })],
+  [8, withNoMeasureBudgets],
 ]);
+
+/**
+ * Version 8 to 9 (`wbs-measure-budgets` design D66): a body saved before
+ * measure estimates, budgets and bases were captured held none of them, and
+ * its project the factor every project had, 1. Its facts read as unpriced.
+ *
+ * Proof: returning the body unchanged made `reads a version-8 body with no
+ * trios, budgets or bases and a factor of 1` (normalise-plan-input.test.ts)
+ * fail on `schemaVersion`; watched 2026-10-23.
+ */
+function withNoMeasureBudgets(body: Record<string, unknown>): Record<string, unknown> {
+  const project = body['project'];
+  const measures = body['measures'];
+  // Proof: with each of the three guards below removed alone, `refuses a
+  // version-8 body without a project object or a measures list`
+  // (normalise-plan-input.test.ts) failed; watched 2026-10-23.
+  if (typeof project !== 'object' || project === null || Array.isArray(project))
+    throw new Error('a version-8 plan input body holds no project object');
+  if (!Array.isArray(measures))
+    throw new Error('a version-8 plan input body holds no measures list');
+  return {
+    ...body,
+    schemaVersion: 9,
+    project: { ...project, budgetFactor: 1 },
+    measures: measures.map((row: unknown) => {
+      if (typeof row !== 'object' || row === null || Array.isArray(row))
+        throw new Error('a version-8 plan input body holds a measure that is not an object');
+      return { ...row, currency: null, rateCardDigest: null };
+    }),
+    measureEstimates: [],
+    budgets: [],
+  };
+}
 
 /** Version 5 knew only workdays; validate the trusted step list before upgrading it. */
 function withWorkdayUnits(body: Record<string, unknown>): Record<string, unknown> {

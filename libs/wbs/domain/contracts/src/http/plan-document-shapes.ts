@@ -2,11 +2,15 @@ import { type } from 'arktype';
 
 import { project } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
-import { numberedWorkItem, workItemTree } from './work-item-response';
+import { moneyBasis, numberedWorkItem, workItemTree } from './work-item-response';
 
 /**
- * The plan document version this release writes.
+ * The newest plan document version this release writes.
  *
+ * `11` carries the project's measures (`wbs-measure-budgets` D8, design D63):
+ * the definitions its facts, estimates and budgets name, those three, and the
+ * budget factor. The export writes it only when the plan holds one of them or
+ * a factor other than 1, and {@link LEGACY_PLAN_DOCUMENT_VERSION} otherwise.
  * `10` carries resources, their per-project capacities and per-work-item demands
  * (`wbs-resources`). `9` carries direct step blockage facts separately from rows. `8` carries each step’s estimate unit. `7` carries the project's timezone and each leaf's attempts by step code
  * (`step-node-attempts` D5); `6` each leaf's readiness and hold
@@ -15,11 +19,18 @@ import { numberedWorkItem, workItemTree } from './work-item-response';
  * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
  * classifier converts earlier versions explicitly.
  */
-export const PLAN_DOCUMENT_VERSION = 10;
+export const PLAN_DOCUMENT_VERSION = 11;
+
+/**
+ * The version the export writes for a plan with nothing version 11 adds, byte
+ * for byte what the release before measures wrote, so the outgoing release,
+ * Twilight Navigator and every saved file read it as before (design D63).
+ */
+export const LEGACY_PLAN_DOCUMENT_VERSION = 10;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '10',
+  version: '10 | 11',
   exportedAt: 'string',
 });
 
@@ -43,6 +54,8 @@ const planSettings = type({
   scheduleObjective: "'pri' | 'time'",
   /** The IANA zone the project reads instants as days in; `UTC` before version 7. */
   timezone: 'string',
+  /** What a derived budget multiplies the pessimistic point by; version 11 only (design D63). */
+  'budgetFactor?': 'number',
 });
 
 const named = type({ id: 'string', name: 'string' });
@@ -76,6 +89,67 @@ export type DocumentResourceCapacity = (typeof documentResourceCapacity)['infer'
 /** One work item's demand on one resource, both by file-local id. */
 export const documentDemand = type({ workItemId: 'string', resourceId: 'string', units: 'number' });
 export type DocumentDemand = (typeof documentDemand)['infer'];
+
+/**
+ * A measure definition as version 11 writes it (`wbs-measure-budgets` D1,
+ * design D63): every field but the organization's id, so an import elsewhere
+ * can match it by key or create it.
+ */
+export const documentMeasureDefinition = type({
+  key: 'string',
+  name: 'string',
+  unit: 'string',
+  kind: "'duration' | 'count' | 'money'",
+  scale: "'integer' | 'real'",
+  threePoint: 'boolean',
+  showByDefault: 'boolean',
+  schedulesWork: 'boolean',
+  derived: 'boolean',
+  order: 'number',
+  currency: 'string | null',
+});
+export type DocumentMeasureDefinition = (typeof documentMeasureDefinition)['infer'];
+
+/**
+ * One fact in a defined measure, by file-local work item and step and by
+ * definition key, with the basis a money figure was priced under (null when
+ * none was recorded). Facts in `tokens` and `hours` stay in the row's legacy
+ * `measures` (design D18).
+ */
+export const documentMeasureFact = type({
+  workItemId: 'string',
+  stepId: 'string',
+  measure: 'string',
+  value: 'number',
+  basis: moneyBasis.or('null'),
+});
+export type DocumentMeasureFact = (typeof documentMeasureFact)['infer'];
+
+/**
+ * One three-point estimate in a measure other than time. A single-point
+ * tokens trio is the row's legacy `token_estimate` and is not repeated here
+ * (design D28).
+ */
+export const documentMeasureEstimate = type({
+  workItemId: 'string',
+  stepId: 'string',
+  measure: 'string',
+  optimistic: 'number',
+  realistic: 'number',
+  pessimistic: 'number',
+  basis: moneyBasis.or('null'),
+});
+export type DocumentMeasureEstimate = (typeof documentMeasureEstimate)['infer'];
+
+/** One stated budget; derived budgets are computed again after import (design D38). */
+export const documentBudget = type({
+  workItemId: 'string',
+  measure: 'string',
+  cap: 'number',
+  policy: "'strict' | 'advisory'",
+  holdPerAttempt: 'number | null',
+});
+export type DocumentBudget = (typeof documentBudget)['infer'];
 
 const authoredMarker = type({
   id: 'string',
@@ -142,7 +216,18 @@ export type DocumentAttempt = (typeof documentAttempt)['infer'];
  * present only on a leaf that holds any.
  */
 const documentWorkItem = numberedWorkItem
-  .omit('attempts', 'spans', 'span', 'blockages', 'blockageCauses', 'nodeResources')
+  .omit(
+    'attempts',
+    'spans',
+    'span',
+    'blockages',
+    'blockageCauses',
+    'nodeResources',
+    'measureEstimates',
+    'budgets',
+    'mixedRateCards',
+    'moneyBases',
+  )
   .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
 
 export const planDocument = workItemTree.omit('typedDependencies', 'workItems').and({
@@ -168,6 +253,11 @@ export const planDocument = workItemTree.omit('typedDependencies', 'workItems').
   demands: documentDemand.array(),
   calendarMarkers: authoredMarker.array(),
   directory: directory.and({ resources: documentResource.array() }),
+  // Version 11 only, all four together (design D63).
+  'measureDefinitions?': documentMeasureDefinition.array(),
+  'measureFacts?': documentMeasureFact.array(),
+  'measureEstimates?': documentMeasureEstimate.array(),
+  'budgets?': documentBudget.array(),
 });
 
 export type PlanDocument = (typeof planDocument)['infer'];
@@ -232,7 +322,10 @@ const writablePlanDocument = type({
   document: type({ format: "'wbs-plan'", version: 'number.integer', exportedAt: 'string' }),
   // The zone stays opaque until the version is read: version 7 must name a
   // supported zone, and earlier versions read as `UTC`.
-  settings: planSettings.omit('timezone').and({ 'timezone?': 'unknown' }),
+  // The factor likewise: version 11 must state one, and earlier versions read as 1.
+  settings: planSettings
+    .omit('timezone', 'budgetFactor')
+    .and({ 'timezone?': 'unknown', 'budgetFactor?': 'unknown' }),
   capacity: type({ teamId: 'string', size: 'number' }).array(),
   priorityBands: type({ startsAt: 'number', defaultValue: 'number', label: 'string' }).array(),
   calendarMarkers: authoredMarker.array(),
@@ -241,6 +334,12 @@ const writablePlanDocument = type({
   directory: directory.and({ 'resources?': 'unknown' }),
   'resourceCapacities?': 'unknown',
   'demands?': 'unknown',
+  // Opaque until the version is read: version 11 must state all four, and
+  // earlier versions carry none (`wbs-measure-budgets` design D63).
+  'measureDefinitions?': 'unknown',
+  'measureFacts?': 'unknown',
+  'measureEstimates?': 'unknown',
+  'budgets?': 'unknown',
   workItems: authoredWorkItem.array(),
   // Optional structurally because version 1 has no allowance and versions 1
   // and 2 carry no code the import keeps; the version decides what each field
@@ -282,15 +381,30 @@ export type PlanDocumentImport = Omit<
   | 'directory'
   | 'resourceCapacities'
   | 'demands'
+  | 'measureDefinitions'
+  | 'measureFacts'
+  | 'measureEstimates'
+  | 'budgets'
 > & {
+  /** The measures version 11 states (design D63), none before. */
+  measureDefinitions: DocumentMeasureDefinition[];
+  measureFacts: DocumentMeasureFact[];
+  measureEstimates: DocumentMeasureEstimate[];
+  budgets: DocumentBudget[];
   /** The file's directory, its resources as version 10 states them and none before. */
   directory: Omit<PlanDocumentRequest['directory'], 'resources'> & {
     resources: DocumentResource[];
   };
   resourceCapacities: DocumentResourceCapacity[];
   demands: DocumentDemand[];
-  /** The zone as version 7 names it, `UTC` for an earlier version. */
-  settings: Omit<PlanDocumentRequest['settings'], 'timezone'> & { timezone: string };
+  /**
+   * The zone as version 7 names it, `UTC` for an earlier version; the budget
+   * factor as version 11 states it, 1 for an earlier one.
+   */
+  settings: Omit<PlanDocumentRequest['settings'], 'timezone' | 'budgetFactor'> & {
+    timezone: string;
+    budgetFactor: number;
+  };
   typedDependencies: DocumentTypedDependency[];
   stepBlockages: { workItemId: string; stepId: string; blockedAt: number }[];
   /**

@@ -155,6 +155,7 @@ export function projectRoutes(
     clock,
     stepParallels,
     resourceFacts: workItems,
+    measureFacts: workItems,
   });
   return [
     bind(
