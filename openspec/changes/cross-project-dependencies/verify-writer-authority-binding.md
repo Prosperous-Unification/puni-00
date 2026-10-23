@@ -93,6 +93,14 @@ state and unsupported-runtime HTTP 500 tests emit structured error diagnostics.
   diagnostic-free lint failures were superseded by the serial successful checks.
 - Normal repository hooks are installed and required for the packet commit.
 
+## Integrated verification
+
+After integration at `1c6d0c86085353e0a0162f001f5e941d56647240`, the complete
+three-file source/reader/mounted suite passed: 146 tests, zero failures and
+1,867 assertions in 45.81s. Command:
+`bun test --preload ./tools/test/scratch/preload.ts libs/wbs/adapters/store-sqlite/src/writer-authority-binding.db.test.ts libs/wbs/application/core/src/ports/external-dependency-authoring.test.ts apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts --timeout=30000`.
+Output is retained at `/tmp/puni-writer-authority-integrated-1c6d0c860.log`.
+
 ## Limits
 
 No h2puni/h4claw integrated gate, push, deployment, activation, image/supervisor
