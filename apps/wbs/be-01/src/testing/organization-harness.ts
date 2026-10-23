@@ -676,6 +676,7 @@ export class OrganizationHarness {
    * extending the positional list.
    */
   static openComposedWith({
+    admitDependencyClient = () => null,
     appOrigin = 'http://localhost',
     now,
     withOptimizer = false,
@@ -877,7 +878,7 @@ export class OrganizationHarness {
       priorityBands: services.priorityBands,
       history: services.history,
       replay: services.replay,
-      admitDependencyClient: () => null,
+      admitDependencyClient,
       probeDatabase: () => 'ok',
       writes: {
         commandAccess,
@@ -1189,6 +1190,8 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  /** Explicit authority boundary for mounted runtime admission tests. */
+  readonly admitDependencyClient?: AppOptions['admitDependencyClient'];
   /** Explicit allowed browser origin, shared by the mounted controller and fixture clients. */
   readonly appOrigin?: string;
   /** Builds a separate test-only importer; mounted production imports stay inactive. */

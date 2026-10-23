@@ -29,21 +29,21 @@ Each fault below was injected independently into production code, the named
 production-path test failed, and the source was restored before verification.
 Receipts live in [evidence/retained-egress](evidence/retained-egress/).
 
-| Injected fault                                 | Observed assertion                                                                                                       |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Skip fresh FIFO-head admission                 | Replay accepted sentinel and acknowledgement after the first event changed authority (`fresh-admission.log`).            |
-| Skip incompatible retirement                   | Retained real socket stayed open; observation deadline failed (`incompatible-retirement.log`).                           |
-| Remove post-admission cancellation check       | Mounted internal push physically wrote after cancellation (`post-admission-cancellation.log`).                           |
-| Remove post-admission absolute-expiry check    | Mounted internal push counted an expired accepted frame with timer withheld (`post-admission-expiry.log`).               |
-| Remove pre-admission expiry check              | Mounted expired FIFO head inspected authority once instead of zero times (`pre-admission-expiry.log`).                   |
-| Omit authority parent cancellation             | Real socket close left held authority fetch un-aborted until observation deadline (`authority-parent-cancellation.log`). |
-| Omit connection abort before close             | Mounted close snapshot saw `canceled: false` (`retirement-abort.log`).                                                   |
-| Omit subscription removal before close         | Mounted close snapshot retained its subscribed delivery socket (`retirement-subscriptions.log`).                         |
-| Omit presence removal before close             | Mounted close snapshot retained one connection (`retirement-presence.log`).                                              |
-| Omit delayed identity cancellation check       | Mounted late identity restored one presence connection (`late-identity.log`).                                            |
-| Omit held subscribe cancellation check         | Production controller restored a subscription after cancellation (`late-subscribe.log`).                                 |
-| Omit canceled-open completion check            | Mounted late identity added close 1008 after 1013 (`late-close.log`).                                                    |
-| Catch incompatible retirement callback failure | Producer resolved instead of rejecting (`callback-failure.log`).                                                         |
+| Injected fault                                 | Observed assertion                                                                                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skip fresh FIFO-head admission                 | Replay accepted sentinel and acknowledgement after the first event changed authority (`fresh-admission.log`).                                      |
+| Skip incompatible retirement                   | Retained real socket stayed open; observation deadline failed (`incompatible-retirement.log`).                                                     |
+| Remove post-admission cancellation check       | Mounted internal push physically wrote after cancellation (`post-admission-cancellation.log`).                                                     |
+| Remove post-admission absolute-expiry check    | Mounted internal push physically wrote an expired frame with timer withheld despite reporting zero accepted sockets (`post-admission-expiry.log`). |
+| Remove pre-admission expiry check              | Mounted expired FIFO head inspected authority once instead of zero times (`pre-admission-expiry.log`).                                             |
+| Omit authority parent cancellation             | Real socket close left held authority fetch un-aborted until observation deadline (`authority-parent-cancellation.log`).                           |
+| Omit connection abort before close             | Mounted close snapshot saw `canceled: false` (`retirement-abort.log`).                                                                             |
+| Omit subscription removal before close         | Mounted close snapshot retained its subscribed delivery socket (`retirement-subscriptions.log`).                                                   |
+| Omit presence removal before close             | Mounted close snapshot retained one connection (`retirement-presence.log`).                                                                        |
+| Omit delayed identity cancellation check       | Mounted late identity restored one presence connection (`late-identity.log`).                                                                      |
+| Omit held subscribe cancellation check         | Production controller restored a subscription after cancellation (`late-subscribe.log`).                                                           |
+| Omit canceled-open completion check            | Mounted late identity added close 1008 after 1013 (`late-close.log`).                                                                              |
+| Catch incompatible retirement callback failure | Producer resolved instead of rejecting (`callback-failure.log`).                                                                                   |
 
 Physical close is deliberately withheld in mounted lifecycle tests. Assertions
 observe actual cancellation, subscription and presence state captured at close,
@@ -87,3 +87,31 @@ browser receipt. Already accepted bytes cannot be recalled.
 No activation, authoring, ingress fencing, old-process participant exclusion,
 semantic advertisement, negotiated dependency protocol or deployment was enabled.
 Backend, gateway and MCP binary capabilities remain empty.
+
+## Review correction: replay reachability and committed whitespace
+
+The initial mounted replay arm requested resume after ENABLED, so project access
+could refuse before egress. It did not prove the claimed replay egress path.
+The corrected fixture uses the composed real SQLite replay service and seeds a
+real event through `DrizzleEventLogStore`. A DISABLED control first observes the
+exact sentinel and acknowledgement. A second replay captures that same event
+under DISABLED, then holds the already successful final browser-access 204 after
+the resume response. Synthetic ENABLED is persisted while that response is held.
+Releasing it reaches the fresh FIFO admission, which suppresses both sentinel
+and acknowledgement. Independently bypassing admission only for the replay
+sentinel/ack emits both and fails the mounted empty-frame assertion; the original
+production admission was restored before the final control.
+
+The prior working-tree `git diff --check` receipt omitted then-untracked evidence
+logs. Review's exact `git diff --check 7f33d2021..ff34a5ff6` correctly failed on two
+log lines. Those logs are now normalized. The correction checks the complete
+base-relative diff, including the evidence, rather than only the unstaged diff.
+The post-admission-expiry mutant physically wrote once despite push reporting
+zero accepted sockets; the proof table now states that observed failure exactly.
+
+Correction verification:
+
+- `bun test --timeout=10000 apps/wbs/be-01/src/http/elysia/gateway-dependency.db.test.ts apps/wbs/be-01/src/http/elysia/retained-gateway-dependency.db.test.ts`: exit 0, 2 tests, 30 assertions after restoring production admission.
+- `NODE_OPTIONS=--max-old-space-size=4096 NX_DAEMON=false bunx nx run wbs-be-01:typecheck --skip-nx-cache`: exit 0, including its module typecheck dependency.
+- Changed source ESLint and changed-file Prettier: exit 0. `git diff --check 7f33d2021`: exit 0 with all correction files, including evidence, staged.
+- The existing 188-test gateway receipt remains unchanged; production changes in this correction are an adjacent proof comment only. No build or host gate was run here.

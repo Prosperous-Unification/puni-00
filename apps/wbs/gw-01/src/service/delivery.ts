@@ -104,6 +104,8 @@ export class SocketDelivery implements DeliverySocket {
             throw new DeadlineExceeded('socket delivery deadline exceeded before write');
           // Proof: bypassing admission sends the sentinel/ack in mounted
           // fresh admission stops replay when authority changes after the first accepted event.
+          // Proof: bypassing only replay sentinel/ack admission emitted both after
+          // ENABLED in retained-gateway-dependency.db.test.ts with final access 204 held.
           const admission = await this.deps.admit(signal);
           if (admission === 'incompatible') return 'incompatible' as const;
           // Proof: removing this check writes after cancellation in mounted push cannot write after held admission cancellation or exact expiry with withheld timer.

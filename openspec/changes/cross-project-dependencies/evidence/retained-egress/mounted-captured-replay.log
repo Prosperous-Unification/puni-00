@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/http/elysia/retained-gateway-dependency.db.test.ts:
+137 |       body: JSON.stringify({ subscription, seq: 999, message: 'sentinel' }),
+138 |     });
+139 |     expect(await response.json()).toEqual({ delivered_to_sockets: 0 });
+140 |     releaseRecheck();
+141 |     await until(() => replaying.socket.readyState === WebSocket.CLOSED || replaying.frames.length > replayBefore);
+142 |     expect(replaying.frames.slice(replayBefore)).toEqual([]);
+                                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "message": "replay-sentinel",
++     "seq": 0,
++     "subscription": "project:335f5310-7ed1-461d-bc65-35461eb5287c",
++   },
++   {
++     "replayed": {
++       "project:335f5310-7ed1-461d-bc65-35461eb5287c": 1,
++     },
++     "type": "resume_ack",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/be-01/src/http/elysia/retained-gateway-dependency.db.test.ts:142:50)
+(fail) mounted SQLite authority ENABLED with zero external rows fences retained push and replay [5174.60ms]
+
+ 0 pass
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [8.38s]
