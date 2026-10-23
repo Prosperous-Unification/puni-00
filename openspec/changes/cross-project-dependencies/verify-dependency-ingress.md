@@ -158,3 +158,35 @@ files (`/tmp/puni-ingress-native-combined-complete.log`). Uncached Nx
 their three prerequisites (`/tmp/puni-ingress-native-checks.log`). Formatting
 and `git diff --check` passed. Correction review, actual-Caddy acceptance and
 the integrated host gate remain open.
+
+### Native ABI review follow-up
+
+Astra approved the Linux parent-descriptor correction at `a43aef050`, with
+six independently rerun filesystem cases, but identified an unsupported Apple
+Silicon ABI claim: native variadic `openat` cannot be declared as a four-fixed-
+argument function on that ABI. This site publisher now explicitly supports only
+the observed Linux x64 deployment hosts; other platform/architecture pairs
+refuse before native file creation. General module import and unrelated scripts
+do not fail merely because the publisher is unavailable. No macOS publication
+acceptance is claimed. This does not change the project's existing installer
+or general lock portability contract.
+
+Two real child fixtures model Darwin/arm64 and Linux/arm64 and require explicit
+refusal with no created file. Removing the platform boundary made both fail.
+The publisher also requires exact mode 0600 before writing configuration bytes;
+the real rename acceptance asserts the native-created sibling's mode. A
+public-mode injection refuses before writing; removing that early check reaches
+the later rename boundary with configuration bytes in a public-mode file and
+fails the expected ordering assertion. Restored fixtures pass. Logs:
+`/tmp/puni-ingress-unsupported-restored.log`,
+`/tmp/puni-ingress-unsupported-platform-omitted.log` and
+`/tmp/puni-ingress-private-mode-omitted.log`.
+
+Final Linux-source regression after the ABI/mode correction: **195 passed,
+zero failed, 989 assertions across nine files**, exit 0, at
+`/tmp/puni-ingress-linux-combined.log`. Uncached configured lint, typecheck
+and build plus three prerequisite targets passed again, exit 0, at
+`/tmp/puni-ingress-linux-checks.log`. Independent Astra narrow rereview reran
+nine filesystem/platform cases (30 assertions), found no remaining P1/P2/P3
+and approved this explicitly Linux x64 source and controlled h2 fixture scope.
+Actual host acceptance, complete exclusion and final integrated gate remain open.

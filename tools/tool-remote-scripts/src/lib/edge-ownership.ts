@@ -340,6 +340,9 @@ export async function publishOwnedSiteFile(
     );
     let published: OwnedSiteFile;
     try {
+      // Proof: omitted mode admission; public-mode injection passed secret bytes to the later rename boundary.
+      if ((fstatSync(descriptor).mode & 0o777) !== 0o600)
+        throw new Error('owner site private creation mode differs');
       writeFileSync(descriptor, contents, 'utf8');
       // Proof: omitted staged fsync; actual rename boundary refused the unsynchronized source.
       fsyncSync(descriptor);

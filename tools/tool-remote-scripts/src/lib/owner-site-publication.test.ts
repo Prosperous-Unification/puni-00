@@ -5,7 +5,7 @@ import { expect, test } from 'bun:test';
 
 import { envLayout } from './env';
 
-for (const fault of ['none', 'noop', 'sync-failure', 'sibling-symlink'] as const) {
+for (const fault of ['none', 'noop', 'sync-failure', 'sibling-symlink', 'public-mode'] as const) {
   test(`actual site publication retains ordered evidence for ${fault}`, async () => {
     const root = scratchSync('owner-site-effect-');
     const caddy = `${root}/caddy`;
@@ -39,7 +39,9 @@ for (const fault of ['none', 'noop', 'sync-failure', 'sibling-symlink'] as const
       openDirectoryFile:(descriptor,name,flags)=>{
         if(name.startsWith('.site.caddy.dependency-')) {
           if(${JSON.stringify(fault)} === 'sibling-symlink')filesystem.symlinkSync(${JSON.stringify(foreign)},join(${JSON.stringify(caddy)},name));
-          const opened=openRelative(descriptor,name,flags);staged.add(opened);return opened;
+          const opened=openRelative(descriptor,name,flags);
+          if(${JSON.stringify(fault)} === 'public-mode')filesystem.fchmodSync(opened,0o644);
+          staged.add(opened);return opened;
         }
         return openRelative(descriptor,name,flags);
       },
@@ -55,6 +57,7 @@ for (const fault of ['none', 'noop', 'sync-failure', 'sibling-symlink'] as const
         }
         if (filesystem.readFileSync(${JSON.stringify(path)},'utf8') !== 'original secret configuration') throw new Error('effect preceded intent');
         if (![...staged].some(fd=>synchronized.has(fd))) throw new Error('staged file sync absent');
+        if ((filesystem.statSync(join(${JSON.stringify(caddy)},source)).mode & 0o777) !== 0o600) throw new Error('native creation was not private');
         observed = true;
         if (${JSON.stringify(fault)} !== 'noop') {renameRelative(descriptor,source,target);renamed=true;}
       }
@@ -66,11 +69,11 @@ for (const fault of ['none', 'noop', 'sync-failure', 'sibling-symlink'] as const
       await publishOwnedSiteFile(owner,layout,await captureOwnedSiteFile(layout.siteCaddyPath),'maintenance');
     },${JSON.stringify(root)}); } catch(cause) {
       refused=true;
-      const expected=${JSON.stringify(fault)} === 'sibling-symlink' ? 'exclusive relative open failed' : ${JSON.stringify(fault)} === 'noop' ? 'readback differs' : 'injected directory sync';
+      const expected=${JSON.stringify(fault)} === 'public-mode' ? 'private creation mode differs' : ${JSON.stringify(fault)} === 'sibling-symlink' ? 'exclusive relative open failed' : ${JSON.stringify(fault)} === 'noop' ? 'readback differs' : 'injected directory sync';
       if(!String(cause).includes(expected)) throw cause;
     }
     if(${JSON.stringify(fault)} === 'none' ? refused : !refused) throw new Error('publication refusal differs');
-    if(${JSON.stringify(fault)} !== 'sibling-symlink' && !observed) throw new Error('rename effect never observed');
+    if(!['sibling-symlink','public-mode'].includes(${JSON.stringify(fault)}) && !observed) throw new Error('rename effect never observed');
     if(${JSON.stringify(fault)} === 'none' && !directorySynced) throw new Error('publication directory sync absent');
   `;
     const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
@@ -78,7 +81,7 @@ for (const fault of ['none', 'noop', 'sync-failure', 'sibling-symlink'] as const
     expect(stderr).toBe('');
     expect(code).toBe(0);
     expect(await readFile(path, 'utf8')).toBe(
-      fault === 'noop' || fault === 'sibling-symlink'
+      fault === 'noop' || fault === 'sibling-symlink' || fault === 'public-mode'
         ? 'original secret configuration'
         : 'maintenance',
     );
