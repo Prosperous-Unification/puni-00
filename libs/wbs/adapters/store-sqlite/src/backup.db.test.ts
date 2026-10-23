@@ -1,8 +1,17 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import * as filesystem from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { restoreDatabase, snapshotDatabase, verifySnapshot } from './backup';
@@ -116,6 +125,29 @@ describe('snapshotDatabase and restoreDatabase', () => {
 
     expect(() => snapshotDatabase(dbPath, join(dir, 'copy.db'))).toThrow(/does not exist/);
     expect(existsSync(dbPath)).toBe(false);
+  });
+
+  it('refuses a source removed after preflight without recreating it', () => {
+    const dir = scratch();
+    const dbPath = skeletonDatabase(dir);
+    const snapshotPath = join(dir, 'copy.db');
+    const checkExists = filesystem.existsSync;
+    // Preserve the real preflight observation, then remove its source before SQLite opens it.
+    const preflight = spyOn(filesystem, 'existsSync').mockImplementation((path) => {
+      const isPresent = checkExists(path);
+      if (path === dbPath && isPresent) unlinkSync(dbPath);
+      return isPresent;
+    });
+    try {
+      expect(() => snapshotDatabase(dbPath, snapshotPath)).toThrow();
+    } finally {
+      preflight.mockRestore();
+    }
+    expect(existsSync(dbPath)).toBe(false);
+    expect(existsSync(`${dbPath}-wal`)).toBe(false);
+    expect(existsSync(`${dbPath}-shm`)).toBe(false);
+    expect(existsSync(snapshotPath)).toBe(false);
+    expect(existsSync(join(dir, '.copy.db.partial'))).toBe(false);
   });
 
   it('refuses to publish a copy without a migration ledger', () => {
