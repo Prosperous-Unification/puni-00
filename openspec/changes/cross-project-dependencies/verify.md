@@ -7047,4 +7047,19 @@ click, destination-specific tree read and work-item focus. Three independent
 production faults fail the intended browser assertions and restore exactly.
 The root document is served by the dedicated fixture while preserving the real
 navigation URL; production root/login composition is explicitly unproved.
-Parent 11.1, independent review and the integrated exact-SHA host gate remain open.
+Independent Astra review approved this bounded packet. Parent 11.1 and the
+integrated exact-SHA host gate remain open.
+
+## Task 8.1 bounded historical reader acceptance — 2026-10-23
+
+The [historical reader packet](verify-historical-reader.md) uses the explicit,
+uncached `wbs-be-01:acceptance:historical-plan-reader` target, excluded from ordinary
+backend test discovery while retaining strict historical dependency provenance.
+It runs pinned pre-v11
+commit `937da8cb59cec1edbcd7a9eb22fe420f6ff8e264` in a separate process with its
+own contracts, aliases and real composed SQLite backend. A successful v10
+export/import control precedes exact `unsupported_version` refusals for downloaded
+connected v11 and malformed-content v11, with unchanged full application tables
+and withheld pushes. Bypassing only the archived version fence failed both exact
+refusal cases; restored checks are recorded in the packet. Parent 8.1, public
+activation and the integrated exact-SHA host gate remain open.

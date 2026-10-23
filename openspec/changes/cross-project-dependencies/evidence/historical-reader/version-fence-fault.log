@@ -1,0 +1,162 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+> nx run wbs-be-01:"acceptance:historical-plan-reader"
+
+> bun test ./apps/wbs/be-01/scripts/historical-plan-reader.acceptance.ts --timeout=60000
+
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/scripts/historical-plan-reader.acceptance.ts:
+86 |     const [status, stdout, stderr] = await Promise.all([
+87 |       child.exited,
+88 |       new Response(child.stdout).text(),
+89 |       new Response(child.stderr).text(),
+90 |     ]);
+91 |     expect({ status, stderr }).toEqual({ status: 0, stderr: '' });
+                                    ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "status": 0,
+-   "stderr": "",
++   "status": 1,
++   "stderr":
++ "(node:228) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
++ (Use `bun --trace-warnings ...` to show where the warning was created)
++ 74 |       Reflect.set(document, 'workItems', 'invalid-future-content');
++ 75 |     }
++ 76 |     const before = snapshotStore();
++ 77 |     const beforePushes = structuredClone(pushes);
++ 78 |     const refused = await harness.call('ada', 'POST', '/api/projects/import', document);
++ 79 |     assert.deepEqual(refused, {
++                 ^
++ AssertionError: Expected values to be strictly deep-equal:
++ + actual - expected
++
++   {
++     body: {
++       detail: null,
++ +     error: 'invalid_typed_dependency',
++ +     path: 'typedDependencies[0].predecessor.step'
++ -     error: 'unsupported_version',
++ -     path: 'document.version'
++     },
++     status: 400
++   }
++
++  generatedMessage: true,
++      actual: {
++   status: 400,
++   body: [Object ...],
++ },
++    expected: {
++   status: 400,
++   body: [Object ...],
++ },
++    operator: "deepStrictEqual",
++        diff: "simple",
++        code: "ERR_ASSERTION"
++
++       at /tmp/wbs-historical-reader-d3KKzX/apps/wbs/be-01/src/testing/historical-plan-reader.worker.ts:79:12
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 2
++ Received  + 43
+
+      at <anonymous> (/tmp/puni-historical-reader/apps/wbs/be-01/scripts/historical-plan-reader.acceptance.ts:91:32)
+✗ pinned pre-v11 reader refuses downloaded v11 (malformed: %s) without writes [4182.89ms]
+86 |     const [status, stdout, stderr] = await Promise.all([
+87 |       child.exited,
+88 |       new Response(child.stdout).text(),
+89 |       new Response(child.stderr).text(),
+90 |     ]);
+91 |     expect({ status, stderr }).toEqual({ status: 0, stderr: '' });
+                                    ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "status": 0,
+-   "stderr": "",
++   "status": 1,
++   "stderr":
++ "(node:263) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
++ (Use `bun --trace-warnings ...` to show where the warning was created)
++ 74 |       Reflect.set(document, 'workItems', 'invalid-future-content');
++ 75 |     }
++ 76 |     const before = snapshotStore();
++ 77 |     const beforePushes = structuredClone(pushes);
++ 78 |     const refused = await harness.call('ada', 'POST', '/api/projects/import', document);
++ 79 |     assert.deepEqual(refused, {
++                 ^
++ AssertionError: Expected values to be strictly deep-equal:
++ + actual - expected
++
++   {
++     body: {
++       detail: null,
++ +     error: 'invalid_body',
++ +     path: 'workItems'
++ -     error: 'unsupported_version',
++ -     path: 'document.version'
++     },
++     status: 400
++   }
++
++  generatedMessage: true,
++      actual: {
++   status: 400,
++   body: [Object ...],
++ },
++    expected: {
++   status: 400,
++   body: [Object ...],
++ },
++    operator: "deepStrictEqual",
++        diff: "simple",
++        code: "ERR_ASSERTION"
++
++       at /tmp/wbs-historical-reader-3zsQdi/apps/wbs/be-01/src/testing/historical-plan-reader.worker.ts:79:12
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 2
++ Received  + 43
+
+      at <anonymous> (/tmp/puni-historical-reader/apps/wbs/be-01/scripts/historical-plan-reader.acceptance.ts:91:32)
+✗ pinned pre-v11 reader refuses downloaded v11 (malformed: %s) without writes [4061.74ms]
+
+ 0 pass
+ 2 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [11.04s]
+Warning: command "bun test ./apps/wbs/be-01/scripts/historical-plan-reader.acceptance.ts --timeout=60000" exited with non-zero status code
+
+
+ NX   Running target acceptance:historical-plan-reader for project wbs-be-01 failed
+
+Failed tasks:
+
+- wbs-be-01:acceptance:historical-plan-reader
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      11.1s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     11.1s (1 task)
+  Recoverable time:  <1ms

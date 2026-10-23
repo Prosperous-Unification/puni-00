@@ -116,6 +116,14 @@
         "command": "bun test ./apps/wbs/be-01/scripts/shared-people-host-artifact.smoke.ts ./apps/wbs/be-01/scripts/shared-people-host-restore.rehearsal.ts --timeout=60000",
         "env": { "CLAUDECODE": "0", "AGENT": "0" }
       }
+    },
+    "acceptance:historical-plan-reader": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test ./apps/wbs/be-01/scripts/historical-plan-reader.acceptance.ts --timeout=60000",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" }
+      }
     }
   }
 }
