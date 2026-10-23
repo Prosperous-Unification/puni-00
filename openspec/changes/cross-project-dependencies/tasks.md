@@ -734,6 +734,6 @@ Ordinary application source retains watcher delivery. Parent tasks stay open.
 - [x] Exercise real installer CLI through local SSH/SCP substitutes; cover retained owner paths, missing/unreadable canonical state, contention, unique staging, staged identities, lock lifetime and partial/readback failure.
 - [x] Capture both build identities and admit both replacements and installed readback under the existing canonical edge lock; retain fail-closed marker handling without activation or pairwise atomicity claims.
 - [x] Watch missing-lock dependency, omitted flock/marker/staged/readback checks and reused attempt identity faults fail; restore controls and document bounded evidence.
-- [ ] Complete installed-byte adoption and prior-holder drain audit, independent review and integrated exact-SHA host gate; parent 10.1/10.2 remain open. Evidence: [verify-installed-executor-admission.md](verify-installed-executor-admission.md).
+- [ ] Complete installed-byte adoption, prior-holder drain audit and integrated exact-SHA host gate. Independent Astra rereview approved the corrected bounded packet; parent 10.1/10.2 remain open. Evidence: [verify-installed-executor-admission.md](verify-installed-executor-admission.md).
 
 - [x] Correct reviewed canonical-path kind bypasses: standalone regular-file lock predicates, real state-root directory admission, directory/FIFO/symlink/unreadable lock and symlink-root marker negatives through installer and exact recovery recipe; watch omitted guards fail.

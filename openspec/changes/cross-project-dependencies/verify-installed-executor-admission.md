@@ -83,3 +83,8 @@ The restored focused command is the same three-file test command listed above:
 Nx module-boundary checking remains skipped without its cached graph. Normal
 OpenSpec JSON validation remains valid; pre-existing strict-mode warnings remain.
 No host gate, live install, activation or prior-holder audit was performed.
+
+Independent Astra rereview approved the corrected bounded packet after
+reproducing both original admission bypasses and inspecting the restored
+generated-shell and exact-recipe negatives. This is source admission only;
+installed writer adoption and process drain remain unverified.

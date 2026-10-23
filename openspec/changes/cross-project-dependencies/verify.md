@@ -6951,3 +6951,13 @@ validation pass. Raw logs, commands, synthetic fixture limits and unrun checks a
 recorded in the report. Independent Astra review approved this bounded packet.
 Parent 6.3 remains unchecked; the integrated exact-SHA host gate and activation
 remain open.
+
+## Bounded installed-executor replacement admission (2026-10-23)
+
+The [installed-executor admission packet](verify-installed-executor-admission.md)
+records real generated-shell and recovery-recipe tests, unique staging,
+canonical remote lock and retained-marker refusal, staged and installed hash
+checks, partial-publication reporting, and watched correction of nonregular
+lock and symlinked-state bypasses. Independent Astra rereview approved the
+bounded packet. Live installation, installed-writer adoption, prior-holder
+drain, activation and the integrated exact-SHA host gate remain open.
