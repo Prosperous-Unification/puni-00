@@ -585,48 +585,107 @@ test('attempt truncation keeps chronological history and explicit partial total'
   expect(summarizeDeliveryTiming(reading.observation).sumExecutionMs.state).toBe('unknown');
 });
 
-test('request budget refuses the 33rd fetch across multiple histories', async () => {
-  const base = fixture({
-    [`${api}/commits/${revision}/check-runs?filter=latest&per_page=100&page=1`]: {
-      total_count: 2,
-      check_runs: [check, { ...check, id: 8, check_suite: { id: 9 } }],
-    },
-    [`${api}/actions/runs?head_sha=${revision}&per_page=100&page=1`]: {
-      total_count: 2,
-      workflow_runs: [
-        { ...run, run_attempt: 10 },
-        { ...run, id: 10, check_suite_id: 9, run_attempt: 10 },
-      ],
-    },
-  });
+/** Answers every attempt and jobs page of the requested runs, counting GETs. */
+function attemptHistory(
+  base: ReturnType<typeof fixture>,
+  suiteOf: (runId: number) => number,
+  jobsPage: (runId: number, ordinal: number, page: number) => unknown,
+) {
   let requests = 0;
   const reader = createGitHubDeliveryReader({
     fetcher: (url, init) => {
       requests++;
-      const match = /\/runs\/(\d+)\/attempts\/(\d+)(\/jobs\?per_page=100&page=1)?$/.exec(url);
+      const match = /\/runs\/(\d+)\/attempts\/(\d+)(\/jobs\?per_page=100&page=(\d+))?$/.exec(url);
       if (match) {
         const runId = Number(match[1]);
+        const ordinal = Number(match[2]);
         return Promise.resolve(
           Response.json(
             match[3]
-              ? { total_count: 0, jobs: [] }
-              : {
-                  ...run,
-                  id: runId,
-                  check_suite_id: runId === 4 ? 3 : 9,
-                  run_attempt: Number(match[2]),
-                },
+              ? jobsPage(runId, ordinal, Number(match[4]))
+              : { ...run, id: runId, check_suite_id: suiteOf(runId), run_attempt: ordinal },
           ),
         );
       }
       return base.fetcher(url, init);
     },
   });
-  expect(await reader.read(`${web}/pull/688`)).toMatchObject({
-    kind: 'unavailable',
-    reason: 'budget-exceeded',
+  return { reader, requests: () => requests };
+}
+
+test('five suites of three attempts stop at the request budget', async () => {
+  const suites = [3, 13, 23, 33, 43];
+  const base = fixture({
+    [`${api}/commits/${revision}/check-runs?filter=latest&per_page=100&page=1`]: {
+      total_count: 5,
+      check_runs: suites.map((suite, index) => ({
+        ...check,
+        id: 100 + index,
+        check_suite: { id: suite },
+      })),
+    },
+    [`${api}/actions/runs?head_sha=${revision}&per_page=100&page=1`]: {
+      total_count: 5,
+      workflow_runs: suites.map((suite, index) => ({
+        ...run,
+        id: 200 + index,
+        check_suite_id: suite,
+        run_attempt: 3,
+      })),
+    },
   });
-  expect(requests).toBe(32);
+  // Unbounded, this read needs 34 GETs: the PR, checks, runs, 15 attempt pairs and the re-read.
+  const history = attemptHistory(
+    base,
+    (runId) => suites[runId - 200] ?? 0,
+    () => ({ total_count: 0, jobs: [] }),
+  );
+  const reading = await history.reader.read(`${web}/pull/688`);
+  if (reading.kind !== 'observed') throw new Error(`Expected observed, got ${reading.kind}`);
+  expect(history.requests()).toBe(32);
+  expect(reading.observation.checks).toHaveLength(5);
+  expect(reading.observation.runs).toHaveLength(5);
+  expect(reading.observation.runs.flatMap((entry) => entry.attempts)).toHaveLength(14);
+  expect(reading.observation.runs.map((entry) => entry.attemptsComplete)).toEqual([
+    true,
+    true,
+    true,
+    true,
+    false,
+  ]);
+  expect(reading.observation.coverage.runs).toBe('partial');
+  expect(reading.observation.coverage.notes).toContain(
+    'Attempt inventory stopped at the 32-request read budget; unread attempts are unavailable.',
+  );
+});
+
+test('truncated job pages stop at the request budget', async () => {
+  const base = fixture({
+    [`${api}/actions/runs?head_sha=${revision}&per_page=100&page=1`]: {
+      total_count: 1,
+      workflow_runs: [{ ...run, run_attempt: 6 }],
+    },
+  });
+  const history = attemptHistory(
+    base,
+    () => 3,
+    (runId, ordinal, page) => ({
+      total_count: 501,
+      jobs: Array.from({ length: 100 }, (_unused, index) => ({
+        ...job,
+        id: ordinal * 100_000 + page * 1000 + index,
+        run_id: runId,
+        run_attempt: ordinal,
+      })),
+    }),
+  );
+  const reading = await history.reader.read(`${web}/pull/688`);
+  if (reading.kind !== 'observed') throw new Error(`Expected observed, got ${reading.kind}`);
+  expect(history.requests()).toBe(32);
+  const attempts = reading.observation.runs[0]?.attempts ?? [];
+  expect(attempts.map((attempt) => attempt.executions.length)).toEqual([500, 500, 500, 500, 300]);
+  expect(attempts.every((attempt) => !attempt.executionsComplete)).toBe(true);
+  expect(reading.observation.runs[0]?.attemptsComplete).toBe(false);
 });
 
 test('already cancelled reads preserve AbortError and make zero requests', async () => {

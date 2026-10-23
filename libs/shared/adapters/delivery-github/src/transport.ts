@@ -2,23 +2,32 @@ import { ProviderFailure } from './records';
 
 export type GitHubDeliveryFetch = (url: string, init: RequestInit) => Promise<Response>;
 
+/** The most GETs one delivery read may send. */
+export const REQUEST_BUDGET = 32;
+
+/** One read's bounded GET channel; `remaining` lets the reader stop optional scans before the hard refusal. */
+export interface Transport {
+  readonly get: (path: string) => Promise<unknown>;
+  readonly remaining: () => number;
+}
+
 /** Fixed read budget: 30 seconds, 32 GETs, 2 MiB per body, 8 MiB across the read. */
 export function createTransport(
   fetcher: GitHubDeliveryFetch,
   clock: () => number,
   signal: AbortSignal,
-) {
+): Transport {
   const deadline = clock() + 30_000;
   let requests = 0;
   let totalBytes = 0;
-  return async (path: string): Promise<unknown> => {
+  const get = async (path: string): Promise<unknown> => {
     // Proof: removing cancellation checks failed already cancelled reads preserve AbortError and make zero requests.
     signal.throwIfAborted();
     // Proof: removing deadline checks failed bounds the complete read deadline after the injected clock advanced 30001ms.
     if (clock() >= deadline)
       throw new ProviderFailure('timeout', 'GitHub delivery read exceeded 30 seconds');
-    // Proof: permitting request 33 failed request budget refuses the 33rd fetch across multiple histories.
-    if (++requests > 32)
+    // Proof: permitting request 33 made 'refuses the 33rd GET of one read' (transport.test.ts) resolve a body instead of budget-exceeded (2026-10-24).
+    if (++requests > REQUEST_BUDGET)
       throw new ProviderFailure('budget-exceeded', 'GitHub delivery read exceeded 32 requests');
     let response: Response;
     try {
@@ -102,4 +111,5 @@ export function createTransport(
       throw new ProviderFailure('invalid-response', 'GitHub returned invalid JSON');
     }
   };
+  return { get, remaining: () => REQUEST_BUDGET - requests };
 }

@@ -24,7 +24,12 @@ import {
   RunSchema,
   RunsSchema,
 } from './records';
-import { createTransport, type GitHubDeliveryFetch } from './transport';
+import {
+  createTransport,
+  type GitHubDeliveryFetch,
+  REQUEST_BUDGET,
+  type Transport,
+} from './transport';
 
 export type { GitHubDeliveryFetch } from './transport';
 
@@ -126,19 +131,30 @@ export function createGitHubDeliveryReader(
   };
 }
 
-type Transport = (path: string) => Promise<unknown>;
+type Read = Transport['get'];
 
-/** Reads numbered pages from constructed paths, never provider Link destinations. */
+/** GETs kept back for the closing PR re-read that pins the observed revision. */
+const CLOSING_READS = 1;
+/** One attempt costs its own GET plus at least one jobs page. */
+const ATTEMPT_READS = 2;
+
+/**
+ * Reads numbered pages from constructed paths, never provider Link destinations.
+ * `canContinue` stops an optional scan as a partial inventory instead of exhausting the read budget.
+ */
 async function readPages<Record extends { id: number }>(
-  read: Transport,
+  read: Read,
   path: string,
   parsePage: (input: unknown) => { total: number; records: Record[] },
+  canContinue: () => boolean = () => true,
 ): Promise<{ records: Record[]; complete: boolean }> {
   const records: Record[] = [];
   const identities = new Set<number>();
   let total: number | null = null;
   // Proof: permitting page 6 failed five-page check scan instead of returning its 500-record partial inventory.
   for (let page = 1; page <= 5; page++) {
+    // Proof: removing this stop made 'truncated job pages stop at the request budget' answer unavailable (budget-exceeded) instead of a partial observation (2026-10-24).
+    if (page > 1 && !canContinue()) return { records, complete: false };
     const parsed = parsePage(
       await read(`${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${String(page)}`),
     );
@@ -171,7 +187,7 @@ async function readPages<Record extends { id: number }>(
 async function readMergedRevision(
   identity: PullIdentity,
   repository: string,
-  read: Transport,
+  read: Read,
 ): Promise<{ revision: string; eventId: number; url: string }> {
   const identities = new Set<number>();
   let merge:
@@ -268,12 +284,19 @@ function assertRun(run: Run, identity: PullIdentity, revision: string): void {
     );
 }
 
-/** Missing check suites remain visible; check coverage excludes statuses and merge policy. */
+/**
+ * Missing check suites remain visible; check coverage excludes statuses and merge policy.
+ * The PR, merge events, checks and run listing are required; attempts and jobs are scanned
+ * only while the request budget still covers another attempt and the closing PR re-read.
+ */
 async function observePull(
   identity: PullIdentity,
   observedAt: string,
-  read: Transport,
+  transport: Transport,
 ): Promise<DeliveryReading> {
+  const read = transport.get;
+  const canReadAttempt = () => transport.remaining() >= ATTEMPT_READS + CLOSING_READS;
+  const canReadJobPage = () => transport.remaining() >= 1 + CLOSING_READS;
   const pullPath = `${identity.path}/pulls/${String(identity.number)}`;
   const pull = parseRecord(PullSchema, await read(pullPath));
   assertPull(pull, identity);
@@ -350,14 +373,22 @@ async function observePull(
     );
   }
   const runs: DeliveryRun[] = [];
+  let isBudgetSpent = false;
   // Proof: allowing an eleventh run failed eleven matching workflows are capped to ten with partial inventory.
   for (const run of selectedRuns.slice(0, 10)) {
     const attempts: DeliveryAttempt[] = [];
+    let attemptsComplete = run.run_attempt <= 10;
     const prior = new Map<string, string | null>();
     let previousStart: number | null = null;
     let originalsComplete = true;
     // Proof: allowing attempt 11 failed attempt truncation keeps chronological history and explicit partial total.
     for (let ordinal = 1; ordinal <= Math.min(run.run_attempt, 10); ordinal++) {
+      // Proof: removing this stop made 'five suites of three attempts stop at the request budget' answer unavailable (budget-exceeded) instead of partial (2026-10-24).
+      if (isBudgetSpent || !canReadAttempt()) {
+        isBudgetSpent = true;
+        attemptsComplete = false;
+        break;
+      }
       const attempt = parseRecord(
         RunSchema,
         await read(`${identity.path}/actions/runs/${String(run.id)}/attempts/${String(ordinal)}`),
@@ -388,6 +419,7 @@ async function observePull(
           const page = parseRecord(JobsSchema, input);
           return { total: page.total_count, records: page.jobs };
         },
+        canReadJobPage,
       );
       const executions = jobs.records.map((job) => {
         // Proof: removing each run/attempt/revision association independently failed wrong job run/attempt/head negatives.
@@ -474,9 +506,15 @@ async function observePull(
       ),
       name: run.name,
       revision: run.head_sha,
-      attemptsComplete: run.run_attempt <= 10,
+      attemptsComplete,
       attempts,
     });
+  }
+  if (isBudgetSpent) {
+    runsComplete = false;
+    notes.add(
+      `Attempt inventory stopped at the ${String(REQUEST_BUDGET)}-request read budget; unread attempts are unavailable.`,
+    );
   }
   const latest = parseRecord(PullSchema, await read(pullPath));
   assertPull(latest, identity);
