@@ -104,8 +104,8 @@ claim these observations in advance.
 | Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | Closed; retained capture proofs and post-close packet below                                         |
 | Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | Closed; retained capture proofs and independent audit below                                         |
 | Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | All named faults observed; delivery remains open                                                    |
-| Placement constraints 6.1                       | Remove each eligibility/type inequality, capacity namespace or held reduction                                                | `schedule-connected.test.ts` and existing priority/resource/hold regressions                                                              | Partial; mounted capacity below                                                                     |
-| Calendars 6.2                                   | Substitute target anchor, round fractional bounds, omit floor, use day zero for missing date                                 | `schedule-connected-calendar.test.ts` and mounted missing-calendar projection                                                             | Partial; six mounted faults below                                                                   |
+| Placement constraints 6.1                       | Remove each eligibility/type inequality, capacity namespace or held reduction                                                | `schedule-connected.test.ts` and existing priority/resource/hold regressions                                                              | Closed; audit and fault receipts below                                                              |
+| Calendars 6.2                                   | Substitute target anchor, round fractional bounds, omit floor, use day zero for missing date                                 | `schedule-connected-calendar.test.ts` and mounted missing-calendar projection                                                             | Closed; audit and six mounted faults below                                                          |
 | Readiness 6.3                                   | Replace remote progress with empty/local progress or skip required evidence                                                  | `cross-project-startable.controller.db.test.ts` actual tree/startable cases                                                               | NOT RUN                                                                                             |
 | Wire/model 7.1–7.2                              | Omit each bound/version/model inequality or Python schema member                                                             | Production request fixtures, actual solver/validate tests, omitted-expanded-pair case                                                     | NOT RUN                                                                                             |
 | Boundary-infeasible preparation/outcome 7.2–7.3 | Require fake quantized feasible baseline; reject empty integer window; map stage outcome to malformed/global infeasible      | Real 0.2→one-day→1.2 quantum48 preparation/solve/exit/read cases, with and without local deadlines                                        | NOT RUN                                                                                             |
@@ -5701,7 +5701,8 @@ Commands and captured output are under
 This closes the mounted project-local resource capacity acceptance gap only.
 Team namespace, distinct estimate settings and shared people remain covered by
 existing detached/domain suites; this packet adds no mounted proofs for those
-independent invariants. Task 6.1 remains open for its broader obligations.
+independent invariants. At this packet checkpoint, task 6.1 still needed the
+producer-boundary proof and full acceptance reconciliation recorded below.
 No build, full host gate, push, merge or production activation was attempted.
 
 Independent Astra High review approved the mounted capacity packet without a
@@ -5711,8 +5712,8 @@ wrapper failure as unresolved. On the integrated branch, the 43-case mounted,
 arrangement and core suite and the 43-case domain regression suite both passed.
 The earlier domain-only checkpoint above describes its original date: current
 core preparation, `readResolvedFast`, guarded capture and mounted connected
-projection exist. Task 6.1 remains open for the rest of its mounted acceptance
-and producer-boundary fault matrix.
+projection exist. At this packet checkpoint, task 6.1 still needed the later
+producer-boundary proof and full acceptance reconciliation.
 
 ## Task 5.2 delivery and fault-register reconciliation (2026-10-23)
 
@@ -5744,8 +5745,8 @@ reviewer freshly reran 8/8 with 58 assertions and found no blocking issue.
 The integrated calendar, mounted live and Fast capacity suites pass 30/30 with
 307 assertions.
 The floor and missing-anchor faults fail through existing downstream guards,
-as the packet states. Task 6.2 remains open for its broader calendar/history,
-optimization and release acceptance.
+as the packet states. The task-level acceptance audit below joins this packet
+with the prior numeric translation and ordinary undated-local evidence.
 
 ## Task 6.1 Fast producer boundaries (2026-10-23)
 
@@ -5756,5 +5757,34 @@ validator-only bypass keeps them green; removing each type's edge from the
 actual Fast producer fails final starts, as do SS/FF→FS substitutions with
 validation enabled. Archived red and restored logs are linked in the packet.
 The integrated producer, mounted capacity and mounted calendar suites pass
-37/37 with 108 assertions. This closes the bounded producer proof, while the
-task 6.1 checkbox awaits full acceptance reconciliation.
+37/37 with 108 assertions. This closes the bounded producer proof; the
+task-level acceptance audit follows.
+
+## Tasks 6.1 and 6.2 acceptance reconciliation (2026-10-23)
+
+Independent Astra High audits found every literal 6.1 and 6.2 implementation,
+test and named fault obligation satisfied, so both task checkboxes are now
+checked. For 6.1, the existing leveller handles the resolved component,
+project-specific settings, resource/team namespaces, shared-mode people,
+hold reduction and retained authored inspection through the installed
+`readResolvedFast` callback. Core and mounted tests cover interleaving,
+eligibility, local-path compatibility and capacity; the new producer packet
+proves exact FS/SS/FF final starts under independently removed or substituted
+edges. The older all-nodes-ready fault failed before publication on an unplaced
+predecessor; it is a detectable refusal, not an observed inverted final plan.
+The 6.1 audit freshly passed 172 tests with 551 assertions across domain, core,
+mounted, runtime and capture suites. The capacity packet's configured Nx lint
+wrapper still has an unexplained nonzero exit; its exact underlying backend
+ESLint passed. This limitation remains for the final gate.
+
+For 6.2, mounted reads from both project URLs cover fractional positions and
+calendar dates, own Wednesday start floor, weekend manual floor/deadline, and
+explicit missing-calendar state. Existing connected core tests prove signed
+fractional numeric floor/deadline translation; ordinary live and saved tests
+prove undated local behavior remains unchanged. The four required and two
+additional watched calendar faults failed production-path tests. The floor and
+missing-anchor faults reached downstream refusals rather than fabricated
+dates. The 6.2 audit freshly passed 83 tests with 768 assertions across five
+files. Optimization lifecycle, historical connected evidence, browser
+acceptance, activation and the exact-head host/CI gate remain separate open
+tasks; neither checkbox claims those outcomes.
