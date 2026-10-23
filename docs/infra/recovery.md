@@ -41,8 +41,12 @@ machine that never saw the original and compare fingerprints.
 
 Every backup bucket has versioning and one lifecycle rule: noncurrent versions
 expire after 30 days. Current objects are pruned only by each tool's own
-retention (SLM, Velero TTL, the k3s snapshot count); the SQLite prefix keeps
-every current generation until an operator prunes it. The local rehearsal
+retention (SLM, Velero TTL, the k3s snapshot count). The SQLite prefixes
+(`sqlite/<database>/` from the k3s runner and `backups/sqlite/generations`
+from h1claw) are pruned daily at 04:47 UTC by h1claw's
+`sqlite-backup-remote-prune.timer` (claire repo): every stamp for 48 h, the
+last of each UTC day for 60 days, the last of each UTC week for 52 weeks, with
+snapshot and report expiring together and the newest report always kept. The local rehearsal
 store applies the rule in its bucket Job. For production, apply and read back
 the same rule on each primary bucket once:
 
