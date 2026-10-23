@@ -1,9 +1,11 @@
 # Main merge checks
 
 Main requires the stable `gate` and `pixels` verdicts produced by GitHub Actions.
-The policy is a repository ruleset named **main merge checks**. Its activation and
-failure evidence belongs to [the owning change](../../openspec/changes/enforce-merge-checks/design.md).
-This runbook describes the intended policy; that record identifies the observed live activation.
+The active repository ruleset is [main merge checks — 25730010](https://github.com/Prosperous-Unification/puni-00/rules/25730010),
+created at 2026-10-23T17:49:14.487+03:00. Its contract belongs to
+[the owning change](../../openspec/changes/enforce-merge-checks/design.md).
+[Completed qualification](../../openspec/changes/enforce-merge-checks/verify.md) records
+the exact refused/accepted requests, candidate identities, producer controls and timing.
 
 ## Normal delivery
 
@@ -18,6 +20,11 @@ remain deliberately skipped. The two aggregate jobs still execute and validate t
 selection. A failed, cancelled or absent required verdict blocks merging; a new
 candidate must earn its own verdicts. Repair or rerun the failed work rather than
 posting a manual success status.
+
+Proof: main PR #688 was refused with no checks, failed gate and native cancelled
+pixels (successful gate). The repaired docs-only head then merged normally with zero
+reviews. Isolated PR #686 merged its identical failed head only after removing the
+required-check rule from the disposable target; main enforcement stayed active.
 
 Latest-base strictness is disabled. An unrelated merge does not itself require a
 base refresh or another test run. Merge conflicts still need resolution. This
@@ -37,6 +44,9 @@ required contexts are exactly `gate` and `pixels` from integration **15368**
 (`github-actions`), and that the named ruleset is active with no bypass actors.
 Approvals are zero and `strict_required_status_checks_policy` is false. Read the
 complete ruleset by its returned ID to inspect bypass actors and branch conditions.
+For the recorded activation, use `gh api repos/Prosperous-Unification/puni-00/rulesets/25730010`.
+GitHub adds canonical PR defaults, including an extra unattributed-Copilot approval
+setting; [that setting has no effect with zero required approvals](https://docs.github.com/en/enterprise-cloud@latest/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#additional-approval-for-unattributed-copilot-pull-requests).
 Preserve unrelated organization/repository rules; the existing Burokrat release-tag
 rule is not part of this policy.
 
@@ -100,6 +110,10 @@ and the rerun visible in the evidence. Never alter the policy to declare a missi
 or failed check successful.
 
 The source binding prevents another status producer from replacing GitHub Actions.
+Proof: isolated PR #683 had successful same-name operator statuses and was refused
+for the unexpected producer; removing only producer binding allowed the identical
+head to merge on the disposable target. The binding was restored and read back.
+
 GitHub itself accepts top-level skipped/neutral check conclusions. Current aggregate
 jobs use `always()` and reducers that reject unexplained selected-leaf skips. This
 is not independent protection against a candidate that deliberately edits its own
