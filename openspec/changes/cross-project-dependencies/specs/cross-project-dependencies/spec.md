@@ -476,6 +476,23 @@ Store observation transport SHALL execute the coordinator-generated inventory ag
 - **THEN** the observation refuses before reading task logs
 - **AND** a valid dormant stdout alone cannot substitute for the missing mount evidence
 
+### Requirement: Kubernetes status image binds the verified image config
+
+Before creating an observation Job, the transport SHALL derive the pinned image's config digest from digest-verified registry bytes within its deadline; unavailable or malformed evidence SHALL refuse. A completed Pod's `status.image` SHALL equal the pinned reference or verified config digest, while `imageID` SHALL independently attribute the pinned manifest. Requested and effective Job/Pod image specifications remain exact pinned-reference comparisons.
+
+#### Scenario: Runtime reports the verified config digest
+
+- **GIVEN** the pinned manifest chain independently resolves one config digest
+- **WHEN** the completed owned Pod reports that config digest as `status.image` and the pinned manifest as `imageID`
+- **THEN** the observation may accept the task's image identity if its other guards pass
+- **AND** another digest, missing registry evidence or a foreign `imageID` refuses without returning support
+
+#### Scenario: Registry image chain cannot be verified
+
+- **GIVEN** the pinned reference resolves through an image index and a selected platform manifest to config bytes
+- **WHEN** the index, selected manifest or config bytes fail their named digest, or a config descriptor is absent
+- **THEN** observation refuses before creating a Job
+
 ### Requirement: Kubernetes release observes both backend binaries before protected effects
 
 Every release coordinator execution SHALL independently invoke the candidate and retained previous backend images' DB-free dependency capability executable after current F6 image admission and before Flux suspension, write closure, writer stop or controller effects. Resumed forward and rollback executions SHALL refresh F6 admission and obtain fresh observations before their first protected effect, including schema work, tier restoration, writer reopening and Lease cleanup. Any heartbeat loss observed during the prerequisite SHALL remain a refusal even if a later renewal succeeds; the coordinator SHALL check that sticky loss before journal normalization or protected effects. Previously recorded history SHALL NOT substitute for either invocation. Equal digests SHALL still cause two separately attributed invocations through the exact Job/Pod/image/command observation transport.
