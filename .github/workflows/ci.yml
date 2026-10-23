@@ -25,27 +25,27 @@ jobs:
       - name: Bounded dependency
         id: dependency
         timeout-minutes: 3
-        run: printf 'DEPENDENCY_READY setup_guarded\n'
+        run: echo 'DEPENDENCY_READY setup_guarded'
       - name: Install chromium
         id: setup
         timeout-minutes: 1
         run: |-
-          printf 'DELAY_STARTED setup_guarded\n'
+          echo 'DELAY_STARTED setup_guarded'
           sleep 90
-          printf 'DELAY_COMPLETED setup_guarded\n'
+          echo 'DELAY_COMPLETED setup_guarded'
       - name: Layout gate
         id: layout
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED layout setup_guarded\n'
+        run: echo 'PHASE_COMPLETED layout setup_guarded'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED organization setup_guarded\n'
+        run: echo 'PHASE_COMPLETED organization setup_guarded'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION setup_guarded\n'
+        run: echo 'LATER_VALIDATION setup_guarded'
   layout_guarded:
     name: deadline / layout_guarded
     runs-on: ubuntu-latest
@@ -59,27 +59,27 @@ jobs:
       - name: Bounded dependency
         id: dependency
         timeout-minutes: 3
-        run: printf 'DEPENDENCY_READY layout_guarded\n'
+        run: echo 'DEPENDENCY_READY layout_guarded'
       - name: Install chromium
         id: setup
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED setup layout_guarded\n'
+        run: echo 'PHASE_COMPLETED setup layout_guarded'
       - name: Layout gate
         id: layout
         timeout-minutes: 1
         run: |-
-          printf 'DELAY_STARTED layout_guarded\n'
+          echo 'DELAY_STARTED layout_guarded'
           sleep 90
-          printf 'DELAY_COMPLETED layout_guarded\n'
+          echo 'DELAY_COMPLETED layout_guarded'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED organization layout_guarded\n'
+        run: echo 'PHASE_COMPLETED organization layout_guarded'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION layout_guarded\n'
+        run: echo 'LATER_VALIDATION layout_guarded'
   organization_guarded:
     name: deadline / organization_guarded
     runs-on: ubuntu-latest
@@ -93,27 +93,27 @@ jobs:
       - name: Bounded dependency
         id: dependency
         timeout-minutes: 3
-        run: printf 'DEPENDENCY_READY organization_guarded\n'
+        run: echo 'DEPENDENCY_READY organization_guarded'
       - name: Install chromium
         id: setup
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED setup organization_guarded\n'
+        run: echo 'PHASE_COMPLETED setup organization_guarded'
       - name: Layout gate
         id: layout
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED layout organization_guarded\n'
+        run: echo 'PHASE_COMPLETED layout organization_guarded'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         timeout-minutes: 1
         run: |-
-          printf 'DELAY_STARTED organization_guarded\n'
+          echo 'DELAY_STARTED organization_guarded'
           sleep 90
-          printf 'DELAY_COMPLETED organization_guarded\n'
+          echo 'DELAY_COMPLETED organization_guarded'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION organization_guarded\n'
+        run: echo 'LATER_VALIDATION organization_guarded'
   setup_removed:
     name: deadline / setup_removed
     needs:
@@ -132,26 +132,26 @@ jobs:
       - name: Bounded dependency
         id: dependency
         timeout-minutes: 3
-        run: printf 'DEPENDENCY_READY setup_removed\n'
+        run: echo 'DEPENDENCY_READY setup_removed'
       - name: Install chromium
         id: setup
         run: |-
-          printf 'DELAY_STARTED setup_removed\n'
+          echo 'DELAY_STARTED setup_removed'
           sleep 90
-          printf 'DELAY_COMPLETED setup_removed\n'
+          echo 'DELAY_COMPLETED setup_removed'
       - name: Layout gate
         id: layout
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED layout setup_removed\n'
+        run: echo 'PHASE_COMPLETED layout setup_removed'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED organization setup_removed\n'
+        run: echo 'PHASE_COMPLETED organization setup_removed'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION setup_removed\n'
+        run: echo 'LATER_VALIDATION setup_removed'
   layout_removed:
     name: deadline / layout_removed
     needs:
@@ -170,26 +170,26 @@ jobs:
       - name: Bounded dependency
         id: dependency
         timeout-minutes: 3
-        run: printf 'DEPENDENCY_READY layout_removed\n'
+        run: echo 'DEPENDENCY_READY layout_removed'
       - name: Install chromium
         id: setup
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED setup layout_removed\n'
+        run: echo 'PHASE_COMPLETED setup layout_removed'
       - name: Layout gate
         id: layout
         run: |-
-          printf 'DELAY_STARTED layout_removed\n'
+          echo 'DELAY_STARTED layout_removed'
           sleep 90
-          printf 'DELAY_COMPLETED layout_removed\n'
+          echo 'DELAY_COMPLETED layout_removed'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED organization layout_removed\n'
+        run: echo 'PHASE_COMPLETED organization layout_removed'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION layout_removed\n'
+        run: echo 'LATER_VALIDATION layout_removed'
   organization_removed:
     name: deadline / organization_removed
     needs:
@@ -208,26 +208,26 @@ jobs:
       - name: Bounded dependency
         id: dependency
         timeout-minutes: 3
-        run: printf 'DEPENDENCY_READY organization_removed\n'
+        run: echo 'DEPENDENCY_READY organization_removed'
       - name: Install chromium
         id: setup
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED setup organization_removed\n'
+        run: echo 'PHASE_COMPLETED setup organization_removed'
       - name: Layout gate
         id: layout
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED layout organization_removed\n'
+        run: echo 'PHASE_COMPLETED layout organization_removed'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         run: |-
-          printf 'DELAY_STARTED organization_removed\n'
+          echo 'DELAY_STARTED organization_removed'
           sleep 90
-          printf 'DELAY_COMPLETED organization_removed\n'
+          echo 'DELAY_COMPLETED organization_removed'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION organization_removed\n'
+        run: echo 'LATER_VALIDATION organization_removed'
   job_guarded:
     name: deadline / job_guarded
     needs:
@@ -247,26 +247,26 @@ jobs:
         id: dependency
         timeout-minutes: 3
         run: |-
-          printf 'DELAY_STARTED job_guarded\n'
+          echo 'DELAY_STARTED job_guarded'
           sleep 90
-          printf 'DELAY_COMPLETED job_guarded\n'
+          echo 'DELAY_COMPLETED job_guarded'
       - name: Install chromium
         id: setup
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED setup job_guarded\n'
+        run: echo 'PHASE_COMPLETED setup job_guarded'
       - name: Layout gate
         id: layout
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED layout job_guarded\n'
+        run: echo 'PHASE_COMPLETED layout job_guarded'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED organization job_guarded\n'
+        run: echo 'PHASE_COMPLETED organization job_guarded'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION job_guarded\n'
+        run: echo 'LATER_VALIDATION job_guarded'
   job_removed:
     name: deadline / job_removed
     needs:
@@ -285,26 +285,26 @@ jobs:
         id: dependency
         timeout-minutes: 3
         run: |-
-          printf 'DELAY_STARTED job_removed\n'
+          echo 'DELAY_STARTED job_removed'
           sleep 90
-          printf 'DELAY_COMPLETED job_removed\n'
+          echo 'DELAY_COMPLETED job_removed'
       - name: Install chromium
         id: setup
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED setup job_removed\n'
+        run: echo 'PHASE_COMPLETED setup job_removed'
       - name: Layout gate
         id: layout
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED layout job_removed\n'
+        run: echo 'PHASE_COMPLETED layout job_removed'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED organization job_removed\n'
+        run: echo 'PHASE_COMPLETED organization job_removed'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION job_removed\n'
+        run: echo 'LATER_VALIDATION job_removed'
   fast_green:
     name: deadline / fast_green
     needs:
@@ -323,21 +323,21 @@ jobs:
       - name: Bounded dependency
         id: dependency
         timeout-minutes: 3
-        run: printf 'DEPENDENCY_READY fast_green\n'
+        run: echo 'DEPENDENCY_READY fast_green'
       - name: Install chromium
         id: setup
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED setup fast_green\n'
+        run: echo 'PHASE_COMPLETED setup fast_green'
       - name: Layout gate
         id: layout
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED layout fast_green\n'
+        run: echo 'PHASE_COMPLETED layout fast_green'
       - name: Activated organization context
         id: organization
         if: ${{ matrix.shard == 1 }}
         timeout-minutes: 1
-        run: printf 'PHASE_COMPLETED organization fast_green\n'
+        run: echo 'PHASE_COMPLETED organization fast_green'
       - name: Later validation marker
         id: after
         timeout-minutes: 1
-        run: printf 'LATER_VALIDATION fast_green\n'
+        run: echo 'LATER_VALIDATION fast_green'
