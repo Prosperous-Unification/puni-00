@@ -39,8 +39,12 @@ in the isolated clone, then restored from the exact original before the next run
 | Replace the same traversal with `[before]`                                  | Exact pair assertion failed: four missing new-component pairs; 0 pass, 1 fail, exit 1. |
 | Traverse the concatenation of before/after connection arrays for each graph | Exact pair assertion failed: two invented A↔D pairs; 0 pass, 1 fail, exit 1.           |
 
-Observed output logs are `/tmp/topology-without-old.log`,
-`/tmp/topology-without-new.log`, and `/tmp/topology-mixed.log` in the task environment.
+The observed logs are preserved as
+[omitted old](task-5-topology-proofs/topology-without-old.log),
+[omitted new](task-5-topology-proofs/topology-without-new.log), and
+[mixed topology](task-5-topology-proofs/topology-mixed.log). Each records the
+intended exact-pair assertion failure; the independent reviewer inspected all
+three without re-injecting the faults.
 The assertion's adjacent `Proof:` comment records these observations. No production
 change was needed.
 
@@ -58,3 +62,10 @@ calendar/capacity/engine edit trigger, real gateway socket delivery, browser
 subscription refresh, activation safety, or the canonical isolated host gate.
 The sibling number-label packet is independent and edits the existing event suite;
 this packet adds a separate suite to avoid overlap.
+
+Independent Astra High review approved this test-only packet without a Critical
+or Important finding and freshly reran 9/9 with 135 assertions. On the
+integrated branch, the topology, number-label and committed-fanout suites pass
+18/18 with 160 assertions; changed-file ESLint and Prettier pass. This test
+compares allowed stream subscriptions and their advancing sequences but does
+not yet bind each event payload's `projectId` to its actual stream subscription.
