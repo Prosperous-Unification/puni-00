@@ -6290,3 +6290,14 @@ found a pre-existing cycle-witness defect: a downstream authored edge can be
 reported as part of the cycle, misattributing the original import declaration.
 That defect, active external import, compatibility and the integrated host gate
 remain open; parent 8.1 is not complete.
+
+The [cycle witness correction](verify-cycle-witness.md) was integrated from the
+Astra-reviewed isolated packet as feature commit `51b357d7c`. Iterative SCC
+membership now excludes downstream and bridge edges from authored cycle IDs;
+the mounted downloaded import blames the external declaration at index 0 and
+preserves all rows and pushes on refusal. The isolated packet passed 78 focused
+graph tests and 66 mounted import/export/store tests, and watched filter,
+component-equality and presence faults fail those assertions. Domain and backend
+typechecks plus domain lint passed on the isolated packet. Serialized broad
+backend lint and the later integrated exact-SHA host/CI gates remain pending;
+parent 8.1 and production external import remain open.
