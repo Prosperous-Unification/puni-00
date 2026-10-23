@@ -57,13 +57,15 @@ function boundaryOf(config: unknown): readonly unknown[] {
 }
 
 describe('the effective production and test boundaries', () => {
-  it('Dash progress reaches exactly the contracts alias at its two scoped paths', async () => {
+  it('Dash progress and ledger reach exactly the contracts alias at their scoped paths', async () => {
     const peer = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
     const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
     if (!isRecord(peerOptions)) throw new Error('Dash peer boundary options are malformed');
     for (const path of [
       'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.ts',
       'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/ledger/account-outcomes.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/ledger/rate-card.ts',
     ]) {
       const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
       if (!isRecord(options)) throw new Error('Dash progress boundary options are malformed');

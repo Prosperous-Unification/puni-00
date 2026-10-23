@@ -38,9 +38,9 @@ out first: lanes share the gate tree, and a checkout outside the lock is how one
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 
 `.github/workflows/ci.yml` runs the gate above plus the secrets scan, migration lint and
-`openspec validate`. Scope is chosen per event and never inferred: a PR runs `nx affected`
-from its validated synthetic merge first parent, `merge_group`/`push`/`workflow_dispatch` run the full gate, an
-unmapped event is refused. Boundary contract: `openspec/changes/ci-pr-merge-base/design.md`. Job `pixels` runs `bun run e2e`, one chromium measuring the WBS
+`openspec validate`. PRs select document checks or affected runtime modules from the validated
+synthetic merge first parent; `merge_group`/`push`/`workflow_dispatch` run the full gate and unmapped events fail.
+Routing: [change-aware CI](openspec/changes/change-aware-ci/design.md); identity: [PR merge base](openspec/changes/ci-pr-merge-base/design.md). Job `pixels` runs `bun run e2e`, one chromium measuring the WBS
 table against the real stack, and its shards run only when a PR reaches fe-01, be-01 or
 gw-01. lefthook runs a subset pre-commit and `--no-verify` skips it; CI is not. Format uses
 `--all`: the base-ref default checks nothing.

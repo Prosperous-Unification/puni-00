@@ -15,7 +15,9 @@
       "visibility": "public",
       "dependencies": [],
       "aliases": ["@website/contracts"],
-      "packages": { "@noble/hashes": "2.4.0" }
+      "packages": {
+        "@noble/hashes": "2.4.0"
+      }
     }
   },
   "targets": {
@@ -48,6 +50,20 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bun test libs/website/domain/contracts/src/brief.test.ts --timeout=30000"
+      }
+    },
+    "test:selected": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/tools/tool-git-hooks/src/hooks/ci-test-selection.ts",
+        "{workspaceRoot}/tools/tool-git-hooks/src/hooks/ci-selection.ts"
+      ],
+      "options": {
+        "command": "bun tools/tool-git-hooks/src/hooks/ci-test-selection.ts run website-contracts {args.base} {args.head}",
+        "forwardAllArgs": false
       }
     }
   }
