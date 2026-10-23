@@ -3,6 +3,7 @@
 # sync.ts resets; every tick streams the target commit's candidate loader.
 set -euo pipefail
 
+
 SRC=${WBS_DEV_SRC:-/home/puni1/wbs-dev/src}
 BIN=${WBS_DEV_BIN:-/home/puni1/wbs-dev/bin}
 BUN=${WBS_DEV_BUN:-/home/puni1/wbs-dev/bin/bun}
@@ -33,6 +34,26 @@ read_served_commit() {
 }
 
 poll_main() {
+  # Lock order: shared edge.lock, then poll/deploy/devsync locks. Keep descriptor 8
+  # inherited through the candidate loader and its deploy child. A retained owner
+  # marker (including an interrupted publication) closes ordinary deployment.
+  # Proof: edge-admission.test.ts removed this block: all 12 writer refusals failed.
+  WBS_EDGE_STATE="${WBS_EDGE_STATE:-/home/puni1/wbs/state}"
+  mkdir -p "$WBS_EDGE_STATE"
+  if [ ! "$WBS_EDGE_STATE/edge.lock" -ef /proc/self/fd/8 ]; then
+    touch "$WBS_EDGE_STATE/edge.lock"
+    exec 8<"$WBS_EDGE_STATE/edge.lock"
+  fi
+  flock -n 8 || { echo "shared edge lock held: $WBS_EDGE_STATE/edge.lock" >&2; exit 75; }
+  WBS_EDGE_LOCK_FD=8
+  export WBS_EDGE_LOCK_FD
+  for edge_owner in "$WBS_EDGE_STATE/edge-owner.json" "$WBS_EDGE_STATE/edge-owner.pending"; do
+    if [ -e "$edge_owner" ] || [ -L "$edge_owner" ]; then
+      echo "shared edge owner admission closed: $edge_owner; retained marker; no activation" >&2
+      exit 1
+    fi
+  done
+
   local BUN_VERSION actual_origin local_sha remote_sha last_proven last_synced awaiting_recreate served attempt proven_tmp synced_tmp sync_rc
   local -a sync_args
   if ! read -r BUN_VERSION < "$BUN_VERSION_FILE"; then

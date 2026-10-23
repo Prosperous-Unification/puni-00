@@ -30,11 +30,13 @@ import { realpathSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
+  assertNoEdgeOwner,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_SOCKET,
+  withEdgeAdmission,
 } from '@tools/deploy-contract';
 import { $ } from 'bun';
 
@@ -788,6 +790,8 @@ export interface DevSyncOptions extends Partial<DevSyncPaths> {
 }
 
 export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
+  // Proof: removing this guard failed the direct executor retained-owner negative before later IO.
+  await assertNoEdgeOwner();
   const paths = devSyncPathsOf(options);
   await assertMcpEnv(options.mcpEnvPath ?? `${paths.sourcePath}/apps/wbs/mcp-01/.env`);
   await assertBeEnv(options.beEnvPath ?? `${paths.sourcePath}/apps/wbs/be-01/.env`);
@@ -909,19 +913,21 @@ if (import.meta.main) {
     process.exit(1);
   }
 
-  if (invocation.locked) {
-    // Already inside flock: this is the real run.
-    await sync(invocation.sha, invocation.paths);
-  } else {
-    // Two overlapping runs can interleave their fetch, reset, install and
-    // restart, leaving dev on one SHA with another SHA's dependencies. flock
-    // makes the whole sequence exclusive; -n fails fast rather than queueing a
-    // deploy whose operator has stopped watching. The dedicated conflict exit
-    // keeps a child failure from being mislabeled as lock contention.
-    const exitCode = await runDevSyncLock(invocation.sha, { paths: invocation.paths });
-    if (exitCode !== 0) {
-      console.error(devSyncFailureMessage(exitCode));
+  await withEdgeAdmission(async () => {
+    if (invocation.locked) {
+      // Already inside flock: this is the real run.
+      await sync(invocation.sha, invocation.paths);
+    } else {
+      // Two overlapping runs can interleave their fetch, reset, install and
+      // restart, leaving dev on one SHA with another SHA's dependencies. flock
+      // makes the whole sequence exclusive; -n fails fast rather than queueing a
+      // deploy whose operator has stopped watching. The dedicated conflict exit
+      // keeps a child failure from being mislabeled as lock contention.
+      const exitCode = await runDevSyncLock(invocation.sha, { paths: invocation.paths });
+      if (exitCode !== 0) {
+        console.error(devSyncFailureMessage(exitCode));
+      }
+      process.exit(exitCode);
     }
-    process.exit(exitCode);
-  }
+  });
 }

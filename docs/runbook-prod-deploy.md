@@ -916,3 +916,35 @@ restart authority, MCP, retained clients, host processes and continuous exclusio
 obligations. It publishes no receipt, changes no restart policy, stops no
 application container and reloads no proxy. A successful observation grants no
 activation or deployment bypass; retain all fence evidence for attended recovery.
+
+## Shared edge owner admission prerequisite
+
+The source launchers share `/home/puni1/wbs/state/edge.lock` across prod and dev.
+Lock order is `edge.lock`, optional dev `poll.lock`, optional `devsync.lock`, then
+the selected environment's `deploy.lock` (the dev solver binding can also take the
+prod deploy lock inside devsync). Do not acquire the outer edge lock after a
+poll/deploy lock. Lock files are durable inodes and must never be unlinked.
+
+Every present `edge-owner.json` or `edge-owner.pending` in that same directory
+closes ordinary deployment before swap, dev checkout/reset/extraction, bootstrap
+or configuration effects. Payloads cannot grant permission: malformed content,
+unreadable files, directories and dangling links also refuse. Absence preserves
+legacy deployment and proves no owner fence or activation permission. No owner
+publisher, initializer, release or activation command ships in this prerequisite.
+`WBS_EDGE_STATE` selects the host state directory only for controlled isolated
+fixtures; prod and dev must use the same canonical default on the real host.
+
+The poller, candidate loader and child executor retain the same kernel lock using
+an inherited descriptor. `WBS_EDGE_LOCK_FD` is verified against the canonical
+lock's device/inode and real nonblocking `flock`, so a forged number or an
+independent open description cannot borrow another process's lock.
+
+These are source guarantees pending reviewed installation. The installed poller
+lives outside the reset checkout and can reset watched source before a new target
+loader starts. Installing a new swap bundle or merging this source does not prove
+that old installed pollers, scheduled launchers, manual scripts or already running
+processes adopted admission. Future owner publication must identify every installed
+writer, drain prior holders, verify installed bytes and retain the marker under
+`edge.lock`; until then participant observation remains `activation: blocked`.
+The shared `wbs-caddy-1` also serves unrelated applications and registry traffic;
+this prerequisite does not stop, restart, reload or repoint it.

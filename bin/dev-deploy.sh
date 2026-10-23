@@ -81,9 +81,10 @@ if [[ ! "$BUN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
+# Proof: restoring the poll-only SSH invocation failed the occupied-edge manual-launcher negative (fetch was reached).
 # shellcheck disable=SC2029
 ssh h2puni \
-  "flock /home/puni1/wbs-dev/state/poll.lock bash -c 'git -C /home/puni1/wbs-dev/src fetch --quiet origin && bash -s -- /home/puni1/wbs-dev/src /home/puni1/wbs-dev/bin /home/puni1/wbs-dev/bin/bun $SHA $BUN_VERSION && echo $SHA > /home/puni1/wbs-dev/state/last-synced.manual && mv /home/puni1/wbs-dev/state/last-synced.manual /home/puni1/wbs-dev/state/last-synced && rm -f /home/puni1/wbs-dev/state/awaiting-recreate'" \
+  "touch /home/puni1/wbs/state/edge.lock || exit 1; exec 8</home/puni1/wbs/state/edge.lock || exit 1; flock -n 8 || exit 75; export WBS_EDGE_LOCK_FD=8; flock /home/puni1/wbs-dev/state/poll.lock bash -c 'git -C /home/puni1/wbs-dev/src fetch --quiet origin && bash -s -- /home/puni1/wbs-dev/src /home/puni1/wbs-dev/bin /home/puni1/wbs-dev/bin/bun $SHA $BUN_VERSION && echo $SHA > /home/puni1/wbs-dev/state/last-synced.manual && mv /home/puni1/wbs-dev/state/last-synced.manual /home/puni1/wbs-dev/state/last-synced && rm -f /home/puni1/wbs-dev/state/awaiting-recreate'" \
   < "$(dirname "${BASH_SOURCE[0]}")/dev-poll-sync.sh"
 
 # No credential is fetched or sent. Dev's edge password was removed 2026-08-06;

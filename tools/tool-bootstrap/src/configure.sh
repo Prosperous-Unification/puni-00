@@ -31,6 +31,28 @@
 # Idempotent: safe to re-run.
 set -eu
 
+# Lock order: shared edge.lock, then poll/deploy/devsync locks. Keep descriptor 8
+# inherited through the candidate loader and its deploy child. A retained owner
+# marker (including an interrupted publication) closes ordinary deployment.
+# Proof: edge-admission.test.ts removed this block: all 12 writer refusals failed.
+WBS_EDGE_STATE="${WBS_EDGE_STATE:-/home/puni1/wbs/state}"
+mkdir -p "$WBS_EDGE_STATE"
+# Linux Debian/Ubuntu shells support -ef; edge-admission.test.ts runs these with sh.
+# shellcheck disable=SC3013
+if [ ! "$WBS_EDGE_STATE/edge.lock" -ef /proc/self/fd/8 ]; then
+  touch "$WBS_EDGE_STATE/edge.lock"
+  exec 8<"$WBS_EDGE_STATE/edge.lock"
+fi
+flock -n 8 || { echo "shared edge lock held: $WBS_EDGE_STATE/edge.lock" >&2; exit 75; }
+WBS_EDGE_LOCK_FD=8
+export WBS_EDGE_LOCK_FD
+for edge_owner in "$WBS_EDGE_STATE/edge-owner.json" "$WBS_EDGE_STATE/edge-owner.pending"; do
+  if [ -e "$edge_owner" ] || [ -L "$edge_owner" ]; then
+    echo "shared edge owner admission closed: $edge_owner; retained marker; no activation" >&2
+    exit 1
+  fi
+done
+
 WBS_USER="${WBS_USER:-puni1}"
 WBS_ROOT="${WBS_ROOT:-/home/puni1/wbs}"
 REGISTRY_HOST="${REGISTRY_HOST:-registry.infra.bulletpoints.club}"

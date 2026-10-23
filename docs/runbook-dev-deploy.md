@@ -221,7 +221,7 @@ after their reviewed commit lands on `main`:
 scp bin/dev-poll.sh h2puni:/home/puni1/wbs-dev/bin/poll.next.sh
 scp bin/dev-poll-sync.sh h2puni:/home/puni1/wbs-dev/bin/dev-poll-sync.next.sh
 scp .bun-version h2puni:/home/puni1/wbs-dev/bin/bun-version.next
-ssh h2puni 'flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
+ssh h2puni 'touch /home/puni1/wbs/state/edge.lock && flock -n /home/puni1/wbs/state/edge.lock flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
   "bun_version=\$(cat /home/puni1/wbs-dev/bin/bun-version.next) && \
    bun_source=\$(command -v bun) && \
    test \"\$(\"\$bun_source\" --version)\" = \"\$bun_version\" && \

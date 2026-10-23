@@ -95,6 +95,7 @@ import {
 } from './lib/docker';
 import { type RunDocker, runDockerBefore, runDockerCli } from './lib/docker-deadline';
 import { drain } from './lib/drain';
+import { assertNoEdgeOwner, withEdgeAdmission } from './lib/edge-admission';
 import { fenceGateways, inspectGatewayFence } from './lib/gateway-exclusion';
 import { assertNoGatewayFence } from './lib/gateway-fence';
 import { waitForHealthy } from './lib/health';
@@ -1462,6 +1463,8 @@ export async function execute(
   io: SwapExecutionIo = PRODUCTION_SWAP_IO,
   activateStepBlockage = false,
 ): Promise<void> {
+  // Proof: removing this guard failed the direct executor retained-owner negative before later IO.
+  await assertNoEdgeOwner();
   // Proof: bypassing this guard let direct fence-present executions write commit/config state; 32 refusal tests failed.
   await assertNoGatewayFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);
   await assertNoBackendFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);
@@ -2561,7 +2564,9 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  main().catch((e: unknown) => {
+  const mutatesHost =
+    process.argv.includes('--execute') || process.argv.includes('--check-backend-recovery');
+  (mutatesHost ? withEdgeAdmission(main) : main()).catch((e: unknown) => {
     console.error('[swap] failed:', e instanceof Error ? e.message : String(e));
     process.exit(1);
   });

@@ -1167,3 +1167,22 @@ watchers alone cannot regenerate the document.
 
 This correction proves bounded startup and generated parity, not dependency
 activation, a final image build, cluster acceptance or Task 11 completion.
+
+### Bounded shared edge owner admission prerequisite (2026-10-23)
+
+The source swap CLI, durable dev poller, target candidate loader, manual dev
+launcher and standalone bootstrap/configure writers serialize on the canonical
+host-wide `edge.lock`. Lock order is edge, optional poll, optional devsync, then
+selected deploy. Existing backend/gateway fences and selected deploy locks remain.
+Inherited lock reuse verifies descriptor syntax, canonical device/inode and real
+nonblocking flock; a separately opened description competes normally.
+
+Every present `edge-owner.json` or orphan `edge-owner.pending` closes ordinary
+effects, irrespective of content or readability. Legacy absence is admitted and
+establishes no owner fence. Direct swap/devsync executors repeat the marker guard.
+This packet has no owner publication, activation, route mutation or installation.
+The already installed poller may reset before candidate extraction; source-only
+admission cannot prove that it or other installed launchers adopted this protocol.
+Participant inspection remains blocked pending installed writer identity/drain,
+installed-byte audit, retained publication and continuous participant exclusion.
+Operational details live in the prod runbook's shared edge admission section.

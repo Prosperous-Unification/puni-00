@@ -1042,3 +1042,30 @@ The dedicated backend participant inspection SHALL hold one selected deploy lock
 - **THEN** it refuses to issue the managed Compose observation
 - **AND** any returned observation still names unresolved ingress, restart authority, MCP, retained clients, host processes and continuous exclusion
 - **AND** it never claims a complete participant proof or permits activation
+
+### Requirement: Shared edge owner admission precedes deployment effects
+
+Supported source launchers SHALL serialize shared-edge writers under one canonical
+host-wide lock before selected deployment locks. Retained owner state SHALL close
+ordinary deployment without granting activation. This prerequisite SHALL NOT
+claim that installed launchers adopted source changes.
+
+#### Scenario: Concurrent prod, dev and provisioning writers
+
+- **GIVEN** a supported writer holds the shared edge lock
+- **WHEN** a prod/dev swap, dev poller/candidate loader, devsync or bootstrap/configure writer starts
+- **THEN** it refuses before checkout/reset, candidate extraction, configuration, restart or reload
+- **AND** nested launchers reuse only a descriptor verified against the canonical inode and real flock
+
+#### Scenario: Retained, malformed or interrupted owner publication
+
+- **GIVEN** `edge-owner.json` or `edge-owner.pending` exists in canonical edge state
+- **WHEN** an ordinary supported writer or direct swap/devsync executor starts
+- **THEN** it refuses effects even for malformed, unreadable, directory or dangling-link owner state
+- **AND** absence preserves legacy deployment without establishing exclusion or activation
+
+#### Scenario: Installed writer adoption remains unproven
+
+- **WHEN** source admission tests pass without an installed-byte and prior-holder drain audit
+- **THEN** participant observation remains activation blocked
+- **AND** no owner publication, Caddy mutation or activation is performed

@@ -1,4 +1,13 @@
-import { closeSync, constants, ftruncateSync, openSync, readFileSync, writeSync } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  ftruncateSync,
+  openSync,
+  readFileSync,
+  statSync,
+  writeSync,
+} from 'node:fs';
 import { hostname } from 'node:os';
 
 import { dlopen, FFIType } from 'bun:ffi';
@@ -101,7 +110,11 @@ function readHolder(lockPath: string): string {
   }
 }
 
-export async function withLock<T>(lockPath: string, fn: () => Promise<T>): Promise<T> {
+/** Holds a durable inode lock; the callback may inherit but must not close its descriptor. */
+export async function withLock<T>(
+  lockPath: string,
+  fn: (descriptor: number) => Promise<T>,
+): Promise<T> {
   // O_RDWR|O_CREAT rather than 'w': truncating on open would erase a live
   // holder's record before we know whether we can even take the lock.
   const fd = openSync(lockPath, constants.O_RDWR | constants.O_CREAT, 0o644);
@@ -113,7 +126,7 @@ export async function withLock<T>(lockPath: string, fn: () => Promise<T>): Promi
   try {
     ftruncateSync(fd, 0);
     writeSync(fd, `${JSON.stringify(holderRecord(), null, 2)}\n`, 0, 'utf8');
-    return await fn();
+    return await fn(fd);
   } finally {
     // Truncate before closing, not after: closing is what releases the lock,
     // so anything done after it races the next holder. An empty file left
@@ -124,5 +137,21 @@ export async function withLock<T>(lockPath: string, fn: () => Promise<T>): Promi
       // Best effort — the close below is what actually matters.
     }
     closeSync(fd);
+  }
+}
+
+/**
+ * Validates an inherited open description and obtains its existing advisory lock.
+ * Proof: skipping this call failed two forged-descriptor and one independent-open
+ * production CLI negative; inheriting the actual locked description stayed admitted.
+ */
+export function assertInheritedLock(lockPath: string, descriptor: number): void {
+  const inherited = fstatSync(descriptor);
+  const expected = statSync(lockPath);
+  if (inherited.dev !== expected.dev || inherited.ino !== expected.ino) {
+    throw new Error(`inherited shared edge lock does not name ${lockPath}`);
+  }
+  if (symbols.flock(descriptor, LOCK_EX | LOCK_NB) !== 0) {
+    throw new Error(`shared edge lock held: ${lockPath}`);
   }
 }
