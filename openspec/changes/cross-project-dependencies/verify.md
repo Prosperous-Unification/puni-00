@@ -6389,3 +6389,11 @@ The [saved-history lifecycle packet](verify-saved-history-lifecycle.md) proves
 genuine two-save connected history and mounted HTTP read/comparison through
 foreign edits and deletion with poisoned live capabilities in isolated/shared
 modes. Parent 8.3 and the canonical host gate remain open.
+
+## Task 5.2 attempt-driven dependency invalidation (2026-10-23)
+
+The borrowed dependency capture now fingerprints `StepNodeAttemptRepository.listByProject` for each authorized component member after validating its snapshot lifetime. Mounted HTTP cases cover A→B→C SS start, failed end and removal in isolated and shared mode: each command adds exactly one `elsewhere_changed` event to B and C, B's startability follows actual attempt evidence, a foreign organization receives none, and relationships do not change. A rejected two-command batch rolls its start back; an injected repository read failure returns 500 and leaves attempt, event, sequencer and journal tables unchanged.
+
+Proof logs: [attempt omission](evidence/attempt-fanout-fingerprint-fault.log) records 0 B/C events against 1 expected in both mounted modes when the fingerprint used `[]`; [snapshot expiry](evidence/attempt-fanout-lifetime-fault.log) records resolved fanout against required rejection when the post-await lifetime guard was removed. Both were restored before the focused green run. The mounted read-failure case itself injects the repository rejection and asserts atomic refusal. Existing `cross-project-events` mounted delivery test covers callback after commit and writer release.
+
+Focused green: `bun test apps/wbs/be-01/src/controller/cross-project-attempt-events.controller.db.test.ts apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts --timeout=30000` — 31 pass, 276 assertions. Configured `wbs-store-sqlite:typecheck` and `wbs-be-01:typecheck` passed after a test-only `this` annotation fix. Configured lint and format checks are recorded in the commit packet. Full host gate, full CI and Astra High independent review remain pending; parent 5.2 is open.

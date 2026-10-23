@@ -30,6 +30,7 @@ import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
 import { openSqliteSource } from './source';
+import { StepNodeAttemptRepository } from './step-node-attempt';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { openSpaceDatabase } from './testing/space-database';
 
@@ -837,6 +838,57 @@ it('refuses expired rank evidence before reading a dependency member', async () 
     expect(read).not.toHaveBeenCalled();
   } finally {
     order.mockRestore();
+    read.mockRestore();
+    connection.close();
+  }
+});
+
+// Proof: removing the post-attempt-await lifetime assertion lets the a2 read
+// finish and the expired fanout resolve instead of rejecting "read snapshot is closed".
+it('refuses an attempt read that completes after its borrowed snapshot expires', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-fanout-expired-attempt-'));
+  directories.push(directory);
+  const path = await openSpaceDatabase(directory);
+  seedDependencyAuthority(path);
+  const connection = openConnection(path);
+  const lifetime = createReadSnapshotLifetime();
+  const original = Object.getOwnPropertyDescriptor(
+    StepNodeAttemptRepository.prototype,
+    'listByProject',
+  )?.value as StepNodeAttemptRepository['listByProject'];
+  const read = spyOn(StepNodeAttemptRepository.prototype, 'listByProject').mockImplementation(
+    async function (this: StepNodeAttemptRepository, projectId) {
+      const attempts = await original.call(this, projectId);
+      if (projectId === 'a2') lifetime.expire();
+      return attempts;
+    },
+  );
+  try {
+    connection.db.run(
+      sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+    );
+    for (const projectId of ['a1', 'a2'])
+      connection.db.run(
+        sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${`${projectId}-row`}, ${projectId}, 10, ${projectId})`,
+      );
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'a1', 'a2', 'a1-row', 'whole', 'a2-row', 'whole', 'FS')",
+      ),
+    );
+    expect(
+      readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        {
+          schedulerOf: () => {
+            throw new Error('capture cannot schedule');
+          },
+        },
+        lifetime,
+      ),
+    ).rejects.toThrow('read snapshot is closed');
+  } finally {
     read.mockRestore();
     connection.close();
   }

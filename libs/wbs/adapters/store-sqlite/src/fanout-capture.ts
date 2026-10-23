@@ -39,6 +39,7 @@ import {
   projectOrganization,
 } from './schema';
 import { readCapacityMode } from './shared-people-mode';
+import { StepNodeAttemptRepository } from './step-node-attempt';
 
 /** Resolves a trusted maintenance target on its borrowed writer before any lifecycle mutation. */
 export function resolveLifecycleOwnerIn(db: Drizzle, projectId: string): LifecycleOwnership {
@@ -501,6 +502,10 @@ async function readDependencyFanoutIn(
     // Proof: omitting this refusal made the omitted authoritative-order member
     // DB negative resolve successfully instead of rejecting corrupt evidence.
     if (ordinal === undefined) throw new Error('dependency fan-out member absent from rank order');
+    const attempts = await new StepNodeAttemptRepository(db, OPEN).listByProject(projectId);
+    // Proof: expiring the borrowed read during this await must refuse the fanout
+    // rather than fingerprinting rows from a closed snapshot.
+    lifetime.assertOpen();
     people.set(projectId, [...new Set(captured.assignments.map(({ personId }) => personId))]);
     projects.set(
       projectId,
@@ -518,6 +523,9 @@ async function readDependencyFanoutIn(
         captured.project.scheduleObjective,
         // Proof: substituting [] lost the real borrowed-writer remote-completion event in `records remote completion without shared people`.
         captured.progress,
+        // Proof: substituting [] left zero B/C events after the mounted A
+        // startAttempt, while the SS successor became startable.
+        attempts,
         captured.actuals,
         captured.stepBlockages,
         captured.stepParallels,

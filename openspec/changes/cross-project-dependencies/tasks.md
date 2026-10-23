@@ -622,3 +622,11 @@ parent tasks 7.3/7.4 stay open.
 - [x] Remove subscriptions/presence and abort pending work synchronously before physical close; prevent delayed identity and held subscribe revival without awaiting the joined promise or own FIFO.
 - [x] Independently remove the new guards, observe named mounted assertion failures and restore them; mount real SQLite backend plus production gateway for DISABLED→synthetic ENABLED zero-row push/replay refusal.
 - [ ] Complete configured gateway checks, formatting, OpenSpec validation, independent review and integrated isolated host gate. Parent 10.1 remains open; deployment-owned delayed-204 post-read/pre-send race, participant exclusion, activation, authoring and semantic advertisement remain unresolved/outside this packet. Evidence: [verify-retained-egress.md](verify-retained-egress.md).
+
+Task 5.2 bounded attempt-driven dependency invalidation (2026-10-23):
+
+- [x] Capture authorized component-member step attempts on the borrowed writer, check snapshot lifetime after the awaited read, and include the detached authoritative attempt rows in the dependency fingerprint.
+- [x] Prove mounted isolated/shared SS start, failed end and removal each publish one B/C event while readiness follows the attempt, foreign organizations stay silent, relationships remain stable, and rejected/read-failed writes leave no durable publication.
+- [x] Watch fingerprint omission and post-await lifetime-guard removal fail their production-path tests; record focused test, lint, typecheck and format evidence in `verify.md`.
+
+Task 5.2 remains open for its broader writer audit, socket/browser acceptance and exact-SHA host gate.
