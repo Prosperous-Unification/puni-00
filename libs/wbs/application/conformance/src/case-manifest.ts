@@ -125,6 +125,7 @@ export const CASE_MANIFEST = {
     'measures.remove:metric-key',
     'measures.moveAll:all-metrics',
     'measures.set:unknown_step',
+    'measures.set:alias-one-row',
     'measures.set:defined-key',
   ],
   progress: [

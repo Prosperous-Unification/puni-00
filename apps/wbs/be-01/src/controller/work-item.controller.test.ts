@@ -3298,7 +3298,10 @@ describe('recording what a step’s work cost in tokens and hours', () => {
 
   // Proof: with the `derived_measure`/`scale_mismatch` arm removed from
   // work-item.routes.ts, this case answered 500; watched 2026-10-23.
-  it('answers 409 for a derived measure and for a fraction of an integer one, storing nothing', async () => {
+  // Proof: with the scheduling test removed from decideMeasureFact, this case
+  // answered 500 for `time` (the store threw on a key no organization
+  // defines) instead of 409; watched 2026-10-23.
+  it('answers 409 for a derived measure, the scheduling measure and a fraction of an integer one, storing nothing', async () => {
     const { token, send, measures, projectId, devId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
 
@@ -3317,7 +3320,20 @@ describe('recording what a step’s work cost in tokens and hours', () => {
       value: 1.5,
     });
 
-    expect([derived.status, fraction.status]).toEqual([409, 409]);
+    const scheduling = await command(send, token, projectId, {
+      kind: 'setMeasure',
+      workItemId: strip,
+      stepId: devId,
+      metric: 'time',
+      value: 2,
+    });
+
+    expect([derived.status, fraction.status, scheduling.status]).toEqual([409, 409, 409]);
+    expect(await scheduling.json()).toEqual({
+      error: 'scheduling_measure_fact',
+      at: 0,
+      kind: 'setMeasure',
+    });
     expect(await derived.json()).toEqual({ error: 'derived_measure', at: 0, kind: 'setMeasure' });
     expect(await fraction.json()).toEqual({ error: 'scale_mismatch', at: 0, kind: 'setMeasure' });
     expect(await measures.listByProject(projectId)).toEqual([]);

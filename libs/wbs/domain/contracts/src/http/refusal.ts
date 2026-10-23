@@ -151,6 +151,8 @@ export type CommandRefusalCode =
   | 'rolled_up'
   /** `setMeasure` or `clearMeasure` on a derived measure (`agent_minutes`). */
   | 'derived_measure'
+  /** `setMeasure` or `clearMeasure` in the scheduling measure; its fact is `setActual`'s days. */
+  | 'scheduling_measure_fact'
   /** A fraction in a measure whose scale is `integer`. */
   | 'scale_mismatch'
   | 'has_children'

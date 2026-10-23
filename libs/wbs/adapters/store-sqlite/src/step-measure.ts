@@ -1,5 +1,10 @@
 import type { MeasureStore, StepWriteOutcome, StoredMeasure, WriteStamp } from '@wbs/core';
-import { isLegacyMetric, type MeasureDefinition, type MeasureMetric } from '@wbs/domain';
+import {
+  factMetricOf,
+  isLegacyMetric,
+  type MeasureDefinition,
+  type MeasureMetric,
+} from '@wbs/domain';
 import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -55,8 +60,12 @@ export function storedColumnsOf(
   db: SQLiteBunDatabase,
   toStore: Pick<StoredMeasure, 'workItemId' | 'metric'>,
 ): { metric: MeasureMetric; measureId: null } | { metric: null; measureId: string } {
-  if (isLegacyMetric(toStore.metric)) return { metric: toStore.metric, measureId: null };
-  const measureId = measureIdFor(db, toStore.workItemId, toStore.metric);
+  // `tokens` and `hours` are the legacy rows under their keys (design D18).
+  // Proof: with this mapping removed, the SQLite certification's
+  // `measures.set:alias-one-row` wrote a second row under `tokens`; watched 2026-10-23.
+  const metric = factMetricOf(toStore.metric);
+  if (isLegacyMetric(metric)) return { metric, measureId: null };
+  const measureId = measureIdFor(db, toStore.workItemId, metric);
   // Proof: with this throw removed (a NULL id passed on), the SQLite
   // certification's `measures.set:defined-key` met the CHECK
   // `step_measure_addressed` instead of this message; watched 2026-10-23.
@@ -76,9 +85,12 @@ export function factCondition(
   db: SQLiteBunDatabase,
   workItemId: string,
   stepId: string,
-  metric: string,
+  requested: string,
 ): SQL | undefined {
   const pair = and(eq(stepMeasure.workItemId, workItemId), eq(stepMeasure.stepId, stepId));
+  // Proof: with this mapping removed, `measures.set:alias-one-row` in the
+  // SQLite certification left the tokens fact after `remove('tokens')`; watched 2026-10-23.
+  const metric = factMetricOf(requested);
   if (isLegacyMetric(metric)) return and(pair, eq(stepMeasure.metric, metric));
   const measureId = measureIdFor(db, workItemId, metric);
   if (measureId === null) return undefined;

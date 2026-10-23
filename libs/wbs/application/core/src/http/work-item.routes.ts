@@ -337,6 +337,7 @@ function answerBatch(
     case 'rolled_up':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'derived_measure':
+    case 'scheduling_measure_fact':
     case 'scale_mismatch':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'ancestor':

@@ -109,29 +109,37 @@ Assumptions added while implementing slice 2 (tasks 1.3, 1.4), each the reading 
   (`measure_key_taken`). `unknown_metric` is retired for `unknown_measure` (404, the work-item
   command refusal convention); the contracts keep the old arm for the swap, like `frozen`.
 - **D19 A project no organization owns has no definitions.** Its facts are decided against the
-  seeded `tokens` and `hours` (and the derived `agent_minutes`, which its read shows) and
+  seeded `tokens` and `hours` (and `agent_minutes` and `time`, refused as below) and
   stored with a NULL `measure_id`;
   `project_organization_keys_measure_facts` keys them in the statement that maps the project.
 - **D20 Agent minutes.** Per step node, the sum of end minus start over its ended attempts
   (overlaps count twice), rounded half up to whole minutes once on the node's total;
   `recordedAt` is the latest end. Read in the row's `measures` as `agent_minutes`, folded
-  like any measure, absent until an attempt ends.
+  like any measure, absent until an attempt ends. Saved-plan comparisons will show
+  `agent_minutes` churn whenever an attempt ends between two captures.
 - **D21 No cascade yet.** `deleteMeasure` refuses `measure_in_use` while facts reference the
   definition; a cascade would discard facts with no undo (D11). The `measure_id` foreign key,
   without `ON DELETE`, is the backstop.
 - **D22 The export keeps its version's shape.** Until slice 7 bumps it, the document carries
   legacy metrics only: facts in defined measures and the derived `agent_minutes` are left out,
-  so an export still imports. Saved plans capture the row read and do carry them.
-- **D23 The swap window.** The outgoing release cannot name a fact in a defined measure; its
-  targeted read of a work item holding one throws. None exists until the new release writes
-  one, so the window is accepted rather than guarded.
+  so an export still imports. Saved plans capture the row read and do carry them. Until then
+  an export silently omits facts in defined measures: a round trip through a file loses them.
+- **D23 No shared window; recovery is the exposure.** Backend swaps stop and prove the old
+  writer before migrating (`docs/runbook-prod-deploy.md`), so blue and green never serve this
+  schema together. The consequence is for recovery: once a fact exists in a defined measure, an
+  attended restart of the older image answers 500 on every work item holding one, and
+  `down.sql` refuses; both exits stay closed until those facts are cleared by hand (runbook,
+  _Measure fact rollback_).
 - **D24 Undo across a deleted definition refuses.** Putting back a fact (or a deleted subtree's
-  facts) in a measure deleted since answers 409 with "that measure is no longer defined".
+  facts, or a replayed hand-up) in a measure deleted since answers 409 with "that measure is no longer defined".
 - **D25 Integrity by construction.** `measure_id` is only ever resolved through the project's
   own organization (store and triggers), so no ownership-conflict kind is added; conflict ids
   use `coalesce(metric, measure_id)`.
 - **D26 Navigator unchanged.** `receipt-to-commands.ts` sends the legacy names, which stay
   accepted for the release.
+- **D27 The scheduling measure takes no fact here.** `setMeasure` on the `schedulesWork`
+  definition (`time`) is refused `409 scheduling_measure_fact`: its fact is the actual days,
+  recorded with `setActual`, and a second figure beside `actual.days` would be a second truth.
 
 ## Risks / Trade-offs
 

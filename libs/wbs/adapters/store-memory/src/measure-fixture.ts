@@ -1,5 +1,5 @@
 import type { MeasureStore, StepStore, StoredMeasure, WorkItemStore } from '@wbs/core';
-import { definitionKeyOf, isLegacyMetric, type MeasureDefinition } from '@wbs/domain';
+import { definitionKeyOf, factMetricOf, isLegacyMetric, type MeasureDefinition } from '@wbs/domain';
 
 import type { MemoryMeasureDefinitionTables } from './measure-definition-fixture';
 import { readTargetedSatelliteRows } from './targeted-satellite-rows';
@@ -61,7 +61,11 @@ export function inMemoryMeasures(
       return Promise.resolve(definitionsOf(projectId));
     },
     listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
-    async set(toSet, _stamp) {
+    async set(requested, _stamp) {
+      // `tokens` and `hours` are the legacy rows under their keys, as on SQLite (design D18).
+      // Proof: with this mapping removed, the memory certification's
+      // `measures.set:alias-one-row` stored `tokens` as a second row; watched 2026-10-23.
+      const toSet = { ...requested, metric: factMetricOf(requested.metric) };
       // SQLite's store throws the same way: a defined metric must name a
       // definition of the organization owning the work item's project.
       // Proof: with this check removed, the memory certification's
@@ -89,7 +93,10 @@ export function inMemoryMeasures(
       // and slice 5 is where it goes on the allowlist or is tightened.
       return 'written' as const;
     },
-    remove(workItemId, stepId, metric, _stamp) {
+    remove(workItemId, stepId, requested, _stamp) {
+      // Proof: unmapped, `measures.set:alias-one-row` kept the tokens row
+      // after `remove('tokens')`; watched 2026-10-23.
+      const metric = factMetricOf(requested);
       const kept = rows.filter(
         (row) => !(row.workItemId === workItemId && row.stepId === stepId && row.metric === metric),
       );

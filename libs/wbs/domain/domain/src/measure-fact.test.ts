@@ -91,6 +91,17 @@ describe('decideMeasureFact', () => {
     });
   });
 
+  // Proof: with the scheduling test removed from decideMeasureFact, this case
+  // accepted a `time` fact; watched 2026-10-23.
+  it('refuses a fact, and a clear, in the scheduling measure', () => {
+    for (const held of [SEEDED, null])
+      for (const value of [2, null])
+        expect(decideMeasureFact(held, 'time', value)).toEqual({
+          ok: false,
+          reason: 'scheduling_measure_fact',
+        });
+  });
+
   // Proof: with the integer test removed, this case accepted 1.5 tokens
   // (7 pass, 2 fail); watched 2026-10-23.
   it('refuses a fraction on an integer-scale measure and accepts one on a real scale', () => {

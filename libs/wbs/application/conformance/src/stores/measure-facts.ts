@@ -74,6 +74,25 @@ export async function seedMeasureFactCase(
 /** The measure-family fact case: a defined key stored, read, replaced and removed. */
 export function measureFactRegistrations(open: OpenCase<'measures'>): readonly CaseRegistration[] {
   return [
+    // `tokens` and `token_actual` (and `hours`/`hours_actual`) name one row
+    // in every store method (design D18), whoever owns the project.
+    storeCase('measures', 'measures.set:alias-one-row', open, async ({ port, seed }) => {
+      const [projectId] = seed.projectIds;
+      const workItemId = seed.workItemIds[0][0];
+      const stepId = seed.stepIds[0][0];
+      const fact = { workItemId, stepId, recordedAt: 1 };
+      await port.set({ ...fact, metric: 'tokens', value: 3 }, seed.stamps[0]);
+      await port.set({ ...fact, metric: 'token_actual', value: 4 }, seed.stamps[0]);
+      await port.set({ ...fact, metric: 'hours_actual', value: 1.5 }, seed.stamps[0]);
+      await port.set({ ...fact, metric: 'hours', value: 2.5 }, seed.stamps[0]);
+      expect(await port.listByProject(projectId)).toEqual([
+        { ...fact, metric: 'hours_actual', value: 2.5 },
+        { ...fact, metric: 'token_actual', value: 4 },
+      ]);
+      await port.remove(workItemId, stepId, 'tokens', seed.stamps[1]);
+      await port.remove(workItemId, stepId, 'hours', seed.stamps[1]);
+      expect(await port.listByProject(projectId)).toEqual([]);
+    }),
     storeCase('measures', 'measures.set:defined-key', open, async ({ port, seed }) => {
       const [owned, unowned] = seed.projectIds;
       const workItemId = seed.workItemIds[0][0];

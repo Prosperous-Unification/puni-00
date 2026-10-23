@@ -443,6 +443,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'engine_unavailable':
     case 'rolled_up':
     case 'derived_measure':
+    case 'scheduling_measure_fact':
     case 'scale_mismatch':
     case 'ancestor':
     case 'self_node':

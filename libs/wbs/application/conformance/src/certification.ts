@@ -63,6 +63,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'measures.remove:metric-key',
   'measures.moveAll:all-metrics',
   'measures.set:unknown_step',
+  'measures.set:alias-one-row',
   'measures.set:defined-key',
   'progress.listPlacements:source-order',
   'progress.listByWorkItems:scope-order',

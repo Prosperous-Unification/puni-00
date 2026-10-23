@@ -811,6 +811,11 @@ export type WorkItemRefusal =
   | 'unknown_measure'
   /** A fact or a clear on a derived measure (`agent_minutes`): nobody types it (409). */
   | 'derived_measure'
+  /**
+   * A fact in the scheduling measure (`time`) (409): its fact is the actual
+   * days, recorded with `setActual`.
+   */
+  | 'scheduling_measure_fact'
   /** A fraction on an integer-scale measure (409). */
   | 'scale_mismatch'
   /**
@@ -7924,6 +7929,13 @@ export class WorkItemService {
         ok: false,
         detail: 'a removed work item has step parallelism stated since this command.',
       };
+    // The hand-up below writes facts; one in a measure deleted since would
+    // throw from the store.
+    // Proof: with this refusal removed, `refuses an undo of a first-child create
+    // whose handed-down fact is in a measure deleted since`
+    // (measure-fact-command.test.ts) threw from the store; watched 2026-10-23.
+    const measuresRefused = await this.measuresRefusal(projectId, command.setMeasures);
+    if (measuresRefused !== null) return measuresRefused;
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     if (command.deletionState !== undefined)
@@ -7979,6 +7991,22 @@ export class WorkItemService {
     }
     await this.opts.attempts.restore(attempt, stamp);
     return { ok: true, detail: null };
+  }
+
+  /**
+   * Why these facts cannot be written back: one is in a measure the project's
+   * organization no longer defines (design D24). Null when nothing stands in
+   * the way, and without a read when there are none.
+   */
+  private async measuresRefusal(
+    projectId: string,
+    measures: readonly StoredMeasure[],
+  ): Promise<ApplyOutcome | null> {
+    if (measures.length === 0) return null;
+    const definitions = await this.opts.measures.definitionsFor(projectId);
+    return measures.some(({ metric }) => !decideMeasureFact(definitions, metric, null).ok)
+      ? { ok: false, detail: 'a measure it recorded is no longer defined.' }
+      : null;
   }
 
   /**
@@ -8076,11 +8104,8 @@ export class WorkItemService {
     // Proof: with this refusal removed, `refuses an undo of a delete whose
     // fact is in a measure deleted since` (measure-fact-command.test.ts) threw
     // from the store instead of refusing; watched 2026-10-23.
-    if (command.measures.length > 0) {
-      const definitions = await this.opts.measures.definitionsFor(projectId);
-      if (command.measures.some(({ metric }) => !decideMeasureFact(definitions, metric, null).ok))
-        return { ok: false, detail: 'a measure it recorded is no longer defined.' };
-    }
+    const measuresRefused = await this.measuresRefusal(projectId, command.measures);
+    if (measuresRefused !== null) return measuresRefused;
     const demands = command.demands ?? [];
     if (demands.length > 0) {
       const held = new Set((await this.opts.directory.listResources()).map(({ id }) => id));

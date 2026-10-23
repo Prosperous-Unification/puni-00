@@ -213,6 +213,7 @@ const batchRefusals = [
         type({ ...context, error: "'rolled_up'" }),
         // `setMeasure` on a derived measure, or a fraction on an integer one.
         type({ ...context, error: "'derived_measure'" }),
+        type({ ...context, error: "'scheduling_measure_fact'" }),
         type({ ...context, error: "'scale_mismatch'" }),
         type({ ...context, error: "'ancestor'" }),
         // A typed dependency whose endpoints resolve a step node onto itself.

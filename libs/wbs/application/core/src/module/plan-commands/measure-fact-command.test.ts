@@ -160,6 +160,8 @@ describe('facts keyed by measure definition', () => {
         reason: 'scale_mismatch',
       });
       expect(await set('tokens', 1.5)).toMatchObject({ ok: false, reason: 'scale_mismatch' });
+      // The scheduling measure's fact is the actual days, recorded with setActual.
+      expect(await set('time', 2)).toMatchObject({ ok: false, reason: 'scheduling_measure_fact' });
       expect(
         await run([{ kind: 'clearMeasure', workItemId: A, stepId: dev, metric: 'agent_minutes' }]),
       ).toMatchObject({ ok: false, reason: 'derived_measure' });
@@ -222,6 +224,38 @@ describe('facts keyed by measure definition', () => {
       ).toMatchObject({ ok: true });
       expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
       expect(await facts()).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+});
+
+describe('replays across a deleted definition', () => {
+  it('refuses an undo of a first-child create whose handed-down fact is in a measure deleted since', async () => {
+    const { source, runner, projectId, dev, idOf, run, gpuId } = await seeded();
+    try {
+      const A = idOf('A');
+      await run([
+        { kind: 'setMeasure', workItemId: A, stepId: dev, metric: 'gpu_minutes', value: 3 },
+      ]);
+      // A gains its first child, which takes A's facts; the create's undo
+      // hands them back up to A.
+      const created = await run([
+        { kind: 'createWorkItem', ref: 'C', name: 'C', parentId: A, afterId: null },
+      ]);
+      if (!created.ok) throw new Error('the child was refused');
+      const child = created.results.find((each) => 'ref' in each && each.ref === 'C');
+      if (child === undefined || !('id' in child) || typeof child.id !== 'string')
+        throw new Error('no child C');
+      await run([
+        { kind: 'clearMeasure', workItemId: child.id, stepId: dev, metric: 'gpu_minutes' },
+      ]);
+      expect(
+        await runner.runDirectory(F, [{ kind: 'deleteMeasure', measureId: await gpuId() }]),
+      ).toMatchObject({ ok: true });
+      // The clear's undo refuses first (set_measure guard), then the create's.
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
     } finally {
       await source.close();
     }

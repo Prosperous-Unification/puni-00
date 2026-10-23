@@ -43,12 +43,13 @@ export function definitionKeyOf(metric: string): string | null {
 /**
  * The definitions a project owned by no organization answers facts against:
  * the seeded `tokens` and `hours`, the two facts that existed before
- * definitions did, and the derived `agent_minutes`, which its row read shows
- * all the same (design D19). Such a project holds no `measure` rows, so any
+ * definitions did, the derived `agent_minutes`, which its row read shows all
+ * the same, and the scheduling measure `time`, whose days it records with
+ * `setActual` (design D19). Such a project holds no `measure` rows, so any
  * other key is unknown there.
  */
 const UNOWNED_PROJECT_DEFINITIONS: readonly MeasureDefinition[] = SEEDED_MEASURE_DEFINITIONS.filter(
-  (each) => each.key === 'tokens' || each.key === 'hours' || each.key === 'agent_minutes',
+  (each) => ['time', 'tokens', 'hours', 'agent_minutes'].includes(each.key),
 ).map((each) => ({ ...each, id: `unowned:${each.key}` }));
 
 /**
@@ -59,9 +60,13 @@ const UNOWNED_PROJECT_DEFINITIONS: readonly MeasureDefinition[] = SEEDED_MEASURE
  *   organization;
  * - `derived_measure` (409): the definition is computed on read
  *   (`agent_minutes`), so nobody types it;
+ * - `scheduling_measure_fact` (409): the definition schedules work (`time`),
+ *   whose fact is the actual days recorded with `setActual`; a second fact
+ *   here would be a second truth beside `actual.days`;
  * - `scale_mismatch` (409): a fraction on an integer-scale definition.
  */
-export type MeasureFactRefusal = 'unknown_measure' | 'derived_measure' | 'scale_mismatch';
+export type MeasureFactRefusal =
+  'unknown_measure' | 'derived_measure' | 'scheduling_measure_fact' | 'scale_mismatch';
 
 /** {@link decideMeasureFact}'s answer: the metric to store and journal under, or why not. */
 export type MeasureFactDecision =
@@ -71,7 +76,7 @@ export type MeasureFactDecision =
  * Whether a fact in `requested` may be written with `value`, or cleared when
  * `value` is null, on a project whose organization holds `definitions` (null
  * when no organization owns the project). Checked in the order unknown,
- * derived, scale, so one request answers one reason.
+ * derived, scheduling, scale, so one request answers one reason.
  *
  * `requested` may be a definition key or a legacy name: `token_actual` and
  * `hours_actual` are aliases of `tokens` and `hours` for one release, and the
@@ -89,6 +94,10 @@ export function decideMeasureFact(
   const definition = (definitions ?? UNOWNED_PROJECT_DEFINITIONS).find((each) => each.key === key);
   if (definition === undefined) return { ok: false, reason: 'unknown_measure' };
   if (definition.derived) return { ok: false, reason: 'derived_measure' };
+  // Proof: with this test removed, `refuses a fact, and a clear, in the
+  // scheduling measure` (measure-fact.test.ts) accepted a `time` fact;
+  // watched 2026-10-23.
+  if (definition.schedulesWork) return { ok: false, reason: 'scheduling_measure_fact' };
   if (value !== null && definition.scale === 'integer' && !Number.isInteger(value))
     return { ok: false, reason: 'scale_mismatch' };
   return { ok: true, metric: factMetricOf(definition.key) };
