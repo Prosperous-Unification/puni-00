@@ -1117,3 +1117,18 @@ it. Failure retains all evidence and current Docker state without recovery effec
 Ordinary execution also refuses backend marker and orphan companions. This receipt
 is bounded historical evidence, never an activation authority or an exclusive-store
 claim. Operator procedure: `docs/runbook-prod-deploy.md#managed-compose-backend-exclusion`.
+
+The unmanaged-mount adapter additionally reuses the existing
+`verifyContainerNamespace()` initialized metadata protocol. Canonical host path
+and inode overlap are early refusal evidence only. Host Source EACCES/ENOENT
+supplies no exclusion evidence; every unmanaged persistent mount, including
+Docker-read-only mounts, requires its exact inspected ID, all declared destinations,
+the canonical SQLite family and a pinned backend image to pass actual namespace
+admission under the shared fence deadline. Unsupported privilege/capabilities/PID
+or init state, missing tools, unreadable or incomplete/malformed census, timeout
+and unproved scanner cleanup refuse. After namespace audits, a second complete
+joint inventory must match membership, mount/config/security/network identities
+and process/PID/start/restart identity before intent can be published. Source
+rebinds, hardlinks and nested writable aliases are covered by the existing census
+contract; it retains its documented trusted-quiescence/static-namespace limits.
+No BuildKit/controller exemption or automatic stop is authorized.

@@ -997,3 +997,12 @@ membership SHALL refuse without implying that a store is excluded.
 - **THEN** it refuses and retains evidence and current Docker state without automatic recovery
 - **AND** ordinary gateway/frontend/backend/mixed runs and direct executors refuse a retained backend marker or orphan companion
 - **AND** a historical completion alone never establishes current exclusion or semantic authority
+
+#### Scenario: Opaque host sources require actual namespace admission
+
+- **GIVEN** an unmanaged persistent Docker mount whose host source is readable, absent or inaccessible, including one reported read-only by Docker
+- **WHEN** the backend fence evaluates that participant
+- **THEN** known host path/inode overlap may refuse early but no host source observation establishes exclusion
+- **AND** the existing initialized bounded namespace census must prove the exact participant, all mount destinations and full SQLite family without writable aliases or unclean scanner sessions
+- **AND** unavailable, malformed, incomplete, timed-out, unreaped or unsupported privilege/capability/init/PID namespaces refuse
+- **AND** a fresh complete joint inventory after all audits must preserve membership, mount/security/config/network and PID/start/restart identities before durable intent publication

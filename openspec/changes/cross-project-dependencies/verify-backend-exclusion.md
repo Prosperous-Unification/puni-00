@@ -82,3 +82,71 @@ The initial full source sandbox run completed: 1,260 passed, 2 skipped, 8 failed
 7,445 assertions, 370.44s. The failures are Unix socket fixtures denied by the
 sandbox. A full elevated rerun was started to establish the actual suite result;
 no full-suite green is inferred from that restricted run.
+
+## Actual application readiness and namespace audit correction
+
+Clean source `ac7ffae902b48405119c8e95a9d671caa950e6be` reached real backend
+health HTTP 200; its first write correctly refused `403 invalid_origin`. The
+fixture was corrected to send its configured Origin. Clean source
+`894073b2c45565aaf9c73a749aca1e8929172fc9` then proved health and registration
+writes for both actual default-command installed backend applications and
+physically fenced the gateway runtime probe. Backend admission correctly refused
+an unrelated BuildKit volume host path with EACCES before any backend publication
+or effects. Exact owned container/network cleanup passed in
+`/tmp/backend-fence-docker-894073b2c.json`. The backend image health reports
+`commit:null`: executor/acceptance source provenance is clean and exact, while
+installed application provenance is the pinned image digest, without a source
+revision attestation. This is not a successful full backend fence acceptance.
+
+Noninteractive host root traversal is unavailable (`sudo -n id` requires a
+password). The reviewed correction reuses the production initialized namespace
+census rather than skipping opaque volume inspection. Readable sources also
+require actual namespace admission. No BuildKit/controller is exempted or stopped.
+The default operation still refuses unsupported/no-init/privileged namespaces.
+
+Mounted adapter tests execute the existing immutable scanner programs against
+real host fixture directories and parse the complete production session protocol.
+They cover Source EACCES and ENOENT positives with four complete initialized session
+ACKs, readable source success, opaque main/WAL/SHM/journal hardlinks, Docker-RO
+nested RW aliases, rebound host Source, hidden roots/symlinks, missing declared/root
+mounts, PID/start/restart/foreign-ID drift, unreadable/missing tools, malformed,
+incomplete, stalled and unreaped sessions, privilege/capability/init/PID refusal.
+A repeated complete global inventory before intent catches new/missing members
+and mount/PID/start/restart changes. Ordinary orphan companion admission is also
+exercised through both real ordinary entry points for all tier selections.
+
+Independent restored mutations, each exit 1 (external detailed report:
+`/tmp/backend-namespace-mutation-report.json`):
+
+| Omitted production check               | Observed failures                                       |
+| -------------------------------------- | ------------------------------------------------------- |
+| Actual namespace invocation            | 30 mounted adapter positives/negatives fail             |
+| Exact namespace pre/post identity      | PID/start/restart/foreign-ID cases: 4 fail              |
+| Root/declared actual mount membership  | 2 mounted adapter cases fail                            |
+| Post-audit complete inventory identity | 6 pre-intent drift cases fail                           |
+| Full-inventory cardinality             | Missing inspected bystander case fails                  |
+| Full-inventory ID membership           | Foreign inspected ID case fails before-intent assertion |
+
+Direct writable host file hardlinks additionally refuse early by inode identity;
+main/WAL/SHM/journal and non-file sidecar negatives were red/green and independently
+mutated before the namespace integration. After integration the early-alias tests
+also require refusal before namespace inspection. The namespace audit remains the
+mandatory independent barrier for opaque/rebound/directory-content aliases.
+
+The first elevated full-suite command used a root-relative Bun substring filter
+after the configured TypeScript build had emitted test copies under `dist`; it
+collected 108 files and reported generated-output alias/path errors (1,546 pass,
+2 skip, 89 fail/29 errors). That command does not establish a source-suite failure
+or success. The corrected elevated run uses the configured project cwd and
+`bun test ./src --preload ../test/scratch/preload.ts --timeout=10000`, which
+excludes generated test copies; its final result is recorded below when complete.
+
+After namespace integration the focused seven-file lifecycle/admission/namespace
+suite passed: 435 tests, 0 failures, 1,345 assertions. Configured uncached lint,
+explicit spec TypeScript check and normal structured OpenSpec validation passed.
+Configured typecheck/build were rerun after the integration. The namespace
+identity adapter is shared with the existing gateway observations; no separate
+scanner implementation or controller exception was added. A dedicated actual
+initialized coordinator/opaque daemon-owned volume proof was added to the
+Docker harness; it verifies unchanged volume sentinel and process inventory to
+establish scanner cleanup before trying global backend admission.

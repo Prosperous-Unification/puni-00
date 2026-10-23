@@ -691,3 +691,6 @@ Parent 5.2 stays unchecked pending the broader writer audit and integrated gate.
 - [x] Publish durable intent before effects; disable restart/readback all exact IDs before stopping/readback; retain hash-bound completion and require final fresh joint inventory with no activation/restart/clearance.
 - [x] Watch skipped intent/update/stop/readbacks, foreign DB, duplicate DB_PATH, unmanaged writers, gateway byte drift and database replacement mutations fail; restore each mutant.
 - [ ] Complete clean-source real installed-backend health/SQLite Docker acceptance, configured scoped verification, independent Astra review and isolated integrated-SHA host gate. Parent 10.1/10.2 remain open. Evidence: [verify-backend-exclusion.md](verify-backend-exclusion.md).
+
+- [x] Reuse actual initialized `verifyContainerNamespace` admission for every unmanaged persistent mount even after host Source success/EACCES/ENOENT; preserve explicit unsupported BuildKit refusal and require fresh complete inventory after audits before intent.
+- [x] Watch independent namespace-invocation, namespace identity, mount completeness, inventory cardinality/membership and post-audit identity comparison omissions fail; cover opaque/rebound/read-only/nested/hardlinked aliases, tools/receipt/timeout/reap failures and unsupported security/init/PID targets.

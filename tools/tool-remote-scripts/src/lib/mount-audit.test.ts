@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 import { inspectBackendWriters } from '../swap';
+import { auditUnmanagedMounts } from './backend-cohort';
 import { ROOT } from './docker';
 import type { DockerExec } from './docker-exec';
 import { verifyContainerNamespace } from './mount-audit';
@@ -411,6 +412,156 @@ test('reduced-capability census refuses unreadable directory hiding a SQLite har
     expect(refused).toBe(true);
   } finally {
     await chmod(join(proof.root, 'namespace/data/nested'), 0o700);
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});
+
+async function auditBackendParticipant(
+  proof: Awaited<ReturnType<typeof fixture>>,
+  opaque: boolean,
+  readonly = false,
+  totalMs = 3000,
+  sourceCode: 'EACCES' | 'ENOENT' = 'EACCES',
+): Promise<void> {
+  const file = await stat(proof.database);
+  const directory = await stat(join(proof.root, 'family'));
+  const hostSource = join(proof.root, 'rebound-empty');
+  await mkdir(hostSource, { recursive: true });
+  const container = {
+    ...proof.container,
+    Mounts: proof.destinations.map((target) => ({
+      Type: 'volume',
+      Source: opaque ? '/var/lib/docker/volumes/backend-audit/_data' : hostSource,
+      Destination: target,
+      RW: !readonly,
+    })),
+  };
+  await auditUnmanagedMounts(
+    [container],
+    { blue: null, green: null },
+    {
+      path: '/data/wbs.db',
+      host: proof.database,
+      directoryIdentity: `${String(directory.dev)}:${String(directory.ino)}`,
+      fileIdentity: `${String(file.dev)}:${String(file.ino)}`,
+    },
+    image,
+    proof.runDocker,
+    performance.now() + totalMs,
+    (subject, destinations, database, candidate, runDocker, databasePath, bounds) =>
+      verifyContainerNamespace(
+        subject,
+        destinations,
+        database,
+        candidate,
+        runDocker,
+        databasePath,
+        bounds,
+        proof.exec,
+      ),
+    opaque
+      ? () =>
+          Promise.reject(Object.assign(new Error('host source inaccessible'), { code: sourceCode }))
+      : undefined,
+  );
+}
+
+test('backend fence audits an opaque unrelated volume using complete actual namespace receipts', async () => {
+  const proof = await fixture();
+  try {
+    await auditBackendParticipant(proof, true);
+    expect(proof.counters()).toEqual({ sessions: 4, acknowledgements: 4 });
+    expect(
+      proof.commands.some((args) => ['stop', 'restart', 'rm', 'create', 'run'].includes(args[0])),
+    ).toBe(false);
+  } finally {
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});
+
+for (const fault of [
+  'hardlink:',
+  'hardlink:-wal',
+  'hardlink:-shm',
+  'hardlink:-journal',
+  'nested-rw',
+  'all-ro-nested',
+  'replaced-source',
+  'hidden-root',
+  'symlink',
+  'mountinfo-race',
+  'declared-mount-missing',
+  'root-mount-missing',
+  'pid-race',
+  'inspection-unreadable',
+  'tool-absent',
+  'mountinfo-malformed',
+  'incomplete',
+  'reap-absent',
+  'group-residue',
+  'privileged-target',
+  'expanded-capability',
+  'missing-init',
+  'private-pid-missing',
+  'stalled-start',
+] as const) {
+  test(`backend fence namespace adapter refuses ${fault}`, async () => {
+    const proof = await fixture(fault);
+    try {
+      await refuses(
+        auditBackendParticipant(
+          proof,
+          fault !== 'replaced-source',
+          ['nested-rw', 'all-ro-nested'].includes(fault),
+          fault === 'stalled-start' ? 300 : 3000,
+        ),
+      );
+      expect(
+        proof.commands.some((args) => ['stop', 'restart', 'rm', 'create', 'run'].includes(args[0])),
+      ).toBe(false);
+    } finally {
+      await rm(proof.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('backend fence audits a host-readable unrelated volume using complete actual namespace receipts', async () => {
+  const proof = await fixture();
+  try {
+    await auditBackendParticipant(proof, false);
+    expect(proof.counters()).toEqual({ sessions: 4, acknowledgements: 4 });
+  } finally {
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});
+for (const fault of ['start-race', 'restart-race', 'foreign-id'] as const) {
+  test(`backend fence namespace adapter refuses ${fault}`, async () => {
+    const proof = await fixture();
+    const original = proof.runDocker;
+    proof.runDocker = (args: string[]) => {
+      if (args[0] === 'inspect' && proof.counters().sessions > 0) {
+        const changed = structuredClone(proof.container);
+        if (fault === 'start-race') changed.State.StartedAt = 'changed';
+        if (fault === 'restart-race') changed.RestartCount = 1;
+        if (fault === 'foreign-id') changed.Id = 'f'.repeat(64);
+        return Promise.resolve(JSON.stringify(changed));
+      }
+      return original(args);
+    };
+    try {
+      await refuses(auditBackendParticipant(proof, true));
+    } finally {
+      await rm(proof.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('backend fence treats host Source ENOENT as unknown until actual namespace admission', async () => {
+  const proof = await fixture();
+  try {
+    await auditBackendParticipant(proof, true, false, 3000, 'ENOENT');
+    expect(proof.counters()).toEqual({ sessions: 4, acknowledgements: 4 });
+  } finally {
     await rm(proof.root, { recursive: true, force: true });
   }
 });

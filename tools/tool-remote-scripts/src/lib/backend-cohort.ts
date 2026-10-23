@@ -3,7 +3,7 @@ import { lstat, realpath } from 'node:fs/promises';
 import { posix } from 'node:path';
 
 import { type DatabaseMount, resolveDatabaseHost } from './backend-config';
-import type { RunDocker } from './docker-deadline';
+import { type RunDocker, runDockerBefore } from './docker-deadline';
 import type { EnvLayout } from './env';
 import { inspectGatewayFenceUnderLock } from './gateway-exclusion';
 import {
@@ -22,6 +22,7 @@ import {
   readRecord,
   readString,
 } from './managed-cohort';
+import { verifyContainerNamespace } from './mount-audit';
 
 interface DatabaseIdentity {
   path: string;
@@ -128,12 +129,17 @@ function readMounts(container: Record<string, unknown>): DatabaseMount[] {
     throw new Error('backend fence Docker mounts are missing or malformed');
   return mounts.map((raw: unknown) => {
     const mount = readFields(raw);
-    return {
-      type: readNonempty(mount['Type']),
-      source: readNonempty(mount['Source']),
-      target: readNonempty(mount['Destination']),
-      writable: readBoolean(mount['RW']),
-    };
+    const type = readNonempty(mount['Type']);
+    const source = readString(mount['Source']);
+    const target = readNonempty(mount['Destination']);
+    const writable = readBoolean(mount['RW']);
+    if (
+      !['bind', 'volume', 'tmpfs', 'npipe', 'cluster', 'image'].includes(type) ||
+      !target.startsWith('/') ||
+      (type !== 'tmpfs' && !source.startsWith('/'))
+    )
+      throw new Error('backend fence Docker mount paths/type are unsupported');
+    return { type, source, target, writable };
   });
 }
 
@@ -153,8 +159,8 @@ async function inspectDatabase(container: Record<string, unknown>): Promise<Data
   if (declaration === undefined) throw new Error('backend fence lost DB_PATH');
   const path = declaration.slice(8);
   const host = await resolveDatabaseHost(path, readMounts(container), realpath);
-  const directory = await lstat(posix.dirname(host));
-  const file = await lstat(host);
+  const directory = await lstat(posix.dirname(host), { bigint: true });
+  const file = await lstat(host, { bigint: true });
   if (!directory.isDirectory() || !file.isFile())
     throw new Error('backend fence database is not an ordinary directory/file family');
   return {
@@ -165,29 +171,88 @@ async function inspectDatabase(container: Record<string, unknown>): Promise<Data
   };
 }
 
-async function refuseUnmanagedWriters(
+/**
+ * Refuse known host-path/inode overlap, then require initialized actual namespace admission for
+ * every unmanaged persistent mount, including Docker-read-only mounts and opaque host sources.
+ * No host-source success, EACCES or ENOENT establishes exclusion. Shares the fence deadline and
+ * exact candidate image; unsupported/stopped/unreadable/unclean sessions refuse without stopping writers.
+ */
+export async function auditUnmanagedMounts(
   containers: readonly unknown[],
   cohort: ManagedCohort,
   database: DatabaseIdentity,
+  image: string,
+  runDocker: RunDocker,
+  deadline: number,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
+  resolveSource: (path: string) => Promise<string> = realpath,
 ): Promise<void> {
   const managed = COLORS.flatMap((color) => (cohort[color] === null ? [] : [cohort[color].id]));
   const familyDirectory = posix.dirname(database.host);
+  const fileIdentities = new Set([database.fileIdentity]);
+  for (const suffix of ['-wal', '-shm', '-journal']) {
+    try {
+      const file = await lstat(`${database.host}${suffix}`, { bigint: true });
+      // Proof: removing file-kind validation admits directory sidecars; all three SQLite-sidecar negatives fail (exit 1).
+      if (!file.isFile()) throw new Error('backend fence SQLite sidecar is not an ordinary file');
+      fileIdentities.add(`${String(file.dev)}:${String(file.ino)}`);
+    } catch (cause) {
+      // Absent sidecars are expected SQLite lifecycle state; all other metadata failures refuse.
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') continue;
+      throw cause;
+    }
+  }
   for (const raw of containers) {
     const container = readFields(raw);
     const id = readIdentity(container['Id']);
     if (managed.includes(id)) continue;
-    for (const mount of readMounts(container)) {
-      if (!mount.writable) continue;
-      // Directory overlap is deliberately conservative: stopped/restartable foreign writers and
-      // named-volume sources are refused too. Host processes and administrator actions remain outside this proof.
-      const source = await realpath(mount.source);
-      if (
-        source === familyDirectory ||
-        source.startsWith(`${familyDirectory}/`) ||
-        familyDirectory.startsWith(`${source.replace(/\/$/, '')}/`)
-      )
-        throw new Error('backend fence found an unmanaged writable database-family mount');
+    const mounts = readMounts(container);
+    for (const mount of mounts) {
+      if (!mount.writable || mount.type === 'tmpfs') continue;
+      try {
+        const source = await resolveSource(mount.source);
+        const identity = await lstat(source, { bigint: true });
+        // Proof: each direct file-hardlink negative refuses before namespace inspection;
+        // removing this early check makes forbidden namespace admission observable despite its later refusal.
+        if (fileIdentities.has(`${String(identity.dev)}:${String(identity.ino)}`))
+          throw new Error('backend fence found an unmanaged writable database-family inode alias');
+        if (
+          source === familyDirectory ||
+          source.startsWith(`${familyDirectory}/`) ||
+          familyDirectory.startsWith(`${source.replace(/\/$/, '')}/`)
+        )
+          throw new Error('backend fence found an unmanaged writable database-family mount');
+      } catch (cause) {
+        if (
+          !(cause instanceof Error) ||
+          !('code' in cause) ||
+          !['EACCES', 'ENOENT'].includes(String(cause.code))
+        )
+          throw cause;
+        // Host absence/unreadability supplies no exclusion evidence. Mandatory namespace admission below owns recovery.
+      }
     }
+    if (mounts.length === 0) continue;
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) throw new Error('backend fence namespace audit deadline exceeded');
+    // Proof: opaque-source/hidden-RW/rebound-source production adapter cases require real initialized namespace receipts;
+    // suppressing this invocation admits aliases and is caught by those negatives and the positive ACK count.
+    await runDockerBefore(
+      [],
+      async () => {
+        await namespaceProof(
+          container,
+          mounts.map((mount) => mount.target),
+          database.host,
+          image,
+          runDocker,
+          null,
+          { totalMs: remaining, cleanupMs: Math.min(20000, remaining / 2) },
+        );
+        return '';
+      },
+      deadline,
+    );
   }
 }
 
@@ -197,16 +262,18 @@ async function refuseUnmanagedWriters(
  * DB family resolution validates the main/WAL/SHM/journal path ownership; dev/inode binds the main file
  * and directory while sidecar presence may legitimately change as the writers stop.
  */
-export async function inspectBackendCohort(
+async function observeBackendCohort(
   layout: EnvLayout,
   runDocker: RunDocker,
   deadline: number,
   binding: GatewayBinding,
-): Promise<BackendCohort> {
+  namespaceProof: typeof verifyContainerNamespace,
+  performAudit: boolean,
+): Promise<{ cohort: BackendCohort; inventory: unknown }> {
   const gateway = await inspectGatewayFenceUnderLock(layout, runDocker, deadline);
   // Proof: deleting byte binding accepts changed gateway-completion whitespace; read-only-inspection negative fails (exit 1).
   assertSame(binding, await gatewayBinding(layout), 'gateway evidence bytes');
-  const observations: BackendCohort[] = [];
+  const observations: { cohort: BackendCohort; inventory: unknown }[] = [];
   await inspectManagedCohort(layout, runDocker, deadline, 'be', async (containers, cohort) => {
     const jointGateway = await inspectManagedInventory(
       layout,
@@ -226,13 +293,87 @@ export async function inspectBackendCohort(
       combined[color] = { ...member, database: await inspectDatabase(readFields(raw)) };
     }
     const backends = parseBackendCohort(combined, layout);
-    observations.push(backends);
+
     const database = backends.blue?.database ?? backends.green?.database;
     if (database === undefined) throw new Error('backend fence requires a database family');
     // Proof: deleting this audit admits the unmanaged-writer mount and effects; its negative fails (exit 1).
-    await refuseUnmanagedWriters(containers, cohort, database);
+    const image = backends.blue?.imageRef ?? backends.green?.imageRef;
+    if (image === undefined) throw new Error('backend fence lost pinned audit image');
+    const inventory = inventoryIdentity(containers);
+    if (performAudit)
+      await auditUnmanagedMounts(
+        containers,
+        cohort,
+        database,
+        image,
+        runDocker,
+        deadline,
+        namespaceProof,
+      );
+    observations.push({ cohort: backends, inventory });
   });
   const cohort = observations.at(0);
   if (cohort === undefined) throw new Error('backend fence inventory did not complete');
   return cohort;
+}
+
+function inventoryIdentity(containers: readonly unknown[]): unknown {
+  return containers
+    .map((raw) => {
+      const container = readFields(raw);
+      const state = readFields(container['State']);
+      return {
+        id: readIdentity(container['Id']),
+        name: container['Name'],
+        image: container['Image'],
+        config: container['Config'],
+        host: container['HostConfig'],
+        mounts: container['Mounts'],
+        networks: readFields(container['NetworkSettings'])['Networks'],
+        restarts: container['RestartCount'],
+        process: {
+          running: state['Running'],
+          paused: state['Paused'],
+          restarting: state['Restarting'],
+          dead: state['Dead'],
+          pid: state['Pid'],
+          startedAt: state['StartedAt'],
+        },
+      };
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+/** Caller holds deploy.lock. Namespace audits never replace a fresh complete joint inventory readback. */
+export async function inspectBackendCohort(
+  layout: EnvLayout,
+  runDocker: RunDocker,
+  deadline: number,
+  binding: GatewayBinding,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
+): Promise<BackendCohort> {
+  const before = await observeBackendCohort(
+    layout,
+    runDocker,
+    deadline,
+    binding,
+    namespaceProof,
+    true,
+  );
+  const after = await observeBackendCohort(
+    layout,
+    runDocker,
+    deadline,
+    binding,
+    namespaceProof,
+    false,
+  );
+  // Proof: removing fresh full-inventory equality admits new/missing members and mount/PID/start/restart drift; six production-path negatives fail.
+  assertSame(
+    before.inventory,
+    after.inventory,
+    'complete inventory identity after namespace audit',
+  );
+  assertSame(before.cohort, after.cohort, 'backend database/cohort after namespace audit');
+  return after.cohort;
 }

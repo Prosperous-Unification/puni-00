@@ -871,3 +871,16 @@ receipt grants no semantic authority. This slice excludes neither MCP, ingress,
 browsers, background/host processes nor external Docker supervisors; cooperating
 administrators remain an assumption. Continuous participant exclusion and safe
 activation remain separate parent tasks.
+
+Unmanaged mount inspection uses the existing initialized actual-namespace census,
+including Docker-read-only mounts and host Source paths that cannot be traversed.
+Host EACCES/ENOENT is unknown, never clean exclusion; only complete namespace
+receipts with exact pre/post container identity and reaped scanner groups can
+admit an otherwise opaque participant. Host-readable source paths also require
+that audit, so held/rebound mounts, hardlinks and nested writable aliases cannot
+rely on the daemon's top-level RW flag. All declared destinations are checked
+under the same attempt deadline. A second complete joint inventory must match
+membership, mount/config/security/network and PID/start/restart identity before
+intent publication. Unsupported privileged, capability-expanded, no-init or
+host-PID containers require attended maintenance or a dedicated daemon; there is
+no BuildKit exemption and this command never stops unrelated services.

@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
 
+import { auditUnmanagedMounts } from '../src/lib/backend-cohort';
 import { fenceBackends, inspectBackendFence } from '../src/lib/backend-exclusion';
 import { type RunDocker, runDockerBefore, runDockerCli } from '../src/lib/docker-deadline';
 import { envLayout } from '../src/lib/env';
@@ -81,6 +82,7 @@ async function runAcceptance(): Promise<void> {
         ),
       performance.now() + 20000,
     );
+  const volumeName = `${project}-opaque`;
   const identities: string[] = [];
   const names: string[] = [];
   const observations: unknown[] = [];
@@ -100,6 +102,7 @@ async function runAcceptance(): Promise<void> {
           root,
           network: layout.network,
           identities,
+          volumeName,
           names,
           observations,
           cleanupFailures,
@@ -113,6 +116,7 @@ async function runAcceptance(): Promise<void> {
   async function create(tier: 'be' | 'gw', color: 'blue' | 'green'): Promise<string> {
     const name = `${layout.containerPrefix}${tier}-01-${color}`;
     names.push(name);
+    await record('container-creation-pending', { name });
     const environment = [
       'NODE_ENV=test',
       // Disposable application preparation only; fenceBackends never invokes a migration.
@@ -232,6 +236,7 @@ async function runAcceptance(): Promise<void> {
     } finally {
       database.close();
     }
+    await record('owned-fixture-prepared', { volumeName });
     await docker(['image', 'inspect', applicationImage]);
     await docker(['image', 'inspect', runtimeImage]);
     await docker(['network', 'create', '--label', `backend-proof=${project}`, layout.network]);
@@ -239,6 +244,115 @@ async function runAcceptance(): Promise<void> {
     await proveApplication(blue, 'fence-blue');
     const green = await create('be', 'green');
     await proveApplication(green, 'fence-green');
+    await docker(['volume', 'create', '--label', `backend-proof=${project}`, volumeName]);
+    const coordinatorName = `${layout.containerPrefix}coordinator`;
+    names.push(coordinatorName);
+    await record('coordinator-creation-pending', { name: coordinatorName, volumeName });
+    const coordinator = (
+      await docker([
+        'create',
+        '--pull=never',
+        '--name',
+        coordinatorName,
+        '--label',
+        `backend-proof=${project}`,
+        '--network=none',
+        '--init',
+        '--mount',
+        `type=volume,src=${volumeName},dst=/opaque`,
+        '--entrypoint',
+        'bun',
+        runtimeImage,
+        '-e',
+        'setInterval(()=>{},1000)',
+      ])
+    ).trim();
+    assert(/^[a-f0-9]{64}$/.test(coordinator), 'coordinator creation identity malformed');
+    identities.push(coordinator);
+    await docker(['start', coordinator]);
+    await docker([
+      'exec',
+      coordinator,
+      '/bin/busybox',
+      'sh',
+      '-c',
+      'printf %s "$1" > /opaque/sentinel',
+      '--',
+      project,
+    ]);
+    const opaque: unknown = JSON.parse(
+      await docker(['inspect', '--format', '{{json .}}', coordinator]),
+    );
+    assert(opaque !== null && typeof opaque === 'object', 'coordinator inspect is malformed');
+    const mounts: unknown = Reflect.get(opaque, 'Mounts');
+    assert(Array.isArray(mounts), 'coordinator mounts absent');
+    const mounted: unknown = mounts.find(
+      (entry: unknown) =>
+        entry !== null &&
+        typeof entry === 'object' &&
+        Reflect.get(entry, 'Destination') === '/opaque',
+    );
+    assert(mounted !== null && typeof mounted === 'object', 'coordinator volume inspection absent');
+    const source: unknown = Reflect.get(mounted, 'Source');
+    assert(typeof source === 'string', 'coordinator Source absent');
+    let hostFailure: string | null = null;
+    try {
+      await realpath(source);
+    } catch (cause) {
+      assert(
+        cause instanceof Error && 'code' in cause && cause.code === 'EACCES',
+        'opaque source must be actual host EACCES',
+      );
+      hostFailure = cause.code;
+    }
+    assert(
+      hostFailure === 'EACCES',
+      'this acceptance requires an actually inaccessible daemon-owned volume',
+    );
+    const beforeProcesses = await docker(['top', coordinator, '-eo', 'pid,ppid,args']);
+    const beforeVolume = await docker([
+      'exec',
+      coordinator,
+      '/bin/busybox',
+      'cat',
+      '/opaque/sentinel',
+    ]);
+    const main = await lstat(`${root}/db/wbs.db`, { bigint: true });
+    const directory = await lstat(`${root}/db`, { bigint: true });
+    await auditUnmanagedMounts(
+      [opaque],
+      { blue: null, green: null },
+      {
+        path: '/data/wbs.db',
+        host: `${root}/db/wbs.db`,
+        fileIdentity: `${String(main.dev)}:${String(main.ino)}`,
+        directoryIdentity: `${String(directory.dev)}:${String(directory.ino)}`,
+      },
+      applicationImage,
+      docker,
+      performance.now() + 45000,
+    );
+    const afterProcesses = await docker(['top', coordinator, '-eo', 'pid,ppid,args']);
+    const afterVolume = await docker([
+      'exec',
+      coordinator,
+      '/bin/busybox',
+      'cat',
+      '/opaque/sentinel',
+    ]);
+    assert(beforeProcesses === afterProcesses, 'namespace scanner left processes behind');
+    assert(
+      beforeVolume === project && afterVolume === beforeVolume,
+      'namespace audit changed coordinator volume',
+    );
+    await record('actual-opaque-unmanaged-namespace-admitted', {
+      coordinator,
+      source,
+      hostFailure,
+      beforeProcesses,
+      afterProcesses,
+      sentinel: afterVolume,
+    });
     await create('gw', 'blue');
     const gateway = await fenceGateways(layout, sha, docker);
     await record('gateway-runtime-exclusion', gateway);
@@ -304,6 +418,24 @@ async function runAcceptance(): Promise<void> {
     }
   }
   try {
+    const ownedVolumes = (
+      await docker([
+        'volume',
+        'ls',
+        '--filter',
+        `label=backend-proof=${project}`,
+        '--format',
+        '{{.Name}}',
+      ])
+    ).trim();
+    if (ownedVolumes !== '') {
+      assert(ownedVolumes === volumeName, 'ambiguous owned volume cleanup');
+      await docker(['volume', 'rm', volumeName]);
+    }
+  } catch (cause) {
+    cleanupFailures.push(String(cause));
+  }
+  try {
     const ownedNetwork = (
       await docker([
         'network',
@@ -333,6 +465,19 @@ async function runAcceptance(): Promise<void> {
         await docker(['network', 'ls', '-q', '--filter', `label=backend-proof=${project}`])
       ).trim() === '',
       'owned networks survived cleanup',
+    );
+    assert(
+      (
+        await docker([
+          'volume',
+          'ls',
+          '--filter',
+          `label=backend-proof=${project}`,
+          '--format',
+          '{{.Name}}',
+        ])
+      ).trim() === '',
+      'owned volumes survived cleanup',
     );
     await rm(root, { recursive: true });
   } catch (cause) {

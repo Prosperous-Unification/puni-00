@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { link, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
@@ -350,4 +350,111 @@ test('inspection refuses replaced main file at the same database path', async ()
   await rename(`${f.root}/db/wbs.db`, `${f.root}/db/replaced.db`);
   await writeFile(`${f.root}/db/wbs.db`, 'replaced');
   await refuses(inspectBackendFence(f.layout, f.runner));
+});
+
+for (const suffix of ['', '-wal', '-shm', '-journal']) {
+  test(`refuses an unmanaged writable hardlink of database${suffix} outside its directory`, async () => {
+    const f = await fixture();
+    await mkdir(`${f.root}/foreign`);
+    if (suffix !== '') await writeFile(`${f.root}/db/wbs.db${suffix}`, 'sidecar');
+    await link(`${f.root}/db/wbs.db${suffix}`, `${f.root}/foreign/alias.db`);
+    const foreign = structuredClone(f.container);
+    foreign.Id = 'f'.repeat(64);
+    foreign.Name = '/foreign';
+    foreign.Config.Image = 'foreign:latest';
+    foreign.Config.Labels['com.docker.compose.service'] = 'foreign';
+    foreign.Mounts = [
+      { Type: 'bind', Source: `${f.root}/foreign/alias.db`, Destination: '/data/wbs.db', RW: true },
+    ];
+    f.containers.push(foreign);
+    await refuses(fenceBackends(f.layout, sha, f.runner));
+    expect(f.calls.some((call) => ['update', 'stop'].includes(call[0] ?? ''))).toBe(false);
+    expect(f.calls.some((call) => call[0] === 'inspect' && call[1] === '--format')).toBe(false);
+  });
+}
+for (const suffix of ['-wal', '-shm', '-journal']) {
+  test(`refuses a directory in the SQLite ${suffix} sidecar path`, async () => {
+    const f = await fixture();
+    await mkdir(`${f.root}/db/wbs.db${suffix}`);
+    await refuses(fenceBackends(f.layout, sha, f.runner));
+    expect(f.calls.some((call) => ['update', 'stop'].includes(call[0] ?? ''))).toBe(false);
+  });
+}
+
+for (const budget of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+  test(`refuses invalid total Docker budget ${String(budget)} before observation`, async () => {
+    const f = await fixture();
+    await refuses(fenceBackends(f.layout, sha, f.runner, budget));
+    expect(f.calls).toEqual([]);
+  });
+}
+
+for (const fault of [
+  'new-member',
+  'missing-member',
+  'mount-drift',
+  'pid-drift',
+  'start-drift',
+  'restart-drift',
+] as const) {
+  test(`refuses complete inventory ${fault} after namespace admission before intent`, async () => {
+    const f = await fixture();
+    await mkdir(`${f.root}/foreign-logs`);
+    const foreign = structuredClone(f.container);
+    foreign.Id = 'f'.repeat(64);
+    foreign.Name = '/foreign';
+    foreign.Config.Image = 'foreign:latest';
+    foreign.Config.Labels['com.docker.compose.service'] = 'foreign';
+    foreign.Mounts = [];
+    if (fault !== 'new-member') f.containers.push(foreign);
+    let inventories = 0;
+    f.setFault((args) => {
+      if (args[0] !== 'ps' || ++inventories !== 4) return;
+      if (fault === 'new-member') f.containers.push(foreign);
+      if (fault === 'missing-member') f.containers.pop();
+      if (fault === 'mount-drift')
+        foreign.Mounts = [
+          { Type: 'bind', Source: `${f.root}/foreign-logs`, Destination: '/logs', RW: false },
+        ];
+      if (fault === 'pid-drift') foreign.State.Pid = 456;
+      if (fault === 'start-drift') foreign.State.StartedAt = '2026-10-23T01:00:00Z';
+      if (fault === 'restart-drift') foreign.RestartCount = 1;
+    });
+    await refuses(fenceBackends(f.layout, sha, f.runner));
+    expect((await readdir(f.root)).some((name) => name.startsWith('dependency-backend'))).toBe(
+      false,
+    );
+    expect(f.calls.some((args) => ['update', 'stop'].includes(args[0] ?? ''))).toBe(false);
+  });
+}
+
+test('refuses a missing full-inventory inspected bystander before backend intent', async () => {
+  const f = await fixture();
+  const foreign = structuredClone(f.container);
+  foreign.Id = 'f'.repeat(64);
+  foreign.Name = '/foreign';
+  foreign.Config.Image = 'foreign:latest';
+  foreign.Config.Labels['com.docker.compose.service'] = 'foreign';
+  foreign.Mounts = [];
+  f.containers.push(foreign);
+  const runner: RunDocker = async (args, signal) =>
+    args[0] === 'inspect'
+      ? JSON.stringify(f.containers.filter((member) => member !== foreign))
+      : await f.runner(args, signal);
+  await refuses(fenceBackends(f.layout, sha, runner));
+  expect((await readdir(f.root)).some((name) => name.startsWith('dependency-backend'))).toBe(false);
+});
+
+test('refuses a foreign full-inventory inspected ID before backend intent', async () => {
+  const f = await fixture();
+  const runner: RunDocker = async (args, signal) =>
+    args[0] === 'inspect'
+      ? JSON.stringify(
+          f.containers.map((member) =>
+            member === f.container ? { ...member, Id: '8'.repeat(64) } : member,
+          ),
+        )
+      : await f.runner(args, signal);
+  await refuses(fenceBackends(f.layout, sha, runner));
+  expect((await readdir(f.root)).some((name) => name.startsWith('dependency-backend'))).toBe(false);
 });

@@ -15,6 +15,8 @@ for (const tiers of selections) {
   for (const boundary of ['run', 'direct'] as const) {
     for (const fault of [
       'present',
+      'orphan-intent',
+      'orphan-complete',
       'malformed',
       'extra-field',
       'wrong-version',
@@ -29,6 +31,10 @@ for (const tiers of selections) {
         const root = scratchSync('backend-fence-');
         const path = join(root, 'dependency-backend-fence.json');
         if (fault === 'present') writeFileSync(path, marker);
+        if (fault === 'orphan-intent')
+          writeFileSync(join(root, 'dependency-backend-intent.json'), '{}');
+        if (fault === 'orphan-complete')
+          writeFileSync(join(root, 'dependency-backend-complete.json'), '{}');
         if (fault === 'malformed') writeFileSync(path, '{broken');
         if (fault === 'extra-field')
           writeFileSync(path, marker.trim().slice(0, -1) + ',"extra":true}');
