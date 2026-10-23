@@ -5480,7 +5480,19 @@ behavior without changing production admission. All three failed first with
 `prerequisites_unmet` (`/tmp/puni-core-claim-fixtures-red.log`), then passed
 3/3; their complete three-file suite passed 18/18 with 217 assertions
 (`/tmp/puni-core-claim-fixtures-full.log`). Changed-file ESLint and Prettier
-passed. The remaining core boundary/context fixture failures are still open.
+and uncached configured `wbs-core:typecheck` passed
+(`/tmp/puni-core-claim-fixtures-typecheck.log`). The remaining core
+boundary/context fixture failures are still open.
+
+The DevSync document-index repair restores five exact service-support
+classifications and six module READMEs to match their current source trees;
+checker behavior is unchanged. Its isolated focused suite passed 41/41 with
+148 assertions (`/tmp/devsync-inventory-final.log`). Removing the actual
+connected-publication membership made the production index check exit 1 on
+that exact path (`/tmp/devsync-index-negative-final.log`); restoring it passed.
+After integration, the configured `tool-devsync:check:docs` target passed
+uncached (`/tmp/puni-devsync-integrated-check-docs.log`). The agent's configured
+lint/typecheck, Prettier, diff check and OpenSpec validation also passed.
 
 The obsolete gate was already red and one coverage test remained
 uninterruptibly blocked after 35 minutes. Its own Nx coordinator and hung test
