@@ -7168,3 +7168,31 @@ All ten smoke recoveries and outer resource cleanup passed, and the lock was
 released. [Exact receipts, digests, logs and limitations](evidence/task-7-image/attempt-6effc8f65/README.md)
 supersede the earlier source-only and failed-attempt limitations for this bounded
 proof. Parent Tasks 7.3/7.4 and final integrated host gate/CI remain open.
+
+## Integrated main, backend support and atomic activation — 2026-10-23
+
+At `d07d0878e5523465dff1de52f68d091735d8c882`, after merging canonical
+main `1de2778500f7c62f48f32fc568ec2a6c949334bb`, the new claim-lease SQLite
+fixtures explicitly supply the immutable capable-backend descriptor required by
+the source contract. Production boot supplies its frozen backend descriptor.
+
+Fresh local integration checks, using `bun test --preload
+./tools/test/scratch/preload.ts` with `--timeout=30000`:
+
+- Backend V1 boot, source dependency capability, writer authority binding,
+  dependency activation write, database initialization and deployment role
+  observation: 96 passed, zero failed, 518 assertions across six files. This
+  includes the combined backend/gateway/MCP role-observation suite. Output:
+  `/tmp/puni-integrated-v1-activation-d07d0878e.log`.
+- Claim-lease SQLite, race/model, controller and connected controller integration:
+  24 passed, zero failed, 2,874 assertions across four files. Output:
+  `/tmp/puni-lease-v1-integrated-d07d0878e.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck
+-p wbs-core,wbs-store-sqlite,wbs-conformance,wbs-be-01 --parallel=1
+--skip-nx-cache --outputStyle=static`: all four requested projects and their
+  two prerequisite tasks passed; output:
+  `/tmp/puni-integrated-typecheck-d07d0878e.log`.
+
+These focused results do not replace the pending exact integrated-SHA h2 gate,
+CI, full participant exclusion or deployment acceptance. No production store
+was activated and no writable activation command is exposed.

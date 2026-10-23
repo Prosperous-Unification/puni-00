@@ -26,6 +26,7 @@ import fc from 'fast-check';
 import { MachineCredentialAdministrationRepository } from './machine-credential-administration';
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -83,7 +84,11 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-lease-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  source = openSqliteSource({
+    dbPath,
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    organizationDefaultLimits: DEFAULTS,
+  });
   now = T;
 });
 
@@ -387,7 +392,11 @@ describe('claim leases as a model', () => {
         directory = mkdtempSync(join(tmpdir(), 'claim-lease-model-'));
         const dbPath = join(directory, 'plan.db');
         runMigrations(dbPath, folder);
-        source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+        source = openSqliteSource({
+          dbPath,
+          dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+          organizationDefaultLimits: DEFAULTS,
+        });
         now = T;
         const expiry = { read: 'turn' as ExpiryRead, snapshot: [] as ExpiredLease[] };
         const world = await seeded(expiry);
