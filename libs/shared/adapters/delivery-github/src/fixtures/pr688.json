@@ -1,0 +1,541 @@
+{
+  "pull": {
+    "id": 4984627996,
+    "number": 688,
+    "title": "docs: record enforced main merge checks",
+    "state": "closed",
+    "merged": true,
+    "merge_commit_sha": "e70166d28f64d0ebb81069a57ef169edd182c8f5",
+    "head": {
+      "sha": "36846dbbeb53d271c5456fe2271d1378997c1f71"
+    },
+    "base": {
+      "repo": {
+        "full_name": "Prosperous-Unification/puni-00",
+        "private": false
+      }
+    }
+  },
+  "checks": {
+    "total_count": 14,
+    "check_runs": [
+      {
+        "id": 120484642729,
+        "name": "gate_mode",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:53:38Z",
+        "completed_at": "2026-10-23T14:53:56Z",
+        "check_suite": {
+          "id": 108347579061
+        }
+      },
+      {
+        "id": 120484633863,
+        "name": "pixels_mode",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:53:59Z",
+        "completed_at": "2026-10-23T14:54:18Z",
+        "check_suite": {
+          "id": 108347579061
+        }
+      },
+      {
+        "id": 120484626241,
+        "name": "gate twilight",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started_at": "2026-10-23T14:58:44Z",
+        "completed_at": "2026-10-23T14:53:57Z",
+        "check_suite": {
+          "id": 108347579061
+        }
+      },
+      {
+        "id": 120484623472,
+        "name": "gate",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:57:15Z",
+        "completed_at": "2026-10-23T14:57:18Z",
+        "check_suite": {
+          "id": 108347579061
+        }
+      },
+      {
+        "id": 120484621648,
+        "name": "gate workspace",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started_at": "2026-10-23T14:58:43Z",
+        "completed_at": "2026-10-23T14:53:57Z",
+        "check_suite": {
+          "id": 108347579061
+        }
+      },
+      {
+        "id": 120484565141,
+        "name": "pixels shard ${{ matrix.shard }}/4",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started_at": "2026-10-23T14:58:37Z",
+        "completed_at": "2026-10-23T14:54:18Z",
+        "check_suite": {
+          "id": 108347579061
+        }
+      },
+      {
+        "id": 120484564365,
+        "name": "gate docs",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:53:59Z",
+        "completed_at": "2026-10-23T14:57:12Z",
+        "check_suite": {
+          "id": 108347579061
+        }
+      },
+      {
+        "id": 120484563131,
+        "name": "pixels",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:58:39Z",
+        "completed_at": "2026-10-23T14:58:43Z",
+        "check_suite": {
+          "id": 108347579061
+        }
+      },
+      {
+        "id": 120482419123,
+        "name": "CodeQL",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:54:17Z",
+        "completed_at": "2026-10-23T14:54:21Z",
+        "check_suite": {
+          "id": 108347855670
+        }
+      },
+      {
+        "id": 120482076529,
+        "name": "lint",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started_at": "2026-10-23T14:53:36Z",
+        "completed_at": "2026-10-23T14:53:35Z",
+        "check_suite": {
+          "id": 108347572043
+        }
+      },
+      {
+        "id": 120482070557,
+        "name": "Analyze (python)",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:53:37Z",
+        "completed_at": "2026-10-23T14:54:34Z",
+        "check_suite": {
+          "id": 108347564681
+        }
+      },
+      {
+        "id": 120482070539,
+        "name": "Analyze (actions)",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:53:38Z",
+        "completed_at": "2026-10-23T14:54:28Z",
+        "check_suite": {
+          "id": 108347564681
+        }
+      },
+      {
+        "id": 120482070279,
+        "name": "Analyze (c-cpp)",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:53:37Z",
+        "completed_at": "2026-10-23T14:54:27Z",
+        "check_suite": {
+          "id": 108347564681
+        }
+      },
+      {
+        "id": 120482070049,
+        "name": "Analyze (javascript-typescript)",
+        "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-23T14:53:38Z",
+        "completed_at": "2026-10-23T14:56:03Z",
+        "check_suite": {
+          "id": 108347564681
+        }
+      }
+    ]
+  },
+  "attempts": [
+    {
+      "id": 39973519519,
+      "name": "ci",
+      "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+      "check_suite_id": 108347579061,
+      "run_attempt": 1,
+      "run_started_at": "2026-10-23T14:53:36Z",
+      "status": "completed",
+      "conclusion": "success",
+      "repository": {
+        "full_name": "Prosperous-Unification/puni-00",
+        "private": false
+      }
+    },
+    {
+      "id": 39973519519,
+      "name": "ci",
+      "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+      "check_suite_id": 108347579061,
+      "run_attempt": 2,
+      "run_started_at": "2026-10-23T14:57:42Z",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "repository": {
+        "full_name": "Prosperous-Unification/puni-00",
+        "private": false
+      }
+    },
+    {
+      "id": 39973519519,
+      "name": "ci",
+      "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+      "check_suite_id": 108347579061,
+      "run_attempt": 3,
+      "run_started_at": "2026-10-23T14:58:35Z",
+      "status": "completed",
+      "conclusion": "success",
+      "repository": {
+        "full_name": "Prosperous-Unification/puni-00",
+        "private": false
+      }
+    }
+  ],
+  "jobs": [
+    {
+      "total_count": 8,
+      "jobs": [
+        {
+          "id": 120482080243,
+          "run_id": 39973519519,
+          "run_attempt": 1,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate_mode",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:38Z",
+          "completed_at": "2026-10-23T14:53:56Z",
+          "runner_name": "GitHub Actions 1000021292"
+        },
+        {
+          "id": 120482247592,
+          "run_id": 39973519519,
+          "run_attempt": 1,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate docs",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:59Z",
+          "completed_at": "2026-10-23T14:57:12Z",
+          "runner_name": "GitHub Actions 1000021294"
+        },
+        {
+          "id": 120482247666,
+          "run_id": 39973519519,
+          "run_attempt": 1,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels_mode",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:59Z",
+          "completed_at": "2026-10-23T14:54:18Z",
+          "runner_name": "GitHub Actions 1000021293"
+        },
+        {
+          "id": 120482250354,
+          "run_id": 39973519519,
+          "run_attempt": 1,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate workspace",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:53:57Z",
+          "completed_at": "2026-10-23T14:53:57Z",
+          "runner_name": null
+        },
+        {
+          "id": 120482250893,
+          "run_id": 39973519519,
+          "run_attempt": 1,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate twilight",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:53:57Z",
+          "completed_at": "2026-10-23T14:53:57Z",
+          "runner_name": null
+        },
+        {
+          "id": 120482424007,
+          "run_id": 39973519519,
+          "run_attempt": 1,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:54:20Z",
+          "completed_at": "2026-10-23T14:54:22Z",
+          "runner_name": "GitHub Actions 1000021295"
+        },
+        {
+          "id": 120482426392,
+          "run_id": 39973519519,
+          "run_attempt": 1,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels shard ${{ matrix.shard }}/4",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:54:18Z",
+          "completed_at": "2026-10-23T14:54:18Z",
+          "runner_name": null
+        },
+        {
+          "id": 120483863235,
+          "run_id": 39973519519,
+          "run_attempt": 1,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:57:15Z",
+          "completed_at": "2026-10-23T14:57:18Z",
+          "runner_name": "GitHub Actions 1000021298"
+        }
+      ]
+    },
+    {
+      "total_count": 8,
+      "jobs": [
+        {
+          "id": 120484123452,
+          "run_id": 39973519519,
+          "run_attempt": 2,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-23T14:57:44Z",
+          "completed_at": "2026-10-23T14:57:45Z",
+          "runner_name": ""
+        },
+        {
+          "id": 120484123561,
+          "run_id": 39973519519,
+          "run_attempt": 2,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate_mode",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:38Z",
+          "completed_at": "2026-10-23T14:53:56Z",
+          "runner_name": "GitHub Actions 1000021292"
+        },
+        {
+          "id": 120484124053,
+          "run_id": 39973519519,
+          "run_attempt": 2,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate twilight",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:57:44Z",
+          "completed_at": "2026-10-23T14:53:57Z",
+          "runner_name": null
+        },
+        {
+          "id": 120484124819,
+          "run_id": 39973519519,
+          "run_attempt": 2,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels shard ${{ matrix.shard }}/4",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:57:44Z",
+          "completed_at": "2026-10-23T14:54:18Z",
+          "runner_name": null
+        },
+        {
+          "id": 120484125201,
+          "run_id": 39973519519,
+          "run_attempt": 2,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels_mode",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:59Z",
+          "completed_at": "2026-10-23T14:54:18Z",
+          "runner_name": "GitHub Actions 1000021293"
+        },
+        {
+          "id": 120484125491,
+          "run_id": 39973519519,
+          "run_attempt": 2,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:57:15Z",
+          "completed_at": "2026-10-23T14:57:18Z",
+          "runner_name": "GitHub Actions 1000021298"
+        },
+        {
+          "id": 120484169500,
+          "run_id": 39973519519,
+          "run_attempt": 2,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate docs",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:59Z",
+          "completed_at": "2026-10-23T14:57:12Z",
+          "runner_name": "GitHub Actions 1000021294"
+        },
+        {
+          "id": 120484200439,
+          "run_id": 39973519519,
+          "run_attempt": 2,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate workspace",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:57:53Z",
+          "completed_at": "2026-10-23T14:53:57Z",
+          "runner_name": null
+        }
+      ]
+    },
+    {
+      "total_count": 8,
+      "jobs": [
+        {
+          "id": 120484563131,
+          "run_id": 39973519519,
+          "run_attempt": 3,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:58:39Z",
+          "completed_at": "2026-10-23T14:58:43Z",
+          "runner_name": "GitHub Actions 1000021300"
+        },
+        {
+          "id": 120484564365,
+          "run_id": 39973519519,
+          "run_attempt": 3,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate docs",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:59Z",
+          "completed_at": "2026-10-23T14:57:12Z",
+          "runner_name": "GitHub Actions 1000021294"
+        },
+        {
+          "id": 120484565141,
+          "run_id": 39973519519,
+          "run_attempt": 3,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels shard ${{ matrix.shard }}/4",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:58:37Z",
+          "completed_at": "2026-10-23T14:54:18Z",
+          "runner_name": null
+        },
+        {
+          "id": 120484621648,
+          "run_id": 39973519519,
+          "run_attempt": 3,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate workspace",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:58:43Z",
+          "completed_at": "2026-10-23T14:53:57Z",
+          "runner_name": null
+        },
+        {
+          "id": 120484623472,
+          "run_id": 39973519519,
+          "run_attempt": 3,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:57:15Z",
+          "completed_at": "2026-10-23T14:57:18Z",
+          "runner_name": "GitHub Actions 1000021298"
+        },
+        {
+          "id": 120484626241,
+          "run_id": 39973519519,
+          "run_attempt": 3,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate twilight",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-23T14:58:44Z",
+          "completed_at": "2026-10-23T14:53:57Z",
+          "runner_name": null
+        },
+        {
+          "id": 120484633863,
+          "run_id": 39973519519,
+          "run_attempt": 3,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "pixels_mode",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:59Z",
+          "completed_at": "2026-10-23T14:54:18Z",
+          "runner_name": "GitHub Actions 1000021293"
+        },
+        {
+          "id": 120484642729,
+          "run_id": 39973519519,
+          "run_attempt": 3,
+          "head_sha": "36846dbbeb53d271c5456fe2271d1378997c1f71",
+          "name": "gate_mode",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-23T14:53:38Z",
+          "completed_at": "2026-10-23T14:53:56Z",
+          "runner_name": "GitHub Actions 1000021292"
+        }
+      ]
+    }
+  ]
+}
