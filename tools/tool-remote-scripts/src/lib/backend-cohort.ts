@@ -3,6 +3,7 @@ import { lstat, realpath } from 'node:fs/promises';
 import { posix } from 'node:path';
 
 import { type DatabaseMount, resolveDatabaseHost } from './backend-config';
+import type { Color } from './deploy-contract';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
 import type { EnvLayout } from './env';
 import { inspectGatewayFenceUnderLock } from './gateway-exclusion';
@@ -94,7 +95,7 @@ function parseDatabase(value: unknown): DatabaseIdentity {
 export function parseBackendCohort(value: unknown, layout: EnvLayout): BackendCohort {
   const fields = readClosed(value, ['blue', 'green']);
   const managed: Record<string, unknown> = {};
-  const databases: Partial<Record<'blue' | 'green', DatabaseIdentity>> = {};
+  const databases: Partial<Record<Color, DatabaseIdentity>> = {};
   for (const color of COLORS) {
     if (fields[color] === null) {
       managed[color] = null;

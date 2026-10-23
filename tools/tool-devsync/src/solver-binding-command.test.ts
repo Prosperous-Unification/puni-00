@@ -1,6 +1,7 @@
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { afterEach, expect, test } from 'bun:test';
 
@@ -57,7 +58,7 @@ if (outcome.exitCode !== 0) throw new Error(outcome.stderr);`,
       const processChild = Bun.spawn(
         ['bash', '-c', `${setup} ${afterLock} exec "$@"`, 'launch', process.execPath, launcher],
         {
-          env: { ...process.env, TEST_ROOT: root, WBS_EDGE_STATE: state },
+          env: { ...process.env, FORCE_COLOR: '1', TEST_ROOT: root, WBS_EDGE_STATE: state },
           stdout: 'pipe',
           stderr: 'pipe',
         },
@@ -67,7 +68,8 @@ if (outcome.exitCode !== 0) throw new Error(outcome.stderr);`,
         new Response(processChild.stderr).text(),
         processChild.exited,
       ]);
-      return { code, output: stdout + stderr };
+      // Proof: FORCE_COLOR=1 produced 10 error-line assertion failures without normalization.
+      return { code, output: stripVTControlCharacters(stdout + stderr) };
     },
     async expectUnreached() {
       expect(await Bun.file(join(root, 'reached')).exists()).toBe(false);

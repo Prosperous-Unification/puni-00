@@ -67,7 +67,8 @@
         "!{workspaceRoot}/libs/wbs/adapters/config/src/*.test.ts",
         "{workspaceRoot}/libs/wbs/domain/validation/src/*.ts",
         "!{workspaceRoot}/libs/wbs/domain/validation/src/*.test.ts",
-        "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate"
+        "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
+        "{workspaceRoot}/docs/runbook-dev-deploy.md"
       ],
       "options": {
         "command": "bun test src --preload ../test/scratch/preload.ts --timeout=10000",

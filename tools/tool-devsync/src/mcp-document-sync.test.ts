@@ -1,5 +1,6 @@
 import { cp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { beforeAll, expect, test } from 'bun:test';
@@ -21,8 +22,21 @@ async function requireCommand(argv: string[], cwd: string, env = process.env): P
     new Response(child.stderr).text(),
   ]);
   if (code !== 0) throw new Error(`${argv.join(' ')} exited ${String(code)}: ${stderr}\n${stdout}`);
-  return stdout.trim();
+  // Proof: the styled Nx subprocess fixture fails without normalization (2026-10-23).
+  return stripVTControlCharacters(stdout).trim();
 }
+
+test('captured command output preserves Nx command text across terminal styling', async () => {
+  const output = await requireCommand(
+    [
+      process.execPath,
+      '-e',
+      String.raw`console.log('\u001b[2mnx run\u001b[22m wbs-mcp-01:prepare')`,
+    ],
+    root,
+  );
+  expect(output).toBe('nx run wbs-mcp-01:prepare');
+});
 
 beforeAll(async () => {
   const directory = await scratchAsync('mcp-document-sync-');

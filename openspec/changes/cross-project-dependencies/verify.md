@@ -7095,3 +7095,49 @@ watched entrypoint/inventory fault proofs, configured lint and source typechecki
 are recorded there. Actual installed-Python publication/reopen acceptance and its
 four independent production-source faults remain pending the canonical host lock;
 parent 7.3/7.4 and production activation remain open.
+
+## CI tool-devsync output corrections — 2026-10-23
+
+The 19 deterministic `tool-devsync:test` failures in CI run `39962183164`
+were terminal-style-sensitive assertions (seven Nx command lines, ten Bun error
+lines), one missing runbook cache input, and one redeclared deploy color union.
+The test subprocess boundaries now strip terminal controls before text matching;
+the solver fixture forces color to keep the regression exercised. The remote
+script target declares its runbook input and imports the canonical `Color` type.
+No production safety predicate changed.
+
+Local isolated checkout based on `02830d4282e0fbc359e7ecb3472fa7a6cc36615f`:
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: exit 0, 1801 installs checked.
+- Before correction, `FORCE_COLOR=1 bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/solver-binding-command.test.ts`:
+  14 passed, 10 failed at colored `error: ` line matching.
+- Before correction, the new MCP `captured command` fixture emitted the exact
+  styled `nx run` split seen in CI: one expected assertion failure. Removing
+  normalization therefore reproduces the regression deterministically without
+  depending on Nx's terminal-detection environment.
+- Before correction, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/workspace-targets.test.ts`:
+  25 passed, two failed, naming the missing runbook input and duplicate color union.
+- `FORCE_COLOR=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/solver-binding-command.test.ts tools/tool-devsync/src/mcp-document-sync.test.ts tools/tool-devsync/src/workspace-targets.test.ts`:
+  60 passed, zero failed.
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-remote-scripts/src/install-admission.test.ts`:
+  25 passed, zero failed.
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts`:
+  58 passed, zero failed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p tool-devsync,tool-remote-scripts --skip-nx-cache`:
+  all four targets passed.
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-devsync:test --skip-nx-cache`:
+  restricted sandbox attempt exited 1 (852 passed, 43 failed, one error), with
+  Git-object writes and local listener fixtures denied by the sandbox. The exact
+  production-index check passed separately with filesystem access enabled.
+  A complete configured-target rerun with Git and socket access enabled is
+  pending at this commit; it is not yet evidence of a passing full target.
+- `bun node_modules/@fission-ai/openspec/bin/openspec.js validate cross-project-dependencies --json`:
+  exit 0, one passed, zero failed, 19 requirement-length warnings. The same
+  validation with `--strict` reports invalid because those existing warnings
+  are strict failures; no requirement text changed in this slice.
+- Prettier check of the five changed files and `git diff --check`: exit 0.
+
+No host gate, full workspace gate, remote live check, deployment, or CI rerun
+was performed by this correction slice. These local results do not establish
+production readiness or Tool Wiki certification.
