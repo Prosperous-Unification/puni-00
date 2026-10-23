@@ -250,6 +250,27 @@ The kind of performer an activity requires: an agent using a model or a register
 tool implementation.
 _Avoid_: Activity class, worker
 
+**Executor adapter**:
+The implementation behind one activity executor kind that reaches one integration target:
+an API model provider, a coding harness, an ACP agent, a registered tool or a waiting person.
+_Avoid_: Provider, driver, backend, connector
+
+**Workflow binding**:
+The versioned repository file that maps a work item type and step code to an activity class,
+so a startable step names the activity to run. Not the step graph, which is WBS's.
+_Avoid_: Workflow config, pipeline, step mapping
+
+**Attempt**:
+One admitted try of one activity on one claimed step, with its own state, agent run and
+usage; a retry is a new attempt on the same claim. Reported to WBS as that step node's
+**Attempt** ([root glossary](../../CONTEXT.md)); one Dash attempt is one WBS attempt.
+_Avoid_: Job, execution, session, try
+
+**Run store**:
+Twilight Dash's durable record of runs, attempts and recovery facts, separate from the
+lease authority and the observation store.
+_Avoid_: Checkpoint, state file, database
+
 **Lifecycle point**:
 A named stage, activity, tool, decision, rework, trigger or profile-change event
 of a compiled workflow, the one key space for policies and hooks.
