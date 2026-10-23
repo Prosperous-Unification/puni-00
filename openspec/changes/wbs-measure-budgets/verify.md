@@ -507,3 +507,91 @@ were not rerun (a slice-6 worker shares the laptop).
 | S3-4 not a snapshot                          | said in the operation description, the shape's JSDoc, `findBudgetHeadroom` and D50                                                   | documentation                                                                                                                                                                                                                         |
 | S3-5 stale "twenty-one queries"              | twenty-four, with the dates of each addition                                                                                         | documentation                                                                                                                                                                                                                         |
 | boot memory not quotable                     | `contracts-boot-memory.test.ts` prints `contracts shape load: <n> MB (bound 500 MB)`                                                 | printed 328 MB                                                                                                                                                                                                                        |
+
+## Slice 6 — tasks 4.2 and 4.3 (2026-10-23)
+
+Worktree `feat/wbs-measure-columns`, rebased onto slice 5's review head 376e7d1c2. Laptop run,
+every test under `env -u CLAUDECODE`; the h2puni gate was not run (slice PR into the plan
+branch). Assumptions D53–D59 in design.md. fe-01 only: no backend, contract or migration change.
+The row read (`budgets`, `mixedRateCards`, `moneyBases`) is the panel's only source; the headroom
+read is not used.
+
+### Commands and results
+
+| Command                                                                                                 | Result                                                                                                       |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`             | exit 0 (review debt only `store-memory/src/README.md`, 51 of 40, over before this slice)                     |
+| `bunx nx run-many -t typecheck,lint -p wbs-fe-01 wbs-contracts`                                         | succeeded (typecheck includes `typecheck:module`)                                                            |
+| `bunx nx run tool-devsync:test --skip-nx-cache` (full)                                                  | 920 tests, exit 0                                                                                            |
+| `bunx nx run wbs-fe-01:test:unit --skip-nx-cache`                                                       | 81 files, 1002 pass (`test-tiers.test.ts` among them)                                                        |
+| fe-01 DOM tier `TZ=UTC bunx vitest run --maxWorkers=2` (whole tier)                                     | 221 files, 4336 pass                                                                                         |
+| fe-01 zoned tier `TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts`                  | 4 files, 5 pass                                                                                              |
+| `E2E_PORT_SHIFT=1900 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts measure-columns` | 4 pass (real be-01, gw-01, fe-01; definitions and three rows' budgets answered at the browser, see the spec) |
+| `bunx nx format:check --all`                                                                            | exit 0                                                                                                       |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                | 270 of 270                                                                                                   |
+
+The first whole-tier DOM run before the fixes failed 12 cases: menu lists and the Columns list now
+carry `Measures…` and the Measures group (expectations updated), the chooser's loading line was a
+`role="status"` that `findByRole('status')` in the optimization suite picked up and its failed line
+a `role="alert"` (both made plain sentences inside the closed menu), and a hand-spread fake without
+`listMeasures` threw synchronously out of the effect (the read now runs inside a promise, so that is
+the rendered `failed` state). Four file-level ENOENT errors in the vitest transform cache did not
+recur.
+
+### Failure proofs
+
+Each fault was injected into production code, the named test watched failing, and the code
+restored; the adjacent `Proof:` comments carry the same.
+
+| Guard                                             | Fault injected                            | Test that observed it                                                                                                                          |
+| ------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isMeasureShown` default filter                   | `?? definition.showByDefault` → `?? true` | node `a fresh reader sees no measure column but time` (3 of 18 failed); DOM and browser `a fresh reader sees time only…` (10 measure headings) |
+| `listMeasures` models `409 organization_required` | arm removed                               | `answers organization_required as a modeled state` (rejected with WbsRequestError)                                                             |
+| measure column width arm                          | arm removed                               | `lays every measure column at its declared width` (UnknownColumnError)                                                                         |
+| measure column hint arm                           | arm removed                               | `explains each facet of any measure…` (UnexplainedColumnError)                                                                                 |
+| panel write keeps the refusal sentence            | sentence assignment removed               | `shows a refusal beside the control that asked, in plan-refusal words` (no alert)                                                              |
+| `useMeasureDefinitions` project check             | answered `state.reading` unconditionally  | `shows no project’s definitions against another, nor a late answer` (read p1's `ready`)                                                        |
+| `useMeasureDefinitions` stale answer              | `if (!current) return` removed            | `drops the answer of commands it no longer reads through` (read the old `ready`)                                                               |
+| strict bar versus advisory marker                 | policy test negated (renderings swapped)  | `draws a strict budget as a bar and an advisory one as a marker…` (no meter in Tokens)                                                         |
+| measure refusal words                             | `unknown_measure` entry renamed away      | `words every measure refusal the panel can reach` (fallback carried the code)                                                                  |
+
+Not proven at runtime: the exhaustive `measuresReadCode` switch (an arm removed does not compile).
+
+### Visual review (Dany's UI rule)
+
+Evidence under `evidence/slice-6/`, written by `e2e/measure-columns.spec.ts` with
+`MEASURE_EVIDENCE_DIR` set (CI writes only to its test output): `desktop-table-tokens-cost.png`,
+`desktop-column-chooser.png`, `desktop-panel-strict-advisory.png`, `desktop-panel-mixed.png`,
+`desktop-panel-empty.png`, `mobile-cards.png`, `mobile-column-chooser.png`,
+`mobile-panel-strict-advisory.png`, `mobile-panel-mixed.png`, `mobile-panel-empty.png` and the
+recording `interaction-toggle-estimate-variance.webm` (enable Tokens, type a trio and a fact in
+the panel, variance `+50` appears in the cell). About 1.4 MB in all.
+
+Judged and changed:
+
+- Columns control rows gained a hover tint, a focus ring around the wrapped box and a pressed
+  tint, eased over 150 ms and still under `prefers-reduced-motion`; same height in every state.
+  The Measures group sits under a rule with units right-aligned; Time reads `steps · Days`.
+- Measure headings are two lines (name over facet and unit) at 96 px; enabling measures makes the
+  frame scroll sideways, as unfolding steps does, and the pinned number and name hold. Absent
+  figures are dashes, a legacy single figure carries a dot, mixed money is a dashed amber
+  `mixed cards` marker, positive variance red, negative green (status tokens, both palettes).
+- Panel: first review showed bullet points and a doubled `….` on the basis lines and the mixed
+  sentence twice in the Cost card; the list lost its bullets, the basis lost the period, and the
+  blocked budget now says "Budget unknown: its facts mix rate cards (A and B)". Strict budgets are
+  a bar with the spent/cap/over line and an "Exceeded" sentence in the blocked colour; advisory
+  and derived budgets are a pill and a line. Form messages reserve their line so a refusal does
+  not push controls down; the bar width eases and stands still under reduced motion.
+- Phone: the panel fits 390 px with three figures per row; the cards draw no measure figures
+  (D53) and the chooser lives in the Plan actions sheet with 44 px rows.
+- No pixel baseline exists to update: the `pixels` job measures geometry, and the default column
+  set (time only) is unchanged, which `table-frame.test.ts` pins.
+
+### Skipped or unverified
+
+- The h2puni gate and the CI `pixels` shards were not run here; the new spec joins that suite.
+- `GET /api/measures` was answered at the browser in the spec: the ordinary e2e be-01 has no
+  organization, so a live definitions read before activation answers 409 (rendered as a state,
+  covered in jsdom), and an activated organization's read was not exercised in a browser.
+- A viewer's refusal is worded as `forbidden` for every edit (D58); no browser session with a
+  viewer role was driven.

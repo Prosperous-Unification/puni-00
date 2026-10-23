@@ -26,7 +26,7 @@ export type MeasureDefinitionsState =
  * Once, and not on every plan read: definitions are directory data that
  * changes by directory command, and the plan read neither carries nor
  * invalidates them. A definition created while the plan is open shows the next
- * time it is opened (design D52). An answer arriving after the project changed
+ * time it is opened (design D55). An answer arriving after the project changed
  * is dropped, never shown against the wrong plan.
  */
 export function useMeasureDefinitions(

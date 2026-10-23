@@ -48,7 +48,7 @@ export function facetOfColumn(columnId: string): MeasureFacet | null {
 }
 
 /**
- * The facets a definition can ever fill (design D52).
+ * The facets a definition can ever fill (design D53).
  *
  * A definition without three points holds no trio, so its estimate and its
  * variance would be a column of dashes for ever: only its fact is offered.
@@ -128,7 +128,7 @@ function sumOf(byStep: Readonly<Record<string, number>> | undefined): number | n
  * read states them (design D29): the expected figures summed, the facts summed,
  * and the variances summed where a step holds one. A variance is never worked
  * out here as fact minus expected: a step with a fact and no trio has none, and
- * the read is the one place that decides it (design D52).
+ * the read is the one place that decides it (design D53).
  */
 export function measureFiguresOf(
   row: Pick<WorkItemView, 'measures' | 'measureEstimates' | 'mixedRateCards' | 'moneyBases'>,
@@ -188,7 +188,7 @@ function isMicroCurrency(definition: MeasureDefinitionView): boolean {
  *
  * Money in micro-units of its currency reads as that currency
  * (`1500000 micro-USD` → `$1.50`): a change of scale, not a conversion, so
- * nothing about the figure's basis is touched (design D52). Every other
+ * nothing about the figure's basis is touched (design D56). Every other
  * figure is grouped, and a real scale keeps at most two decimals.
  *
  * @param value the figure in the definition's stored unit.

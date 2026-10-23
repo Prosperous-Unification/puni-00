@@ -101,7 +101,7 @@ const EASED =
  *
  * A modal opened from the row's menu, because the plan has no work item page:
  * attempts and dependencies live in hover cards over one cell each, and a
- * panel listing five measures with their forms is not a hover (design D52).
+ * panel listing five measures with their forms is not a hover (design D57).
  * Every state is rendered: definitions loading, the organization not yet
  * activated, the read refused, and a row with nothing in any measure.
  */

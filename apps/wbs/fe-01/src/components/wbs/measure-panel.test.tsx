@@ -376,7 +376,9 @@ describe('reading the definitions', () => {
       ),
     };
     const replacement = {
-      listMeasures: () => Promise.resolve<MeasureDirectory>({ kind: 'organization_required' }),
+      listMeasures: vi.fn(() =>
+        Promise.resolve<MeasureDirectory>({ kind: 'organization_required' }),
+      ),
     };
     const { result, rerender } = renderHook(
       ({ commands }) => useMeasureDefinitions(commands, 'p1'),
