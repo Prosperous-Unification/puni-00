@@ -56,8 +56,8 @@ real config import, backend fixture and mounted login route. This is the negativ
 proof for the concurrency bound; removing it reproduces the production target's
 original failure without enlarging its timeout.
 
-Final configured, focused, lint, typecheck, format and hook results are recorded
-below after removing all temporary probe diagnostics.
+The controlled configured target and restored-probe focused results follow, with
+their source scope and the checks this lane did not run stated explicitly.
 
 The controlled full target exited 0 in 22m48s: node 82 files / 1012 tests,
 UTC view 231 files / 4638 tests (1300.06 seconds), Auckland 4 files / 5 tests
@@ -66,13 +66,19 @@ UTC view 231 files / 4638 tests (1300.06 seconds), Auckland 4 files / 5 tests
 The original probe file was restored in full; the retained runtime diff is only
 the node-config worker bound and its adjacent observed proof comment. Scoped
 `bunx eslint apps/wbs/fe-01/vitest.node.config.ts`, Prettier over that config and
-this packet, and `git diff --check` passed.
+this packet passed. The initial unstaged `git diff --check` excluded the then-untracked
+raw logs; review found that the committed delta failed because of CRLF trailing
+whitespace and a blank EOF. The correction normalizes log whitespace only and
+checks the entire repair delta, including the evidence files.
 
 Scope of that full green: the command launched with the temporary diagnostic
 probe. After its node prerequisite passed, the probe source was restored while
 the serial UTC view phase was still running. Therefore the node-tier result
 above covers the diagnostic variant; UTC view and Auckland completed against
-the restored source. Exact restored node-tier verification remains separate.
+the restored source. The parent lane subsequently ran the exact restored-source
+`wbs-fe-01:test:unit` target on `f83a9bacc726a9c090450c97126f99dd07d44d91`:
+uncached, 82/82 files and 1012/1012 tests passed in 38.6 seconds. This receipt is
+reported by the parent lane; it was not run by this repair lane.
 
 Restored-probe focused verification passed (exit 0, one case, 5.01 seconds):
 
@@ -85,3 +91,10 @@ Raw focused: [focused-restored-probe.log.txt](evidence/frontend-origin-concurren
 The full configured lint/typecheck and h2 gate have not been run by this repair
 lane. The parent lane owns serialized broader verification and integration;
 this packet makes no claim about those unrun checks.
+
+The initial commit's normal hooks passed: scoped lint, format, plaintext secrets,
+private nesting and both commit-message stages. Tool Wiki reported its modeled
+`inactive` state because no external activation root is provisioned. The review
+correction reruns Prettier, normal hooks and whitespace checks over both its own
+delta and the complete repair delta. Log normalization preserves all substantive
+observations; token equality before and after normalization was asserted.
