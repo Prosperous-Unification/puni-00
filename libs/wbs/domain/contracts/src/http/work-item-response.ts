@@ -108,6 +108,25 @@ export const numberedWorkItem = type({
       }),
     }),
   }),
+  // Budgets by definition key (`wbs-measure-budgets` D5, design D39): stated
+  // or derived from the pessimistic points, with what remains after the
+  // subtree's facts and holds (negative past the cap) and whether the facts
+  // crossed it; `held` only where the budget states a hold. Absent when the
+  // row has none, and from an older be-01 mid-swap.
+  'budgets?': type({
+    '[string]': type({
+      cap: 'number',
+      policy: "'strict' | 'advisory'",
+      source: "'stated' | 'derived'",
+      remaining: 'number',
+      exceeded: 'boolean',
+      'held?': 'number',
+    }),
+  }),
+  // Money keys whose figures in the subtree are priced under two rate cards,
+  // with the first two digests (null: unpriced); such a key is left out of
+  // `measures`, `measureEstimates` and `budgets` on the row (design D44).
+  'mixedRateCards?': type({ '[string]': type(['string | null', 'string | null']) }),
   dependsOn: 'string[]',
   finalDays: numbers,
   // Absent only from a backend that predates estimate units during swap or rollback.

@@ -22,6 +22,7 @@ import {
   asOptionalStepIds,
   asOptionalText,
   asOptionalTypeIds,
+  asRateCardDigest,
   asResourceKind,
   assertRecord,
   asText,
@@ -38,6 +39,7 @@ import {
   normalizeTypedEndpoint,
   parseActual,
   parseAttemptNumber,
+  parseBudget,
   parseFactStart,
   parseMeasure,
   parseOn,
@@ -216,6 +218,7 @@ export const commandNormalizers = {
     ...normalizeStepAddress(raw),
     metric: asText(raw.metric, 'metric'),
     value: parseMeasure(raw),
+    ...present({ rateCardDigest: asRateCardDigest(raw.rateCardDigest) }),
   }),
   clearMeasure: (raw: CommandInput<'clearMeasure'>) => ({
     kind: 'clearMeasure' as const,
@@ -231,7 +234,21 @@ export const commandNormalizers = {
     // trio and stores nothing` (measure-estimate-command.test.ts) admitted
     // 5/2/9; watched 2026-10-23.
     estimate: parseOrThrow(EstimateTrio, raw.estimate),
+    ...present({ rateCardDigest: asRateCardDigest(raw.rateCardDigest) }),
   }),
+  setBudget: (raw: CommandInput<'setBudget'>) =>
+    present({
+      kind: 'setBudget' as const,
+      ...target(raw),
+      measure: asText(raw.measure, 'measure'),
+      ...parseBudget(raw),
+    }),
+  clearBudget: (raw: CommandInput<'clearBudget'>) =>
+    present({
+      kind: 'clearBudget' as const,
+      ...target(raw),
+      measure: asText(raw.measure, 'measure'),
+    }),
   clearMeasureEstimate: (raw: CommandInput<'clearMeasureEstimate'>) => ({
     kind: 'clearMeasureEstimate' as const,
     ...normalizeStepAddress(raw),

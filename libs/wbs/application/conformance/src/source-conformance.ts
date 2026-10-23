@@ -13,6 +13,7 @@ import { eventLogRegistrations } from './stores/event-log';
 import { journalRegistrations } from './stores/journal';
 import { directoryMeasureRegistrations } from './stores/measure-definitions';
 import {
+  budgetRegistrations,
   directoryMeasureFactRegistrations,
   measureEstimateRegistrations,
   measureFactRegistrations,
@@ -63,6 +64,7 @@ export interface ExistingStoreOpeners {
   readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
   readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
   readonly measureEstimates: OpenCase<'measureEstimates'>;
+  readonly budgets: OpenCase<'budgets'>;
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
   readonly stepParallels: OpenCase<'stepParallels'>;
@@ -182,6 +184,7 @@ export function existingStoreRegistrations(
     ...measureRegistrations(openers.measures),
     ...measureFactRegistrations(openers.measures),
     ...measureEstimateRegistrations(openers.measureEstimates),
+    ...budgetRegistrations(openers.budgets),
     ...progressRegistrations(openers.progress),
     ...attemptRegistrations(openers.attempts),
     storeCase(

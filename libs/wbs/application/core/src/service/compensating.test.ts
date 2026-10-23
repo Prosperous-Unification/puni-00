@@ -495,6 +495,53 @@ describe('demand replay vocabulary', () => {
       );
   });
 
+  it('refuses a malformed budget or basis replay', () => {
+    const budget = {
+      workItemId: 'w1',
+      key: 'tokens',
+      cap: 10,
+      policy: 'strict',
+      holdPerAttempt: null,
+    };
+    const basis = { currency: 'USD', rateCardDigest: 'card-a' };
+    const fact = { workItemId: 'w1', stepId: 's1', metric: 'cost', value: 3 };
+    expect(readCommand({ do: 'set_budget', ...budget })).toMatchObject(budget);
+    expect(readCommand({ do: 'set_budget', ...budget, holdPerAttempt: 2 })).toMatchObject({
+      holdPerAttempt: 2,
+    });
+    expect(readCommand({ do: 'clear_budget', workItemId: 'w1', key: 'kwh' })).toMatchObject({
+      key: 'kwh',
+    });
+    expect(readCommand({ do: 'set_measure', ...fact, basis })).toMatchObject({ basis });
+    expect(readCommand({ do: 'restore_subtree', rows: [], budgets: [budget] })).toMatchObject({
+      budgets: [budget],
+    });
+    for (const malformed of [
+      { do: 'set_budget', ...budget, cap: -1 },
+      { do: 'set_budget', ...budget, cap: Number.POSITIVE_INFINITY },
+      { do: 'set_budget', ...budget, holdPerAttempt: -1 },
+      { do: 'set_budget', ...budget, policy: 'firm' },
+      { do: 'set_budget', ...budget, key: undefined },
+      { do: 'clear_budget', workItemId: 'w1' },
+      { do: 'set_measure', ...fact, basis: { currency: 'USD' } },
+      { do: 'set_measure', ...fact, basis: { currency: 'USD', rateCardDigest: '' } },
+      {
+        do: 'set_measure_estimate',
+        workItemId: 'w1',
+        stepId: 's1',
+        key: 'cost',
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+        singlePoint: false,
+        basis: 'card-a',
+      },
+      { do: 'restore_subtree', rows: [], budgets: 'caps' },
+      { do: 'restore_subtree', rows: [], budgets: [{ ...budget, policy: 'firm' }] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/budget|basis|measure estimate/);
+  });
+
   const restore: CompensatingCommand = {
     do: 'restore_subtree',
     rows: [workItemRow({ id: 'w1', projectId: 'p', parentId: null, position: 1, name: 'Build' })],

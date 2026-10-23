@@ -1,5 +1,5 @@
 import type { Stores } from '@wbs/core';
-import type { MeasureDefinition } from '@wbs/domain';
+import type { MeasureDefinition, StoredBudget } from '@wbs/domain';
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
@@ -41,7 +41,17 @@ const FACT_CASES = [
   'measureEstimates.set:three-point-clears-flag',
   'measureEstimates.moveAll:every-key',
   'directory.usageOfMeasure:estimates',
+  // The budget and money basis cases (`wbs-measure-budgets` tasks 3.1, 3.3).
+  'measures.set:basis',
+  'measureEstimates.set:basis',
+  'budgets.set:defined-key',
+  'budgets.set:replace-remove',
+  'directory.usageOfMeasure:budgets',
 ] as const;
+
+/** Two rate card bases the money cases write. */
+const CARD_A = { currency: 'USD', rateCardDigest: 'card-a' } as const;
+const CARD_B = { currency: 'USD', rateCardDigest: 'card-b' } as const;
 
 /**
  * Whether a case needs the measure fact seed (`wbs-measure-budgets` task 1.3):
@@ -62,7 +72,7 @@ export function isMeasureFactCase(caseId: string): boolean {
  * @throws when a store refuses the seed.
  */
 export async function seedMeasureFactCase(
-  stores: Pick<Stores, 'directory' | 'measures' | 'measureEstimates'>,
+  stores: Pick<Stores, 'directory' | 'measures' | 'measureEstimates' | 'budgets'>,
   caseId: string,
   seed: SeededPlan,
 ): Promise<void> {
@@ -77,6 +87,17 @@ export async function seedMeasureFactCase(
   if (caseId === 'directory.usageOfMeasure:estimates')
     await stores.measureEstimates.set(
       { ...node, key: 'gpu_minutes', ...THREE_POINTS, singlePoint: false },
+      seed.stamps[0],
+    );
+  if (caseId === 'directory.usageOfMeasure:budgets')
+    await stores.budgets.set(
+      {
+        workItemId: node.workItemId,
+        key: 'gpu_minutes',
+        cap: 60,
+        policy: 'strict',
+        holdPerAttempt: null,
+      },
       seed.stamps[0],
     );
   if (caseId === 'measures.set:legacy-estimate-replaces-trio')
@@ -211,6 +232,33 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
         expect(await readers.measureEstimates.listByProject(owned)).toEqual([]);
       },
     ),
+    // A money fact keeps the basis it was priced with, a rewrite replaces it,
+    // and a fact in any other measure carries none (design D43).
+    storeCase('measures', 'measures.set:basis', open, async ({ port, seed }) => {
+      const [owned] = seed.projectIds;
+      const node = { workItemId: seed.workItemIds[0][0], stepId: seed.stepIds[0][0] };
+      await port.set(
+        { ...node, metric: 'cost', value: 7, recordedAt: 1, basis: CARD_A },
+        seed.stamps[0],
+      );
+      await port.set({ ...node, metric: 'token_actual', value: 5, recordedAt: 1 }, seed.stamps[0]);
+      expect(await port.listByProject(owned)).toEqual([
+        { ...node, metric: 'cost', value: 7, recordedAt: 1, basis: CARD_A },
+        { ...node, metric: 'token_actual', value: 5, recordedAt: 1 },
+      ]);
+      await port.set(
+        { ...node, metric: 'cost', value: 9, recordedAt: 2, basis: CARD_B },
+        seed.stamps[1],
+      );
+      expect(await port.listByWorkItems(owned, [node.workItemId])).toEqual([
+        { ...node, metric: 'cost', value: 9, recordedAt: 2, basis: CARD_B },
+        { ...node, metric: 'token_actual', value: 5, recordedAt: 1 },
+      ]);
+      await port.set({ ...node, metric: 'cost', value: 9, recordedAt: 3 }, seed.stamps[1]);
+      const unpriced = (await port.listByProject(owned)).at(0);
+      expect(unpriced).toEqual({ ...node, metric: 'cost', value: 9, recordedAt: 3 });
+      expect(unpriced !== undefined && 'basis' in unpriced).toBe(false);
+    }),
   ];
 }
 
@@ -233,6 +281,12 @@ export function directoryMeasureFactRegistrations(
     }),
     // A trio references its definition as a fact does (`wbs-measure-budgets` D1).
     storeCase('directory', 'directory.usageOfMeasure:estimates', open, async ({ port }) => {
+      expect(await port.usageOfMeasure(A, GPU.id)).toEqual({ references: 1 });
+      expect(await port.usageOfMeasure(B, GPU_IN_B.id)).toEqual({ references: 0 });
+      expect(await port.usageOfMeasure(B, GPU.id)).toEqual({ references: 0 });
+    }),
+    // A budget references its definition as a fact does (design D42).
+    storeCase('directory', 'directory.usageOfMeasure:budgets', open, async ({ port }) => {
       expect(await port.usageOfMeasure(A, GPU.id)).toEqual({ references: 1 });
       expect(await port.usageOfMeasure(B, GPU_IN_B.id)).toEqual({ references: 0 });
       expect(await port.usageOfMeasure(B, GPU.id)).toEqual({ references: 0 });
@@ -329,5 +383,78 @@ export function measureEstimateRegistrations(
         ]);
       },
     ),
+    storeCase('measureEstimates', 'measureEstimates.set:basis', open, async ({ port, seed }) => {
+      const [owned] = seed.projectIds;
+      const node = { workItemId: seed.workItemIds[0][0], stepId: seed.stepIds[0][0] };
+      const cost = { ...node, key: 'cost', ...THREE_POINTS, singlePoint: false };
+      await port.set({ ...cost, basis: CARD_A }, seed.stamps[0]);
+      expect(await port.listByProject(owned)).toEqual([{ ...cost, basis: CARD_A }]);
+      await port.set({ ...cost, basis: CARD_B }, seed.stamps[1]);
+      expect(await port.listByProject(owned)).toEqual([{ ...cost, basis: CARD_B }]);
+      await port.set(cost, seed.stamps[1]);
+      const unpriced = (await port.listByProject(owned)).at(0);
+      expect(unpriced !== undefined && 'basis' in unpriced).toBe(false);
+    }),
+  ];
+}
+
+/**
+ * The budget family (`wbs-measure-budgets` task 3.1, design D36): stated
+ * budgets keyed by definition, replaced in place and removed by key.
+ */
+export function budgetRegistrations(open: OpenCase<'budgets'>): readonly CaseRegistration[] {
+  return [
+    storeCase('budgets', 'budgets.set:defined-key', open, async ({ port, seed }) => {
+      const [owned, unowned] = seed.projectIds;
+      const gpu = {
+        workItemId: seed.workItemIds[0][0],
+        key: 'gpu_minutes',
+        cap: 60,
+        policy: 'strict' as const,
+        holdPerAttempt: 10,
+      };
+      await port.set(gpu, seed.stamps[0]);
+      expect(await port.listByProject(owned)).toEqual([gpu]);
+      const thrown = (budget: typeof gpu) =>
+        port.set(budget, seed.stamps[1]).then(
+          () => 'written',
+          (err: unknown) => (err instanceof Error ? err.message : 'not an Error'),
+        );
+      expect(await thrown({ ...gpu, key: 'story_points' })).toContain(UNDEFINED_KEY);
+      // An unowned project budgets the seeded four alone (design D19).
+      const elsewhere = seed.workItemIds[1][0];
+      expect(await thrown({ ...gpu, workItemId: elsewhere })).toContain(UNDEFINED_KEY);
+      const tokens = { ...gpu, workItemId: elsewhere, key: 'tokens', holdPerAttempt: null };
+      await port.set(tokens, seed.stamps[1]);
+      expect(await port.listByProject(unowned)).toEqual([tokens]);
+    }),
+    storeCase('budgets', 'budgets.set:replace-remove', open, async ({ port, seed }) => {
+      const [owned] = seed.projectIds;
+      const [first, second] = seed.workItemIds[0];
+      const budget = (workItemId: string, key: string, cap: number): StoredBudget => ({
+        workItemId,
+        key,
+        cap,
+        policy: 'advisory',
+        holdPerAttempt: null,
+      });
+      await port.set(budget(second, 'tokens', 5), seed.stamps[0]);
+      await port.set(budget(first, 'tokens', 3), seed.stamps[0]);
+      await port.set(budget(first, 'cost', 4), seed.stamps[0]);
+      await port.set({ ...budget(first, 'tokens', 8), policy: 'strict' as const }, seed.stamps[1]);
+      const sorted: StoredBudget[] = [
+        budget(first, 'cost', 4),
+        { ...budget(first, 'tokens', 8), policy: 'strict' as const },
+        budget(second, 'tokens', 5),
+      ].sort((left, right) =>
+        left.workItemId < right.workItemId ? -1 : left.workItemId > right.workItemId ? 1 : 0,
+      );
+      expect(await port.listByProject(owned)).toEqual(sorted);
+      await port.remove(first, 'tokens', seed.stamps[1]);
+      await port.remove(first, 'kwh', seed.stamps[1]);
+      expect(await port.listByProject(owned)).toEqual(
+        sorted.filter((each) => !(each.workItemId === first && each.key === 'tokens')),
+      );
+    }),
   ];
 }

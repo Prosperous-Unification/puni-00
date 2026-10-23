@@ -1,6 +1,7 @@
-import type { AllowancePercent, Days, StepState } from '@wbs/domain';
+import type { AllowancePercent, BudgetPolicy, Days, MoneyBasis, StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
+import type { StoredBudget } from '../ports/budget-store';
 import type { Claim, ClaimOccupancy } from '../ports/claim-store';
 import type { Demand } from '../ports/demand-store';
 import type { StoredDependency } from '../ports/dependency-store';
@@ -62,7 +63,19 @@ export type CompensatingCommand =
    * `recordedAt` is **not** carried, for `set_actual`'s reason exactly: an undo
    * is somebody recording the figure again, now.
    */
-  | { do: 'set_measure'; workItemId: string; stepId: string; metric: string; value: number }
+  | {
+      do: 'set_measure';
+      workItemId: string;
+      stepId: string;
+      metric: string;
+      value: number;
+      /**
+       * The currency and rate card a money fact was priced with
+       * (`wbs-measure-budgets` design D43); absent on every other measure and
+       * from journals written before bases existed.
+       */
+      basis?: MoneyBasis;
+    }
   | { do: 'clear_measure'; workItemId: string; stepId: string; metric: string }
   /**
    * A three-point estimate in a measure other than time (`wbs-measure-budgets`
@@ -82,6 +95,20 @@ export type CompensatingCommand =
       singlePoint: boolean;
     }
   | { do: 'clear_measure_estimate'; workItemId: string; stepId: string; key: string }
+  /**
+   * A stated budget on one work item in one measure (`wbs-measure-budgets`
+   * D5, design D37), keyed by the definition `key`. Unknown to releases before
+   * slice 4, which share no journal with this one (design D23).
+   */
+  | {
+      do: 'set_budget';
+      workItemId: string;
+      key: string;
+      cap: number;
+      policy: BudgetPolicy;
+      holdPerAttempt: number | null;
+    }
+  | { do: 'clear_budget'; workItemId: string; key: string }
   /**
    * Where the work has got to, as one of the two states a step may be **stored**
    * in. There is no `set_progress` carrying `unknown`: the way to say that
@@ -423,6 +450,13 @@ export interface RestoreSubtree {
    * {@link RestoreSubtree.removedEstimates}' reason. Absent from older journals.
    */
   removedMeasureEstimates?: MeasureEstimateKey[];
+  /**
+   * The stated budgets on the rows being restored, put back with them: every
+   * budget a delete's cascade took, or a duplicate's copies (design D42).
+   * Budgets are never handed up or down, so nothing is taken off a surviving
+   * parent. Absent from journals written before budgets existed.
+   */
+  budgets?: StoredBudget[];
 }
 
 /** One attempt's identity: its node and its number. */

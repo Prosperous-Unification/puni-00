@@ -1,4 +1,5 @@
 import type { ActualStore } from './actual-store';
+import type { BudgetStore } from './budget-store';
 import type { CalendarMarkerStore } from './calendar-marker-store';
 import type { CapacityStore } from './capacity-store';
 import type { LivePlanStore } from './chain-snapshot-store';
@@ -64,6 +65,8 @@ export interface PlanTransactionalStores {
   measures: MeasureStore;
   /** Three-point estimates in measures other than time (`wbs-measure-budgets` D3). */
   measureEstimates: MeasureEstimateStore;
+  /** Stated budgets per work item and measure (`wbs-measure-budgets` D5). */
+  budgets: BudgetStore;
   progress: StepProgressStore;
   /** Sparse direct blockage facts used by live node readings. */
   blockages: StepBlockageStore;

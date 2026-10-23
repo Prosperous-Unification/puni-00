@@ -1,4 +1,4 @@
-import type { ChargedEstimate } from '@wbs/domain';
+import type { BudgetReading, ChargedEstimate, MixedRateCards } from '@wbs/domain';
 import type {
   Attempt,
   BlockageRoot,
@@ -113,6 +113,22 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * estimated it. Reported and never planned with (D2).
    */
   measureEstimates?: Record<string, Record<string, MeasureEstimateReading>>;
+  /**
+   * The row's budgets by definition key (`wbs-measure-budgets` D5, design
+   * D39): stated, or derived from the pessimistic points (D38), each with what
+   * remains after the subtree's facts and holds and whether the facts crossed
+   * the cap. **Absent rather than `{}`** when the row has none, so a plan
+   * without trios or budgets answers the bytes it did before budgets existed.
+   */
+  budgets?: Record<string, BudgetReading>;
+  /**
+   * The money keys whose figures in this row's subtree are priced under two
+   * or more rate cards, with the first two digests (design D44). Such a key
+   * is absent from {@link measures}, {@link measureEstimates} and
+   * {@link budgets} on this row: those sums cannot be taken. Absent when no
+   * key mixes.
+   */
+  mixedRateCards?: Record<string, MixedRateCards>;
   /** The work items this one waits for, as written — either end may be a parent. */
   dependsOn: string[];
   /**

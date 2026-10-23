@@ -323,6 +323,7 @@ export function projectRoutes(
             return { ok: false, status: 403, body: { error: outcome.reason } };
           case 'bad_start_date':
           case 'bad_pert_weights':
+          case 'bad_budget_factor':
           case 'invalid_timezone':
             return { ok: false, status: 422, body: { error: outcome.reason } };
           // Proof: mapping this to 422 made the mounted unavailable-optimizer test receive 500 instead of 409.

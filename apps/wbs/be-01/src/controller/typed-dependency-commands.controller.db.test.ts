@@ -19,6 +19,7 @@ import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -141,6 +142,7 @@ beforeEach(() => {
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
       measureEstimates: new MeasureEstimateRepository(db, OPEN),
+      budgets: new WorkItemBudgetRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
@@ -204,6 +206,7 @@ beforeEach(() => {
           actuals: scope.stores.actuals,
           measures: scope.stores.measures,
           measureEstimates: scope.stores.measureEstimates,
+          budgets: scope.stores.budgets,
           progress: scope.stores.progress,
           attempts: scope.stores.attempts,
           blockages: scope.stores.blockages,

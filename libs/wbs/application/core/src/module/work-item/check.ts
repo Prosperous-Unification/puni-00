@@ -41,6 +41,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       measureEstimateStore: DiBag.createProvider(() => requirements.measureEstimates, {
         factoryReturnKind: 'sync-value',
       }),
+      budgetStore: DiBag.createProvider(() => requirements.budgets, {
+        factoryReturnKind: 'sync-value',
+      }),
       progressStore: DiBag.createProvider(() => requirements.progress, {
         factoryReturnKind: 'sync-value',
       }),

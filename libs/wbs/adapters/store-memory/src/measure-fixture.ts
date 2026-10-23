@@ -205,6 +205,8 @@ export function countFactsKeyedBy(
  * estimates of its projects under that definition's key, the memory twin of
  * counting `measure_estimate.measure_id`. A single-point tokens trio is a
  * legacy row here and is not counted, as `tokens` is never deletable (D14).
+ * Budgets are counted through it too: they are keyed the same way
+ * (`work_item_budget.measure_id`, design D42).
  *
  * @throws when a trio names a work item the source does not hold.
  */

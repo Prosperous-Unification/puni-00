@@ -16,6 +16,7 @@ const MIGRATION = '20261023110000_key_step_measure';
 const BASELINE = '20261023100000_add_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
 const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
 
 let dir: string;
 let path: string;
@@ -97,7 +98,11 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-measure-key-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MEASURE_ESTIMATES, MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    WORK_ITEM_BUDGETS,
+    MEASURE_ESTIMATES,
+    MIGRATION,
+  ]);
   db = openDatabase(path);
   seedBaseline();
 });
@@ -241,7 +246,11 @@ describe(MIGRATION, () => {
       .get();
     comeForward();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MEASURE_ESTIMATES, MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      WORK_ITEM_BUDGETS,
+      MEASURE_ESTIMATES,
+      MIGRATION,
+    ]);
     db = openDatabase(path);
     expect(legacyRows()).toEqual(before);
     const columns = db

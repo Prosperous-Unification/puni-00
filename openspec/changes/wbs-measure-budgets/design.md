@@ -206,6 +206,76 @@ token_estimate` keeps working and journals as before. The row read's `measures` 
   trios on a step removal, as it does not for facts; the Dash replay inventory
   (`tools/tool-deploy`) is unchanged and names no measure-estimate kind.
 
+Assumptions added while implementing slice 4 (tasks 3.1–3.3), each the reading closest to D1–D8:
+
+- **D35 No budget in the scheduling measure.** `setBudget` and `clearBudget` on the
+  `schedulesWork` definition (`time`) answer `409 scheduling_measure_budget`, and no budget
+  is derived for it. Its fact is the actual days (D27) and its trio lives in `estimate` (D2),
+  so a time budget would be a second deadline the solver never reads; additive agent time is
+  budgeted in `agent_minutes`, which may hold a budget although nobody types its facts.
+- **D36 One row per work item and key, stated only.** `work_item_budget (work_item_id,
+measure_key, measure_id, cap, policy, hold_per_attempt, audit)` keys by `measure_key` and
+  references by `measure_id` (D30), keyed for an unowned project by
+  `project_organization_keys_work_item_budgets`. D5's `source` is not a column: a stored row
+  is `stated`, and a derived budget is computed on every read and never stored. Cap and hold
+  are in the measure's unit and scale: a fraction on an integer measure is `409
+scale_mismatch`, a negative or non-finite figure `422 invalid_budget`; an undefined key or
+  a legacy name is `404 unknown_measure`. Refusals in the order unknown, scheduling, invalid,
+  scale.
+- **D37 Commands.** `setBudget {measure, cap, policy, holdPerAttempt?}` and `clearBudget
+{measure}` address a work item (id or ref) and take no step: a budget bounds the whole
+  subtree on every step. Parents and leaves alike; undoable (`set_budget`, `clear_budget`),
+  one journal entry each; clearing an absent budget writes and journals nothing. Neither is
+  calendar- or graph-affecting. Undo putting a budget back in a measure deleted since answers
+  409 "a measure it budgeted is no longer defined" (D24 for budgets).
+- **D38 Derived budget.** A row and key with no stated budget, whose subtree holds a trio in
+  that key, reads a derived budget: the subtree's pessimistic points summed over every step,
+  times the project's `budgetFactor`, rounded half up once on an integer measure; policy
+  `advisory`, no holds. `budgetFactor` is a project column (default 1, additive), patched like
+  the other settings, refused `422 bad_budget_factor` unless finite, above 0 and at most 1000.
+  It moves no date, so saved plan captures and the export leave it out (D22).
+- **D39 Reading.** `spent` is the subtree's facts in the key summed over every step
+  (`agent_minutes` derived, D20; nothing recorded reads 0). `held` is the budget's
+  `holdPerAttempt` times the RUNNING attempts in the subtree whose usage is unknown: no fact in
+  that key on the attempt's step node recorded at or after its start. `remaining` is the cap
+  less `spent` and `held`, negative past the cap; `exceeded` is `spent > cap`, facts alone, so
+  a spend hold never makes a budget exceeded. The row read adds `budgets: {key: {cap, policy,
+source, remaining, exceeded, held?}}`, `held` only where the budget states a hold; absent
+  when the row has no budget, so plans without trios or budgets answer the same bytes.
+- **D40 The hold is a budget field.** `holdPerAttempt` belongs with the cap it reduces, in the
+  same unit; a project setting would need one figure per measure. Each budget holds its own
+  allowance for every unknown attempt in its subtree, so a leaf's and its parent's budgets
+  both shrink; derived budgets hold nothing.
+- **D41 Headroom read in core.** `WorkItemService.budgetHeadroomWithin(projectId, access)`
+  answers, for every startable step (fitting or not, `findStartableWork`) and every claimed
+  step, per key the tightest budget among its work item and its ancestors (least
+  `remaining`), naming the bounding work item. A plan-command batch writes and cannot carry
+  a read, and dedicated read routes and MCP tools are slice 5's, so no route is added here.
+- **D42 Budgets stay on their work item.** A first child takes none (the parent's budget
+  bounds the child now), a deleted last child's budget is not handed up (the parent keeps its
+  own) and comes back on undo with every budget of a deleted branch, a duplicate copies the
+  branch's budgets with its trios (D31), and step removal touches none. `deleteMeasure`
+  answers `measure_in_use` while a budget references the definition. The restore's journal
+  field `budgets` is optional, present only when non-empty; nothing is ever taken off a
+  surviving parent, so there is no removed list.
+- **D43 Money basis.** `step_measure` and `measure_estimate` gain nullable `currency` and
+  `rate_card_digest`, set together on money definitions only. `setMeasure` and
+  `setMeasureEstimate` take `rateCardDigest` (non-empty, at most 128 characters): required
+  on a write in a money measure (`409 rate_card_required`), refused on any other
+  (`409 rate_card_forbidden`), not needed by a clear; the currency is the definition's at the
+  write. Journals and hand-ups carry the `basis`. Figures written before carry none, which
+  counts as one more basis (null).
+- **D44 One basis per money key per subtree.** A row whose subtree holds money figures (facts
+  or trios, any step) in a key under two or more bases loses that key from `measures`,
+  `measureEstimates` and `budgets` and reads `mixedRateCards: {key: [first, second]}` (sorted
+  digests, null first); every other row and key reads as before. The headroom read refuses
+  `mixed_rate_cards` naming both, and a last-child delete whose hand-up would add mixed
+  figures refuses `409 mixed_rate_cards` with `digests`. There is no conversion override yet:
+  these refusals have no escape until a conversion shape exists.
+- **D45 Known lags.** The headroom read has no route or MCP tool (slice 5); the row read shows
+  a basis only when mixed (slice 5 reads, slice 6 panel); the export carries neither budgets
+  nor bases (D22, slice 7); `findCrossReferences` does not follow `work_item_budget` (D34).
+
 ## Risks / Trade-offs
 
 - The schedule must not move: D2's property test is the guard, and the time trio stays in its

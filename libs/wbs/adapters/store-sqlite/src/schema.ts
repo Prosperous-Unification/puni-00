@@ -2,6 +2,7 @@ import {
   allowanceHundredthsOf,
   type AllowancePercent,
   ATTEMPT_OUTCOMES,
+  BUDGET_POLICIES,
   DOMAIN_CLAIM_STATUSES,
   type EstimateUnit,
   HOLDS,
@@ -335,6 +336,14 @@ export const project = sqliteTable(
      * is not one.
      */
     timezone: text('timezone').notNull().default('UTC'),
+    /**
+     * What a derived budget multiplies the pessimistic point by
+     * (`wbs-measure-budgets` design D38), created by
+     * `20261023130000_add_work_item_budget` with a column CHECK keeping it
+     * above 0 and at most 1000. Defaulted to 1, which the outgoing release's
+     * insert relies on.
+     */
+    budgetFactor: real('budget_factor').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
@@ -1143,6 +1152,13 @@ export const stepMeasure = sqliteTable(
     measureId: text('measure_id').references(() => measure.id),
     value: real('value').notNull(),
     recordedAt: integer('recorded_at').notNull(),
+    /**
+     * What a money fact was priced with (`wbs-measure-budgets` D43), both or
+     * neither: a column CHECK on `rate_card_digest` from
+     * `20261023130000_add_work_item_budget`. NULL on every other measure.
+     */
+    currency: text('currency'),
+    rateCardDigest: text('rate_card_digest'),
     ...auditColumns(),
   },
   (t) => [
@@ -1196,6 +1212,9 @@ export const measureEstimate = sqliteTable(
     realistic: real('realistic').notNull(),
     pessimistic: real('pessimistic').notNull(),
     singlePoint: integer('single_point', { mode: 'boolean' }).notNull().default(false),
+    /** What a money trio was priced with, as on {@link stepMeasure} (design D43). */
+    currency: text('currency'),
+    rateCardDigest: text('rate_card_digest'),
     ...auditColumns(),
   },
   (t) => [
@@ -1209,6 +1228,39 @@ export const measureEstimate = sqliteTable(
     check(
       'measure_estimate_single_point',
       sql`${t.singlePoint} IN (0, 1) AND (${t.singlePoint} = 0 OR (${t.measureKey} = 'tokens' AND ${t.optimistic} = ${t.realistic} AND ${t.realistic} = ${t.pessimistic}))`,
+    ),
+  ],
+);
+
+/**
+ * One work item's stated budget in one measure (`wbs-measure-budgets` D5,
+ * design D36), created by `20261023130000_add_work_item_budget`.
+ *
+ * `measureKey` is the identity and `measureId` the reference, NULL while no
+ * organization owns the project (design D30). Derived budgets are computed on
+ * read and never stored here. `work_item_id` cascades: a deleted work item's
+ * budgets go with it and an undo writes them back.
+ */
+export const workItemBudget = sqliteTable(
+  'work_item_budget',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    measureKey: text('measure_key').notNull(),
+    measureId: text('measure_id').references(() => measure.id),
+    cap: real('cap').notNull(),
+    policy: text('policy', { enum: BUDGET_POLICIES }).notNull(),
+    holdPerAttempt: real('hold_per_attempt'),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.measureKey] }),
+    index('work_item_budget_by_measure').on(t.measureId),
+    check('work_item_budget_policy', sql`${t.policy} IN ('strict', 'advisory')`),
+    check(
+      'work_item_budget_figures',
+      sql`${t.cap} >= 0 AND (${t.holdPerAttempt} IS NULL OR ${t.holdPerAttempt} >= 0)`,
     ),
   ],
 );

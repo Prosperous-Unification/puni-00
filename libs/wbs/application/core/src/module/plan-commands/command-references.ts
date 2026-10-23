@@ -11,7 +11,10 @@ import type { PlanCommandServices } from './plan-command-graph';
 export type PlainReason =
   | Exclude<
       WorkItemRefusal,
-      'deadline_before_project_start' | 'descendant_step_on_leaf' | 'node_on_parent'
+      | 'deadline_before_project_start'
+      | 'descendant_step_on_leaf'
+      | 'node_on_parent'
+      | 'mixed_rate_cards'
     >
   | DirectoryRefusal
   | MeasureRefusalReason

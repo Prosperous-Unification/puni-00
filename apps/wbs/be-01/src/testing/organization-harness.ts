@@ -71,6 +71,7 @@ import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 
 import { buildApp } from '../app';
 import type { ReservedSpawner } from '../module/optimization/contract';
@@ -430,6 +431,7 @@ export class OrganizationHarness {
         actuals: new ActualRepository(db, OPEN),
         measures: new StepMeasureRepository(db, OPEN),
         measureEstimates: new MeasureEstimateRepository(db, OPEN),
+        budgets: new WorkItemBudgetRepository(db, OPEN),
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),

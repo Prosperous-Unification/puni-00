@@ -27,6 +27,7 @@ import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 /** Builds the complete transactional SQLite catalog over one write gate. */
 export function buildStores(
@@ -53,6 +54,7 @@ export function buildStores(
     actuals: new ActualRepository(db, gate),
     measures: new StepMeasureRepository(db, gate),
     measureEstimates: new MeasureEstimateRepository(db, gate),
+    budgets: new WorkItemBudgetRepository(db, gate),
     progress: new StepProgressRepository(db, gate),
     blockages: new StepBlockageRepository(db, gate),
     stepParallels: new StepParallelRepository(db, gate),

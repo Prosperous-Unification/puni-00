@@ -4,6 +4,7 @@ import {
   isLegacyMetric,
   type MeasureDefinition,
   type MeasureMetric,
+  type MoneyBasis,
 } from '@wbs/domain';
 import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -48,6 +49,34 @@ export function measureIdFor(
       .where(eq(workItem.id, workItemId))
       .get()?.id ?? null
   );
+}
+
+/**
+ * The columns a money figure's basis is written to (design D43): both NULL
+ * when it has none.
+ */
+export function basisColumns(basis: MoneyBasis | undefined): {
+  currency: string | null;
+  rateCardDigest: string | null;
+} {
+  return { currency: basis?.currency ?? null, rateCardDigest: basis?.rateCardDigest ?? null };
+}
+
+/**
+ * The basis a stored figure carries, as a field to spread: none when both
+ * columns are NULL.
+ *
+ * @throws when exactly one is set: the column CHECK refuses that, so it is a
+ * schema that drifted from its constraint.
+ */
+export function basisOf(
+  currency: string | null,
+  rateCardDigest: string | null,
+): { basis?: MoneyBasis } {
+  if (currency === null && rateCardDigest === null) return {};
+  if (currency === null || rateCardDigest === null)
+    throw new Error('a stored money figure carries half a basis');
+  return { basis: { currency, rateCardDigest } };
 }
 
 /**
@@ -153,6 +182,8 @@ export class StepMeasureRepository implements MeasureStore {
           metric: METRIC_OF_ROW,
           value: stepMeasure.value,
           recordedAt: stepMeasure.recordedAt,
+          currency: stepMeasure.currency,
+          rateCardDigest: stepMeasure.rateCardDigest,
         })
         .from(stepMeasure)
         .leftJoin(measure, eq(stepMeasure.measureId, measure.id))
@@ -169,7 +200,11 @@ export class StepMeasureRepository implements MeasureStore {
         .where(eq(workItem.projectId, projectId))
         .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, METRIC_OF_ROW)
         .all()
-        .map((row) => ({ ...row, metric: metricOrThrow(row) }))
+        .map(({ currency, rateCardDigest, ...row }) => ({
+          ...row,
+          metric: metricOrThrow(row),
+          ...basisOf(currency, rateCardDigest),
+        }))
     );
   }
 
@@ -184,6 +219,8 @@ export class StepMeasureRepository implements MeasureStore {
         storedMetric: stepMeasure.metric,
         value: stepMeasure.value,
         recordedAt: stepMeasure.recordedAt,
+        currency: stepMeasure.currency,
+        rateCardDigest: stepMeasure.rateCardDigest,
         workItemProjectId: workItem.projectId,
         stepProjectId: step.projectId,
         stepPosition: step.position,
@@ -231,6 +268,7 @@ export class StepMeasureRepository implements MeasureStore {
       metric: metricOrThrow(row),
       value: row.value,
       recordedAt: row.recordedAt,
+      ...basisOf(row.currency, row.rateCardDigest),
     }));
   }
 
@@ -291,14 +329,33 @@ export class StepMeasureRepository implements MeasureStore {
           // A legacy metric conflicts on its name, a defined one on its
           // definition: the two unique indexes `step_measure_metric_key` and
           // `step_measure_measure_key`, one per way a row is addressed.
+          const basis = basisColumns(toSet.basis);
           tx.insert(stepMeasure)
-            .values({ ...toSet, ...columns, ...auditOnCreate(stamp) })
+            .values({
+              workItemId: toSet.workItemId,
+              stepId: toSet.stepId,
+              value: toSet.value,
+              recordedAt: toSet.recordedAt,
+              ...columns,
+              ...basis,
+              ...auditOnCreate(stamp),
+            })
             .onConflictDoUpdate({
               target:
                 columns.metric === null
                   ? [stepMeasure.workItemId, stepMeasure.stepId, stepMeasure.measureId]
                   : [stepMeasure.workItemId, stepMeasure.stepId, stepMeasure.metric],
-              set: { value: toSet.value, recordedAt: toSet.recordedAt, ...auditOnUpdate(stamp) },
+              // The basis is part of the figure: a rewrite under another card,
+              // or with none, replaces it (design D43).
+              // Proof: with the basis left out of this update, the SQLite
+              // certification's `measures.set:basis` read the first card after
+              // a rewrite under another (watched 2026-10-23).
+              set: {
+                value: toSet.value,
+                recordedAt: toSet.recordedAt,
+                ...basis,
+                ...auditOnUpdate(stamp),
+              },
             })
             .run();
           bumpWorkItems(tx, [toSet.workItemId], stamp);

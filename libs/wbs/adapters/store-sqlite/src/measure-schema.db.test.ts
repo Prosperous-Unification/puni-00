@@ -16,6 +16,7 @@ const MIGRATION = '20261023100000_add_measure';
 const MEASURE_FACTS = '20261023110000_key_step_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
 const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
 const BASELINE = '20261022130100_widen_organization_audit_organization_limits';
 
 let dir: string;
@@ -95,6 +96,7 @@ describe(MIGRATION, () => {
   // read no definitions for either existing organization; watched 2026-10-23.
   it('seeds the five definitions for every organization that existed before it', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,
       MIGRATION,
@@ -219,13 +221,17 @@ describe(MIGRATION, () => {
     expect(measuresOf('org-a')).toHaveLength(6);
     // The newer estimates and measure-keyed facts reversed first, over legacy rows alone.
     expect(ledger()).toEqual(
-      before.filter(({ name }) => name !== MEASURE_FACTS && name !== MEASURE_ESTIMATES),
+      before.filter(
+        ({ name }) =>
+          name !== MEASURE_FACTS && name !== MEASURE_ESTIMATES && name !== WORK_ITEM_BUDGETS,
+      ),
     );
   });
 
   it('rolls back over untouched seeded definitions, and comes forward seeding again', () => {
     organization('org-a', 5);
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,
       MIGRATION,

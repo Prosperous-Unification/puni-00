@@ -1,3 +1,4 @@
+import type { MoneyBasis } from './money-basis';
 import type { StepState } from './progress';
 
 export interface StoredEstimate {
@@ -44,6 +45,12 @@ export interface StoredMeasure {
   readonly value: number;
   /** When the number was typed, in epoch milliseconds. */
   readonly recordedAt: number;
+  /**
+   * The currency and rate card a money fact was priced with (`wbs-measure-budgets`
+   * D6, design D43); absent on every other measure, and on a money fact written
+   * before bases were recorded.
+   */
+  readonly basis?: MoneyBasis;
 }
 
 /**

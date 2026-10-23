@@ -46,6 +46,7 @@ import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -147,6 +148,7 @@ beforeEach(async () => {
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
     measureEstimates: new MeasureEstimateRepository(db, OPEN),
+    budgets: new WorkItemBudgetRepository(db, OPEN),
     progress: new StepProgressRepository(db, OPEN),
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),

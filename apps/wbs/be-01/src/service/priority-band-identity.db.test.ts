@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs/domain';
 import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
+import { inMemoryBudgets } from '@wbs/store-memory/budget-fixture';
 import { inMemoryMeasureEstimates } from '@wbs/store-memory/measure-estimate-fixture';
 import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
 import { inMemorySteps } from '@wbs/store-memory/step-fixture';
@@ -311,6 +312,7 @@ describe('a priority ladder moves no date', () => {
       actuals,
       measures,
       measureEstimates: inMemoryMeasureEstimates(workItems, measureTable),
+      budgets: inMemoryBudgets(workItems),
       progress,
       attempts: inMemoryAttempts(workItems),
       blockages: inMemoryStepBlockages(workItems, inMemorySteps()),
@@ -794,6 +796,7 @@ describe('a priority ladder moves no date', () => {
       actuals,
       measures,
       measureEstimates: inMemoryMeasureEstimates(workItems, measureTable),
+      budgets: inMemoryBudgets(workItems),
       progress,
       attempts: inMemoryAttempts(workItems),
       blockages: inMemoryStepBlockages(workItems, inMemorySteps()),

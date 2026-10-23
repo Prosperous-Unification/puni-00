@@ -11,6 +11,7 @@ import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Step, WorkItem, WriteStamp } from '../repository';
@@ -135,6 +136,7 @@ beforeEach(async () => {
     actuals: actualStore,
     measures: measureStore,
     measureEstimates: new MeasureEstimateRepository(db, OPEN),
+    budgets: new WorkItemBudgetRepository(db, OPEN),
     progress: progressStore,
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),

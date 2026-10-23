@@ -28,13 +28,13 @@
 
 ## 3. Budgets
 
-- [ ] 3.1 `work_item_budget` and `setBudget`/`clearBudget`, derived default, subtree bound,
+- [x] 3.1 `work_item_budget` and `setBudget`/`clearBudget`, derived default, subtree bound,
       `exceeded` — test: conformance suite with the three-leaf case; negative: remove the
       subtree fold and the parent reads within budget.
-- [ ] 3.2 Project-scoped remaining-budget read with holds for unknown spend — test: hold
+- [x] 3.2 Project-scoped remaining-budget read with holds for unknown spend — test: hold
       reduces remaining and releases on end; negative: drop the hold and two unknown-usage
       attempts both admit.
-- [ ] 3.3 `cost` basis: currency and rate card digest on estimate and fact; `mixed_rate_cards`
+- [x] 3.3 `cost` basis: currency and rate card digest on estimate and fact; `mixed_rate_cards`
       — test: two digests under one parent refuse naming both; negative: drop the check and
       they sum.
 

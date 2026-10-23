@@ -737,6 +737,26 @@ from the pessimistic point; a parent's budget bounds its subtree. Facts are reco
 refusing the next attempt is the coordinator's act.
 _Avoid_: allowance, limit (which is the plan's), quota
 
+**Budget factor**:
+A project's multiplier on the pessimistic point that gives a **derived budget** where nobody
+stated one; 1 unless the project says otherwise.
+_Avoid_: margin, buffer, contingency
+
+**Spend hold**:
+The part of a budget set aside for a running attempt whose spend is not yet recorded, released
+when the attempt ends or its usage is recorded; a budget's `held`, unrelated to a leaf's **hold**.
+_Avoid_: hold (alone), reservation, lock, allowance
+
+**Headroom**:
+What remains of the tightest budget over a startable or claimed step, holds taken off; what the
+coordinator refuses the next attempt on.
+_Avoid_: slack, float (which is the schedule's), quota
+
+**Rate card digest**:
+The identity of the price list a money figure was computed with; figures under two digests are
+never added.
+_Avoid_: price version, tariff id
+
 **Token estimate**:
 The **measure estimate** in `tokens` for one step node: three points since the measure
 budgets change; a legacy single figure reads as a single-point trio flagged until re-estimated.

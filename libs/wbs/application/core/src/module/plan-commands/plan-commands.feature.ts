@@ -120,6 +120,8 @@ export type Refusal =
       detail: { nodes: { workItemId: string; stepId: string }[] };
     }
   | { reason: 'taken'; detail: { name: string } }
+  /** A sum across two rate cards (`wbs-measure-budgets` D44), both named, null unpriced. */
+  | { reason: 'mixed_rate_cards'; detail: { digests: [string | null, string | null] } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } }
   /** A resource removal's refusal also counts what names it (`wbs-resources` R8). */
   | { reason: 'in_use'; detail: { usage: DirectoryUsage; counts: ResourceUsageCounts } }

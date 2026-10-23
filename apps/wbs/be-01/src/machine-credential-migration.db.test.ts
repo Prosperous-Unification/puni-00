@@ -19,6 +19,7 @@ const MEASURE = '20261023100000_add_measure';
 /** The measure-keyed facts, which reverse first over legacy facts alone. */
 const MEASURE_FACTS = '20261023110000_key_step_measure';
 const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const TABLES = ['organization_trusted_issuer', 'machine_credential', 'machine_credential_secret'];
 const CREDENTIAL = '00000000-0000-4000-8000-000000000001';
@@ -149,7 +150,7 @@ describe(MACHINE_CREDENTIAL, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
+      `rolled back: ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
     );
     for (const table of TABLES) expect(tablesOf(dbPath)).not.toContain(table);
     runMigrations(dbPath, join(root, 'drizzle'));

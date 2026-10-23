@@ -749,6 +749,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261023130000_add_work_item_budget',
       '20261023120000_add_measure_estimate',
       '20261023110000_key_step_measure',
       '20261023100000_add_measure',
@@ -818,6 +819,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'organization_limits' &&
           name !== 'measure' &&
           name !== 'measure_estimate' &&
+          name !== 'work_item_budget' &&
           name !== 'shared_people_restore_operation' &&
           name !== 'shared_people_restore_receipt' &&
           name !== 'shared_people_restore_consumption' &&

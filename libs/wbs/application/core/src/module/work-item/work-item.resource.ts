@@ -7,6 +7,9 @@ import {
   type Attempt,
   type AttemptOutcome,
   type AuthoredDependencyGraph,
+  type BudgetPolicy,
+  type BudgetReading,
+  type BudgetReads,
   byTreeOrder,
   CalendarRangeError,
   canDepend,
@@ -19,11 +22,14 @@ import {
   type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
+  decideBudget,
   decideClaim,
   decideMeasureEstimate,
   decideMeasureFact,
+  decideRateCard,
   decideRelease,
   DEFAULT_PERT_WEIGHTS,
+  definitionKeyOf,
   definitionsOrUnowned,
   type Demand,
   type DependencyEndpoint,
@@ -47,10 +53,14 @@ import {
   lastWorkdayOf,
   type LimitCrossed,
   MAX_ESTIMATE_DAYS,
+  type MeasureDefinition,
   type MeasureMetric,
   type MeasureTrio,
   metricsIn,
   minuteTrioProblem,
+  type MixedRateCards,
+  mixedRateCardsOf,
+  type MoneyBasis,
   nextWorkday,
   type NodeReading,
   nodeResourcesOf,
@@ -62,6 +72,7 @@ import {
   placeAfter,
   POSITION_STEP,
   type PriorityBand,
+  readBudgets,
   type Readiness,
   refuseDemand,
   refuseLimit,
@@ -108,6 +119,7 @@ import { arrangeBySchedule as arrangeSiblingsBySchedule } from '@wbs/domain/arra
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
+import type { BudgetKey, BudgetStore, StoredBudget } from '../../ports/budget-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
 import type {
@@ -207,6 +219,8 @@ import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/depe
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
+import { type BudgetHeadroom, findBudgetHeadroom, type MixedHeadroom } from './budget-headroom';
+import { withBudgets } from './budget-read';
 import {
   type Claimed,
   type ClaimInput,
@@ -837,6 +851,19 @@ export type WorkItemRefusal =
   | 'scheduling_measure_estimate'
   /** A trio on a definition whose `threePoint` is false (`hours`, `agent_minutes`) (409). */
   | 'three_point_forbidden'
+  /** A budget or its clear in the scheduling measure (`time`) (409, design D35). */
+  | 'scheduling_measure_budget'
+  /** A negative or non-finite budget cap or hold (422, design D36). */
+  | 'invalid_budget'
+  /** A write in a money measure without a rate card digest (409, design D43). */
+  | 'rate_card_required'
+  /** A rate card digest on a measure that is not money (409, design D43). */
+  | 'rate_card_forbidden'
+  /**
+   * A write that would add money figures priced under two rate cards (409,
+   * design D44), naming both in {@link WorkItemOutcome}'s `digests`.
+   */
+  | 'mixed_rate_cards'
   /**
    * A person the directory no longer holds, decided inside the write's own
    * transaction — see {@link AssignmentWritten}. Without it the same
@@ -974,6 +1001,8 @@ export type WorkItemOutcome<T> =
       projectDayZero?: IsoDate;
       /** Relationships that prevent a structural change from changing endpoint scope. */
       dependencyIds?: string[];
+      /** The two rate card digests a `mixed_rate_cards` refusal would add (null: unpriced). */
+      digests?: MixedRateCards;
     };
 
 /** Orders relationship removal before a structural delete and restoration after it. */
@@ -1106,6 +1135,12 @@ export interface WorkItemServiceOptions {
    * hand-down and answer every read with none.
    */
   measureEstimates: MeasureEstimateStore;
+  /**
+   * Where the stated budgets are kept (`wbs-measure-budgets` D5). Required for
+   * {@link measures}' reason: a service built without one would answer every
+   * read with derived budgets only and lose a deleted branch's on undo.
+   */
+  budgets: BudgetStore;
   /**
    * Where each step says its work on a work item has got to.
    *
@@ -1959,6 +1994,46 @@ export class WorkItemService {
   }
 
   /**
+   * The remaining budget per measure of every claimed or startable step of a
+   * project, through the caller's access (`wbs-measure-budgets` task 3.2,
+   * {@link findBudgetHeadroom}): the steps {@link startableWithin} reads, every
+   * team's, each with the tightest budget among its work item and ancestors,
+   * holds for running attempts of unknown usage taken off (design D39–D41).
+   *
+   * Null for a project the caller cannot read; `mixed_rate_cards` when a
+   * reported budget would sum two rate cards (design D44). No route serves it
+   * yet (slice 5).
+   */
+  async budgetHeadroomWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<BudgetHeadroom | MixedHeadroom | null> {
+    const startable = await this.startableWithin(projectId, access, null);
+    if (startable === null) return null;
+    // Proof (type boundary): `unknown_team` answers only a team that was named.
+    if ('kind' in startable) throw new Error('the headroom read named no team');
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const estimates = await this.opts.measureEstimates.listByProject(projectId);
+    const budgets = await this.opts.budgets.listByProject(projectId);
+    const facts = await this.opts.measures.listByProject(projectId);
+    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const mixed = mixedRateCardsOf(
+      rows,
+      pricedFiguresOf(facts, estimates),
+      moneyKeysOf(definitions),
+    );
+    const readings = await this.budgetReadingsOf(projectId, {
+      rows,
+      definitions,
+      budgets,
+      facts,
+      estimates,
+      mixed,
+    });
+    return findBudgetHeadroom(rows, startable, readings, mixed);
+  }
+
+  /**
    * One person's assignments and claims in one project
    * (`wbs-resources` R7, {@link findPersonWork}), admitted as the tree read is:
    * `null` for a project the caller may not read, `unknown_person` for a
@@ -2331,19 +2406,71 @@ export class WorkItemService {
   ): Promise<T> {
     if (tree === null || 'kind' in tree) return tree;
     const estimates = await this.opts.measureEstimates.listByProject(projectId);
-    if (estimates.length === 0) return tree;
-    return {
-      ...tree,
-      workItems: withMeasureEstimates(
-        tree.workItems,
-        estimates,
-        definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId)),
-        // Proof: with `DEFAULT_PERT_WEIGHTS` here, `weighs the trio by the
-        // project's own PERT weights` (measure-estimate-command.test.ts) read
-        // 250 where 300 was owed; watched 2026-10-23.
-        tree.pertWeights,
-      ),
-    };
+    const budgets = await this.opts.budgets.listByProject(projectId);
+    const facts = await this.opts.measures.listByProject(projectId);
+    // Nothing to estimate, budget or mix: a mix needs a priced figure.
+    if (estimates.length === 0 && budgets.length === 0 && !facts.some(({ basis }) => basis))
+      return tree;
+    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const mixed = mixedRateCardsOf(
+      tree.workItems,
+      pricedFiguresOf(facts, estimates),
+      moneyKeysOf(definitions),
+    );
+    const estimated =
+      estimates.length === 0
+        ? tree.workItems
+        : withMeasureEstimates(
+            tree.workItems,
+            estimates,
+            definitions,
+            // Proof: with `DEFAULT_PERT_WEIGHTS` here, `weighs the trio by the
+            // project's own PERT weights` (measure-estimate-command.test.ts) read
+            // 250 where 300 was owed; watched 2026-10-23.
+            tree.pertWeights,
+          );
+    const readings =
+      estimates.length === 0 && budgets.length === 0
+        ? new Map()
+        : await this.budgetReadingsOf(projectId, {
+            rows: tree.workItems,
+            definitions,
+            budgets,
+            facts,
+            estimates,
+            mixed,
+          });
+    // Proof: with the budgets left unattached, `sets, replaces and clears a
+    // budget, undoably` (budget-command.test.ts) read no `budgets`; watched 2026-10-23.
+    return { ...tree, workItems: withBudgets(estimated, readings, mixed) };
+  }
+
+  /**
+   * {@link readBudgets} over what the caller already read, with the attempts
+   * (for the holds and the derived `agent_minutes`) and the project's budget
+   * factor read here.
+   *
+   * @throws when the project has gone between the plan read and this one: the
+   * plan was just read, so a miss is a store that lost it.
+   */
+  private async budgetReadingsOf(
+    projectId: string,
+    reads: Omit<BudgetReads, 'attempts' | 'factor' | 'facts'> & {
+      facts: readonly StoredMeasure[];
+    },
+  ): Promise<Map<string, Map<string, BudgetReading>>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error(`project ${projectId} vanished during its plan read`);
+    const attempts = await this.opts.attempts.listByProject(projectId);
+    return readBudgets({
+      ...reads,
+      facts: [...reads.facts, ...agentMinutesOf(attempts)],
+      attempts,
+      // Proof: with 1 in place of the project's factor, `derives a budget from
+      // the pessimistic points times the project's budget factor`
+      // (budget-command.test.ts) read 600 where 900 was owed; watched 2026-10-23.
+      factor: project.budgetFactor,
+    });
   }
 
   private async treeIsolated(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
@@ -4434,6 +4561,10 @@ export class WorkItemService {
     )
       .filter((each) => inside.has(each.workItemId))
       .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
+    // And every stated budget of the branch, with its trios (design D42).
+    const copiedBudgets = (await this.opts.budgets.listByProject(workItem.projectId))
+      .filter((each) => inside.has(each.workItemId))
+      .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     const copiedAssignments = assigned.map((each) => ({
       ...each,
       workItemId: copyOf(each.workItemId),
@@ -4520,6 +4651,10 @@ export class WorkItemService {
     // The single-point ones were copied as legacy token estimates above.
     for (const each of copiedMeasureEstimates.filter(isRanged))
       await this.opts.measureEstimates.set(each, stamp);
+    // Proof: skipped, `copies a duplicated branch's budgets and takes them with
+    // the copy on undo` (budget-command.test.ts) read none on the copy;
+    // watched 2026-10-23.
+    for (const each of copiedBudgets) await this.opts.budgets.set(each, stamp);
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
     // than the rows that were written.
@@ -4543,6 +4678,7 @@ export class WorkItemService {
       removedProgress: [],
       removedMeasures: [],
       ...measureEstimateReplay(copiedMeasureEstimates, []),
+      ...budgetReplay(copiedBudgets),
     };
     const deleteCopy: CompensatingCommand = {
       do: 'delete_subtree',
@@ -4675,6 +4811,11 @@ export class WorkItemService {
       workItem.projectId,
     );
     // Read before anything is deleted, for the same cascade:
+    // `work_item_budget.work_item_id` cascades, and an undo must put the
+    // branch back with its budgets (design D42). Never handed up: the parent
+    // keeps its own.
+    const storedBudgets = await this.opts.budgets.listByProject(workItem.projectId);
+    // Read before anything is deleted, for the same cascade:
     // `step_node_attempt.work_item_id` cascades, and an undo must put the
     // branch back with the history of every attempt at it.
     const storedAttempts = await this.opts.attempts.listByProject(workItem.projectId);
@@ -4737,6 +4878,23 @@ export class WorkItemService {
       survivor !== null &&
       (children.length === 0 || strategy === 'cascade') &&
       rows.filter((row) => row.parentId === survivor).length === 1;
+    // A promoting delete adds the branch's money figures up onto the parent,
+    // which cannot be done across two rate cards (design D44): refused before
+    // any write, naming both.
+    if (promotes) {
+      const mixed = mixedRateCardsOf(
+        rows,
+        pricedFiguresOf(storedMeasures, storedMeasureEstimates),
+        moneyKeysOf(await this.opts.measures.definitionsFor(workItem.projectId)),
+      )
+        .get(id)
+        ?.values()
+        .next().value;
+      // Proof: with this refusal skipped, `refuses a last-child delete whose
+      // hand-up would add two rate cards, naming both` (budget-command.test.ts)
+      // handed the mixed sum up; watched 2026-10-23.
+      if (mixed !== undefined) return { ok: false, reason: 'mixed_rate_cards', digests: mixed };
+    }
     const claimedRows = promotes
       ? [
           ...new Set(
@@ -4916,12 +5074,20 @@ export class WorkItemService {
             const latest = measuredInside
               .filter((each) => each.stepId === stepId && each.metric === metric)
               .reduce((newest, each) => Math.max(newest, each.recordedAt), 0);
+            // One basis in the branch, or none (the mix was refused above).
+            // Proof: with the basis left off, `hands a branch's priced figures
+            // up under their one rate card` (budget-command.test.ts) read the
+            // parent's fact unpriced; watched 2026-10-23.
+            const basis = measuredInside.find(
+              (each) => each.stepId === stepId && each.metric === metric,
+            )?.basis;
             measuredHandedUp.push({
               workItemId: parentId,
               stepId,
               metric,
               value,
               recordedAt: latest,
+              ...(basis === undefined ? {} : { basis }),
             });
           }
         }
@@ -4934,6 +5100,12 @@ export class WorkItemService {
             DEFAULT_PERT_WEIGHTS,
             'real',
           ).get(id) ?? []) {
+            // Proof: with the basis left off, `hands a branch's priced figures
+            // up under their one rate card` (budget-command.test.ts) read
+            // the parent's trio unpriced; watched 2026-10-23.
+            const basis = storedMeasureEstimates.find(
+              (each) => inside.has(each.workItemId) && each.stepId === stepId && each.key === key,
+            )?.basis;
             estimatedHandedUp.push({
               workItemId: parentId,
               stepId,
@@ -4942,6 +5114,7 @@ export class WorkItemService {
               realistic: figure.realistic,
               pessimistic: figure.pessimistic,
               singlePoint: figure.singlePoint,
+              ...(basis === undefined ? {} : { basis }),
             });
           }
         }
@@ -5172,6 +5345,11 @@ export class WorkItemService {
                       storedMeasureEstimates.filter((each) => inside.has(each.workItemId)),
                       estimatedHandedUp,
                     ),
+                    // Every budget in the branch, put back with its rows; absent
+                    // when there are none.
+                    // Proof: with these left out, `puts a deleted branch's budgets
+                    // back on undo` (budget-command.test.ts) read none; watched 2026-10-23.
+                    ...budgetReplay(storedBudgets.filter((each) => inside.has(each.workItemId))),
                   },
                   claimsTaken,
                 ),
@@ -5828,21 +6006,25 @@ export class WorkItemService {
      */
     requested: string,
     value: number,
+    /** The rate card a money fact was priced with (design D43); absent elsewhere. */
+    rateCardDigest?: string,
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
+    const definitions = await this.opts.measures.definitionsFor(workItem.projectId);
     // Proof: with this refusal skipped, `refuses a fact in a measure the
     // organization does not define, in a derived measure or in the wrong
     // scale` (measure-fact-command.test.ts) reached the store and threw
     // (5 pass, 1 fail); watched 2026-10-23.
-    const decided = decideMeasureFact(
-      await this.opts.measures.definitionsFor(workItem.projectId),
-      requested,
-      value,
-    );
+    const decided = decideMeasureFact(definitions, requested, value);
     if (!decided.ok) return decided;
     const { metric } = decided;
+    // Proof: with this refusal skipped, `requires a rate card on a cost fact
+    // and refuses one on tokens` (budget-command.test.ts) stored an
+    // unpriced cost; watched 2026-10-23.
+    const priced = rateCardOf(definitions, metric, rateCardDigest, true);
+    if (!priced.ok) return priced;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
@@ -5855,8 +6037,9 @@ export class WorkItemService {
         : null;
     const stamp = this.clock.stampFor(actorId);
     // `recordedAt` off the act's own stamp — {@link setActual}'s reading.
+    const basis = priced.basis === null ? {} : { basis: priced.basis };
     const written = await this.opts.measures.set(
-      { workItemId: id, stepId, metric, value, recordedAt: stamp.at },
+      { workItemId: id, stepId, metric, value, recordedAt: stamp.at, ...basis },
       stamp,
     );
     if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
@@ -5867,7 +6050,7 @@ export class WorkItemService {
       'measure',
       `record ${measureLabelOf(metric)} on ${quoteName(workItem.name)}`,
       {
-        forward: { do: 'set_measure', workItemId: id, stepId, metric, value },
+        forward: { do: 'set_measure', workItemId: id, stepId, metric, value, ...basis },
         // The figure that was there **in this metric**, or its absence. The
         // inverse of a first recording is `clear_measure` and never
         // `set_measure 0`, for the reason `set_actual` gives: zero is somebody
@@ -5881,7 +6064,7 @@ export class WorkItemService {
             ? { do: 'set_measure_estimate', ...replacedTrio }
             : before === null
               ? { do: 'clear_measure', workItemId: id, stepId, metric }
-              : { do: 'set_measure', workItemId: id, stepId, metric, value: before },
+              : { do: 'set_measure', ...measureReplay(before) },
         touched: [id],
         before: context.value.rows,
       },
@@ -5932,7 +6115,7 @@ export class WorkItemService {
         `clear the recorded ${measureLabelOf(metric)} on ${quoteName(workItem.name)}`,
         {
           forward: { do: 'clear_measure', workItemId: id, stepId, metric },
-          inverse: { do: 'set_measure', workItemId: id, stepId, metric, value: before },
+          inverse: { do: 'set_measure', ...measureReplay(before) },
           touched: [id],
           before: context.value.rows,
         },
@@ -5963,6 +6146,8 @@ export class WorkItemService {
     /** `string` for {@link WorkItemService.setMeasure}'s reason: definitions are data. */
     requested: string,
     trio: MeasureTrio,
+    /** The rate card a money trio was priced with (design D43); absent elsewhere. */
+    rateCardDigest?: string,
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -5978,6 +6163,11 @@ export class WorkItemService {
     );
     if (!decided.ok) return decided;
     const { key } = decided.definition;
+    // Proof: with this refusal skipped, `requires a rate card on a cost trio
+    // and refuses one on tokens` (budget-command.test.ts) stored an
+    // unpriced cost trio; watched 2026-10-23.
+    const priced = decideRateCard(decided.definition, rateCardDigest, true);
+    if (!priced.ok) return priced;
     // Proof: with this refusal skipped, `refuses a trio on a parent as
     // rolled_up` (measure-estimate-command.test.ts) stored one on `P`;
     // watched 2026-10-23.
@@ -5994,6 +6184,7 @@ export class WorkItemService {
       realistic: trio.realistic,
       pessimistic: trio.pessimistic,
       singlePoint: false,
+      ...(priced.basis === null ? {} : { basis: priced.basis }),
     };
     const written = await this.opts.measureEstimates.set(estimate, stamp);
     if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
@@ -6064,6 +6255,110 @@ export class WorkItemService {
         },
       );
     }
+    return { ok: true, value: null };
+  }
+
+  /**
+   * States one work item's budget in one measure (`wbs-measure-budgets` D5,
+   * task 3.1): a cap in the measure's unit bounding the whole subtree on every
+   * step, strict or advisory, with an optional hold per running attempt of
+   * unknown usage (design D40). Parents and leaves alike; a stated budget
+   * replaces the derived one the row read would otherwise show (design D38).
+   *
+   * Decided by {@link decideBudget}: `unknown_measure` (404),
+   * `scheduling_measure_budget` (409), `invalid_budget` (422) and
+   * `scale_mismatch` (409). Undoable, one journal entry; **nothing here
+   * reaches the schedule** (D2).
+   */
+  async setBudget(
+    id: string,
+    actorId: string,
+    requested: string,
+    figures: { cap: number; policy: BudgetPolicy; holdPerAttempt: number | null },
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.value;
+    // Proof: with this refusal skipped, `refuses an unknown, scheduling,
+    // negative or fractional budget and stores nothing`
+    // (budget-command.test.ts) reached the store; watched 2026-10-23.
+    const decided = decideBudget(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      figures,
+    );
+    if (!decided.ok) return decided;
+    const { key } = decided.definition;
+    const before = await this.storedBudget(workItem.projectId, id, key);
+    const stamp = this.clock.stampFor(actorId);
+    const budget: StoredBudget = {
+      workItemId: id,
+      key,
+      cap: figures.cap,
+      policy: figures.policy,
+      holdPerAttempt: figures.holdPerAttempt,
+    };
+    await this.opts.budgets.set(budget, stamp);
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'budget',
+      `budget ${key} on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_budget', ...budget },
+        // Proof: with the stored budget's inverse replaced by a clear, `sets,
+        // replaces and clears a budget, undoably` (budget-command.test.ts)
+        // read no budget after undoing the replacement; watched 2026-10-23.
+        inverse:
+          before === null
+            ? { do: 'clear_budget', workItemId: id, key }
+            : { do: 'set_budget', ...before },
+        touched: [id],
+        before: context.value.rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
+   * Takes one work item's stated budget in one measure away, leaving the
+   * derived one, if any, to show again. Idempotent: an absent budget writes
+   * and journals nothing. Refused as on the write for an unknown key or the
+   * scheduling measure.
+   */
+  async clearBudget(
+    id: string,
+    actorId: string,
+    requested: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.value;
+    const decided = decideBudget(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      null,
+    );
+    if (!decided.ok) return decided;
+    const { key } = decided.definition;
+    const before = await this.storedBudget(workItem.projectId, id, key);
+    if (before === null) return { ok: true, value: null };
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.budgets.remove(id, key, stamp);
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'clear_budget',
+      `clear the ${key} budget on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'clear_budget', workItemId: id, key },
+        inverse: { do: 'set_budget', ...before },
+        touched: [id],
+        before: context.value.rows,
+      },
+    );
     return { ok: true, value: null };
   }
 
@@ -7644,6 +7939,11 @@ export class WorkItemService {
             // Now, not the instant the row carried — `set_actual`'s reading of
             // `recordedAt`, and the same one `compensating.ts` states.
             recordedAt: stamp.at,
+            // The basis the figure was priced with goes back with it (D43).
+            // Proof: with this spread removed, `undoes a cost fact back to the
+            // figure and rate card it replaced` (budget-command.test.ts)
+            // read the restored fact unpriced; watched 2026-10-23.
+            ...(command.basis === undefined ? {} : { basis: command.basis }),
           },
           stamp,
         );
@@ -7682,6 +7982,20 @@ export class WorkItemService {
           command.key,
           stamp,
         );
+        return { ok: true, detail: null };
+      case 'set_budget': {
+        // A measure deleted since (D24 for budgets): the store would throw.
+        // Proof: with this check skipped, `refuses an undo that would put a
+        // budget back in a measure deleted since` (budget-command.test.ts)
+        // threw from the store instead of refusing; watched 2026-10-23.
+        const refused = await this.budgetsRefusal(projectId, [command]);
+        if (refused !== null) return refused;
+        const { do: _kind, ...budget } = command;
+        await this.opts.budgets.set(budget, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'clear_budget':
+        await this.opts.budgets.remove(command.workItemId, command.key, stamp);
         return { ok: true, detail: null };
       case 'set_progress': {
         const rows = await this.opts.workItems.listByProject(projectId);
@@ -8341,6 +8655,22 @@ export class WorkItemService {
   }
 
   /**
+   * Why these budgets cannot be written back: one is in a measure the
+   * project's organization no longer defines (design D37). Null when nothing
+   * stands in the way, and without a read when there are none.
+   */
+  private async budgetsRefusal(
+    projectId: string,
+    budgets: readonly BudgetKey[],
+  ): Promise<ApplyOutcome | null> {
+    if (budgets.length === 0) return null;
+    const definitions = await this.opts.measures.definitionsFor(projectId);
+    return budgets.some(({ key }) => !decideBudget(definitions, key, null).ok)
+      ? { ok: false, detail: 'a measure it budgeted is no longer defined.' }
+      : null;
+  }
+
+  /**
    * Why these trios cannot be written back: one is in a measure the project's
    * organization no longer defines (design D32, D24 for estimates). Null when
    * nothing stands in the way, and without a read when there are none.
@@ -8474,6 +8804,11 @@ export class WorkItemService {
       command.measureEstimates ?? [],
     );
     if (estimatesRefused !== null) return estimatesRefused;
+    // Proof: with this refusal removed, `refuses an undo of a delete whose
+    // budget is in a measure deleted since` (budget-command.test.ts) threw from
+    // the store instead of refusing; watched 2026-10-23.
+    const budgetsRefused = await this.budgetsRefusal(projectId, command.budgets ?? []);
+    if (budgetsRefused !== null) return budgetsRefused;
     const demands = command.demands ?? [];
     if (demands.length > 0) {
       const held = new Set((await this.opts.directory.listResources()).map(({ id }) => id));
@@ -8569,6 +8904,10 @@ export class WorkItemService {
     // read the undo's instant; watched 2026-10-23.
     for (const each of (command.measureEstimates ?? []).filter(isRanged))
       await this.opts.measureEstimates.set(each, stamp);
+    // The budgets after the rows they hang off (design D42).
+    // Proof: skipped, `puts a deleted branch's budgets back on undo`
+    // (budget-command.test.ts) read none on the restored leaf; watched 2026-10-23.
+    for (const each of command.budgets ?? []) await this.opts.budgets.set(each, stamp);
     // The attempts after the rows they hang off: off the surviving parent
     // first (the redo of a first-child create), then onto the restored rows,
     // verbatim with their numbers.
@@ -8882,6 +9221,19 @@ export class WorkItemService {
     );
   }
 
+  /** One work item's stated budget in one key, or null when it states none. */
+  private async storedBudget(
+    projectId: string,
+    workItemId: string,
+    key: string,
+  ): Promise<StoredBudget | null> {
+    return (
+      (await this.opts.budgets.listByProject(projectId)).find(
+        (each) => each.workItemId === workItemId && each.key === key,
+      ) ?? null
+    );
+  }
+
   /**
    * One work item's recorded figure in one metric for one step, or null when it
    * holds none in that metric.
@@ -8896,11 +9248,13 @@ export class WorkItemService {
     workItemId: string,
     stepId: string,
     metric: string,
-  ): Promise<number | null> {
-    const found = (await this.opts.measures.listByProject(projectId)).find(
-      (each) => each.workItemId === workItemId && each.stepId === stepId && each.metric === metric,
+  ): Promise<StoredMeasure | null> {
+    return (
+      (await this.opts.measures.listByProject(projectId)).find(
+        (each) =>
+          each.workItemId === workItemId && each.stepId === stepId && each.metric === metric,
+      ) ?? null
     );
-    return found?.value ?? null;
   }
 
   /**
@@ -9143,6 +9497,77 @@ function projectSharedTree(
  */
 function isRanged(estimate: StoredMeasureEstimate): boolean {
   return !estimate.singlePoint;
+}
+
+/**
+ * The basis a figure in `metric` (a fact's metric or a definition key) is
+ * written under ({@link decideRateCard}) against the project's definitions:
+ * none for `token_estimate`, which names no definition, and a digest sent
+ * with one is refused there as on any measure that is not money. Called after
+ * the measure itself was decided, so the definition is held.
+ *
+ * @throws when `metric` names no definition: decided first by the caller.
+ */
+function rateCardOf(
+  definitions: readonly MeasureDefinition[] | null,
+  metric: string,
+  rateCardDigest: string | undefined,
+  writing: boolean,
+):
+  | { ok: true; basis: MoneyBasis | null }
+  | { ok: false; reason: 'rate_card_required' | 'rate_card_forbidden' } {
+  const key = definitionKeyOf(metric);
+  if (key === null)
+    return rateCardDigest === undefined
+      ? { ok: true, basis: null }
+      : { ok: false, reason: 'rate_card_forbidden' };
+  const definition = definitionsOrUnowned(definitions).find((each) => each.key === key);
+  if (definition === undefined) throw new Error(`measure ${key} was decided but is not defined`);
+  return decideRateCard(definition, rateCardDigest, writing);
+}
+
+/** A stored fact as a `set_measure` replay carries it: its basis only when it has one. */
+function measureReplay(measure: StoredMeasure): {
+  workItemId: string;
+  stepId: string;
+  metric: string;
+  value: number;
+  basis?: MoneyBasis;
+} {
+  const { workItemId, stepId, metric, value, basis } = measure;
+  return { workItemId, stepId, metric, value, ...(basis === undefined ? {} : { basis }) };
+}
+
+/** A restore's budgets: absent when there are none, so older journal shapes stay. */
+function budgetReplay(budgets: readonly StoredBudget[]): { budgets?: StoredBudget[] } {
+  return budgets.length === 0 ? {} : { budgets: budgets.map((each) => ({ ...each })) };
+}
+
+/** Every money-capable figure as {@link mixedRateCardsOf} reads it: key and basis per row. */
+function pricedFiguresOf(
+  facts: readonly StoredMeasure[],
+  estimates: readonly StoredMeasureEstimate[],
+): { workItemId: string; key: string; basis?: MoneyBasis }[] {
+  return [
+    ...facts.flatMap(({ workItemId, metric, basis }) => {
+      const key = definitionKeyOf(metric);
+      return key === null ? [] : [{ workItemId, key, ...(basis === undefined ? {} : { basis }) }];
+    }),
+    ...estimates.map(({ workItemId, key, basis }) => ({
+      workItemId,
+      key,
+      ...(basis === undefined ? {} : { basis }),
+    })),
+  ];
+}
+
+/** The keys of the money definitions a project's figures are in. */
+function moneyKeysOf(definitions: readonly MeasureDefinition[] | null): Set<string> {
+  return new Set(
+    definitionsOrUnowned(definitions)
+      .filter((each) => each.kind === 'money')
+      .map(({ key }) => key),
+  );
 }
 
 /**

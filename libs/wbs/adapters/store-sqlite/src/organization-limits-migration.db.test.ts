@@ -19,6 +19,7 @@ const MEASURE = '20261023100000_add_measure';
 const MEASURE_FACTS = '20261023110000_key_step_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
 const MEASURE_ESTIMATES = '20261023120000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023130000_add_work_item_budget';
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 
 let dir: string;
@@ -111,13 +112,15 @@ describe(MIGRATION, () => {
           name !== LIMITS_AUDIT &&
           name !== MEASURE &&
           name !== MEASURE_FACTS &&
-          name !== MEASURE_ESTIMATES,
+          name !== MEASURE_ESTIMATES &&
+          name !== WORK_ITEM_BUDGETS,
       ),
     );
   });
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,
       MEASURE,

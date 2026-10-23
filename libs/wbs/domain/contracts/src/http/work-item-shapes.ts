@@ -220,6 +220,14 @@ const batchRefusals = [
         // or hours …` (be-01 work-item.controller.test.ts) answered 500; watched 2026-10-23.
         type({ ...context, error: "'scheduling_measure_estimate'" }),
         type({ ...context, error: "'three_point_forbidden'" }),
+        // `setBudget`/`clearBudget` in `time`; a rate card missing on money or
+        // sent on another measure (`wbs-measure-budgets` D35, D43).
+        // Proof: with these three arms removed, `answers 409 for a budget in
+        // time and a cost fact without a rate card, 422 for a negative cap`
+        // (be-01 work-item.controller.test.ts) answered 500; watched 2026-10-23.
+        type({ ...context, error: "'scheduling_measure_budget'" }),
+        type({ ...context, error: "'rate_card_required'" }),
+        type({ ...context, error: "'rate_card_forbidden'" }),
         type({ ...context, error: "'ancestor'" }),
         // A typed dependency whose endpoints resolve a step node onto itself.
         type({ ...context, error: "'self_node'" }),
@@ -318,6 +326,17 @@ const batchRefusals = [
     ),
   },
   { status: 409, schema: responseSchema(type({ ...context, error: "'taken'", name: 'string' })) },
+  // A sum across two rate cards (`wbs-measure-budgets` D44); null is unpriced.
+  {
+    status: 409,
+    schema: responseSchema(
+      type({
+        ...context,
+        error: "'mixed_rate_cards'",
+        digests: type(['string | null', 'string | null']),
+      }),
+    ),
+  },
   {
     status: 409,
     schema: responseSchema(
@@ -352,6 +371,7 @@ const batchRefusals = [
         type({ ...context, error: "'minutes_not_integer'" }),
         type({ ...context, error: "'minutes_above_max'" }),
         type({ ...context, error: "'invalid_estimate'" }),
+        type({ ...context, error: "'invalid_budget'" }),
         type({ ...context, error: "'calendar_range'" }),
         type({ ...context, error: "'unsupported_relationship_type'" }),
         type({ ...context, error: "'attempt_in_future'" }),

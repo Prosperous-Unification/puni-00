@@ -206,10 +206,16 @@ export const commandDefinitions = {
       'Set a work item status; on a parent it acts on the leaves beneath. done marks every step done (on = the day it finished, YYYY-MM-DD, absent means today; factStart fills an empty fact start). unknown takes every statement, readiness and hold back and clears both facts of a row that read done. ready/draft set readiness (refused readiness_after_progress once a step has spoken). on_hold/blocked set a hold (refused cannot_hold_done on a done row); on_hold takes the work out of the schedule. in_progress starts the first silent step (on a parent, one leaf), or reopens a done row. blocked_by_proxy is derived and cannot be set.',
   }),
   setMeasure: defineCommand('setMeasure', {
-    schema: type({ kind: "'setMeasure'", ...step, metric: 'string', value: 'number' }),
+    schema: type({
+      kind: "'setMeasure'",
+      ...step,
+      metric: 'string',
+      value: 'number',
+      'rateCardDigest?': 'string',
+    }),
     scope: 'project',
     description:
-      'Record a fact in one measure for one step of a work item. metric is a measure definition key of the organization (tokens, hours, cost or a defined one; token_actual and hours_actual still name tokens and hours, token_estimate the legacy token estimate). Refused unknown_measure, derived_measure (agent_minutes is read from attempts), scheduling_measure_fact (the fact of time is the actual days, set with setActual) or scale_mismatch (a fraction on an integer measure). Accepts stepNodeId in place of the work-item and step pair.',
+      'Record a fact in one measure for one step of a work item. metric is a measure definition key of the organization (tokens, hours, cost or a defined one; token_actual and hours_actual still name tokens and hours, token_estimate the legacy token estimate). rateCardDigest names the rate card a money fact (cost) was priced with: required there (rate_card_required), refused on any other measure (rate_card_forbidden). Refused unknown_measure, derived_measure (agent_minutes is read from attempts), scheduling_measure_fact (the fact of time is the actual days, set with setActual) or scale_mismatch (a fraction on an integer measure). Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearMeasure: defineCommand('clearMeasure', {
     schema: type({ kind: "'clearMeasure'", ...step, metric: 'string' }),
@@ -223,16 +229,36 @@ export const commandDefinitions = {
       ...step,
       measure: 'string',
       estimate: { optimistic: 'number', realistic: 'number', pessimistic: 'number' },
+      'rateCardDigest?': 'string',
     }),
     scope: 'project',
     description:
-      'Set the three-point estimate in one measure other than time (tokens, cost or a defined one) on a leaf work item, in that measure’s unit, ordered optimistic <= realistic <= pessimistic. measure is the definition key. Refused unknown_measure, scheduling_measure_estimate (the time estimate is setEstimate), three_point_forbidden (hours, agent_minutes) or scale_mismatch (a fraction on an integer measure). Accepts stepNodeId in place of the work-item and step pair.',
+      'Set the three-point estimate in one measure other than time (tokens, cost or a defined one) on a leaf work item, in that measure’s unit, ordered optimistic <= realistic <= pessimistic. measure is the definition key. rateCardDigest as for setMeasure: required on a money measure, refused elsewhere. Refused unknown_measure, scheduling_measure_estimate (the time estimate is setEstimate), three_point_forbidden (hours, agent_minutes) or scale_mismatch (a fraction on an integer measure). Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearMeasureEstimate: defineCommand('clearMeasureEstimate', {
     schema: type({ kind: "'clearMeasureEstimate'", ...step, measure: 'string' }),
     scope: 'project',
     description:
       'Remove one step’s three-point estimate in one measure (measure as for setMeasureEstimate). Accepts stepNodeId in place of the work-item and step pair.',
+  }),
+  setBudget: defineCommand('setBudget', {
+    schema: type({
+      kind: "'setBudget'",
+      ...target,
+      measure: 'string',
+      cap: 'number',
+      policy: "'strict' | 'advisory'",
+      'holdPerAttempt?': 'number | null',
+    }),
+    scope: 'project',
+    description:
+      'State the budget of a work item (leaf or parent) in one measure: cap in that measure’s unit bounds the summed facts of the whole subtree on every step. policy strict asks the coordinator to refuse once nothing remains; advisory only reports. holdPerAttempt, when given, is held against the remainder for every running attempt whose usage is not yet recorded. measure is the definition key. A stated budget replaces the one derived from the pessimistic estimate. Refused unknown_measure, scheduling_measure_budget (time), invalid_budget (a negative cap or hold) or scale_mismatch (a fraction on an integer measure).',
+  }),
+  clearBudget: defineCommand('clearBudget', {
+    schema: type({ kind: "'clearBudget'", ...target, measure: 'string' }),
+    scope: 'project',
+    description:
+      'Remove the stated budget of a work item in one measure (measure as for setBudget); the derived budget, if any, shows again.',
   }),
   setAssignee: defineCommand('setAssignee', {
     schema: type({

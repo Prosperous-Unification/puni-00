@@ -179,6 +179,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261023130000_add_work_item_budget',
       '20261023120000_add_measure_estimate',
       '20261023110000_key_step_measure',
       '20261023100000_add_measure',
@@ -314,6 +315,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261023130000_add_work_item_budget',
       '20261023120000_add_measure_estimate',
       '20261023110000_key_step_measure',
       '20261023100000_add_measure',

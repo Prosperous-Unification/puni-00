@@ -341,7 +341,19 @@ function answerBatch(
     case 'scale_mismatch':
     case 'scheduling_measure_estimate':
     case 'three_point_forbidden':
+    case 'scheduling_measure_budget':
+    case 'rate_card_required':
+    case 'rate_card_forbidden':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    // Two rate cards a sum would add (`wbs-measure-budgets` D44), both named.
+    case 'mixed_rate_cards':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'invalid_budget':
+      return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'self_node':

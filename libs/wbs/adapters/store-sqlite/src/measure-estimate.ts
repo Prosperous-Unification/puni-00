@@ -13,7 +13,7 @@ import { rowsChanged } from './changes';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
 import { measureEstimate, projectOrganization, step, stepMeasure, workItem } from './schema';
-import { measureIdFor } from './step-measure';
+import { basisColumns, basisOf, measureIdFor } from './step-measure';
 import { writingStep } from './step-reference';
 
 const LEGACY_TOKEN_ESTIMATE = 'token_estimate';
@@ -50,6 +50,8 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
           realistic: measureEstimate.realistic,
           pessimistic: measureEstimate.pessimistic,
           singlePoint: measureEstimate.singlePoint,
+          currency: measureEstimate.currency,
+          rateCardDigest: measureEstimate.rateCardDigest,
         })
         .from(measureEstimate)
         // Inner joins: both columns are foreign keys.
@@ -63,6 +65,10 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
           measureEstimate.measureKey,
         )
         .all()
+        .map(({ currency, rateCardDigest, ...row }) => ({
+          ...row,
+          ...basisOf(currency, rateCardDigest),
+        }))
     );
   }
 
@@ -117,6 +123,7 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
                 realistic,
                 pessimistic,
                 singlePoint: false,
+                ...basisColumns(estimate.basis),
                 ...auditOnCreate(stamp),
               })
               .onConflictDoUpdate({
@@ -130,6 +137,10 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
                   realistic,
                   pessimistic,
                   singlePoint: false,
+                  // Proof: with the basis left out of this update, the SQLite
+                  // certification's `measureEstimates.set:basis` read the first
+                  // card after a rewrite under another (watched 2026-10-23).
+                  ...basisColumns(estimate.basis),
                   ...auditOnUpdate(stamp),
                 },
               })

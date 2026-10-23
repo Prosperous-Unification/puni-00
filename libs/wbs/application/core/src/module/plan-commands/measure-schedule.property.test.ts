@@ -17,6 +17,14 @@ const ORG = 'org-a';
 /** The measures other than time the writes pick from; `hours` takes facts only. */
 const ESTIMATED = ['tokens', 'cost', 'kwh'] as const;
 const FACTS = ['tokens', 'cost', 'kwh', 'hours', 'token_estimate'] as const;
+/** The measures budgets pick from (`wbs-measure-budgets` task 3.1); time refuses one. */
+const BUDGETED = ['tokens', 'cost', 'kwh', 'hours', 'agent_minutes', 'time'] as const;
+/**
+ * The one rate card every money write names: a second card would let a
+ * mixed-card refusal decide whether a structural write lands in one twin and
+ * not the other (design D44), which is a refusal, not a schedule change.
+ */
+const CARD = 'card-a';
 
 /**
  * The schedule a plan read draws, and nothing else: every row's scheduled
@@ -91,6 +99,19 @@ const measureWrite = fc.oneof(
     row: fc.nat(9),
     step: fc.nat(1),
     metric: fc.constantFrom(...FACTS),
+  }),
+  fc.record({
+    kind: fc.constant('setBudget' as const),
+    row: fc.nat(9),
+    measure: fc.constantFrom(...BUDGETED),
+    cap: fc.nat({ max: 5000 }),
+    policy: fc.constantFrom('strict' as const, 'advisory' as const),
+    holdPerAttempt: fc.option(fc.nat({ max: 500 })),
+  }),
+  fc.record({
+    kind: fc.constant('clearBudget' as const),
+    row: fc.nat(9),
+    measure: fc.constantFrom(...BUDGETED),
   }),
 );
 
@@ -213,6 +234,7 @@ async function seededPlan(shape: PlanShape) {
           stepId: stepAt(each.step),
           measure: each.measure,
           estimate: each.estimate,
+          ...(each.measure === 'cost' ? { rateCardDigest: CARD } : {}),
         };
       case 'clearMeasureEstimate':
         return { kind: each.kind, workItemId, stepId: stepAt(each.step), measure: each.measure };
@@ -223,9 +245,21 @@ async function seededPlan(shape: PlanShape) {
           stepId: stepAt(each.step),
           metric: each.metric,
           value: each.value,
+          ...(each.metric === 'cost' ? { rateCardDigest: CARD } : {}),
         };
       case 'clearMeasure':
         return { kind: each.kind, workItemId, stepId: stepAt(each.step), metric: each.metric };
+      case 'setBudget':
+        return {
+          kind: each.kind,
+          workItemId,
+          measure: each.measure,
+          cap: each.cap,
+          policy: each.policy,
+          holdPerAttempt: each.holdPerAttempt,
+        };
+      case 'clearBudget':
+        return { kind: each.kind, workItemId, measure: each.measure };
     }
   };
   return { source, run, tree, commandOf };
@@ -239,12 +273,18 @@ describe('measures other than time never move the schedule', () => {
   // `canonicalScheduleParts` in `treeIsolated`, this property failed naming its
   // seed and the shrunk counterexample; watched 2026-10-23, before and after
   // the structural writes and the twin were added.
+  // Budgets joined the writes with `wbs-measure-budgets` task 3.1 (spec "Schedule
+  // digest under random measure writes": estimates, facts and budgets).
+  // Proof: with each stated budget's cap added to the first time estimate's
+  // pessimistic days in `treeIsolated`, this property failed naming its seed;
+  // watched 2026-10-23.
   it('keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans', async () => {
     // Counted across runs so a generator that only ever produced refused
     // writes, which would prove nothing, fails here instead.
     let applied = 0;
     let estimated = 0;
     let structural = 0;
+    let budgeted = 0;
     await fc.assert(
       fc.asyncProperty(
         plan,
@@ -270,6 +310,7 @@ describe('measures other than time never move the schedule', () => {
               } else if (outcome.ok) {
                 applied += 1;
                 if (each.kind === 'setMeasureEstimate') estimated += 1;
+                if (each.kind === 'setBudget') budgeted += 1;
               }
               expect(scheduleDigest(await measured.tree())).toBe(scheduleDigest(await twin.tree()));
             }
@@ -284,5 +325,6 @@ describe('measures other than time never move the schedule', () => {
     expect(applied).toBeGreaterThan(200);
     expect(estimated).toBeGreaterThan(50);
     expect(structural).toBeGreaterThan(50);
+    expect(budgeted).toBeGreaterThan(50);
   }, 600_000);
 });

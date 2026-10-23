@@ -73,6 +73,14 @@ const parserArms = {
   }),
   invalid_status: type({ error: "'invalid_status'", at: 'number', kind: commandKindsType }),
   invalid_estimate: type({ error: "'invalid_estimate'", at: 'number', kind: commandKindsType }),
+  // Proof: with this arm renamed away, `answers 409 for a budget in time and a
+  // rate card on tokens, 400 for a negative cap …` (be-01) answered 500; watched 2026-10-23.
+  invalid_budget: type({ error: "'invalid_budget'", at: 'number', kind: commandKindsType }),
+  rateCardDigest_must_be_1_to_128_characters: type({
+    error: "'rateCardDigest_must_be_1_to_128_characters'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   cannot_send_both_teamIds_and_serviceTeamId: type({
     error: "'cannot_send_both_teamIds_and_serviceTeamId'",
     at: 'number',

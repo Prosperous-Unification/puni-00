@@ -1,4 +1,4 @@
-import { type EstimateUnit, isEstimateUnit } from '@wbs/domain';
+import { type EstimateUnit, isBudgetPolicy, isEstimateUnit } from '@wbs/domain';
 
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { StoredAttempt } from '../ports/step-node-attempt-store';
@@ -87,6 +87,8 @@ const COMMANDS = [
   'clear_measure',
   'set_measure_estimate',
   'clear_measure_estimate',
+  'set_budget',
+  'clear_budget',
   'set_progress',
   'clear_progress',
   ...STEP_BLOCKAGE_REPLAY_KINDS,
@@ -166,6 +168,28 @@ export function readCommand(value: unknown): CompensatingCommand {
       !(units === null || (typeof units === 'number' && Number.isSafeInteger(units) && units >= 1))
     )
       throw new Error('a journal demand replay is malformed');
+  }
+  if (named === 'set_measure' && 'basis' in value) {
+    // Proof: with this check removed, `refuses a malformed budget or basis
+    // replay` (compensating.test.ts) accepted a basis without a digest;
+    // watched 2026-10-23.
+    if (!isMoneyBasis(value.basis)) throw new Error('a journal measure basis is malformed');
+  }
+  if (named === 'set_budget') {
+    // Proof: with this check removed, `refuses a malformed budget or basis
+    // replay` (compensating.test.ts) accepted a negative cap; watched 2026-10-23.
+    if (!isBudgetRecord(value)) throw new Error('a journal budget replay is malformed');
+  }
+  if (named === 'clear_budget') {
+    if (!isBudgetKey(value)) throw new Error('a journal budget clear is malformed');
+  }
+  if (named === 'restore_subtree' && 'budgets' in value) {
+    const listed: unknown = value.budgets;
+    // Proof: with this check removed, `refuses a malformed budget or basis
+    // replay` (compensating.test.ts) accepted a restore holding a string
+    // where a budget list belongs; watched 2026-10-23.
+    if (!Array.isArray(listed) || !listed.every(isBudgetRecord))
+      throw new Error('a journal subtree replay holds malformed budgets');
   }
   if (named === 'set_measure_estimate') {
     // Proof: with this call removed, `refuses a malformed measure estimate
@@ -494,6 +518,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'clear_measure':
     case 'set_measure_estimate':
     case 'clear_measure_estimate':
+    case 'set_budget':
+    case 'clear_budget':
     case 'set_progress':
     case 'clear_progress':
     case 'replace_blockage':
@@ -692,6 +718,10 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
       rows(command.workItemId);
       found.resources.push(command.resourceId);
       return;
+    case 'set_budget':
+    case 'clear_budget':
+      rows(command.workItemId);
+      return;
     case 'add_claims':
     case 'remove_claims':
       for (const each of command.claims) {
@@ -785,6 +815,7 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         rows(demand.workItemId);
         found.resources.push(demand.resourceId);
       }
+      for (const budget of command.budgets ?? []) rows(budget.workItemId);
       for (const edge of [...command.internalDependencies, ...command.externalDependencies]) {
         rows(edge.predecessorId, edge.successorId);
         found.projects.push(edge.projectId);
@@ -828,6 +859,8 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'remove_attempt':
       return { workItemId: command.workItemId, stepId: command.stepId };
     case 'set_demand':
+    case 'set_budget':
+    case 'clear_budget':
       return { workItemId: command.workItemId, stepId: null };
     case 'add_claims':
     case 'remove_claims': {
@@ -930,6 +963,7 @@ function isMeasureEstimateRecord(value: unknown): boolean {
   );
   const singlePoint: unknown = Reflect.get(value, 'singlePoint');
   if (typeof singlePoint !== 'boolean') return false;
+  if ('basis' in value && !isMoneyBasis(Reflect.get(value, 'basis'))) return false;
   const [optimistic, realistic, pessimistic] = points;
   if (
     typeof optimistic !== 'number' ||
@@ -944,6 +978,40 @@ function isMeasureEstimateRecord(value: unknown): boolean {
     (Reflect.get(value, 'key') === 'tokens' &&
       optimistic === realistic &&
       realistic === pessimistic)
+  );
+}
+
+/** Whether a journalled value is a money basis: a currency and a non-empty digest (design D43). */
+function isMoneyBasis(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const currency: unknown = Reflect.get(value, 'currency');
+  const digest: unknown = Reflect.get(value, 'rateCardDigest');
+  return typeof currency === 'string' && typeof digest === 'string' && digest.length > 0;
+}
+
+/** Whether a journalled value names one budget's work item and key. */
+function isBudgetKey(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof Reflect.get(value, 'workItemId') === 'string' &&
+    typeof Reflect.get(value, 'key') === 'string'
+  );
+}
+
+/**
+ * Whether a journalled value is a whole stated budget: its key, a finite cap
+ * and hold at or above zero, and one of the two policies (design D36).
+ */
+function isBudgetRecord(value: unknown): boolean {
+  if (!isBudgetKey(value) || typeof value !== 'object' || value === null) return false;
+  const figure = (each: unknown): boolean =>
+    typeof each === 'number' && Number.isFinite(each) && each >= 0;
+  const hold: unknown = Reflect.get(value, 'holdPerAttempt');
+  return (
+    figure(Reflect.get(value, 'cap')) &&
+    (hold === null || figure(hold)) &&
+    isBudgetPolicy(Reflect.get(value, 'policy'))
   );
 }
 
