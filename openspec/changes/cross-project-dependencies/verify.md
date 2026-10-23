@@ -6219,3 +6219,54 @@ Post-correction checks:
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-contracts:test:unit` — 606 pass, 0 fail, 2609 assertions. One existing emitted-step 409 assertion was extended with the new exact refusal arm. A preceding root-level directory-filter test command incorrectly also collected stale generated `dist/out-tsc` tests and failed; its output is not treated as source-test evidence. The configured Nx target selected only source files and passed.
 - First implementation commit `c2145d12e` passed normal lefthook formatting, staged lint, secrets and nesting checks. The configured Tool Wiki hook reported its explicit inactive/non-certified state because the external activation root is not provisioned. No hooks were bypassed.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-contracts,wbs-mcp-01` — all three typechecks and backend module typecheck passed after the OpenAPI correction. Correction files passed formatting and `git diff --check`.
+
+### 2026-10-23 bounded 10.1 SCIM review correction
+
+Exact-commit review identified `/scim/v2/*` as a separately mounted foreign
+protocol, outside the shared operation matrix. It mutates provisioning users and
+memberships, so it is protected rather than exempted. The production app now
+passes its required dependency admission callable into the SCIM adapter. A required
+request-level resource-admission callback runs inside the service after existing
+provisioning-token authentication and rate admission, before route dispatch/body
+reads. The adapter keeps SCIM409/media/error fields, with
+`detail: "client_dependency_incompatible"` and the exact `required` semantics.
+Malformed or unreadable authority reaches the existing SCIM infrastructure500
+boundary. No immutable capability, activation or gateway behavior changes.
+
+The callback type was narrowed to exported `DependencyClientRefusal`: the general
+`Refusal<C>` also includes optimizer retry variants, so it did not permit safe
+access to the exact refusal fields. This is a type-only narrowing, coordinated
+with the separate gateway packet; protocol constants and behavior are unchanged.
+
+Observed production-path negatives, restored independently:
+
+- Initial mounted real-SQLite ENABLED SCIM list returned200 instead of409.
+- Replacing the production app's SCIM callback binding with null admission made
+  the mounted ENABLED list return200 instead of409.
+- Removing the service resource-admission refusal made the same route return200
+  instead of409.
+- Moving dependency inspection before provisioning authentication made a missing
+  token with unreadable authority return500 instead of401.
+
+Fresh focused command:
+`bun test apps/wbs/be-01/src/controller/scim-authentication.controller.db.test.ts apps/wbs/be-01/src/controller/scim-body.controller.db.test.ts apps/wbs/be-01/src/controller/scim-deprovisioning.controller.db.test.ts apps/wbs/be-01/src/controller/scim-users.controller.db.test.ts apps/wbs/be-01/src/controller/scim-dependency-client.controller.db.test.ts apps/wbs/be-01/src/http/elysia/dependency-client.db.test.ts libs/wbs/domain/contracts/src/dependency-client.test.ts`
+— 35 pass, 0 fail, 563 assertions. Mounted SQLite coverage includes the foreign
+list/read/create/patch/delete matrix, disabled legacy201, exact-capable200,
+incapable409, malformed and closed authority500, and missing-token401 before
+inspection. A refused malformed POST body remains unread. Refused requests leave
+SCIM users, memberships, organization audits, projects, event log and command
+journal unchanged. Existing SCIM authentication, body bounds, provisioning,
+deprovisioning and rate-limit tests pass.
+
+Focused ESLint over all changed TypeScript files passed after fixing import order
+and narrowing the refusal type. `bunx openspec validate cross-project-dependencies
+--json` is valid; `git diff --check` passed. Strict OpenSpec, full monorepo
+tests/build and integrated host gate remain unclaimed. Parent10.1 remains open.
+
+SCIM correction final checks: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx
+run-many -t typecheck -p wbs-be-01,wbs-core,wbs-contracts` passed all three
+project typechecks and both module typechecks. Every changed/new file passed
+Prettier check. The separately mounted `GET /api/openapi.json` is now explicitly
+named as an immutable infrastructure exemption in its JSDoc/design/spec, and the
+mounted test requests it with a throwing authority callback alongside health and
+immutable capability; dependency admission is not invoked.

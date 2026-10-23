@@ -1,12 +1,19 @@
 import { type } from 'arktype';
 
 import type { EndpointShape } from './http/endpoint-shape';
+import type { Refusal } from './http/refusal';
 import { responseSchema } from './http/schema-shape';
 
 /** Exact connected dependency semantics claimed by an HTTP or WebSocket client. */
 export const DEPENDENCY_SEMANTICS = 'cross-project-dependencies-v1';
 export const DEPENDENCY_SEMANTICS_HEADER = 'X-WBS-Dependency-Semantics';
 export const DEPENDENCY_WEBSOCKET_PROTOCOL = 'wbs.cross-project-dependencies.v1';
+
+/** Exact admission refusal, excluding the general transport's optimizer retry variants. */
+export type DependencyClientRefusal = Extract<
+  Refusal<'client_dependency_incompatible'>,
+  { error: 'client_dependency_incompatible' }
+>;
 
 const EXEMPT_OPERATIONS = new Set([
   'getHealth',

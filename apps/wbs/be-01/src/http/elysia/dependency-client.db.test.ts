@@ -238,12 +238,12 @@ test('request authority uses one coherent snapshot when another connection activ
   }
 });
 
-test('health and immutable capability never inspect dependency authority', async () => {
+test('health, immutable capability and OpenAPI never inspect dependency authority', async () => {
   const app = testApp({
     admitDependencyClient: () => {
       throw new Error('exempt request read authority');
     },
   });
-  for (const path of ['/health', '/api/runtime/dependency-capability'])
+  for (const path of ['/health', '/api/runtime/dependency-capability', '/api/openapi.json'])
     expect((await app.handle(new Request(`http://localhost${path}`))).status).toBe(200);
 });

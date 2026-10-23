@@ -2,6 +2,7 @@ import {
   type BodyMedia,
   bodyMediaFor,
   DEPENDENCY_SEMANTICS_HEADER,
+  type DependencyClientRefusal,
   type EndpointShape,
   queryModeFor,
   type Refusal,
@@ -27,9 +28,7 @@ import { decodeForm } from './form';
 import type { UnexpectedFailureReporter } from './unexpected-failure';
 
 interface MountOptions {
-  admitDependencyClient?: (
-    claim: string | null,
-  ) => Refusal<'client_dependency_incompatible'> | null;
+  admitDependencyClient?: (claim: string | null) => DependencyClientRefusal | null;
   appOrigin: string;
   resolveIdentity: IdentityResolver;
   reportUnexpectedFailure: UnexpectedFailureReporter;

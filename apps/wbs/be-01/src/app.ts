@@ -1,4 +1,4 @@
-import type { Refusal } from '@wbs/contracts';
+import type { DependencyClientRefusal } from '@wbs/contracts';
 import type { SessionFeatures } from '@wbs/contracts';
 import type { DependencyContext } from '@wbs/core';
 import type { CommandAccess } from '@wbs/core';
@@ -155,7 +155,7 @@ const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
 
 export interface AppOptions {
   /** Required production admission; reads current trusted dependency authority per protected request. */
-  admitDependencyClient: (claim: string | null) => Refusal<'client_dependency_incompatible'> | null;
+  admitDependencyClient: (claim: string | null) => DependencyClientRefusal | null;
   clock: Pick<Clock, 'now'>;
   /** Trusted browser origin, resolved from operator configuration before boot. */
   appOrigin: string;
@@ -758,6 +758,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           reportUnexpectedFailure,
         }),
       )
-      .use(scimEndpoints(scim, reportUnexpectedFailure))
+      // Proof: replacing the SCIM admission binding with null admission returned200 instead of409 in scim-dependency-client.controller.db.test.ts.
+      .use(scimEndpoints(scim, reportUnexpectedFailure, opts.admitDependencyClient))
   );
 }

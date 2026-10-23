@@ -909,3 +909,19 @@ Standalone generic adapter fixtures may omit the callable; production buildApp c
 This packet does not advertise semantic support, activate authoring, alter the
 activation writer, or send client claims. WebSocket admission and endpoint-specific
 shared client refusal decoding remain later slices. Parent task 10.1 remains open.
+
+SCIM is a separately mounted foreign protocol, not a shared-shape or MCP
+operation, and therefore requires independent resource admission. Its required
+request-level callback runs after provisioning-token authentication and existing
+rate admission, before route dispatch or body reading. Production composition
+passes the same dependency admission callable used by typed resource routes.
+A modeled incompatibility retains SCIM media/error fields and HTTP409, with
+`detail: "client_dependency_incompatible"` and `required` naming the exact semantics.
+Trusted authority failures retain the existing SCIM infrastructure500 boundary.
+The protected/exempt shared-shape matrix does not enumerate this foreign route;
+its mounted SQLite matrix independently covers list/read/create/patch/delete.
+
+`GET /api/openapi.json` is the other separately mounted route: an immutable
+schema observation, explicitly exempt from dependency-client admission. Its
+mounted request remains available even when the app's authority callback throws;
+this exemption exposes no persisted application resources.

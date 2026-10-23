@@ -776,3 +776,18 @@ match the shared operation matrix.
 
 - **WHEN** an erased caller omits the production app admission callable
 - **THEN** app composition throws before serving requests
+
+#### Scenario: Foreign SCIM provisioning routes require dependency admission
+
+- **GIVEN** a provisioning token authenticates against ENABLED dependency authority
+- **WHEN** a client lists, reads, creates, patches or deletes `/scim/v2/Users` resources without the exact dependency semantics claim, or the backend is incapable
+- **THEN** the foreign SCIM adapter returns its SCIM 409 error envelope with `detail: "client_dependency_incompatible"` and `required: "cross-project-dependencies-v1"` before reading the body or dispatching a resource operation
+- **AND** no provisioning user, membership, organization audit, project, event or command journal row changes
+- **AND** SCIM authentication and per-token rate admission retain precedence; missing or malformed dependency authority is a SCIM infrastructure 500, never legacy admission
+
+#### Scenario: Immutable OpenAPI observation remains available
+
+- **GIVEN** the production app's dependency authority callback throws if invoked
+- **WHEN** a client requests the separately mounted `GET /api/openapi.json`
+- **THEN** it receives HTTP200 without inspecting dependency authority
+- **AND** this immutable schema observation is explicitly exempt from resource admission

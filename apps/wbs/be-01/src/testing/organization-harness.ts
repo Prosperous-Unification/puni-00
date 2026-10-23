@@ -84,7 +84,7 @@ import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
-import { buildApp } from '../app';
+import { type AppOptions, buildApp } from '../app';
 import type { ReservedSpawner } from '../module/optimization/contract';
 import type { OptimizationCoordinator } from '../module/optimization/optimization.feature';
 import { ActualRepository } from '../repository/actual';
@@ -148,6 +148,7 @@ export interface Answer {
 
 /** What {@link OrganizationHarness.open} wires beyond its defaults. */
 export interface OrganizationHarnessOptions {
+  readonly admitDependencyClient?: AppOptions['admitDependencyClient'];
   readonly delegationKey?: CryptoKey;
   readonly directSigningKey?: CryptoKey;
   readonly policyDirectory?: string;
@@ -392,6 +393,7 @@ export class OrganizationHarness {
    * their TXT lookups.
    */
   static open({
+    admitDependencyClient = () => null,
     delegationKey,
     directSigningKey,
     policyDirectory,
@@ -626,7 +628,7 @@ export class OrganizationHarness {
       history: testHistoryService(),
       auth,
       replay: testReplay().replay,
-      admitDependencyClient: () => null,
+      admitDependencyClient,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(undefined, writing),

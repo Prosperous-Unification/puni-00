@@ -563,3 +563,10 @@ Parent 9.2, remote predecessor scope editing and active backend acceptance remai
 - [x] Require production app admission and inspect current durable authority in a coherent same-connection read transaction after origin and identity policies.
 - [x] Exercise real SQLite through mounted resource routes, exact claims, binary support, corrupt/closed authority, ordered refusals and rival activation; watch independent safety faults fail.
 - [ ] Complete independent review and integrated host gate. Parent 10.1 remains open; client claim sending/decoding, gateway admission, activation and semantic advertisement remain outside this packet.
+
+Bounded 10.1 SCIM review correction (2026-10-23):
+
+- [x] Protect separately mounted SCIM Users list/read/create/patch/delete after provisioning authentication/rate admission and before body/resource work.
+- [x] Preserve the SCIM refusal/media contract and prove no provisioning, membership, audit, project, event or journal effect on refusal.
+- [x] Watch production composition-binding and service-guard removal admit enabled SCIM traffic; watch eager dependency inspection break missing-token authentication ordering.
+- [ ] Complete independent review/integrated host gate; parent 10.1 remains open.
