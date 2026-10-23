@@ -2390,8 +2390,12 @@ interface BatchAnswer {
     entity?: {
       id: string;
       name: string;
-      /** A person's kind, or a resource's on `createResource` (`wbs-resources`). */
-      kind?: PersonKindView | 'exclusive' | 'divisible';
+      /**
+       * A person's kind, a resource's on `createResource` (`wbs-resources`), or a
+       * measure definition's on `createMeasure` (`wbs-measure-budgets`); fe-01
+       * sends no measure command yet and reads none of its other fields.
+       */
+      kind?: PersonKindView | 'exclusive' | 'divisible' | 'duration' | 'count' | 'money';
       serviceIds?: string[];
       teamIds?: string[];
       unitLabel?: string;

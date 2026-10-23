@@ -6,6 +6,7 @@ import {
   getWorkItem,
   getWorkItemRows,
   getWorkItems,
+  measureDefinitionRow,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
   readPersonWork,
@@ -303,6 +304,23 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_resource':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    // The organization's own measure definitions stand in the way, or legacy
+    // access has no legacy organization to own one (`wbs-measure-budgets`).
+    // Proof (compile-time only): with these cases absent, wbs-core's typecheck
+    // failed on TS2366 at this function, the switch no longer exhaustive;
+    // watched 2026-10-23. No runtime observation exists: the code does not
+    // build without them.
+    case 'organization_required':
+    case 'measure_key_taken':
+    case 'measure_key_immutable':
+    case 'measure_shape_immutable':
+    case 'second_scheduling_measure':
+    case 'scheduling_measure_fixed':
+    case 'currency_required':
+    case 'currency_forbidden':
+    case 'unit_required':
+    case 'measure_in_use':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     // The resource's kind refuses the units whatever the plan holds.
     case 'exclusive_demand_is_one':
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
@@ -454,6 +472,8 @@ function answerBatch(
   }
 }
 const namedEntity = responseSchema(type({ id: 'string', name: 'string' }));
+/** A measure definition as `createMeasure` and `patchMeasure` answer it, every field required. */
+const measureEntity = responseSchema(measureDefinitionRow);
 // Proof: optional serviceIds admitted a patchTeam without memberships,200 instead of500 in the mounted results case.
 const teamEntity = responseSchema(type({ id: 'string', name: 'string', serviceIds: 'string[]' }));
 // Proof: optional person kind admitted its omission,200 instead of500 in the mounted results case.
@@ -488,6 +508,7 @@ async function appliedWire(applied: AppliedCommand) {
     case 'createTag':
     case 'createService':
     case 'createWorkItemType':
+    case 'createMeasure':
       // Proof: removing this check admitted each missing minted id,200 instead of500 in the mounted minted-id case.
       if (typeof applied.id !== 'string')
         throw new Error('Created command producer requires its minted id');
@@ -510,6 +531,10 @@ async function appliedWire(applied: AppliedCommand) {
     case 'createWorkItemType':
     case 'patchWorkItemType':
       await requireShape(namedEntity, applied.entity);
+      break;
+    case 'createMeasure':
+    case 'patchMeasure':
+      await requireShape(measureEntity, applied.entity);
       break;
   }
   return { ...wire, ...(ref === undefined ? {} : { ref }) };

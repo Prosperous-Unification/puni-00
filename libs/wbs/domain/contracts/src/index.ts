@@ -21,6 +21,7 @@ export * from './http/invitation-shapes';
 export * from './http/join-request-shapes';
 export * from './http/machine-credential-shapes';
 export * from './http/mcp-delegation-shapes';
+export * from './http/measure-shapes';
 export * from './http/onboarding-shapes';
 export * from './http/organization-limits-shapes';
 export * from './http/organization-shapes';

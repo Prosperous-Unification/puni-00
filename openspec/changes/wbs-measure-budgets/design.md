@@ -65,6 +65,38 @@ optimistic, realistic, pessimistic)` in the measure's unit and scale, with the t
   an older version imports by seeding the defaults and mapping legacy metrics; saved plan
   compare shows measure changes.
 
+Assumptions added while implementing slice 1 (tasks 1.1, 1.2), each the reading closest to D1–D8:
+
+- **D9 Owned by a column, read through the legacy organization.** `measure.organization_id`
+  is a column, not an ownership side table: keys are unique per organization, so a global root
+  with a legacy bridge would make the second organization's `time` collide. Legacy access reads
+  and writes the legacy organization's definitions; with none marked legacy, reads and writes
+  answer `409 organization_required`, the spaces' answer.
+- **D10 Seeding is SQL.** The migration seeds existing organizations, and the trigger
+  `organization_seed_measures` seeds every later one inside the inserting statement, whichever
+  release inserts it mid-swap; the memory source seeds in `addOrganization`. Definitions
+  cascade with their organization.
+- **D11 No undo.** The brief's "undoable, exactly like `createResource`" contradicts the code:
+  directory batches journal nothing (`runDirectory`), so measure commands are all-or-none and
+  not undoable, exactly like `createResource`.
+- **D12 The scheduling measure stays `time`.** D2's "is `time`" read strictly: a patch clearing
+  `schedulesWork` on it is refused `409 scheduling_measure_fixed`; setting it elsewhere is
+  `second_scheduling_measure`.
+- **D13 Shape is fixed.** `kind` and `scale` never change (`409 measure_shape_immutable`), as
+  `key` never does (`measure_key_immutable`); no command sets `derived`.
+- **D14 Seeded means the five keys.** A seeded definition is never removed (`measure_in_use`)
+  but may be renamed; `down.sql` refuses only for other keys and drops renamed seeds.
+  `usageOfMeasure` answers zero until the first referencing table; `deleteMeasure` gains
+  `cascade` with it.
+- **D15 Seed values and bounds.** Units `days`, `tokens`, `hours`, `micro-USD`, `minutes`;
+  orders 1–5; a new definition's order defaults to one past the highest; lists sort by order
+  then key. Keys match `^[a-z][a-z0-9_]{0,39}$`, units are at most 40 characters, orders 0 to
+  1,000,000, currencies three capital letters.
+- **D16 Directory write rule.** Any role but viewer under scoped access, as for every directory
+  command; the open question on admins only stays open.
+- **D17 One read.** `GET /api/measures` (MCP `getApiMeasures`); writes go through
+  `POST /api/directory/commands`.
+
 ## Risks / Trade-offs
 
 - The schedule must not move: D2's property test is the guard, and the time trio stays in its

@@ -1,4 +1,4 @@
-import type { Demand, PersonKind } from '@wbs/domain';
+import type { Demand, MeasureDefinition, MeasureUsage, PersonKind } from '@wbs/domain';
 
 import type {
   Assignment,
@@ -298,7 +298,71 @@ export type ResourceRemoved =
 export type OrganizationRenamed =
   { ok: true; projectIds: TouchedProjects } | { ok: false; reason: 'not_found' | 'taken' };
 
+/**
+ * What a measure definition create answered (`wbs-measure-budgets` D1, D2):
+ * the stored row, or the store's unique index refusing it. The batch decides
+ * both refusals first from the definitions it read in the same unit of work;
+ * these are the backstop a raced or mistaken read still meets.
+ */
+export type MeasureAdded =
+  | { ok: true; measure: MeasureDefinition }
+  | { ok: false; reason: 'measure_key_taken' | 'second_scheduling_measure' };
+
+/**
+ * What a measure definition patch answered: the stored row, `not_found` for an
+ * id the organization does not hold (another organization's included), or the
+ * one-scheduling-measure index refusing it.
+ */
+export type MeasureWritten =
+  | { ok: true; measure: MeasureDefinition }
+  | { ok: false; reason: 'not_found' | 'second_scheduling_measure' };
+
+/** What a measure definition removal answered; `not_found` as for {@link MeasureWritten}. */
+export type MeasureRemoved = { ok: true } | { ok: false; reason: 'not_found' };
+
 export interface DirectoryStore {
+  /**
+   * The organization marked legacy, which owns the measure definitions legacy
+   * access reads and writes (`wbs-measure-budgets` D9); null when none is
+   * marked, which the directory answers `organization_required`.
+   */
+  legacyOrganizationId(): Promise<string | null>;
+  /**
+   * One organization's measure definitions, ordered by `order` then `key`.
+   * Empty only for an organization the store does not hold: every held
+   * organization has its five seeded definitions from its first moment.
+   */
+  listMeasures(organizationId: string): Promise<MeasureDefinition[]>;
+  /** Stores `measure` in `organizationId`; see {@link MeasureAdded}. */
+  addMeasure(
+    organizationId: string,
+    measure: MeasureDefinition,
+    stamp: WriteStamp,
+  ): Promise<MeasureAdded>;
+  /**
+   * Rewrites every field of the organization's definition `measure.id` except
+   * its key, which never changes; see {@link MeasureWritten}.
+   */
+  patchMeasure(
+    organizationId: string,
+    measure: MeasureDefinition,
+    stamp: WriteStamp,
+  ): Promise<MeasureWritten>;
+  /**
+   * What references the organization's definition `measureId`: nothing in
+   * slice 1, so `{ references: 0 }`. The hook the later slices extend with
+   * `step_measure.measure_id`, `measure_estimate` and `work_item_budget`.
+   */
+  usageOfMeasure(organizationId: string, measureId: string): Promise<MeasureUsage>;
+  /**
+   * Removes the organization's definition `measureId`. The caller has refused
+   * a seeded or referenced one from reads in the same unit of work.
+   */
+  removeMeasure(
+    organizationId: string,
+    measureId: string,
+    stamp: WriteStamp,
+  ): Promise<MeasureRemoved>;
   /**
    * On an addressed miss, distinguish a missing/foreign entry from a present
    * trusted root whose ownership mapping is absent or conflicting. Optional

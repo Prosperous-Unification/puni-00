@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
+const MEASURE = '20261023100000_add_measure';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const roots: string[] = [];
 
@@ -105,7 +106,7 @@ describe(LIMITS_AUDIT, () => {
     const down = await rollBack(root, dbPath, ORGANIZATION_LIMITS);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${LIMITS_AUDIT}\n`);
+    expect(down.stdout).toContain(`rolled back: ${MEASURE}, ${LIMITS_AUDIT}\n`);
     expect(auditRows(dbPath)).toEqual([
       { action: 'session_policy_changed', subject_kind: 'session_policy' },
     ]);

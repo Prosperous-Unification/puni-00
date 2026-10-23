@@ -62,11 +62,22 @@ const appliedResults = type({
     'entity?': {
       id: 'string',
       name: 'string',
-      // A person's kind, or a resource's (`createResource`, `patchResource`).
-      'kind?': "'person' | 'agent' | 'exclusive' | 'divisible'",
+      // A person's kind, a resource's (`createResource`, `patchResource`), or a
+      // measure definition's (`createMeasure`, `patchMeasure`).
+      'kind?': "'person' | 'agent' | 'exclusive' | 'divisible' | 'duration' | 'count' | 'money'",
       'serviceIds?': 'string[]',
       'teamIds?': 'string[]',
       'unitLabel?': 'string',
+      // A measure definition's other fields (`wbs-measure-budgets` D1).
+      'key?': 'string',
+      'unit?': 'string',
+      'scale?': "'integer' | 'real'",
+      'threePoint?': 'boolean',
+      'showByDefault?': 'boolean',
+      'schedulesWork?': 'boolean',
+      'derived?': 'boolean',
+      'order?': 'number',
+      'currency?': 'string | null',
     },
     // A `claimWorkItem` result: whether it wrote nothing, the claims holding the steps, and
     // the steps `assign: true` assigned (empty for a subtree claim, alreadyHeld or no assign).
@@ -217,6 +228,29 @@ const batchRefusals = [
         type({ ...context, error: "'steps_on_subtree'" }),
         type({ ...context, error: "'resources_on_subtree'" }),
         type({ ...context, error: "'not_claimed_by'" }),
+      ),
+    ),
+  },
+  // Measure definition refusals (`wbs-measure-budgets` D1, D2): the
+  // organization's own definitions stand in the way, or legacy access has no
+  // legacy organization to own one.
+  // Proof: with this arm removed, three cases of
+  // measure-organization.controller.db.test.ts answered 500 "returned an
+  // undeclared refusal" (4 pass, 3 fail); watched 2026-10-23.
+  {
+    status: 409,
+    schema: responseSchema(
+      type.or(
+        type({ ...context, error: "'organization_required'" }),
+        type({ ...context, error: "'measure_key_taken'" }),
+        type({ ...context, error: "'measure_key_immutable'" }),
+        type({ ...context, error: "'measure_shape_immutable'" }),
+        type({ ...context, error: "'second_scheduling_measure'" }),
+        type({ ...context, error: "'scheduling_measure_fixed'" }),
+        type({ ...context, error: "'currency_required'" }),
+        type({ ...context, error: "'currency_forbidden'" }),
+        type({ ...context, error: "'unit_required'" }),
+        type({ ...context, error: "'measure_in_use'" }),
       ),
     ),
   },

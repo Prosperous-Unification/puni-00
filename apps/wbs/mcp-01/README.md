@@ -18,7 +18,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-85 tools in all:
+86 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
@@ -27,6 +27,9 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   claims in a project);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the
   project's capacities and demands);
+- the measure definition read (`getApiMeasures`: the organization's measure definitions, the five
+  seeded and any it defined, written with the `createMeasure`, `patchMeasure` and `deleteMeasure`
+  directory commands);
 - the two person-load reads, the project rank read and move;
 - the organization's capacity-mode read and switch (the switch refuses every delegated caller and
   so answers an MCP client with 403);

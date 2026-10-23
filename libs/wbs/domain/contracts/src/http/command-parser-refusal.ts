@@ -528,6 +528,66 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  measureId_must_be_an_id: type({
+    error: "'measureId_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  measureRef_must_be_an_id: type({
+    error: "'measureRef_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  key_must_be_a_measure_key: type({
+    error: "'key_must_be_a_measure_key'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  unit_must_be_text: type({
+    error: "'unit_must_be_text'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  unit_must_be_at_most_40_characters: type({
+    error: "'unit_must_be_at_most_40_characters'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  measureKind_must_be_duration_count_or_money: type({
+    error: "'measureKind_must_be_duration_count_or_money'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  scale_must_be_integer_or_real: type({
+    error: "'scale_must_be_integer_or_real'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  threePoint_must_be_true_or_false: type({
+    error: "'threePoint_must_be_true_or_false'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  showByDefault_must_be_true_or_false: type({
+    error: "'showByDefault_must_be_true_or_false'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  schedulesWork_must_be_true_or_false: type({
+    error: "'schedulesWork_must_be_true_or_false'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  order_must_be_a_whole_number_from_0_to_1000000: type({
+    error: "'order_must_be_a_whole_number_from_0_to_1000000'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  currency_must_be_three_capital_letters: type({
+    error: "'currency_must_be_three_capital_letters'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
 } satisfies Record<ParserRefusalCode, Type>;
 /** Validates the finite legacy parser vocabulary before any string becomes a wire refusal. */
 // Proof: removing forbidden context fields admitted at:text,400 instead of500 in the mounted parser-refusal case.

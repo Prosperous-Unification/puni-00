@@ -166,6 +166,8 @@ export * from './claim';
 export * from './occupancy';
 // Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
 export * from './resource';
+// Measure definitions, one scheduling measure per organization (wbs-measure-budgets D1, D2).
+export * from './measure-definition';
 // Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
 export * from './machine-credential';
 export * from './step-parallel';
