@@ -1,0 +1,74 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/http/client.test.ts:
+(pass) shape-derived client response boundary > preserves a declared bodyless refusal through the portable client [3.13ms]
+(pass) shape-derived client response boundary > validates a contextual import refusal as JSON [2.18ms]
+(pass) shape-derived client response boundary > validates an in-process response while retaining additive nested fields [0.42ms]
+(pass) shape-derived client response boundary > refuses a backend-only known field type change [0.18ms]
+(pass) shape-derived client response boundary > validates refusal at status 429 and rejects malformed details [0.22ms]
+(pass) shape-derived client response boundary > validates refusal at status 503 and rejects malformed details [0.14ms]
+(pass) shape-derived client response boundary > validates refusal at status 501 and rejects malformed details [0.40ms]
+(pass) shape-derived client response boundary > refuses undeclared statuses and mismatched refusal status/body pairs [0.18ms]
+(pass) shape-derived client response boundary > awaits asynchronous validators and throws unexpected validator errors [0.50ms]
+(pass) shape-derived client response boundary > supports later response alternatives, JSON null, explicit empty and text [0.86ms]
+(pass) client request and transport boundary > encodes path literals, slash-containing params, optional query and JSON body through fetch [1.46ms]
+(pass) client request and transport boundary > validates request input before invoking transport and does not share calls [0.23ms]
+(pass) client request and transport boundary > distinguishes transport failure and cancellation without invoking an already aborted request [0.16ms]
+(pass) client request and transport boundary > refuses duplicate operation identifiers instead of replacing a method [0.06ms]
+(pass) client request and transport boundary > parses Fetch replies without disguising malformed JSON or a proxy challenge [0.23ms]
+(pass) refuses malformed 501 detail despite its recognized error code [0.10ms]
+(pass) accepts a later same-status asynchronous refusal schema [1.78ms]
+(pass) cancels while asynchronous response validation is held [0.29ms]
+(pass) keeps overlapping GET requests independent while their answers are held [0.23ms]
+(pass) refuses a successful refusal envelope even with a permissive success schema [0.60ms]
+(pass) refuses missing, extra and URL dot-segment params before transport [0.17ms]
+(pass) passes omitted query fields and performs no implicit body encoding for GET [0.20ms]
+(pass) validates optional undefined body fields as the JSON representation sent by both transports [1.83ms]
+(pass) preflights synchronous request shapes without yielding and returns their wire normalization [0.08ms]
+(pass) forwards the Retry validator projected body to the transport [0.84ms]
+(pass) validates the modeled Retry schedule-input refusal on the typed client [1.07ms]
+(pass) forwards an asynchronous validator normalized value to the transport [0.22ms]
+(pass) starts transport in the calling stack after synchronous request validation [0.12ms]
+(pass) keeps preflight asynchronous when a request schema validates asynchronously [0.08ms]
+(pass) reports non-JSON client bodies before transport without hiding unexpected serialization failures [3.87ms]
+(pass) preserves transport encoding failures when a composed transport corrupts validated input [0.37ms]
+(pass) cancels after held request validation and after a held transport without returning a success [0.36ms]
+(pass) returns boundary failure for an unreadable Fetch response body [10.71ms]
+(pass) rejects blank operation identifiers consistently with shape document emission [0.10ms]
+(pass) cancels an unread Fetch body before reporting an undeclared status [0.15ms]
+(pass) propagates a required response-body cleanup failure [0.11ms]
+(pass) rejects malformed normalized text before returning a typed text success [0.11ms]
+(pass) throws for a trusted query declaration that cannot be represented on the wire [1.92ms]
+(pass) refuses JSON fetch configuration for a form-only declaration before sending [0.14ms]
+(pass) decodes exact resource dependency incompatibility without claiming support [0.15ms]
+(pass) does not misclassify malformed dependency refusals or ordinary conflicts [0.16ms]
+(pass) keeps exempt operations and non-409 responses outside dependency admission [0.35ms]
+(pass) cancels while decoding the dependency admission envelope [0.14ms]
+949 |     claims.push(new Headers(init.headers).get('X-WBS-Dependency-Semantics'));
+950 |     return Promise.resolve(new Response(null, { status: 204 }));
+951 |   }, 'cross-project-dependencies-v1');
+952 |   await transport(listProjects, { params: {} });
+953 |   await transport(health, { params: {} });
+954 |   expect(claims).toEqual(['cross-project-dependencies-v1', null]);
+                       ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "cross-project-dependencies-v1",
++   null,
+    null,
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-v1-clients/libs/wbs/domain/contracts/src/http/client.test.ts:954:18)
+(fail) fetch transport claims implemented dependency semantics only for protected operations [0.28ms]
+
+1 tests failed:
+(fail) fetch transport claims implemented dependency semantics only for protected operations [0.28ms]
+
+ 43 pass
+ 1 fail
+ 110 expect() calls
+Ran 44 tests across 1 file. [962.00ms]

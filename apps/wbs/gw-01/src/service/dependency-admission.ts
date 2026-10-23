@@ -11,21 +11,21 @@ import type { BackendRequestOptions } from './backend-request';
 
 /**
  * The backend reads current authority on every upgrade. Only the intersection of
- * the offered client protocol and this binary's immutable support may claim v1.
- * Disabled authority accepts legacy clients; enabled authority refuses this
- * currently incapable binary. Retained delivery reuses this fresh read with
+ * the selected client protocol and this binary's immutable support may claim v1.
+ * Disabled authority accepts legacy clients; enabled authority requires the
+ * exact selected V1 protocol and immutable role support. Retained delivery reuses this fresh read with
  * connection cancellation; deployment participant fencing remains required.
  */
 export async function admitDependencyUpgrade(
   opts: BackendRequestOptions,
-  offered: string | null,
+  selected: string | null,
   capability: DependencyRuntimeCapability,
   parent?: AbortSignal,
 ): Promise<Refusal<'client_dependency_incompatible'> | null> {
   // Proof: omitting validation changed the invalid-budget client failure and failed dependency-admission.test.ts.
   if (![opts.attemptMs, opts.overallMs].every((ms) => Number.isFinite(ms) && ms > 0))
     throw new Error('deadline budgets must be positive and finite');
-  const claimsSemantics = claimsDependencySemantics(capability, offered);
+  const claimsSemantics = claimsDependencySemantics(capability, selected);
   return withinDeadline(
     opts.timers,
     Math.min(opts.attemptMs, opts.overallMs),
@@ -65,17 +65,41 @@ export async function admitDependencyUpgrade(
   );
 }
 
-/** Exact offered WS tokens and immutable binary support jointly authorize the claim. */
+/** The exact selected token and immutable binary support jointly authorize the claim. */
 export function claimsDependencySemantics(
   capability: DependencyRuntimeCapability,
-  offered: string | null,
+  selected: string | null,
 ): boolean {
-  // Proof: removing binary support or using prefix token matching independently admitted incompatible offers in dependency-admission.test.ts.
   return (
     capability.semantics.includes(DEPENDENCY_SEMANTICS) &&
-    offered
-      ?.split(',')
-      .map((token) => token.trim())
-      .includes(DEPENDENCY_WEBSOCKET_PROTOCOL) === true
+    // Proof: permitting a raw offer list failed the selected-only claim assertion in dependency-admission.test.ts.
+    selected === DEPENDENCY_WEBSOCKET_PROTOCOL
   );
+}
+
+/** A syntactically invalid or unsupported offered protocol is a modeled client refusal. */
+export class DependencyProtocolRefused extends Error {}
+
+/** Explicit handshake selection; legacy never grants V1 admission. Invalid offers throw. */
+export function selectDependencyProtocol(
+  capability: DependencyRuntimeCapability,
+  offered: string | null,
+): string | null {
+  if (offered === null) return null;
+  const protocols = offered.split(',').map((token) => token.trim());
+  // Proof: independently omitting duplicate or token-syntax rejection failed selection refuses in dependency-admission.test.ts.
+  if (
+    new Set(protocols).size !== protocols.length ||
+    protocols.some((token) => !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(token))
+  )
+    throw new DependencyProtocolRefused('invalid dependency protocol offer');
+  if (
+    protocols.includes(DEPENDENCY_WEBSOCKET_PROTOCOL) &&
+    // Proof: omitting immutable support selected V1 for the incapable fixture in dependency-admission.test.ts.
+    capability.semantics.includes(DEPENDENCY_SEMANTICS)
+  )
+    return DEPENDENCY_WEBSOCKET_PROTOCOL;
+  if (protocols.includes('wbs.legacy')) return 'wbs.legacy';
+  // Proof: replacing this refusal with legacy selection admitted unknown-only offers in dependency-admission.test.ts.
+  throw new DependencyProtocolRefused('unsupported dependency protocol offer');
 }

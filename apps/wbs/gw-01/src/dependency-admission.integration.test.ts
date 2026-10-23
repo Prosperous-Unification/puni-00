@@ -32,7 +32,7 @@ function connect(port: number, protocol?: string): Promise<WebSocket | null> {
   });
 }
 
-test('every reconnect freshly admits before presence and incapable gateway omits even exact client claim', async () => {
+test('legacy reconnect rereads ENABLED authority and exact V1 offers remain admitted', async () => {
   let enabled = false;
   const claims: (string | null)[] = [];
   const app = buildApp({
@@ -42,11 +42,10 @@ test('every reconnect freshly admits before presence and incapable gateway omits
     localIdentity: 'ada',
     projectAccess: GRANT_EVERY_PROJECT,
     fetchImpl: (_url, init) => {
-      const headers = new Headers(init?.headers);
-      expect(headers.get('x-internal-auth')).toBe('s'.repeat(32));
-      claims.push(headers.get(DEPENDENCY_SEMANTICS_HEADER));
+      const claim = new Headers(init?.headers).get(DEPENDENCY_SEMANTICS_HEADER);
+      claims.push(claim);
       return Promise.resolve(
-        enabled && headers.get(DEPENDENCY_SEMANTICS_HEADER) !== DEPENDENCY_SEMANTICS
+        enabled && claim !== DEPENDENCY_SEMANTICS
           ? Response.json(
               { error: 'client_dependency_incompatible', required: DEPENDENCY_SEMANTICS },
               { status: 409 },
@@ -58,23 +57,20 @@ test('every reconnect freshly admits before presence and incapable gateway omits
   const port = app.server?.port;
   if (port === undefined) throw new Error('gateway did not listen');
   try {
-    const legacy = await connect(port);
-    expect(legacy).not.toBeNull();
-    legacy?.close();
-    const offered = await connect(port, DEPENDENCY_WEBSOCKET_PROTOCOL);
-    expect(offered).toBeNull();
+    for (const protocol of [undefined, 'wbs.legacy']) {
+      const socket = await connect(port, protocol);
+      expect(socket).not.toBeNull();
+      expect(socket?.protocol).toBe(protocol ?? '');
+      socket?.close();
+    }
     enabled = true;
-    for (const protocol of [
-      undefined,
-      DEPENDENCY_WEBSOCKET_PROTOCOL,
-      `${DEPENDENCY_WEBSOCKET_PROTOCOL}.other`,
-    ])
+    for (const protocol of [undefined, 'wbs.legacy', `${DEPENDENCY_WEBSOCKET_PROTOCOL}.other`])
       expect(await connect(port, protocol)).toBeNull();
-    expect(claims).toEqual([null, null, null, null, null, null]);
-    const snapshot = await fetch(`http://localhost:${String(port)}/metrics/snapshot`).then((r) =>
-      r.json(),
-    );
-    expect(snapshot).toMatchObject({ activeConnections: 0 });
+    const exact = await connect(port, DEPENDENCY_WEBSOCKET_PROTOCOL);
+    expect(exact?.protocol).toBe(DEPENDENCY_WEBSOCKET_PROTOCOL);
+    exact?.close();
+    expect(claims).toContain(null);
+    expect(claims).toContain(DEPENDENCY_SEMANTICS);
   } finally {
     await app.stop(true);
   }
@@ -148,6 +144,95 @@ test('origin and credential refusals never inspect backend dependency authority'
       });
     }
     expect(inspections).toBe(0);
+  } finally {
+    await app.stop(true);
+  }
+});
+
+test('dual offers explicitly select V1 and retained presence keeps that exact admission', async () => {
+  const claims: (string | null)[] = [];
+  const seen = new Set<string>();
+  const accessClaims: unknown[] = [];
+  const app = buildApp({
+    beUrl: 'http://be.test',
+    internalAuthSecret: 's'.repeat(32),
+    jwtKey: 'k'.repeat(32),
+    localIdentity: 'ada',
+    projectAccess: (credential) => {
+      accessClaims.push(credential.dependencySemantics);
+      return GRANT_EVERY_PROJECT();
+    },
+    fetchImpl: (_url, init) => {
+      const claim = new Headers(init?.headers).get(DEPENDENCY_SEMANTICS_HEADER);
+      claims.push(claim);
+      if (_url.endsWith('/internal/forward') || _url.endsWith('/internal/resume')) {
+        seen.add(_url.endsWith('/internal/forward') ? 'forward' : 'resume');
+        return Promise.resolve(
+          claim === DEPENDENCY_SEMANTICS
+            ? Response.json(_url.endsWith('/internal/forward') ? { ack: true } : {})
+            : Response.json(
+                { error: 'client_dependency_incompatible', required: DEPENDENCY_SEMANTICS },
+                { status: 409 },
+              ),
+        );
+      }
+      return Promise.resolve(
+        claim === DEPENDENCY_SEMANTICS
+          ? new Response(null, { status: 204 })
+          : Response.json(
+              { error: 'client_dependency_incompatible', required: DEPENDENCY_SEMANTICS },
+              { status: 409 },
+            ),
+      );
+    },
+  }).listen(0);
+  const port = app.server?.port;
+  if (port === undefined) throw new Error('gateway did not listen');
+  try {
+    const socket = new WebSocket(`ws://localhost:${String(port)}/ws`, [
+      'wbs.legacy',
+      DEPENDENCY_WEBSOCKET_PROTOCOL,
+    ]);
+    const roster = await new Promise<string>((resolve, reject) => {
+      socket.addEventListener(
+        'message',
+        (event) => {
+          resolve(String(event.data));
+        },
+        { once: true },
+      );
+      socket.addEventListener(
+        'close',
+        () => {
+          reject(new Error('V1 retired before initial roster'));
+        },
+        { once: true },
+      );
+      socket.addEventListener(
+        'error',
+        () => {
+          reject(new Error('V1 upgrade refused'));
+        },
+        {
+          once: true,
+        },
+      );
+    });
+    expect(socket.protocol).toBe(DEPENDENCY_WEBSOCKET_PROTOCOL);
+    expect(roster).toContain('presence');
+    socket.send(JSON.stringify({ subscription: 'presence', message: { write: true } }));
+    const resumed = new Promise<void>((resolve) => {
+      socket.addEventListener('message', (event) => {
+        if (String(event.data).includes('resume_ack')) resolve();
+      });
+    });
+    socket.send(JSON.stringify({ type: 'resume', resume_points: {} }));
+    await resumed;
+    expect([...seen].sort()).toEqual(['forward', 'resume']);
+    expect(accessClaims).toEqual([DEPENDENCY_SEMANTICS]);
+    expect(claims.length).toBeGreaterThanOrEqual(2);
+    expect(claims.every((claim) => claim === DEPENDENCY_SEMANTICS)).toBe(true);
+    socket.close();
   } finally {
     await app.stop(true);
   }

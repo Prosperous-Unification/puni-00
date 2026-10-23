@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/service/dependency-admission.test.ts:
+(pass) requires independent binary support and exact offered WebSocket token [0.25ms]
+(pass) capable binaries forward only an exact offered WS claim and strictly decode the decision [8.92ms]
+(pass) unexpected status, extra refusal fields and invalid budgets remain infrastructure failures [0.30ms]
+(pass) selection refuses duplicate, malformed and unknown-only offers without implicit echo [0.20ms]
+
+ 4 pass
+ 0 fail
+ 27 expect() calls
+Ran 4 tests across 1 file. [2.77s]

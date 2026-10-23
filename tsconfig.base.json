@@ -35,6 +35,7 @@
       "@wbs/auth": ["./libs/wbs/adapters/auth/src/index.ts"],
       "@wbs/config": ["./libs/wbs/adapters/config/src/index.ts"],
       "@wbs/contracts/logger": ["./libs/wbs/domain/contracts/src/logger.ts"],
+      "@wbs/contracts/dependency-claim": ["./libs/wbs/domain/contracts/src/dependency-claim.ts"],
       "@wbs/contracts": ["./libs/wbs/domain/contracts/src/index.ts"],
       "@wbs/contracts/dependency-runtime": [
         "./libs/wbs/domain/contracts/src/dependency-runtime.ts"

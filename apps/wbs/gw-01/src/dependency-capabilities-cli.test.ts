@@ -10,7 +10,7 @@ import { GATEWAY_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 const CLI = new URL('./dependency-capabilities-cli.ts', import.meta.url).pathname;
 
 it.each([undefined, '/unavailable/store.sqlite'])(
-  'observes frozen gateway empty support independently of configuration and startup (DB_PATH=%s)',
+  'observes frozen gateway V1 transport support independently of configuration and startup (DB_PATH=%s)',
   (databasePath) => {
     const directory = mkdtempSync(join(tmpdir(), 'gateway-capability-'));
     try {
@@ -37,13 +37,13 @@ plugin({ name: 'forbid-startup', setup(build) {
       expect(execution.exitCode).toBe(0);
       expect(execution.stderr.toString()).toBe('');
       expect(execution.stdout.toString()).toBe(
-        '{"protocol":"wbs-dependency-runtime","version":1,"role":"gateway","semantics":[]}\n',
+        '{"protocol":"wbs-dependency-runtime","version":1,"role":"gateway","semantics":["cross-project-dependencies-v1"]}\n',
       );
       expect(parseDependencyRuntimeCapability(JSON.parse(execution.stdout.toString()))).toEqual({
         protocol: 'wbs-dependency-runtime',
         version: 1,
         role: 'gateway',
-        semantics: [],
+        semantics: ['cross-project-dependencies-v1'],
       });
       expect(JSON.parse(execution.stdout.toString())).toEqual(GATEWAY_DEPENDENCY_CAPABILITY);
       expect(Object.isFrozen(GATEWAY_DEPENDENCY_CAPABILITY)).toBe(true);

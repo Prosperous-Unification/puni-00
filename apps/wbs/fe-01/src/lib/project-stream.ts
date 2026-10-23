@@ -1,3 +1,4 @@
+import { DEPENDENCY_WEBSOCKET_PROTOCOL } from '@wbs/contracts';
 import { wsResume, wsSubscribe, wsWho } from '@wbs/contracts/ws-frames';
 
 import { websocketUrl } from './api';
@@ -97,7 +98,8 @@ const MAX_DELAY_MS = 15_000;
 
 const browserDeps: ProjectStreamDeps = {
   openSocket: (handlers) => {
-    const socket = new WebSocket(websocketUrl());
+    // Proof: omitting these offers failed the real browser adapter constructor assertions in project-stream.test.ts.
+    const socket = new WebSocket(websocketUrl(), [DEPENDENCY_WEBSOCKET_PROTOCOL, 'wbs.legacy']);
     socket.addEventListener('open', () => {
       handlers.onOpen();
     });

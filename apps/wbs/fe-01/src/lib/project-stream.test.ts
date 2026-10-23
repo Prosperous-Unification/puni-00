@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   type OpenSocket,
@@ -829,4 +829,34 @@ it('does not report connected when its recovery callback unsubscribes', () => {
     JSON.stringify({ type: 'resume_denied', subscription: SUBSCRIPTION }),
   );
   expect(connections).toEqual([]);
+});
+
+it('browser adapter offers V1 before explicit legacy on every fresh socket', () => {
+  const offers: unknown[] = [];
+  class BrowserSocket extends EventTarget {
+    constructor(_url: string, protocols: unknown) {
+      super();
+      offers.push(protocols);
+    }
+    close() {
+      return undefined;
+    }
+    send() {
+      return undefined;
+    }
+  }
+  vi.stubGlobal('WebSocket', BrowserSocket);
+  vi.stubGlobal('location', { protocol: 'https:', host: 'wbs.test' });
+  try {
+    const first = subscribeToProject({ projectId: PROJECT, sinceSeq: 0, onChange: ignore });
+    first.unsubscribe();
+    const second = subscribeToProject({ projectId: PROJECT, sinceSeq: 0, onChange: ignore });
+    second.unsubscribe();
+    expect(offers).toEqual([
+      ['wbs.cross-project-dependencies.v1', 'wbs.legacy'],
+      ['wbs.cross-project-dependencies.v1', 'wbs.legacy'],
+    ]);
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

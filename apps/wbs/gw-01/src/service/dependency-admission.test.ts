@@ -6,7 +6,11 @@ import {
 import { systemTimers } from '@wbs/runtime-portable';
 import { expect, test } from 'bun:test';
 
-import { admitDependencyUpgrade, claimsDependencySemantics } from './dependency-admission';
+import {
+  admitDependencyUpgrade,
+  claimsDependencySemantics,
+  selectDependencyProtocol,
+} from './dependency-admission';
 
 const capable = {
   protocol: 'wbs-dependency-runtime',
@@ -21,9 +25,11 @@ test('requires independent binary support and exact offered WebSocket token', ()
     DEPENDENCY_SEMANTICS,
     `${DEPENDENCY_WEBSOCKET_PROTOCOL}.other`,
     DEPENDENCY_WEBSOCKET_PROTOCOL.toUpperCase(),
+    `${DEPENDENCY_WEBSOCKET_PROTOCOL}, ${DEPENDENCY_WEBSOCKET_PROTOCOL}`,
   ])
     expect(claimsDependencySemantics(capable, offered)).toBe(false);
-  expect(claimsDependencySemantics(capable, `other, ${DEPENDENCY_WEBSOCKET_PROTOCOL}`)).toBe(true);
+  expect(claimsDependencySemantics(capable, `other, ${DEPENDENCY_WEBSOCKET_PROTOCOL}`)).toBe(false);
+  expect(claimsDependencySemantics(capable, DEPENDENCY_WEBSOCKET_PROTOCOL)).toBe(true);
   expect(
     claimsDependencySemantics({ ...capable, semantics: [] }, DEPENDENCY_WEBSOCKET_PROTOCOL),
   ).toBe(false);
@@ -91,4 +97,25 @@ test('unexpected status, extra refusal fields and invalid budgets remain infrast
       capable,
     ),
   ).rejects.toThrow('malformed dependency admission refusal');
+});
+
+test('selection refuses duplicate, malformed and unknown-only offers without implicit echo', () => {
+  for (const offered of [
+    '',
+    'unknown',
+    `${DEPENDENCY_WEBSOCKET_PROTOCOL}, ${DEPENDENCY_WEBSOCKET_PROTOCOL}`,
+    'wbs.legacy,wbs.legacy',
+    'wbs.legacy, bad token',
+  ])
+    expect(() => selectDependencyProtocol(capable, offered)).toThrow();
+  expect(selectDependencyProtocol(capable, `wbs.legacy, ${DEPENDENCY_WEBSOCKET_PROTOCOL}`)).toBe(
+    DEPENDENCY_WEBSOCKET_PROTOCOL,
+  );
+  expect(
+    selectDependencyProtocol(
+      { ...capable, semantics: [] },
+      `${DEPENDENCY_WEBSOCKET_PROTOCOL}, wbs.legacy`,
+    ),
+  ).toBe('wbs.legacy');
+  expect(selectDependencyProtocol(capable, null)).toBeNull();
 });

@@ -7,5 +7,5 @@ export const GATEWAY_DEPENDENCY_CAPABILITY = Object.freeze({
   // Proof: independent wrong-role mutation failed the exact subprocess observation (2026-10-23).
   role: 'gateway',
   // Proof: advertised semantics and removal of either freeze independently failed the observation test.
-  semantics: Object.freeze([]),
+  semantics: Object.freeze(['cross-project-dependencies-v1'] as const),
 }) satisfies DependencyRuntimeCapability;

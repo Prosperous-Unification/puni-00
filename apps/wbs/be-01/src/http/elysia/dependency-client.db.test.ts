@@ -2,7 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { defineEndpointShape, responseSchema } from '@wbs/contracts';
+import {
+  clientFromShapes,
+  defineEndpointShape,
+  fetchTransport,
+  responseSchema,
+} from '@wbs/contracts';
 import { openConnection } from '@wbs/store-sqlite/db';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { type } from 'arktype';
@@ -118,6 +123,23 @@ test('mounted resource freshly checks durable authority and exact claims without
       });
     }
     expect((await request('cross-project-dependencies-v1')).status).toBe(200);
+    const transport = (semantics?: 'cross-project-dependencies-v1') =>
+      fetchTransport(
+        'http://localhost',
+        (url, init) => app.handle(new Request(url, init)),
+        semantics,
+      );
+    const admittedClient = clientFromShapes([shape], transport('cross-project-dependencies-v1'));
+    expect(await admittedClient.getResource({})).toMatchObject({
+      kind: 'success',
+      body: { value: 'visible' },
+    });
+    const legacyClient = clientFromShapes([shape], transport());
+    expect(await legacyClient.getResource({})).toMatchObject({
+      kind: 'failure',
+      failure: { code: 'dependency_incompatible', required: 'cross-project-dependencies-v1' },
+    });
+
     const incapable = testApp({
       auth,
       admitDependencyClient: (claim) =>

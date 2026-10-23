@@ -1,11 +1,20 @@
+import type { DEPENDENCY_SEMANTICS } from '../dependency-client';
+import { DEPENDENCY_SEMANTICS_HEADER, requiresDependencyClient } from '../dependency-client';
 import { ClientConfigurationError } from './client-error';
 import type { ClientTransport } from './client-types';
 import { bodyMediaFor } from './endpoint-shape';
 
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
-/** Builds absolute fetch URLs; callers explicitly supply their deployment's base URL. */
-export function fetchTransport(baseUrl: string, send: Fetch = fetch): ClientTransport {
+/**
+ * Builds absolute fetch URLs from an explicit deployment base. Implemented clients
+ * opt into exact dependency semantics; only protected operations carry that claim.
+ */
+export function fetchTransport(
+  baseUrl: string,
+  send: Fetch = fetch,
+  semantics?: typeof DEPENDENCY_SEMANTICS,
+): ClientTransport {
   const base = new URL(baseUrl);
   return (shape, input) => {
     let encoded: { url: string; init: RequestInit };
@@ -38,6 +47,9 @@ export function fetchTransport(baseUrl: string, send: Fetch = fetch): ClientTran
         }
       }
       const headers = new Headers(input.headers);
+      // Proof: omitting this claim failed the protected/exempt fetch transport test.
+      if (semantics !== undefined && requiresDependencyClient(shape))
+        headers.set(DEPENDENCY_SEMANTICS_HEADER, semantics);
       if (input.body !== undefined) headers.set('content-type', 'application/json');
       encoded = {
         url: url.href,

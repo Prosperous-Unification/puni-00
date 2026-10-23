@@ -9,6 +9,7 @@ const PROJECT = 'project:11111111-1111-4111-8111-111111111111';
 
 interface MountedSocket {
   data: {
+    request: Request;
     query: Record<symbol, unknown>;
     cancellation?: AbortController;
     socket?: { send(payload: string): Promise<string> };
@@ -66,7 +67,12 @@ test('mounted retirement removes presence and subscriptions and aborts before ph
   let closes = 0;
   let beforeClose: unknown;
   const socket: MountedSocket = {
-    data: { query: {} },
+    data: {
+      query: {},
+      request: new Request('http://localhost/ws', {
+        headers: { origin: 'http://localhost', cookie: '__Host-wbs_access=verified' },
+      }),
+    },
     send: () => 1,
     close: () => {
       closes++;
@@ -81,7 +87,7 @@ test('mounted retirement removes presence and subscriptions and aborts before ph
   try {
     await websocket.beforeHandle({
       query: socket.data.query,
-      request: new Request('http://localhost/ws'),
+      request: socket.data.request,
       set: { headers: {} },
     });
     await websocket.open(socket);
@@ -141,7 +147,12 @@ test('mounted late identity verification cannot join presence after retirement',
   const { websocket } = mountedHooks(app);
   const closes: number[] = [];
   const socket: MountedSocket = {
-    data: { query: {} },
+    data: {
+      query: {},
+      request: new Request('http://localhost/ws', {
+        headers: { origin: 'http://localhost', cookie: '__Host-wbs_access=verified' },
+      }),
+    },
     send: () => 1,
     close: (code) => {
       closes.push(code);
@@ -150,9 +161,7 @@ test('mounted late identity verification cannot join presence after retirement',
   try {
     await websocket.beforeHandle({
       query: socket.data.query,
-      request: new Request('http://localhost/ws', {
-        headers: { origin: 'http://localhost', cookie: '__Host-wbs_access=verified' },
-      }),
+      request: socket.data.request,
       set: { headers: {} },
     });
     const joining = websocket.open(socket);

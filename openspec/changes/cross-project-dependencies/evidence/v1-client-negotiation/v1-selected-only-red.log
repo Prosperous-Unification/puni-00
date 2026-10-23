@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/service/dependency-admission.test.ts:
+26 |     `${DEPENDENCY_WEBSOCKET_PROTOCOL}.other`,
+27 |     DEPENDENCY_WEBSOCKET_PROTOCOL.toUpperCase(),
+28 |     `${DEPENDENCY_WEBSOCKET_PROTOCOL}, ${DEPENDENCY_WEBSOCKET_PROTOCOL}`,
+29 |   ])
+30 |     expect(claimsDependencySemantics(capable, offered)).toBe(false);
+31 |   expect(claimsDependencySemantics(capable, `other, ${DEPENDENCY_WEBSOCKET_PROTOCOL}`)).toBe(false);
+                                                                                             ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.test.ts:31:89)
+(fail) requires independent binary support and exact offered WebSocket token [0.44ms]
+(pass) capable binaries forward only an exact offered WS claim and strictly decode the decision [6.87ms]
+(pass) unexpected status, extra refusal fields and invalid budgets remain infrastructure failures [0.29ms]
+(pass) selection refuses duplicate, malformed and unknown-only offers without implicit echo [0.20ms]
+
+ 3 pass
+ 1 fail
+ 25 expect() calls
+Ran 4 tests across 1 file. [2.99s]

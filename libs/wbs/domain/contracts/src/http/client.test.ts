@@ -942,3 +942,18 @@ test('cancels while decoding the dependency admission envelope', async () => {
     failure: { code: 'cancelled' },
   });
 });
+
+test('fetch transport claims implemented dependency semantics only for protected operations', async () => {
+  const claims: (string | null)[] = [];
+  const transport = fetchTransport(
+    'https://wbs.test',
+    (_url, init) => {
+      claims.push(new Headers(init.headers).get('X-WBS-Dependency-Semantics'));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+    'cross-project-dependencies-v1',
+  );
+  await transport(listProjects, { params: {}, query: undefined, body: undefined });
+  await transport(health, { params: {}, query: undefined, body: undefined });
+  expect(claims).toEqual(['cross-project-dependencies-v1', null]);
+});

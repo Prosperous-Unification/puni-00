@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+{"level":"error","time":1792771610222,"service":"gw-01","reason":"incompatible","err":{"occurrence_id":"AE_KY16PF07HK1W77HNZFVM81G41D","fingerprint":"fp1_b21151a2d9c5fd4cba58161e87aefe9e","instanceof_error":false,"typeof":"undefined","as_string":"undefined","as_json":null,"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"b587cae9-bc0d-494d-9945-8d1b80a798d0","msg":"socket delivery retired"}
+
+apps/wbs/gw-01/src/dependency-admission.integration.test.ts:
+(fail) dual offers explicitly select V1 and retained presence keeps that exact admission [5007.84ms]
+  ^ this test timed out after 5000ms.
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+Ran 1 test across 1 file. [9.76s]
