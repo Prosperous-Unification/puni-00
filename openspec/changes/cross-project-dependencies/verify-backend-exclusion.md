@@ -150,3 +150,50 @@ scanner implementation or controller exception was added. A dedicated actual
 initialized coordinator/opaque daemon-owned volume proof was added to the
 Docker harness; it verifies unchanged volume sentinel and process inventory to
 establish scanner cleanup before trying global backend admission.
+
+## Clean-source actual supported participant proof
+
+At clean source `f6363f45382d3b7311de842a541377215825efd0`, the installed
+application image was
+`docker.io/wbs-be-01@sha256:1859b545e83b98a3948134947cd21b357cac382ca30e168d63aa696ff969f86d`;
+the separately labeled gateway/coordinator runtime image was
+`docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4`.
+Neither image was built or pulled. Both real backend colours returned health and
+registration HTTP 200. Actual initialized coordinator
+`4d0e28b650cc00cc395506b85730e1cbb17723c2400dbb4aee337b2c67f21b16`
+then passed the production namespace adapter for its genuinely host-EACCES
+Docker volume
+`backend-proof-2b934e0e-cddc-4ddc-8819-b36276193311-opaque`.
+Its process inventories before/after were byte-identical (only Docker init and
+Bun, no scanner orphan) and its stored sentinel was unchanged. Gateway runtime
+exclusion also passed. Detailed external receipt:
+`/tmp/backend-fence-docker-f6363f453.json`.
+
+Global backend admission correctly remained blocked by an unsupported unrelated
+participant before backend intent/effects. The initial generic error was
+`Docker init metadata is missing or malformed`; diagnostic wrapping now names
+the exact inspected container and attended path. Read-only inventory identified:
+
+- `9438214c5c1b9556b22069a37561cabf0341f19bf46c6b0197310b821098c144`,
+  `/puni-gate-lab-target`: stopped, writable Docker-socket bind, missing Docker
+  Init metadata. No running namespace can establish exclusion for that mount.
+- `52a96e3da92e6b11eccfce4ab4d2abd378f6531b239dce39ebac60bbf1d61d00`,
+  `/buildx_buildkit_puni-fleet-controller-6c2fa84a6b610`: running with Init true
+  but privileged; its daemon-owned volume is also unsupported by the
+  unprivileged namespace contract. It was not exempted, stopped or altered.
+
+The attended operational choices are a dedicated Docker daemon containing only
+supported initialized participants, or explicit owner-controlled maintenance of
+these unsupported participants before retrying. This code does not remove lab
+fixtures or stop/recreate BuildKit. All owned acceptance containers, network and
+volume were removed with exact label/identity checks; cleanup verified true and
+zero cleanup failures. This proves the supported opaque-participant path and
+safe global refusal, not a successful full real backend fence on this shared
+host. No semantic authority or complete participant exclusion is claimed.
+
+The diagnostic-context change passed 133 lifecycle/actual-scanner adapter tests,
+0 failures, 411 assertions, plus spec TypeScript and changed-source ESLint checks.
+The corrected elevated full-source run has separately observed release-config
+fixture timeouts at 120 seconds and gateway boot child exitCode null/10-second
+timeout. Its broader result is not substituted for the focused green proof and
+will be recorded on completion.

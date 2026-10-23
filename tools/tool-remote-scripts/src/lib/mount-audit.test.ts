@@ -565,3 +565,15 @@ test('backend fence treats host Source ENOENT as unknown until actual namespace 
     await rm(proof.root, { recursive: true, force: true });
   }
 });
+
+test('backend fence namespace refusal names the exact unsupported participant and attended path', async () => {
+  const proof = await fixture('missing-init');
+  try {
+    await refuses(
+      auditBackendParticipant(proof, true),
+      `container ${proof.container.Id}; attended maintenance or a dedicated daemon required`,
+    );
+  } finally {
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});

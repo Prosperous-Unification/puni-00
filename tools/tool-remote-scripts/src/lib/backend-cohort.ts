@@ -237,22 +237,29 @@ export async function auditUnmanagedMounts(
     if (remaining <= 0) throw new Error('backend fence namespace audit deadline exceeded');
     // Proof: opaque-source/hidden-RW/rebound-source production adapter cases require real initialized namespace receipts;
     // suppressing this invocation admits aliases and is caught by those negatives and the positive ACK count.
-    await runDockerBefore(
-      [],
-      async () => {
-        await namespaceProof(
-          container,
-          mounts.map((mount) => mount.target),
-          database.host,
-          image,
-          runDocker,
-          null,
-          { totalMs: remaining, cleanupMs: Math.min(20000, remaining / 2) },
-        );
-        return '';
-      },
-      deadline,
-    );
+    try {
+      await runDockerBefore(
+        [],
+        async () => {
+          await namespaceProof(
+            container,
+            mounts.map((mount) => mount.target),
+            database.host,
+            image,
+            runDocker,
+            null,
+            { totalMs: remaining, cleanupMs: Math.min(20000, remaining / 2) },
+          );
+          return '';
+        },
+        deadline,
+      );
+    } catch (cause) {
+      throw new Error(
+        `backend fence actual namespace audit refused for container ${id}; attended maintenance or a dedicated daemon required; no unrelated container was stopped: ${cause instanceof Error ? cause.message : String(cause)}`,
+        { cause },
+      );
+    }
   }
 }
 
