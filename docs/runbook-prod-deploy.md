@@ -983,7 +983,7 @@ and captured configuration file bytes; if a required file/location has not been
 established, stop and record the unresolved inventory instead of inventing bytes.
 
 Copy reviewed artifacts and separately collected installed files beneath a local
-capture root. Use ordinary files, unique paths and no symlink components. Run:
+capture root. Use ordinary files of at most 128 MiB, unique paths and dev/inode identities, and no symlink components. Run:
 
 ```sh
 bunx nx run tool-remote-scripts:inspect-installed-writers --args='/absolute/reviewed-manifest.json /absolute/capture-root'

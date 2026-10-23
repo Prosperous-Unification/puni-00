@@ -1136,7 +1136,7 @@ all required local captured writer artifacts and SHALL always block activation.
 
 #### Scenario: Incomplete, malformed or substituted observations
 
-- **WHEN** a required member or environment is omitted, duplicated or aliased, the manifest is malformed or carries an activation field, or required bytes are absent, unreadable, nonregular, outside the capture root, symlinked or differ from their independently reviewed digest
+- **WHEN** a required member or environment is omitted, duplicated or aliased, the manifest is malformed or carries an activation field, or required bytes are absent, unreadable, nonregular, larger than 128 MiB, hardlinked across required paths, outside the capture root, symlinked (including parent substitution during open) or differ from their independently reviewed digest
 - **THEN** the CLI refuses without inventory output
 - **AND** substituted interpreter or authority configuration bytes receive the same refusal
 

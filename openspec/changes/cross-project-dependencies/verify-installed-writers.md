@@ -81,3 +81,38 @@ Docker authority discovery, solver runtime admission, host process/manual-contro
 census, prior-holder drain or continuous exclusion was performed. Positive local
 captures prove only equality of supplied files. No complete Task 10.2, deployment
 or activation readiness is claimed. Independent Astra review is pending.
+
+## Independent-review corrections after c15a23e1a
+
+Four reviewed counterexamples were reproduced through the real CLI before fixing:
+
+- A comma-packed `prod-smoke,prod-swap` name with the prod-swap record/files omitted
+  emitted an 11-member report. Membership now checks exact cardinality, distinct
+  names and membership in the fixed name set. Closed record fields also compare
+  exact keys rather than delimiter-joined strings.
+- Distinct reviewed/capture paths pointing at one hardlinked inode emitted success.
+  All distinct required observation paths now require distinct device/inode identities.
+- A parent directory replaced by an outside symlink only while the real open ran,
+  then restored before path readback, supplied expected external bytes and emitted
+  success. Each opened descriptor now proves its device/inode/size/time/mode
+  against the path observed before open and again against path/descriptor readback.
+- The 64 MiB reader limit refused the real pinned local Bun interpreter, observed
+  at 79,500,640 bytes. The bounded reader now allows at most 128 MiB. A positive
+  CLI test copies the actual running Bun binary into separate reviewed/capture
+  files and pins its digest; matching sparse artifacts of 128 MiB plus one byte
+  supply the production oversized negative without consuming equivalent disk space.
+
+The first two tests were watched red (**35 pass, 2 fail**), the transient-parent
+race independently red (**37 pass, 1 fail**), and actual-Bun acceptance independently
+red (**39 pass, 1 fail**). Corrected focused suite: **40 pass, 0 fail, 83 assertions**.
+
+Watched separate production mutations deleted exact membership admission,
+deleted cross-path inode refusal, removed descriptor/path binding before and after
+read, and removed only the size predicate. Each made its named real CLI regression
+test fail an assertion (the corresponding invalid capture emitted success); all
+mutations were restored. Existing no-activation and host-authority limits remain.
+
+Correction checks: scoped Nx typecheck and lint both exited 0; changed-file
+Prettier and `git diff --check` passed; scoped OpenSpec validation exited 0.
+No broad suite or host gate was rerun for these corrections. Independent review
+of the correction remains required before integration.

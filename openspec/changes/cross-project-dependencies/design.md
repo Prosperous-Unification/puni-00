@@ -1240,8 +1240,8 @@ launch/restart configuration bytes, not effective host configuration. Reviewed
 hashes must predate and be independent of installed captures; this tool provides
 no discovery-to-expectation generator. Manifest provenance remains external review.
 
-All expected/captured files are bounded ordinary readable files under the supplied
-canonical root, without symlink paths; required observations are read twice.
+All expected/captured files are ordinary readable files of at most 128 MiB under the supplied
+canonical root, without symlink paths or cross-path dev/inode aliases; required observations are read twice. Exact membership uses cardinality, unique names and comparison against fixed role names, never delimiter-joined strings. Each opened descriptor is bound to its path observation by dev/inode/size/time/mode before reading, then checked against the descriptor and path again afterward. The 128 MiB bound admits the observed 79,500,640-byte Bun interpreter while keeping reads bounded.
 Missing, unreadable, malformed, aliased, incomplete, mismatching or observed
 changing evidence refuses with no inventory output. Interpreter substitution is
 an ordinary pinned-byte mismatch. The CLI additionally rereads the manifest and

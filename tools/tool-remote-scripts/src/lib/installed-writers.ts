@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { constants } from 'node:fs';
+import { type BigIntStats, constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
 
@@ -47,7 +47,8 @@ function recordOf(value: unknown): Record<string, unknown> {
 }
 function requireFields(record: Record<string, unknown>, fields: string[]): void {
   requireEvidence(
-    Object.keys(record).sort().join(',') === fields.sort().join(','),
+    Object.keys(record).length === fields.length &&
+      fields.every((field) => Object.hasOwn(record, field)),
     'unexpected manifest fields',
   );
 }
@@ -92,12 +93,11 @@ function parseManifest(value: unknown): WriterManifest {
       sha256,
     };
   });
-  // Proof: omitted prod/dev/poller/authority slots fail the omitted-member production-path tests.
+  // Proof: deleting exact membership admission failed the real CLI comma-packed omitted-writer fault.
   requireEvidence(
-    members
-      .map((member) => member.member)
-      .sort()
-      .join(',') === [...WRITER_MEMBERS].sort().join(','),
+    members.length === WRITER_MEMBERS.length &&
+      new Set(members.map((member) => member.member)).size === WRITER_MEMBERS.length &&
+      members.every((member) => WRITER_MEMBERS.some((name) => name === member.member)),
     'invalid membership',
   );
   // Proof: path guard removal admitted the same-byte reviewed/installed alias in the real CLI.
@@ -113,22 +113,32 @@ function hashBytes(bytes: Uint8Array | string): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+function identifyFile(file: BigIntStats): string {
+  return [file.dev, file.ino, file.size, file.mtimeNs, file.ctimeNs, file.mode].join(':');
+}
+
 /** Reads required ordinary files; permissions, missing paths and read failures propagate. No executable is invoked. */
 export async function readWriterBytes(path: string): Promise<Uint8Array> {
+  const expected = await lstat(path, { bigint: true });
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const before = await file.stat({ bigint: true });
+    // Proof: deleting descriptor/path admission let the real CLI open through a transient outside-parent symlink.
     requireEvidence(
-      before.isFile() && before.size <= 64n * 1024n * 1024n,
+      identifyFile(expected) === identifyFile(before),
+      'opened observation identity differs',
+    );
+    // Pinned Bun is 79,500,640 bytes; 128 MiB admits that binary with bounded read headroom.
+    // Proof: deleting the size bound admitted matching oversized artifacts in the actual CLI.
+    requireEvidence(
+      before.isFile() && before.size <= 128n * 1024n * 1024n,
       'required observation is not a bounded regular file',
     );
     const bytes = await file.readFile();
     const after = await file.stat({ bigint: true });
     requireEvidence(
-      before.ino === after.ino &&
-        before.size === after.size &&
-        before.mtimeNs === after.mtimeNs &&
-        before.ctimeNs === after.ctimeNs,
+      identifyFile(before) === identifyFile(after) &&
+        identifyFile(after) === identifyFile(await lstat(path, { bigint: true })),
       'observation changed during read',
     );
     return bytes;
@@ -151,6 +161,7 @@ export async function inspectInstalledWriters(
   const manifest = parseManifest(value);
   const canonicalRoot = await realpath(root);
   const identities = new Map<string, string>();
+  const inodePaths = new Map<string, string>();
   async function readMember(path: string): Promise<string> {
     // Proof: guard removal admitted traversal resolving to the unchanged captured file in the CLI.
     requireEvidence(
@@ -165,24 +176,17 @@ export async function inspectInstalledWriters(
       'observation path escapes root or uses symlink',
     );
     const before = await lstat(resolved, { bigint: true });
-    const identity = [
-      before.dev,
-      before.ino,
-      before.size,
-      before.mtimeNs,
-      before.ctimeNs,
-      before.mode,
-    ].join(':');
+    const inode = `${String(before.dev)}:${String(before.ino)}`;
+    // Proof: deleting inode alias refusal admitted the actual CLI reviewed/captured hardlink fault.
+    requireEvidence(
+      !inodePaths.has(inode) || inodePaths.get(inode) === resolved,
+      'aliased observation inode',
+    );
+    inodePaths.set(inode, resolved);
+    const identity = identifyFile(before);
     const bytes = await read(resolved);
     const after = await lstat(resolved, { bigint: true });
-    const observed = [
-      after.dev,
-      after.ino,
-      after.size,
-      after.mtimeNs,
-      after.ctimeNs,
-      after.mode,
-    ].join(':');
+    const observed = identifyFile(after);
     // Proof: same-byte inode replacement fails the real CLI inode-drift test.
     requireEvidence(
       identity === observed && (!identities.has(resolved) || identities.get(resolved) === identity),

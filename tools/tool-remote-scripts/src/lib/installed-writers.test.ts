@@ -231,3 +231,104 @@ test.each([
   expect(execution.stdout).toBe('');
   if (fault === 'digest') expect(execution.stderr).toContain('invalid digest');
 });
+
+test('real CLI refuses comma-packed names hiding an omitted required writer', async () => {
+  const { root, manifest } = await fixture();
+  manifest.members = manifest.members.filter((member) => member.member !== 'prod-swap');
+  const packed = {
+    ...manifest,
+    members: manifest.members.map((member) => ({
+      ...member,
+      member: member.member === 'prod-smoke' ? 'prod-smoke,prod-swap' : member.member,
+    })),
+  };
+  await rm(join(root, 'expected/prod-swap'));
+  await rm(join(root, 'installed/prod-swap'));
+  const execution = await runCli(root, packed);
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout).toBe('');
+  expect(execution.stderr).toContain('membership');
+});
+
+test('real CLI refuses hardlinked reviewed and captured observations', async () => {
+  const { root, manifest } = await fixture();
+  const { link } = await import('node:fs/promises');
+  await rm(join(root, 'installed/prod-swap'));
+  await link(join(root, 'expected/prod-swap'), join(root, 'installed/prod-swap'));
+  const execution = await runCli(root, manifest);
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout).toBe('');
+  expect(execution.stderr).toContain('aliased observation inode');
+});
+
+test('real CLI refuses a parent symlink swapped only during file open', async () => {
+  const { root, manifest } = await fixture();
+  const outside = await mkdtemp(join(tmpdir(), 'writer-outside-'));
+  roots.push(outside);
+  await writeFile(join(outside, 'prod-swap'), 'reviewed prod-swap');
+  await writeFile(join(root, 'installed/prod-swap'), 'unreviewed actual capture');
+  const preload = join(root, 'open-race.ts');
+  await writeFile(
+    preload,
+    `
+import { mock } from 'bun:test';
+import * as fs from 'node:fs/promises';
+const originalOpen = fs.open;
+mock.module('node:fs/promises', () => ({ ...fs, open: async (path, ...options) => {
+  if (path !== ${JSON.stringify(join(root, 'installed/prod-swap'))}) return originalOpen(path, ...options);
+  await fs.rename(${JSON.stringify(join(root, 'installed'))}, ${JSON.stringify(join(root, 'parked'))});
+  await fs.symlink(${JSON.stringify(outside)}, ${JSON.stringify(join(root, 'installed'))});
+  try { return await originalOpen(path, ...options); }
+  finally {
+    await fs.unlink(${JSON.stringify(join(root, 'installed'))});
+    await fs.rename(${JSON.stringify(join(root, 'parked'))}, ${JSON.stringify(join(root, 'installed'))});
+  }
+} }));
+`,
+  );
+  const execution = await runCli(root, manifest, preload);
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout).toBe('');
+  expect(execution.stderr).toContain('opened observation identity differs');
+});
+
+test('real CLI accepts the actual Bun interpreter binary as separately captured bytes', async () => {
+  const { root, manifest } = await fixture();
+  const { copyFile } = await import('node:fs/promises');
+  const interpreter = manifest.members.find((member) => member.member === 'dev-interpreter');
+  if (!interpreter) throw new Error('fixture interpreter missing');
+  interpreter.sha256 = new Bun.CryptoHasher('sha256')
+    .update(await Bun.file(process.execPath).bytes())
+    .digest('hex');
+  await copyFile(process.execPath, join(root, interpreter.reviewed));
+  await copyFile(process.execPath, join(root, interpreter.installed));
+  const execution = await runCli(root, manifest);
+  expect(execution.exitCode).toBe(0);
+  const observation: unknown = JSON.parse(execution.stdout);
+  expect(observation).toHaveProperty('activation', 'blocked');
+}, 10_000);
+
+test('real CLI refuses matching artifacts larger than 128 MiB before reading them', async () => {
+  const { root, manifest } = await fixture();
+  const { open } = await import('node:fs/promises');
+  const interpreter = manifest.members.find((member) => member.member === 'dev-interpreter');
+  if (!interpreter) throw new Error('fixture interpreter missing');
+  const digest = new Bun.CryptoHasher('sha256');
+  const chunk = new Uint8Array(1024 * 1024);
+  for (let count = 0; count < 128; count++) digest.update(chunk);
+  digest.update(new Uint8Array(1));
+  interpreter.sha256 = digest.digest('hex');
+  for (const path of [interpreter.reviewed, interpreter.installed]) {
+    await rm(join(root, path));
+    const file = await open(join(root, path), 'wx');
+    try {
+      await file.truncate(128 * 1024 * 1024 + 1);
+    } finally {
+      await file.close();
+    }
+  }
+  const execution = await runCli(root, manifest);
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout).toBe('');
+  expect(execution.stderr).toContain('bounded regular file');
+}, 10_000);
