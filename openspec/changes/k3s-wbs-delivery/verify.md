@@ -1102,3 +1102,57 @@ No heavy k3s run, host gate, integration or push was performed. The earlier comp
 configured-suite run's two existing SQLite timeouts and the separate rollback Job OOM
 remain recorded above; this correction does not establish a green complete suite or live
 rehearsal acceptance.
+
+## F8 selected runtime log garbage-collection correction (2026-10-23)
+
+Astra's next review reproduced another lifecycle race: kubelet removes logs before the
+runtime container, so exact-ID `crictl logs` can obtain ContainerStatus and then fail
+resolving/opening its removed log. This packet adds that modeled ENOENT outcome without
+changing exact-ID log selection or the success proof.
+
+Pinned primary evidence is the k3s dependency's
+[kubelet removeContainer](https://github.com/k3s-io/kubernetes/blob/v1.36.4-k3s1/pkg/kubelet/kuberuntime/kuberuntime_container.go#L1275),
+which removes logs before calling RemoveContainer, and its
+[CRI ReadLogs](https://github.com/k3s-io/kubernetes/blob/v1.36.4-k3s1/staging/src/k8s.io/cri-client/pkg/logs/logs.go#L265),
+which returns distinct errors for EvalSymlinks and opening the resolved path. These match
+the upstream cri-client `v0.36.0` forms identified in review.
+
+The exact validated runtime ID remains the logs argument. Recovery requires the canonical
+selected namespace/name/UID/container directory
+`/var/log/pods/wbs_<selected-name>_<selected-uid>/mcp/<decimal>.log` and ENOENT. The inner
+failed `open` path must equal that file; the inner failed `lstat` path can equal the file,
+the selected MCP directory, or the selected pod directory. Foreign paths with the same
+basename, different namespaces/containers, rotation/traversal paths, URI paths, mismatched
+inner operations, EACCES, tool failures and malformed logrus wrappers throw immediately.
+Raw and canonically encoded logrus diagnostics are modeled; persistent loss exhausts the
+existing shared deadline with redacted evidence.
+
+Before the fix, all twelve selected-log convergence/exhaustion cases failed through the
+production observer (`/tmp/puni-mcp-enoent-red.log`). Afterward, six forms covering raw and
+wrapped EvalSymlinks/open errors and selected ancestors converged after replacement and
+exhausted the bounded deadline when repeated. Persistent selected-path loss with key
+material in the path kept it redacted.
+
+Seven watched faults each exited 1: removing ENOENT recovery, removing selected-path
+scope, removing numeric restart-log scope, omitting the inner EvalSymlinks path guard,
+omitting the inner open path guard, accepting EACCES, and accepting a malformed wrapper.
+The initial open-guard omission survived because only the lstat foreign-inner case was
+covered; explicit foreign-open/ancestor and operation-mismatch negatives were added, and
+the omission then failed. Originals were restored in `finally`; logs:
+`/tmp/puni-mcp-enoent-proofs/<fault>.log`. Adjacent Proof comments identify these checks.
+
+Fresh verification:
+
+- MCP observation, diagnostics and lab-migration files, configured scratch preload and
+  unchanged 10000ms timeout: exit 0, 72 pass, 1134 assertions; MCP observation contributes
+  60 cases. `/tmp/puni-mcp-enoent-focused-final.log`.
+- Configured Nx `tool-deploy:lint` and `tool-deploy:typecheck`, daemon/plugin isolation
+  disabled and cache skipped: exit 0; `/tmp/puni-mcp-enoent-lint.log`,
+  `/tmp/puni-mcp-enoent-typecheck.log`.
+
+- Scoped Prettier and `git diff --check`: exit 0. OpenSpec all validation:
+  exit 0, 273 pass; `/tmp/puni-mcp-enoent-openspec.log`.
+
+The full suite and heavy k3s/host gate were not rerun for this correction. No integration,
+push or live operation was performed. Earlier full-suite SQLite timeouts, rollback Job
+OOM and live CRI/rehearsal acceptance gaps remain unresolved above.

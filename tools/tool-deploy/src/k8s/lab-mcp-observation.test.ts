@@ -416,3 +416,85 @@ it('reads the selected container stderr stream emitted by crictl', async () => {
   ]);
   expect(await run.observe()).toContain(required);
 });
+
+const selectedLog = '/var/log/pods/wbs_mcp-new_new/mcp/0.log';
+function missingLog(
+  path: string,
+  operation: 'lstat' | 'open' = 'lstat',
+  failedPath = path,
+): string {
+  return `${operation === 'lstat' ? 'failed to try resolving symlinks in path' : 'failed to open log file'} ${JSON.stringify(path)}: ${operation} ${failedPath}: no such file or directory`;
+}
+const lostLogMessages = [
+  missingLog(selectedLog),
+  missingLog(selectedLog, 'open'),
+  missingLog(selectedLog, 'lstat', '/var/log/pods/wbs_mcp-new_new/mcp'),
+  missingLog(selectedLog, 'lstat', '/var/log/pods/wbs_mcp-new_new'),
+  `time="2026-10-23T12:00:00Z" level=fatal msg=${JSON.stringify(missingLog(selectedLog))}`,
+  `time="2026-10-23T12:00:00Z" level=fatal msg=${JSON.stringify(missingLog(selectedLog, 'open'))}`,
+];
+for (const diagnostic of lostLogMessages) {
+  it(`converges after selected runtime log ENOENT: ${diagnostic}`, async () => {
+    const run = rehearsal([
+      ok(listed(pod('old'))),
+      ok(listed(pod())),
+      unavailable(diagnostic),
+      ok(listed(pod('new', 1, secondContainer))),
+      ok(required),
+      ok(listed(pod('new', 1, secondContainer))),
+    ]);
+    expect(await run.observe()).toContain(secondContainer);
+    expect(run.now()).toBe(1000);
+  });
+
+  it(`bounds persistent selected runtime log ENOENT: ${diagnostic}`, async () => {
+    const replies = [ok(listed(pod('old')))];
+    for (let attempt = 0; attempt < 5; attempt++)
+      replies.push(ok(listed(pod())), unavailable(diagnostic));
+    const run = rehearsal(replies);
+    expect((await failObservation(run.observe())).message).toContain('last seen:');
+    expect(run.now()).toBe(5000);
+  });
+}
+
+for (const diagnostic of [
+  missingLog('/var/log/pods/wbs_mcp-other_other/mcp/0.log'),
+  missingLog('/var/log/pods/wbs_mcp-foo_foo/mcp/0.log'),
+  missingLog('file:///var/log/pods/wbs_mcp-new_new/mcp/0.log'),
+  missingLog('/var/log/pods/other_mcp-new_new/mcp/0.log'),
+  missingLog('/var/log/pods/wbs_mcp-new_new/sidecar/0.log'),
+  missingLog('/var/log/pods/wbs_mcp-new_new/mcp/0.log.20261023'),
+  missingLog('/var/log/pods/wbs_mcp-new_new/mcp/../sidecar/0.log'),
+  missingLog(selectedLog, 'lstat', '/var/log/pods/wbs_mcp-other_other/mcp/0.log'),
+  missingLog(selectedLog, 'open', '/var/log/pods/wbs_mcp-foo_foo/mcp/0.log'),
+  missingLog(selectedLog, 'open', '/var/log/pods/wbs_mcp-new_new/mcp'),
+  missingLog(selectedLog).replace(': lstat ', ': open '),
+  missingLog(selectedLog, 'open').replace(': open ', ': lstat '),
+  missingLog(selectedLog, 'lstat', '/var/log/pods'),
+  missingLog(selectedLog, 'open').replace('no such file or directory', 'permission denied'),
+  `time="2026-10-23T12:00:00Z" level=fatal msg=${JSON.stringify(missingLog(selectedLog, 'open').replace('no such file or directory', 'permission denied'))}`,
+  `time="2026-10-23T12:00:00Z" level=fatal msg=${JSON.stringify(missingLog(selectedLog)).slice(0, -1)}!`,
+  'docker: no such file or directory',
+  'time="2026-10-23T12:00:00Z" level=fatal msg="invalid secret-material',
+]) {
+  it(`refuses unrelated log-file failures immediately: ${diagnostic}`, async () => {
+    const run = rehearsal([ok(listed(pod('old'))), ok(listed(pod())), unavailable(diagnostic)]);
+    const failure = await failObservation(run.observe());
+    expect(failure.message).toContain('command failed');
+    expect(failure.message).not.toContain('secret-material');
+    expect(run.now()).toBe(0);
+  });
+}
+
+it('redacts persistent selected log-path loss at the deadline', async () => {
+  const diagnostic = missingLog('/var/log/pods/wbs_mcp-secret-material_secret-material/mcp/0.log');
+  const replies = [ok(listed(pod('old')))];
+  for (let attempt = 0; attempt < 5; attempt++)
+    replies.push(ok(listed(pod('secret-material'))), unavailable(diagnostic));
+  const run = rehearsal(replies);
+  const failure = await failObservation(run.observe());
+  expect(failure.message).toContain('last seen:');
+  expect(failure.message).toContain('[REDACTED]');
+  expect(failure.message).not.toContain('secret-material');
+  expect(run.now()).toBe(5000);
+});

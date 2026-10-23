@@ -71,21 +71,58 @@ function decodePods(stdout: string): McpPod[] {
     return parsed;
   });
 }
+/** The exact-ID CRI command may outlive GC of its log; only the selected MCP log path may retry. */
+function isLogMissing(message: string, pod: McpPod): boolean {
+  // Proof: removing ENOENT recovery failed selected-path convergence and bounded exhaustion;
+  // accepting EACCES failed the permission refusal cases.
+  const failure =
+    /^failed to (try resolving symlinks in path|open log file) "([^"\n]+)": (lstat|open) ([^\n]+): no such file or directory$/.exec(
+      message,
+    );
+  if (failure === null) return false;
+  const phase = readText(failure[1]);
+  const path = readText(failure[2]);
+  const operation = readText(failure[3]);
+  const failedPath = readText(failure[4]);
+  const directory = `/var/log/pods/wbs_${pod.name}_${pod.uid}`;
+  const container = `${directory}/mcp`;
+  // Proof: removing pod-path or restart-filename scope retried foreign same-basename or
+  // rotated/traversal paths; both watched production-loop negatives failed.
+  if (!path.startsWith(`${container}/`)) return false;
+  if (!/^(?:0|[1-9][0-9]*)\.log$/.test(path.slice(container.length + 1))) return false;
+  // Proof: omitting either inner-path guard retried a foreign path; the open and
+  // EvalSymlinks omission negatives both failed after adding the missing open negative.
+  if (phase === 'open log file') return operation === 'open' && failedPath === path;
+  return (
+    operation === 'lstat' &&
+    (failedPath === path || failedPath === container || failedPath === directory)
+  );
+}
+
 function isLifecycleUnavailable(stderr: string, pod: McpPod | undefined): boolean {
   if (pod?.terminated === undefined) return false;
   const id = pod.terminated.containerID.slice('containerd://'.length);
   const missing = `rpc error: code = NotFound desc = an error occurred when try to find container "${id}": not found`;
   // Proof: accepting any NotFound ID made the foreign-ID negative retry; restoring exact
   // matching passed it and the raw/logrus/klog garbage-collection convergence cases.
-  // Only the requested CRI ID's exact NotFound response models runtime garbage collection.
+  // Requested-ID NotFound and selected-pod MCP log ENOENT model runtime garbage collection.
   // Docker failures, authorization, tool absence and errors naming other IDs throw.
   return stderr
     .trim()
     .split('\n')
     .every((line) => {
-      if (line === missing) return true;
+      if (line === missing || isLogMissing(line, pod)) return true;
       const logrus = /^time="[^"\n]+" level=(?:fatal|error) msg=/.exec(line);
-      if (logrus !== null) return line.slice(logrus[0].length) === JSON.stringify(missing);
+      if (logrus !== null) {
+        const encoded = line.slice(logrus[0].length);
+        const message = encoded.slice(1, -1).replaceAll('\\"', '"');
+        // Proof: dropping canonical encoding validation accepted a malformed logrus wrapper.
+        // Known CRI diagnostics need only quoted path/ID escapes. Roundtrip validation
+        // rejects malformed wrappers without parsing arbitrary error payloads.
+        return (
+          JSON.stringify(message) === encoded && (message === missing || isLogMissing(message, pod))
+        );
+      }
       const klog = /^E[0-9]{4} [0-9:.]+ +[0-9]+ (?:remote_runtime|log_rpc)\.go:[0-9]+\] /.exec(
         line,
       );
