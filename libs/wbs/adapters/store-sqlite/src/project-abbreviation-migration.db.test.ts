@@ -15,7 +15,7 @@ const MIGRATION = '20261022210000_add_project_abbreviations';
 const EXTERNAL = '20261022211000_add_external_dependencies';
 const CERTIFICATES = '20261022213000_add_optimization_boundary_certificates';
 const AUTHORITY = '20261022212000_add_cross_project_dependency_activation';
-const BASE = '20261022130100_widen_organization_audit_organization_limits';
+const BASE = '20261022140100_widen_organization_audit_compute_providers';
 let directory: string;
 let path: string;
 function raw<T>(use: (sqlite: Database) => T): T {
@@ -66,6 +66,8 @@ it('old writer insert allocates five letters', () => {
   });
 });
 it('backfills every project and rollback preserves old project rows and complete ledger', () => {
+  // Proof: deleting the retained resource-provider ledger row in rollbackAppliedRows
+  // made reapplication attempt the existing compute_provider table and fail this case.
   rollbackTo(path, FOLDER, BASE);
   const before = raw((sqlite) => {
     insert(sqlite, 'p');
