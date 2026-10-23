@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
-import { createNamespaceFixture as fixture } from '../../test/fixtures/namespace-audit';
+import { createNamespaceFixture as fixture } from '../fixtures/namespace-audit';
 import { inspectBackendWriters } from '../swap';
 import { auditManagedMounts, auditUnmanagedMounts } from './backend-cohort';
 import { ROOT } from './docker';

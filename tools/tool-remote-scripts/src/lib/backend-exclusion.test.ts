@@ -3,7 +3,7 @@ import { link, lstat, mkdir, readdir, readFile, rename, unlink, writeFile } from
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
-import { createNamespaceFixture } from '../../test/fixtures/namespace-audit';
+import { createNamespaceFixture } from '../fixtures/namespace-audit';
 import {
   fenceBackends as runFenceBackends,
   inspectBackendFence as runInspectBackendFence,
