@@ -8,6 +8,8 @@ import { solverInspectArgs } from '../src/lib/solver-cohort';
 export const SOURCE_FIXTURE_OWNER = 'puni.source-exclusion';
 export interface FixtureContainerPlan {
   readonly name: string;
+  /** Captured creation/recovery identity; a reviewed getter may expose a during-stop child after acknowledgement. */
+  readonly id: string;
   readonly imageRef: string;
   readonly imageId: string;
   /** Additional independently planned physical coordinates, checked before translation. */
@@ -60,7 +62,6 @@ export function createFixtureDocker(options: FixtureDockerOptions): RunDocker {
     [sourceName, sourceTag, caddyName].every((name) => name.includes(token)),
     'fixture names must contain UUID',
   );
-  const pinned = new Map<string, string>();
   async function census(signal?: AbortSignal): Promise<Map<string, Record<string, unknown>>> {
     const ids = parseIds(
       await run(
@@ -103,10 +104,8 @@ export function createFixtureDocker(options: FixtureDockerOptions): RunDocker {
         config['Image'] === plan.imageRef && container['Image'] === plan.imageId,
         'fixture image differs',
       );
-      const previous = pinned.get(plan.name);
-      // Proof: omit-full-id admitted a replacement to the same-name terminal effect (exit 1).
-      assertProof(previous === undefined || previous === id, 'fixture full identity replaced');
-      pinned.set(plan.name, id);
+      // Proof: captured-ID omission admitted replacement before first census; its production transport negative failed.
+      assertProof(plan.id === id, 'fixture captured identity differs');
       const mounts: unknown = container['Mounts'];
       assertProof(Array.isArray(mounts), 'fixture mounts absent');
       for (const rawMount of mounts) {
@@ -146,16 +145,36 @@ export function createFixtureDocker(options: FixtureDockerOptions): RunDocker {
   return async (args, signal) => {
     const inventory = await census(signal);
     if (args[0] === 'ps') {
+      const full = ['ps', '-a', '--no-trunc', '--format', '{{.ID}}'];
+      const managed = [
+        'ps',
+        '--all',
+        '--no-trunc',
+        '--filter',
+        'label=wbs-managed-solver=true',
+        '--format',
+        '{{.ID}}',
+      ];
+      const named = [
+        'ps',
+        '--all',
+        '--no-trunc',
+        '--filter',
+        'name=^/wbs-solver-',
+        '--format',
+        '{{.ID}}',
+      ];
+      // Proof: unsupported-discovery omission admitted a narrowed audit query; its named negative failed.
       assertProof(
-        args.at(-1) === '{{.ID}}' &&
-          args.includes('--no-trunc') &&
-          !args.includes('--filter=') &&
-          args.every((argument) => !argument.includes(SOURCE_FIXTURE_OWNER)),
+        [full, managed, named].some((expected) => same(args, expected)),
         'unrecognized fixture discovery',
       );
-      const ids = parseIds(
-        await run([...args, '--filter', `label=${SOURCE_FIXTURE_OWNER}=${token}`], signal),
-      );
+      // Proof: reverting to a second-list subset hid the unrelated writer; full inventory negative failed.
+      const ids = same(args, full)
+        ? [...inventory.keys()]
+        : parseIds(
+            await run([...args, '--filter', `label=${SOURCE_FIXTURE_OWNER}=${token}`], signal),
+          );
       assertProof(
         ids.every((id) => inventory.has(id)),
         'fixture discovery outside census',

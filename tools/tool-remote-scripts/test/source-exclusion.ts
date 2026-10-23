@@ -20,6 +20,7 @@ import {
   withSourceDevExcluded,
 } from '../src/lib/source-dev-exclusion';
 import { runSolverDrainAcceptance, type SolverDrainFixture } from './solver-drain';
+import { renderManagedParticipant, renderSourceTopology } from './source-exclusion-topology';
 import {
   createFixtureDocker,
   type FixtureContainerPlan,
@@ -75,7 +76,6 @@ export async function runSourceExclusionAcceptance(): Promise<void> {
 }
 async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> {
   const { token, root, sha, deadline, execute, record } = fixture;
-  const network = `source-exclusion-${token}`;
   const sourceName = `source-exclusion-src-${token}`;
   const sourceTag = `${sourceName}:1`;
   const caddyName = `source-exclusion-edge-${token}`;
@@ -83,29 +83,19 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
   const caddy = join(root, 'prod', 'caddy');
   const plans: FixtureContainerPlan[] = fixture.attempts.map((attempt) => ({
     name: attempt.name,
+    get id() {
+      return attempt.id;
+    },
     imageRef: fixture.image,
     imageId: fixture.imageId,
   }));
   const created: { name: string; id: string }[] = [];
-  const layouts = {
-    prod: {
-      ...fixture.layouts.prod,
-      sharedEnvPath: join(root, 'prod', '.env'),
-      oidcEnvPath: null,
-      network,
-      containerPrefix: `source-exclusion-${token}-`,
-      siteAddress: 'prod.owner.test',
-      siteCaddyPath: join(caddy, 'site.caddy'),
-    },
-    dev: {
-      ...fixture.layouts.dev,
-      sharedEnvPath: join(root, 'dev', '.env'),
-      oidcEnvPath: null,
-      network,
-      siteAddress: 'dev.owner.test',
-      siteCaddyPath: join(caddy, 'site-dev.caddy'),
-    },
-  };
+  const layouts = renderSourceTopology(root, token, fixture.layouts);
+  const networks = [layouts.prod.network, layouts.dev.network].map((name) => ({
+    name,
+    id: '',
+    intended: false,
+  }));
   const raw: RunDocker = (args, signal) => execute(['docker', ...args], signal);
   let cleaning = false;
   let cleanupDeadline = 0;
@@ -142,8 +132,6 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
     return pinned;
   }
   const sourcePin = pin('SOURCE');
-  let networkIntended = false;
-  let physicalNetworkId = '';
   let tagIntended = false;
   const cleanupFailures: string[] = [];
   let failure: unknown;
@@ -166,6 +154,21 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
     await actual(id);
     return command(args);
   }
+  async function ownNetwork(physical: {
+    name: string;
+    id: string;
+  }): Promise<Record<string, unknown>> {
+    const inspected = parseFixtureInspection(await command(['network', 'inspect', physical.name]));
+    requireProof(Array.isArray(inspected) && inspected.length === 1, 'owned network absent');
+    const owned = readFields(inspected[0]);
+    requireProof(
+      owned['Name'] === physical.name &&
+        readFields(owned['Labels'])[SOURCE_FIXTURE_OWNER] === token &&
+        (physical.id === '' || owned['Id'] === physical.id),
+      'network ownership changed',
+    );
+    return owned;
+  }
   const transport = createFixtureDocker({
     token,
     root,
@@ -187,9 +190,16 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       name.includes(token) && name !== 'wbs-dev-src' && name !== 'wbs-caddy-1',
       'production name refused',
     );
+    const networkArgument = args.at(args.indexOf('--network') + 1);
+    if (args.includes('--network')) {
+      const physical = networks.find((candidate) => candidate.name === networkArgument);
+      requireProof(physical !== undefined, 'creation network outside physical fixture inventory');
+      await ownNetwork(physical);
+    }
     const intended = { name, id: '' };
     created.push(intended);
-    plans.push({ name, imageRef, imageId });
+    const planned = { name, imageRef, imageId, id: '' };
+    plans.push(planned);
     await record('physical-creation-intent', {
       name,
       imageRef,
@@ -211,6 +221,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
         ])
       ).trim(),
     );
+    planned.id = intended.id;
     await actual(intended.id);
     return intended.id;
   }
@@ -296,18 +307,32 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
     };
     for (const [name, contents] of Object.entries(files))
       await writeFile(join(caddy, name), contents, { mode: 0o600, flag: 'wx' });
-    networkIntended = true;
-    const networkId = readIdentity(
-      (
-        await command(['network', 'create', '--label', `${SOURCE_FIXTURE_OWNER}=${token}`, network])
-      ).trim(),
+    for (const physical of networks) {
+      physical.intended = true;
+      physical.id = readIdentity(
+        (
+          await command([
+            'network',
+            'create',
+            '--label',
+            `${SOURCE_FIXTURE_OWNER}=${token}`,
+            physical.name,
+          ])
+        ).trim(),
+      );
+    }
+    const networkId = networks.find((physical) => physical.name === layouts.dev.network)?.id;
+    requireProof(
+      typeof networkId === 'string' && networkId !== '',
+      'physical dev network ID absent',
     );
-    physicalNetworkId = networkId;
     // Only the UUID tag is created; production's mutable source tag is never mutated.
     const existing = await command([
       'image',
       'ls',
       '--no-trunc',
+      '--filter',
+      `reference=${sourceTag}`,
       '--format',
       '{{.Repository}}:{{.Tag}}',
     ]);
@@ -324,7 +349,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
         '--workdir',
         '/src',
         '--network',
-        network,
+        layouts.dev.network,
         '--restart=unless-stopped',
         '--label',
         'com.docker.compose.service=dev-src',
@@ -360,44 +385,31 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
           isDeepStrictEqual(container['Config'], sourceConfig) &&
             isDeepStrictEqual(host, fixedSourceHost) &&
             isDeepStrictEqual(container['Mounts'], sourceMounts) &&
-            readFields(readFields(container['NetworkSettings'])['Networks'])[network] !==
-              undefined &&
-            readFields(readFields(readFields(container['NetworkSettings'])['Networks'])[network])[
-              'NetworkID'
-            ] === networkId,
+            readFields(readFields(container['NetworkSettings'])['Networks'])[
+              layouts.dev.network
+            ] !== undefined &&
+            readFields(
+              readFields(readFields(container['NetworkSettings'])['Networks'])[layouts.dev.network],
+            )['NetworkID'] === networkId,
           'source physical coordinates changed',
         );
       },
     };
-    const writer = `const {Database}=require('bun:sqlite'); const db=new Database('/data/wbs.db'); db.query('INSERT INTO acceptance VALUES (?)').run(process.env.WRITER); setInterval(()=>{},1000);`;
     for (const tier of ['be', 'gw'] as const) {
       const image = pin(tier === 'be' ? 'BACKEND' : 'GATEWAY');
-      const name = `${layouts.prod.containerPrefix}${tier}-01-blue`;
+      const rendered = renderManagedParticipant(tier, layouts.prod, token);
       const id = await create(
-        name,
+        rendered.name,
         image.reference,
         image.id,
-        [
-          '--init',
-          '--network',
-          network,
-          '--restart=always',
-          '--label',
-          `com.docker.compose.service=${name}`,
-          '--label',
-          `com.docker.compose.project=source-${token}`,
-          '--env',
-          'DB_PATH=/data/wbs.db',
-          '--env',
-          `WRITER=${tier}`,
-          '--mount',
-          `type=bind,src=${layouts.prod.root}/db,dst=/data`,
-          '--entrypoint',
-          'bun',
-        ],
-        ['-e', writer],
+        rendered.args,
+        rendered.argv,
       );
-      await record('managed-namespace-fixture', { id, tier, intendedWriterSha256: hash(writer) });
+      await record('managed-namespace-fixture', {
+        id,
+        tier,
+        intendedWriterSha256: hash(rendered.program),
+      });
       await start(id);
     }
     const writesDeadline = Math.min(deadline, performance.now() + 15000);
@@ -413,19 +425,19 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       } finally {
         stored.close();
       }
-      if (isDeepStrictEqual(writers, ['be', 'gw'])) break;
+      if (isDeepStrictEqual(writers, ['be'])) break;
       await Bun.sleep(100);
     }
     requireProof(
-      isDeepStrictEqual(writers, ['be', 'gw']),
-      'both initialized managed fixture writes required before exclusion',
+      isDeepStrictEqual(writers, ['be']),
+      'initialized backend fixture write required before exclusion',
     );
     await record('managed-real-writes', { writers });
     const caddyPin = pin('CADDY');
     const edgeId = await create(caddyName, caddyPin.reference, caddyPin.id, [
       '--init',
       '--network',
-      network,
+      layouts.prod.network,
       '--restart=no',
       '--publish',
       '127.0.0.1::8443',
@@ -436,6 +448,10 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       '--mount',
       `type=bind,src=${root}/caddy-config,dst=/config`,
     ]);
+    const devNetwork = networks.find((physical) => physical.name === layouts.dev.network);
+    requireProof(devNetwork !== undefined, 'planned dev network absent');
+    await ownNetwork(devNetwork);
+    await effect(['network', 'connect', devNetwork.id, edgeId], edgeId);
     await start(sourceId);
     await start(edgeId);
     const negative = {
@@ -599,8 +615,24 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
         try {
           const main = await lstat(join(layouts.prod.root, 'db', 'wbs.db'), { bigint: true });
           const directory = await lstat(join(layouts.prod.root, 'db'), { bigint: true });
+          const completeIds = (await transport(['ps', '-a', '--no-trunc', '--format', '{{.ID}}']))
+            .trim()
+            .split('\n');
+          const complete = parseFixtureInspection(await transport(['inspect', ...completeIds]));
+          requireProof(
+            Array.isArray(complete) && complete.length === completeIds.length,
+            'unrelated negative complete inventory absent',
+          );
+          const rawUnrelated: unknown = complete.find(
+            (raw: unknown) => readFields(raw)['Id'] === unrelated,
+          );
+          requireProof(
+            rawUnrelated !== undefined &&
+              readFields(rawUnrelated)['Name'] === `/source-exclusion-unrelated-${token}`,
+            'unrelated negative child omitted from complete census',
+          );
           await auditUnmanagedMounts(
-            [await actual(unrelated)],
+            [rawUnrelated],
             { blue: null, green: null },
             {
               path: '/data/wbs.db',
@@ -690,23 +722,14 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       } catch (cause) {
         cleanupFailures.push(String(cause));
       }
-    if (networkIntended)
-      try {
-        const inspected: unknown = parseFixtureInspection(
-          await command(['network', 'inspect', network]),
-        );
-        requireProof(Array.isArray(inspected) && inspected.length === 1, 'cleanup network absent');
-        const owned = readFields(inspected[0]);
-        requireProof(
-          owned['Name'] === network &&
-            readFields(owned['Labels'])[SOURCE_FIXTURE_OWNER] === token &&
-            (physicalNetworkId === '' || owned['Id'] === physicalNetworkId),
-          'cleanup network ownership changed',
-        );
-        await command(['network', 'rm', readIdentity(owned['Id'])]);
-      } catch (cause) {
-        cleanupFailures.push(String(cause));
-      }
+    for (const physical of networks)
+      if (physical.intended)
+        try {
+          const owned = await ownNetwork(physical);
+          await command(['network', 'rm', readIdentity(owned['Id'])]);
+        } catch (cause) {
+          cleanupFailures.push(String(cause));
+        }
     try {
       const remaining = (
         await command([
@@ -729,7 +752,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
     } catch (cause) {
       cleanupFailures.push(String(cause));
     }
-    await record('component-cleanup', { cleanupFailures });
+    await record('component-cleanup', { cleanupFailures, networks, created });
   }
   if (cleanupFailures.length > 0)
     throw new AggregateError([failure, ...cleanupFailures], 'integrated cleanup failed');

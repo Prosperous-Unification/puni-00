@@ -22,12 +22,15 @@ const source = {
 };
 function fixture(
   containers: unknown[] = [source],
-  additional: { name: string; imageRef: string; imageId: string }[] = [],
+  additional: { name: string; imageRef: string; imageId: string; id: string }[] = [],
   malformed = false,
+  subset = false,
 ) {
   const calls: string[][] = [];
+  let discoveries = 0;
   const run = (args: string[]) => {
     calls.push(args);
+    if (args[0] === 'ps' && subset && ++discoveries > 1) return Promise.resolve(source.Id);
     if (args[0] === 'ps')
       return Promise.resolve(containers.map((entry) => String(readFields(entry)['Id'])).join('\n'));
     if (args[0] === 'inspect' && malformed) return Promise.resolve('{PRIVATE_FIXTURE_SENTINEL');
@@ -47,7 +50,12 @@ function fixture(
     runtime: `${root}/runtime`,
     caddyName: `edge-${token}`,
     plans: [
-      { name: `source-${token}`, imageRef: source.Config.Image, imageId: source.Image },
+      {
+        name: `source-${token}`,
+        id: source.Id,
+        imageRef: source.Config.Image,
+        imageId: source.Image,
+      },
       ...additional,
     ],
     run,
@@ -60,7 +68,14 @@ test('fresh owner census preserves unrelated complete inventory and native start
   unrelated.Name = `/unrelated-${token}`;
   const f = fixture(
     [source, unrelated],
-    [{ name: `unrelated-${token}`, imageRef: source.Config.Image, imageId: source.Image }],
+    [
+      {
+        name: `unrelated-${token}`,
+        id: 'e'.repeat(64),
+        imageRef: source.Config.Image,
+        imageId: source.Image,
+      },
+    ],
   );
   const listed = await f.docker(['ps', '-a', '--no-trunc', '--format', '{{.ID}}']);
   expect(listed.trim().split('\n')).toEqual([source.Id, unrelated.Id]);
@@ -132,7 +147,7 @@ test('same planned name cannot replace its captured full identity', async () => 
   const f = fixture(containers);
   await f.docker(['inspect', source.Id]);
   containers[0].Id = 'e'.repeat(64);
-  await refuses(f.docker(['stop', '--time', '10', containers[0].Id]), 'identity replaced');
+  await refuses(f.docker(['stop', '--time', '10', containers[0].Id]), 'captured identity differs');
   expect(f.calls.some((args) => args[0] === 'stop')).toBe(false);
 });
 test('source tag lookup reaches the exact invocation tag and native image inspection', async () => {
@@ -230,4 +245,43 @@ test('source runner refuses production temporary roots before fixture effects', 
     if (previous === undefined) delete process.env['TMPDIR'];
     else process.env['TMPDIR'] = previous;
   }
+});
+
+test('full production inventory cannot become a second-list subset', async () => {
+  const unrelated = structuredClone(source);
+  unrelated.Id = 'e'.repeat(64);
+  unrelated.Name = `/unrelated-${token}`;
+  const f = fixture(
+    [source, unrelated],
+    [
+      {
+        name: `unrelated-${token}`,
+        id: 'e'.repeat(64),
+        imageRef: source.Config.Image,
+        imageId: source.Image,
+      },
+    ],
+    false,
+    true,
+  );
+  const ids = (await f.docker(['ps', '-a', '--no-trunc', '--format', '{{.ID}}']))
+    .trim()
+    .split('\n');
+  expect(ids).toEqual([source.Id, unrelated.Id]);
+});
+test('unsupported discovery filters refuse rather than narrowing audit inventory', async () => {
+  const f = fixture();
+  await refuses(
+    f.docker(['ps', '-a', '--no-trunc', '--filter', 'name=source', '--format', '{{.ID}}']),
+    'unrecognized fixture discovery',
+  );
+});
+
+test('replacement before first census cannot establish fixture identity', async () => {
+  const replacement = structuredClone(source);
+  replacement.Id = 'f'.repeat(64);
+  await refuses(
+    fixture([replacement]).docker(['inspect', replacement.Id]),
+    'fixture captured identity differs',
+  );
 });

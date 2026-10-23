@@ -23,6 +23,18 @@ it('requires real Caddy boundaries in the CI and host test target', () => {
   expect(project.targets['test'].options.command).toContain('test/solver-drain-transport.test.ts');
   expect(project.targets['test'].options.command).toContain('test/solver-drain-fixture.test.ts');
   expect(project.targets['test'].options.command).not.toContain('test/solver-drain.ts');
+  // Proof: independently omitting either source fixture suite failed this configured-command contract.
+  expect(project.targets['test'].options.command).toContain(
+    'test/source-exclusion-transport.test.ts',
+  );
+  expect(project.targets['test'].options.command).toContain(
+    'test/source-exclusion-topology.test.ts',
+  );
+  expect(project.targets['test'].options.command).not.toContain('test/source-exclusion.ts');
+  expect(project.targets['test:source-exclusion'].cache).toBeFalse();
+  expect(project.targets['test:source-exclusion'].options.command).toBe(
+    'bun run tools/tool-remote-scripts/test/source-exclusion.ts',
+  );
 });
 
 it('refuses a native Caddy override in CI before starting the suite', () => {

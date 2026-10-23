@@ -29,7 +29,8 @@ entrypoint, `bun run dev`, UID, effective argv, security, mount flags, lifecycle
 restart observations survive. Source binds the scratch source/data directories;
 this is a namespace proof using the supported command, not an actual app proof.
 
-Initialized backend/gateway fixtures write distinct SQLite rows before exclusion.
+The initialized backend fixture writes SQLite before exclusion. The initialized
+gateway is a mount-free runtime fixture; it has no persistent database authority.
 The coordinator uses real streaming scanners and requires DONE/REAPED receipts.
 A running initialized Caddy serves both sites before the coordinator and both
 maintenance responses inside the awaited callback. The source parent and real
@@ -40,7 +41,8 @@ final readbacks. A real mutable-tag substitution must fail before source stop;
 a planned stopped unrelated mounted child must fail ordinary namespace admission.
 
 Every Docker mutation and cleanup rechecks the fresh UUID label, planned name and
-captured full ID. Network cleanup also checks captured ID/label/name; only the
+captured full ID. Both distinct prod/dev networks are owned and checked before container creation;
+Caddy genuinely attaches both. Network cleanup checks each captured ID/label/name; only the
 invocation-created source tag is ever created/removed. No production tag, root,
 runtime directory or installed service is targeted. Component cleanup has a
 separate 60-second budget, followed by the solver lifecycle's 45-second cleanup
@@ -92,3 +94,49 @@ this packet. Restricted Bun 1.4.4 initially returned EPERM from child pipe write
 so its two inherited bounded-command failures supply no passing evidence.
 
 Final parent-pinned Bun 1.4.2 rerun: **28 tests passed, zero failures, 92 assertions** across the three configured runner suites; explicit test typecheck passed. The additional preflight negatives reject option-like image pins and production receipt/temp roots before any fixture effects; each independently omitted preflight check failed its named negative. This supersedes the earlier 25-test focused count.
+
+## Independent physical runner review corrections
+
+Astra found three deterministic source-only runner failures before execution: the
+shared prod/dev network looked like transitional dev backends, the stopped gateway
+retained a writable production DB bind, and a second native `ps` could narrow a
+complete fixture census to a subset. The source transport tests alone had not
+exercised the first two actual runner topology decisions.
+
+The actual runner now uses one shared renderer for distinct physical prod/dev
+networks and managed container arguments. Production-path tests materialize that
+rendered topology, enter `withSourceDevExcluded` under a real joint owner, recognize
+the source against the complete inventory, parse the actual managed backend cohort
+and execute strict owner-backed unmanaged mount audit. A second test subjects the
+rendered stopped gateway directly to ordinary unmanaged audit. Both failed first
+with the reviewer’s exact transitional/DB-family errors, then passed. Source lives
+only on dev, managed participants only on prod; Caddy genuinely joins both. Only
+BE binds/writes the persistent SQLite fixture; GW remains initialized and mount-free.
+No production exemption or audit rule changed.
+
+Complete fixture `ps` now exposes the validated census keys directly. Only the
+exact full-census and two solver-discovery argv forms are accepted; solver-only
+queries remain validated subsets of that complete census. The actual unrelated
+negative first finds its exact raw ID/name in a fresh complete transport inventory,
+then invokes ordinary admission on that object. The source-tag absence lookup uses
+an exact reference filter. Every transport member additionally matches the full ID
+recorded by creation or reviewed recovery, including replacement before the first
+census; first observation is no longer an identity authority.
+
+Fresh independent omissions restore shared networks, restore the gateway DB bind,
+allow a second-list census subset, bypass discovery grammar and bypass captured-ID
+binding. Each fails its named production-path test. These receipts live under
+`evidence/source-exclusion-acceptance/review-fixes/`. Earlier full-ID proof receipts
+remain historical; the creation/recovery binding is the current stronger guard.
+No actual host runner has executed. Reviewed P1/typed-terminal integration and
+independent final runner review still precede any exact-SHA execution.
+
+Final review-fix checks with parent-pinned Bun 1.4.2: **37 tests passed, zero
+failures, 117 assertions** across the transport, rendered topology, existing solver
+fixtures and configured-target contract (471 ms). Both new source suites are in
+the standard local test command; independently removing each suite failed the
+configured-target contract, while actual host execution remains opt-in. Explicit
+test typecheck, uncached Nx lint/build and normal focused OpenSpec validation
+passed. Ten earlier transport/preflight fault receipts remain historical; the
+seven review-fix receipts cover the stronger current topology/census/identity and
+configured-target boundaries. Normal hooks are required on the fix commit.
