@@ -3,7 +3,7 @@ bun test v1.4.2 (744846f84)
 tools/tool-devsync/src/solver-binding-command.test.ts:
 76 |   };
 77 | }
-78 | 
+78 |
 79 | test('solver command remaps the verified inherited lock to child FD3 through the real child path', async () => {
 80 |   const host = await fixture();
 81 |   expect(await host.run()).toMatchObject({ code: 0 });
@@ -13,7 +13,7 @@ error: expect(received).toMatchObject(expected)
   {
 -   "code": 0,
 +   "code": 1,
-+   "output": 
++   "output":
 + "2 | import { runSolverBindingCommand } from "/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-runtime.ts";
 + 3 | const outcome = await runSolverBindingCommand({ cwd: "/tmp/solver-edge-command-Hj5sL6", argv: [process.execPath, "/tmp/solver-edge-command-Hj5sL6/child.ts"], env: { WBS_EDGE_LOCK_FD: 'forged', WBS_EDGE_STATE: '/wrong' }, edgeLock: 'inherit' });
 +                                           ^
@@ -29,15 +29,15 @@ error: expect(received).toMatchObject(expected)
 +  syscall: "stat",
 +    errno: -2,
 +     code: "ENOENT"
-+ 
++
 +       at assertInheritedLock (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/lock.ts:150:20)
 +       at withEdgeAdmission (/tmp/solver-installer-edge-admission/tools/tool-remote-scripts/src/lib/edge-admission.ts:44:5)
 +       at /tmp/solver-edge-command-Hj5sL6/child.ts:3:7
-+ 
++
 + Bun v1.4.2 (Linux x64)
-+ 
++
 +       at /tmp/solver-edge-command-Hj5sL6/launcher.ts:3:39
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 + ,

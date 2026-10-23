@@ -1,7 +1,7 @@
 bun test v1.4.2 (744846f84)
 
 apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
-67 | 
+67 |
 68 | test('mounted external authoring stays dormant and rolls back an earlier successful command', async () => {
 69 |   const fixture = await open();
 70 |   const before = effects();

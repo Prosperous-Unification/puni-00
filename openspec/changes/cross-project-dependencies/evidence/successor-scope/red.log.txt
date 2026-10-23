@@ -165,4 +165,3 @@ Ignored nodes: comments, script, style
       Tests  4 failed | 69 skipped (73)
    Start at  04:11:52
    Duration  7.22s (import 57%, transform 25%, tests 11%, environment 6%, setup 1%)
-

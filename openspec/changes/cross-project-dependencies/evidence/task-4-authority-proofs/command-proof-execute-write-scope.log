@@ -89,7 +89,7 @@ RangeError: Cannot use a closed database
 26 | 			throw new DrizzleQueryError(query.sql, query.params, e);
               ^
 DrizzleQueryError: Failed query: ROLLBACK
-params: 
+params:
   query: "ROLLBACK",
  params: [],
 
@@ -123,7 +123,7 @@ RangeError: Cannot use a closed database
 26 | 			throw new DrizzleQueryError(query.sql, query.params, e);
               ^
 DrizzleQueryError: Failed query: BEGIN IMMEDIATE
-params: 
+params:
   query: "BEGIN IMMEDIATE",
  params: [],
 

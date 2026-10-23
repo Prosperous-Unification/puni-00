@@ -1,7 +1,7 @@
 bun test v1.4.2 (744846f84)
 
 libs/wbs/application/core/src/service/dependency-context.test.ts:
-84 | 
+84 |
 85 | test('actual typed service rejects an unknown or missing required authoring capability', async () => {
 86 |   const { WorkItemService } = await import('../module/work-item/work-item.resource');
 87 |   const source = await seeded();

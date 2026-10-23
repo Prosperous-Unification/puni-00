@@ -1214,7 +1214,7 @@ AssertionError: expected <body><div>…(1)</div>
 +                   type="button"
 +                 >
 +                   ▸
-+                    
++
 +                   Dev
 +                 </button>
 +                 <span
@@ -1240,7 +1240,7 @@ AssertionError: expected <body><div>…(1)</div>
 +                   type="button"
 +                 >
 +                   ▸
-+                    
++
 +                   QA
 +                 </button>
 +                 <span
@@ -2122,7 +2122,7 @@ AssertionError: expected '' to be '999, ' // Object.is equality
 - Expected
 + Received
 
-- 999, 
+- 999,
 
  ❯ autocomplete.test.tsx:303:21
     301|   await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
@@ -2296,4 +2296,3 @@ Ignored nodes: comments, script, style
       Tests  6 failed | 1 passed | 7 skipped (14)
    Start at  01:30:34
    Duration  11.97s (tests 56%, import 27%, transform 12%, environment 3%)
-

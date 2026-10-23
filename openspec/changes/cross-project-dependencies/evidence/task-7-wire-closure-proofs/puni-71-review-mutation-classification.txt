@@ -313,4 +313,3 @@ error: expect(received).toThrow(expected)
 
 Expected pattern: /wire 5/
 Received message: "connected occupancy does not match fixed foreign slice"
-

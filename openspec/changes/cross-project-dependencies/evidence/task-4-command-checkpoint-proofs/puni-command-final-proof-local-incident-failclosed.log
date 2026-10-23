@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/application/core/src/service/dependency-context.test.ts:
 23 | }
-24 | 
+24 |
 25 | async function rejects(call: Promise<unknown>, message: string) {
 26 |   const failure: unknown = await call.then(() => null, (error: unknown) => error);
 27 |   expect(failure).toBeInstanceOf(Error);

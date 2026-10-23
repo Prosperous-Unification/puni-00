@@ -461,7 +461,7 @@ EPERM: operation not permitted, listen
 (fail) bootBe01 > stops optimizer and retention before closing its opened source [376.28ms]
 256 |   return seen.join(' | ');
 257 | }
-258 | 
+258 |
 259 | /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
 260 | function heldPort(): { port: number; release: () => Promise<void> } {
 261 |   const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
@@ -478,7 +478,7 @@ EPERM: operation not permitted, listen
 842 |     } catch (failure) {
 843 |       caught = failure;
 844 |     }
-845 | 
+845 |
 846 |     expect(reasons(caught)).toContain('store wiring failed');
                                   ^
 error: expect(received).toContain(expected)
@@ -490,7 +490,7 @@ Received: "EPERM: operation not permitted, listen"
 (fail) bootBe01 > closes the source when the service graph cannot be composed [405.58ms]
 256 |   return seen.join(' | ');
 257 | }
-258 | 
+258 |
 259 | /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
 260 | function heldPort(): { port: number; release: () => Promise<void> } {
 261 |   const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
@@ -625,7 +625,7 @@ EPERM: operation not permitted, listen
 991 |     expect(repeated).toBe(caught);
 992 |     expect(closes).toBe(1);
 993 |   }, 10_000);
-994 | 
+994 |
 995 |   it('does not mistake a stalled listener for a closed one', async () => {
 996 |     const stalled = Bun.serve({
                               ^
@@ -638,7 +638,7 @@ EPERM: operation not permitted, listen
 (fail) bootBe01 > does not mistake a stalled listener for a closed one [1.29ms]
 256 |   return seen.join(' | ');
 257 | }
-258 | 
+258 |
 259 | /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
 260 | function heldPort(): { port: number; release: () => Promise<void> } {
 261 |   const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
@@ -654,7 +654,7 @@ EPERM: operation not permitted, listen
 (fail) bootBe01 > releases nothing and rejects when the source cannot be opened [1.65ms]
 256 |   return seen.join(' | ');
 257 | }
-258 | 
+258 |
 259 | /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
 260 | function heldPort(): { port: number; release: () => Promise<void> } {
 261 |   const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });

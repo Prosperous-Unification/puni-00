@@ -70,7 +70,7 @@ Expected: not 0
       at <anonymous> (/tmp/solver-installer-edge-admission/tools/tool-devsync/src/solver-binding-command.test.ts:163:30)
 (fail) noncanonical state spelling // refuses before solver child launch [47.11ms]
 169 | }
-170 | 
+170 |
 171 | test('relative state spelling refuses before solver child launch', async () => {
 172 |   const host = await fixture();
 173 |   const attempt = await host.run('valid', `cd "$TEST_ROOT"; export WBS_EDGE_STATE=state;`);

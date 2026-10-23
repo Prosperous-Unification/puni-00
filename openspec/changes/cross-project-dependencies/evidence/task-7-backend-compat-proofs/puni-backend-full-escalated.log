@@ -1700,7 +1700,7 @@ src/controller/typed-dependency-commands.controller.db.test.ts:
 [0m[1m947 |[0m     offsets,
 [0m[1m948 |[0m     objectiveValues: { makespan: term(makespan), priority: term(priority), movement: term([0m[33m0[0m) },
 [0m[1m949 |[0m   })}\n[0m[32m`;[0m
-[0m[1m950 |[0m 
+[0m[1m950 |[0m
 [0m[1m951 |[0m   [0m[35mconst[0m outcome = evaluateSolverOutcome(input, request, { kind: [0m[32m'response'[0m, stdout })[0m[2m;[0m
 [0m[1m952 |[0m   expect(outcome)[0m[3m[1m.toMatchObject[0m({ kind: [0m[32m'ok'[0m })[0m[2m;[0m
                         [31m[1m^[0m
@@ -3288,9 +3288,9 @@ src/controller/undo.controller.db.test.ts:
 {"level":"error","time":1792635328926,"service":"be-01","err":{"occurrence_id":"AE_X8KEMXATJP9E23J45VN0GRBCR2","fingerprint":"fp1_210b63c7d44df15d5e687b301e1d7929","stack":["Error: the counting unit of work has no stores; something asked it for journal","    at get (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/testing/writes-fixture.ts:52:19)","    at <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/composition.ts:141:35)","    at <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:667:34)","    at <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/composition.ts:144:28)","    at run (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/testing/writes-fixture.ts:71:24)","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/composition.ts:68:31)","    at processTicksAndRejections (native:7:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
 [0m[1m327 |[0m     [0m[35mawait[0m patchItem(owner, projectId, strip, { name: [0m[32m'Mine'[0m })[0m[2m;[0m
 [0m[1m328 |[0m     [0m[35mawait[0m patchItem(stranger, projectId, strip, { name: [0m[32m'Theirs'[0m })[0m[2m;[0m
-[0m[1m329 |[0m 
+[0m[1m329 |[0m
 [0m[1m330 |[0m     [0m[35mconst[0m res = [0m[35mawait[0m send([0m[32m`/api/projects/[0m${projectId}[0m[32m/undo`[0m, owner, { method: [0m[32m'POST'[0m })[0m[2m;[0m
-[0m[1m331 |[0m 
+[0m[1m331 |[0m
 [0m[1m332 |[0m     expect(res.status)[0m[3m[1m.toBe[0m([0m[33m409[0m)[0m[2m;[0m
                              [31m[1m^[0m
 [0m[31merror[0m[2m:[0m [1m[2mexpect([0m[31mreceived[0m[2m).[0mtoBe[2m([0m[32mexpected[0m[2m)[0m
@@ -3304,7 +3304,7 @@ Received: [31m500[0m
 [0m[32m✓[0m [0mPOST /api/projects/:id/redo[2m >[0m[1m puts back what the undo took away[0m [0m[2m[[1m223.50ms[0m[2m][0m
 {"level":"error","time":1792635329673,"service":"be-01","err":{"occurrence_id":"AE_CWJ19S1YZ6598SP0Z7FNJSZZXJ","fingerprint":"fp1_210b63c7d44df15d5e687b301e1d7929","stack":["Error: the counting unit of work has no stores; something asked it for journal","    at get (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/testing/writes-fixture.ts:52:19)","    at <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/composition.ts:141:35)","    at <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:667:34)","    at <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/composition.ts:144:28)","    at run (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/testing/writes-fixture.ts:71:24)","    at async <anonymous> (/tmp/puni-cross-solver-backend/libs/wbs/application/core/src/module/plan-commands/composition.ts:68:31)","    at processTicksAndRejections (native:7:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
 [0m[1m427 |[0m     )[0m[3m[1m.toBe[0m([0m[33m200[0m)[0m[2m;[0m
-[0m[1m428 |[0m 
+[0m[1m428 |[0m
 [0m[1m429 |[0m     [0m[2m// Proof: omitting parent assignment owners from the create journal's redo[0m
 [0m[1m430 |[0m     [0m[2m// preconditions answered 200 here and removed Bea's competing assignment.[0m
 [0m[1m431 |[0m     [0m[35mconst[0m redo = [0m[35mawait[0m send([0m[32m`/api/projects/[0m${projectId}[0m[32m/redo`[0m, owner, { method: [0m[32m'POST'[0m })[0m[2m;[0m
@@ -3676,7 +3676,7 @@ src/http/elysia/work-item.test.ts:
 [0m[32m✓[0m[0m[1m mounted runtime refusals retain status, command context and code-specific detail[0m [0m[2m[[1m10.05ms[0m[2m][0m
 [0m[32m✓[0m[0m[1m mounted command admission rejects structural extras and unknown kind before any transaction[0m [0m[2m[[1m11.95ms[0m[2m][0m
 [0m[1m231 |[0m   })[0m[2m;[0m
-[0m[1m232 |[0m 
+[0m[1m232 |[0m
 [0m[1m233 |[0m   expect(response.status)[0m[3m[1m.toBe[0m([0m[33m200[0m)[0m[2m;[0m
 [0m[1m234 |[0m   [0m[2m// Proof: defaulting an absent create priority to null in the production parser failed this[0m
 [0m[1m235 |[0m   [0m[2m// assertion with the first received create command gaining `"priority": null`.[0m

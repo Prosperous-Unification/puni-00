@@ -16,7 +16,7 @@ tools/tool-devsync/src/solver-binding-command.test.ts:
 (pass) edge-owner.pending directory refuses inherited solver command [30.02ms]
 (pass) edge-owner.pending dangling refuses inherited solver command [26.19ms]
 (pass) symlink canonical state refuses verified solver command [25.67ms]
-130 | 
+130 |
 131 | test('symlink canonical lock refuses verified solver command', async () => {
 132 |   const host = await fixture();
 133 |   await rename(join(host.state, 'edge.lock'), join(host.state, 'real.lock'));

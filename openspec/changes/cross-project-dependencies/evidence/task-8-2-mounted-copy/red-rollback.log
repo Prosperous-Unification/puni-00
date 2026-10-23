@@ -10,7 +10,7 @@ apps/wbs/be-01/src/controller/cross-project-mounted-copy.controller.db.test.ts:
 77 | 			throw new DrizzleQueryError(sql, params, e);
               ^
 DrizzleQueryError: Failed query: BEGIN IMMEDIATE
-params: 
+params:
   query: "BEGIN IMMEDIATE",
  params: [],
 

@@ -15,4 +15,3 @@ To fix this, do one of the following:
   - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
   - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
 See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
-

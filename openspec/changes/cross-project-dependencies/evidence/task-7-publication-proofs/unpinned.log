@@ -2865,7 +2865,7 @@ ScheduleInvalidOptimizedStartError: optimized start for c\u0000 is invalid: fore
 (pass) connected publication guard > refuses Infinity reference as trusted question evidence [0.12ms]
 (pass) connected publication guard > refuses negative reference as trusted question evidence [0.12ms]
 555 |   });
-556 | 
+556 |
 557 |   test('refuses local movement that changes the pinned foreign successor', () => {
 558 |     const stage = capturedStage();
 559 |     const starts = reference(1);
@@ -3101,7 +3101,7 @@ Received value: {
 (fail) connected publication guard > refuses local movement that changes the pinned foreign successor [0.39ms]
 (pass) connected publication guard > refuses sub-drift foreign start reconciliation exactly [0.52ms]
 584 |   });
-585 | 
+585 |
 586 |   test('applies a fractional local floor through replay', () => {
 587 |     const stage = capturedStage(1, { floor: 0.6 });
 588 |     expect(stage.starts.get(localKey)).toBe(0.6);

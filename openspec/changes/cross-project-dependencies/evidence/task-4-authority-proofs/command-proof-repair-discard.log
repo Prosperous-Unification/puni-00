@@ -1,7 +1,7 @@
 bun test v1.4.2 (744846f84)
 
 libs/wbs/application/core/src/compose.test.ts:
-492 | 
+492 |
 493 |     expect(await runner.undo(project.project.id, 'owner')).toMatchObject({
 494 |       ok: false,
 495 |       reason: 'stale_undo',

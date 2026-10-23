@@ -16,4 +16,3 @@ Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
      Import  138 modules were evaluated 216 times · 10.54s total, 90% of tracked time
              ~3.81s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
              learn more: https://vitest.dev/guide/improving-performance#test-isolation
-

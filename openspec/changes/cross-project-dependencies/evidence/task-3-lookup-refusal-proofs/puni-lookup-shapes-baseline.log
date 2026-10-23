@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 src/http/infrastructure-shapes.test.ts:
 (pass) declares public health JSON and Prometheus text without request input [2.10ms]
-69 | 
+69 |
 70 | test('every GET shape declares the adapter invalid-body refusal as a 400', async () => {
 71 |   for (const shape of httpShapes) {
 72 |     if (shape.method !== 'GET') continue;

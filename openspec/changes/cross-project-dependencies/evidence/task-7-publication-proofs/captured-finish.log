@@ -14,7 +14,7 @@ src/connected-publication.test.ts:
 (pass) connected publication guard > enforces project-local resource contention in a complete replay [0.39ms]
 (pass) connected publication guard > replays exact fractional A → B → C baseline and publishes complete local candidate [0.41ms]
 (pass) connected publication guard > uses an earlier accepted replacement as the later rank stage baseline [0.61ms]
-448 | 
+448 |
 449 |   test('refuses forged captured finish as trusted stage evidence', () => {
 450 |     const stage = capturedStage();
 451 |     const finishes = new Map(stage.finishes);

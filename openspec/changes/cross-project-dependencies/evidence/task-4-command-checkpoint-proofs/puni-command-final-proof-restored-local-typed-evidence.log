@@ -1,7 +1,7 @@
 bun test v1.4.2 (744846f84)
 
 apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
-380 | 
+380 |
 381 | test('mounted local batch aliases survive create link undo redo under current admission', async () => {
 382 |   const fixture = await open();
 383 |   expect((await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, { commands: [{ kind: 'createWorkItem', name: 'Alias predecessor', ref: 'created' }, { kind: 'addTypedDependency', predecessor: { scope: 'whole', workItemRef: 'created' }, successor: { scope: 'whole', workItemId: fixture.owner.workItemId }, type: 'FS' }] })).status).toBe(200);

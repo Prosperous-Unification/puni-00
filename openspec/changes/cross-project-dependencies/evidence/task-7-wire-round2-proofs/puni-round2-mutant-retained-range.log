@@ -134,7 +134,7 @@ error: expect(received).toMatchObject(expected)
 +     "wireVersion": 5,
 +   },
 +   "stage": {
-+     "finishes": 
++     "finishes":
 + Map {
 +       "a\u0000" => 0.2,
 +       "b\u0000" => 1.2,
@@ -194,14 +194,14 @@ error: expect(received).toMatchObject(expected)
 +       "notBefore": Map {},
 +       "order": {
 +         "kind": "connected",
-+         "projectIdByWorkItem": 
++         "projectIdByWorkItem":
 + Map {
 +           "a" => "A",
 +           "b" => "B",
 +           "c" => "C",
 +         }
 + ,
-+         "rankByProject": 
++         "rankByProject":
 + Map {
 +           "A" => 0,
 +           "B" => 1,
@@ -312,7 +312,7 @@ error: expect(received).toMatchObject(expected)
 +         "type": "FS",
 +       },
 +     ],
-+     "starts": 
++     "starts":
 + Map {
 +       "a\u0000" => 0,
 +       "b\u0000" => 0.2,

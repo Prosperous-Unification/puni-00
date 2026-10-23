@@ -90,4 +90,3 @@ warning No cached ProjectGraph is available. The rule will be skipped.
 
 ✖ 50 problems (50 errors, 0 warnings)
   5 errors and 0 warnings potentially fixable with the `--fix` option.
-

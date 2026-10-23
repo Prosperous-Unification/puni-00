@@ -3,7 +3,7 @@ bun test v1.4.2 (744846f84)
 libs/wbs/domain/contracts/solver/src/bundled-solver-runtime.test.ts:
 16156 | var STAGE_BUDGET_SPLIT = [0.6, 0.25, 0.15];
 16157 | var SUM_TOLERANCE = 2 ** -40;
-16158 | 
+16158 |
 16159 | // ../puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts
 16160 | var import__2020 = __toESM(require__2020(), 1);
 16161 | var schema2 = JSON.parse(readFileSync(new URL("../solver-wire.v5.json", import.meta.url), "utf8"));

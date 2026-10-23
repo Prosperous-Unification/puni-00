@@ -1,7 +1,9 @@
 # Verification record
 
-**Change:** `cross-project-dependencies`  
-**Status:** Implementation in progress; only recorded completed slices are verified.  
+**Change:** `cross-project-dependencies`
+
+**Status:** Implementation in progress; only recorded completed slices are verified.
+
 **Prepared:** 2026-10-22. This is not a completed `openspec-verify-change` report.
 The schema normally produces final verify after apply; this initial record
 preserves reported design evidence and clearly separates all unrun obligations.

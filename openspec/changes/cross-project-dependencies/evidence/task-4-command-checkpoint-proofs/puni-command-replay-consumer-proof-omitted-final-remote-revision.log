@@ -1,7 +1,7 @@
 bun test v1.4.2 (744846f84)
 
 apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
-1155 | 
+1155 |
 1156 | test('recordCollected rejects an omitted final remote revision and rolls back the actual SQLite typed write', async () => {
 1157 |   const fixture = await open();
 1158 |   const before = effects();

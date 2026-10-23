@@ -1,7 +1,7 @@
 bun test v1.4.2 (744846f84)
 
 apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
-154 | 
+154 |
 155 | test('direct runner refuses a scoped expectation while current authority is legacy', async () => {
 156 |   harness = OrganizationHarness.openComposedWith({ sessionBinding: true });
 157 |   await harness.register('ada');

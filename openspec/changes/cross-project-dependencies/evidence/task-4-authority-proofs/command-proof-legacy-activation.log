@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
 127 | });
-128 | 
+128 |
 129 | test('explicit legacy runner refuses after durable activation', async () => {
 130 |   const fixture = await open();
 131 |   const before = effects();

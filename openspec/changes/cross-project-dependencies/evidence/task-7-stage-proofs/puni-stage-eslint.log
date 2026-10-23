@@ -7,4 +7,3 @@
   135:7   error  Prefer using an optional chain expression instead, as it's more concise and easier to read                   @typescript-eslint/prefer-optional-chain
 
 ✖ 5 problems (5 errors, 0 warnings)
-

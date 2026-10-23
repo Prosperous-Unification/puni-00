@@ -5,7 +5,7 @@ libs/wbs/domain/contracts/src/dependency-runtime.test.ts:
 (pass) refuses receipt protocol=wrong [0.05ms]
 (pass) refuses receipt version=2
 (pass) refuses receipt version=true [0.06ms]
-(pass) refuses receipt activationId= 
+(pass) refuses receipt activationId=
 (pass) refuses receipt databaseIdentity=
 (pass) refuses receipt candidateImage=wbs:latest
 (pass) refuses receipt rollbackImage=wbs:latest

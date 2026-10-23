@@ -15,9 +15,9 @@ error: expect(received).toMatchObject(expected)
 -   "reason": "nothing_to_undo",
 - }
 + [Error: expect(received).toThrow(expected)
-+ 
++
 + Expected substring: "dependency context is closed"
-+ 
++
 + Received function did not throw
 + Received value: undefined
 + ]
@@ -41,9 +41,9 @@ error: expect(received).toMatchObject(expected)
 -   "reason": "nothing_to_undo",
 - }
 + [Error: expect(received).toThrow(expected)
-+ 
++
 + Expected substring: "dependency context is closed"
-+ 
++
 + Received function did not throw
 + Received value: undefined
 + ]

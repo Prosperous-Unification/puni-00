@@ -42,7 +42,7 @@ Expected: not "boundary-infeasible"
       at <anonymous> (/tmp/puni-wire-review-probes/seams.test.ts:127:28)
 (fail) fractional origin must not produce a prepared boundary terminal [0.38ms]
 nonfinite token NaN exit 0 stdout {"scope":{"inputHash":"input","kind":"connected-stage","projectId":"B","questionHash":"question"},"status":"boundary-infeasible","wireVersion":5}
- stderr 
+ stderr
 131 |  for(const token of ['NaN','1e309']) {
 132 |   const bytes=raw.replace('"finish": 0.2', '"finish": '+token);
 133 |   expect(bytes).not.toBe(raw);
@@ -63,7 +63,7 @@ invalid origin exit 64 stderr wbs-solver: request does not satisfy #/$defs/reque
 
 (pass) installed receiver independently rejects malformed terminal requests [798.30ms]
 overflow-float exit 0 stdout {"scope":{"inputHash":"input","kind":"connected-stage","projectId":"B","questionHash":"question"},"status":"boundary-infeasible","wireVersion":5}
- stderr 
+ stderr
 147 | test('installed receiver rejects exponent-overflow foreign placement', async () => {
 148 |  const raw=await Bun.file('/tmp/puni-wire-installed-connected-request.json').text();
 149 |  const bytes=raw.replace('"finish": 0.2','"finish": 1e309');

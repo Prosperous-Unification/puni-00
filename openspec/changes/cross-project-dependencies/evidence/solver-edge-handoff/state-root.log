@@ -15,7 +15,7 @@ tools/tool-devsync/src/solver-binding-command.test.ts:
 (pass) edge-owner.pending unreadable refuses inherited solver command [23.66ms]
 (pass) edge-owner.pending directory refuses inherited solver command [24.67ms]
 (pass) edge-owner.pending dangling refuses inherited solver command [23.60ms]
-122 | 
+122 |
 123 | test('symlink canonical state refuses verified solver command', async () => {
 124 |   const host = await fixture();
 125 |   await rename(host.state, `${host.state}-real`);

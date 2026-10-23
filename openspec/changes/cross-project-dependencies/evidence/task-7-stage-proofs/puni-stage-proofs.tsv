@@ -45,7 +45,7 @@ individual-guard-13	1	refuses duplicate slice [0.28ms] | refuses duplicate slice
 individual-guard-14	1	refuses missing required person, selector identity and pool collection facts [0.52ms] | refuses missing required person, selector identity and pool collection facts [0.52ms]
 individual-guard-15	1	refuses missing anchor [0.27ms] | refuses missing anchor [0.27ms]
 individual-guard-16	1	refuses missing start [0.27ms] | refuses extra finish [0.18ms] | refuses matching substituted keys in both placement maps [0.20ms] | refuses missing start [0.27ms] | refuses extra finish [0.18ms] | refuses matching substituted keys in both placement maps [0.20ms]
-individual-guard-17	0	
+individual-guard-17	0
 individual-guard-18	1	refuses reversed interval [0.25ms] | refuses reversed interval [0.25ms]
 individual-guard-19	1	refuses duplicate relationship [0.28ms] | refuses duplicate relationship [0.28ms]
 individual-guard-20	1	refuses unsupported selectors, relationship types and graph provenance [0.29ms] | refuses unsupported unused authored relationship type [0.22ms] | refuses unsupported selectors, relationship types and graph provenance [0.29ms] | refuses unsupported unused authored relationship type [0.22ms]
@@ -58,24 +58,24 @@ individual-guard-26	1	refuses unsupported selectors, relationship types and grap
 individual-guard-27	1	refuses missing relationship evidence [0.24ms] | refuses relationship type mismatch [0.18ms] | refuses missing relationship evidence [0.24ms] | refuses relationship type mismatch [0.18ms]
 individual-guard-28	1	refuses graph ownership independently of unreduced selector identities [0.27ms] | refuses graph ownership independently of unreduced selector identities [0.27ms]
 individual-guard-29	1	refuses missing required person, selector identity and pool collection facts [0.37ms] | refuses missing required person, selector identity and pool collection facts [0.37ms]
-field-1-kind	0	
+field-1-kind	0
 field-2-projectId	1	identifies changed stage owner [0.61ms] | identifies changed stage owner [0.61ms]
 field-3-mode	1	identifies changed mode [0.42ms] | identifies changed mode [0.42ms]
 field-4-originOrdinal	1	identifies changed origin [0.36ms] | identifies changed origin [0.36ms]
 field-5-projects	1	identifies changed anchor [0.38ms] | identifies changed anchor [0.38ms]
-field-6-projectId	0	
-field-7-rank	0	
+field-6-projectId	0
+field-7-rank	0
 field-8-anchorOrdinal	1	identifies changed anchor [0.35ms] | identifies changed anchor [0.35ms]
 field-9-rows	1	identifies changed row position [0.41ms] | identifies changed row priority [0.45ms] | identifies reparenting without changes to the retained row set [0.35ms] | identifies changed row position [0.41ms] | identifies changed row priority [0.45ms] | identifies reparenting without changes to the retained row set [0.35ms]
-field-10-id	0	
+field-10-id	0
 field-11-parentId	1	identifies reparenting without changes to the retained row set [0.40ms] | identifies reparenting without changes to the retained row set [0.40ms]
 field-12-position	1	identifies changed row position [0.35ms] | identifies changed row position [0.35ms]
 field-13-priority	1	identifies changed row priority [0.53ms] | identifies changed row priority [0.53ms]
 field-14-ownership	1	identifies ownership independently of authored selectors [0.29ms] | identifies ownership independently of authored selectors [0.29ms]
-field-15-ranks	0	
+field-15-ranks	0
 field-16-slices	1	identifies changed effort [0.47ms] | identifies changed null effort [0.26ms] | identifies changed width [0.19ms] | identifies changed person [0.18ms] | identifies changed team [0.21ms] | identifies changed resource units [0.19ms] | identifies a resource demand changing within unchanged capacities [0.24ms] | refuses missing required person, selector identity and pool collection facts [0.25ms] | identifies changed effort [0.47ms] | identifies changed null effort [0.26ms] | identifies changed width [0.19ms] | identifies changed person [0.18ms] | identifies changed team [0.21ms] | identifies changed resource units [0.19ms] | identifies a resource demand changing within unchanged capacities [0.24ms] | refuses missing required person, selector identity and pool collection facts [0.25ms]
 field-17-steps	1	identifies changed effort [0.37ms] | identifies changed null effort [0.24ms] | identifies changed width [0.20ms] | identifies changed person [0.20ms] | identifies changed team [0.19ms] | identifies changed resource units [0.19ms] | identifies a resource demand changing within unchanged capacities [0.27ms] | refuses missing required person, selector identity and pool collection facts [0.25ms] | identifies changed effort [0.37ms] | identifies changed null effort [0.24ms] | identifies changed width [0.20ms] | identifies changed person [0.20ms] | identifies changed team [0.19ms] | identifies changed resource units [0.19ms] | identifies a resource demand changing within unchanged capacities [0.27ms] | refuses missing required person, selector identity and pool collection facts [0.25ms]
-field-18-stepId	0	
+field-18-stepId	0
 field-19-days	1	identifies changed effort [0.36ms] | identifies changed null effort [0.24ms] | identifies changed effort [0.36ms] | identifies changed null effort [0.24ms]
 field-20-width	1	identifies changed width [0.30ms] | identifies changed width [0.30ms]
 field-21-personId	1	identifies changed person [0.30ms] | refuses missing required person, selector identity and pool collection facts [0.25ms] | identifies changed person [0.30ms] | refuses missing required person, selector identity and pool collection facts [0.25ms]
@@ -83,14 +83,14 @@ field-22-poolIds	1	identifies changed team [0.31ms] | identifies changed team [0
 field-23-demands	1	identifies changed resource units [0.30ms] | identifies a resource demand changing within unchanged capacities [0.25ms] | identifies changed resource units [0.30ms] | identifies a resource demand changing within unchanged capacities [0.25ms]
 field-24-resourceId	1	identifies a resource demand changing within unchanged capacities [0.32ms] | identifies a resource demand changing within unchanged capacities [0.32ms]
 field-25-units	1	identifies changed resource units [0.32ms] | identifies changed resource units [0.32ms]
-field-26-nodes	0	
-field-27-kind	0	
-field-28-workItemId	0	
-field-29-stepId	0	
-field-30-at	0	
-field-31-kind	0	
-field-32-workItemId	0	
-field-33-at	0	
+field-26-nodes	0
+field-27-kind	0
+field-28-workItemId	0
+field-29-stepId	0
+field-30-at	0
+field-31-kind	0
+field-32-workItemId	0
+field-33-at	0
 field-34-edges	1	identifies changed graph provenance [0.33ms] | identifies changed graph predecessor position [0.19ms] | identifies each graph endpoint independently [0.39ms] | identifies graph relationship attribution between equivalent authored constraints [0.26ms] | identifies changed graph provenance [0.33ms] | identifies changed graph predecessor position [0.19ms] | identifies each graph endpoint independently [0.39ms] | identifies graph relationship attribution between equivalent authored constraints [0.26ms]
 field-35-predecessor	1	identifies changed graph predecessor position [0.57ms] | identifies each graph endpoint independently [0.42ms] | identifies changed graph predecessor position [0.57ms] | identifies each graph endpoint independently [0.42ms]
 field-36-leafId	1	identifies each graph endpoint independently [0.47ms] | identifies each graph endpoint independently [0.47ms]
@@ -98,7 +98,7 @@ field-37-at	1	identifies changed graph predecessor position [0.32ms] | identifie
 field-38-successor	1	identifies each graph endpoint independently [0.57ms] | identifies each graph endpoint independently [0.57ms]
 field-39-leafId	1	identifies each graph endpoint independently [0.57ms] | identifies each graph endpoint independently [0.57ms]
 field-40-at	1	identifies each graph endpoint independently [1.31ms] | identifies each graph endpoint independently [1.31ms]
-field-41-type	0	
+field-41-type	0
 field-42-provenance	1	identifies changed graph provenance [0.38ms] | identifies changed graph provenance [0.38ms]
 field-43-relationshipId	1	identifies graph relationship attribution between equivalent authored constraints [0.39ms] | identifies graph relationship attribution between equivalent authored constraints [0.39ms]
 field-44-relationships	1	identifies changed original selector identity [0.33ms] | identifies changed original selector scope [0.31ms] | identifies changed original selector step [0.22ms] | identifies unused authored identity, type and successor selector independently [0.41ms] | refuses missing required person, selector identity and pool collection facts [0.45ms] | refuses null or numeric original selector identities [0.25ms] | identifies changed original selector identity [0.33ms] | identifies changed original selector scope [0.31ms] | identifies changed original selector step [0.22ms] | identifies unused authored identity, type and successor selector independently [0.41ms] | refuses missing required person, selector identity and pool collection facts [0.45ms] | refuses null or numeric original selector identities [0.25ms]
@@ -121,5 +121,5 @@ field-60-finishes	1	identifies changed local finish [0.35ms] | identifies change
 combined-rank-bytes	1	identifies rank changes that preserve project ordering [0.36ms] | identifies rank changes that preserve project ordering [0.36ms]
 combined-type-bytes	1	identifies changed relationship type [0.36ms] | identifies unused authored identity, type and successor selector independently [0.46ms] | identifies changed relationship type [0.36ms] | identifies unused authored identity, type and successor selector independently [0.46ms]
 membership-placement-guard	1	refuses matching substituted keys in both placement maps [0.28ms] | refuses matching substituted keys in both placement maps [0.28ms]
-surplus-start-guard	0	
+surplus-start-guard	0
 surplus-finish-guard	1	refuses extra finish [0.27ms] | refuses extra finish [0.27ms]

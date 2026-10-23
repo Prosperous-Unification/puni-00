@@ -23,4 +23,3 @@ Consider using an arrow function or explicitly `.bind()`ing the method to avoid 
 If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
 
 ✖ 3 problems (3 errors, 0 warnings)
-

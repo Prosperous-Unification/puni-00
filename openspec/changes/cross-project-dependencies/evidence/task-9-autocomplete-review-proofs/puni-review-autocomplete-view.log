@@ -140,4 +140,3 @@ Ignored nodes: comments, script, style
 
     Isolate  15 workers spawned · ~501ms startup each (spawn + environment, per file)
              at least ~7.02s faster with isolate: false — reuses workers across files instead of one per file
-

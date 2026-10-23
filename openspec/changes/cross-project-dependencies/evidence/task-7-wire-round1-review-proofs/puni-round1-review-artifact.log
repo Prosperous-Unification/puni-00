@@ -4,7 +4,7 @@ bun test v1.4.2 (744846f84)
 (pass) existing local solver revalidator loads directly from source [198.65ms]
 15662 | // libs/wbs/domain/contracts/solver/src/stage-budget.ts
 15663 | var SUM_TOLERANCE = 2 ** -40;
-15664 | 
+15664 |
 15665 | // libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts
 15666 | var import__2020 = __toESM(require__2020(), 1);
 15667 | var schema2 = JSON.parse(readFileSync(new URL("../solver-wire.v5.json", import.meta.url), "utf8"));

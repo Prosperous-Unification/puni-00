@@ -106,7 +106,7 @@ libs/wbs/adapters/store-sqlite/src/organization-activation.db.test.ts:
 208 |     });
 209 |     expect(withDb(readOrganizationActivation)).toBe('activated');
 210 |   });
-211 | 
+211 |
 212 |   it('rolls back before activation and reapplies with a fresh seed', () => {
 213 |     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
                                                                    ^
