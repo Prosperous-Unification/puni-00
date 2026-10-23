@@ -711,6 +711,13 @@ export class OrganizationHarness {
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
       computeProviders: computeProvidersOver(source.db, services.gate),
+      // As `boot.ts` wires it, so the composed boundary serves the limits read too.
+      // Proof: without it, `swarm-end-to-end.db.test.ts` read the limits 403
+      // no_active_organization on an activated organization; watched 2026-10-23.
+      organizationLimits: new OrganizationLimitsRepository(
+        source.db,
+        TEST_ORGANIZATION_DEFAULT_LIMITS,
+      ),
       ...(trustedIssuers === undefined
         ? {}
         : {
