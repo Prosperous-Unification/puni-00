@@ -91,6 +91,23 @@ export const numberedWorkItem = type({
   status:
     "'unknown' | 'draft' | 'ready' | 'in_progress' | 'blocked_by_proxy' | 'on_hold' | 'blocked' | 'done'",
   measures: type({ '[string]': numbers }),
+  // Estimates per measure other than time by definition key, then step id
+  // (`wbs-measure-budgets` D3): the summed trio, whether every trio in it is
+  // single-point, the expected measure and, when a fact sits beside it, the
+  // variance. Absent when no measure holds an estimate on the row, and from
+  // an older be-01 mid-swap.
+  'measureEstimates?': type({
+    '[string]': type({
+      '[string]': type({
+        optimistic: 'number',
+        realistic: 'number',
+        pessimistic: 'number',
+        singlePoint: 'boolean',
+        expected: 'number',
+        'variance?': 'number',
+      }),
+    }),
+  }),
   dependsOn: 'string[]',
   finalDays: numbers,
   // Absent only from a backend that predates estimate units during swap or rollback.

@@ -29,6 +29,8 @@ const PINNED_COMMAND_KINDS = [
   'setStatus',
   'setMeasure',
   'clearMeasure',
+  'setMeasureEstimate',
+  'clearMeasureEstimate',
   'setAssignee',
   'assignSubtree',
   'claimWorkItem',

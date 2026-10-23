@@ -45,6 +45,12 @@ import {
 import { inMemoryPlanEvents } from './history-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import {
+  inMemoryMeasureEstimates,
+  type MemoryMeasureEstimateTable,
+  memoryMeasureEstimateTable,
+} from './measure-estimate-fixture';
+import {
+  countEstimatesKeyedBy,
   countFactsKeyedBy,
   definitionsOfProject,
   inMemoryMeasures,
@@ -107,6 +113,7 @@ interface MemoryTables {
   readonly estimates: MemoryEstimateTable;
   readonly actuals: MemoryActualTable;
   readonly measures: MemoryMeasureTable;
+  readonly measureEstimates: MemoryMeasureEstimateTable;
   readonly progress: MemoryProgressTable;
   readonly attempts: MemoryAttemptTable;
   readonly blockages: MemoryStepBlockageTable;
@@ -132,6 +139,7 @@ function emptyTables(): MemoryTables {
     estimates: memoryEstimateTable(),
     actuals: memoryActualTable(),
     measures: memoryMeasureTable(),
+    measureEstimates: memoryMeasureEstimateTable(),
     progress: memoryProgressTable(),
     attempts: memoryAttemptTable(),
     blockages: memoryStepBlockageTable(),
@@ -259,6 +267,11 @@ export class MemoryState {
     replaceArray(this.tables.estimates.rows, next.tables.estimates.rows);
     replaceArray(this.tables.actuals.rows, next.tables.actuals.rows);
     replaceArray(this.tables.measures.rows, next.tables.measures.rows);
+    // Proof: with this copy removed, `records, re-estimates and clears a trio
+    // in tokens, cost and a defined measure, undoably` and seven more cases of
+    // measure-estimate-command.test.ts (core) read no trio after the batch
+    // committed; watched 2026-10-23.
+    replaceArray(this.tables.measureEstimates.rows, next.tables.measureEstimates.rows);
     replaceArray(this.tables.progress.rows, next.tables.progress.rows);
     replaceArray(this.tables.attempts.rows, next.tables.attempts.rows);
     // Proof: removing this copy failed the project-seeded fact transaction test
@@ -377,15 +390,26 @@ export function bindStores(
     // Proof: answering zero here, `refuses deleting a definition that holds a
     // fact, and deletes it once the fact is cleared`
     // (measure-fact-command.test.ts in core) deleted it; watched 2026-10-23.
+    // And trios in the source's measure estimate table, for the same reason.
+    // Proof: answering facts alone, the memory certification's
+    // `directory.usageOfMeasure:estimates` read zero; watched 2026-10-23.
     usageOfMeasure(organizationId, measureId) {
       return Promise.resolve({
-        references: countFactsKeyedBy(
-          measureOwnership,
-          state.tables.measures.rows,
-          state.tables.workItems.byId,
-          organizationId,
-          measureId,
-        ),
+        references:
+          countFactsKeyedBy(
+            measureOwnership,
+            state.tables.measures.rows,
+            state.tables.workItems.byId,
+            organizationId,
+            measureId,
+          ) +
+          countEstimatesKeyedBy(
+            measureOwnership,
+            state.tables.measureEstimates.rows,
+            state.tables.workItems.byId,
+            organizationId,
+            measureId,
+          ),
       });
     },
     async usageOfResource(resourceId) {
@@ -536,8 +560,19 @@ export function bindStores(
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
   // The memory twin of `project_organization` joined to `measure`: the
   // owning organization's definitions, or none for an unowned project.
-  const measures = inMemoryMeasures(workItems, state.tables.measures, steps, (projectId) =>
-    definitionsOfProject(measureOwnership, projectId),
+  const measures = inMemoryMeasures(
+    workItems,
+    state.tables.measures,
+    steps,
+    (projectId) => definitionsOfProject(measureOwnership, projectId),
+    state.tables.measureEstimates,
+  );
+  const measureEstimates = inMemoryMeasureEstimates(
+    workItems,
+    state.tables.measures,
+    state.tables.measureEstimates,
+    steps,
+    (projectId) => definitionsOfProject(measureOwnership, projectId),
   );
   const progress = inMemoryProgress(workItems, state.tables.progress, steps);
   const attempts = inMemoryAttempts(workItems, state.tables.attempts, steps, progress);
@@ -594,6 +629,7 @@ export function bindStores(
       removeSatelliteRows(state.tables.actuals.rows);
       removeSatelliteRows(state.tables.progress.rows);
       removeSatelliteRows(state.tables.measures.rows);
+      removeSatelliteRows(state.tables.measureEstimates.rows);
       removeSatelliteRows(state.tables.attempts.rows);
       // Proof: removing this cascade failed the same test when a deleted owner
       // left an unreadable blockage fact; watched 2026-10-13.
@@ -615,6 +651,7 @@ export function bindStores(
     estimates,
     actuals,
     measures,
+    measureEstimates,
     progress,
     attempts,
     blockages,

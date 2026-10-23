@@ -348,6 +348,8 @@ describe('toolsFromDocument, on the generated document', () => {
       'setStepBlocked',
       'setMeasure',
       'clearMeasure',
+      'setMeasureEstimate',
+      'clearMeasureEstimate',
       'setAssignee',
       // `wbs-resources` R7: one more batch kind; the tool count does not move for it.
       'assignSubtree',

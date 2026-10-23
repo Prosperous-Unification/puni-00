@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, suggestStepCode } from '@wbs/domain';
 import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
+import { inMemoryMeasureEstimates } from '@wbs/store-memory/measure-estimate-fixture';
 import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
 import { inMemorySteps } from '@wbs/store-memory/step-fixture';
 import { inMemoryStepParallels } from '@wbs/store-memory/step-parallel-fixture';
@@ -28,7 +29,7 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures } from '../testing/measure-fixture';
+import { inMemoryMeasures, memoryMeasureTable } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects, projectRow } from '../testing/project-fixture';
@@ -633,7 +634,8 @@ describe('every plan schedules identically across the migration', () => {
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
     const actuals = inMemoryActuals(workItems);
-    const measures = inMemoryMeasures(workItems);
+    const measureTable = memoryMeasureTable();
+    const measures = inMemoryMeasures(workItems, measureTable);
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const resourceStores = testResourceStores(workItems);
@@ -646,6 +648,7 @@ describe('every plan schedules identically across the migration', () => {
       estimates,
       actuals,
       measures,
+      measureEstimates: inMemoryMeasureEstimates(workItems, measureTable),
       progress,
       attempts: inMemoryAttempts(workItems),
       blockages: inMemoryStepBlockages(workItems, inMemorySteps()),

@@ -13,6 +13,7 @@ import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { systemTimers } from '@wbs/runtime-portable';
 import { PushClient } from '@wbs/runtime-portable';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -653,6 +654,7 @@ describe('a step removed between the check and the write', () => {
       estimates: vanishing,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
@@ -704,6 +706,7 @@ describe('a step removed between the check and the write', () => {
       estimates,
       actuals,
       measures,
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
       progress: progressStore,
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),

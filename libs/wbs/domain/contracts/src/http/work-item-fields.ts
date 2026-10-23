@@ -38,6 +38,7 @@ export const WORK_ITEM_FIELD_GROUPS = {
     'charged',
     'actuals',
     'measures',
+    'measureEstimates',
     'progress',
     'rolledUp',
     'attempts',

@@ -114,6 +114,7 @@ describe(MIGRATION, () => {
             '20261022130100_widen_organization_audit_organization_limits',
             '20261023100000_add_measure',
             '20261023110000_key_step_measure',
+            '20261023120000_add_measure_estimate',
           ].includes(name),
       ),
     );
@@ -121,6 +122,7 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261023120000_add_measure_estimate',
       '20261023110000_key_step_measure',
       '20261023100000_add_measure',
       '20261022130100_widen_organization_audit_organization_limits',

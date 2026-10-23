@@ -3339,6 +3339,51 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     expect(await measures.listByProject(projectId)).toEqual([]);
   });
 
+  // Proof: with the `scheduling_measure_estimate`/`three_point_forbidden`
+  // arm removed from work-item.routes.ts, this case answered 500 for both;
+  // watched 2026-10-23.
+  it('answers 409 for a trio in time or hours and 400 for an unordered one, and reads a stored trio back with its expected measure', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const trio = (measure: string, estimate: Record<string, number>) =>
+      command(send, token, projectId, {
+        kind: 'setMeasureEstimate',
+        workItemId: strip,
+        stepId: devId,
+        measure,
+        estimate,
+      });
+    const TRIO = { optimistic: 100, realistic: 200, pessimistic: 600 };
+
+    const scheduling = await trio('time', TRIO);
+    const twoPoint = await trio('hours', TRIO);
+    const unordered = await trio('tokens', { optimistic: 5, realistic: 2, pessimistic: 9 });
+    expect([scheduling.status, twoPoint.status, unordered.status]).toEqual([409, 409, 400]);
+    expect(await scheduling.json()).toEqual({
+      error: 'scheduling_measure_estimate',
+      at: 0,
+      kind: 'setMeasureEstimate',
+    });
+    expect(await twoPoint.json()).toEqual({
+      error: 'three_point_forbidden',
+      at: 0,
+      kind: 'setMeasureEstimate',
+    });
+    expect(await unordered.json()).toEqual({
+      error: 'invalid_estimate',
+      at: 0,
+      kind: 'setMeasureEstimate',
+    });
+
+    expect((await trio('tokens', TRIO)).status).toBe(200);
+    const read = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      workItems: { id: string; measureEstimates?: unknown }[];
+    };
+    expect(read.workItems.find((row) => row.id === strip)?.measureEstimates).toEqual({
+      tokens: { [devId]: { ...TRIO, singlePoint: false, expected: 250 } },
+    });
+  });
+
   it('answers 404 for a unit it does not keep, on both verbs, and stores nothing', async () => {
     // The refusal this command pair has and the actuals' does not. 404 rather
     // than 400 — the step names a unit, and this release keeps no such unit;

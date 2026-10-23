@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -138,6 +139,7 @@ beforeEach(async () => {
     estimates: new EstimateRepository(db, OPEN),
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
+    measureEstimates: new MeasureEstimateRepository(db, OPEN),
     progress: new StepProgressRepository(db, OPEN),
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),

@@ -11,7 +11,8 @@ import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryDirectory, memoryDirectoryTables } from './directory-fixture';
 import { inMemoryEstimates, memoryEstimateTable } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
-import { inMemoryMeasures } from './measure-fixture';
+import { inMemoryMeasureEstimates, memoryMeasureEstimateTable } from './measure-estimate-fixture';
+import { inMemoryMeasures, memoryMeasureTable } from './measure-fixture';
 import { inMemoryWorkItems } from './memory-work-item-fixture';
 import { inMemoryPriorityBands } from './priority-band-fixture';
 import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
@@ -47,7 +48,21 @@ export function inMemoryStores(): TransactionalStores {
   const steps = inMemorySteps([], undefined, estimateTable, { table: parallelTable, workItems });
   const estimates = inMemoryEstimates(workItems, estimateTable, steps);
   const actuals = inMemoryActuals(workItems, undefined, steps);
-  const measures = inMemoryMeasures(workItems, undefined, steps);
+  const measureTable = memoryMeasureTable();
+  const measureEstimateTable = memoryMeasureEstimateTable();
+  const measures = inMemoryMeasures(
+    workItems,
+    measureTable,
+    steps,
+    undefined,
+    measureEstimateTable,
+  );
+  const measureEstimates = inMemoryMeasureEstimates(
+    workItems,
+    measureTable,
+    measureEstimateTable,
+    steps,
+  );
   const progressTable = memoryProgressTable();
   const progress = inMemoryProgress(workItems, progressTable, steps);
   const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
@@ -62,6 +77,7 @@ export function inMemoryStores(): TransactionalStores {
     estimates,
     actuals,
     measures,
+    measureEstimates,
     progress,
     attempts,
     stepParallels: inMemoryStepParallels(workItems, steps, parallelTable),

@@ -31,7 +31,11 @@ const METRIC_OF_ROW = sql<string | null>`coalesce(${stepMeasure.metric}, ${measu
  * item's project, or null when no organization owns it or it defines no such
  * key.
  */
-function measureIdFor(db: SQLiteBunDatabase, workItemId: string, key: string): string | null {
+export function measureIdFor(
+  db: SQLiteBunDatabase,
+  workItemId: string,
+  key: string,
+): string | null {
   return (
     db
       .select({ id: measure.id })

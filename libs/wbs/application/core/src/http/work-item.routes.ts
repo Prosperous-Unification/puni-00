@@ -339,6 +339,8 @@ function answerBatch(
     case 'derived_measure':
     case 'scheduling_measure_fact':
     case 'scale_mismatch':
+    case 'scheduling_measure_estimate':
+    case 'three_point_forbidden':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };

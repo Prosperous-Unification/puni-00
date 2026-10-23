@@ -215,6 +215,11 @@ const batchRefusals = [
         type({ ...context, error: "'derived_measure'" }),
         type({ ...context, error: "'scheduling_measure_fact'" }),
         type({ ...context, error: "'scale_mismatch'" }),
+        // `setMeasureEstimate` in `time`, or on a definition without three points.
+        // Proof: with these two arms removed, `answers 409 for a trio in time
+        // or hours …` (be-01 work-item.controller.test.ts) answered 500; watched 2026-10-23.
+        type({ ...context, error: "'scheduling_measure_estimate'" }),
+        type({ ...context, error: "'three_point_forbidden'" }),
         type({ ...context, error: "'ancestor'" }),
         // A typed dependency whose endpoints resolve a step node onto itself.
         type({ ...context, error: "'self_node'" }),

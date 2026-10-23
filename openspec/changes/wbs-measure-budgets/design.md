@@ -141,6 +141,71 @@ Assumptions added while implementing slice 2 (tasks 1.3, 1.4), each the reading 
   definition (`time`) is refused `409 scheduling_measure_fact`: its fact is the actual days,
   recorded with `setActual`, and a second figure beside `actual.days` would be a second truth.
 
+Assumptions added while implementing slice 3 (tasks 2.1–2.4), each the reading closest to D1–D8:
+
+- **D28 The single-point tokens trio is the legacy token estimate.** Migration
+  `20261023120000_add_measure_estimate` copies every `token_estimate` row into
+  `measure_estimate` as a `tokens` trio with o = r = p and `single_point = 1`, and keeps the
+  legacy row for the outgoing release. The two are one figure: triggers on `step_measure`
+  write, rewrite, move and delete the single-point trio with every legacy row any release
+  writes; a legacy write over a three-point trio replaces it (the inverse puts the trio back);
+  a three-point write (any `setMeasureEstimate`, which always clears the flag) deletes the
+  legacy row, so no single figure is shown for a range. The memory fixture derives the
+  single-point trios from its measure rows instead of storing them. `setMeasure
+token_estimate` keeps working and journals as before. The row read's `measures` still
+  carries `token_estimate`, so existing bytes are unchanged; `down.sql` refuses while any trio
+  is not a single-point tokens trio with its legacy row. The export reads the legacy rows, so
+  a three-point tokens trio, like every defined measure (D22), is left out until slice 7.
+  The protection is asymmetric: a legacy write over a three-point trio replaces it, but a
+  legacy `clearMeasure token_estimate` finds no legacy row beside a three-point trio and leaves
+  it in place (the trio is cleared with `clearMeasureEstimate`). Restores, hand-ups and
+  duplicates write single-point trios only through their legacy rows, so `recordedAt` comes
+  back verbatim. An attended restart of the older image without `down.sql` loses three-point
+  trios: its undo of a legacy write over one runs `clear_measure` and takes the trio, its
+  delete, undo and hand-down carry legacy rows only, and its step removal fails on the
+  `measure_estimate.step_id` foreign key (runbook-prod-deploy.md, _Measure estimate rollback_).
+- **D29 Expected and variance on the row read.** A new optional row field
+  `measureEstimates`, by definition key then step: the summed trio, `singlePoint` (true only
+  when every trio summed is), `expected` and, where a fact in that measure sits beside it,
+  `variance`. Integer measures round half up once per step node, exactly for integer points and decimal
+  weights (BigInt over the weights scaled to integers; a fractional legacy point falls back to
+  doubles with a relative snap); a parent sums its nodes' rounded figures (ADR 0011's
+  order); real measures are unrounded. Variance is the subtree's summed facts minus its
+  summed expected measures, absent when either side is. The field is absent on a row with no
+  trio, so plans without measure estimates answer the same bytes. In a shared-people read the
+  trios are read just after the coherent capture, outside it; nothing the schedule reads
+  comes from them.
+- **D30 Identity by key, reference by id.** `measure_estimate`'s key is (work item, step,
+  `measure_key`); `measure_id` references the definition and is NULL on a project no
+  organization owns (whose one estimable key is `tokens`, D19) until
+  `project_organization_keys_measure_estimates` keys it. `usageOfMeasure` counts trios, so
+  `deleteMeasure` answers `measure_in_use` while one exists (D21's backstop is the foreign key).
+- **D31 Trios follow their work item as facts do.** A first child takes them (`moveAll`), a
+  deleted last child hands them up summed per key, a delete's undo puts them back, and a
+  duplicate copies them (they describe work, like the time estimate). The journal fields
+  (`measureEstimates`, `removedMeasureEstimates`, `setMeasureEstimates`) are optional and
+  present only when non-empty; `set_measure_estimate`/`clear_measure_estimate` are new
+  compensating kinds no older image reads (D23). SQLite step removal counts three-point trios
+  under `measures` and deletes them with a confirmed cascade.
+- **D32 Undo across a deleted definition refuses.** Putting a trio back in a measure deleted
+  since answers 409 "a measure it estimated is no longer defined" (D24 for trios). A definition
+  patched to `threePoint: false` since is no reason: the replay puts back what was there, and
+  refusing it would strand every undo carrying a legacy token estimate. `clearMeasureEstimate`
+  passes `three_point_forbidden`, so trios stored before such a patch can be cleared.
+- **D33 Commands.** `setMeasureEstimate {measure, estimate}` and `clearMeasureEstimate
+{measure}` address the definition key (legacy names are `unknown_measure`); the trio is
+  parsed by the time trio's `EstimateTrio` (unordered or negative: 400 `invalid_estimate`);
+  refusals in the order `unknown_measure` (404), `scheduling_measure_estimate`,
+  `three_point_forbidden`, `scale_mismatch` (409), then `rolled_up` for a row with children.
+  Neither command is calendar- or graph-affecting: the schedule never reads them (D2, proved
+  by the slice's property test).
+- **D34 Known lags.** `findCrossReferences` does not follow `measure_estimate`: the scheduling
+  input never reads it, but the row read (`tree()`, `treeIsolated`, `withMeasureEstimates`)
+  does, so a trio naming another project's step would be shown rather than refused; slice 5
+  owns reads; the memory step fixture neither counts nor deletes
+  trios on a step removal, as it does not for facts; the Dash replay inventory
+  (`tools/tool-deploy`) is unchanged and names no measure-estimate kind.
+
 ## Risks / Trade-offs
 
 - The schedule must not move: D2's property test is the guard, and the time trio stays in its

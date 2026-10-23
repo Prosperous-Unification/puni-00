@@ -122,6 +122,11 @@ function coordinatedStores(
     estimates: coordinatedStore(stores.estimates, ['set', 'remove', 'moveAll'], coordinator),
     actuals: coordinatedStore(stores.actuals, ['set', 'remove', 'moveAll'], coordinator),
     measures: coordinatedStore(stores.measures, ['set', 'remove', 'moveAll'], coordinator),
+    measureEstimates: coordinatedStore(
+      stores.measureEstimates,
+      ['set', 'remove', 'moveAll'],
+      coordinator,
+    ),
     progress: coordinatedStore(stores.progress, ['set', 'remove', 'moveAll'], coordinator),
     attempts: coordinatedStore(
       stores.attempts,

@@ -6,13 +6,16 @@ import {
   chargedWorkdays,
   type EstimateRule,
   estimateUnitOf,
+  type PertWeights,
   type StepAllowances,
   type StepUnits,
 } from './estimate';
 import type { ParentedRow } from './is-within';
+import { expectedMeasure, type StoredMeasureEstimate } from './measure-estimate';
 import { agree, type ProgressStatus, statusOf, UNKNOWN } from './progress';
 import type { StepNodeRef } from './step-node';
 import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
+import type { MeasureScale } from './stored-vocabularies';
 
 /** Three durations in days, summed or held directly. */
 export interface Days {
@@ -251,6 +254,61 @@ export function rollUpMeasures(
     ownOf.set(held.workItemId, byStep);
   }
   return foldByStep(rows, ownOf, (a, b) => a + b);
+}
+
+/**
+ * One node's or subtree's estimate in one measure as the row read answers it:
+ * the summed trio, whether every trio summed into it is single-point, and the
+ * expected measure, which for a parent is the sum of its nodes' rounded
+ * figures (`wbs-measure-budgets` D3, design D29).
+ */
+export interface MeasureEstimateFigure {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+  singlePoint: boolean;
+  expected: number;
+}
+
+/**
+ * Every work item's estimates **in one measure**, by step: a leaf's own trio
+ * with its expected measure under `weights` rounded by `scale`, a parent's the
+ * sum of its descendants' trios and of their expected measures — the
+ * one-measure fold {@link rollUpMeasures} runs for facts, so a tokens trio is
+ * never added to a cost one.
+ *
+ * A step no descendant estimated in `key` is **absent**, never zero. A parent
+ * is single-point only when every trio beneath it is.
+ */
+export function rollUpMeasureEstimates(
+  rows: readonly ParentedRow[],
+  estimates: readonly StoredMeasureEstimate[],
+  key: string,
+  weights: PertWeights,
+  scale: MeasureScale,
+): Map<string, Map<string, MeasureEstimateFigure>> {
+  const ownOf = new Map<string, Map<string, MeasureEstimateFigure>>();
+  for (const held of estimates) {
+    if (held.key !== key) continue;
+    const byStep = ownOf.get(held.workItemId) ?? new Map<string, MeasureEstimateFigure>();
+    byStep.set(held.stepId, {
+      optimistic: held.optimistic,
+      realistic: held.realistic,
+      pessimistic: held.pessimistic,
+      singlePoint: held.singlePoint,
+      expected: expectedMeasure(held, weights, scale),
+    });
+    ownOf.set(held.workItemId, byStep);
+  }
+  // Proof: with `||` for `&&` below, `reads a parent single-point only when
+  // every trio beneath it is` (measure-estimate.test.ts) failed; watched 2026-10-23.
+  return foldByStep(rows, ownOf, (a, b) => ({
+    optimistic: a.optimistic + b.optimistic,
+    realistic: a.realistic + b.realistic,
+    pessimistic: a.pessimistic + b.pessimistic,
+    singlePoint: a.singlePoint && b.singlePoint,
+    expected: a.expected + b.expected,
+  }));
 }
 
 /**

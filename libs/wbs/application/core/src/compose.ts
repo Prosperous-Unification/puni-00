@@ -186,6 +186,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       estimates: stores.estimates,
       actuals: stores.actuals,
       measures: stores.measures,
+      measureEstimates: stores.measureEstimates,
       progress: stores.progress,
       blockages: stores.blockages,
       claims: stores.claims,

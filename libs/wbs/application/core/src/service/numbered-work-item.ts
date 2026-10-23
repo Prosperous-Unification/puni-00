@@ -100,6 +100,19 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * scheduling function. R6's rule, one table over.
    */
   measures: Record<string, Record<string, number>>;
+  /**
+   * The three-point estimates in measures other than time, by definition key
+   * and step (`wbs-measure-budgets` D3): the trio summed up the tree, whether
+   * every trio in it is single-point, the expected measure (the project's
+   * PERT weights, rounded by the measure's scale per node) and, where a fact
+   * in the same measure sits beside it in {@link measures}, the variance.
+   *
+   * **Absent rather than `{}`** when the row holds no measure estimate, so a
+   * plan holding none answers exactly the bytes it did before measure
+   * estimates existed. A key, and a step under it, is absent when nobody
+   * estimated it. Reported and never planned with (D2).
+   */
+  measureEstimates?: Record<string, Record<string, MeasureEstimateReading>>;
   /** The work items this one waits for, as written — either end may be a parent. */
   dependsOn: string[];
   /**
@@ -176,4 +189,18 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   blockages?: Record<string, { blockedAt: number }>;
   /** Exact informational roots for each leaf node; absent on a parent. */
   blockageCauses?: Record<string, readonly BlockageRoot[]>;
+}
+
+/**
+ * One node's or subtree's estimate in one measure as the row read answers it:
+ * the summed trio and its single-point flag, the expected measure and, only
+ * when a fact sits beside it, the variance (fact minus expected).
+ */
+export interface MeasureEstimateReading {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+  singlePoint: boolean;
+  expected: number;
+  variance?: number;
 }

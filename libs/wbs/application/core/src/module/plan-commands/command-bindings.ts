@@ -549,6 +549,29 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    setMeasureEstimate: async (command, context) => {
+      context.value(
+        await workItems.setMeasureEstimate(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          command.measure,
+          command.estimate,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    clearMeasureEstimate: async (command, context) => {
+      context.value(
+        await workItems.clearMeasureEstimate(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          command.measure,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     setAssignee: async (command, context) => {
       context.value(
         await workItems.assign(

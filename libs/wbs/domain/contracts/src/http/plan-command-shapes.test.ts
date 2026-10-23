@@ -170,8 +170,8 @@ test('emits inline MCP-readable command branches with real nested patch and esti
   // Includes the public step blockage command, claimWorkItem/releaseWorkItem
   // and assignSubtree (49). 49 to 54 with `wbs-resources`: setResourceCapacity,
   // setDemand and the resource trio; 54 to 57 with `wbs-measure-budgets`: the
-  // measure definition trio.
-  expect(branches).toHaveLength(57);
+  // measure definition trio; 57 to 59 with its measure estimate pair.
+  expect(branches).toHaveLength(59);
   if (branches === undefined) throw new Error('Missing command alternatives');
   const find = (kind: string) =>
     branches.find((branch) => branch.properties?.['kind']?.const === kind);

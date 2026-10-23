@@ -142,6 +142,7 @@ describe('scoped solution links', () => {
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
       expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20261023120000_add_measure_estimate',
         '20261023110000_key_step_measure',
         '20261023100000_add_measure',
         '20261022130100_widen_organization_audit_organization_limits',

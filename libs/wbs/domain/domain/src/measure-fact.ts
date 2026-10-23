@@ -53,6 +53,17 @@ const UNOWNED_PROJECT_DEFINITIONS: readonly MeasureDefinition[] = SEEDED_MEASURE
 ).map((each) => ({ ...each, id: `unowned:${each.key}` }));
 
 /**
+ * The definitions a figure in a project is decided against: its organization's
+ * `definitions`, or, when no organization owns the project (null), the seeded
+ * four an unowned project answers (design D19).
+ */
+export function definitionsOrUnowned(
+  definitions: readonly MeasureDefinition[] | null,
+): readonly MeasureDefinition[] {
+  return definitions ?? UNOWNED_PROJECT_DEFINITIONS;
+}
+
+/**
  * Why a fact cannot be written or cleared in a measure (`wbs-measure-budgets`
  * D4, spec "Estimates and facts exist per measure"):
  *
@@ -91,7 +102,7 @@ export function decideMeasureFact(
 ): MeasureFactDecision {
   if (requested === 'token_estimate') return { ok: true, metric: requested };
   const key = definitionKeyOf(requested);
-  const definition = (definitions ?? UNOWNED_PROJECT_DEFINITIONS).find((each) => each.key === key);
+  const definition = definitionsOrUnowned(definitions).find((each) => each.key === key);
   if (definition === undefined) return { ok: false, reason: 'unknown_measure' };
   if (definition.derived) return { ok: false, reason: 'derived_measure' };
   // Proof: with this test removed, `refuses a fact, and a clear, in the

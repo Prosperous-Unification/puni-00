@@ -15,14 +15,14 @@
 
 ## 2. Estimates per measure
 
-- [ ] 2.1 `measure_estimate` table and `setMeasureEstimate`/`clearMeasureEstimate` with the
+- [x] 2.1 `measure_estimate` table and `setMeasureEstimate`/`clearMeasureEstimate` with the
       ordering rule and `three_point_forbidden` — test: conformance suite; negative: drop the
       ordering narrow and the unordered trio stores.
-- [ ] 2.2 Expected value and variance per measure, rolled up — test: textbook and custom
+- [x] 2.2 Expected value and variance per measure, rolled up — test: textbook and custom
       weights; negative: swap the fold to add expected and fact and the variance case fails.
-- [ ] 2.3 Legacy token estimate as single-point trio with the flag cleared on a three-point
+- [x] 2.3 Legacy token estimate as single-point trio with the flag cleared on a three-point
       write — test: migration fixture; negative: drop the clearing and the re-estimate keeps it.
-- [ ] 2.4 Property: non-scheduling measures never move the schedule — test: 200 random plans,
+- [x] 2.4 Property: non-scheduling measures never move the schedule — test: 200 random plans,
       schedule digest identical; negative: feed a tokens trio to the solver input and the
       property names a seed.
 

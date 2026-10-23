@@ -14,6 +14,7 @@ import { journalRegistrations } from './stores/journal';
 import { directoryMeasureRegistrations } from './stores/measure-definitions';
 import {
   directoryMeasureFactRegistrations,
+  measureEstimateRegistrations,
   measureFactRegistrations,
 } from './stores/measure-facts';
 import { measureRegistrations } from './stores/measures';
@@ -61,6 +62,7 @@ export interface ExistingStoreOpeners {
   readonly estimates: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['estimates']>>;
   readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
   readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
+  readonly measureEstimates: OpenCase<'measureEstimates'>;
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
   readonly stepParallels: OpenCase<'stepParallels'>;
@@ -179,6 +181,7 @@ export function existingStoreRegistrations(
     ...actualRegistrations(openers.actuals),
     ...measureRegistrations(openers.measures),
     ...measureFactRegistrations(openers.measures),
+    ...measureEstimateRegistrations(openers.measureEstimates),
     ...progressRegistrations(openers.progress),
     ...attemptRegistrations(openers.attempts),
     storeCase(

@@ -451,6 +451,50 @@ describe('demand replay vocabulary', () => {
       expect(() => readCommand(malformed)).toThrow(/demand replay/);
   });
 
+  it('refuses a malformed measure estimate replay', () => {
+    const trio = {
+      workItemId: 'w1',
+      stepId: 's1',
+      key: 'tokens',
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+      singlePoint: false,
+    };
+    const subtree = (field: string, value: unknown) => ({
+      do: 'restore_subtree',
+      rows: [],
+      [field]: value,
+    });
+    expect(readCommand({ do: 'set_measure_estimate', ...trio })).toMatchObject(trio);
+    expect(
+      readCommand({ do: 'clear_measure_estimate', workItemId: 'w1', stepId: 's1', key: 'kwh' }),
+    ).toMatchObject({ key: 'kwh' });
+    for (const malformed of [
+      { do: 'set_measure_estimate', ...trio, realistic: 5 },
+      { do: 'set_measure_estimate', ...trio, optimistic: -1 },
+      { do: 'set_measure_estimate', ...trio, singlePoint: 'no' },
+      { do: 'set_measure_estimate', ...trio, singlePoint: true },
+      {
+        do: 'set_measure_estimate',
+        ...trio,
+        key: 'cost',
+        realistic: 1,
+        pessimistic: 1,
+        singlePoint: true,
+      },
+      { do: 'set_measure_estimate', ...trio, key: undefined },
+      { do: 'clear_measure_estimate', workItemId: 'w1', stepId: 's1' },
+      subtree('measureEstimates', 'trios'),
+      subtree('measureEstimates', [{ ...trio, pessimistic: 0 }]),
+      subtree('removedMeasureEstimates', [{ workItemId: 'w1', stepId: 's1' }]),
+      { do: 'delete_subtree', setMeasureEstimates: [{ ...trio, optimistic: Number.NaN }] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(
+        /measure estimate|measureEstimates|MeasureEstimates/,
+      );
+  });
+
   const restore: CompensatingCommand = {
     do: 'restore_subtree',
     rows: [workItemRow({ id: 'w1', projectId: 'p', parentId: null, position: 1, name: 'Build' })],

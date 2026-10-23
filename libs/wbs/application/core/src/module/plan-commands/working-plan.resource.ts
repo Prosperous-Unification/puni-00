@@ -1,6 +1,7 @@
 import type { ActualStore } from '../../ports/actual-store';
 import type { DependencyStore } from '../../ports/dependency-store';
 import type { EstimateStore } from '../../ports/estimate-store';
+import type { MeasureEstimateStore } from '../../ports/measure-estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { StepProgressStore } from '../../ports/progress-store';
 import type { StepBlockageStore } from '../../ports/step-blockage-store';
@@ -246,6 +247,34 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     definitionsFor: async (requestedProjectId) => {
       assertProject(requestedProjectId);
       return await scope.stores.measures.definitionsFor(requestedProjectId);
+    },
+  };
+  // Read through, never retained: a tokens write here also writes or removes
+  // the legacy `token_estimate` row (design D28), so every write refreshes the
+  // row's retained groups, measures among them.
+  // Proof: with the set and remove refreshes skipped, `refreshes the retained
+  // measures when a tokens trio writes or retires the legacy token estimate`
+  // (working-plan.test.ts) read the stale legacy figure; watched 2026-10-23.
+  const retainedMeasureEstimates: MeasureEstimateStore = {
+    listByProject: async (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      return await scope.stores.measureEstimates.listByProject(requestedProjectId);
+    },
+    set: async (estimate, stamp) => {
+      assertOpen();
+      const written = await scope.stores.measureEstimates.set(estimate, stamp);
+      await refreshRows([estimate.workItemId]);
+      return written;
+    },
+    remove: async (workItemId, stepId, key, stamp) => {
+      assertOpen();
+      await scope.stores.measureEstimates.remove(workItemId, stepId, key, stamp);
+      await refreshRows([workItemId]);
+    },
+    moveAll: async (fromWorkItemId, toWorkItemId, stamp) => {
+      assertOpen();
+      await scope.stores.measureEstimates.moveAll(fromWorkItemId, toWorkItemId, stamp);
+      await refreshRows([fromWorkItemId, toWorkItemId]);
     },
   };
   const retainedProgress: StepProgressStore = createWorkingPlanValues(
@@ -540,6 +569,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     estimates: retainedEstimates,
     actuals: retainedActuals,
     measures: retainedMeasures,
+    measureEstimates: retainedMeasureEstimates,
     progress: retainedProgress,
     attempts,
     blockages,
