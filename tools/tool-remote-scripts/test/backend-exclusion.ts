@@ -208,7 +208,7 @@ async function runAcceptance(): Promise<void> {
     assert(healthy, 'actual backend application health deadline exceeded');
     const response = await fetch(`http://${address}/api/auth/register`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', origin: 'http://127.0.0.1' },
       body: JSON.stringify({ username, password: 'disposable-acceptance-12345' }),
       signal: AbortSignal.timeout(5000),
     });
