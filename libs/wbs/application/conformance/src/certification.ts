@@ -80,6 +80,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'claims.remove:delegated-cascade',
   'claims.moveAll:in-place',
   'claims.lease:write-renew-expire',
+  'claims.lease:revoked-instant-read',
   'claims.occupancy:hold-read-cascade',
   'demands.set:replace-clear-scope',
   'demands.set:missing-reference',

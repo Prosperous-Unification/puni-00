@@ -4,21 +4,21 @@
       read, not the tree read), C4 (heartbeat events), C7 (no minutes in the folded chip) and
       C13 (a claim history read rather than a history view). Slices build on the assumptions;
       an amendment lands as a follow-up slice.
-- [ ] 0.2 `wbs-claim-leases` slice 1 (PR #671) is on `main`; this change's branch is rebased
+- [x] 0.2 `wbs-claim-leases` slice 1 (PR #671) is on `main`; this change's branch is rebased
       onto it. Slices 1, 3, 6 and 8 need its fields and the renew route.
 
 ## 1. Complete claims read (be-01)
 
-- [ ] 1.1 Red: `ClaimStore` stamped reads return `leaseRevokedAt`; conformance case
+- [x] 1.1 Red: `ClaimStore` stamped reads return `leaseRevokedAt`; conformance case
       `claims.lease:revoked-instant-read` on SQLite and the memory twin. R5 fault: the SQLite
       mapper drops the column (reads `null`); watched on both stores.
-- [ ] 1.2 Red: `project-claims.test.ts` in core on the memory store: every claim whatever the
+- [x] 1.2 Red: `project-claims.test.ts` in core on the memory store: every claim whatever the
       leaf's status (blocked, on hold, done), subtree before step claims, tree then step
       order, delegated `parentClaimId`, lease and revocation instants, `readAt` from the
       injected clock, an absent holder throws. Green: the claims feature. R5 faults: filter
       through the startable fold (the blocked-leaf case reddens); sort by claim id (the order
       case reddens); watched.
-- [ ] 1.3 Contract `readProjectClaims` in `@wbs/contracts`, route, policy as the tree read,
+- [x] 1.3 Contract `readProjectClaims` in `@wbs/contracts`, route, policy as the tree read,
       OpenAPI emit, MCP tool `getApiProjectsByIdClaims` by derivation — test: route tests for
       viewer, member, stranger, foreign project; the read answering while the tree read is
       refused `engine_unavailable`; the MCP tool count moves by one. R5 fault: drop the

@@ -105,12 +105,19 @@ export class ClaimRepository implements ClaimStore {
     return this.identity.pinnedPersonOf(credential);
   }
 
-  /** Claims with their write instant as stored, null for a row written outside {@link add}. */
+  /**
+   * Claims with their write instant as stored, null for a row written outside
+   * {@link add}, and their lease's expiry and revocation instants.
+   */
   private async read(
     projectId: string,
     claimId?: string,
   ): Promise<
-    (Claim & { readonly claimedAt: number | null; readonly leaseExpiresAt: number | null })[]
+    (Claim & {
+      readonly claimedAt: number | null;
+      readonly leaseExpiresAt: number | null;
+      readonly leaseRevokedAt: number | null;
+    })[]
   > {
     const rows = await this.db
       .select({
@@ -123,6 +130,10 @@ export class ClaimRepository implements ClaimStore {
         accountId: claim.createdBy,
         claimedAt: claim.createdAt,
         leaseExpiresAt: claim.leaseExpiresAt,
+        // Proof: with a constant null selected here in place of the column, the
+        // SQLite certification's `claims.lease:revoked-instant-read` case read
+        // the revoked lease as unrevoked (72 pass, 3 fail); watched 2026-10-23.
+        leaseRevokedAt: claim.leaseRevokedAt,
       })
       .from(claim)
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))

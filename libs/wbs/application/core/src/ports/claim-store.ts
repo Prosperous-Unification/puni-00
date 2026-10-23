@@ -23,19 +23,27 @@ export interface ClaimOccupancy {
  * A stored claim with the instant it was written: `created_at`, which an undo
  * of a release writes afresh, so it reads when the claim last came into force.
  * `leaseExpiresAt` is the instant it must be renewed by, or null for a claim
- * nobody renews (`wbs-claim-leases` L1).
+ * nobody renews (`wbs-claim-leases` L1). `leaseRevokedAt` is the instant the
+ * holder's last live credential was revoked, which also ended the lease (L8),
+ * or null while it was not.
  */
 export interface StampedClaim extends Claim {
   readonly claimedAt: number;
   readonly leaseExpiresAt: number | null;
+  readonly leaseRevokedAt: number | null;
 }
 
 /** The claim without its write instant or lease, as {@link ClaimStore.listByProject} answers it. */
 export function unstampClaim({
   claimedAt: _claimedAt,
   leaseExpiresAt: _leaseExpiresAt,
+  leaseRevokedAt: _leaseRevokedAt,
   ...claim
-}: Claim & { readonly claimedAt: number | null; readonly leaseExpiresAt: number | null }): Claim {
+}: Claim & {
+  readonly claimedAt: number | null;
+  readonly leaseExpiresAt: number | null;
+  readonly leaseRevokedAt: number | null;
+}): Claim {
   return claim;
 }
 
@@ -76,8 +84,8 @@ export interface ClaimStore extends ClaimIdentity {
   /** Every claim on a work item of the project, ordered by work item then step. */
   listByProject(projectId: string): Promise<Claim[]>;
   /**
-   * {@link listByProject} with each claim's write instant, for the startable
-   * read's list of claimed steps.
+   * {@link listByProject} with each claim's write instant and lease, for the
+   * startable, by-person and claims reads.
    *
    * @throws for a stored claim with no write instant: every claim is written
    * through {@link add}, which stamps it.

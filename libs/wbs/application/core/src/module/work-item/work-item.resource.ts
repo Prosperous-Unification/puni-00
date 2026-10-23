@@ -211,6 +211,7 @@ import {
   type ReleaseInput,
 } from './claims';
 import { findPersonWork, type PersonWork } from './person-work';
+import { findProjectClaims, type ProjectClaims } from './project-claims';
 import { findStartableWork, type StartableWork } from './startable';
 
 /**
@@ -1981,6 +1982,41 @@ export class WorkItemService {
       assignments,
       claims: await this.claiming().claims.listStampedByProject(projectId),
     });
+  }
+
+  /**
+   * Every claim of a project (`wbs-claim-display` C1, C2,
+   * {@link findProjectClaims}), admitted as the tree read is: `null` for a
+   * project the caller may not read, refused alike with an absent one.
+   *
+   * It reads no schedule, so it answers while the tree read is refused
+   * `engine_unavailable`. Holders are named as {@link claimantNamesWithin}
+   * names them: the organization's names under scoped access, the root names
+   * by id under legacy access. `readAt` is this service's clock after the
+   * claims are read, so a lease's remaining time is never overstated.
+   */
+  async claimsWithin(projectId: string, access: ResourceAccess): Promise<ProjectClaims | null> {
+    // Proof: with this admission removed, `refuses a stranger exactly as the
+    // tree read does` (project-claims-organization.controller.db.test.ts)
+    // answered 200 with the foreign project's claims; watched 2026-10-23.
+    if (!(await this.admits(projectId, access))) return null;
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const stepIds = (await this.opts.projects.stepsOf(projectId)).map((step) => step.id);
+    // Every claim, unfiltered by status: a stopped leaf's holder is still on it.
+    // Proof: with the claims filtered to leaves whose status is not blocked,
+    // on hold, blocked by proxy or done, `lists every claim whatever its leaf
+    // status, …` (project-claims.test.ts) read none of them; watched 2026-10-23.
+    const claims = await this.claiming().claims.listStampedByProject(projectId);
+    const readAt = this.clock.now();
+    // An unclaimed project reads no names at all.
+    const personNames =
+      claims.length === 0
+        ? new Map<string, string>()
+        : await this.personNamesWithin(
+            access,
+            claims.map(({ personId }) => personId),
+          );
+    return findProjectClaims({ rows, stepIds, claims, personNames, readAt });
   }
 
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */

@@ -31,7 +31,9 @@ export function memoryClaimTable(): MemoryClaimTable {
  * in the source's own progress table, so the progress store reads them.
  *
  * Each claim keeps the instant of the write that stored it, as SQLite's
- * `created_at` does; {@link ClaimStore.listStampedByProject} answers it.
+ * `created_at` does, and its lease's expiry and revocation instants;
+ * {@link ClaimStore.listStampedByProject} answers them. No memory port revokes
+ * a lease: {@link endMemoryLeases} is the revocation's seam.
  *
  * `identity` answers the bound-account and credential-pin reads: the source's
  * directory, through `claimIdentityOf`, as SQLite's claims read theirs.
@@ -53,6 +55,9 @@ export function inMemoryClaims(
     const found: StampedClaim[] = [];
     for (const claim of table.rows) {
       if (ids.has(claim.workItemId)) {
+        // Proof: with the revocation instant read as null here, the memory
+        // certification's `claims.lease:revoked-instant-read` case failed
+        // (74 pass, 1 fail); watched 2026-10-23.
         found.push({ ...claim });
         continue;
       }
@@ -127,6 +132,7 @@ export function inMemoryClaims(
           ...claim,
           claimedAt: stamp.at,
           leaseExpiresAt: expiryOf.get(claim.id) ?? null,
+          leaseRevokedAt: null,
         })),
       );
       progress.rows.push(
@@ -172,10 +178,15 @@ export function inMemoryClaims(
       // One instant: the memory source has no write turn to wait behind.
       const at = now();
       const renewal = renewalAt(at);
-      // The memory source has no machine credentials, so no lease of it is
-      // ever revoked: in force is unexpired.
+      // In force is unrevoked and unexpired, as SQLite's renewal reads it.
+      // Proof: with the revocation test dropped, the memory certification's
+      // `claims.lease:revoked-instant-read` case renewed a revoked lease
+      // (74 pass, 1 fail); watched 2026-10-23.
       const isInForce = (row: StampedClaim): boolean =>
-        row.personId === personId && row.leaseExpiresAt !== null && at < row.leaseExpiresAt;
+        row.personId === personId &&
+        row.leaseRevokedAt === null &&
+        row.leaseExpiresAt !== null &&
+        at < row.leaseExpiresAt;
       // Proof: with the in-force test dropped (an expired lease renewed), the
       // memory certification's `claims.lease:write-renew-expire` case revived
       // it (74 pass, 1 fail); watched 2026-10-23.
@@ -197,10 +208,21 @@ export function inMemoryClaims(
       });
     },
     async expiredLeasesOf(projectId, at) {
-      return (await inProject(projectId))
-        .filter(({ leaseExpiresAt }) => leaseExpiresAt !== null && leaseExpiresAt <= at)
-        .sort((left, right) => compare(left.id, right.id))
-        .map(({ id }) => ({ claimId: id, reason: 'lease_expired' as const }));
+      return (
+        (await inProject(projectId))
+          .filter(({ leaseExpiresAt }) => leaseExpiresAt !== null && leaseExpiresAt <= at)
+          .sort((left, right) => compare(left.id, right.id))
+          // Proof: answering `lease_expired` for every claim failed the memory
+          // certification's `claims.lease:revoked-instant-read` case (74 pass,
+          // 1 fail); watched 2026-10-23.
+          .map(({ id, leaseRevokedAt }) => ({
+            claimId: id,
+            reason:
+              leaseRevokedAt === null
+                ? ('lease_expired' as const)
+                : ('credential_revoked' as const),
+          }))
+      );
     },
     async projectsWithExpiredLeases(at, limit) {
       const oldest = new Map<string, number>();
@@ -241,6 +263,28 @@ export function inMemoryClaims(
       return Promise.resolve();
     },
   };
+}
+
+/**
+ * Ends every unrevoked lease of `personId` at `at`, as SQLite's
+ * `endLeasesOfUncredentialed` does when the person's last machine credential
+ * is revoked: each expiry moves to `at` (never later than it was) and the
+ * revocation instant is set, so no renewal moves it again and its expiry
+ * reads `credential_revoked`. Answers how many leases it ended.
+ */
+export function endMemoryLeases(table: MemoryClaimTable, personId: string, at: number): number {
+  let ended = 0;
+  table.rows.splice(
+    0,
+    table.rows.length,
+    ...table.rows.map((row) => {
+      if (row.personId !== personId || row.leaseExpiresAt === null || row.leaseRevokedAt !== null)
+        return row;
+      ended += 1;
+      return { ...row, leaseExpiresAt: Math.min(row.leaseExpiresAt, at), leaseRevokedAt: at };
+    }),
+  );
+  return ended;
 }
 
 /**
