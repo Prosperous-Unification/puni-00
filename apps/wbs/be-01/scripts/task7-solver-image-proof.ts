@@ -130,6 +130,12 @@ async function checked(arguments_: string[], seconds = 120): Promise<string> {
   return completed.stdout.trim();
 }
 
+/** Accepts the h2 alias or its observed OS hostname, without a configurable host bypass. */
+function requireProofHost(host: string) {
+  // Proof: bypassed host equality failed all five explicit other-host refusal tests.
+  requireProof(host === 'h2puni' || host === 'ubuntu-8gb-hel1-1', 'host must be h2puni');
+}
+
 /** Exact checkout and host are checked; the documented outer canonical command owns locking. */
 async function preflight(sha: string) {
   requireProof(/^[0-9a-f]{40}$/.test(sha), 'expected full reviewed SHA');
@@ -141,7 +147,7 @@ async function preflight(sha: string) {
     'isolated worktree required',
   );
   requireProof(root !== '/home/puni1/wbs-dev/src', 'poller tree forbidden');
-  requireProof(hostname().split('.')[0] === 'h2puni', 'host must be h2puni');
+  requireProofHost(hostname());
   requireProof(
     (process.env['WBS_RUN_SOLVER_ORPHAN_PROC'] ?? '0') === '0',
     'orphan mode must be off',
@@ -838,5 +844,6 @@ export {
   preflight,
   readProcess,
   requireProof,
+  requireProofHost,
   stopSupervisor,
 };

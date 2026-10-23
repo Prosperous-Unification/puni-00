@@ -299,3 +299,25 @@ Final restored two-file fake regression after the inode correction: 113 passed,
 Configured tools TypeScript, graph-aware scoped ESLint, ShellCheck, scoped Prettier,
 whitespace checks and OpenSpec validation passed (1 valid change, existing warnings).
 No real Docker/h2 execution, gate or push occurred. Parent Tasks 7.3/7.4 remain open.
+
+## Actual preflight correction: h2 OS hostname
+
+The first actual h2 invocation at integrated SHA `4eeef9704` exited 1 before any
+Docker command: its OS hostname is `ubuntu-8gb-hel1-1`, observed both through
+`hostname` and `/etc/hostname` over the verified `ssh h2puni` connection. The outer
+canonical lock was released. Its retained operator log is
+`/tmp/task7-image-proof-4eeef9704-20261023.log` on h2. This failed preflight does not
+establish any image acceptance or installed-child result.
+
+The production preflight now calls one exact host guard accepting only `h2puni`
+and the observed `ubuntu-8gb-hel1-1`. There is no environment override or generalized
+hostname pattern. Local guard tests accept those two strings and refuse `h1claw`,
+`pop-os`, `other`, the neighboring `ubuntu-8gb-hel1-2`, and `h2puni.example`.
+Bypassing the guard made all five refusal tests fail; the guard was restored.
+Logs: `/tmp/task7-host-guard-{green,negative}.log` in the local preparation workspace.
+This correction itself ran no host command, real Docker operation, gate or push.
+
+Scoped proof-runner restored suite: 43 passed, 0 failed, 102 assertions, 1.77 seconds
+(`/tmp/task7-host-guard-full.log`). Configured be-01 tools TypeScript, graph-aware
+scoped ESLint and whitespace checks passed. The unchanged full shell fake-Docker
+suite was not rerun for this host-predicate-only correction.

@@ -25,6 +25,7 @@ import {
   mutate,
   preflight,
   readProcess,
+  requireProofHost,
 } from './task7-solver-image-proof';
 
 let folder: string;
@@ -589,4 +590,17 @@ esac
       rmSync(socket, { recursive: true, force: true });
       rmSync(inventory, { recursive: true, force: true });
     }
+  });
+
+for (const host of ['h2puni', 'ubuntu-8gb-hel1-1'])
+  test(`proof host guard accepts ${host}`, () => {
+    expect(() => {
+      requireProofHost(host);
+    }).not.toThrow();
+  });
+for (const host of ['h1claw', 'pop-os', 'other', 'ubuntu-8gb-hel1-2', 'h2puni.example'])
+  test(`proof host guard refuses ${host}`, () => {
+    expect(() => {
+      requireProofHost(host);
+    }).toThrow('host must be h2puni');
   });
