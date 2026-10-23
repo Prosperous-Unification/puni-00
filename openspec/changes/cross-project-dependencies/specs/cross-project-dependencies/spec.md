@@ -1174,3 +1174,58 @@ is admitted.
 - **GIVEN** a genuinely held canonical FD8 and a symlink state path ending in `/` or `/.`
 - **WHEN** the local solver command mode is requested
 - **THEN** the runner refuses the noncanonical spelling before filesystem checks or child launch
+
+### Requirement: Supervisor installation retains shared edge admission
+
+The supervisor installer SHALL retain canonical edge admission through four
+replacements, installed readback and bounded service/socket readiness. It SHALL
+refuse invalid local inheritance or retained owner markers; remote mode SHALL
+acquire authority independently. Transport SHALL preserve captured source hashes
+and use private invocation staging. Failures SHALL report uncertainty without
+automatic rollback or activation permission.
+
+#### Scenario: Devsync installs through an inherited local description
+
+- **GIVEN** devsync holds canonical edge.lock and no retained owner marker exists
+- **WHEN** its installer child uses explicit `--local` to launch the host publication shell
+- **THEN** the shell receives the same open description at FD3 through both Bun boundaries
+- **AND** competing lock attempts cannot enter during replacement, readback or service readiness
+
+#### Scenario: Invalid local inheritance refuses without fallback
+
+- **GIVEN** the local installer lacks its inherited descriptor or receives a foreign descriptor
+- **WHEN** execution is requested
+- **THEN** it refuses before installed files or service state change
+- **AND** it does not reopen edge.lock or switch to remote transport
+- **AND** combining `--local` with an explicit `--host` refuses at the argument boundary
+
+#### Scenario: Transport and publication evidence remain invocation bound
+
+- **GIVEN** source hashes were captured before SCP and staging is private to this invocation
+- **WHEN** staged or source config bytes change after capture, or installed bytes change after a rename
+- **THEN** the respective hash verification refuses and the service cannot report successful installation
+- **AND** a failure after publication begins reports partial or uncertain state requiring inspection
+
+#### Scenario: Service readiness is bounded inside admission
+
+- **GIVEN** all four installed hashes match and service restart has returned
+- **WHEN** service activity or its Unix socket remains unavailable
+- **THEN** installation fails after at most forty probes while retaining edge admission
+- **AND** it reports uncertainty rather than rolling files back automatically
+
+#### Scenario: Canonical host state and installed modes are verified
+
+- **GIVEN** the installer is about to publish its private staged files
+- **WHEN** canonical state or edge.lock is missing, unreadable, a symlink or the wrong kind, or a retained owner marker exists in any shape
+- **THEN** it refuses before any final file replacement
+- **AND** accepted staging must match all four hashes captured before transport, including the same config bytes accepted by validation, and its Bun version must be supported
+- **AND** published Bun/bundle modes are 0755, config is 0600 and the unit is 0644 before systemd reload, enable and restart
+
+#### Scenario: Cross-filesystem transport never copies into live destinations
+
+- **GIVEN** transport staging and installed destinations may use different filesystems
+- **WHEN** the installer acquires edge admission
+- **THEN** it creates any first-install destination parents inside admission and copies each payload into an invocation-owned 0700 sibling directory beside its destination
+- **AND** it sets exact file modes and verifies all four sibling hashes and the sibling Bun version before the first final replacement
+- **AND** final replacement uses the native rename syscall with no cross-device copy recovery
+- **AND** preparation failure leaves all installed files unchanged, collisions preserve directories this attempt did not create, and failed staging cleanup reports the attempt and original expected hashes rather than success

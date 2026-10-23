@@ -776,13 +776,28 @@ the canonical host gate and production activation remain open.
 
 - [x] Red/green the callable production command runner's explicit local inherited-edge mode, real child FD3 retention and foreign/independent descriptor refusal before launch.
 - [x] Validate canonical state/lock kinds and readability, reject all retained JSON/pending marker shapes, pin child admission environment, and watch independent production omissions fail; independent Astra rereview approved the corrected path admission. Record scoped checks in [verify-solver-edge-handoff.md](verify-solver-edge-handoff.md).
-- [ ] Share the admitted local/remote supervisor install operation and wire the devsync caller; remote CLI must take canonical edge.lock, capture reviewed hashes before transport, use unique staging and hold admission through all four replacements, readback, service changes and readiness. Prove generated shell/transport/service interval and partial-publication diagnostics. Parent 10.2 remains open; no live installation, activation or automatic rollback is granted here.
+- [x] Share the admitted local/remote supervisor install operation and wire the devsync caller; remote CLI must take canonical edge.lock, capture reviewed hashes before transport, use unique staging and hold admission through all four replacements, readback, service changes and readiness. Prove generated shell/transport/service interval and partial-publication diagnostics. Parent 10.2 remains open; no live installation, activation or automatic rollback is granted here.
 
 ### Task 11.1 bounded abbreviation edit and stable navigation browser acceptance (2026-10-23)
 
 - [x] Independent source/target fixtures exercise actual Project settings → General abbreviation PATCH, canonical persisted reload, changed captured label with unchanged stable anchor and exact SQLite relationship, then actual click, destination-specific tree and work-item focus. Three independent production faults fail the persistence, anchor and focus assertions. See [bounded acceptance receipt](verify-task11-abbrev-navigation.md).
-- [ ] Complete independent review and integrated exact-SHA host gate. Parent 11.1 remains open; this document-only fixture host substitution does not establish production root/login composition or activation.
+- [ ] Complete integrated exact-SHA host gate. Independent Astra review approved the bounded packet. Parent 11.1 remains open; this document-only fixture host substitution does not establish production root/login composition or activation.
 
 ### Task 11.1 bounded phone remote-node authoring browser acceptance (2026-10-23)
 
 - [x] An unlinked phone successor uses the real alphabetic project picker to create remote-node → local-whole FS through accepted HTTP, exact SQLite endpoint/step/owner/identity readback, reload/reopen and completion-driven rendered refresh. Independent discovery, stored-node widening and owner-reversal faults fail the actual browser assertions. See [bounded phone acceptance](verify-task11-phone-author.md). Parent 9.2/11.1 and production activation remain open.
+
+### Bounded Task 10.2 supervisor installer shared edge admission
+
+- [x] Share one generated local/remote host operation, capture immutable hashes before transport, use distinct private staging, and retain canonical admission through all four replacements, exact modes, installed readback, service changes and bounded readiness.
+- [x] Wire devsync to explicit local inherited execution and prove the second Bun-to-shell FD3 mapping, invalid inheritance refusal, remote transport corruption and independent safety-check omissions in disposable production-path tests.
+- [ ] Complete isolated integrated-SHA host gate. Independent Astra rereview approved the corrected source packet. Parent 10.2 remains open; no live install, retained owner publication, activation, prior-holder drain/adoption, automatic rollback or broad participant exclusion is established. Evidence: [verify-solver-installer-admission.md](verify-solver-installer-admission.md).
+
+Task 10.2 supervisor installer review correction: transport now stages under a
+separate private cache root; destination parents and private sibling copies are
+prepared under admission, all sibling hashes/version/modes are verified before
+native rename(2) publication, and owned cleanup failures refuse success. Real
+cross-filesystem and first-install acceptance plus all earlier guard faults are
+recorded in [the installer verification](verify-solver-installer-admission.md#astra-p2-correction--destination-filesystem-atomic-publication).
+Independent Astra rereview approved the corrected source packet; integrated host
+gate remains open. No live install or activation occurred.

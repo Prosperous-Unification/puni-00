@@ -7074,3 +7074,14 @@ stored-node widening and endpoint ownership faults fail intended browser asserti
 The explicit fixture-only writer seam remains enabled only in the dedicated harness;
 production auth/root composition and activation are unproved. Parent 9.2/11.1,
 release acceptance and the exact-SHA host gate remain open.
+
+## Bounded Task 10.2 supervisor installer shared edge admission — 2026-10-23
+
+The [installer source packet](verify-solver-installer-admission.md) now shares one
+local/remote admitted operation, wires devsync's inherited local CLI and proves
+the actual second Bun-to-shell descriptor mapping. Four-file captured hashes,
+private staging, installed readback, modes, service/readiness interval and
+partial-state diagnostics have disposable production-path tests and independent
+watched faults. No live installation or activation was performed. Independent
+Astra rereview approved the corrected source packet; the integrated exact-SHA
+host gate remains open, as does parent Task 10.2.

@@ -1,5 +1,7 @@
 # Solver local edge descriptor handoff prerequisite — 2026-10-23
 
+The subsequent [installer admission packet](verify-solver-installer-admission.md) now wires this handoff into the installer. The record below describes the earlier prerequisite and its original limits.
+
 This packet supplies a callable production child execution seam, not installer
 admission. `runSolverBindingCommand`, the default runtime command runner, accepts
 an explicit `edgeLock: 'inherit'` mode. The unchanged installer caller does not

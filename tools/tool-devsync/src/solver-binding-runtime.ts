@@ -66,7 +66,7 @@ export interface TargetSolverBindingRuntime {
 /**
  * Runs a target-clone command; explicit local edge inheritance verifies the
  * canonical descriptor and remaps it to child FD3. Ordinary commands retain
- * their existing transport. The installer caller does not opt in yet.
+ * their existing transport.
  */
 export async function runSolverBindingCommand(
   invocation: SolverBindingRuntimeInvocation,
@@ -300,13 +300,17 @@ export function createTargetSolverBindingRuntime(
           'run',
           'tool-remote-scripts:build',
         ]);
-        await run('solver supervisor install', [
-          target.bunPath,
-          installer,
-          '--host=h2puni',
-          `--config=${configPath}`,
-          '--execute',
-        ]);
+        // Proof: removing edgeLock inheritance failed the runtime invocation contract;
+        // the real Bun-to-installer-to-shell control separately proves descriptor mapping.
+        await requireCommand(
+          'solver supervisor install',
+          {
+            cwd: target.root,
+            edgeLock: 'inherit',
+            argv: [target.bunPath, installer, '--local', `--config=${configPath}`, '--execute'],
+          },
+          io,
+        );
       },
       preflight: async (binding) => {
         // Proof: solver-binding-runtime.test.ts injects a missing-image

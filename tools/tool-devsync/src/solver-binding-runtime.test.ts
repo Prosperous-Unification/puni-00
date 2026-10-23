@@ -141,6 +141,9 @@ describe('the production solver binding runtime', () => {
     expect(invocations[4]?.argv).toContain(`--dev-solver-image=${DEV}`);
     expect(invocations[5]?.argv).toEqual([BUN, 'x', 'nx', 'run', 'tool-remote-scripts:build']);
     expect(invocations[6]?.argv).toContain('--execute');
+    expect(invocations[6]?.argv).toContain('--local');
+    expect(invocations[6]?.argv).not.toContain('--host=h2puni');
+    expect(invocations[6]?.edgeLock).toBe('inherit');
     expect(invocations[7]?.argv).toEqual(['docker', 'image', 'inspect', '--format={{.Id}}', DEV]);
     expect(invocations[8]?.argv).toEqual([
       'systemctl',
