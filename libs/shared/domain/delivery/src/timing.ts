@@ -19,8 +19,10 @@ export interface DeliveryAttemptTiming {
 }
 /**
  * Elapsed time spans the first performed start to the last performed completion,
- * including gaps between executions and attempts. It is independent of summed
- * work and waiting: adding these measurements would count overlapping time again.
+ * including gaps between executions and attempts. Partial spans retain known
+ * endpoints independently even when their matching endpoints are missing.
+ * It is independent of summed work and waiting: adding these measurements
+ * would count overlapping time again.
  */
 export interface DeliveryTiming {
   sumExecutionMs: DeliveryMeasurement;
@@ -51,7 +53,7 @@ export function summarizeDeliveryTiming(observation: DeliveryObservation): Deliv
   };
 }
 
-/** A partial interval sum and span are lower bounds, never estimates for missing work. */
+/** Sums require paired endpoints; partial spans retain each independently observed bound. */
 function measureExecutions(executions: DeliveryExecution[], inventoryReasons: string[]) {
   const reasons = [...inventoryReasons];
   const performed = executions.filter((execution) => execution.kind === 'performed');
@@ -66,14 +68,18 @@ function measureExecutions(executions: DeliveryExecution[], inventoryReasons: st
   const sum = intervals.reduce((total, interval) => total + interval.end - interval.start, 0);
   const sumExecutionMs =
     intervals.length === 0 && reasons.length > 0 ? unknown(reasons) : measured(sum, reasons);
+  const starts = performed.flatMap((execution) =>
+    execution.startedAt === null ? [] : [Date.parse(execution.startedAt)],
+  );
+  const completions = performed.flatMap((execution) =>
+    execution.completedAt === null ? [] : [Date.parse(execution.completedAt)],
+  );
+  const span = Math.max(...completions) - Math.min(...starts);
+  // Proof: removing span < 0 returned partial -8000 ms in elapsed span stays unknown when sparse endpoints.
   const elapsedMs =
-    intervals.length === 0
-      ? unknown([...reasons, 'No complete performed execution interval'])
-      : measured(
-          Math.max(...intervals.map((interval) => interval.end)) -
-            Math.min(...intervals.map((interval) => interval.start)),
-          reasons,
-        );
+    starts.length === 0 || completions.length === 0 || span < 0
+      ? unknown([...reasons, 'Observed endpoints do not establish an elapsed span'])
+      : measured(span, reasons);
   return { sumExecutionMs, elapsedMs };
 }
 

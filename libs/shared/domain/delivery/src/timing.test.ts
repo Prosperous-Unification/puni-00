@@ -143,3 +143,48 @@ test('waiting stays unknown if performed work predates the observed attempt basi
     reasons: ['Execution start predates the observed attempt start'],
   });
 });
+
+test('partial elapsed span retains a running execution start independently of its missing completion', () => {
+  const reading = observation();
+  const first = reading.runs[0].attempts[0].executions[0];
+  first.completedAt = null;
+  first.state = 'running';
+  const timing = summarizeDeliveryTiming(validateDeliveryObservation(reading));
+  expect(timing.sumExecutionMs).toMatchObject({ state: 'partial', milliseconds: 15000 });
+  expect(timing.elapsedMs).toEqual({
+    state: 'partial',
+    milliseconds: 18000,
+    reasons: ['Performed execution timing is incomplete'],
+  });
+  expect(timing.attempts[0].elapsedMs).toEqual({
+    state: 'partial',
+    milliseconds: 18000,
+    reasons: ['Performed execution timing is incomplete'],
+  });
+});
+
+test('partial elapsed span preserves independently known endpoints when no execution has a complete pair', () => {
+  const reading = observation();
+  const executions = reading.runs[0].attempts[0].executions;
+  executions[0].completedAt = null;
+  executions[0].state = 'running';
+  executions[1].startedAt = null;
+  const timing = summarizeDeliveryTiming(validateDeliveryObservation(reading));
+  expect(timing.sumExecutionMs).toMatchObject({ state: 'unknown', milliseconds: null });
+  expect(timing.elapsedMs).toEqual({
+    state: 'partial',
+    milliseconds: 18000,
+    reasons: ['Performed execution timing is incomplete'],
+  });
+});
+
+test('elapsed span stays unknown when sparse endpoints cannot establish a nonnegative span', () => {
+  const reading = observation();
+  const executions = reading.runs[0].attempts[0].executions;
+  executions[0].startedAt = null;
+  executions[1].startedAt = '2026-10-23T09:00:20Z';
+  executions[1].completedAt = null;
+  executions[1].state = 'running';
+  const timing = summarizeDeliveryTiming(validateDeliveryObservation(reading));
+  expect(timing.elapsedMs).toMatchObject({ state: 'unknown', milliseconds: null });
+});
