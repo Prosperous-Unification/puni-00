@@ -152,6 +152,7 @@ describe('readBudgets', () => {
       remaining: 200,
       exceeded: false,
       held: 300,
+      holdPerAttempt: 300,
     });
     const ended = readingsOf({
       budgets: [stated],
@@ -229,7 +230,11 @@ describe('readBudgets', () => {
       mixedFacts: new Map([['P', new Map([['cost', pair]])]]),
     });
     expect(facts.readings.has('P')).toBe(false);
-    expect(facts.blocked.get('P')?.get('cost')).toEqual(pair);
+    expect(facts.blocked.get('P')?.get('cost')).toEqual({
+      bases: pair,
+      policy: 'strict',
+      source: 'stated',
+    });
     // Mixed trios leave a stated budget alone and block only a derived one.
     const trios = readBudgets({
       ...reads,
@@ -248,7 +253,28 @@ describe('readBudgets', () => {
     });
     expect(derived.readings.get('P')).toBeUndefined();
     expect(derived.readings.get('A')?.get('cost')).toMatchObject({ source: 'derived' });
-    expect(derived.blocked.get('P')?.get('cost')).toEqual(pair);
+    expect(derived.blocked.get('P')?.get('cost')).toEqual({
+      bases: pair,
+      policy: 'advisory',
+      source: 'derived',
+    });
+  });
+
+  it('names a blocked budget with its policy and source', () => {
+    const pair = [null, { currency: 'USD', rateCardDigest: 'b' }] as [
+      null,
+      { currency: string; rateCardDigest: string },
+    ];
+    const blockedAs = (policy: 'strict' | 'advisory') =>
+      readBudgets({
+        ...reads,
+        budgets: [budget({ key: 'cost', policy })],
+        mixedFacts: new Map([['P', new Map([['cost', pair]])]]),
+      })
+        .blocked.get('P')
+        ?.get('cost');
+    expect(blockedAs('strict')).toEqual({ bases: pair, policy: 'strict', source: 'stated' });
+    expect(blockedAs('advisory')).toEqual({ bases: pair, policy: 'advisory', source: 'stated' });
   });
 
   it('derives no budget over a leaf that spends without an estimate', () => {

@@ -120,7 +120,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * the cap. **Absent rather than `{}`** when the row has none, so a plan
    * without trios or budgets answers the bytes it did before budgets existed.
    */
-  budgets?: Record<string, Omit<BudgetReading, 'spent'>>;
+  budgets?: Record<string, Omit<BudgetReading, 'spent' | 'holdPerAttempt'>>;
   /**
    * The money keys whose figures in this row's subtree are priced under two
    * or more bases, per kind, with the first two (design D44). Facts and trios

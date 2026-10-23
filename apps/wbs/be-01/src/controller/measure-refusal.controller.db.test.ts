@@ -1,3 +1,4 @@
+import { applyProjectCommands, type SchemaShape, validateSchema } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -153,6 +154,27 @@ function definitionRows(): Omit<Row, 'route'>[] {
       status: 400,
       error: 'measureId_must_be_an_id',
     },
+    {
+      command: { kind: 'deleteMeasure', measureRef: 5 },
+      status: 400,
+      error: 'measureRef_must_be_an_id',
+    },
+    { command: patch(tokensId, { unit: 5 }), status: 400, error: 'unit_must_be_text' },
+    {
+      command: patch(tokensId, { threePoint: 'yes' }),
+      status: 400,
+      error: 'threePoint_must_be_true_or_false',
+    },
+    {
+      command: patch(tokensId, { showByDefault: 'yes' }),
+      status: 400,
+      error: 'showByDefault_must_be_true_or_false',
+    },
+    {
+      command: patch(tokensId, { schedulesWork: 'yes' }),
+      status: 400,
+      error: 'schedulesWork_must_be_true_or_false',
+    },
   ];
 }
 
@@ -244,6 +266,49 @@ function table(): Row[] {
   ];
 }
 
+/**
+ * Every refusal code `wbs-measure-budgets` slices 1 to 4 added to the
+ * command parser's and the batch's enumerations (contracts
+ * `command-parser-refusal.ts` `PARSER_CODES`, `work-item-shapes.ts`
+ * `plainRefusals`, design D47), by hand: the table must drive each (D51).
+ * `mixed_rate_cards` and `organization_required` are driven by their own
+ * cases below, which need a tree or no organization.
+ */
+const MEASURE_BUDGET_CODES = [
+  'invalid_budget',
+  'rateCardDigest_must_be_1_to_128_characters',
+  'measureId_must_be_an_id',
+  'measureRef_must_be_an_id',
+  'key_must_be_a_measure_key',
+  'unit_must_be_text',
+  'unit_must_be_at_most_40_characters',
+  'measureKind_must_be_duration_count_or_money',
+  'scale_must_be_integer_or_real',
+  'threePoint_must_be_true_or_false',
+  'showByDefault_must_be_true_or_false',
+  'schedulesWork_must_be_true_or_false',
+  'order_must_be_a_whole_number_from_0_to_1000000',
+  'currency_must_be_three_capital_letters',
+  'unknown_measure',
+  'derived_measure',
+  'scheduling_measure_fact',
+  'scale_mismatch',
+  'scheduling_measure_estimate',
+  'three_point_forbidden',
+  'scheduling_measure_budget',
+  'rate_card_required',
+  'rate_card_forbidden',
+  'measure_key_taken',
+  'measure_key_immutable',
+  'measure_shape_immutable',
+  'second_scheduling_measure',
+  'scheduling_measure_fixed',
+  'currency_required',
+  'currency_forbidden',
+  'unit_required',
+  'measure_in_use',
+] as const;
+
 function send(route: Row['route'], commands: readonly unknown[]) {
   const path =
     route === 'directory' ? '/api/directory/commands' : `/api/projects/${projectId}/commands`;
@@ -280,6 +345,25 @@ describe('measure refusals through every batch', () => {
         )
         .get(),
     ).toEqual(before);
+  });
+
+  // Proof: with the `unit_must_be_text` row removed from the table, this case
+  // named it as missing; watched 2026-10-23.
+  it('drives every code the change added, each one the batch declares', async () => {
+    const driven = new Set(table().map((row) => row.error));
+    expect(MEASURE_BUDGET_CODES.filter((code) => !driven.has(code))).toEqual([]);
+    const undeclared = [];
+    for (const row of table()) {
+      const body = { at: 0, kind: row.command['kind'], error: row.error };
+      let admitted = false;
+      for (const refusal of applyProjectCommands.refusals) {
+        if (refusal.status !== row.status || !('schema' in refusal)) continue;
+        const schema: SchemaShape<unknown> = refusal.schema;
+        if ('value' in (await validateSchema(schema, body))) admitted = true;
+      }
+      if (!admitted) undeclared.push(row.error);
+    }
+    expect(undeclared).toEqual([]);
   });
 
   it('answers a hand-up across two rate cards with 409 naming both', async () => {

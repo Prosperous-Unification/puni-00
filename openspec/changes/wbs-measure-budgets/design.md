@@ -295,7 +295,7 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
   Slice 5 closed the route, the read's basis and the cross references (D48–D50); the export
   and the panel remain.
 - **D46 Strict and advisory headroom apart (review S2-1).** Per key the headroom read answers
-  `{strict?, advisory?, mixedRateCards?, mixedAt?}`: the tightest strict budget of the chain,
+  `{strict?, advisory?, mixedRateCards?, mixedAt?}` (the two mixed fields superseded by D52): the tightest strict budget of the chain,
   which the coordinator refuses on, and apart the tightest advisory or derived one, which it
   only reports. An advisory budget with less remaining never hides an exhausted strict one.
 - **D47 Refusal schemas compile once per status, not once per code.** mcp-01 compiles every HTTP
@@ -330,17 +330,32 @@ estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads
   any role of the organization reads it (viewers included), a foreign or absent project is 404
   `not_found`, a team the organization does not hold 404 `unknown_team`, a repeated or
   undeclared query key 400 `invalid_query`. Each bounding budget carries `spent` beside `cap`,
-  `held`, `remaining`, `exceeded` and the bounding `workItemId`; the read is never refused for a
-  mix (D44, D46).
+  `held`, `remaining`, `exceeded` and the bounding `workItemId`, and `holdPerAttempt` where the
+  budget states one; the read is never refused for a mix (D44, D46). It is not a snapshot: the
+  startable steps and the budgets are read apart (no shared capture), so a write landing between
+  the two can pair a step with budgets a moment newer. Advisory-consistent by design: a
+  coordinator rereads before acting on a value at the edge.
 - **D51 Refusal audit.** Every code slices 1–4 added is driven through HTTP on each route that
   answers it (`measure-refusal.controller.db.test.ts`): directory codes on both batches, plan
   codes on the project batch (the directory batch answers `project_required` first), parser codes
-  as 400, `bad_budget_factor` as 422 on the project patch. Two readings recorded: an empty
+  as 400, `bad_budget_factor` as 422 on the project patch. The table holds a hand list of every
+  code the change added to the parser's and the batch's enumerations (D47) and asserts it drives
+  each and that the batch declares each row. Two readings recorded: an empty
   `measureId` is an id and answers 404 `not_found`, only a non-string reaches
   `measureId_must_be_an_id`; a non-number `budgetFactor` is the patch's structural 422
   `invalid_body`, as for every setting. Slice 4's review removed the batch 422 `invalid_budget`
   arm, so this slice leaves it alone. The command descriptions now state units, scales and the
   refusals of clears.
+- **D52 A blocked budget keeps its policy (review of PR #679, S2-1); supersedes D46's mixed
+  fields.** `readBudgets`' `blocked` carries each blocked budget's bases, policy and source; the
+  headroom read answers per key `{strict?, advisory?, blocked?: {strict?, advisory?}}`, each
+  `blocked` entry `{workItemId, bases, source}`, the nearest blocked budget of that policy in
+  the chain. `mixedRateCards`/`mixedAt` are gone from the read. Without the policy, a derived
+  (advisory) cap blocked by trios on two cards read byte-identical to a stated strict budget
+  blocked by a mix, and the coordinator could not decide. Its rule, now in the field
+  descriptions: refuse when `strict.remaining <= 0` or `blocked.strict` is present; advisory
+  budgets, read or blocked, never refuse. A readable and a blocked budget of one policy are
+  both reported; the coordinator needs both (the blocked one's remainder is unknown).
 
 ## Risks / Trade-offs
 

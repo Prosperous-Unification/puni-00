@@ -8,6 +8,7 @@ const budget = {
   policy: 'strict' as const,
   source: 'stated' as const,
   spent: 400,
+  holdPerAttempt: 150,
   held: 300,
   remaining: 300,
   exceeded: false,
@@ -34,8 +35,18 @@ test('reads a strict and an advisory budget apart, a blocked key, and a step wit
         budgets: {
           tokens: { strict: budget, advisory: derived },
           cost: {
-            mixedRateCards: [null, { currency: 'USD', rateCardDigest: 'x' }],
-            mixedAt: 'P',
+            blocked: {
+              strict: {
+                workItemId: 'P',
+                bases: [null, { currency: 'USD', rateCardDigest: 'x' }],
+                source: 'stated',
+              },
+              advisory: {
+                workItemId: 'A',
+                bases: [null, { currency: 'USD', rateCardDigest: 'x' }],
+                source: 'derived',
+              },
+            },
           },
         },
       },

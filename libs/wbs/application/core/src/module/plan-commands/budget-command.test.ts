@@ -567,6 +567,7 @@ describe('the headroom read', () => {
               policy: 'strict',
               source: 'stated',
               spent: 0,
+              holdPerAttempt: 300,
               remaining: 200,
               exceeded: false,
               held: 300,
@@ -605,9 +606,15 @@ describe('the headroom read', () => {
       // is blocked, this case read none for A; watched 2026-10-23.
       expect(onA?.budgets['tokens']?.strict).toMatchObject({ workItemId: A, remaining: 100 });
       // P's cost budget cannot be read: named on A's cost key, tokens untouched.
+      // P's stated strict budget is blocked: the coordinator refuses on it.
       expect(onA?.budgets['cost']).toEqual({
-        mixedRateCards: [null, { currency: 'USD', rateCardDigest: 'x' }],
-        mixedAt: P,
+        blocked: {
+          strict: {
+            workItemId: P,
+            bases: [null, { currency: 'USD', rateCardDigest: 'x' }],
+            source: 'stated',
+          },
+        },
       });
     } finally {
       await source.close();

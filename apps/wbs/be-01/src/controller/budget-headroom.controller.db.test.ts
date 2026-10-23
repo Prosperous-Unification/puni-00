@@ -116,7 +116,7 @@ describe('the headroom read', () => {
     expect(await h.call('vic', 'GET', `/api/projects/${own}/budget-headroom`)).toEqual(forMember);
   });
 
-  it('names a blocked cost budget on its key, tokens untouched', async () => {
+  it('names a blocked strict cost budget on its key, tokens untouched', async () => {
     const made = await batch([
       { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: leaf, afterId: null },
       { kind: 'createWorkItem', ref: 'B', name: 'B', parentId: leaf, afterId: null, afterRef: 'A' },
@@ -142,14 +142,64 @@ describe('the headroom read', () => {
     const onA = (answer.body as Headroom).steps.find(
       (step) => step.workItemId === a && step.stepId === dev,
     );
+    // P's stated strict budget is blocked: a coordinator refuses on it.
     expect(onA?.budgets['cost']).toEqual({
-      mixedRateCards: [
-        { currency: 'USD', rateCardDigest: 'card-a' },
-        { currency: 'USD', rateCardDigest: 'card-b' },
-      ],
-      mixedAt: parent,
+      blocked: {
+        strict: {
+          workItemId: parent,
+          bases: [
+            { currency: 'USD', rateCardDigest: 'card-a' },
+            { currency: 'USD', rateCardDigest: 'card-b' },
+          ],
+          source: 'stated',
+        },
+      },
     });
     expect(onA?.budgets['tokens']?.['strict']).toMatchObject({ workItemId: a, remaining: 50 });
+  });
+
+  it('names a blocked derived budget as advisory alone, which never refuses', async () => {
+    const made = await batch([
+      { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: leaf, afterId: null },
+      { kind: 'createWorkItem', ref: 'B', name: 'B', parentId: leaf, afterId: null, afterRef: 'A' },
+    ]);
+    const kids = (made.body as { results: { ref?: string; id?: string }[] }).results;
+    const [a, b] = ['A', 'B'].map((ref) => kids.find((each) => each.ref === ref)?.id ?? '');
+    const pricedTrio = (workItemId: string, rateCardDigest: string) => ({
+      kind: 'setMeasureEstimate',
+      workItemId,
+      stepId: dev,
+      measure: 'cost',
+      estimate: { optimistic: 1, realistic: 2, pessimistic: 3 },
+      rateCardDigest,
+    });
+    await batch([pricedTrio(a, 'card-a'), pricedTrio(b, 'card-b')]);
+    const answer = await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom`);
+    const onA = (answer.body as Headroom).steps.find(
+      (step) => step.workItemId === a && step.stepId === dev,
+    );
+    // A's own derived budget reads; the nearest blocked one is L's derived cap.
+    expect(onA?.budgets['cost']).toEqual({
+      advisory: {
+        workItemId: a,
+        cap: 3,
+        policy: 'advisory',
+        source: 'derived',
+        spent: 0,
+        remaining: 3,
+        exceeded: false,
+      },
+      blocked: {
+        advisory: {
+          workItemId: leaf,
+          bases: [
+            { currency: 'USD', rateCardDigest: 'card-a' },
+            { currency: 'USD', rateCardDigest: 'card-b' },
+          ],
+          source: 'derived',
+        },
+      },
+    });
   });
 
   it('refuses a stranger exactly as the startable read does', async () => {
@@ -175,6 +225,16 @@ describe('the headroom read', () => {
       status: 200,
       body: { steps: [] },
     });
+    // Labelled, the leaf's steps answer for the team; nothing else does.
+    h.sqlite.run('INSERT INTO work_item_team (work_item_id, team_id) VALUES (?, ?)', [
+      leaf,
+      'tm-a',
+    ]);
+    const narrowed = await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom?team=tm-a`);
+    expect(narrowed.status).toBe(200);
+    const steps = (narrowed.body as Headroom).steps;
+    expect(steps.length).toBeGreaterThan(0);
+    expect(steps.every((step) => step.workItemId === leaf)).toBe(true);
     h.sqlite.run("INSERT INTO service_team (id, name) VALUES ('tm-b', 'root-tm-b')");
     h.sqlite.run(
       "INSERT INTO service_team_organization (resource_id, organization_id, name) VALUES ('tm-b', 'org-b', 'B')",
@@ -191,5 +251,27 @@ describe('the headroom read', () => {
         status: 400,
         body: { error: 'invalid_query' },
       });
+  });
+});
+
+describe('the headroom read before activation', () => {
+  it('reads any project deployment-wide under legacy access', async () => {
+    h.close();
+    h = OrganizationHarness.openComposed();
+    await h.register('ada');
+    await h.register('grace');
+    const theirs = await create('ada', 'Legacy plan');
+    const made = await h.call('ada', 'POST', `/api/projects/${theirs}/commands`, {
+      commands: [
+        { kind: 'createWorkItem', ref: 'W', name: 'W', parentId: null, afterId: null },
+        { kind: 'setBudget', workItemRef: 'W', measure: 'tokens', cap: 10, policy: 'strict' },
+      ],
+    });
+    expect(made.status).toBe(200);
+    const answer = await h.call('grace', 'GET', `/api/projects/${theirs}/budget-headroom`);
+    expect(answer.status).toBe(200);
+    const steps = (answer.body as Headroom).steps;
+    expect(steps.length).toBeGreaterThan(0);
+    expect(steps.every((step) => step.budgets['tokens']['strict'] !== undefined)).toBe(true);
   });
 });

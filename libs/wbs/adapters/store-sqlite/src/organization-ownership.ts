@@ -127,10 +127,10 @@ function buildWorkItemStepConflictSql(table: string, id: string): string {
  * Every conflict query, keyed so a kind added to {@link OWNERSHIP_CONFLICT_KINDS} without a
  * query here is a type error. Each selects the conflicting rows' `id`.
  *
- * Proof: each of the twenty-one queries replaced alone by one selecting nothing failed its own
- * `reports a <kind> conflict` case in `organization-reconciliation.db.test.ts`. Observed
- * 2026-09-27; the same for `project_resource_capacity` and `work_item_resource_demand`,
- * observed 2026-10-20.
+ * Proof: each of the twenty-four queries replaced alone by one selecting nothing failed its own
+ * `reports a <kind> conflict` case in `organization-reconciliation.db.test.ts`: the first
+ * twenty-one observed 2026-09-27, `project_resource_capacity` and `work_item_resource_demand`
+ * 2026-10-20, `measure_estimate_step` 2026-10-23.
  */
 const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
   saved_plan_project: `SELECT sp.id AS id FROM saved_plan AS sp
