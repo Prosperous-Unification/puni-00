@@ -57,12 +57,15 @@
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
   /*
-   * The edge of an `outline` button: the slate of `--muted-foreground` a few
-   * steps lighter, so the boundary that is the control's only cue clears 3:1
-   * on the page, the card and its own hover fill (3.64:1 on white, 3.32:1 on
-   * `--accent`; WCAG 1.4.11). `--input` stays the hairline a text box draws:
-   * as a button's edge it measured 1.22:1 light and 1.28:1 dark against WBS's
-   * sign-in card (UI review F-124).
+   * The edge of every control box — an `outline` button, a text box, a select,
+   * a disclosure's summary: the slate of `--muted-foreground` a few steps
+   * lighter, so the boundary that is the control's only cue clears 3:1 on the
+   * page, the card and its own hover fill (3.64:1 on white, 3.32:1 on
+   * `--accent`; WCAG 1.4.11). Text boxes and selects drew `--input`, a 1.2:1
+   * hairline, after buttons moved off it, so one toolbar row drew two edge
+   * weights (WBS UI review F-124, then F-152 and F-137). `--input` stays in the
+   * vocabulary for registry components, but no kit control draws it. A
+   * surface's edge — a card, a popover, a divider — is `--border`.
    *
    * Proof: with the `outline` variant back on `border-input`, WBS's
    * `e2e/control-edge.spec.ts` `outline controls paint a 3:1 edge` failed on

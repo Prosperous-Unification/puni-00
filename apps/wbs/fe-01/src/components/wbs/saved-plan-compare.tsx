@@ -55,7 +55,7 @@ export function SavedPlanSidePicker({
     <label className="saved-plan-compare__picker flex min-w-0 items-center gap-1.5">
       {label}{' '}
       <select
-        className="border-input bg-background h-8 max-w-56 min-w-0 rounded-md border px-2 text-xs"
+        className="border-control-edge bg-background h-8 max-w-56 min-w-0 rounded-md border px-2 text-xs"
         value={valueOf(value)}
         onChange={(event) => {
           onChange(sideOf(event.target.value));

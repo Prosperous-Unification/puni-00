@@ -1,3 +1,4 @@
+import { Button } from '@ui/saas-01';
 import { acceptInvitation, type ClientReply } from '@wbs/contracts';
 import { useState } from 'react';
 
@@ -58,7 +59,7 @@ export function InvitationAcceptance({
       <label htmlFor="invitation-code">Invitation code</label>
       <input
         id="invitation-code"
-        className="border p-2"
+        className="border-control-edge bg-background rounded-md border p-2"
         value={code}
         onChange={(event) => {
           setCode(event.target.value);
@@ -66,9 +67,9 @@ export function InvitationAcceptance({
         required
         autoComplete="off"
       />
-      <button type="submit" disabled={sending}>
+      <Button size="sm" type="submit" disabled={sending}>
         Accept invitation
-      </button>
+      </Button>
       {message !== '' && <p role="alert">{message}</p>}
     </form>
   );
