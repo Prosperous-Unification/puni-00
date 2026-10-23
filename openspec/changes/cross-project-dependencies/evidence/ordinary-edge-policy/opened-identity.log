@@ -21,7 +21,7 @@ error: expect(received).toBe(expected)
 +                      ^
 + error: edge policy changed while reading
 +       at readOrdinaryEdgePolicy (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.ts:82:17)
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 

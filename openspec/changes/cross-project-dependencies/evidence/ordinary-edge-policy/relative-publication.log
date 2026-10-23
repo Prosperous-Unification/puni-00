@@ -21,7 +21,7 @@ error: expect(received).toBe(expected)
 +                                                                               ^
 + error: foreign publication
 +       at /tmp/puni-ordinary-edge-policy/[eval]:47:74
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 

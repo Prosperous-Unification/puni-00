@@ -22,7 +22,7 @@ error: expect(received).toBe(expected)
 + error: edge policy directory changed during publication
 +       at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.ts:142:19)
 +       at async acquireLock (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 

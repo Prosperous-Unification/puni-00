@@ -21,7 +21,7 @@ error: expect(received).toBe(expected)
 +                                                ^
 + error: parent replacement admitted or boundary absent
 +       at /tmp/puni-ordinary-edge-policy/[eval]:45:43
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 

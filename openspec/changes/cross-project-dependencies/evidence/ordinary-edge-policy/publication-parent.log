@@ -24,13 +24,13 @@ error: expect(received).toBe(expected)
 +  syscall: "open",
 +    errno: -2,
 +     code: "ENOENT"
-+ 
++
 +       at async <anonymous> (node:fs/promises:179:56)
 +       at async <anonymous> (/tmp/puni-ordinary-edge-policy/[eval]:33:34)
 +       at async readOrdinaryEdgePolicy (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.ts:58:28)
 +       at async <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.ts:167:30)
 +       at async acquireLock (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 

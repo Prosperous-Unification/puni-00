@@ -3,7 +3,7 @@ bun test v1.4.2 (744846f84)
 
 tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
 287 | }
-288 | 
+288 |
 289 | test('actual read-only policy preflight never reads config or takes runtime lifetime lock', async () => {
 290 |   const { directory, spawn } = await fixture();
 291 |   const absent = spawn(false, ['--check-edge-policy']);
