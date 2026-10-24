@@ -770,8 +770,8 @@ _Avoid_: overrun, delta, drift
 A cap on one measure other than the **scheduling measure** for one work item, strict or
 advisory, stated by a person (with an optional **spend hold** per attempt) or derived from the
 subtree's pessimistic points times the **budget factor**; a parent's budget bounds its
-subtree. Facts are recorded past it and the read says `exceeded`; refusing the next attempt is
-the coordinator's act. Only stated budgets are stored and exported.
+subtree. Facts are recorded past it and the read says `exceeded`; a strict one refuses the
+next attempt's start (**budget admission**). Only stated budgets are stored and exported.
 _Avoid_: allowance, limit (which is the plan's), quota
 
 **Budget factor**:
@@ -786,10 +786,17 @@ _Avoid_: hold (alone), reservation, lock, allowance
 
 **Headroom**:
 What remains of the tightest budgets over a startable or claimed step, per measure, holds taken
-off: the tightest strict one, which the coordinator refuses the next attempt on, apart from the
-tightest advisory or derived one, which it only reports, and any budget a **rate card digest**
-mix keeps from being read, named with its policy.
+off: the tightest strict one apart from the tightest advisory or derived one, and any budget a
+**rate card digest** mix keeps from being read, named with its policy. Read for display and
+ranking; **budget admission** decides the start.
 _Avoid_: slack, float (which is the schedule's), quota
+
+**Budget admission**:
+The decision, inside an attempt start's own write, whether the strict budgets over its work item
+and ancestors have room for it: refused `budget_exhausted` when one has nothing left, when the
+attempt's **spend hold** would take it below zero, or when a **rate card digest** mix keeps it
+from being read. Advisory and derived budgets never refuse.
+_Avoid_: budget check, gate, quota enforcement
 
 **Rate card digest**:
 The identity of the price list a money figure was computed with; with the figure's currency it

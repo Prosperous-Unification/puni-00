@@ -74,7 +74,7 @@ measure SHALL keep its existing estimate and actual storage and commands.
 - **WHEN** 200 random plans each receive random non-time estimates, facts and budgets
 - **THEN** each plan's schedule digest before and after is byte-identical
 
-### Requirement: Budgets are rows per work item and measure that reads can refuse on
+### Requirement: Budgets are rows per work item and measure that the start refuses on
 
 A work item SHALL hold at most one budget per measure with a cap in the measure's unit, a
 policy among `strict` and `advisory`, and a source among `stated` and `derived`; `setBudget`
@@ -110,6 +110,34 @@ remainder until they end.
   per-attempt allowance of 300
 - **THEN** the budget read shows 200 remaining until the attempt ends
 
+### Requirement: A strict budget admits an attempt's start inside its write
+
+`startAttempt` SHALL be refused `409 budget_exhausted`, writing nothing, when a strict budget of
+the work item or an ancestor has nothing remaining, when the attempt's hold would take its
+remainder below zero, or when a mix of rate cards keeps it from being read. The refusal SHALL
+name the budget's `workItemId`, `measure`, `remaining` (null when blocked), the `hold` the
+attempt would add and `blocked`. The decision SHALL be taken inside the start's own write, so
+concurrent starts SHALL never together exceed the room the budget holds. Advisory and derived
+budgets SHALL never refuse a start, and no budget SHALL refuse a fact or a claim.
+
+#### Scenario: Concurrent starts
+
+- **WHEN** a parent holds a strict tokens budget of 500 holding 300 per attempt and two of its
+  leaves start attempts at once
+- **THEN** exactly one start is admitted and the other is refused `budget_exhausted` with
+  remaining 200 and hold 300
+
+#### Scenario: Advisory never refuses
+
+- **WHEN** the same budget is advisory and both leaves start attempts
+- **THEN** both starts are admitted
+
+#### Scenario: A blocked strict budget refuses
+
+- **WHEN** a parent holds a strict cost budget and its leaves record cost facts under two rate
+  cards
+- **THEN** a start under it is refused `budget_exhausted` with `blocked: true` and remaining null
+
 ### Requirement: Money facts carry their pricing basis and mixed bases never add
 
 A `cost` estimate or fact SHALL record the currency and the rate card digest it was priced
@@ -127,8 +155,9 @@ The plan table SHALL offer estimate, fact and variance columns for every measure
 visible by default only where `showByDefault` is set, with toggles persisted per browser and
 project beside the remembered layout and forgotten by its reset; headers SHALL carry the unit and money the currency;
 absence SHALL render as absence. A measure panel per work item SHALL list every definition
-with expected, fact, variance and budget. The export SHALL gain a version carrying definitions,
-estimates, facts and budgets; importing an older version SHALL seed the defaults and map
+with expected, fact, variance and budget. Every export SHALL be the version carrying the
+budget factor, definitions, estimates, facts and budgets, each list empty when the plan holds
+none, and Twilight Navigator, Burokrat and Dash SHALL read it; importing an older version SHALL seed the defaults and map
 legacy metrics; saved plan compare SHALL show changes in any measure.
 
 #### Scenario: A fresh user sees time only
@@ -143,3 +172,16 @@ legacy metrics; saved plan compare SHALL show changes in any measure.
 - **WHEN** an export without measure definitions is imported
 - **THEN** the five defaults are seeded, legacy token and hours facts map onto them, and the
   plan reads as before
+
+#### Scenario: A plan without measures exports version 11
+
+- **WHEN** a plan with no fact in a defined measure, no three-point trio, no stated budget and a
+  budget factor of 1 is exported
+- **THEN** the document is version 11 with `settings.budgetFactor` 1 and the four measure lists
+  empty, and a version-10 file still imports onto the seeded definitions
+
+#### Scenario: Twilight reads version 11
+
+- **WHEN** Twilight Navigator reads a version-11 export
+- **THEN** it derives the same tasks as the equivalent version-10 file and records
+  `planDocumentVersion: 11`, which Burokrat and Dash accept

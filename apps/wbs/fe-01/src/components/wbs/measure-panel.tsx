@@ -294,7 +294,7 @@ function BasisLine({
 
 /**
  * A budget drawn by its policy: a strict budget as a bar of spent against its
- * cap with what remains, since the coordinator refuses on it; an advisory or
+ * cap with what remains, since a start is refused on it; an advisory or
  * derived one as a marker line, since it only reports. Exceeded is said in
  * words and colour both.
  */
@@ -336,11 +336,18 @@ function BudgetView({
           : over
             ? `${show(reading.spent - reading.cap)} over`
             : 'nothing left';
+      // Refusing with some left is the write's hold rule: less remains than
+      // the next attempt would hold (design D69).
+      // Proof: with this arm removed, `warns at the cap and on holds, as the
+      // write refuses the next attempt` (measure-panel.test.tsx) read "Spent to
+      // the cap" with 200 left; watched 2026-10-24.
       const why = over
         ? 'Exceeded'
-        : reading.held > 0 && reading.remaining < 0
-          ? 'Nothing left once running attempts’ holds are counted'
-          : 'Spent to the cap';
+        : reading.remaining > 0
+          ? 'Less left than one attempt’s hold'
+          : reading.held > 0 && reading.remaining < 0
+            ? 'Nothing left once running attempts’ holds are counted'
+            : 'Spent to the cap';
       // Proof: with this test negated (the renderings swapped), `draws a strict
       // budget as a bar and an advisory one as a marker` (measure-panel.test.tsx)
       // found no meter in the Tokens card; watched 2026-10-23.
@@ -382,7 +389,7 @@ function BudgetView({
               />
             </div>
             {/* Proof: with this keyed on `over` again, `warns at the cap and on
-                holds, as the coordinator refuses` (measure-panel.test.tsx) found
+                holds, as the write refuses the next attempt` (measure-panel.test.tsx) found
                 no sentence on a budget spent to its cap; watched 2026-10-23. */}
             {refusing && (
               <p
@@ -390,7 +397,7 @@ function BudgetView({
                 className="text-xs font-semibold"
                 style={{ color: 'var(--status-blocked)' }}
               >
-                {why} — the coordinator refuses the next attempt here.
+                {why} — the next attempt is refused here.
               </p>
             )}
           </div>

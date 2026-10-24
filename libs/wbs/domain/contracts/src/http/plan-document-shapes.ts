@@ -5,32 +5,24 @@ import { requestSchema, responseSchema } from './schema-shape';
 import { moneyBasis, numberedWorkItem, workItemTree } from './work-item-response';
 
 /**
- * The newest plan document version this release writes.
+ * The plan document version this release writes, for every plan (design D71).
  *
  * `11` carries the project's measures (`wbs-measure-budgets` D8, design D63):
  * the definitions its facts, estimates and budgets name, those three, and the
- * budget factor. The export writes it only when the plan holds one of them or
- * a factor other than 1, and {@link LEGACY_PLAN_DOCUMENT_VERSION} otherwise.
+ * budget factor, each list written empty when the plan holds none.
  * `10` carries resources, their per-project capacities and per-work-item demands
  * (`wbs-resources`). `9` carries direct step blockage facts separately from rows. `8` carries each step’s estimate unit. `7` carries the project's timezone and each leaf's attempts by step code
  * (`step-node-attempts` D5); `6` each leaf's readiness and hold
  * (`add-work-item-statuses`); `5`
  * extends typed dependencies to SS/FF; `4` added FS separately from
  * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
- * classifier converts earlier versions explicitly.
+ * classifier converts earlier versions explicitly; only the import reads them.
  */
 export const PLAN_DOCUMENT_VERSION = 11;
 
-/**
- * The version the export writes for a plan with nothing version 11 adds, byte
- * for byte what the release before measures wrote, so the outgoing release,
- * Twilight Navigator and every saved file read it as before (design D63).
- */
-export const LEGACY_PLAN_DOCUMENT_VERSION = 10;
-
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '10 | 11',
+  version: '11',
   exportedAt: 'string',
 });
 
@@ -54,8 +46,8 @@ const planSettings = type({
   scheduleObjective: "'pri' | 'time'",
   /** The IANA zone the project reads instants as days in; `UTC` before version 7. */
   timezone: 'string',
-  /** What a derived budget multiplies the pessimistic point by; version 11 only (design D63). */
-  'budgetFactor?': 'number',
+  /** What a derived budget multiplies the pessimistic point by (design D63, D71). */
+  budgetFactor: 'number',
 });
 
 const named = type({ id: 'string', name: 'string' });
@@ -253,11 +245,11 @@ export const planDocument = workItemTree.omit('typedDependencies', 'workItems').
   demands: documentDemand.array(),
   calendarMarkers: authoredMarker.array(),
   directory: directory.and({ resources: documentResource.array() }),
-  // Version 11 only, all four together (design D63).
-  'measureDefinitions?': documentMeasureDefinition.array(),
-  'measureFacts?': documentMeasureFact.array(),
-  'measureEstimates?': documentMeasureEstimate.array(),
-  'budgets?': documentBudget.array(),
+  // Always written, empty when the plan holds none (design D63, D71).
+  measureDefinitions: documentMeasureDefinition.array(),
+  measureFacts: documentMeasureFact.array(),
+  measureEstimates: documentMeasureEstimate.array(),
+  budgets: documentBudget.array(),
 });
 
 export type PlanDocument = (typeof planDocument)['infer'];

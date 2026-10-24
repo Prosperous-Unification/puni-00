@@ -7,9 +7,10 @@ import { rollUpMeasureEstimates, rollUpMeasures } from './roll-up';
 import type { StoredMeasure } from './step-values';
 
 /**
- * How a budget is meant to be held (`wbs-measure-budgets` D5): `strict` asks
- * the coordinator to refuse the next attempt once nothing remains, `advisory`
- * only reports. WBS records facts past either (spec "Budgets are rows").
+ * How a budget is meant to be held (`wbs-measure-budgets` D5): `strict`
+ * refuses an attempt's start once nothing remains or its hold would not fit
+ * (`findExhaustedBudget`, design D69), `advisory` only reports. WBS records
+ * facts past either (spec "Budgets are rows").
  */
 export const BUDGET_POLICIES = ['strict', 'advisory'] as const;
 export type BudgetPolicy = (typeof BUDGET_POLICIES)[number];
@@ -112,8 +113,9 @@ export interface BudgetReading {
   spent: number;
   /**
    * The stated budget's allowance per running attempt of unknown usage, only
-   * where it states one (design D40). The headroom read answers it; the row
-   * read leaves it out, as it does `spent` (D49).
+   * where it states one (design D40). Both reads answer it (D60), so the
+   * panel can apply the write's refusal rule (D69); absent without a hold, a
+   * row's `budgets` keep their bytes (D49).
    */
   holdPerAttempt?: number;
   remaining: number;
@@ -153,7 +155,7 @@ export interface BudgetRead {
 /**
  * A budget that exists but cannot be read (design D44, D52): the pair of
  * bases that blocks it, and its policy and source, so a reader can still tell
- * a blocked strict budget, which a coordinator refuses on, from a blocked
+ * a blocked strict budget, which refuses a start (design D69), from a blocked
  * advisory or derived one, which it never does.
  */
 export interface BlockedBudget {

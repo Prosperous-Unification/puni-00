@@ -36,9 +36,10 @@ const blockedBound = type({
  * One measure over one step (design D46, D52): the tightest readable strict
  * budget of the chain and apart the tightest readable advisory or derived
  * one, with the nearest budget of each policy that a sum across two bases
- * keeps from being read in `blocked` (design D44). The coordinator refuses
- * when `strict.remaining <= 0` or `blocked.strict` is present; advisory
- * budgets, read or blocked, never refuse.
+ * keeps from being read in `blocked` (design D44). For display and ranking:
+ * `startAttempt` itself refuses `budget_exhausted` inside its write where
+ * `strict.remaining <= 0`, the start's hold would take it below zero, or
+ * `blocked.strict` is present (design D69); advisory budgets never refuse.
  */
 const measureHeadroom = type({
   'strict?': boundingBudget,
@@ -55,8 +56,10 @@ const stepHeadroom = type({
 
 /**
  * The remaining budget per measure of every startable and claimed step of a
- * project (`wbs-measure-budgets` task 4.1, design D41): what a coordinator
- * refuses the next attempt on. Admitted exactly as the startable read: an
+ * project (`wbs-measure-budgets` task 4.1, design D41), for display and for
+ * ranking work: the admission itself is decided inside `startAttempt`'s write
+ * (design D69), so two coordinators reading the same remainder cannot both
+ * start past it. Admitted exactly as the startable read: an
  * organization's viewer reads it, a foreign or absent project is 404
  * `not_found`, a team the organization does not hold 404 `unknown_team`.
  * Never refused for a rate-card mix: that is named on its step and key. Not
@@ -96,6 +99,6 @@ export const readBudgetHeadroom = defineEndpointShape({
   document: {
     summary: 'Read the remaining budget per measure of every startable and claimed step.',
     description:
-      'For each step getApiProjectsByIdStartable lists (startable steps first, fitting or not, then claimed ones), budgets maps a measure key to the budgets of the step’s work item and its ancestors: strict, the readable strict budget with the least remaining, and advisory, the readable advisory or derived one with the least remaining; each names the workItemId that states it. Coordinator rule: refuse the next attempt when strict.remaining <= 0 or blocked.strict is present; advisory budgets, read or blocked, never refuse. cap, spent, holdPerAttempt, held and remaining are in the measure’s unit and scale (getApiMeasures; cost is micro-units of its currency). source derived is the subtree’s pessimistic estimates times the project’s budgetFactor. spent is the subtree’s recorded facts; holdPerAttempt and held are present only where the budget states a hold, held being holdPerAttempt times the running attempts whose usage is not recorded yet; remaining is cap minus spent minus held, negative past the cap; exceeded is spent above cap. blocked.strict and blocked.advisory name the nearest budget of each policy that cannot be read because its subtree prices money under two bases (currency and rate card digest; null is unpriced): its workItemId, the first two bases and its source. Treat a blocked measure as unknown, never unbounded. A step with no budget above it has empty budgets. The read is not a snapshot: steps and budgets are read apart, so recheck before acting on a value at the edge. Give team (a team id from getApiTeams) for one team’s allotment. Set budgets with postApiProjectsByIdCommands kinds setBudget and clearBudget.',
+      'For each step getApiProjectsByIdStartable lists (startable steps first, fitting or not, then claimed ones), budgets maps a measure key to the budgets of the step’s work item and its ancestors: strict, the readable strict budget with the least remaining, and advisory, the readable advisory or derived one with the least remaining; each names the workItemId that states it. This read is for display and ranking; the write decides: startAttempt refuses budget_exhausted (409, naming workItemId, measure, remaining, hold, blocked) when a strict budget has remaining <= 0, when the attempt’s holdPerAttempt would take remaining below zero, or when blocked.strict is present; advisory and derived budgets, read or blocked, never refuse. cap, spent, holdPerAttempt, held and remaining are in the measure’s unit and scale (getApiMeasures; cost is micro-units of its currency). source derived is the subtree’s pessimistic estimates times the project’s budgetFactor. spent is the subtree’s recorded facts; holdPerAttempt and held are present only where the budget states a hold, held being holdPerAttempt times the running attempts whose usage is not recorded yet; remaining is cap minus spent minus held, negative past the cap; exceeded is spent above cap. blocked.strict and blocked.advisory name the nearest budget of each policy that cannot be read because its subtree prices money under two bases (currency and rate card digest; null is unpriced): its workItemId, the first two bases and its source. Treat a blocked measure as unknown, never unbounded. A step with no budget above it has empty budgets. The read is not a snapshot: steps and budgets are read apart, so recheck before acting on a value at the edge. Give team (a team id from getApiTeams) for one team’s allotment. Set budgets with postApiProjectsByIdCommands kinds setBudget and clearBudget.',
   },
 });

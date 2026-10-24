@@ -373,7 +373,9 @@ describe('budgets on the row read', () => {
       const start = Date.now() - 60 * MINUTE;
       await run([
         setBudget(A, 'tokens', 500, 'strict', 300),
-        setBudget(P, 'tokens', 500, 'strict', 300),
+        // Advisory, so the second start below is admitted and holds: a strict
+        // parent would refuse it `budget_exhausted` (design D69).
+        setBudget(P, 'tokens', 500, 'advisory', 300),
       ]);
       await run([{ kind: 'startAttempt', workItemId: A, stepId: dev, at: start }]);
       expect((await rowOf(A)).budgets?.['tokens']).toEqual({
@@ -607,7 +609,7 @@ describe('the headroom read', () => {
       // is blocked, this case read none for A; watched 2026-10-23.
       expect(onA?.budgets['tokens']?.strict).toMatchObject({ workItemId: A, remaining: 100 });
       // P's cost budget cannot be read: named on A's cost key, tokens untouched.
-      // P's stated strict budget is blocked: the coordinator refuses on it.
+      // P's stated strict budget is blocked: the write refuses a start on it.
       expect(onA?.budgets['cost']).toEqual({
         blocked: {
           strict: {

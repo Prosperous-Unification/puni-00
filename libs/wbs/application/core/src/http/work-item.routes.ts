@@ -495,6 +495,15 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    // A strict budget stands in the way of the start; the same start is
+    // admitted once a running attempt reports or ends, or the cap is raised
+    // (`wbs-measure-budgets` D69).
+    case 'budget_exhausted':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
   }
 }
 const namedEntity = responseSchema(type({ id: 'string', name: 'string' }));

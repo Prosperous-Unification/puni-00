@@ -250,7 +250,8 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
   reads as known; a partial report releases the hold although spend continues. The row read
   adds `budgets: {key: {cap, policy, source, remaining, exceeded, held?}}`, `held` only where
   the budget states a hold; absent when the row has no budget, so plans without trios or
-  budgets answer the same bytes.
+  budgets answer the same bytes. The start's admission folds the same reading inside its own
+  write, the starting attempt added as running (D69).
 - **D40 The hold is a budget field.** `holdPerAttempt` belongs with the cap it reduces, in the
   same unit; a project setting would need one figure per measure. Each budget holds its own
   allowance for every unknown attempt in its subtree, so a leaf's and its parent's budgets
@@ -258,7 +259,8 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
 - **D41 Headroom read in core.** `WorkItemService.budgetHeadroomWithin(projectId, access)`
   answers, for every startable step (fitting or not, `findStartableWork`) and every claimed
   step, per key the tightest budgets among its work item and its ancestors (D46), naming the
-  bounding work item. It is never refused as a whole: a budget a rate-card mix keeps from
+  bounding work item; it is for display and ranking, and the start is admitted in its write
+  (D69). It is never refused as a whole: a budget a rate-card mix keeps from
   being read is named on that step and key (D44). A plan-command batch writes and cannot carry
   a read, and dedicated read routes and MCP tools are slice 5's, so no route is added here.
 - **D42 Budgets stay on their work item.** A first child takes none (the parent's budget
@@ -296,8 +298,8 @@ scale_mismatch`; a negative or non-finite figure is refused at the command bound
   the export (D63); the panel remains.
 - **D46 Strict and advisory headroom apart (review S2-1).** Per key the headroom read answers
   `{strict?, advisory?, mixedRateCards?, mixedAt?}` (the two mixed fields superseded by D52): the tightest strict budget of the chain,
-  which the coordinator refuses on, and apart the tightest advisory or derived one, which it
-  only reports. An advisory budget with less remaining never hides an exhausted strict one.
+  the one a start is refused on (in its write since D69), and apart the tightest advisory or
+  derived one, which only reports. An advisory budget with less remaining never hides an exhausted strict one.
 - **D47 Refusal schemas compile once per status, not once per code.** mcp-01 compiles every HTTP
   shape at boot inside a 512 Mi pod; `commandParserRefusal`'s 132 arms and the batch's 78 plain
   arms each carried the whole command-kind enumeration, and slice 4's two kinds and codes pushed
@@ -323,7 +325,9 @@ estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads
   there instead, and a kind whose figures are all unpriced names nothing (its absence is the
   answer, and a project with no priced figure skips the attachment entirely). `BudgetReading`
   gains `spent` (the subtree's facts) for the headroom read; the row read strips it, so a row's
-  `budgets` answer the bytes they did in slice 4.
+  `budgets` answer the bytes they did in slice 4. (Since D60 the row read also carries
+  `holdPerAttempt` where a hold is stated, which the panel needs for D69's rule; a budget without
+  a hold still answers those bytes.)
 - **D50 Headroom route.** `GET /api/projects/:id/budget-headroom` (MCP
   `getApiProjectsByIdBudget-headroom`, derived from the shape like every tool) serves
   `budgetHeadroomWithin` with an optional `team` query, admitted exactly as the startable read:
@@ -333,8 +337,9 @@ estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads
   `held`, `remaining`, `exceeded` and the bounding `workItemId`, and `holdPerAttempt` where the
   budget states one; the read is never refused for a mix (D44, D46). It is not a snapshot: the
   startable steps and the budgets are read apart (no shared capture), so a write landing between
-  the two can pair a step with budgets a moment newer. Advisory-consistent by design: a
-  coordinator rereads before acting on a value at the edge.
+  the two can pair a step with budgets a moment newer. Advisory-consistent by design, and
+  since D69 that is enough: the start decides inside its write, so a stale value at the edge
+  costs a refused start, never a crossed budget.
 - **D51 Refusal audit.** Every code slices 1–4 added is driven through HTTP on each route that
   answers it (`measure-refusal.controller.db.test.ts`): directory codes on both batches, plan
   codes on the project batch (the directory batch answers `project_required` first), parser codes
@@ -352,9 +357,10 @@ estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads
   `blocked` entry `{workItemId, bases, source}`, the nearest blocked budget of that policy in
   the chain. `mixedRateCards`/`mixedAt` are gone from the read. Without the policy, a derived
   (advisory) cap blocked by trios on two cards read byte-identical to a stated strict budget
-  blocked by a mix, and the coordinator could not decide. Its rule, now in the field
-  descriptions: refuse when `strict.remaining <= 0` or `blocked.strict` is present; advisory
-  budgets, read or blocked, never refuse. A readable and a blocked budget of one policy are
+  blocked by a mix, and no reader could decide. The rule, which `startAttempt` applies in its
+  write since D69 (the read only reports it): refuse when `strict.remaining <= 0`, the start's
+  hold does not fit, or `blocked.strict` is present; advisory budgets, read or blocked, never
+  refuse. A readable and a blocked budget of one policy are
   both reported; the coordinator needs both (the blocked one's remainder is unknown).
 
 Assumptions added while implementing slice 6 (tasks 4.2, 4.3), each the reading closest to D1–D8:
@@ -407,8 +413,9 @@ Assumptions added while fixing the review of PR #680 (slice 6):
   `holdPerAttempt` leaves the box empty, and a Save there clears the hold; that window closes with
   this release. Saved plans capture the row read, so a captured row with a hold carries one more
   field.
-- **D61 The panel warns where the coordinator refuses.** A strict budget reads `refusing` when its
-  `remaining <= 0` (the headroom read's rule, `budget-headroom-shapes.ts`), not when `exceeded`:
+- **D61 The panel warns where the write refuses.** A strict budget reads `refusing` when its
+  `remaining <= 0` (the headroom read's rule, `budget-headroom-shapes.ts`; since D69 also when
+  less remains than its `holdPerAttempt`), not when `exceeded`:
   spent exactly to the cap, or holds taking the rest, refuse the next attempt. The bar's colour and
   the sentence follow `refusing`; the "exceeded" badge stays for facts past the cap; holds are said
   as "nothing left · N held", never "over".
@@ -420,7 +427,8 @@ Assumptions added while fixing the review of PR #680 (slice 6):
 
 Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading closest to D1–D8:
 
-- **D63 Version 11, written only when it carries something.** The plan document gains version
+- **D63 Version 11, written only when it carries something** (dual-version rule superseded by
+  D71: every export is version 11). The plan document gains version
   11: `settings.budgetFactor`, `measureDefinitions` (every field but the id, for the keys its
   figures name, in list order), `measureFacts` (facts in defined measures with their `basis`),
   `measureEstimates` (every trio but the single-point tokens trios, with `basis`) and `budgets`
@@ -477,7 +485,9 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
 - **D67 Golden fixtures state the default factor.** The core export fixture's project had
   `budgetFactor: 1.5` to prove slice 4's strip; under D63 that factor is version-11 data, so the
   legacy-shape fixtures state 1 and the version-11 cases state 1.5. The v9 and v10 golden
-  hashes (`016181aa…`, `f2308a55…`) are unchanged; version 11 adds its own (`62708699…`).
+  hashes (`016181aa…`, `f2308a55…`) are unchanged; version 11 adds its own (`62708699…`). Since
+  D71 the v9 and v10 hashes pin a version-11 export with its additions removed (factor 1, four
+  empty lists), and a plain version-11 golden (`f8ed9174…`) stands beside them.
 
 Decisions from the review fixes (PR A, 2026-10-24):
 
@@ -488,9 +498,30 @@ Decisions from the review fixes (PR A, 2026-10-24):
   A stated budget beside it reads as before. Coverage is per step node (review A-1): a derived
   budget exists only where every leaf step node holding a fact in the key also holds a
   three-point trio in it, since spend and pessimistic points fold per step.
-- **D69 Admission moves into the WBS claim write** (placeholder). The strict-budget hold
-  becomes part of the claim and attempt-start write in WBS rather than a read the coordinator
-  refuses on; designed and built in PR B, which records it here.
+- **D69 Budget admission is decided inside the attempt start's write** (Dany, 2026-10-24;
+  amends D39, D41, D46, D50, D52). A coordinator deciding from the headroom read let two
+  concurrent starts both read "500 remaining, hold 300" and both start. `startAttempt` now
+  folds the project's budgets with `readBudgets` twice, without and with the starting attempt
+  as running, inside the batch's unit of work (`findExhaustedBudget`, called last in the
+  start's refusal order). For each strict budget of the work item and its ancestors, nearest
+  first then by key, it refuses `409 budget_exhausted` when `remaining <= 0` before the start
+  (spent to the cap refuses even without a hold, as D61's panel warns) or below zero after it.
+  The panel shows the same rule (review S3-1): a strict budget reads `refusing` when
+  `remaining <= 0`, or when the row read's `holdPerAttempt` (D60) exceeds `remaining`, so
+  "200 remaining, hold 300" warns that the next attempt is refused there.
+  A strict budget a rate-card mix blocks refuses too, as D52 reads it: the same code with
+  `blocked: true` and `remaining: null`, not a second code. The body is
+  `{workItemId, measure, remaining, hold, blocked}` beside the batch context; `hold` is the
+  budget's `holdPerAttempt` where this attempt adds one, else 0. Advisory and derived budgets
+  never refuse; facts are still never refused (proposal non-goal). `claimWorkItem` is not an
+  admission point: a claim starts no attempt and holds nothing (D39), so refusing it would
+  count a hold no running attempt makes; a batch that claims and starts is refused whole at
+  the start. A hold taken at claim time would be a separate decision: claims hold nothing today
+  (D39). The headroom read stays for display and ranking. Concurrency: the write
+  coordinator admits one batch at a time and SQLite's unit of work is `BEGIN IMMEDIATE`, so the
+  fold reads every earlier start's row; `budget-admission-race.db.test.ts` races starts in an
+  `fc.asyncModelRun` model and fails seed 20261024 when the admission reads attempts from
+  before the race queued, or when the refusal is removed.
 - **D70 Measure definitions are admin-only** (Dany: "tighten permissions"; supersedes D16).
   `createMeasure`, `patchMeasure` and `deleteMeasure` require the organization admin or
   super-admin role under scoped access, refused `403 forbidden` per command (`{at, kind, error}`,
@@ -502,8 +533,17 @@ Decisions from the review fixes (PR A, 2026-10-24):
   machine credential can define nothing: `403 forbidden` on all three commands and on a
   defining import. A definition changes what every project's figures mean, an
   organization act like ranking projects.
-- **D71 Always version 11** (placeholder). Whether the export writes version 11 for every plan,
-  retiring D63's conditional, follows once Navigator, Burokrat and Dash admit it (task 4.6).
+- **D71 Always version 11** (Dany, 2026-10-24: no users, no compatibility burden; supersedes
+  D63's dual-version rule). The export writes plan document version 11 for every plan:
+  `settings.budgetFactor` and the four lists `measureDefinitions`, `measureFacts`,
+  `measureEstimates` and `budgets`, each empty when the plan holds none.
+  `LEGACY_PLAN_DOCUMENT_VERSION` and the conditional that chose 10 are gone, and the response
+  shape requires the version-11 fields. Import still reads versions 1–10 exactly as before
+  (D65). Twilight Navigator (`NAVIGATOR_PLAN_DOCUMENT_VERSIONS` `[7, 8, 9, 10, 11]`, converting
+  7–10 to the version-11 shape with empty measures), Burokrat (`planDocumentVersion`
+  `6 | 7 | 8 | 9 | 10 | 11`) and Dash (through Burokrat's record) admit 11, each tested against
+  the fixture `plan-export.v11.json`, with a negative that drops 11 and 12 refused as the
+  future version (task 4.6 closed).
 - **D72 Rollback is the pre-deploy backup** (Dany, 2026-10-24: no users yet). Once a fact in a
   defined measure (D23), a three-point trio (D28), a priced figure or a stated budget (D44)
   exists, `down.sql` refuses, and the older image answers 500 on work items holding a fact in a

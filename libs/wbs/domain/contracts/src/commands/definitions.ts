@@ -172,7 +172,7 @@ export const commandDefinitions = {
     }),
     scope: 'project',
     description:
-      'Start the next attempt at one step node, numbered its highest plus one. at is epoch ms, absent means now. Refused node_done on a node stated done, attempt_running while one runs, attempt_in_future after now. reference is a URL or label. Accepts stepNodeId in place of the work-item and step pair.',
+      'Start the next attempt at one step node, numbered its highest plus one. at is epoch ms, absent means now. Refused node_done on a node stated done, attempt_running while one runs, attempt_in_future after now, budget_exhausted (409) when a strict budget of the work item or an ancestor has nothing left, would go below zero with this attempt’s holdPerAttempt, or cannot be read across two rate cards (blocked, remaining null); the refusal names workItemId, measure, remaining and hold. Advisory and derived budgets never refuse. reference is a URL or label. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   endAttempt: defineCommand('endAttempt', {
     schema: type({
@@ -252,7 +252,7 @@ export const commandDefinitions = {
     }),
     scope: 'project',
     description:
-      'State the budget of a work item (leaf or parent) in one measure: cap, at or above 0 in that measure’s unit and scale (cost in micro-units of its currency), bounds the summed facts of the whole subtree on every step. policy strict asks the coordinator to refuse once nothing remains; advisory only reports. holdPerAttempt, when given (same unit), is held against the remainder for every running attempt in the subtree whose usage is not yet recorded. measure is the definition key; agent_minutes may hold a budget. Read the remainders with getApiProjectsByIdBudget-headroom. A stated budget replaces the one derived from the pessimistic estimate. Refused unknown_measure, scheduling_measure_budget (time), invalid_budget (400: a negative cap or hold, or another policy) or scale_mismatch (a fraction on an integer measure).',
+      'State the budget of a work item (leaf or parent) in one measure: cap, at or above 0 in that measure’s unit and scale (cost in micro-units of its currency), bounds the summed facts of the whole subtree on every step. policy strict makes startAttempt refuse budget_exhausted once nothing remains or the next attempt’s hold would not fit; advisory only reports. holdPerAttempt, when given (same unit), is held against the remainder for every running attempt in the subtree whose usage is not yet recorded. measure is the definition key; agent_minutes may hold a budget. Read the remainders with getApiProjectsByIdBudget-headroom. A stated budget replaces the one derived from the pessimistic estimate. Refused unknown_measure, scheduling_measure_budget (time), invalid_budget (400: a negative cap or hold, or another policy) or scale_mismatch (a fraction on an integer measure).',
   }),
   clearBudget: defineCommand('clearBudget', {
     schema: type({ kind: "'clearBudget'", ...target, measure: 'string' }),

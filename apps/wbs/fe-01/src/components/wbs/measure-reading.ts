@@ -338,10 +338,12 @@ export type BudgetReading =
       remaining: number;
       exceeded: boolean;
       /**
-       * Whether the coordinator refuses the next attempt on it: a strict budget
-       * with nothing remaining once holds are counted (`remaining <= 0`, the
-       * headroom read's rule). Spent exactly to the cap refuses; holds pushing
-       * the remainder below zero refuse without the facts being `exceeded`.
+       * Whether the next start is refused on it, by the write's own rule
+       * (`findExhaustedBudget`, design D69): a strict budget with nothing
+       * remaining once holds are counted (`remaining <= 0`), or with less
+       * remaining than the hold the next attempt would add (`remaining <
+       * holdPerAttempt`). Spent exactly to the cap refuses; holds pushing the
+       * remainder below zero refuse without the facts being `exceeded`.
        */
       refusing: boolean;
       /** Spent over cap, clamped to [0, 1], for the bar. */
@@ -378,7 +380,13 @@ export function budgetReadingOf(
     // Proof: with this keyed on `exceeded` again, `refuses at the cap and on
     // holds, not only once facts cross it` (measure-reading.test.ts) read a
     // strict budget spent to its cap as not refusing; watched 2026-10-23.
-    refusing: budget.policy === 'strict' && budget.remaining <= 0,
+    // Proof: with the `holdPerAttempt` arm removed, `refuses when less remains
+    // than one attempt's hold, as the write does` (measure-reading.test.ts)
+    // read 200 left under a 300 hold as not refusing; watched 2026-10-24.
+    refusing:
+      budget.policy === 'strict' &&
+      (budget.remaining <= 0 ||
+        (budget.holdPerAttempt !== undefined && budget.remaining < budget.holdPerAttempt)),
     fill: budget.cap <= 0 ? (spent > 0 ? 1 : 0) : Math.min(1, Math.max(0, spent / budget.cap)),
   };
 }

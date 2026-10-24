@@ -7,6 +7,7 @@ import {
   type Attempt,
   type AttemptOutcome,
   type AuthoredDependencyGraph,
+  type BudgetExhausted,
   type BudgetPolicy,
   type BudgetRead,
   type BudgetReading,
@@ -39,6 +40,7 @@ import {
   effectiveTeamsOf,
   type EstimateRule,
   estimateUnitOf,
+  findExhaustedBudget,
   findTypedEndpointDefect,
   firstWorkdayOf,
   formatStepNodeId,
@@ -66,6 +68,7 @@ import {
   mixedRateCardsOf,
   type MoneyBasis,
   nextWorkday,
+  type NodeAttempt,
   type NodeReading,
   nodeResourcesOf,
   occupancyByResource,
@@ -983,6 +986,13 @@ export type WorkItemRefusal =
   | 'attempt_ends_before_start'
   /** `removeAttempt` naming a number the node does not hold. */
   | 'unknown_attempt';
+
+/**
+ * `startAttempt` refused by a strict budget of its work item or an ancestor
+ * (`wbs-measure-budgets` D69): {@link findExhaustedBudget}'s answer beside
+ * the code.
+ */
+export type BudgetExhaustedOutcome = { ok: false; reason: 'budget_exhausted' } & BudgetExhausted;
 
 export type WorkItemOutcome<T> =
   | { ok: true; value: T }
@@ -2498,6 +2508,45 @@ export class WorkItemService {
       // (budget-command.test.ts) read 600 where 900 was owed; watched 2026-10-23.
       factor: project.budgetFactor,
     });
+  }
+
+  /**
+   * The strict budget that refuses `attempt`'s start, or null to admit it
+   * ({@link findExhaustedBudget}, `wbs-measure-budgets` D69): the project's
+   * budgets, facts, trios and attempts as the headroom read folds them, read
+   * through this graph's stores so a batch reads them inside its own unit of
+   * work. A project without a strict budget reads nothing past its budgets.
+   *
+   * @throws when the project has gone since the start's own context read.
+   */
+  private async exhaustedBudgetFor(
+    projectId: string,
+    rows: readonly { readonly id: string; readonly parentId: string | null }[],
+    attempt: NodeAttempt,
+  ): Promise<BudgetExhausted | null> {
+    const budgets = await this.opts.budgets.listByProject(projectId);
+    if (!budgets.some((each) => each.policy === 'strict')) return null;
+    const estimates = await this.opts.measureEstimates.listByProject(projectId);
+    const facts = await this.opts.measures.listByProject(projectId);
+    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const moneyKeys = moneyKeysOf(definitions);
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error(`project ${projectId} vanished during an attempt start`);
+    const attempts = await this.opts.attempts.listByProject(projectId);
+    return findExhaustedBudget(
+      {
+        rows,
+        definitions,
+        budgets,
+        facts: [...facts, ...agentMinutesOf(attempts)],
+        estimates,
+        attempts,
+        factor: project.budgetFactor,
+        mixedFacts: mixedRateCardsOf(rows, pricedFactsOf(facts), moneyKeys),
+        mixedEstimates: mixedRateCardsOf(rows, estimates, moneyKeys),
+      },
+      attempt,
+    );
   }
 
   private async treeIsolated(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
@@ -6729,8 +6778,11 @@ export class WorkItemService {
    * must be reopened first); `attempt_running` while one runs, which the
    * store's unique partial index also refuses; `attempt_in_future` when `at` is
    * after this act's own write stamp — the server's clock, never the client's;
-   * `unknown_person` for an executor the directory does not hold. `at` absent
-   * is the stamp.
+   * `unknown_person` for an executor the directory does not hold;
+   * `budget_exhausted` last, when a strict budget of the work item or an
+   * ancestor has nothing left or this attempt's hold would take it below zero,
+   * or a rate-card mix blocks it ({@link findExhaustedBudget},
+   * `wbs-measure-budgets` D69). `at` absent is the stamp.
    *
    * Writes no statement: an attempt is history, and the progress a reader sees
    * stays whatever was said. One journal entry, whose inverse removes the
@@ -6746,7 +6798,7 @@ export class WorkItemService {
       reference?: string;
       note?: string;
     },
-  ): Promise<WorkItemOutcome<{ attemptNumber: number }>> {
+  ): Promise<WorkItemOutcome<{ attemptNumber: number }> | BudgetExhaustedOutcome> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
@@ -6779,14 +6831,36 @@ export class WorkItemService {
     const executorPersonId = start.executorPersonId ?? null;
     if (executorPersonId !== null && !(await this.holdsPerson(executorPersonId)))
       return { ok: false, reason: 'unknown_person' };
+    const reference = start.reference ?? null;
+    const note = start.note ?? null;
+    // Last of the refusal order, and read inside the batch's unit of work: the
+    // write coordinator admits one batch at a time, so a concurrent start's
+    // hold is already here or not yet written (`wbs-measure-budgets` D69,
+    // budget-admission-race.db.test.ts).
+    // Proof: with this refusal skipped, `refuses the second start of a strict
+    // 500 holding 300, naming the budget` and two more cases of
+    // budget-admission.controller.db.test.ts started the attempts (1 pass,
+    // 3 fail); watched 2026-10-24.
+    const exhausted = await this.exhaustedBudgetFor(workItem.projectId, rows, {
+      workItemId: id,
+      stepId,
+      attemptNumber: 0,
+      startedAt,
+      executorPersonId,
+      reference,
+      note,
+      endedAt: null,
+      outcome: null,
+    });
+    if (exhausted !== null) return { ok: false, reason: 'budget_exhausted', ...exhausted };
     const started = await this.opts.attempts.start(
       {
         workItemId: id,
         stepId,
         startedAt,
         executorPersonId,
-        reference: start.reference ?? null,
-        note: start.note ?? null,
+        reference,
+        note,
       },
       stamp,
     );

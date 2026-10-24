@@ -24,8 +24,8 @@ measure has a three-point estimate and a fact, the table shows time by default.
 
 - From: caps in prose, a binding file, or nowhere.
 - To: a budget per work item and measure, strict or advisory, stated or derived, bounding
-  subtrees; a read the coordinator refuses on. Admission then moves into the WBS claim and
-  attempt-start write itself (design D69).
+  subtrees; a strict one refuses an attempt's start inside the WBS
+  write itself (design D69), and a read shows what remains.
 
 **Columns follow the definition**
 
@@ -38,7 +38,7 @@ measure has a three-point estimate and a fact, the table shows time by default.
 - Any schedule change (a property test proves it).
 - Conversion or pricing inside WBS.
 - Definition of Ready and Done (agentic workflows project).
-- Refusing a fact past a budget; the coordinator refuses admission.
+- Refusing a fact past a budget; a strict budget refuses the attempt's start instead (design D69).
 
 ## Constraints
 

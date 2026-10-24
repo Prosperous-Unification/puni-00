@@ -920,3 +920,62 @@ restored; the adjacent `Proof:` comments carry the same.
 D70 changed the role of the writing user in `measure-organization`, `measure-refusal` and
 `measure-export` to `admin`; members are the negatives. Not run: the full be-01 and fe-01 suites
 and the host gate (CI carries them).
+
+## Review fixes B 2026-10-24
+
+D69 (budget admission inside the attempt start's write) and D71 (plan document always version
+11, admitted by Twilight Navigator, Burokrat and Dash). Stacked on review fixes A (#701).
+
+### Failure proofs
+
+Each fault injected, the named test watched failing, the code restored.
+
+| Guard                                     | Fault                                          | Observed                                                                                                            | Result         |
+| ----------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `findExhaustedBudget` nothing-left test   | `held.remaining < 0` alone                     | domain `refuses at a strict budget spent to its cap, hold or none`                                                  | 5 pass 1 fail  |
+| `findExhaustedBudget` hold test           | `reading.remaining <= 0` alone                 | domain `admits while the hold fits…` and `names the nearest refusing budget…`                                       | 4 pass 2 fail  |
+| `findExhaustedBudget` strict-only blocked | policy test removed                            | domain `never refuses on an advisory or derived budget, readable or blocked`                                        | 5 pass 1 fail  |
+| `startAttempt` admission                  | refusal skipped                                | be-01 `budget-admission.controller.db.test.ts` started the attempts                                                 | 1 pass 3 fail  |
+| batch 409 `budget_exhausted` arm          | arm removed                                    | be-01 same file answered 500 "returned an undeclared refusal"                                                       | 0 pass 4 fail  |
+| `refuseOutcome` detail                    | `remaining` replaced by 0                      | be-01 strict and blocked cases named remaining 0                                                                    | 2 pass 2 fail  |
+| race model, admission read                | attempts read before the race queued (`stale`) | store-sqlite model: seed 20261024, shrunk `[RacingStarts(0), RacingStarts(1, 2, 0)]`, "Expected: <= 2, Received: 3" | 1 pass 1 fail  |
+| race model, admission removed             | refusal skipped in `startAttempt`              | same seed and counterexample, "Expected: <= 2, Received: 3"                                                         | 1 pass 1 fail  |
+| fe-01 `budget_exhausted` sentence         | entry struck                                   | `words each attempt refusal rather than naming its code` read the fallback carrying the code                        | 6 pass 1 fail  |
+| export version (D71)                      | D63's conditional put back                     | core plan-document: the legacy-measures case and eight more read version 10                                         | 80 pass 9 fail |
+| Navigator admits 11                       | 11 dropped from the guard and list             | `plan-reference.test.ts` "has version 11; twin reads versions 7 and 8 and 9 and 10 only"                            | 38 pass 6 fail |
+| Navigator v11 branch                      | v11 parsed through the v10 shape               | the v11 positive exited 1 as malformed                                                                              | 43 pass 1 fail |
+| Burokrat `planDocumentVersion`            | 11 dropped; 12 admitted                        | `navigator-records.test.ts` (13 pass 1 fail each) and Navigator's v11 positive                                      | as stated      |
+| Dash through Burokrat                     | 11 dropped from Burokrat                       | `record-progress.test.ts` `beforeAll` failed generating the v11 reference                                           | 0 pass 1 fail  |
+
+The "v10 bytes unchanged" pins (D63, D67) are retired as such: a plan without measures now
+exports version 11. The v9 (`016181aa…`) and v10 (`f2308a55…`) goldens now hash a version-11
+export with its additions removed (factor 1, four empty lists) and its version read as 9 or 10,
+so they prove version 11 adds exactly those fields. The case "a plan whose measures are all
+legacy exports version 10 without the factor" became "… exports version 11 with empty lists".
+New golden: "a plan without measures exports canonical version-11 bytes",
+`f8ed917417cae0509dc4fb4d1f5faacc49c246a2e108ebee04b638e045590a64`; `62708699…` is unchanged.
+`budget-command.test.ts`'s two-attempt hold case now states the parent advisory, since a strict
+parent refuses the second start (D69).
+
+### Checks
+
+`env -u CLAUDECODE` throughout; local Bun 1.4.4; each test invocation alone.
+
+| Command                                                                                                                              | Result                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| domain `budget`, `budget-admission`                                                                                                  | 25 pass, 0 fail                            |
+| core `src/module/plan-commands`, `src/module/work-item`, `src/http`; core `src/module/plan-document`                                 | 480 pass; 94 pass; 0 fail                  |
+| store-sqlite `budget-admission-race`, `claim-lease`, `claim-lease-race`, `audit`, `step-node-attempt`, `step-node-attempt-migration` | 2, 11, 2, 6, 14, 6 pass; 0 fail            |
+| store-memory `src`                                                                                                                   | 195 pass, 0 fail                           |
+| be-01 `budget-admission`, `budget-headroom`, `measure-refusal`, `step-node-attempt`, `claim-lease` (controller, db)                  | 4, 7, 5, 124, 3 pass; 0 fail               |
+| be-01 `measure-export` (db), `swarm-end-to-end.db`, `boot.db`                                                                        | 9, 7, 38 pass; 0 fail                      |
+| contracts `refusal`, `contracts-boot-memory` (331 MB, bound 500 MB)                                                                  | 1, 2 pass; 0 fail                          |
+| fe-01 `vitest run` `test-tiers`, `plan-refusal-measures`, `measure-panel`, `attempt-actions`, `measure-reading`                      | 61 passed across 5 files                   |
+| Navigator `plan-reference`; Burokrat `navigator-records`, `plan-tasks`, `progress-receipt`; Dash `record-progress`                   | 44, 14, 44, 63, 70 pass; 0 fail            |
+| `nx run-many -t typecheck,typecheck:module` over the eight WBS projects and the three Twilight ones                                  | succeeded                                  |
+| `nx run tool-devsync:test --skip-nx-cache`, `tool-devsync:typecheck`                                                                 | succeeded; succeeded                       |
+| Burokrat `check-indexes working . HEAD`; `pilot-policy.test.ts`                                                                      | exit 0 (store-memory README debt); 24 pass |
+| `bunx nx format:check --all`; `bunx openspec validate --all --json`                                                                  | exit 0; 278 passed, 0 failed               |
+
+Not run: the full be-01, fe-01 and Twilight suites, the fe-01 e2e spec whose sentence changed
+(`measure-columns.spec.ts`), and the host gate (CI carries them).

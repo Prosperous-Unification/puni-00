@@ -266,6 +266,21 @@ export class CommandContext {
         },
       });
     }
+    if (outcome.reason === 'budget_exhausted') {
+      // Proof: with `remaining` replaced by 0 here, `refuses the second start
+      // of a strict 500 holding 300, naming the budget`
+      // (budget-admission.controller.db.test.ts) named remaining 0; watched 2026-10-24.
+      return this.refuse({
+        reason: outcome.reason,
+        detail: {
+          workItemId: outcome.workItemId,
+          measure: outcome.measure,
+          remaining: outcome.remaining,
+          hold: outcome.hold,
+          blocked: outcome.blocked,
+        },
+      });
+    }
     if (outcome.reason === 'in_use') {
       // Proof: with the counts dropped here, `refuses removing a demanded resource,
       // naming 2 demands, 0 capacities, 0 occupancies` (resource-command.test.ts)

@@ -37,6 +37,11 @@
 - [x] 3.3 `cost` basis: currency and rate card digest on estimate and fact; `mixed_rate_cards`
       — test: two digests under one parent refuse naming both; negative: drop the check and
       they sum.
+- [x] 3.4 Budget admission inside the attempt start's write (design D69): `budget_exhausted`
+      on a strict budget with no room, advisory and derived never — test: domain cases, the
+      be-01 strict 500/300 and advisory cases, and an `fc.asyncModelRun` race over SQLite;
+      negative: the admission read outside the turn, or the refusal removed, and the model
+      names seed 20261024; watched.
 
 ## 4. Surface
 
@@ -51,10 +56,11 @@
       and legacy import; negative: drop the version bump and compare misses a measure change.
 - [x] 4.5 CONTEXT.md terms and the WBS docs; `check-indexes` green — test: docs check.
 
-Follow-up outside this change (design D63; tracked as WBS item 060.2 in project PUNI budgeting):
-Twilight Navigator, Burokrat and Dash admit plan document version 11 — each must read a
-version-11 export, with a negative that drops 11 from its admitted versions. They refuse
-version 11 loudly until then.
+- [x] 4.6 Twilight admits plan document version 11 and the export always writes it (design
+      D71; the WBS 060.2 follow-up): Navigator `plan-reference.ts`, Burokrat
+      `navigator-records.ts`, Dash `record-progress` through Burokrat's record — test: the v11
+      fixture `plan-export.v11.json` read by each; negative: drop 11 from the admitted versions
+      and each refuses it; watched.
 
 Follow-up (review of PR #701, S3): the panel's "blocked by estimates" reading (B-3) is over-inclusive
 where be-01 answers no budget for an uncovered row (a step spends without a trio); be-01 does not

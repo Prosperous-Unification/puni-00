@@ -1,6 +1,7 @@
 import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import type {
+  BudgetExhausted,
   LeaseStanding,
   MeasureDefinition,
   MixedRateCards,
@@ -35,7 +36,12 @@ import type {
   RemoveResourceOutcome,
 } from '../directory/directory.resource';
 import type { NamedClaimHolder, NamedOccupancyHolder, PlainClaimReason } from '../work-item/claims';
-import type { Collected, UndoOutcome, WorkItemOutcome } from '../work-item/work-item.resource';
+import type {
+  BudgetExhaustedOutcome,
+  Collected,
+  UndoOutcome,
+  WorkItemOutcome,
+} from '../work-item/work-item.resource';
 import type {
   CommandAdmission,
   CommandDecision,
@@ -174,7 +180,9 @@ export type Refusal =
   | {
       reason: 'capacity_limit';
       detail: { resourceId: string; cap: number; declared: number; asked: number };
-    };
+    }
+  /** A start a strict budget refuses (`wbs-measure-budgets` D69). */
+  | { reason: 'budget_exhausted'; detail: BudgetExhausted };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
@@ -189,6 +197,7 @@ export type ServiceRefusal =
       holders: readonly NamedClaimHolder[];
     }
   | Extract<WorkItemOutcome<never>, { ok: false }>
+  | BudgetExhaustedOutcome
   | { ok: false; reason: PlainReason }
   | {
       ok: false;

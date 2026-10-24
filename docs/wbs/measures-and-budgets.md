@@ -31,16 +31,22 @@ and the decisions (D1–D72) in its
   the project's budget factor (`PATCH /api/projects/:id`, `budgetFactor`). Only three-point
   trios derive one: a legacy single-point token estimate does not (design D68), and a step node
   that spends without a trio of its own leaves the subtree with no derived budget.
-- **The coordinator reads headroom.** `GET /api/projects/:id/budget-headroom` answers, per
+- **The start is admitted in the write.** `startAttempt` refuses `409 budget_exhausted`
+  (naming `workItemId`, `measure`, `remaining`, `hold` and `blocked`) when a strict budget of the
+  work item or an ancestor has nothing left, when the attempt's hold would take it below zero, or
+  when a mix of rate cards keeps it from being read (`blocked: true`, `remaining: null`). It is
+  decided inside the start's own write, so two coordinators racing for the last room cannot
+  both start (design D69). Advisory and derived budgets never refuse, a claim is never refused
+  for a budget (it starts no attempt), and WBS never refuses a fact past a budget.
+- **Headroom is for display and ranking.** `GET /api/projects/:id/budget-headroom` answers, per
   startable or claimed step and measure, the tightest strict and advisory budgets with what is
-  spent, held and remaining; WBS never refuses a fact past a budget.
+  spent, held and remaining; the write decides.
 
 ## Export, import and saved plans
 
-- A plan holding a fact in a defined measure, a three-point trio, a stated budget or a factor
-  other than 1 exports as plan document **version 11**, which carries the definitions those
-  name, the facts and trios with their basis, the budgets and the factor. Any other plan
-  exports version 10, byte for byte as before (design D63).
+- Every plan exports as plan document **version 11**: the budget factor, the definitions its
+  figures name, the facts and trios with their basis, and the budgets, each list empty when there
+  are none (design D71, superseding D63's version-10 fallback).
 - Importing version 11 matches each definition by key and never remaps: a held definition of
   another shape refuses the import, writing nothing, and a missing one is defined, which only an
   admin's import may do (design D70); an unpriced money fact or trio is refused
@@ -51,8 +57,7 @@ and the decisions (D1–D72) in its
   is the legacy organization, which owns the imported project, so a plan's own export
   re-imports; only with no legacy organization does the import match the seeded four and
   refuse any other definition `unknown_measure` (design D65).
-- Twilight Navigator, Burokrat and Dash refuse a version-11 file until they admit it, a
-  tracked follow-up (design D63).
+- Twilight Navigator, Burokrat and Dash read version 11 (design D71).
 - Saved plans capture trios, budgets, bases and the factor (plan input schema 9), so compare
   names a change in any of them (design D66).
 

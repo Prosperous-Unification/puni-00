@@ -1387,7 +1387,7 @@ export function importServiceSourceContract(
           if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
           const exported = await exportDocument(source, imported.projectId);
 
-          expect(exported.document.version).toBe(10);
+          expect(exported.document.version).toBe(11);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1443,7 +1443,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(10);
+        expect(exported.document.version).toBe(11);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,
@@ -1849,7 +1849,7 @@ export function importServiceSourceContract(
           exported.directory.resources.map(({ id, name }) => [id, name]),
         );
         const rowName = new Map(exported.workItems.map(({ id, name }) => [id, name]));
-        expect(exported.document.version).toBe(10);
+        expect(exported.document.version).toBe(11);
         expect(
           exported.directory.resources.map(({ name, kind, unitLabel }) => ({
             name,

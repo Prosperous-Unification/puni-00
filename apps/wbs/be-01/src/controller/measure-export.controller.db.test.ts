@@ -173,14 +173,14 @@ for (const mode of ['isolated', 'shared'] as const) {
       expect({
         version: source.document.version,
         factor: source.settings.budgetFactor,
-        definitions: source.measureDefinitions?.map(({ key }) => key),
-        facts: source.measureFacts?.map(({ measure, value, basis }) => ({ measure, value, basis })),
-        estimates: source.measureEstimates?.map(({ measure, pessimistic, basis }) => ({
+        definitions: source.measureDefinitions.map(({ key }) => key),
+        facts: source.measureFacts.map(({ measure, value, basis }) => ({ measure, value, basis })),
+        estimates: source.measureEstimates.map(({ measure, pessimistic, basis }) => ({
           measure,
           pessimistic,
           basis,
         })),
-        budgets: source.budgets?.map(({ measure, cap, policy, holdPerAttempt }) => ({
+        budgets: source.budgets.map(({ measure, cap, policy, holdPerAttempt }) => ({
           measure,
           cap,
           policy,
@@ -289,7 +289,7 @@ it('imports a version-10 file onto the seeded definitions, mapping its legacy me
   const listed = await h.call('grace', 'GET', '/api/measures');
   expect((listed.body as { measures: unknown[] }).measures).toHaveLength(5);
   const copy = await exported('grace', (imported.body as { projectId: string }).projectId);
-  expect(copy.document.version).toBe(10);
+  expect(copy.document.version).toBe(11);
   expect(copy.workItems.at(0)?.measures).toEqual({
     hours_actual: { [copy.steps.find(({ code }) => code === 'impl')?.id ?? 'impl']: 4 },
     token_actual: { [copy.steps.find(({ code }) => code === 'impl')?.id ?? 'impl']: 900 },
@@ -393,7 +393,7 @@ it('rolls back a definition it created when a later definition refuses, writing 
     { ...GPU, key: 'render_minutes', name: 'Render minutes', scale: 'real' },
   ]);
   // After `gpu_minutes`, which org-b lacks and the import creates first.
-  source.measureDefinitions?.push({
+  source.measureDefinitions.push({
     key: 'render_minutes',
     name: 'Render minutes',
     unit: 'min',
@@ -449,7 +449,7 @@ it('before activation, with a legacy organization: re-import of its own v11 expo
     .map(({ key }) => key);
   expect({
     version: source.document.version,
-    definitions: source.measureDefinitions?.map(({ key }) => key),
+    definitions: source.measureDefinitions.map(({ key }) => key),
     status: imported.status,
     owner: h.sqlite
       .query<{ organization_id: string }, [string]>(

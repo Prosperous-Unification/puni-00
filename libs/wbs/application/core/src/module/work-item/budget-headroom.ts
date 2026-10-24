@@ -24,9 +24,11 @@ export interface BlockedBound {
  * tightest readable advisory or derived one, each with the nearest budget of
  * that policy a rate-card mix keeps from being read in `blocked`.
  *
- * The coordinator's rule: refuse the next attempt when `strict.remaining <= 0`
- * or `blocked.strict` is present (its remainder is unknown, never unbounded);
- * advisory budgets, read or blocked, never refuse.
+ * A reading for display and ranking: the write decides. `startAttempt`
+ * refuses `budget_exhausted` inside its unit of work when `strict.remaining
+ * <= 0`, the start's hold would take it below zero, or `blocked.strict` is
+ * present (its remainder is unknown, never unbounded); advisory budgets,
+ * read or blocked, never refuse (`findExhaustedBudget`, design D69).
  */
 export interface MeasureHeadroom {
   readonly strict?: BoundingBudget;
@@ -44,8 +46,9 @@ export interface StepHeadroom {
 }
 
 /**
- * The headroom read (`wbs-measure-budgets` task 3.2, design D41): what the
- * Twilight coordinator refuses the next attempt on. Startable steps first,
+ * The headroom read (`wbs-measure-budgets` task 3.2, design D41): what a
+ * coordinator ranks and shows; the start itself is admitted inside its write
+ * (design D69). Startable steps first,
  * fitting or not, in the startable read's order, then claimed steps.
  */
 export interface BudgetHeadroom {

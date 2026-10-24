@@ -170,6 +170,7 @@ export * from './occupancy';
 export * from './resource';
 // Measure definitions, one scheduling measure per organization (wbs-measure-budgets D1, D2).
 export * from './budget';
+export * from './budget-admission';
 export * from './measure-definition';
 export * from './measure-estimate';
 export * from './measure-fact';
