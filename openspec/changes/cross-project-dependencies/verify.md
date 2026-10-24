@@ -7529,3 +7529,12 @@ settlement evidence (198.63s, frozen files unchanged). The earlier restricted
 attempt failed at loopback listen with EPERM. Neither run is counted as passing
 readiness or native acceptance. The fixture owner is correcting that evidence
 boundary before a fresh replay and independent review.
+
+The committed classification repair also passed the production pilot's exact
+pre-index/observe-lint positive and relocated-selector refusal: two tests,
+74 assertions, 32.30s. This replay used the configured target's trusted
+TypeScript closure and scratch preload. The preceding direct invocation
+without that required closure was correctly refused and is preserved as a
+failed configuration attempt, rather than counted as a product regression.
+The other pilot cases and complete hosted run still require their next CI
+result; the two focused cases do not constitute a full Twilight gate.
