@@ -177,6 +177,12 @@ and throws. Undo and redo entries are not listed: the claims held now are the cu
 **C16. Where the sheet opens.** A `Claims` toolbar button with the held count (no count at
 zero), and an entry in the phone `Plan actions` sheet. Held claims are grouped by holder, then
 run, each row with number, name, step or "subtree", lease text and since; recent history below.
+Amended in slice 9 (review of #710): the button is drawn once a claims read in this table has
+listed a claim since the project was opened, and while the sheet is open. A never-claimed plan's
+toolbar is therefore what it was (Goals; `project-settings.spec.ts` pins a fresh project's 1280px
+toolbar with no margin left), and a plan whose last claim was reaped keeps a count-less button,
+so the reason it went stays reachable (C13). Not offered: a project opened after its last claim
+went, whose history is then read through MCP.
 
 **C17. Phone cards carry the same chips**, beside a card's step assignee and in its header for
 a subtree claim.

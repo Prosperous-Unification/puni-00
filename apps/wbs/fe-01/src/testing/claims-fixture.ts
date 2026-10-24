@@ -1,4 +1,4 @@
-import type { ClaimView } from '@/lib/wbs-api';
+import type { ClaimHistoryEventView, ClaimView } from '@/lib/wbs-api';
 
 import { fakeProjectApi } from './fake-project-api';
 
@@ -19,6 +19,9 @@ type ClaimFields = Omit<ClaimView, 'number' | 'numberIsFrozen' | 'name'>;
  * - `020` Sand: `eve` holds Dev with 30 seconds of lease left and `finn` holds
  *   QA with a revoked credential.
  * - `030` Prime: `dana`, a human, holds Dev with no lease.
+ *
+ * The claim history answers `history`, empty until a case fills it, and
+ * counts its reads (`historyReads`) as the claims read counts its own.
  *
  * The read's `readAt` is the fake clock at the read, and every lease is placed
  * against it, so a test that fakes `Date` and `performance` moves both.
@@ -121,10 +124,19 @@ export async function claimedPlan(only?: readonly string[]) {
       })),
     };
   };
+  /** What the claim history read answers, newest first; a case fills it. */
+  const history: ClaimHistoryEventView[] = [];
+  let historyReads = 0;
+  api.readClaimHistory = () => {
+    historyReads += 1;
+    return Promise.resolve(structuredClone(history));
+  };
   return {
     api,
     ids: { strip: strip.id, paint: paint.id, sand: sand.id, prime: prime.id },
     extra,
+    history,
     claimsReads: () => claimsReads,
+    historyReads: () => historyReads,
   };
 }
