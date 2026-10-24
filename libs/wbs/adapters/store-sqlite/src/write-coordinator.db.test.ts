@@ -7,16 +7,18 @@ import type { PlanCommand } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core';
 import { CapacityService } from '@wbs/core';
 import { DirectoryService } from '@wbs/core';
-import { type BatchOutcome } from '@wbs/core';
+import { type ScopedBatchOutcome } from '@wbs/core';
 import { PriorityBandService } from '@wbs/core';
 import { ProjectService } from '@wbs/core';
 import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -159,6 +161,14 @@ beforeEach(async () => {
     journal: new CommandJournalRepository(db, OPEN),
     stepParallels: buildStores(db, OPEN).stepParallels,
     broadcast,
+    dependencyContext: createLocalDependencyContext({
+      projects: projectStore,
+      workItems: suspendingWorkItems,
+      estimates: new EstimateRepository(db, OPEN),
+      dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
+    }),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
   };
   // The batch's own stores, over an open gate: `sqliteUnitOfWork` holds the
   // turn for them. The suspending work-item store above is one of these.
@@ -191,7 +201,7 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     projects: new ProjectService({
-      dependencyGraph: new DependencyGraphGuard({
+      dependencyContext: createLocalDependencyContext({
         ...buildStores(db, OPEN),
         projects: projectStore,
       }),
@@ -200,7 +210,7 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
-      dependencyGraph: new DependencyGraphGuard({
+      dependencyContext: createLocalDependencyContext({
         ...buildStores(db, OPEN),
         projects: projectStore,
       }),
@@ -217,15 +227,22 @@ beforeEach(async () => {
     }),
   });
   runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: (_scope, collector) => servicesWith(collector),
     publicServices: servicesWith(broadcast),
-    uow: sqliteUnitOfWork(db, coordinator, admitted),
+    uow: sqliteUnitOfWork(db, coordinator, {
+      createScope: () => ({ stores: admitted }),
+      createRepairScope: () => ({ stores: admitted }),
+    }),
     announcements: broadcast,
   });
   // The route's own service, built exactly as `buildServices` builds it: the
   // step store on the process connection, and no knowledge of the batch at all.
   steps = new StepService({
-    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
+    dependencyContext: createLocalDependencyContext({
+      ...buildStores(db, OPEN),
+      projects: projectStore,
+    }),
     clock: testClock,
     projects: projectStore,
     steps: stepStore,
@@ -233,11 +250,15 @@ beforeEach(async () => {
   });
 
   const created = await new ProjectService({
-    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
+    dependencyContext: createLocalDependencyContext({
+      ...buildStores(db, OPEN),
+      projects: projectStore,
+    }),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);
+  if (typeof created === 'string') throw new Error(`fixture creation refused: ${created}`);
   projectId = created.project.id;
 });
 
@@ -266,7 +287,7 @@ const REFUSED_BATCH: PlanCommand[] = [
 
 describe('the write coordinator', () => {
   it('does not roll a route write back with a batch it never belonged to', async () => {
-    const batch: Promise<BatchOutcome> = runner.run(projectId, ownerId, REFUSED_BATCH);
+    const batch: Promise<ScopedBatchOutcome> = runner.run(projectId, ownerId, REFUSED_BATCH);
     await hold.reached;
 
     // Started while the batch holds the transaction open, and deliberately not

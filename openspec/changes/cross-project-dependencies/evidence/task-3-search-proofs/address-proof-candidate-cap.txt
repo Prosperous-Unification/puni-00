@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+42 | }
+43 | it('selected project scopes steps and work items and caps flattened candidates', async () => {
+44 |   const selected = await create('ada', 'Selected', 'PUNI-2'); const other = await create('ada', 'Other', 'OTHER');
+45 |   work(selected,'parent'); work(selected,'child','parent'); work(other,'elsewhere');
+46 |   const page = await candidates(selected, 'limit=2');
+47 |   expect(page.candidates.length).toBe(2); expect(page.candidates.map(candidate => candidate.workItemId)).toEqual(['parent','parent']);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 2
+Received: 3
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:47:34)
+(fail) selected project scopes steps and work items and caps flattened candidates [184.25ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.62s]

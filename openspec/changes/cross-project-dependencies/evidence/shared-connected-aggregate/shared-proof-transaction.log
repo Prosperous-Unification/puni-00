@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+484 |   const newRead = next.entries[0]?.plan;
+485 |   if (oldRead?.kind !== 'connected' || newRead?.kind !== 'connected')
+486 |     throw new Error('expected connected');
+487 |   const oldTree = projectConnectedTree(oldRead, 'a1');
+488 |   const newTree = projectConnectedTree(newRead, 'a1');
+489 |   expect(oldRead.metadataByProject.get('a2')?.project.name).toBe('a2');
+                                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "a2"
+Received: "Next remote"
+
+      at <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:489:61)
+(fail) shared aggregate captures calendars links and metadata in one observation [553.66ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [7.30s]

@@ -17,6 +17,9 @@ export function installPlanCommands(requirements: PlanCommandsRequirements): Pla
   const bag = DiBag.createBuilder()
     .withInstalledModules([planCommandsModule])
     .withServices({
+      commandAccess: DiBag.createProvider(() => requirements.commandAccess, {
+        factoryReturnKind: 'sync-value',
+      }),
       batchServices: DiBag.createProvider(() => requirements.batchServices, {
         factoryReturnKind: 'sync-value',
       }),

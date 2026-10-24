@@ -21,6 +21,7 @@ import {
   migrationsToRollback,
   readMigrationFolders,
   ROLLBACK_ALL,
+  rollbackAppliedRows,
   rollbackTo,
 } from './migrate-down';
 import { captureAppliedMigrationSet, restoreAppliedMigrationSet } from './migration-set';
@@ -693,6 +694,10 @@ describe('readMigrationFolders', () => {
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022140000_add_resource_provider',
       '20261022140100_widen_organization_audit_compute_providers',
+      '20261022210000_add_project_abbreviations',
+      '20261022211000_add_external_dependencies',
+      '20261022212000_add_cross_project_dependency_activation',
+      '20261022213000_add_optimization_boundary_certificates',
       '20261023100000_add_claim_lease',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
@@ -890,6 +895,10 @@ describe('rollbackTo, against a real database', () => {
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022140000_add_resource_provider',
         '20261022140100_widen_organization_audit_compute_providers',
+        '20261022210000_add_project_abbreviations',
+        '20261022211000_add_external_dependencies',
+        '20261022212000_add_cross_project_dependency_activation',
+        '20261022213000_add_optimization_boundary_certificates',
         '20261023100000_add_claim_lease',
       ]);
 
@@ -897,6 +906,10 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022213000_add_optimization_boundary_certificates',
+        '20261022212000_add_cross_project_dependency_activation',
+        '20261022211000_add_external_dependencies',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1095,6 +1108,10 @@ describe('rollbackTo, against a real database', () => {
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022140000_add_resource_provider',
         '20261022140100_widen_organization_audit_compute_providers',
+        '20261022210000_add_project_abbreviations',
+        '20261022211000_add_external_dependencies',
+        '20261022212000_add_cross_project_dependency_activation',
+        '20261022213000_add_optimization_boundary_certificates',
         '20261023100000_add_claim_lease',
       ]);
     } finally {
@@ -1168,6 +1185,10 @@ describe('rollbackTo, against a real database', () => {
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022213000_add_optimization_boundary_certificates',
+        '20261022212000_add_cross_project_dependency_activation',
+        '20261022211000_add_external_dependencies',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1302,6 +1323,10 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022213000_add_optimization_boundary_certificates',
+        '20261022212000_add_cross_project_dependency_activation',
+        '20261022211000_add_external_dependencies',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1421,6 +1446,10 @@ describe('rollbackTo, against a real database', () => {
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         '20261023100000_add_claim_lease',
+        '20261022213000_add_optimization_boundary_certificates',
+        '20261022212000_add_cross_project_dependency_activation',
+        '20261022211000_add_external_dependencies',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1504,12 +1533,61 @@ describe('rollbackTo, against a real database', () => {
       runMigrations(db.path, FOLDER);
       cpSync(FOLDER, copy, { recursive: true });
       appendFileSync(join(copy, USERS, 'migration.sql'), '\n-- edited after the fact\n');
+      const schemaBefore = schemaObjects(db.path);
+      const rowsBefore = tableRows(db.path);
 
       expect(() => rollbackTo(db.path, copy, INIT)).toThrow(/hash differs/);
       expect(tables(db.path)).toContain('users');
+      expect(schemaObjects(db.path)).toEqual(schemaBefore);
+      expect(tableRows(db.path)).toEqual(rowsBefore);
     } finally {
       db.cleanup();
       rmSync(copy, { recursive: true, force: true });
     }
   });
 });
+
+for (const fault of ['unnamed', 'missing-folder'] as const) {
+  it(`resolves all selected ${fault} metadata before reversing a newer migration`, () => {
+    const fixture = tempDb();
+    const sqlite = openDatabase(fixture.path);
+    try {
+      sqlite.run('CREATE TABLE newer (id INTEGER)');
+      sqlite.run(
+        'CREATE TABLE __drizzle_migrations (id INTEGER, hash TEXT, created_at INTEGER, name TEXT)',
+      );
+      sqlite.run("INSERT INTO __drizzle_migrations VALUES (2,'newer',2,'2_newer')");
+      const older = {
+        id: 1,
+        hash: 'older',
+        created_at: 1,
+        name: fault === 'unnamed' ? null : '1_older',
+      };
+      sqlite.run('INSERT INTO __drizzle_migrations VALUES (?,?,?,?)', [
+        older.id,
+        older.hash,
+        older.created_at,
+        older.name,
+      ]);
+      const beforeSchema = schemaObjects(fixture.path);
+      const beforeRows = tableRows(fixture.path);
+      expect(() =>
+        rollbackAppliedRows(
+          sqlite,
+          new Map([
+            [
+              '2_newer',
+              { name: '2_newer', hash: 'newer', downHash: 'unused', downSql: 'DROP TABLE newer;' },
+            ],
+          ]),
+          [{ id: 2, hash: 'newer', created_at: 2, name: '2_newer' }, older],
+        ),
+      ).toThrow(fault === 'unnamed' ? 'has no name recorded' : 'no longer exists on disk');
+      expect(schemaObjects(fixture.path)).toEqual(beforeSchema);
+      expect(tableRows(fixture.path)).toEqual(beforeRows);
+    } finally {
+      sqlite.close();
+      fixture.cleanup();
+    }
+  });
+}

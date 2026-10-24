@@ -1,204 +1,15 @@
-import { chmod, link, mkdir, mkdtemp, rename, rm, stat, symlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, link, mkdir, rename, rm, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import { createNamespaceFixture as fixture } from '../fixtures/namespace-audit';
 import { inspectBackendWriters } from '../swap';
+import { auditManagedMounts, auditUnmanagedMounts } from './backend-cohort';
 import { ROOT } from './docker';
-import type { DockerExec } from './docker-exec';
 import { verifyContainerNamespace } from './mount-audit';
-import { CENSUS_PROGRAM, GROUP_PROGRAM } from './mount-exec-program';
 
 const image = `registry/wbs-be-01@sha256:${'c'.repeat(64)}`;
-function deviceOf(device: bigint): string {
-  return (
-    (((device & 0xfff00n) >> 8n) | ((device & 0xfffff00000000000n) >> 32n)).toString() +
-    ':' +
-    ((device & 0xffn) | ((device & 0xffffff00000n) >> 12n)).toString()
-  );
-}
-async function fixture(fault = 'none') {
-  const root = await mkdtemp(join(tmpdir(), 'exec-namespace-'));
-  const database = join(root, 'family/wbs.db');
-  await mkdir(join(root, 'family'));
-  for (const suffix of ['', '-wal', '-shm', '-journal'])
-    await Bun.write(`${database}${suffix}`, 'family');
-  const device = deviceOf((await stat(database, { bigint: true })).dev);
-  const namespace = join(root, 'namespace');
-  const destinations = ['/data', '/config', '/var/log/caddy', '/var/lib/registry'];
-  const lines = ['1 0 0:999 / / rw - overlay overlay rw'];
-  for (const [index, destination] of destinations.entries()) {
-    await mkdir(`${namespace}${destination}/nested`, { recursive: true });
-    await Bun.write(`${namespace}${destination}/nested/ordinary`, 'ordinary');
-    const readonly =
-      fault === 'all-ro-nested' ||
-      (index === 0 && ['readonly-reader', 'nested-rw'].includes(fault));
-    lines.push(
-      `${(index + 2).toString()} 1 ${device} / ${destination} ${readonly ? 'ro' : 'rw'} - ext4 fixture rw`,
-    );
-  }
-  if (fault === 'unreadable-hardlink') {
-    await link(database, `${namespace}/data/nested/alias`);
-    await chmod(`${namespace}/data/nested`, 0);
-  }
-  if (fault.startsWith('hardlink:'))
-    await link(`${database}${fault.slice(9)}`, `${namespace}/data/nested/alias`);
-  if (['replaced-source', 'readonly-reader', 'nested-rw', 'all-ro-nested'].includes(fault))
-    await link(database, `${namespace}/data/nested/alias`);
-  if (['nested-rw', 'all-ro-nested'].includes(fault))
-    lines.push(`10 2 ${device} / /data/nested rw - ext4 hidden rw`);
-  if (fault === 'hidden-root') {
-    await mkdir(`${namespace}/hidden`);
-    await link(database, `${namespace}/hidden/alias`);
-    lines.push(`11 1 ${device} / /hidden rw - ext4 hidden rw`);
-  }
-  if (fault === 'symlink') await symlink(database, `${namespace}/data/nested/alias`);
-  if (fault === 'managed-mismatch')
-    for (const suffix of ['', '-wal', '-shm', '-journal'])
-      await Bun.write(`${namespace}/data/wbs.db${suffix}`, 'wrong inode');
-  if (fault === 'managed-match')
-    for (const suffix of ['', '-wal', '-shm', '-journal'])
-      await link(`${database}${suffix}`, `${namespace}/data/wbs.db${suffix}`);
-  if (fault === 'main-absent') await rm(database);
-  if (fault === 'main-nonregular') {
-    await rm(database);
-    await symlink(join(root, 'namespace/data/nested/ordinary'), database);
-  }
-  if (fault === 'main-unreadable') await chmod(join(root, 'family'), 0);
-  if (fault === 'ambiguous-mount') lines.push(`90 1 ${device} / /data ro - ext4 shadow ro`);
-  if (fault === 'declared-mount-missing') lines.pop();
-  if (fault === 'root-mount-missing') lines.shift();
-  const mountinfo = join(root, 'mountinfo');
-  await Bun.write(mountinfo, fault === 'mountinfo-malformed' ? 'malformed' : lines.join('\n'));
-  const container = {
-    Id: 'a'.repeat(64),
-    RestartCount: 0,
-    State: { Running: true, Pid: 100, StartedAt: 'stable' },
-    HostConfig: { PidMode: '', Init: true, Privileged: false, CapAdd: null as string[] | null },
-  };
-  if (fault === 'privileged-target') container.HostConfig.Privileged = true;
-  if (fault === 'expanded-capability') container.HostConfig.CapAdd = ['SYS_ADMIN'];
-  if (fault === 'missing-pid') Reflect.deleteProperty(container.State, 'Pid');
-  if (fault === 'malformed-pid') Reflect.set(container.State, 'Pid', '100');
-  if (fault === 'missing-init') Reflect.deleteProperty(container.HostConfig, 'Init');
-  if (fault === 'private-pid-missing') Reflect.deleteProperty(container.HostConfig, 'PidMode');
-  const commands: string[][] = [];
-  let sessions = 0;
-  let acknowledgements = 0;
-  const runDocker = (args: string[]) => {
-    commands.push(args);
-    if (args[0] === 'image') {
-      if (fault === 'image-absent') throw new Error('candidate image absent');
-      return Promise.resolve(fault === 'image-malformed' ? '' : `sha256:${'c'.repeat(64)}`);
-    }
-    if (args[0] === 'inspect') {
-      if (fault === 'inspection-unreadable') throw new Error('Docker inspect unreadable');
-      if (fault === 'pid-race' && sessions > 0)
-        return Promise.resolve(
-          JSON.stringify({ ...container, State: { ...container.State, Pid: 101 } }),
-        );
-      return Promise.resolve(JSON.stringify(container));
-    }
-    throw new Error(`unexpected command ${args.join(' ')}`);
-  };
-  const exec: DockerExec = async (args, nonce, consume, signal) => {
-    commands.push(args);
-    const program = args.at(11);
-    if (program === undefined) throw new Error('missing fixed scanner');
-    const cleanup = program === GROUP_PROGRAM;
-    if ((fault === 'stalled-start' && !cleanup) || (fault === 'stalled-cleanup' && cleanup)) {
-      await new Promise<void>((_resolve, reject) =>
-        signal?.addEventListener(
-          'abort',
-          () => {
-            reject(new Error('exec aborted'));
-          },
-          { once: true },
-        ),
-      );
-      return;
-    }
-    if (fault === 'tool-absent' && !cleanup) throw new Error('busybox absent');
-    sessions += 1;
-    const session = (1000 + sessions).toString();
-    const send = (tokens: string[]) => {
-      for (const token of tokens) if (consume(token)) acknowledgements += 1;
-    };
-    send([
-      'SESSION',
-      nonce,
-      session,
-      fault === 'session-forged' ? '9999' : session,
-      session,
-      '12345',
-    ]);
-    if (cleanup) {
-      if (fault === 'group-residue') send(['MEMBER', '/proc/1001/stat', 'Z', '12345']);
-      send(['DONE', nonce, '1', 'REAPED', nonce]);
-      return;
-    }
-    let emitted = program.replaceAll('/proc/self/mountinfo', mountinfo);
-    if (fault === 'entry-stat-failure' && program === CENSUS_PROGRAM)
-      emitted = emitted.replace('"$path") || return 73', '"$path/absent-proof") || return 73');
-    if (fault === 'mountinfo-race' && program === CENSUS_PROGRAM)
-      emitted = emitted.replace('"$after" "$nonce"', '"changed" "$nonce"');
-    if (fault === 'entry-limit' && program === CENSUS_PROGRAM)
-      emitted = emitted.replace('100000', '1');
-    if (fault === 'depth-limit' && program === CENSUS_PROGRAM)
-      emitted = emitted.replace('"$depth" -lt 64', '"$depth" -lt 0');
-    const argumentsForProgram = args.slice(12).map((argument) =>
-      argument
-        .split(' ')
-        .map((path) => (path.startsWith('/') ? namespace + path : path))
-        .join(' '),
-    );
-    const child = Bun.spawn(
-      ['/usr/bin/busybox', 'sh', '-c', emitted, '--', nonce, ...argumentsForProgram],
-      { stdout: 'pipe', stderr: 'pipe' },
-    );
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ]);
-    if (stderr !== '' || code !== 0)
-      throw new Error(`actual scanner failed ${code.toString()}: ${stderr}`);
-    const tokens = stdout.split('\0');
-    expect(tokens.pop()).toBe('');
-    if (fault === 'incomplete') tokens.splice(tokens.lastIndexOf('DONE'));
-    if (fault === 'forged-receipt') {
-      const position = tokens.lastIndexOf('DONE');
-      tokens[position + 1] = 'forged';
-    }
-    if (fault === 'count-mismatch') {
-      const position = tokens.lastIndexOf('DONE');
-      tokens[position + 2] = '999';
-    }
-    if (fault === 'extra-frame') tokens.push('UNKNOWN');
-    send(
-      tokens.map((token) =>
-        token.startsWith(namespace + '/') ? token.slice(namespace.length) : token,
-      ),
-    );
-    if (fault !== 'reap-absent') send(['REAPED', nonce]);
-    if (fault === 'host-family-race' && program === CENSUS_PROGRAM) {
-      await rename(database, database + '.held');
-      await Bun.write(database, 'replacement');
-    }
-  };
-  return {
-    root,
-    database,
-    destinations,
-    container,
-    commands,
-    exec,
-    runDocker,
-    counters: () => ({ sessions, acknowledgements }),
-  };
-}
-
 test('normal shipped mounted namespaces admit with complete initialized-session cleanup', async () => {
   const proof = await fixture();
   try {
@@ -414,3 +225,257 @@ test('reduced-capability census refuses unreadable directory hiding a SQLite har
     await rm(proof.root, { recursive: true, force: true });
   }
 });
+
+async function auditBackendParticipant(
+  proof: Awaited<ReturnType<typeof fixture>>,
+  opaque: boolean,
+  readonly = false,
+  totalMs = 3000,
+  sourceCode: 'EACCES' | 'ENOENT' = 'EACCES',
+): Promise<void> {
+  const file = await stat(proof.database);
+  const directory = await stat(join(proof.root, 'family'));
+  const hostSource = join(proof.root, 'rebound-empty');
+  await mkdir(hostSource, { recursive: true });
+  const container = {
+    ...proof.container,
+    Mounts: proof.destinations.map((target) => ({
+      Type: 'volume',
+      Source: opaque ? '/var/lib/docker/volumes/backend-audit/_data' : hostSource,
+      Destination: target,
+      RW: !readonly,
+    })),
+  };
+  await auditUnmanagedMounts(
+    [container],
+    { blue: null, green: null },
+    {
+      path: '/data/wbs.db',
+      host: proof.database,
+      directoryIdentity: `${String(directory.dev)}:${String(directory.ino)}`,
+      fileIdentity: `${String(file.dev)}:${String(file.ino)}`,
+    },
+    image,
+    proof.runDocker,
+    performance.now() + totalMs,
+    (subject, destinations, database, candidate, runDocker, databasePath, bounds) =>
+      verifyContainerNamespace(
+        subject,
+        destinations,
+        database,
+        candidate,
+        runDocker,
+        databasePath,
+        bounds,
+        proof.exec,
+      ),
+    opaque
+      ? () =>
+          Promise.reject(Object.assign(new Error('host source inaccessible'), { code: sourceCode }))
+      : undefined,
+  );
+}
+
+test('backend fence audits an opaque unrelated volume using complete actual namespace receipts', async () => {
+  const proof = await fixture();
+  try {
+    await auditBackendParticipant(proof, true);
+    expect(proof.counters()).toEqual({ sessions: 4, acknowledgements: 4 });
+    expect(
+      proof.commands.some((args) => ['stop', 'restart', 'rm', 'create', 'run'].includes(args[0])),
+    ).toBe(false);
+  } finally {
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});
+
+for (const fault of [
+  'hardlink:',
+  'hardlink:-wal',
+  'hardlink:-shm',
+  'hardlink:-journal',
+  'nested-rw',
+  'all-ro-nested',
+  'replaced-source',
+  'hidden-root',
+  'symlink',
+  'mountinfo-race',
+  'declared-mount-missing',
+  'root-mount-missing',
+  'pid-race',
+  'inspection-unreadable',
+  'tool-absent',
+  'mountinfo-malformed',
+  'incomplete',
+  'reap-absent',
+  'group-residue',
+  'privileged-target',
+  'expanded-capability',
+  'missing-init',
+  'private-pid-missing',
+  'stalled-start',
+] as const) {
+  test(`backend fence namespace adapter refuses ${fault}`, async () => {
+    const proof = await fixture(fault);
+    try {
+      await refuses(
+        auditBackendParticipant(
+          proof,
+          fault !== 'replaced-source',
+          ['nested-rw', 'all-ro-nested'].includes(fault),
+          fault === 'stalled-start' ? 300 : 3000,
+        ),
+      );
+      expect(
+        proof.commands.some((args) => ['stop', 'restart', 'rm', 'create', 'run'].includes(args[0])),
+      ).toBe(false);
+    } finally {
+      await rm(proof.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('backend fence audits a host-readable unrelated volume using complete actual namespace receipts', async () => {
+  const proof = await fixture();
+  try {
+    await auditBackendParticipant(proof, false);
+    expect(proof.counters()).toEqual({ sessions: 4, acknowledgements: 4 });
+  } finally {
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});
+for (const fault of ['start-race', 'restart-race', 'foreign-id'] as const) {
+  test(`backend fence namespace adapter refuses ${fault}`, async () => {
+    const proof = await fixture();
+    const original = proof.runDocker;
+    proof.runDocker = (args: string[]) => {
+      if (args[0] === 'inspect' && proof.counters().sessions > 0) {
+        const changed = structuredClone(proof.container);
+        if (fault === 'start-race') changed.State.StartedAt = 'changed';
+        if (fault === 'restart-race') changed.RestartCount = 1;
+        if (fault === 'foreign-id') changed.Id = 'f'.repeat(64);
+        return Promise.resolve(JSON.stringify(changed));
+      }
+      return original(args);
+    };
+    try {
+      await refuses(auditBackendParticipant(proof, true));
+    } finally {
+      await rm(proof.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('backend fence treats host Source ENOENT as unknown until actual namespace admission', async () => {
+  const proof = await fixture();
+  try {
+    await auditBackendParticipant(proof, true, false, 3000, 'ENOENT');
+    expect(proof.counters()).toEqual({ sessions: 4, acknowledgements: 4 });
+  } finally {
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});
+
+test('backend fence namespace refusal names the exact unsupported participant and attended path', async () => {
+  const proof = await fixture('missing-init');
+  try {
+    await refuses(
+      auditBackendParticipant(proof, true),
+      `container ${proof.container.Id}; attended maintenance or a dedicated daemon required`,
+    );
+  } finally {
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});
+
+for (const boundary of ['before-census', 'after-census'] as const) {
+  test(`managed namespace keeps captured host identity ${boundary}`, async () => {
+    const proof = await fixture('managed-match');
+    const file = await stat(proof.database);
+    const directory = await stat(join(proof.root, 'family'));
+    const database = {
+      path: '/data/wbs.db',
+      host: proof.database,
+      fileIdentity: `${String(file.dev)}:${String(file.ino)}`,
+      directoryIdentity: `${String(directory.dev)}:${String(directory.ino)}`,
+    };
+    const container = {
+      ...proof.container,
+      Mounts: proof.destinations.map((target) => ({
+        Type: 'bind',
+        Source: join(proof.root, 'family'),
+        Destination: target,
+        RW: true,
+      })),
+    };
+    const replace = async () => {
+      await rename(proof.database, proof.database + '.retained');
+      await Bun.write(proof.database, 'replacement');
+    };
+    try {
+      if (boundary === 'before-census') {
+        await replace();
+        await unlink(`${proof.root}/namespace/data/wbs.db`);
+        await link(proof.database, `${proof.root}/namespace/data/wbs.db`);
+      }
+      await refuses(
+        auditManagedMounts(
+          container,
+          database,
+          image,
+          proof.runDocker,
+          performance.now() + 3000,
+          async (subject, destinations, host, candidate, runDocker, path, bounds) => {
+            await verifyContainerNamespace(
+              subject,
+              destinations,
+              host,
+              candidate,
+              runDocker,
+              path,
+              bounds,
+              proof.exec,
+            );
+            if (boundary === 'after-census') await replace();
+          },
+        ),
+        'captured database family identity',
+      );
+      if (boundary === 'before-census') expect(proof.counters().sessions).toBe(0);
+      else expect(proof.counters().acknowledgements).toBe(4);
+    } finally {
+      await rm(proof.root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const fault of [
+  'managed-directory-mismatch',
+  'managed-directory-entry-missing',
+  'host-directory-race',
+]) {
+  test(`managed actual namespace rejects ${fault} despite identical SQLite file inodes`, async () => {
+    const proof = await fixture(fault);
+    try {
+      await refuses(
+        verifyContainerNamespace(
+          proof.container,
+          proof.destinations,
+          proof.database,
+          image,
+          proof.runDocker,
+          '/data/wbs.db',
+          undefined,
+          proof.exec,
+        ),
+        fault === 'host-directory-race'
+          ? 'directory changed'
+          : fault === 'managed-directory-mismatch'
+            ? 'directory differs'
+            : 'incomplete',
+      );
+    } finally {
+      await rm(proof.root, { recursive: true, force: true });
+    }
+  });
+}

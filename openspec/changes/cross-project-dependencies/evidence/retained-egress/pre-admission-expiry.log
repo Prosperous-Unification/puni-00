@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/delivery.integration.test.ts:
+344 |       headers: { 'content-type': 'application/json', 'x-internal-auth': SECRET },
+345 |       body: JSON.stringify({ subscription: PROJECT, seq: 1, message: 'sentinel' }),
+346 |     }),
+347 |   );
+348 |   expect(await response.json()).toEqual({ delivered_to_sockets: 0 });
+349 |   expect(inspections).toBe(0);
+                            ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/gw-01/src/delivery.integration.test.ts:349:23)
+(fail) mounted expired FIFO head never asks authority even when timer callback is withheld [24.22ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.67s]

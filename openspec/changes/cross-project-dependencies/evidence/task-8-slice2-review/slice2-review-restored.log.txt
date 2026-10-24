@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts:
+(pass) versioned saved input readers > reads frozen input v1 as local without rewriting bytes [4.20ms]
+(pass) versioned saved input readers > reads frozen input v2 as local without rewriting bytes [0.51ms]
+(pass) versioned saved input readers > reads frozen input v3 as local without rewriting bytes [0.73ms]
+(pass) versioned saved input readers > reads frozen input v4 as local without rewriting bytes [0.41ms]
+(pass) versioned saved input readers > reads frozen input v5 as local without rewriting bytes [0.42ms]
+(pass) versioned saved input readers > reads frozen input v6 as local without rewriting bytes [0.38ms]
+(pass) versioned saved input readers > reads frozen input v7 as local without rewriting bytes [0.42ms]
+(pass) versioned saved input readers > reads frozen input v8 as local without rewriting bytes [0.36ms]
+(pass) versioned saved input readers > keeps the dormant v8 writer byte-identical to the frozen v8 builder [0.12ms]
+(pass) versioned saved input readers > preserves the frozen legacy schedule1 byte contract and retired algorithm identity [1.77ms]
+(pass) versioned saved input readers > requires explicit dependency history on input9 [0.80ms]
+(pass) versioned saved input readers > refuses header/body version mismatch and malformed new fields [7.13ms]
+(pass) versioned saved input readers > refuses external claims before a legacy local upgrade can erase them [0.19ms]
+(pass) versioned saved input readers > refuses original v1 scoped claims before an upgrade can erase them [0.18ms]
+(pass) versioned saved input readers > refuses original v2 scoped claims before an upgrade can erase them [0.05ms]
+(pass) versioned saved input readers > canonicalizes unordered captured history before future writer activation [7.39ms]
+(pass) versioned saved input readers > retains direct-fact ownership and duplicate refusal in new bodies [1.02ms]
+(pass) versioned saved input readers > folds converted connected context without live capabilities [4.23ms]
+
+libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts:
+(pass) new saved body integrity > accepts detached complete connected bodies and retains the supplied bytes [4.46ms]
+(pass) new saved body integrity > refuses missing frozen target slice identity and scheduling fields [15.27ms]
+(pass) new saved body integrity > refuses missing, foreign or mismatched target placement membership [23.59ms]
+(pass) new saved body integrity > refuses altered selected offsets, spans and dates with an intact captured composite [19.40ms]
+(pass) new saved body integrity > validates the captured target anchor rather than using another project calendar [26.91ms]
+(pass) new saved body integrity > refuses a captured stage anchor that contradicts its stored target date [5.50ms]
+(pass) new saved body integrity > accepts a genuinely empty connected component without inventing an anchor or stage [1.58ms]
+(pass) new saved body integrity > refuses impossible target calendar text and invented waiting facts [8.65ms]
+(pass) new saved body integrity > reports correctly hashed malformed new JSON as typed body_invalid [0.29ms]
+(pass) new saved body integrity > refuses mismatched targets, missing connection and local input with connected schedule [2.95ms]
+(pass) new saved body integrity > requires absent schedules for unavailable connected context and preserves local schedule1 reads [4.13ms]
+(pass) new saved body integrity > refuses missing selected evidence and malformed timings without replaying schedules [12.14ms]
+
+ 30 pass
+ 0 fail
+ 145 expect() calls
+Ran 30 tests across 2 files. [524.00ms]

@@ -1,0 +1,58 @@
+Fault: libs/wbs/adapters/store-sqlite/src/fanout-capture.ts: captured.project.startDate, -> null,
+Command: bun test ./apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts --timeout=10000 --test-name-pattern calendar
+Exit: 1
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:
+121 |       };
+122 |
+123 |       expect(await mutate(cause)).toMatchObject({ status: 200 });
+124 |
+125 |       for (const project of [downstream, tail])
+126 |         expect(events(project.id)).toEqual([
+                                         ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "f22d546a-44e9-422b-8e05-04e47ab1905d",
+-     "projectId": "abf46745-4626-4bb2-ba53-77b90c2ffe8d",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-fanout-causes-52/apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:126:36)
+(fail) calendar scheduling edit invalidates dependency readers with shared mode %s [461.07ms]
+121 |       };
+122 |
+123 |       expect(await mutate(cause)).toMatchObject({ status: 200 });
+124 |
+125 |       for (const project of [downstream, tail])
+126 |         expect(events(project.id)).toEqual([
+                                         ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "7f488e20-feb1-450b-a769-1e13066df569",
+-     "projectId": "9f6618ae-0abb-4348-9969-c344aacc6223",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-fanout-causes-52/apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:126:36)
+(fail) calendar scheduling edit invalidates dependency readers with shared mode %s [328.45ms]
+
+ 0 pass
+ 8 filtered out
+ 2 fail
+ 16 expect() calls
+Ran 2 tests across 1 file. [3.87s]

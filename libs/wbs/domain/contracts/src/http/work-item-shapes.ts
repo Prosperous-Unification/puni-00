@@ -12,6 +12,7 @@ import { planCommandsBody } from './plan-command-shapes';
 import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
+import { treeResponseSchema } from './tree-response-schema';
 import { WORK_ITEM_OUTLINE } from './work-item-fields';
 import { numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
 
@@ -205,6 +206,8 @@ const batchRefusals = [
         type({ ...context, error: "'frozen'" }),
         // `arrangeBySchedule` while the project's selected optimized variant is
         // still solving, and on a deployment with no optimizer installed.
+        type({ ...context, error: "'arrangement_positions_unavailable'" }),
+        type({ ...context, error: "'dependency_calendar_missing'" }),
         type({ ...context, error: "'schedule_not_ready'" }),
         type({ ...context, error: "'engine_unavailable'" }),
         type({ ...context, error: "'rolled_up'" }),
@@ -212,6 +215,9 @@ const batchRefusals = [
         // A typed dependency whose endpoints resolve a step node onto itself.
         type({ ...context, error: "'self_node'" }),
         type({ ...context, error: "'not_a_parent'" }),
+        type({ ...context, error: "'external_dependencies_inactive'" }),
+        // Proof: removing this arm made mounted pending-endpoint add/update return HTTP500 (2026-10-22).
+        type({ ...context, error: "'project_deleting'" }),
         type({ ...context, error: "'duplicate_dependency'" }),
         type({ ...context, error: "'too_large'" }),
         // `setStatus` refusals (`add-work-item-statuses`).
@@ -236,6 +242,19 @@ const batchRefusals = [
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'not_startable'", status: 'string' }),
+        type({
+          ...context,
+          // Proof: removing this arm failed the shared refusal validator and generated MCP prerequisite document tests (task-6-3-admission-proofs/refusal-shape.log).
+          error: "'prerequisites_unmet'",
+          stepIds: 'string[]',
+          blockers: type({
+            workItemId: 'string',
+            stepId: 'string | null',
+            type: "'FS' | 'SS' | 'FF'",
+            provenance: "'workflow' | 'legacy' | 'authored'",
+            relationshipId: 'string | null',
+          }).array(),
+        }),
         type({ ...context, error: "'step_done'", stepIds: 'string[]' }),
         type({ ...context, error: "'already_claimed'", holders: claimHolder.array() }),
         type({ ...context, error: "'destination_claimed'", holders: claimHolder.array() }),
@@ -311,6 +330,11 @@ const batchRefusals = [
         }),
         type({ ...context, error: "'node_on_parent'", dependencyIds: 'string[]' }),
         type({ ...context, error: "'descendant_step_on_leaf'", dependencyIds: 'string[]' }),
+        type({
+          ...context,
+          error: "'referenced_by_external_dependency'",
+          dependencyIds: 'string[]',
+        }),
       ),
     ),
   },
@@ -365,21 +389,23 @@ export const getWorkItems = defineEndpointShape({
     {
       kind: 'json',
       status: 200,
-      schema: responseSchema(
-        workItemTree.and({
-          undoable: 'boolean',
-          redoable: 'boolean',
-          'addressRevision?': 'string',
-          'stepNodes?': type({
-            id: 'string',
-            workItemId: 'string',
-            stepId: 'string',
-            reference: 'string | null',
-          }).array(),
-          // The zone a step card reads attempt instants in
-          // (`step-node-attempts` D7); optional for an older be-01 mid-swap.
-          'timezone?': 'string',
-        }),
+      schema: treeResponseSchema(
+        responseSchema(
+          workItemTree.and({
+            undoable: 'boolean',
+            redoable: 'boolean',
+            'addressRevision?': 'string',
+            'stepNodes?': type({
+              id: 'string',
+              workItemId: 'string',
+              stepId: 'string',
+              reference: 'string | null',
+            }).array(),
+            // The zone a step card reads attempt instants in
+            // (`step-node-attempts` D7); optional for an older be-01 mid-swap.
+            'timezone?': 'string',
+          }),
+        ),
       ),
     },
   ],
@@ -580,7 +606,10 @@ const undoRefusals = [
   {
     status: 409,
     schema: responseSchema(
-      type({ error: "'nothing_to_undo' | 'stale_undo'", detail: 'string | null' }),
+      type({
+        error: "'nothing_to_undo' | 'stale_undo' | 'external_dependencies_inactive'",
+        detail: 'string | null',
+      }),
     ),
   },
 ] as const;

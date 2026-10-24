@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:
+(pass) authored connected links belong only to the exported successor and keep stable remote identity [18.54ms]
+(pass) scheduled evidence keeps exact component placement and retained stage boundaries [2.11ms]
+(pass) remote uncoded steps retain own UUID and row address with step label [4.42ms]
+(pass) unavailable evidence preserves exact calendar and engine refusals [1.04ms]
+(pass) export rejects a stored relationship whose owner differs from its successor [1.03ms]
+(pass) positions require complete matching baseline and selected ownership [1.26ms]
+(pass) optimized evidence preserves selected movement, earlier boundary and a baseline decision [3.32ms]
+(pass) terminal boundary certificate stays distinct from authored plan infeasibility [1.83ms]
+(pass) producer refuses missing and nonfinite captured provenance [4.54ms]
+(pass) producer refuses foreign stage metadata and comparison scope [1.86ms]
+
+ 10 pass
+ 0 fail
+ 36 expect() calls
+Ran 10 tests across 1 file. [2.61s]

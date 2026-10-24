@@ -1,0 +1,26 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern diagnostics
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+281 |   const directory = scratchSync('edge-policy-private-');
+282 |   await writeFile(`${directory}/edge-policy.json`, 'PRIVATE_POLICY_SENTINEL_NOT_JSON');
+283 |   let refusal: unknown;
+284 |   try { await readOrdinaryEdgePolicy(directory); } catch (cause) { refusal = cause; }
+285 |   expect(refusal).toBeInstanceOf(Error);
+286 |   expect(String(refusal)).not.toContain('PRIVATE_POLICY_SENTINEL');
+                                    ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "PRIVATE_POLICY_SENTINEL"
+Received: "Error: PRIVATE_POLICY_SENTINEL_NOT_JSON"
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:286:31)
+(fail) malformed policy diagnostics never echo file contents [2.12ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [39.00ms]
+
+Exit: 1

@@ -1,0 +1,452 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:
+19 |   const commands: string[][] = [];
+20 |   const observations = await probeDependencyCapabilities(candidate, rollback, async (args) => {
+21 |     commands.push(args);
+22 |     return runCli(`console.log(${JSON.stringify(JSON.stringify({ ...empty, semantics: args.includes(rollback) ? ['cross-project-dependencies-v1'] : [] }))})`);
+23 |   });
+24 |   expect(commands).toEqual([candidate, rollback].map((image) => [
+                        ^
+error: expect(received).toEqual(expected)
+
+- [
+-   [
+-     "run",
+-     "--rm",
+-     "--pull",
+-     "never",
+-     "--network",
+-     "none",
+-     "--entrypoint",
+-     "bun",
+-     "registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-     "run",
+-     "src/dependency-capabilities-cli.ts",
+-   ],
+-   [
+-     "run",
+-     "--rm",
+-     "--pull",
+-     "never",
+-     "--network",
+-     "none",
+-     "--entrypoint",
+-     "bun",
+-     "registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+-     "run",
+-     "src/dependency-capabilities-cli.ts",
+-   ],
+- ]
++ []
+
+- Expected  - 28
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:24:20)
+(fail) independently probes exact candidate and rollback without database access [0.38ms]
+38 |     });
+39 |     const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+40 |     if (code !== 0) throw new Error(stderr);
+41 |     return stdout;
+42 |   });
+43 |   expect(observations).toEqual([{ image: candidate, semantics: [] }]);
+                            ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "image": "registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-     "semantics": [],
+-   },
+- ]
++ []
+
+- Expected  - 6
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:43:24)
+(fail) actual backend CLI supplies explicit empty support without DB_PATH [0.09ms]
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa [0.07ms]
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb [0.01ms]
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"other","version":1,"role":"backend","semantics":[]} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa [0.02ms]
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"other","version":1,"role":"backend","semantics":[]} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb [0.01ms]
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":2,"role":"backend","semantics":[]} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":2,"role":"backend","semantics":[]} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"gateway","semantics":[]} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa [0.02ms]
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"gateway","semantics":[]} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":[],"extra":true} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":[],"extra":true} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["unknown"]} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["unknown"]} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["cross-project-dependencies-v1","cross-project-dependencies-v1"]} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["cross-project-dependencies-v1","cross-project-dependencies-v1"]} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":null} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":null} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":"cross-project-dependencies-v1"} from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":"cross-project-dependencies-v1"} from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability null from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability null from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb [0.01ms]
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability [] from registry/wbs-be-01@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+53 | ]) {
+54 |   for (const badImage of [candidate, rollback]) {
+55 |     test(`refuses independent malformed capability ${JSON.stringify(payload)} from ${badImage}`, async () => {
+56 |       await expect(probeDependencyCapabilities(candidate, rollback, (args) =>
+57 |         runCli(`console.log(${JSON.stringify(JSON.stringify(args.includes(badImage) ? payload : empty))})`),
+58 |       )).rejects.toThrow('dependency capability');
+                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:58:18)
+(fail) refuses independent malformed capability [] from registry/wbs-be-01@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+60 |   }
+61 | }
+62 |
+63 | for (const program of ["throw new Error('missing CLI')", "process.exit(3)", "console.log('not JSON')"]) {
+64 |   test(`propagates failed CLI without manufacturing empty support: ${program}`, async () => {
+65 |     await expect(probeDependencyCapabilities(candidate, rollback, () => runCli(program))).rejects.toThrow();
+                                                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:65:99)
+(fail) propagates failed CLI without manufacturing empty support: throw new Error('missing CLI') [0.05ms]
+60 |   }
+61 | }
+62 |
+63 | for (const program of ["throw new Error('missing CLI')", "process.exit(3)", "console.log('not JSON')"]) {
+64 |   test(`propagates failed CLI without manufacturing empty support: ${program}`, async () => {
+65 |     await expect(probeDependencyCapabilities(candidate, rollback, () => runCli(program))).rejects.toThrow();
+                                                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:65:99)
+(fail) propagates failed CLI without manufacturing empty support: process.exit(3) [0.01ms]
+60 |   }
+61 | }
+62 |
+63 | for (const program of ["throw new Error('missing CLI')", "process.exit(3)", "console.log('not JSON')"]) {
+64 |   test(`propagates failed CLI without manufacturing empty support: ${program}`, async () => {
+65 |     await expect(probeDependencyCapabilities(candidate, rollback, () => runCli(program))).rejects.toThrow();
+                                                                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:65:99)
+(fail) propagates failed CLI without manufacturing empty support: console.log('not JSON') [0.01ms]
+67 | }
+68 |
+69 | test('shared capability budget aborts a stalled subprocess', async () => {
+70 |   await expect(probeDependencyCapabilities(candidate, rollback, (_args, signal) =>
+71 |     runCli('setInterval(() => {}, 1000)', signal), performance.now() + 30,
+72 |   )).rejects.toThrow('deadline');
+                  ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:72:14)
+(fail) shared capability budget aborts a stalled subprocess [0.05ms]
+73 | });
+74 |
+75 | test('rejects mutable references before invoking Docker', async () => {
+76 |   await expect(probeDependencyCapabilities('registry/wbs-be-01:latest', rollback, () => {
+77 |     throw new Error('unexpected Docker call');
+78 |   })).rejects.toThrow('digest-pinned');
+                   ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/lib/dependency-preflight.test.ts:78:15)
+(fail) rejects mutable references before invoking Docker [0.04ms]
+
+ 0 pass
+ 29 fail
+ 29 expect() calls
+Ran 29 tests across 1 file. [25.00ms]

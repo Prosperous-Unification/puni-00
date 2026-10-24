@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+1007 |           fixture.journal,
+1008 |           fixture.fake,
+1009 |           () => undefined,
+1010 |           fixture.options,
+1011 |         ),
+1012 |       ).rejects.toThrow('foreign source consumer');
+                       ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "foreign source consumer"
+Received message: "release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed\njournal: /tmp/wbs-test-4286-D8LqvY/k8s-controller-release-2sXqO0/release.json\nfailed step: capture-state: storage controller barrier failed: writable PVC consumer remains\ncaptured migration set: (not captured)\nreplay forward: 3a6cf51bf7a2babff748c6980fc0b0eab0dab9b5b05a8996b62a160c091c9032\nreplay rollback: (not checked)\nsnapshot: (none)\nwrites remain fenced and the Lease stays held\nmanual command: '/tmp/wbs-test-4286-D8LqvY/k8s-controller-release-2sXqO0/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token c0830241-7097-4d2b-a5d9-7d3fdcf68433; preserve journal /tmp/wbs-test-4286-D8LqvY/k8s-controller-release-2sXqO0/release.json; restore the recorded suspension only after verifying the stopped source interval"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:1012:17)
+(fail) mounted retained history refuses deleting-pod before source capture [1854.74ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.90s]

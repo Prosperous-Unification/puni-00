@@ -1,0 +1,45 @@
+$ bun test apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts -t remote unfinished FS
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+36 | const claim = () => harness.call('ada', 'POST', `/api/projects/${target}/commands`, { commands: [{ kind: 'claimWorkItem', workItemId: 'target-leaf', personId: 'executor', steps: [targetStep] }] });
+37 |
+38 | test('remote unfinished FS is excluded from startable and refused by claim until completion', async () => {
+39 |   const before = await startable();
+40 |   expect(before.status).toBe(200);
+41 |   expect((before.body as { leaves: unknown[] }).leaves).toEqual([]);
+                                                             ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "assignees": [],
++     "fits": true,
++     "name": "target-leaf",
++     "number": "010",
++     "numberIsFrozen": false,
++     "stepIds": [
++       "d7187b3a-74bc-4ff6-b5d6-ae6bd5d7b43f",
++       "b647bc53-4174-4a0c-9c33-cc7e58e72e51",
++     ],
++     "subtreeClaim": null,
++     "teams": [],
++     "unfinishedPredecessorIds": [
++       "predecessor-leaf",
++     ],
++     "workItemId": "target-leaf",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 19
+
+      at <anonymous> (/tmp/puni-start-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:41:57)
+(fail) remote unfinished FS is excluded from startable and refused by claim until completion [308.31ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.90s]

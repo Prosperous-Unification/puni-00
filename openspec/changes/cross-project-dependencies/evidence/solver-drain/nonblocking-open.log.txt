@@ -1,0 +1,26 @@
+Command: bun test /tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts -t actual file boundary refuses fifo-open --preload ./tools/test/scratch/preload.ts
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-host.test.ts:
+222 |       timedOut = true;
+223 |       controller.abort();
+224 |     }, 1500);
+225 |     try {
+226 |       const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+227 |       expect(timedOut).toBe(false);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts:227:24)
+(fail) actual file boundary refuses fifo-open substitution without blocking or stale acceptance [1508.17ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.53s]
+
+Exit: 1

@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import { NO_ADMISSION } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
@@ -22,6 +24,7 @@ import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
+import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -102,23 +105,19 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
       organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
-      localIdentity: { id: 'ada', username: 'ada', scopes: ['read', 'write'] },
+      localIdentity: {
+        id: 'ada',
+        username: 'ada',
+        scopes: ['read', 'write'],
+        delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' },
+      },
     },
     {
       openSource: openSqliteSource,
       makeApp: (options) => {
         const app = buildApp({
           ...options,
-          organizations: {
-            resolve: () =>
-              Promise.resolve({
-                ok: true,
-                access: {
-                  kind: 'scoped',
-                  scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' },
-                },
-              }),
-          },
+          projectAddressSearch: refusingProjectAddressSearch,
         });
         app.stop = () => Promise.resolve(app);
         mounted = app;
@@ -460,7 +459,7 @@ describe('bootBe01', () => {
       browserSessionAuthority: 'disabled' as const,
       organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       optimizer: {
-        solverVersion: '0.3.0',
+        solverVersion: '0.4.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('startup reconciliation must not spawn');
@@ -500,7 +499,7 @@ describe('bootBe01', () => {
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
       optimizer: {
-        solverVersion: '0.3.0',
+        solverVersion: '0.4.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('the settings write must not spawn');
@@ -514,7 +513,7 @@ describe('bootBe01', () => {
       await Bun.sleep(10);
     }
     expect(health?.status).toBe(200);
-    const created = await running.services.projects.create('Optimizer', 'local-dev');
+    const created = expectCreated(await running.services.projects.create('Optimizer', 'local-dev'));
 
     expect(
       await running.services.projects.update(created.project.id, 'local-dev', {
@@ -547,7 +546,9 @@ describe('bootBe01', () => {
     }
     expect(health?.status).toBe(200);
 
-    const created = await running.services.projects.create('Local plan', 'local-dev');
+    const created = expectCreated(
+      await running.services.projects.create('Local plan', 'local-dev'),
+    );
 
     expect(created.project.ownerId).toBe('local-dev');
   });
@@ -785,17 +786,28 @@ describe('bootBe01', () => {
     );
     const writes = composed?.writes;
     if (writes === undefined) throw new Error('boot composed no batch writes');
-    const promoted = await writes.uow.run(async (scope) => ({
-      commit: false,
-      value: await writes
-        .batch(scope, recordingBroadcaster(), NO_ADMISSION)
-        .directory.patchPersonWithin(
-          'kat',
-          'ada',
-          { kind: 'agent' },
-          { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
-        ),
-    }));
+    const promoted = await writes.uow.run(async (scope) => {
+      const access = {
+        kind: 'scoped' as const,
+        scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
+      };
+      const dependencies = createDependencyContext(
+        scope.stores,
+        { projectId: null, actorId: 'ada', access, admission: NO_ADMISSION },
+        () => undefined,
+        { kind: 'raw' },
+      );
+      try {
+        return {
+          commit: false,
+          value: await writes
+            .batch(scope, recordingBroadcaster(), NO_ADMISSION, dependencies.context)
+            .directory.patchPersonWithin('kat', 'ada', { kind: 'agent' }, access),
+        };
+      } finally {
+        dependencies.close();
+      }
+    });
     expect(promoted).toEqual({
       ok: false,
       reason: 'agent_person_limit',
@@ -1051,7 +1063,7 @@ describe('bootBe01', () => {
         browserSessionAuthority: 'disabled' as const,
         organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
         optimizer: {
-          solverVersion: '0.3.0',
+          solverVersion: '0.4.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('shutdown ordering must not spawn');
@@ -1147,7 +1159,7 @@ describe('bootBe01', () => {
     expect(closes).toBe(1);
   }, 10_000);
 
-  it('releases the source and the port when a step after the listener fails', async () => {
+  it('releases the source without binding the port when schema admission fails', async () => {
     const dir = tempDir('wbs-boot-rollback-');
     const dbPath = join(dir, 'test.db');
     const port = await freePort();
@@ -1191,7 +1203,7 @@ describe('bootBe01', () => {
       {
         ...bootOptions(dbPath, 0),
         optimizer: {
-          solverVersion: '0.3.0',
+          solverVersion: '0.4.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('this case must not spawn');

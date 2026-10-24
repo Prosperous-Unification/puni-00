@@ -1,0 +1,27 @@
+Command: bun test /tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts -t stops creator, drains child --preload ./tools/test/scratch/preload.ts
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts:
+276 |     fields['ActiveState'] !== 'inactive' ||
+277 |     fields['SubState'] !== 'dead' ||
+278 |     fields['MainPID'] !== '0' ||
+279 |     cgroup !== ''
+280 |   )
+281 |     throw new Error('solver service did not stop');
+                    ^
+error: solver service did not stop
+      at parseSolverUnit (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.ts:281:15)
+      at assertStopped (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.ts:99:5)
+      at async withSolverDrainUnderOwner (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.ts:115:9)
+      at async <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-exclusion.test.ts:182:27)
+      at async acquire (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) stops creator, drains child and holds actual runtime lock through callback and final readback [26.58ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+Ran 1 test across 1 file. [54.00ms]
+
+Exit: 1

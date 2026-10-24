@@ -6,8 +6,11 @@ import type { OrganizationLimitGauge, PlanCommand, ResourceAccess, Scope } from 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
@@ -15,6 +18,7 @@ import fc from 'fast-check';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -52,7 +56,11 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-limit-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+    organizationDefaultLimits: DEFAULTS,
+  });
 });
 
 afterEach(async () => {
@@ -94,10 +102,13 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const created = await graph.projects.create('Race', 'dany');
+  const created = expectCreated(await graph.projects.create('Race', 'dany'));
   const projectId = created.project.id;
+  const firstStep = created.steps.at(0);
+  if (firstStep === undefined) throw new Error('the claim fixture has no first step');
   source.db.run(
     sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
   );
@@ -122,17 +133,31 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
     };
   };
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
-    batchServices: (scope: Scope, announcements) =>
+    batchServices: (scope: Scope, announcements, admission, dependencyContext) =>
       servicesOver(
         { ...scope.stores, organizationLimits: gauged(scope.stores.organizationLimits) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          admission,
+          dependencyContext: { kind: 'bound', context: dependencyContext },
+        },
       ),
   });
   const run = (userId: string, commands: PlanCommand[]) =>
-    runner.runWithin(projectId, userId, commands, accessOf(userId), null);
+    runner.runWithin(
+      projectId,
+      { id: userId, username: userId, scopes: ['write'] },
+      // Claims target the first workflow node so prerequisite checks admit them to the cap.
+      commands.map((command) =>
+        command.kind === 'claimWorkItem' ? { ...command, steps: [firstStep.id] } : command,
+      ),
+      accessOf(userId),
+    );
   const leaves = await run(
     'dany',
     Array.from({ length: leafCount }, (_, n): PlanCommand => ({
@@ -272,7 +297,11 @@ describe('the claim cap as a model invariant', () => {
         directory = mkdtempSync(join(tmpdir(), 'claim-limit-model-'));
         const dbPath = join(directory, 'plan.db');
         runMigrations(dbPath, folder);
-        source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+        source = openSqliteSource({
+          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+          dbPath,
+          organizationDefaultLimits: DEFAULTS,
+        });
         const counting = { source: 'turn' as CountSource };
         const world = await seeded(CAP, LEAVES, counting);
         const leafOf = (n: number) => {

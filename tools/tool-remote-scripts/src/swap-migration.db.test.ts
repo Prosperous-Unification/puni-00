@@ -109,6 +109,7 @@ function prepareComposeFixture(
     readCapture: (path: string) => Promise<string>;
   } = {
     captureStateDir: root,
+    barrierStateDir: root,
     readCapture: (path) => Bun.file(path).text(),
     writeAtomic,
     readPhase: () => Promise.resolve('committed'),
@@ -208,17 +209,23 @@ describe('Compose migration command adapter', () => {
   it('boot exposure and health failure retain migrated database without authorizing down recovery', async () => {
     const attempt = prepareComposeFixture();
     const identity = 'a'.repeat(64);
+    const maintenanceIdentity = 'd'.repeat(64);
+    let maintenanceCreated = false;
     const image = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
     const io: SwapExecutionIo = {
       ...attempt.io,
       namespaceProof: () => Promise.resolve(),
+      resolveMount: (path) => Promise.resolve(path),
       barrierStateDir: attempt.root,
       prepareBackend: () =>
         Promise.resolve({
           databasePath: '/data/plan.db',
           databaseHostPath: `${ROOT}/data/plan.db`,
           start: () => Promise.resolve(),
-          startMaintenance: () => Promise.resolve(identity),
+          startMaintenance: () => {
+            maintenanceCreated = true;
+            return Promise.resolve(maintenanceIdentity);
+          },
           verifyMaintenance: () => Promise.resolve(),
           imageId: `sha256:${'b'.repeat(64)}`,
           snapshots: {
@@ -228,25 +235,45 @@ describe('Compose migration command adapter', () => {
         }),
       healthGate: () => Promise.reject(new Error('candidate health failure')),
       sh: async (args) => {
+        if (args.includes('src/dependency-capabilities-cli.ts'))
+          return Promise.resolve(
+            JSON.stringify({
+              protocol: 'wbs-dependency-runtime',
+              version: 1,
+              role: 'backend',
+              semantics: [],
+            }),
+          );
         if (args[0] === 'image' && args[3] === '{{json .}}')
           return JSON.stringify({ Id: `sha256:${'b'.repeat(64)}` });
         if (args[0] === 'image') return image;
+        if (args.some((argument) => argument.includes('wbs-dependency-preservation')))
+          return JSON.stringify({
+            protocol: 'wbs-dependency-preservation',
+            version: 1,
+            state: 'DISABLED',
+            externalRelationships: 0,
+          });
         if (args[0] === 'run') return '[]';
         if (args[0] === 'inspect' && args[2] === '{{.Id}}') return identity;
-        if (args[0] === 'ps') return identity;
-        if (args[0] === 'inspect' && (args[1] === identity || args[1] === '--type'))
-          return JSON.stringify([
-            {
-              Id: identity,
-              Name: '/be-01-blue',
+        if (args[0] === 'ps')
+          return maintenanceCreated ? `${identity}\n${maintenanceIdentity}` : identity;
+        if (
+          args[0] === 'inspect' &&
+          (args[1] === identity || args[1] === maintenanceIdentity || args[1] === '--type')
+        )
+          return JSON.stringify(
+            (args[1] === '--type' ? args.slice(3) : args.slice(1)).map((containerId) => ({
+              Id: containerId,
+              Name: containerId === identity ? '/be-01-blue' : '/be-01-green',
               Image: `sha256:${'b'.repeat(64)}`,
               Config: { Image: image, Env: ['DB_PATH=/data/plan.db'] },
               Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: true }],
-            },
-          ]);
+            })),
+          );
         if (args[0] === 'inspect')
           return JSON.stringify({
-            Id: identity,
+            Id: args[3] === maintenanceIdentity ? maintenanceIdentity : identity,
             State: { Running: false, Paused: false, Restarting: false, Status: 'exited' },
           });
         return attempt.io.sh(args);

@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+112 |         contextOf(dependency.predecessor.projectId),
+113 |         contextOf(dependency.successor.projectId),
+114 |       ),
+115 |     );
+116 |   }
+117 |   if (input.external.some((left) => input.external.some((right) => left.predecessor.projectId === right.successor.projectId && left.successor.projectId === right.predecessor.projectId))) throw new Error('project-level cycle');
+                                                                                                                                                                                                                                      ^
+error: project-level cycle
+      at resolveConnectedGraph (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.ts:117:225)
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:59:21)
+(fail) accepts A.design B.build A.test and retains ownership and relationship provenance [0.64ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+Ran 1 test across 1 file. [27.00ms]

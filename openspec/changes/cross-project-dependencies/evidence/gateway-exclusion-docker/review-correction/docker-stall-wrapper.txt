@@ -1,0 +1,12 @@
+#!/bin/bash
+set -eu
+if [ "$GATEWAY_FAULT_KIND" = network-before ] && [ "${1-}" = network ] && [ "${2-}" = create ]; then
+  printf "not-created\n" > "$GATEWAY_FAULT_ID"
+  exec sleep 300
+fi
+if [ ! -e "$GATEWAY_FAULT_ID" ] && { { [ "$GATEWAY_FAULT_KIND" = network ] && [ "${1-}" = network ] && [ "${2-}" = create ]; } || { [ "$GATEWAY_FAULT_KIND" = container ] && [ "${1-}" = create ]; }; }; then
+  created=$(/usr/bin/docker "$@")
+  printf '%s\n' "$created" > "$GATEWAY_FAULT_ID"
+  exec sleep 300
+fi
+exec /usr/bin/docker "$@"

@@ -12,6 +12,7 @@ import {
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { recordCalls } from '@/testing/record-calls';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { credentialOf } from './credential';
@@ -26,7 +27,7 @@ import {
 
 /** A project source over a fresh fake client, with no socket. */
 const projectSource = (): ProjectSource => ({
-  services: projectServicesOver(fakeProjectApi(), NO_SAVED_PLANS),
+  services: projectServicesOver(fakeProjectApi(), NO_SAVED_PLANS, createRefusingAddressApi()),
   subscribe: undefined,
 });
 

@@ -1,0 +1,40 @@
+Command: bun test /tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts -t actual file boundary refuses metadata-readback --preload ./tools/test/scratch/preload.ts
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-host.test.ts:
+223 |       controller.abort();
+224 |     }, 1500);
+225 |     try {
+226 |       const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+227 |       expect(timedOut).toBe(false);
+228 |       expect(stderr).toBe('');
+                           ^
+error: expect(received).toBe(expected)
+
+- ""
++ "27 |       try { await captureSolverFile(path, 100); }
++ 28 |       catch (cause) {
++ 29 |         if (!(cause instanceof Error) || !cause.message.includes('changed while')) throw cause;
++ 30 |         refused = true;
++ 31 |       }
++ 32 |       if (!refused) throw new Error('substituted file was accepted');
++                                    ^
++ error: substituted file was accepted
++       at /tmp/puni-solver-drain/[eval]:32:31
++
++ Bun v1.4.2 (Linux x64)
++ "
+
+- Expected  - 1
++ Received  + 12
+
+      at <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts:228:22)
+(fail) actual file boundary refuses metadata-readback substitution without blocking or stale acceptance [29.71ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [54.00ms]
+
+Exit: 1

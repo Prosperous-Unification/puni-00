@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 let directory: string;
 let source: ReturnType<typeof openSqliteSource>;
@@ -17,7 +18,10 @@ beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), 'step-parallel-'));
   const path = join(directory, 'plan.db');
   runMigrations(path, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
-  source = openSqliteSource({ dbPath: path });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   const { stores } = source;
   await stores.users.create({ id: 'u', username: 'u', passwordHash: 'x', createdAt: 1 }, stamp);
   for (const id of ['p', 'foreign']) {

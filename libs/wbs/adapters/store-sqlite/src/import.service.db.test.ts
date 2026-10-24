@@ -6,6 +6,7 @@ import { importServiceSourceContract } from '@wbs/core/testing/import-service-so
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -15,7 +16,10 @@ importServiceSourceContract(async () => {
   const path = join(dir, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   await source.stores.users.create(
     { id: 'import-owner', username: 'import-owner', passwordHash: 'x', createdAt: 1 },
     { at: 1, by: 'import-owner' },

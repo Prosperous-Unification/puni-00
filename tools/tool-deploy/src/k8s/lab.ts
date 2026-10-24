@@ -12,6 +12,7 @@ import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+import { DependencyStatusImageMismatch } from './dependency-observation';
 import {
   backendTaskJob,
   executeRelease,
@@ -22,6 +23,9 @@ import {
   run,
 } from './execute';
 import { fileJournal } from './journal';
+import { redactDiagnostic } from './lab-diagnostics';
+import { observeMissingMcpKey } from './lab-mcp-observation';
+import { labConfigDigestReader } from './lab-registry';
 import { K8S_TIERS, type K8sTier, type ReleaseIdentity, type ReleaseRequest } from './release';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
@@ -96,16 +100,7 @@ function log(line: string): void {
   console.log(`[lab ${new Date().toISOString().slice(11, 19)}] ${line}`);
 }
 
-/** Cap diagnostic output after replacing lab key material; never include a Secret payload. */
-export function redactDiagnostic(message: string, secrets: readonly string[]): string {
-  let redacted = message;
-  // Proof: deleting this replacement exposed generated-key-material in
-  // lab-diagnostics.test.ts (2026-09-27); restoring it passed the same test.
-  for (const secret of secrets) redacted = redacted.replaceAll(secret, '[REDACTED]');
-  redacted = redacted.replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g, '[REDACTED]');
-  redacted = redacted.replace(/(MCP_(?:STORE|SIGNING)_KEY_[A-Z]+[=:])[^\s]+/g, '$1[REDACTED]');
-  return redacted.slice(0, 8192);
-}
+export { redactDiagnostic } from './lab-diagnostics';
 
 /** Reject a failed Secret write while keeping its payload out of the error. */
 export function assertSecretApplied(
@@ -210,48 +205,18 @@ async function proveMissingMcpKeyExits(keys: McpLabKeys): Promise<void> {
     { MCP_STORE_KEY_CURRENT: '', MCP_SIGNING_KEY_CURRENT: keys.signing },
     secrets,
   );
-  await k(['-n', 'wbs', 'rollout', 'restart', 'deployment/wbs-mcp']);
-  // A crash-looping container restarts within seconds, and containerd drops the log of the
-  // container `lastState` names once a newer one replaces it; `kubectl logs --previous` then
-  // prints "unable to retrieve container logs" (run 36429927264, twice on one head). Re-read
-  // the pod and its previous log together until one terminated container shows both facts.
-  const deadline = Date.now() + 180_000;
-  let observed = 'no MCP container has terminated yet';
-  for (;;) {
-    if (Date.now() > deadline) {
-      throw new Error(
-        `ASSERTION FAILED: MCP pod without a store key exits non-zero and names the key in its log; last seen: ${observed}`,
-      );
-    }
-    await Bun.sleep(2_000);
-    const pods: (string | undefined)[][] = (
-      await k([
-        '-n',
-        'wbs',
-        'get',
-        'pods',
-        '-l',
-        'app.kubernetes.io/name=wbs-mcp',
-        '-o',
-        'jsonpath={range .items[*]}{.metadata.name} {.status.containerStatuses[0].lastState.terminated.exitCode}{"\\n"}{end}',
-      ])
-    )
-      .trim()
-      .split('\n')
-      .map((line) => line.trim().split(' '));
-    const [pod, exitCode] = pods.find(([, code]) => code !== undefined && code !== '') ?? [];
-    if (pod === undefined || exitCode === undefined) continue;
-    const logs = redactDiagnostic(
-      await k(['-n', 'wbs', 'logs', pod, '-c', 'mcp', '--previous', '--tail=40']),
-      secrets,
-    );
-    observed = `pod ${pod} exited ${exitCode}; log: ${logs}`;
-    // Blank rather than delete: deleting the key from the Secret stops at kubelet
-    // CreateContainerConfigError before the process runs (observed on the kept lab, 2026-09-27).
-    // Proof: expecting MCP_STORE_KEY_FAULT_INJECTED here failed run 36438630324 on the deadline
-    // with `last seen: pod … exited 1`, and this head passed k3s-rehearsal on #180.
-    if (exitCode !== '0' && logs.includes('MCP_STORE_KEY_CURRENT is required')) break;
-  }
+  // Blank rather than delete: deleting the Secret key stops at kubelet configuration
+  // validation before MCP runs, so it cannot prove the application's startup refusal.
+  const observed = await observeMissingMcpKey(
+    {
+      apiCommand: [kubectl, '--kubeconfig', join(state, 'kubeconfig'), '--context', CONTEXT],
+      node: `k3d-${CLUSTER}-server-0`,
+      invoke: (args, timeoutMs) => run(args, null, timeoutMs),
+      now: Date.now,
+      sleep: Bun.sleep,
+    },
+    secrets,
+  );
   log(`MCP without a store key: ${observed}`);
   log('assert ok: MCP pod without a store key exits non-zero and names the key in its log');
   await applyMcpSecret(
@@ -326,6 +291,27 @@ const k = (args: readonly string[], stdin: string | null = null): Promise<string
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(`ASSERTION FAILED: ${message}`);
   log(`assert ok: ${message}`);
+}
+
+/** Preserve the actual rehearsal failure while requiring the expected rollback outcome. */
+export function requireRolledBackRelease(
+  failure: unknown,
+  secrets: readonly string[],
+  emit: (line: string) => void,
+): void {
+  // Proof: omitting this diagnostic made the raw binary-preflight refusal test lose its
+  // redacted cause before the unchanged rollback assertion threw.
+  emit(`release outcome: ${redactDiagnostic(String(failure), secrets)}`);
+  // Proof: omitting this line lost the status-image Pod snapshot; bypassing its
+  // redactor printed generated-key-material in lab-diagnostics.test.ts (2026-10-23).
+  if (failure instanceof DependencyStatusImageMismatch)
+    emit(
+      `dependency observation Pod: ${redactDiagnostic(JSON.stringify(failure.observation), secrets)}`,
+    );
+  assert(
+    failure instanceof ReleaseFailedError && failure.state.phase === 'rolled-back',
+    'release ended rolled-back',
+  );
 }
 
 async function versionOf(cmd: readonly string[]): Promise<string> {
@@ -815,6 +801,91 @@ async function expectRestored(
   );
 }
 
+/** Seeds an active real Job controller so the disposable rehearsal includes replacement and graceful termination behavior. */
+async function seedDrainJob(): Promise<void> {
+  const uid = (
+    await k([
+      '-n',
+      NAMESPACES.backend,
+      'get',
+      'cronjob/sqlite-backup',
+      '-o',
+      'jsonpath={.metadata.uid}',
+    ])
+  ).trim();
+  if (uid === '') throw new Error('lab backup CronJob UID is missing');
+  const draft = await k([
+    '-n',
+    NAMESPACES.backend,
+    'create',
+    'job',
+    'f8-owned-backup',
+    '--from=cronjob/sqlite-backup',
+    '--dry-run=client',
+    '-o',
+    'json',
+  ]);
+  const job = await k(
+    [
+      'patch',
+      '--local',
+      '-f',
+      '-',
+      '--type=json',
+      '-p',
+      JSON.stringify([
+        {
+          op: 'add',
+          path: '/metadata/ownerReferences',
+          value: [
+            {
+              apiVersion: 'batch/v1',
+              kind: 'CronJob',
+              name: 'sqlite-backup',
+              uid,
+              controller: true,
+              blockOwnerDeletion: true,
+            },
+          ],
+        },
+        {
+          op: 'replace',
+          path: '/spec/template/spec/containers/0/command',
+          value: [
+            'bun',
+            '-e',
+            'process.on("SIGTERM", () => setTimeout(() => process.exit(0), 3000)); setInterval(() => {}, 1000)',
+          ],
+        },
+        { op: 'remove', path: '/spec/template/spec/containers/0/env' },
+      ]),
+      '-o',
+      'json',
+    ],
+    draft,
+  );
+  await k(['create', '-f', '-'], job);
+  await k([
+    '-n',
+    NAMESPACES.backend,
+    'wait',
+    'job/f8-owned-backup',
+    '--for=jsonpath={.status.active}=1',
+    '--timeout=90s',
+  ]);
+  await k([
+    '-n',
+    NAMESPACES.backend,
+    'wait',
+    'pod',
+    '-l',
+    'job-name=f8-owned-backup',
+    '--for=condition=Ready',
+    '--timeout=90s',
+  ]);
+  log('seeded real CronJob-owned backup Job with a 3s SIGTERM delay and ordinary Pod grace');
+}
+
 async function main(): Promise<void> {
   mkdirSync(state, { recursive: true, mode: 0o700 });
   await preflight();
@@ -833,6 +904,7 @@ async function main(): Promise<void> {
       await k(['get', 'namespace', 'kube-system', '-o', 'jsonpath={.metadata.uid}'])
     ).trim();
     const settings = {
+      readConfigDigest: labConfigDigestReader(port),
       kubectl,
       kubeconfig: join(state, 'kubeconfig'),
       context: CONTEXT,
@@ -842,7 +914,7 @@ async function main(): Promise<void> {
       anonymousProjectsStatus: 200 as const,
       rolloutTimeoutSeconds: 90,
       jobTimeoutSeconds: 180,
-      drainTimeoutMs: 5000,
+      drainTimeoutMs: 60_000,
       leaseDurationSeconds: 20,
       log,
     };
@@ -901,6 +973,7 @@ async function main(): Promise<void> {
       'a backend digest outside solverImages refused by the committed F6 policy',
     );
 
+    await seedDrainJob();
     log('scenario 1: induced health failure rolls back before writes reopen');
     let writers = watchWriters();
     const failed = await executeRelease(
@@ -913,11 +986,7 @@ async function main(): Promise<void> {
       (e: unknown) => e,
     );
     let seen = await writers.stop();
-    assert(
-      failed instanceof ReleaseFailedError && failed.state.phase === 'rolled-back',
-      `release ended rolled-back`,
-    );
-    if (failed instanceof ReleaseFailedError) log(failed.message);
+    requireRolledBackRelease(failed, [mcpKeys.store, mcpKeys.signing], log);
     const admitted = (
       await k([
         '-n',
@@ -946,6 +1015,8 @@ async function main(): Promise<void> {
     const cli = [
       'bun',
       join(ROOT, 'tools/tool-deploy/src/k8s/deploy-k3s.ts'),
+      '--lab-registry-port',
+      String(port),
       '--request',
       requestPath,
       '--journal',
@@ -1028,6 +1099,8 @@ async function main(): Promise<void> {
     const concurrentCli = [
       'bun',
       join(ROOT, 'tools/tool-deploy/src/k8s/deploy-k3s.ts'),
+      '--lab-registry-port',
+      String(port),
       '--request',
       concurrentRequest,
       '--journal',

@@ -1,8 +1,10 @@
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import type { AdmittedServices } from './admitted-write';
 import { createAdmittedWrites } from './composition';
 
@@ -11,8 +13,10 @@ function recordingUnitOfWork(log: string[]): UnitOfWork {
   return {
     async run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
       log.push('begin');
-      // The scope is never read by the graph below: the services are fakes.
-      const decision = await act({ stores: {} as Scope['stores'] });
+      // Graph construction requires incident persistence; the service doubles ignore other stores.
+      const decision = await act({
+        stores: { typedDependencies: inMemoryTypedDependencies() } as unknown as Scope['stores'],
+      });
       log.push(decision.commit ? 'commit' : 'rollback');
       return decision.value;
     },
@@ -48,12 +52,18 @@ describe('admittedWrites', () => {
       steps: { removeWithin: () => Promise.reject(new Error('not asked')) },
     });
     const writes = createAdmittedWrites({
+      commandAccess: localCommandAccess,
       uow: recordingUnitOfWork(log),
       batch: graph,
       announcements: silent(log),
     });
 
-    await writes.updateProjectWithin('p', 'u', { depReach: 'whole-item' }, LEGACY_ACCESS);
+    await writes.updateProjectWithin(
+      'p',
+      { id: 'u', username: 'u', scopes: ['write'] },
+      { depReach: 'whole-item' },
+      LEGACY_ACCESS,
+    );
 
     expect(log).toEqual(['begin', 'update', 'commit', 'publish']);
   });
@@ -61,6 +71,7 @@ describe('admittedWrites', () => {
   it('rolls a refused step removal back and announces nothing', async () => {
     const log: string[] = [];
     const writes = createAdmittedWrites({
+      commandAccess: localCommandAccess,
       uow: recordingUnitOfWork(log),
       batch: (_scope, broadcast) => ({
         projects: { updateWithin: () => Promise.reject(new Error('not asked')) },
@@ -75,10 +86,44 @@ describe('admittedWrites', () => {
       announcements: silent(log),
     });
 
-    expect(await writes.removeStepWithin('p', 's', 'u', true, LEGACY_ACCESS)).toEqual({
+    expect(
+      await writes.removeStepWithin(
+        'p',
+        's',
+        { id: 'u', username: 'u', scopes: ['write'] },
+        true,
+        LEGACY_ACCESS,
+      ),
+    ).toEqual({
       ok: false,
       reason: 'dependency_cycle',
     });
     expect(log).toEqual(['begin', 'remove', 'rollback']);
   });
+});
+
+it('refuses current command authority before constructing a direct-write graph', async () => {
+  const log: string[] = [];
+  const writes = createAdmittedWrites({
+    commandAccess: {
+      resolve: () => Promise.resolve({ ok: false, refusal: 'no_active_organization' }),
+    },
+    uow: recordingUnitOfWork(log),
+    batch: () => {
+      throw new Error('refused authority reached graph');
+    },
+    announcements: silent(log),
+  });
+  expect(
+    await writes.updateProjectWithin(
+      'p',
+      { id: 'u', username: 'u', scopes: ['write'] },
+      {},
+      LEGACY_ACCESS,
+    ),
+  ).toEqual({
+    ok: false,
+    refusal: 'no_active_organization',
+  });
+  expect(log).toEqual(['begin', 'rollback']);
 });

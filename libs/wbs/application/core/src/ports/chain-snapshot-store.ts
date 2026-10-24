@@ -1,5 +1,7 @@
 import type { CapacityMode } from '@wbs/domain';
 
+import type { ConnectedPlanCapture } from '../service/connected-plan-values';
+import type { ExecutionReads } from './execution-read-values';
 import type {
   OrganizationPrincipal,
   RefusedOrganizationAccess,
@@ -24,6 +26,8 @@ export interface ChainSnapshot {
     readonly project: Project;
     readonly assignments: PlanInputReads['assignments'];
   }[];
+  /** Complete connected evidence, read only within this admitted observation. */
+  captureConnected(projectId: string): Promise<ConnectedPlanCapture>;
   capturePlan(projectId: string): Promise<PlanInputReads>;
   /** Capture-mode reads select cache entries without admitting solver work. */
   readonly scheduler: CapturedScheduler;
@@ -45,6 +49,17 @@ export interface ChainSnapshotStore {
 
 /** Detached live evidence; SQLite owns the distinction between ordinary and command lifetimes. */
 export interface LivePlanStore {
+  /** Scheduler-free detached facts; command readers borrow their existing write observation. */
+  readExecution(
+    projectId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+  ): Promise<
+    | { readonly kind: 'ready'; readonly reads: ExecutionReads }
+    | { readonly kind: 'not_found' }
+    | { readonly kind: 'unknown_team' }
+    | { readonly kind: 'access_refused'; readonly refusal: RefusedOrganizationAccess['refusal'] }
+  >;
   read(projectId: string, access: ResourceAccess): Promise<LivePlanRead>;
   /** Adds detached export-only catalogs and markers before the same observation closes. */
   readExport(projectId: string, access: ResourceAccess): Promise<LivePlanExportRead>;

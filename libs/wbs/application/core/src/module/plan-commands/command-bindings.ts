@@ -1,7 +1,7 @@
 import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
-import type { DependencyEndpoint } from '@wbs/domain';
+import type { ScopedDependencyEndpoint } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
@@ -24,14 +24,20 @@ export type CommandBindings = {
   ) => Promise<AppliedFor<K>>;
 };
 
-function bindTypedEndpoint(
+export function bindTypedEndpoint(
   endpoint: CommandFor<'addTypedDependency'>['predecessor'],
   context: CommandContext,
-): DependencyEndpoint {
-  const workItemId = context.required(endpoint.workItemId, endpoint.workItemRef);
+): ScopedDependencyEndpoint {
+  // Proof: preserve-explicit-project bypass failed `mounted external authoring stays dormant`'s selected assertion
+  // (actual SQLite boundary; watched 2026-10-22).
+  const projectId = endpoint.projectId ?? context.requireProjectId();
+  const workItemId = context.required(
+    endpoint.workItemId,
+    'workItemRef' in endpoint ? endpoint.workItemRef : undefined,
+  );
   return endpoint.scope === 'whole'
-    ? { scope: 'whole', workItemId }
-    : { scope: endpoint.scope, workItemId, stepId: endpoint.stepId };
+    ? { scope: 'whole', projectId, workItemId }
+    : { scope: endpoint.scope, projectId, workItemId, stepId: endpoint.stepId };
 }
 
 /** Stops one binding while retaining the command position and typed refusal. */
@@ -129,6 +135,11 @@ export class CommandContext {
     switch (outcome.reason) {
       case 'not_startable':
         return this.refuse({ reason: outcome.reason, detail: { status: outcome.status } });
+      case 'prerequisites_unmet':
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { stepIds: [...outcome.stepIds], blockers: [...outcome.blockers] },
+        });
       case 'step_done':
         return this.refuse({ reason: outcome.reason, detail: { stepIds: [...outcome.stepIds] } });
       case 'already_claimed':
@@ -210,7 +221,11 @@ export class CommandContext {
   }
 
   private refuseOutcome(outcome: ServiceRefusal): never {
-    if (outcome.reason === 'descendant_step_on_leaf' || outcome.reason === 'node_on_parent') {
+    if (
+      outcome.reason === 'descendant_step_on_leaf' ||
+      outcome.reason === 'node_on_parent' ||
+      outcome.reason === 'referenced_by_external_dependency'
+    ) {
       // Proof: bypassing this guard made the command-boundary negative throw
       // CommandRefused instead of naming absent relationship ids; watched 2026-09-27.
       if (outcome.dependencyIds === undefined)

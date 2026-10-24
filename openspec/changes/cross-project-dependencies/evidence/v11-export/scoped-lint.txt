@@ -1,0 +1,49 @@
+
+ NX   Running target lint for 5 projects:
+
+- wbs-contracts
+- wbs-core
+- wbs-store-sqlite
+- wbs-be-01
+- wbs-fe-01
+
+
+
+> nx run wbs-contracts:lint
+
+
+> nx run wbs-core:lint
+
+wbs-contracts: (node:959975) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+wbs-contracts: (Use `node --trace-warnings ...` to show where the warning was created)
+wbs-core: (node:959981) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+wbs-core: (Use `node --trace-warnings ...` to show where the warning was created)
+
+> nx run wbs-store-sqlite:lint
+
+wbs-store-sqlite: (node:961435) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+wbs-store-sqlite: (Use `node --trace-warnings ...` to show where the warning was created)
+
+> nx run wbs-be-01:lint
+
+wbs-be-01: (node:963400) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+wbs-be-01: (Use `node --trace-warnings ...` to show where the warning was created)
+
+> nx run wbs-fe-01:lint
+
+wbs-fe-01: (node:963531) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+wbs-fe-01: (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+
+ NX   Successfully ran target lint for 5 projects
+
+
+  Run duration:      3m 16s
+  Cache:             0/5 hit (0%)
+  Critical path:     2m 1s (1 task)
+  Recoverable time:  1m 14s (38% of the run)
+
+  Recommendations:
+    - Increase parallelism to recover up to 1m 14s → https://nx.dev/docs/concepts/ci-concepts/parallelization-distribution?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=parallelization.
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.

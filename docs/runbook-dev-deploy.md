@@ -51,7 +51,8 @@ design trades for its speed — know which row your change is in:
 
 | Change                                                          | What carries it                                                                                                                                                                                                                                                             |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App source under `apps/wbs/*/src`                               | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
+| Ordinary app source under `apps/wbs/*/src`                      | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
+| MCP document generation inputs (listed below)                   | `tool-devsync` restarts the container; the Nx MCP serve target reruns uncached preparation from the new checkout before serving tools.                                                                                                                                      |
 | `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                                                                                                                             |
 | A migration under `apps/wbs/mcp-01/drizzle`                     | mcp-01's watcher: the SQL is imported as text, so the process restarts and migrates its store at boot. A refused store keeps mcp-01 down with the reason in its log.                                                                                                        |
 | A migration under `apps/wbs/be-01/drizzle`                      | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                                                         |
@@ -60,6 +61,17 @@ design trades for its speed — know which row your change is in:
 | `deploy/dev-src/Dockerfile`                                     | **The deploy fails and names the fix** (`RECREATE_PATHS`, since 2026-08-04). Rebuild the image on h2puni from `deploy/dev-src`, then recreate.                                                                                                                              |
 | `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                                                |
 | Per-tier `apps/wbs/<tier>/.env`                                 | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container. `tool-devsync` refuses the deploy before reset when mcp-01's or be-01's file lacks a required key (`assertMcpEnv`, `assertBeEnv`).                                           |
+
+MCP's generated document is read at startup, so its inputs require a supervisor
+restart rather than only Bun's runtime watcher: all of
+`libs/wbs/domain/contracts/src` (including command definitions outside `http`),
+`apps/wbs/be-01/src/openapi`, `libs/wbs/domain/validation/src`, and
+`libs/shared/domain/validation/src`, plus those three libraries' `tsconfig.json`
+files. The emitter imports the contracts registry; its only source-library
+boundary is WBS validation, which reexports shared validation. External schema
+packages are covered by `bun.lock`, and root/application alias configuration
+already has restart coverage. A contract-only push therefore regenerates MCP's
+tool table before the restarted MCP serves it. No generated snapshot is pushed.
 
 be-01 boots only with the three organization default limits (`wbs-organization-limits` L7) in
 `/home/puni1/wbs-dev/src/apps/wbs/be-01/.env`:
@@ -209,8 +221,13 @@ after their reviewed commit lands on `main`:
 scp bin/dev-poll.sh h2puni:/home/puni1/wbs-dev/bin/poll.next.sh
 scp bin/dev-poll-sync.sh h2puni:/home/puni1/wbs-dev/bin/dev-poll-sync.next.sh
 scp .bun-version h2puni:/home/puni1/wbs-dev/bin/bun-version.next
-ssh h2puni 'flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
-  "bun_version=\$(cat /home/puni1/wbs-dev/bin/bun-version.next) && \
+ssh h2puni 'if test ! -d /home/puni1/wbs/state || test -L /home/puni1/wbs/state; then echo invalid canonical edge state >&2; exit 1; fi; test -f /home/puni1/wbs/state/edge.lock && test ! -L /home/puni1/wbs/state/edge.lock && flock -n /home/puni1/wbs/state/edge.lock flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
+  "set -eu; \
+   for marker in edge-owner.json edge-owner.pending; do \
+     retained=\$(find /home/puni1/wbs/state -mindepth 1 -maxdepth 1 -name \"\$marker\" -print); \
+     if test -n \"\$retained\"; then echo owner-admission-closed >&2; exit 1; fi; \
+   done; \
+   bun_version=\$(cat /home/puni1/wbs-dev/bin/bun-version.next) && \
    bun_source=\$(command -v bun) && \
    test \"\$(\"\$bun_source\" --version)\" = \"\$bun_version\" && \
    install -m 0755 \"\$bun_source\" /home/puni1/wbs-dev/bin/bun.next && \
@@ -222,6 +239,29 @@ ssh h2puni 'flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
     /home/puni1/wbs-dev/bin/dev-poll-sync.sh && \
    mv /home/puni1/wbs-dev/bin/poll.next.sh /home/puni1/wbs-dev/bin/poll.sh"'
 ```
+
+Proof: removing the retained-marker refusal from this exact SSH recipe made both
+local durable-recovery CLI negatives reach interpreter setup instead of refusing.
+Removing the state-root guard likewise made both symlink-root marker negatives
+reach interpreter setup. The recipe refuses symlink or non-directory canonical
+state before enumerating markers.
+
+Recovery requires existing readable canonical edge state and absence of both owner
+markers. A retained marker, malformed/unreadable marker or pending publication
+closes recovery; do not remove it to force an install. This manual recipe uses
+fixed staging names, so serialize operators before staging and verify the selected
+source copies and interpreter separately. Its multiple renames can leave a partial
+installation on failure; inspect every installed copy under both locks before
+retrying. It is not an installed-adoption or prior-holder-drain proof.
+
+For the swap/smoke bundles, use `bunx nx run tool-remote-scripts:install --
+--host=h2puni --env=dev --execute` (omit `--execute` to review). That installer
+uses unique staging, compares both staged identities, and holds the canonical
+edge lock through both replacements and installed-byte verification. It refuses
+retained owner state and a missing lock. Each rename is atomic; the pair is not.
+A transport failure means publication may be partial or uncertain; inspect both
+installed hashes and any reported invocation staging under `edge.lock` before
+retrying. This command does not replace the poller or publish owner state.
 
 `.bun-version` is the poller's version source of truth. On a Bun bump, update that file first,
 install the matching interpreter, and rerun the whole lock-held block so the binary and installed
@@ -335,3 +375,14 @@ the requested commit. The dev backend recovered after a container restart, and
 `/health` reported `e8894d0`; that health response proves the running dev revision,
 not the interrupted gate's result. Use an isolated worktree for the replacement
 exact-SHA gate.
+
+### Read-only installed-writer inventory prerequisite
+
+Before claiming installed admission, follow the [prod/dev capture inventory
+procedure](runbook-prod-deploy.md#read-only-installed-writer-capture-inventory).
+It requires reviewed expectations independent of captured host bytes for both
+environments, including durable dev poller/helper and interpreter. Manual launcher
+copies and captured launch/restart configuration remain declared surfaces, with
+loaded cron/systemd/Docker authority and the solver supervisor unresolved. The
+offline command always returns blocked activation; it performs no installation,
+restart, prior-holder drain, owner publication or live host acceptance.

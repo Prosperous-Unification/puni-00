@@ -1,0 +1,26 @@
+libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts(570,15): error TS2322: Type '{ stepId?: undefined; scope: "whole"; workItemId: string; } | { scope: "descendant-step" | "node"; workItemId: string; stepId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+  Type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+    Type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' is not assignable to type '{ readonly scope: "whole"; readonly workItemId: string; } & { readonly projectId: string; }'.
+      Property 'projectId' is missing in type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' but required in type '{ readonly projectId: string; }'.
+libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts(571,15): error TS2322: Type '{ stepId?: undefined; scope: "whole"; workItemId: string; } | { scope: "descendant-step" | "node"; workItemId: string; stepId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+  Type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+    Type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' is not assignable to type '{ readonly scope: "whole"; readonly workItemId: string; } & { readonly projectId: string; }'.
+      Property 'projectId' is missing in type '{ stepId?: undefined; scope: 'whole'; workItemId: string; }' but required in type '{ readonly projectId: string; }'.
+libs/wbs/application/core/src/service/compensating.test.ts(36,27): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ do: "add_typed_dependency"; dependency: { id: string; projectId: string; type: string; predecessor: { scope: string; workItemId: string; projectId: string; }; successor: { scope: string; workItemId: string; stepId: string; projectId: string; }; }; }' is not assignable to parameter of type 'CompensatingCommand'.
+      Types of property 'dependency' are incompatible.
+        Type '{ id: string; projectId: string; type: string; predecessor: { scope: string; workItemId: string; projectId: string; }; successor: { scope: string; workItemId: string; stepId: string; projectId: string; }; }' is not assignable to type 'StoredTypedDependency'.
+          Type '{ id: string; projectId: string; type: string; predecessor: { scope: string; workItemId: string; projectId: string; }; successor: { scope: string; workItemId: string; stepId: string; projectId: string; }; }' is not assignable to type 'ScopedTypedDependency'.
+            Types of property 'predecessor' are incompatible.
+              Type '{ scope: string; workItemId: string; projectId: string; }' is not assignable to type 'ScopedDependencyEndpoint'.
+                Type '{ scope: string; workItemId: string; projectId: string; }' is not assignable to type '{ readonly scope: "descendant-step"; readonly workItemId: string; readonly stepId: string; } & { readonly projectId: string; }'.
+                  Property 'stepId' is missing in type '{ scope: string; workItemId: string; projectId: string; }' but required in type '{ readonly scope: "descendant-step"; readonly workItemId: string; readonly stepId: string; }'.
+libs/wbs/application/core/src/service/compensating.test.ts(50,25): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ do: "batch"; steps: ({ steps: CompensatingCommand[]; do: "remove_typed_dependency"; } | { deletionState?: DeletionState; rootId: string; expectedSubtree: string[]; remove: string[]; ... 6 more ...; do: "remove_typed_dependency"; } | ... 26 more ... | { ...; })[]; }' is not assignable to parameter of type 'CompensatingCommand'.
+      Types of property 'steps' are incompatible.
+        Type '({ steps: CompensatingCommand[]; do: "remove_typed_dependency"; } | { deletionState?: DeletionState | undefined; rootId: string; expectedSubtree: string[]; ... 7 more ...; do: "remove_typed_dependency"; } | ... 26 more ... | { ...; })[]' is not assignable to type 'CompensatingCommand[]'.
+          Type '{ steps: CompensatingCommand[]; do: "remove_typed_dependency"; } | { deletionState?: DeletionState | undefined; rootId: string; expectedSubtree: string[]; ... 7 more ...; do: "remove_typed_dependency"; } | ... 26 more ... | { ...; }' is not assignable to type 'CompensatingCommand'.
+            Type '{ steps: CompensatingCommand[]; do: "remove_typed_dependency"; }' is not assignable to type 'CompensatingCommand'.
+              Property 'dependency' is missing in type '{ steps: CompensatingCommand[]; do: "remove_typed_dependency"; }' but required in type '{ do: "remove_typed_dependency"; dependency: StoredTypedDependency; }'.

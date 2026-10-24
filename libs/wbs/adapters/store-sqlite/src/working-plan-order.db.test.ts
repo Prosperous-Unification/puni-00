@@ -17,6 +17,8 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -24,6 +26,7 @@ import { expect, it } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -64,7 +67,10 @@ async function sqliteEstimateRunner(name: string) {
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   await source.stores.users.create(
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
     STAMP,
@@ -95,8 +101,10 @@ async function sqliteEstimateRunner(name: string) {
     clock,
     broadcast: silentBroadcaster,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: silentBroadcaster,
     publicServices: publicGraph,
@@ -106,6 +114,7 @@ async function sqliteEstimateRunner(name: string) {
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(scope.stores),
       }),
   });
   return {
@@ -212,7 +221,10 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -293,7 +305,10 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -352,7 +367,10 @@ it('advances SQLite assignment and directory cascades before the next runner com
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -393,6 +411,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const assignmentObservations: { retained: number | undefined; stored: number | undefined }[] =
@@ -402,6 +421,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
     let storedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
     const admitted = captureAdmittedStores(source.uow);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -529,7 +549,10 @@ it('rolls back a successful directory write when its retained reload fails', asy
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -601,9 +624,11 @@ it('rolls back a successful directory write when its retained reload fails', asy
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: failingUow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -635,7 +660,10 @@ it('places every new subtree row and value group in SQLite authoritative order',
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -800,7 +828,10 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -860,10 +891,12 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const admitted = captureAdmittedStores(source.uow);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -954,7 +987,10 @@ it('refreshes a dependency survivor before the next runner command and preserves
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -1000,6 +1036,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let retainedBeforeNext: number | undefined;
@@ -1007,6 +1044,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
     let observeDependencyRemoval = true;
     const admitted = captureAdmittedStores(source.uow);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -1073,7 +1111,10 @@ it('keeps every SQLite value group in source order after runner sets populate an
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
   activateTestStepBlockages(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
 
   try {
     await source.stores.users.create(
@@ -1124,11 +1165,13 @@ it('keeps every SQLite value group in source order after runner sets populate an
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let observations = 0;
     const admitted = captureAdmittedStores(source.uow);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,

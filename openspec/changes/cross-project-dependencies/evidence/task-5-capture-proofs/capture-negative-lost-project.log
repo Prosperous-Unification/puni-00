@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+357 |     return original.call(this,projectId,organizationId);
+358 |   });
+359 |   try {
+360 |     expect((await failureOf(snapshots().withSnapshot({id:'ada'},'a1',async (snapshot) => {
+361 |       await snapshot.captureConnected('a1'); return {kind:'not_found'};
+362 |     }))).message).toContain('disappeared inside snapshot');
+                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "disappeared inside snapshot"
+Received: "null is not an object (evaluating 'reads.typedDependencies')"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:362:19)
+(fail) refuses a project lost by the full-input reader after topology admission [152.24ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.18s]

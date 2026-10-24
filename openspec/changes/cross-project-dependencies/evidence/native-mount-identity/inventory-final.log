@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:
+(pass) complete native identity accepts every container mount permutation without changing raw inputs or entries [1.04ms]
+(pass) complete native identity refuses non-array Mounts undefined [0.08ms]
+(pass) complete native identity refuses non-array Mounts null [0.01ms]
+(pass) complete native identity refuses non-array Mounts {} [0.09ms]
+(pass) complete native identity refuses non-array Mounts "mounts" [0.04ms]
+(pass) complete native identity refuses malformed mount entry null [0.12ms]
+(pass) complete native identity refuses malformed mount entry [] [0.01ms]
+(pass) complete native identity refuses malformed mount entry "mount" [0.01ms]
+(pass) complete native identity refuses malformed mount entry 1 [0.01ms]
+(pass) complete native identity refuses malformed mount entry {}
+(pass) complete native identity refuses noncanonical destination "" [0.03ms]
+(pass) complete native identity refuses noncanonical destination "relative" [0.02ms]
+(pass) complete native identity refuses noncanonical destination "/a/../b" [0.02ms]
+(pass) complete native identity refuses noncanonical destination "/a//b" [0.01ms]
+(pass) complete native identity refuses noncanonical destination "/a/" [0.01ms]
+(pass) complete native identity refuses noncanonical destination "/a/." [0.01ms]
+(pass) complete native identity refuses noncanonical destination "/a\u0000b" [0.02ms]
+(pass) complete native identity refuses duplicate destinations even when entries are identical [0.06ms]
+(pass) complete native identity permits the canonical root destination and empty mounts [0.10ms]
+(pass) complete native identity retains unrelated field changes [0.13ms]
+(pass) complete native identity retains unrelated missing changes [0.08ms]
+(pass) complete native identity retains unrelated additional changes [0.06ms]
+(pass) complete native identity retains unrelated config changes [0.09ms]
+(pass) complete native identity retains unrelated host changes [0.10ms]
+(pass) complete native identity retains unrelated process changes [0.08ms]
+(pass) complete native identity retains unrelated membership changes [0.05ms]
+(pass) distinct Unicode destinations retain exact strings and a total permutation order [0.07ms]
+(pass) complete native identity refuses an inherited destination instead of a complete native entry [0.04ms]
+(pass) complete native identity refuses array-like objects as Mounts [0.03ms]
+(pass) complete native identity refuses an array mount entry with a named Destination [0.03ms]
+
+ 30 pass
+ 0 fail
+ 42 expect() calls
+Ran 30 tests across 1 file. [42.00ms]

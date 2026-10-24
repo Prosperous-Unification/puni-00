@@ -502,3 +502,39 @@ offer no rotate control. Loss of access SHALL withdraw the panel with the page.
 
 - **WHEN** a viewer views the organization page
 - **THEN** the credentials panel is not rendered and no credentials request is sent
+
+### Requirement: Retained command principals recheck current credential bindings on the writer
+
+Every authenticated machine or consent write SHALL read its credential by its verified
+credential ID inside the admitted SQLite writer turn, from that same database, before
+command graph creation, fan-out capture, prelude or mutation. Missing or revoked credentials,
+changed person or bound account, absent delegation context, changed organization, a machine
+credential whose current source is `mcp_consent`, and a consent whose source or non-direct
+MCP family no longer matches SHALL refuse the retained operation with the typed
+`409 organization_context_changed` conflict. This conflict describes changed operation
+context after request admission; initial credential authentication continues to answer
+`401 unknown_identity`. Current membership alone SHALL NOT preserve a revoked credential's
+authority. Missing, unreadable or malformed trusted credential storage SHALL throw a server
+fault with no fallback. The writer check SHALL be read-only and SHALL NOT reacquire the
+writer, touch last-use timestamps or consume delegation evidence.
+
+This row-based check does not promise verifier token/delegation expiry or rotated-secret
+expiry revalidation while queued. Preserving verified expiry and source evidence, and the
+restricted-project recovery role ceiling, remain separate work.
+
+#### Scenario: Revocation while waiting for the writer
+
+- **GIVEN** a machine or consent principal has authenticated and remains an organization member
+- **WHEN** its credential is revoked before its queued command, directory edit, undo, redo or prelude receives the writer
+- **THEN** admission refuses with `organization_context_changed` before any command, history, audit or event effect
+- **AND** a direct authenticated runner receives the same typed refusal
+
+#### Scenario: Bound authority changes without membership removal
+
+- **WHEN** a retained principal's credential is missing, revoked, rebound to another account or person, moved to another organization, or carries an incompatible source or consent family
+- **THEN** the writer refuses it as changed operation context without creating a write graph or capture
+
+#### Scenario: Trusted credential storage fails
+
+- **WHEN** credential storage is absent, unreadable, or has malformed source or revocation state
+- **THEN** writer admission throws before effects rather than admitting the retained principal or reopening legacy authority

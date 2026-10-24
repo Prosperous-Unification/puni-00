@@ -1,7 +1,9 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { planDocumentRequestFromJson } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import mountedTransfer from '@/testing/fixtures/connected-transfer.json';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
@@ -623,10 +625,37 @@ describe('sharing the plan', () => {
     const exported = {
       document: {
         format: 'wbs-plan',
-        version: 1,
+        version: 11,
         exportedAt: '2026-09-14T08:30:00.000Z',
       },
       settings: { name: 'Rewire the shed' },
+      typedDependencies: [
+        {
+          id: 'incoming',
+          type: 'FS',
+          predecessor: {
+            kind: 'external',
+            scope: 'whole',
+            projectId: 'remote-project',
+            workItemId: 'remote-row',
+            display: {
+              projectName: 'Remote',
+              abbreviation: 'REM',
+              workItemName: 'Build',
+              address: 'REM.010',
+            },
+          },
+          successor: { kind: 'internal', scope: 'whole', workItem: filtered.id },
+        },
+      ],
+      connected: {
+        kind: 'connected',
+        projectId: 'p1',
+        mode: 'isolated',
+        projects: [],
+        relationships: [],
+        placement: { kind: 'unavailable', reason: 'cycle' },
+      },
       workItems: [
         { id: parent.id, name: 'Visible parent' },
         { id: collapsed.id, name: 'Collapsed child exact' },
@@ -681,8 +710,48 @@ describe('sharing the plan', () => {
       id: filtered.id,
       name: 'Filtered root exact',
     });
+    expect(downloaded).toMatchObject({
+      document: { version: 11 },
+      typedDependencies: [
+        { predecessor: { projectId: 'remote-project', workItemId: 'remote-row' } },
+      ],
+      connected: { placement: { kind: 'unavailable', reason: 'cycle' } },
+    });
+    expect(collapsedDownload).toMatchObject({
+      connected: { kind: 'connected' },
+      typedDependencies: [{ predecessor: { workItemId: 'remote-row' } }],
+    });
     expect(downloads.revoked).toEqual(['blob:plan-1', 'blob:plan-2']);
   });
+
+  itDom(
+    'downloads the mounted v11 artifact as a Blob with its exact authored transfer set',
+    async () => {
+      const downloads = captureDownloads();
+      const model = fakeApi();
+      const api = {
+        ...model,
+        exportPlan: () =>
+          Promise.resolve(
+            mountedTransfer as unknown as Awaited<ReturnType<typeof model.exportPlan>>,
+          ),
+      };
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      await screen.findByRole('button', { name: 'Download JSON' });
+      click('Download JSON');
+      await waitFor(() => {
+        expect(downloads.blobs).toHaveLength(1);
+      });
+      const blob = downloads.blobs.at(0);
+      if (blob === undefined) throw new Error('download Blob missing');
+      const json = new TextDecoder().decode(await readBlobBytes(blob));
+      expect(JSON.parse(json)).toEqual(mountedTransfer);
+      const request = await planDocumentRequestFromJson(json);
+      expect(request.typedDependencies).toEqual(mountedTransfer.typedDependencies);
+      expect(request).not.toHaveProperty('connected');
+      expect(request).not.toHaveProperty('connectedDependencies');
+    },
+  );
 
   itDom('reports a rejected JSON download and creates no file', async () => {
     const downloads = captureDownloads();
@@ -1161,6 +1230,7 @@ describe('the project’s settings behind one control', () => {
     expect(
       [...dialog.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
     ).toEqual([
+      'General',
       'Teams',
       'Priorities',
       'Steps',

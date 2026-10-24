@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:
+(pass) refuses corrupt authority without mutation: DELETE FROM cross_project_dependency_activation [2611.49ms]
+(pass) refuses corrupt authority without mutation: DROP TABLE cross_project_dependency_activation_receipt [2405.13ms]
+(pass) refuses corrupt authority without mutation: DROP TABLE cross_project_dependency_activation [2461.74ms]
+(pass) refuses corrupt authority without mutation: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [2394.13ms]
+(pass) refuses corrupt authority without mutation: UPDATE cross_project_dependency_activation SET state='ENABLED'; INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [2404.33ms]
+(pass) refuses corrupt authority without mutation: DROP TABLE __drizzle_migrations [2373.61ms]
+(pass) refuses corrupt authority without mutation: DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation' [2387.43ms]
+(pass) refuses corrupt authority without mutation: UPDATE cross_project_dependency_activation SET state='ENABLED' [2387.87ms]
+(pass) refuses corrupt authority without mutation: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [2394.95ms]
+(pass) refuses corrupt authority without mutation: DROP TRIGGER external_dependency_admit_update [2392.49ms]
+
+ 10 pass
+ 12 filtered out
+ 0 fail
+ 30 expect() calls
+Ran 10 tests across 1 file. [26.75s]

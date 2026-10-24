@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+154 |
+155 | test('direct runner refuses a scoped expectation while current authority is legacy', async () => {
+156 |   harness = OrganizationHarness.openComposedWith({ sessionBinding: true });
+157 |   await harness.register('ada');
+158 |   const principal = await harness.authenticatedCommandPrincipal('ada', '');
+159 |   expect(await harness.publicCommands().runDirectoryWithin(principal, [], { kind: 'scoped', scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' } })).toEqual({ ok: false, refusal: 'organization_context_changed' });
+                                                                                                                                                                                    ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "ok": false,
+-   "refusal": "organization_context_changed",
++   "ok": true,
++   "redoable": false,
++   "results": [],
++   "undoable": false,
+  }
+
+- Expected  - 2
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:159:175)
+(fail) direct runner refuses a scoped expectation while current authority is legacy [246.68ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.37s]

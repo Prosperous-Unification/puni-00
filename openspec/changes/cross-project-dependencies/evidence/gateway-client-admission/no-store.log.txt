@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/http/elysia/gateway-dependency.db.test.ts:
+94 |   try {
+95 |     expect((await request(undefined, 'wrong')).status).toBe(401);
+96 |     expect(inspections).toBe(0);
+97 |     const legacy = await request();
+98 |     expect(legacy.status).toBe(204);
+99 |     expect(legacy.headers.get('cache-control')).toBe('no-store');
+                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: "no-store"
+Received: null
+
+      at <anonymous> (/tmp/puni-client-gateway/apps/wbs/be-01/src/http/elysia/gateway-dependency.db.test.ts:99:49)
+(fail) internal gateway admission authenticates first and freshly refuses incompatible upgrades [4843.33ms]
+
+ 0 pass
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [9.62s]

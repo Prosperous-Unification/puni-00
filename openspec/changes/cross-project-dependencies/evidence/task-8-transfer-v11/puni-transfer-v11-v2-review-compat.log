@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+Internal error: directory mismatch for directory "/tmp/puni-transfer-v11/tsconfig.base.json", fd 3. You don't need to do anything, but this indicates a bug.
+
+../puni-transfer-v11-v2-review-compat.test.ts:
+(pass) review: v1 preserves local conversion and refuses stable external identity on either side [12.96ms]
+(pass) review: v2 preserves local conversion and refuses stable external identity on either side [1.48ms]
+(pass) review: v3 preserves local conversion and refuses stable external identity on either side [1.44ms]
+(pass) review: v4 preserves local conversion and refuses stable external identity on either side [4.46ms]
+(pass) review: v5 preserves local conversion and refuses stable external identity on either side [2.74ms]
+(pass) review: v6 preserves local conversion and refuses stable external identity on either side [1.57ms]
+(pass) review: v7 preserves local conversion and refuses stable external identity on either side [3.71ms]
+(pass) review: v8 preserves local conversion and refuses stable external identity on either side [1.27ms]
+(pass) review: v9 preserves local conversion and refuses stable external identity on either side [1.19ms]
+(pass) review: v10 preserves local conversion and refuses stable external identity on either side [1.21ms]
+
+ 10 pass
+ 0 fail
+ 40 expect() calls
+Ran 10 tests across 1 file. [2.07s]

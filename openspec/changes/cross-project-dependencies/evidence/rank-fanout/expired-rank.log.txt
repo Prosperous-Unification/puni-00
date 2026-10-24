@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+812 |       connection.db.run(sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${`${projectId}-row`}, ${projectId}, 10, ${projectId})`);
+813 |     connection.db.run(sql.raw("INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'a1', 'a2', 'a1-row', 'whole', 'a2-row', 'whole', 'FS')"));
+814 |     expect(readFanoutObservationIn(connection.db, 'org-a', {
+815 |       schedulerOf: () => { throw new Error('isolated capture cannot schedule'); },
+816 |     }, lifetime)).rejects.toThrow('snapshot');
+817 |     expect(read).not.toHaveBeenCalled();
+                           ^
+error: expect(received).not.toHaveBeenCalled()
+
+Expected number of calls: 0
+Received number of calls: 1
+
+      at <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:817:22)
+(fail) refuses expired rank evidence before reading a dependency member [141.70ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.21s]

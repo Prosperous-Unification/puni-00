@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+{"level":"error","time":1792701135689,"service":"be-01","err":{"occurrence_id":"AE_E95M9MJPK26RG8ZJVCFJD38KTA","fingerprint":"fp1_a40bb1bd967d8dac076adaa48c58fc00","stack":["Error: descendant-step endpoint of 74e3d7f6-c8de-41c5-a574-580bf8813052 names 7082ab78-f4ae-42b2-b14f-33e071f9d819, which is a leaf","    at resolveEndpoint (/tmp/puni-node-authoring-proofs/libs/wbs/domain/domain/src/slice-edges.ts:392:15)","    at resolveAuthoredEdges (/tmp/puni-node-authoring-proofs/libs/wbs/domain/domain/src/slice-edges.ts:302:18)","    at resolveConnectedGraph (/tmp/puni-node-authoring-proofs/libs/wbs/domain/domain/src/connected-step-node.ts:123:10)","    at findCycle (/tmp/puni-node-authoring-proofs/libs/wbs/application/core/src/service/dependency-graph.ts:215:37)","    at async <anonymous> (/tmp/puni-node-authoring-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6789:43)","    at async withDependencyContext (/tmp/puni-node-authoring-proofs/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+3899 |       .commands(false)
+3900 |       .map((command, index) => (index === 3 ? { ...command, predecessor } : command));
+3901 |     const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+3902 |       commands,
+3903 |     });
+3904 |     expect(response.status).toBe(shape === 'wrong-project-step' ? 404 : 409);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 500
+
+      at <anonymous> (/tmp/puni-node-authoring-proofs/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:3904:29)
+(fail) node authoring mounted and direct parity refuses descendant-leaf with full rollback [565.27ms]
+
+ 0 pass
+ 128 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [3.65s]

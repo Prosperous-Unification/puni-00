@@ -1,0 +1,135 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:
+32 | }
+33 | test('complete native identity accepts every container mount permutation without changing raw inputs or entries', () => {
+34 |   const containers = inventory();
+35 |   const before = structuredClone(containers);
+36 |   const baseline = identifyInventory(containers);
+37 |   expect(containers).toEqual(before);
+                          ^
+error: expect(received).toEqual(expected)
+
+@@ -32,28 +32,28 @@
+      },
+      "Id": "1111111111111111111111111111111111111111111111111111111111111111",
+      "Image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "Mounts": [
+        {
++         "Destination": "/a",
++         "Driver": "local",
++         "Name": "source-volume",
++         "RW": false,
++         "Source": "/fixture/source/a",
++         "Type": "volume",
++       },
++       {
+          "Destination": "/z",
+          "Extension": {
+            "flag": "kept",
+          },
+          "Mode": "rw",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/fixture/source/z",
+          "Type": "bind",
+        },
+-       {
+-         "Destination": "/a",
+-         "Driver": "local",
+-         "Name": "source-volume",
+-         "RW": false,
+-         "Source": "/fixture/source/a",
+-         "Type": "volume",
+-       },
+      ],
+      "Name": "/source",
+      "NetworkSettings": {
+        "Networks": {
+          "wbs-dev-net": {
+@@ -109,10 +109,18 @@
+        },
+      },
+      "Id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "Image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "Mounts": [
++       {
++         "Destination": "/a",
++         "Driver": "local",
++         "Name": "caddy-volume",
++         "RW": false,
++         "Source": "/fixture/caddy/a",
++         "Type": "volume",
++       },
+        {
+          "Destination": "/z",
+          "Extension": {
+            "flag": "kept",
+          },
+@@ -120,18 +128,10 @@
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/fixture/caddy/z",
+          "Type": "bind",
+        },
+-       {
+-         "Destination": "/a",
+-         "Driver": "local",
+-         "Name": "caddy-volume",
+-         "RW": false,
+-         "Source": "/fixture/caddy/a",
+-         "Type": "volume",
+-       },
+      ],
+      "Name": "/caddy",
+      "NetworkSettings": {
+        "Networks": {
+          "wbs-dev-net": {
+@@ -188,27 +188,27 @@
+      },
+      "Id": "3333333333333333333333333333333333333333333333333333333333333333",
+      "Image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "Mounts": [
+        {
++         "Destination": "/a",
++         "Driver": "local",
++         "Name": "unrelated-volume",
++         "RW": false,
++         "Source": "/fixture/unrelated/a",
++         "Type": "volume",
++       },
++       {
+          "Destination": "/z",
+          "Extension": {
+            "flag": "kept",
+          },
+          "Mode": "rw",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/fixture/unrelated/z",
+          "Type": "bind",
+-       },
+-       {
+-         "Destination": "/a",
+-         "Driver": "local",
+-         "Name": "unrelated-volume",
+-         "RW": false,
+-         "Source": "/fixture/unrelated/a",
+-         "Type": "volume",
+        },
+      ],
+      "Name": "/unrelated",
+      "NetworkSettings": {
+        "Networks": {
+
+- Expected  - 24
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:37:22)
+(fail) complete native identity accepts every container mount permutation without changing raw inputs or entries [1.32ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [45.00ms]

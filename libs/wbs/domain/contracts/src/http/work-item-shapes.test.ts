@@ -50,6 +50,34 @@ test('deadline refusal requires both fields in its exact status declaration', as
   expect((await validateSchema(refusal.schema, missing)).issues).toBeDefined();
 });
 
+test('prerequisite refusal preserves indexed command context and resolved identities', async () => {
+  const refusals = applyProjectCommands.refusals.filter((entry) => entry.status === 409);
+  const body = {
+    error: 'prerequisites_unmet',
+    at: 1,
+    kind: 'claimWorkItem',
+    stepIds: ['target'],
+    blockers: [
+      {
+        workItemId: 'remote',
+        stepId: 'build',
+        type: 'FS',
+        provenance: 'authored',
+        relationshipId: 'dependency',
+      },
+    ],
+  };
+  const readings = await Promise.all(
+    refusals.map(async (refusal) => await refusal.schema.validator['~standard'].validate(body)),
+  );
+  expect(readings.some((reading) => reading.issues === undefined)).toBe(true);
+  const { blockers: _blockers, ...missing } = body;
+  const incomplete = await Promise.all(
+    refusals.map(async (refusal) => await refusal.schema.validator['~standard'].validate(missing)),
+  );
+  expect(incomplete.every((reading) => reading.issues !== undefined)).toBe(true);
+});
+
 test('resources_exhausted declares every short resource, each with its numbers and holders', async () => {
   const conflicts: readonly { schema: SchemaShape<unknown> }[] =
     applyProjectCommands.refusals.filter((entry) => entry.status === 409);

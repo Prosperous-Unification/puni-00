@@ -1,0 +1,9 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-fast-capacity.controller.db.test.ts:
+(pass) mounted connected Fast keeps identical resource catalog IDs in distinct project capacity pools [392.25ms]
+
+ 1 pass
+ 0 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [3.65s]

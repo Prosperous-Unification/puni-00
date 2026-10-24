@@ -1,0 +1,11 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-review-round2-isolated/apps/wbs/fe-01
+
+
+ Test Files  2 passed (2)
+      Tests  13 passed | 38 skipped (51)
+   Start at  07:52:02
+   Duration  23.08s (tests 71%, import 17%, transform 7%, environment 4%, setup 1%)

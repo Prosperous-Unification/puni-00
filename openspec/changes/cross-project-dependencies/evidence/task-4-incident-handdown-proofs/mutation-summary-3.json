@@ -1,0 +1,44 @@
+[
+  {
+    "name": "source-work-item-owner-unmasked",
+    "status": "CAUGHT",
+    "exit": 1,
+    "test": "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+    "pattern": "incident source restoration refuses wrong-work-item-owner"
+  },
+  {
+    "name": "retained-owner-refresh",
+    "status": "CAUGHT",
+    "exit": 1,
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "mixed incident handdown"
+  },
+  {
+    "name": "final-graph-before-reattach",
+    "status": "CAUGHT",
+    "exit": 1,
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts",
+    "pattern": "rolls back every table and held announcement on final-graph-delivery"
+  },
+  {
+    "name": "enum-project-ownership",
+    "status": "CAUGHT",
+    "exit": 1,
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts",
+    "pattern": "incident enumeration refuses"
+  },
+  {
+    "name": "subject-compound-recursion",
+    "status": "CAUGHT",
+    "exit": 1,
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "actual first child"
+  },
+  {
+    "name": "writer-current-credential",
+    "status": "CAUGHT",
+    "exit": 1,
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "rechecks credential"
+  }
+]

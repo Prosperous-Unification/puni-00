@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+93 |   return text;
+94 | }
+95 | // Proof: omitting comparisons let lying-update reach stop; the mounted negative observes the forbidden stop.
+96 | export function assertSame(expected: unknown, observed: unknown, description: string): void {
+97 |   if (JSON.stringify(expected) !== JSON.stringify(observed))
+98 |     throw new Error(`managed cohort ${description} changed or was not excluded`);
+                   ^
+error: managed cohort complete audit inventory changed or was not excluded
+      at assertSame (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/managed-cohort.ts:98:15)
+      at inspectExcludedSourceMember (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:291:3)
+      at async <anonymous> (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:601:19)
+      at async withSourceDevExcluded (/tmp/puni-source-started-binding/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:232:18)
+(fail) source mount order may vary on successive complete inventory observations [113.33ms]
+
+ 0 pass
+ 34 filtered out
+ 1 fail
+Ran 1 test across 1 file. [165.00ms]

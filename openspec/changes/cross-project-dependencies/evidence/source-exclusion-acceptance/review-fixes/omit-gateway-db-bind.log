@@ -1,0 +1,19 @@
+Injected gateway-db-bind; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-topology.test.ts:
+281 |         if (
+282 |           source === familyDirectory ||
+283 |           source.startsWith(`${familyDirectory}/`) ||
+284 |           familyDirectory.startsWith(`${source.replace(/\/$/, '')}/`)
+285 |         )
+286 |           throw new Error('backend fence found an unmanaged writable database-family mount');
+                          ^
+error: backend fence found an unmanaged writable database-family mount
+      at auditUnmanagedMountsCore (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/src/lib/backend-cohort.ts:286:21)
+(fail) rendered stopped gateway remains admissible in strict ordinary unmanaged mount audit [3.78ms]
+
+ 0 pass
+ 1 filtered out
+ 1 fail
+Ran 1 test across 1 file. [48.00ms]

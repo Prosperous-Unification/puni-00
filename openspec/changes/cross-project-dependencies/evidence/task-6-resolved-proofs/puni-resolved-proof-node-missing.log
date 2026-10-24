@@ -1,0 +1,93 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-connected.test.ts:
+138 |     if (fault === 'step')
+139 |       graph.nodes[0] = { kind: 'step', ref: { workItemId: 'a', stepId: 'wrong' }, at: 0 };
+140 |     if (fault === 'position')
+141 |       graph.nodes[0] = { kind: 'step', ref: { workItemId: 'a', stepId: 'build' }, at: 1 };
+142 |     if (fault === 'endpoint') graph.edges.push(edge('a', 1, 'b', 0));
+143 |     expect(() => scheduleResolved({ ...input, graph })).toThrow('resolved graph');
+                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "resolved graph"
+
+Received function did not throw
+Received value: {
+  slices: Map(2) {
+    "a\u0000build": {
+      workItemId: "a",
+      stepId: "build",
+      duration: 1,
+      effort: 1,
+      width: 1,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+      personId: "shared",
+      boundBy: "projectStart",
+      resourcePredecessorId: null,
+      capacityPredecessorIds: [],
+      capacityTeamId: null,
+      lateBy: null,
+    },
+    "b\u0000build": {
+      workItemId: "b",
+      stepId: "build",
+      duration: 1,
+      effort: 1,
+      width: 1,
+      estimated: true,
+      earliestStart: 1,
+      earliestFinish: 2,
+      latestStart: 1,
+      latestFinish: 2,
+      float: 0,
+      critical: true,
+      personId: "shared",
+      boundBy: "person",
+      resourcePredecessorId: "a\u0000build",
+      capacityPredecessorIds: [],
+      capacityTeamId: null,
+      lateBy: null,
+    },
+  },
+  workItems: Map(2) {
+    "a": {
+      duration: 1,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+    },
+    "b": {
+      duration: 1,
+      estimated: true,
+      earliestStart: 1,
+      earliestFinish: 2,
+      latestStart: 1,
+      latestFinish: 2,
+      float: 0,
+      critical: true,
+    },
+  },
+  waitingForPerson: 1,
+  waitingForCapacity: 0,
+  eventsVisited: 0,
+}
+
+      at <anonymous> (/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule-connected.test.ts:143:57)
+(fail) resolved connected placement > refuses missing graph facts instead of changing node meaning [2.82ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [13.00ms]

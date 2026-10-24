@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+603 |     expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual(before);
+604 |     sqlite.run("INSERT INTO work_item(id,project_id,parent_id,position,name,revision) VALUES ('child','a','a',1,'child',0)");
+605 |     const mapped = { ...original, predecessor: { ...original.predecessor, workItemId: 'child' } };
+606 |     await repo.incidents.restore({ ...receipt, dependency: mapped }, original, { at: 4, by: 'u' });
+607 |     expect(await repo.listIncident(['a'])).toEqual([mapped]);
+608 |     expect(stored('SELECT created_at,created_by,updated_at FROM external_dependency')).toEqual([
+                                                                                             ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "created_at": null,
+-     "created_by": null,
++     "created_at": 4,
++     "created_by": "u",
+      "updated_at": 4,
+    },
+  ]
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:608:88)
+(fail) incident detach and restore preserve null creation audit and bump the completed endpoint union once [134.35ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.22s]

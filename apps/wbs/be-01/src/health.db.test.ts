@@ -31,6 +31,7 @@ import {
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -45,6 +46,7 @@ const TEST_SECRET = 'x'.repeat(32);
 describe('GET /health', () => {
   it('returns 200 with status:"ok" when ready', async () => {
     const app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -72,6 +74,7 @@ describe('GET /health', () => {
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
       writes: testWrites(),
@@ -85,6 +88,7 @@ describe('GET /health', () => {
 
   it('returns 503 while migrations still running', async () => {
     const app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -112,6 +116,7 @@ describe('GET /health', () => {
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
       writes: testWrites(),
@@ -136,6 +141,7 @@ describe('/health tells the truth about the database', () => {
     try {
       const { db, close } = openConnection(join(dir, 'empty.db'));
       const app = buildApp({
+        projectAddressSearch: refusingProjectAddressSearch,
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -166,6 +172,7 @@ describe('/health tells the truth about the database', () => {
         internalAuthSecret: TEST_SECRET,
         writes: testWrites(),
         migrationsApplied: true,
+        admitDependencyClient: () => null,
         probeDatabase: () => probeSchema(db),
       });
 
@@ -190,6 +197,7 @@ describe('/health tells the truth about the database', () => {
       runMigrations(path, new URL('../drizzle', import.meta.url).pathname);
       const { db, close } = openConnection(path);
       const app = buildApp({
+        projectAddressSearch: refusingProjectAddressSearch,
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -220,6 +228,7 @@ describe('/health tells the truth about the database', () => {
         internalAuthSecret: TEST_SECRET,
         writes: testWrites(),
         migrationsApplied: true,
+        admitDependencyClient: () => null,
         probeDatabase: () => probeSchema(db),
       });
 
@@ -234,6 +243,7 @@ describe('/health tells the truth about the database', () => {
 
   it('is unhealthy when the probe itself throws', async () => {
     const app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -264,6 +274,7 @@ describe('/health tells the truth about the database', () => {
       internalAuthSecret: TEST_SECRET,
       writes: testWrites(),
       migrationsApplied: true,
+      admitDependencyClient: () => null,
       probeDatabase: () => {
         throw new Error('database is locked');
       },

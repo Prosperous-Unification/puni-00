@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/dependency-context.test.ts:
+23 | }
+24 |
+25 | async function rejects(call: Promise<unknown>, message: string) {
+26 |   const failure: unknown = await call.then(() => null, (error: unknown) => error);
+27 |   expect(failure).toBeInstanceOf(Error);
+28 |   expect(failure instanceof Error ? failure.message : failure).toContain(message);
+                                                                    ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "dependency graph owner is not admitted"
+Received: "unadmitted graph reached dependency evidence"
+
+      at rejects (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/dependency-context.test.ts:28:64)
+      at async <anonymous> (/tmp/puni-cross-command-integration/libs/wbs/application/core/src/service/dependency-context.test.ts:109:9)
+(fail) runner-facing graph inspection requires owner admission before opening local dependency evidence [26.98ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.92s]

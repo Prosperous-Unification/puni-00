@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+179 |   const fixture = await open();
+180 |   expect(await semantic(fixture, (service) => service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input))).toMatchObject({ ok: true });
+181 |   harness.sqlite.query("UPDATE command_journal SET preconditions=json_remove(preconditions, '$.externalRevisions') WHERE kind='add_typed_dependency'").run();
+182 |   const before = effects();
+183 |   const failure: unknown = await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess)).then(() => null, (error: unknown) => error);
+184 |   expect(failure).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:184:19)
+(fail) real SQLite history refuses missing external revision metadata without partial effects [422.08ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [2.53s]

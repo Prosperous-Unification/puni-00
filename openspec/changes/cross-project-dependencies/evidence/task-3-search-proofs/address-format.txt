@@ -1,0 +1,48 @@
+apps/wbs/be-01/src/app.routes.test.ts 290ms (unchanged)
+apps/wbs/be-01/src/app.test.ts 34ms (unchanged)
+apps/wbs/be-01/src/app.ts 54ms (unchanged)
+apps/wbs/be-01/src/boot.db.test.ts 144ms
+apps/wbs/be-01/src/boot.ts 175ms
+apps/wbs/be-01/src/controller/auth.integration.test.ts 184ms
+apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts 50ms
+apps/wbs/be-01/src/controller/calendar-marker.controller.db.test.ts 79ms
+apps/wbs/be-01/src/controller/capacity-body.db.test.ts 39ms
+apps/wbs/be-01/src/controller/directory.controller.db.test.ts 56ms (unchanged)
+apps/wbs/be-01/src/controller/history.controller.test.ts 10ms
+apps/wbs/be-01/src/controller/internal.integration.test.ts 15ms (unchanged)
+apps/wbs/be-01/src/controller/oidc-identity.controller.db.test.ts 305ms
+apps/wbs/be-01/src/controller/oidc.integration.test.ts 110ms (unchanged)
+apps/wbs/be-01/src/controller/priority-ladder-body.db.test.ts 19ms
+apps/wbs/be-01/src/controller/project.controller.test.ts 144ms (unchanged)
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts 99ms
+apps/wbs/be-01/src/controller/step.controller.db.test.ts 136ms (unchanged)
+apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts 63ms (unchanged)
+apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts 28ms (unchanged)
+apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts 31ms (unchanged)
+apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts 41ms (unchanged)
+apps/wbs/be-01/src/controller/undo.controller.db.test.ts 58ms (unchanged)
+apps/wbs/be-01/src/controller/work-item.controller.test.ts 627ms (unchanged)
+apps/wbs/be-01/src/health.db.test.ts 9ms
+apps/wbs/be-01/src/migrate.test.ts 6ms
+apps/wbs/be-01/src/testing/app-fixture.ts 6ms (unchanged)
+apps/wbs/be-01/src/testing/browser-lifecycle-mounted.worker.ts 27ms (unchanged)
+apps/wbs/be-01/src/testing/organization-harness.ts 65ms
+apps/wbs/be-01/src/testing/organization-route-inventory.ts 21ms
+apps/wbs/be-01/src/testing/route-requests.ts 7ms
+apps/wbs/fe-01/src/lib/wbs-api.test.ts 194ms
+apps/wbs/fe-01/src/lib/wbs-api.ts 256ms
+apps/wbs/mcp-01/src/generated-document.test.ts 9ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/db.ts 13ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/index.ts 3ms (unchanged)
+libs/wbs/application/core/src/index.ts 6ms (unchanged)
+libs/wbs/domain/contracts/src/http/shapes.ts 5ms
+libs/wbs/domain/contracts/src/index.ts 2ms (unchanged)
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts 28ms
+apps/wbs/be-01/src/testing/project-address-search-fixture.ts 2ms
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts 7ms
+libs/wbs/adapters/store-sqlite/src/project-address-search.ts 14ms
+libs/wbs/application/core/src/http/project-address.routes.ts 7ms
+libs/wbs/application/core/src/ports/project-address-search.ts 4ms
+libs/wbs/application/core/src/service/project-address-revision.ts 3ms
+libs/wbs/application/core/src/service/project-address-search.ts 20ms
+libs/wbs/domain/contracts/src/http/project-address-shapes.ts 6ms

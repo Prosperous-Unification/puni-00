@@ -22,7 +22,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -40,6 +40,7 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -121,7 +122,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     });
     const writing = {
       projects: new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(db, projectStore),
+        dependencyContext: sqliteDependencyContext(db, projectStore),
         clock: testClock,
         projects: projectStore,
         broadcast: recordingBroadcaster(),
@@ -141,6 +142,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       workItems: testWorkItemService(),
     };
     app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -161,6 +163,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       history: testHistoryService(projectStore),
       savedPlans: testSavedPlanService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(undefined, writing),

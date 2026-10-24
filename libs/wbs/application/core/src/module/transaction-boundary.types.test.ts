@@ -1,6 +1,7 @@
 import { openMemorySource } from '@wbs/store-memory';
 import { expect, test } from 'bun:test';
 
+import { localCommandAccess } from '../testing/organization-access-fixture';
 import type { CommandAdmission } from './plan-commands/admitted-scope.resource';
 import type { admittedWrites } from './plan-commands/admitted-write';
 import { commandTransaction } from './plan-commands/composition';
@@ -42,13 +43,19 @@ test('composition keeps source capabilities outside feature callbacks', async ()
   const source = openMemorySource();
   // Proof: injecting `graphOf` into the command resources object made this
   // assertion fail with `true`; watched in the isolated candidate snapshot.
-  await commandTransaction(source.uow, () => {
-    throw new Error('unused command graph factory');
-  }).run((resources) => {
+  await commandTransaction(
+    source.uow,
+    () => {
+      throw new Error('unused command graph factory');
+    },
+    localCommandAccess,
+  ).run((resources) => {
     expect(Object.keys(resources).sort()).toEqual([
       'listCrossReferenceKinds',
       'openCommandGraph',
       'refuseOutsideScope',
+      'releaseExpiredLeases',
+      'resolveAccess',
     ]);
     expect('graphOf' in resources).toBe(false);
     expect('stores' in resources).toBe(false);

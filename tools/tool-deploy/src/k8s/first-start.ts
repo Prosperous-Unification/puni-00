@@ -383,7 +383,7 @@ export async function startCutover(
   if (decision.kind === 'create') await effects.createLease(holder, journal.path);
   if (decision.kind === 'takeover') {
     if (observed === null) throw new Error('first-start takeover has no observed Lease');
-    await effects.takeoverLease(holder, observed.version, journal.path);
+    await effects.takeoverLease(holder, observed.version, journal.path, observed.uid);
   }
   const leaseState: { lost: Error | null } = { lost: null };
   const assertLease = (): void => {

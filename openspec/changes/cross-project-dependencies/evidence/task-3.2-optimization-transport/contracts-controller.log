@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts:
+(pass) adds a typed node dependency and exposes its minted identity on the tree [586.88ms]
+(pass) accepts node IDs, updates endpoints under one ID, and removes the relationship [468.16ms]
+(pass) keeps legacy addDependency semantics and stores no typed row [304.75ms]
+(pass) refuses malformed endpoints before applying any command [299.84ms]
+(pass) refuses a missing or malformed endpoint as 400 [285.08ms]
+(pass) refuses invalid typed endpoints, duplicate keys, unsupported types and absent relationships [347.36ms]
+(pass) retains FS and SS on the same endpoints but refuses a duplicate SS [364.98ms]
+(pass) refuses an unsupported typed update at the HTTP boundary without changing the row [313.73ms]
+(pass) undoes an FF to SS update to the exact FF relationship and redoes SS [371.71ms]
+(pass) refuses a later cycle command after an SS add and rolls back the batch [288.75ms]
+(pass) refuses a later legacy add that closes an SS cycle and rolls back the batch [278.68ms]
+(pass) refuses a self node and a step-node cycle before writing [262.28ms]
+(pass) resolves a batch-local node reference and rolls back a later refusal [291.64ms]
+(pass) undoes and redoes a typed update with its exact ID and endpoints [310.53ms]
+(pass) refuses stale undo after another account changes the relationship [391.61ms]
+(pass) refuses undo when the stored relationship changed outside the journal [272.80ms]
+(pass) refuses undo of an update when the stored relationship changed outside the journal [294.98ms]
+(pass) refuses undo when only a journalled relationship type changed outside history [291.38ms]
+(pass) rejects a cycle introduced by the second typed add [267.89ms]
+(pass) sees the first typed relationship when a later batch command closes a cycle [247.10ms]
+(pass) refuses redo when its relationship ID has been reused [281.97ms]
+(pass) publishes a tight solver answer for an SS/FF plan written through the commands [303.45ms]
+
+libs/wbs/domain/contracts/src/http/plan-command-shapes.test.ts:
+(pass) validates all structural wire arms without applying semantic defaults or a batch cap [25.88ms]
+(pass) preserves optional fields, nulls and unresolved references without normalization [2.75ms]
+(pass) rejects malformed structures and nested extras including derived numbering [3.73ms]
+(pass) emits inline MCP-readable command branches with real nested patch and estimate properties [0.53ms]
+(pass) retains the nullable deadline wire field without taking over date semantics [0.55ms]
+(pass) retains explicitly scoped typed endpoints on the wire [0.45ms]
+
+ 28 pass
+ 0 fail
+ 210 expect() calls
+Ran 28 tests across 2 files. [12.07s]

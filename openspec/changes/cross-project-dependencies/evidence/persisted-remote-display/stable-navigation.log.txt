@@ -1,0 +1,40 @@
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '-t', 'renders captured remote endpoint']
+Injected fault: project: captured.endpoint.projectId, -> project: captured.projectAbbreviation,
+
+ RUN  v5.0.0 /tmp/puni-persisted-remote-display/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (8 tests | 2 failed | 6 skipped) 1478ms
+   × renders captured remote endpoint and stable navigation without a local arrow on desktop 1245ms
+   × renders captured remote endpoint and stable navigation without a local arrow on phone 228ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 skipped (8)
+   Start at  11:45:25
+   Duration  23.18s (import 50%, transform 30%, environment 12%, tests 7%, setup 2%)
+
+  Transform  transforming modules took 6.76s · 30% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > renders captured remote endpoint and stable navigation without a local arrow on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > renders captured remote endpoint and stable navigation without a local arrow on phone
+AssertionError: expected '/?project=REMOTE&workItem=remote-row&…' to be '/?project=remote-stable&workItem=remo…' // Object.is equality
+
+Expected: "/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+Received: "/?project=REMOTE&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:93:39
+     91|       fireEvent.mouseEnter(screen.getByLabelText('Add a dependency to …
+     92|     const link = await screen.findByRole('link', { name: /Open REMOTE.…
+     93|     expect(link.getAttribute('href')).toBe(
+       |                                       ^
+     94|       '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote…
+     95|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯

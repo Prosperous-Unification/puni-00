@@ -1,8 +1,9 @@
-import { health, metrics } from '@wbs/contracts';
+import { dependencyCapability, health, metrics } from '@wbs/contracts';
 import type { Logger, MetricsScrape } from '@wbs/observability';
 
 import { bind } from '../http/endpoint';
 import type { DatabaseHealth } from '../repository/health-probe';
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 
 export interface InfrastructureEndpointOptions {
   migrationsApplied: boolean;
@@ -12,9 +13,13 @@ export interface InfrastructureEndpointOptions {
   scrapeMetrics: () => Promise<MetricsScrape>;
 }
 
-/** Binds process readiness and metrics to their shared wire declarations. */
+/** Binds process readiness, metrics and immutable binary support to shared wire declarations. */
 export function infrastructureEndpoints(options: InfrastructureEndpointOptions) {
   return [
+    // Proof: omitting this binding made the mounted CLI-equality test receive 404 instead of 200.
+    bind(dependencyCapability, () =>
+      Promise.resolve({ ok: true, status: 200, body: BACKEND_DEPENDENCY_CAPABILITY }),
+    ),
     bind(health, () => {
       const commit = options.deployedCommit?.() ?? null;
       if (!options.migrationsApplied) {

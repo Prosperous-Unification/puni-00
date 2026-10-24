@@ -1,0 +1,26 @@
+{"name":"baseline","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"cwd-bunfig","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"explicit-null-config","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"config-policy-removed","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"home-bunfig","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"home-explicit-null-config","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"xdg-bunfig","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_PATH","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_REGISTRY","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_MAX_HTTP_REQUESTS","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_OPTIONS","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"NODE_OPTIONS","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_OPTIONS-positive-fault","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"environment-policy","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"environment-policy-removed","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"cwd-dotenv","exit":0,"stdout":"{\"fault\":null,\"env\":\"DOTENV\"}","stderr":""}
+{"name":"no-env-file","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"LD_PRELOAD-positive-fault","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":"LOADER_EXECUTED"}
+{"name":"loader-policy-removed","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":"LOADER_EXECUTED"}
+{"name":"loader-environment-policy","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"LD_LIBRARY_PATH-existing","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"LD_LIBRARY_PATH-shadow","exit":127,"stdout":"","stderr":"/home/df/.bun/bin/bun: error while loading shared libraries: /tmp/solver-ambient-xiVXZe/libm.so.6: file too short"}
+{"name":"LD_AUDIT-absent-library","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":"ERROR: ld.so: object '/tmp/solver-ambient-xiVXZe/absent.so' cannot be loaded as audit interface: cannot open shared object file; ignored."}
+{"name":"package-resolution-no-install","exit":0,"stdout":"PACKAGE_EXECUTED","stderr":""}
+PASS pinned ambient controls; removing environment/config policy admits measured faults; no unit lifecycle exercised

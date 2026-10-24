@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+301 |   await expectRejection(empty.reader.read([]), /expired/);
+302 |
+303 |   const admitted = observation();
+304 |   admitted.authority.requireProject = () => { admitted.expire(); return Promise.resolve(); };
+305 |   await expectRejection(admitted.reader.read(['a']), /expired/);
+306 |   expect(admitted.calls).not.toContain('incident:a');
+                                   ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "incident:a"
+Received: [ "incident:a" ]
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:306:30)
+(fail) checks lifetime for an empty observation and immediately after every awaited boundary [1.83ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [136.00ms]

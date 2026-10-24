@@ -1,0 +1,12 @@
+112 |       cause instanceof Error && cause.message.includes(message),
+113 |       `wrong refusal: ${String(cause)}`,
+114 |     );
+115 |     return;
+116 |   }
+117 |   throw new Error(`expected refusal: ${message}`);
+                  ^
+error: expected refusal: requires init
+      at refuses (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/test/gateway-exclusion.ts:117:13)
+      at async runAcceptance (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/test/gateway-exclusion.ts:353:11)
+
+Bun v1.4.2 (Linux x64)

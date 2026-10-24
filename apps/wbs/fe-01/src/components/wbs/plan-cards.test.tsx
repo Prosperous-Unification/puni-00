@@ -2,6 +2,9 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { openDependencyLookup } from '@/modules/dependency-lookup/dependency-lookup.feature';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
+
 import type * as BlockageModule from './step-blockage';
 import type * as TableFrameModule from './table-frame';
 
@@ -488,6 +491,8 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       createProject: () => notImplemented('createProject'),
       openProject: () => notImplemented('openProject'),
       renameProject: () => notImplemented('renameProject'),
+      setAbbreviation: (_id: string, abbreviation: string) =>
+        Promise.resolve(abbreviation.toUpperCase()),
       undo: () => notImplemented('undo'),
       redo: () => notImplemented('redo'),
       setEstimateMethod: () => notImplemented('setEstimateMethod'),
@@ -2755,6 +2760,14 @@ function renderCards(
 ) {
   return render(
     <PlanCards
+      projectId="p1"
+      dependencyLookup={
+        openDependencyLookup({
+          projectId: 'p1',
+          isCurrent: () => true,
+          routes: createRefusingAddressApi(),
+        }).lookup
+      }
       rows={rows.map((row) => ({
         row,
         depth: 0,

@@ -120,15 +120,15 @@ describe('typed dependency rollback', () => {
         {
           id: 'first',
           projectId: 'p',
-          predecessor: { scope: 'node', workItemId: 'a', stepId: 's' },
-          successor: { scope: 'whole', workItemId: 'b' },
+          predecessor: { projectId: 'p', scope: 'node', workItemId: 'a', stepId: 's' },
+          successor: { projectId: 'p', scope: 'whole', workItemId: 'b' },
           type: 'FS',
         },
         {
           id: 'second',
           projectId: 'p',
-          predecessor: { scope: 'whole', workItemId: 'b' },
-          successor: { scope: 'whole', workItemId: 'c' },
+          predecessor: { projectId: 'p', scope: 'whole', workItemId: 'b' },
+          successor: { projectId: 'p', scope: 'whole', workItemId: 'c' },
           type: 'FS',
         },
       ]);

@@ -149,6 +149,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         response = solve_request(request, config)
+    except RequestRejected as exc:
+        # Proof: removing this modeled refusal made the production CLI's bad
+        # feasibleBaselineOffsets witness exit 1 with traceback instead of 64.
+        print(f"wbs-solver: {exc}", file=stderr)
+        return EXIT_BAD_REQUEST
     except ModelInvalid as exc:
         # Ordered before its base class, which is the whole of the split: a
         # model CP-SAT refuses is this package disagreeing with its own solver,

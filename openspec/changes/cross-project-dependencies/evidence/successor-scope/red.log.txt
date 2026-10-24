@@ -1,0 +1,167 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-successor-92/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (73 tests | 4 failed | 69 skipped) 772ms
+   × edits persisted local successor scope from whole on desktop 400ms
+   × edits persisted local successor scope from node on desktop 180ms
+   × edits persisted local successor scope from whole on phone 124ms
+   × edits persisted local successor scope from node on phone 66ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted local successor scope from whole on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted local successor scope from whole on phone
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted local successor scope from node on phone
+TestingLibraryElementError: Unable to find a label with the text of: This work item
+
+Ignored nodes: comments, script, style
+[36m<div[39m
+  [33maria-label[39m=[32m"Captured dependency"[39m
+  [33mclass[39m=[32m"typed-dependency-editor"[39m
+  [33mrole[39m=[32m"dialog"[39m
+[36m>[39m
+  [36m<a[39m
+    [33maria-label[39m=[32m"Open REMOTE.080.s2-dev · Remote development step"[39m
+    [33mhref[39m=[32m"/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"[39m
+  [36m>[39m
+    [0mREMOTE.080.s2-dev · Remote development step[0m
+    [0m · [0m
+    [0mCaptured remote build[0m
+  [36m</a>[39m
+  [36m<p>[39m
+    [0mRelationship: [0m
+    [0mFS[0m
+    [0m. Changing captured remote scopes is unavailable here.[0m
+  [36m</p>[39m
+  [36m<label>[39m
+    [0mRelationship[0m
+    [36m<select>[39m
+      [36m<option[39m
+        [33mvalue[39m=[32m"FS"[39m
+      [36m>[39m
+        [0mFS[0m
+        [0m · [0m
+        [0mFinish-to-start[0m
+      [36m</option>[39m
+      [36m<option[39m
+        [33mvalue[39m=[32m"SS"[39m
+      [36m>[39m
+        [0mSS[0m
+        [0m · [0m
+        [0mStart-to-start[0m
+      [36m</option>[39m
+      [36m<option[39m
+        [33mvalue[39m=[32m"FF"[39m
+      [36m>[39m
+        [0mFF[0m
+        [0m · [0m
+        [0mFinish-to-finish[0m
+      [36m</option>[39m
+    [36m</select>[39m
+  [36m</label>[39m
+  [36m<button[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m>[39m
+    [0mSave[0m
+  [36m</button>[39m
+  [36m<button[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m>[39m
+    [0mBack to dependency picker[0m
+  [36m</button>[39m
+[36m</div>[39m
+ ❯ Object.getElementError ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ getAllByLabelText ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/queries/label-text.js:111:38
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:724:31
+    722|       fireEvent.click(screen.getByRole('button', { name: phone ? /^Edi…
+    723|       const dialog = within(screen.getByRole('dialog', { name: 'Captur…
+    724|       const selector = dialog.getByLabelText('This work item');
+       |                               ^
+    725|       expect(within(selector).getByRole('option', { selected: true }))…
+    726|       const option = within(selector).getByRole('option', { name: init…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted local successor scope from node on desktop
+TestingLibraryElementError: Unable to find a label with the text of: This work item
+
+Ignored nodes: comments, script, style
+[36m<div[39m
+  [33maria-label[39m=[32m"Captured dependency"[39m
+  [33mclass[39m=[32m"typed-dependency-editor"[39m
+  [33mrole[39m=[32m"dialog"[39m
+[36m>[39m
+  [36m<a[39m
+    [33maria-label[39m=[32m"Open REMOTE.080.s2-dev · Remote development step"[39m
+    [33mhref[39m=[32m"/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"[39m
+  [36m>[39m
+    [0mREMOTE.080.s2-dev · Remote development step[0m
+    [0m · [0m
+    [0mCaptured remote build[0m
+  [36m</a>[39m
+  [36m<p>[39m
+    [0mRelationship: [0m
+    [0mFS[0m
+    [0m. Changing captured remote scopes is unavailable here.[0m
+  [36m</p>[39m
+  [36m<label>[39m
+    [0mRelationship[0m
+    [36m<select>[39m
+      [36m<option[39m
+        [33mvalue[39m=[32m"FS"[39m
+      [36m>[39m
+        [0mFS[0m
+        [0m · [0m
+        [0mFinish-to-start[0m
+      [36m</option>[39m
+      [36m<option[39m
+        [33mvalue[39m=[32m"SS"[39m
+      [36m>[39m
+        [0mSS[0m
+        [0m · [0m
+        [0mStart-to-start[0m
+      [36m</option>[39m
+      [36m<option[39m
+        [33mvalue[39m=[32m"FF"[39m
+      [36m>[39m
+        [0mFF[0m
+        [0m · [0m
+        [0mFinish-to-finish[0m
+      [36m</option>[39m
+    [36m</select>[39m
+  [36m</label>[39m
+  [36m<button[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m>[39m
+    [0mSave[0m
+  [36m</button>[39m
+  [36m<button[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m>[39m
+    [0mBack to dependency picker[0m
+  [36m</button>[39m
+[36m</div>[39m
+ ❯ Object.getElementError ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ getAllByLabelText ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/queries/label-text.js:111:38
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:724:31
+    722|       fireEvent.click(screen.getByRole('button', { name: phone ? /^Edi…
+    723|       const dialog = within(screen.getByRole('dialog', { name: 'Captur…
+    724|       const selector = dialog.getByLabelText('This work item');
+       |                               ^
+    725|       expect(within(selector).getByRole('option', { selected: true }))…
+    726|       const option = within(selector).getByRole('option', { name: init…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 69 skipped (73)
+   Start at  04:11:52
+   Duration  7.22s (import 57%, transform 25%, tests 11%, environment 6%, setup 1%)

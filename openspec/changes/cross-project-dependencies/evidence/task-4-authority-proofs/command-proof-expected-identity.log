@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+119 |     { kind: 'legacy' as const },
+120 |     { kind: 'scoped' as const, scope: { organizationId: 'org-b', userId: principal.id, role: 'super_admin' as const } },
+121 |     { kind: 'scoped' as const, scope: { organizationId: 'org-a', userId: 'another-user', role: 'super_admin' as const } },
+122 |   ]) {
+123 |     const before = effects();
+124 |     expect(await harness.publicCommands().runWithin(fixture.projectId, principal, [], expected)).toEqual({ ok: false, refusal: 'organization_context_changed' });
+                                                                                                       ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "ok": false,
+-   "refusal": "organization_context_changed",
++   "ok": true,
++   "redoable": false,
++   "results": [],
++   "undoable": true,
+  }
+
+- Expected  - 2
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:124:98)
+(fail) direct runner compares current kind, organization and principal identity with expected context [288.30ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [2.42s]

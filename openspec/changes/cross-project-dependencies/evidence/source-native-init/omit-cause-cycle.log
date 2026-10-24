@@ -1,0 +1,24 @@
+Injected cause-cycle; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+74 |   expect(JSON.stringify(report)).not.toContain('PRIVATE_');
+75 | });
+76 | test('cause cycle depth and oversized errors terminate with explicit bounded markers', () => {
+77 |   const cycle = new Error('cycle');
+78 |   Reflect.set(cycle, 'cause', cycle);
+79 |   expect(summarizeFixtureFailure(cycle).chain.some((entry) => entry.category === 'cycle')).toBe(
+                                                                                                ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:79:92)
+(fail) cause cycle depth and oversized errors terminate with explicit bounded markers [0.62ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [40.00ms]

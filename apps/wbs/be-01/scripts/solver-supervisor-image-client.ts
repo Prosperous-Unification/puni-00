@@ -1,4 +1,9 @@
 import { connectSolverSupervisor } from '../src/module/solver-supervisor/solver-supervisor.repository';
+import { runComposedImageScenario } from './connected-composed-image-scenario';
+import {
+  connectedImageScenario,
+  verifyConnectedImageResponse,
+} from './connected-solver-image-scenario';
 import {
   type ImageSolverRequest,
   sharedPersonRequest,
@@ -23,16 +28,37 @@ if (callerId === undefined || !/^[0-9a-f]{12}$/.test(callerId)) {
   throw new Error('solver supervisor image smoke: caller hostname is not a 12-hex Docker id');
 }
 
-// The bundled baseline fixture is trusted build input; response revalidation checks its
-// placement constraints before the image smoke accepts the answer.
-const request: ImageSolverRequest =
-  requestPath === 'shared-person'
-    ? sharedPersonRequest()
-    : (recordOf(JSON.parse(await Bun.file(requestPath).text())) as unknown as ImageSolverRequest);
+if (requestPath === 'connected-composed') {
+  await runComposedImageScenario({ unix, callerId, inventoryPath: attemptToken });
+  process.exit(0);
+}
+
+/** Keep connected validation paired with the exact captured stage sent to the child. */
+type ImageScenario =
+  | { readonly kind: 'local'; readonly request: ImageSolverRequest }
+  | { readonly kind: 'connected'; readonly captured: ReturnType<typeof connectedImageScenario> };
+
+async function readScenario(selector: string): Promise<ImageScenario> {
+  if (selector === 'connected-feasible' || selector === 'connected-fractional') {
+    return { kind: 'connected', captured: connectedImageScenario(selector) };
+  }
+  if (selector === 'shared-person') return { kind: 'local', request: sharedPersonRequest() };
+  // The bundled baseline is trusted image input; its placement is independently revalidated.
+  const request = recordOf(
+    JSON.parse(await Bun.file(selector).text()),
+  ) as unknown as ImageSolverRequest;
+  return { kind: 'local', request };
+}
+
+const scenario = await readScenario(requestPath);
+const request = scenario.kind === 'connected' ? scenario.captured.request : scenario.request;
 const attempt = await connectSolverSupervisor({
   unix,
   callerId,
-  projectId: '11111111-1111-4111-8111-111111111111',
+  projectId:
+    scenario.kind === 'connected'
+      ? scenario.captured.stage.projectId
+      : '11111111-1111-4111-8111-111111111111',
   objective: 'pri',
   attemptToken,
   // The deadline also covers Docker create/start on contended shared runners.
@@ -53,7 +79,6 @@ if (terminal.exitCode !== 0 || terminal.deadlineKilled || terminal.oomKilled) {
     `solver supervisor image smoke: launcher classified internal-error (${String(terminal.exitCode)}): ${stderr.trim()}`,
   );
 }
-verifyImageSolverResponse(request, stdout);
-console.log(
-  `[solver-image-smoke] supervisor authenticated and published feasible ${requestPath === 'shared-person' ? 'shared-person' : 'baseline'} answer`,
-);
+if (scenario.kind === 'connected') verifyConnectedImageResponse(scenario.captured, stdout);
+else verifyImageSolverResponse(scenario.request, stdout);
+console.log(`[solver-image-smoke] supervisor authenticated and accepted ${requestPath}`);

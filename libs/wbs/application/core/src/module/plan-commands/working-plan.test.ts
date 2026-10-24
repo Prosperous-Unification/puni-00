@@ -1,11 +1,15 @@
 import { openMemorySource } from '@wbs/store-memory';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -131,8 +135,8 @@ describe('the admitted working batch baseline', () => {
     const row = {
       id: 'typed-a',
       projectId: 'project-a',
-      predecessor: { scope: 'whole' as const, workItemId: 'a' },
-      successor: { scope: 'whole' as const, workItemId: 'b' },
+      predecessor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'a' },
+      successor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'b' },
       type: 'FS' as const,
     };
     const stamp = { at: 1, by: OWNER };
@@ -142,11 +146,13 @@ describe('the admitted working batch baseline', () => {
       const later = {
         ...row,
         id: 'typed-later',
-        successor: { scope: 'whole' as const, workItemId: 'c' },
+        successor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'c' },
       };
       await source.stores.typedDependencies.add(later, stamp);
       expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([row, later]);
       expect(() => plan.stores.typedDependencies.listByProject('project-b')).toThrow();
+      expect(() => plan.stores.typedDependencies.listIncident(['project-b'])).toThrow();
+      expect(await plan.stores.typedDependencies.listIncident([])).toEqual([]);
       expect(() =>
         plan.stores.typedDependencies.add({ ...row, id: 'other', projectId: 'project-b' }, stamp),
       ).toThrow();
@@ -155,7 +161,8 @@ describe('the admitted working batch baseline', () => {
           ...row,
           id: 'foreign',
           projectId: 'project-b',
-          predecessor: { scope: 'whole', workItemId: 'foreign' },
+          predecessor: { projectId: 'project-b', scope: 'whole', workItemId: 'foreign' },
+          successor: { ...row.successor, projectId: 'project-b' },
         },
         stamp,
       );
@@ -166,6 +173,7 @@ describe('the admitted working batch baseline', () => {
         await refusesCall(() => plan.stores.typedDependencies.removeAllFor(['foreign'], stamp)),
       ).toBe(true);
       plan.close();
+      expect(() => plan.stores.typedDependencies.listIncident([])).toThrow();
       expect(() => plan.stores.typedDependencies.listByProject('project-a')).toThrow();
     } finally {
       await source.close();
@@ -179,13 +187,18 @@ describe('the admitted working batch baseline', () => {
     const before = {
       id: 'typed-edit',
       projectId: 'project-a',
-      predecessor: { scope: 'whole' as const, workItemId: 'a' },
-      successor: { scope: 'whole' as const, workItemId: 'b' },
+      predecessor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'a' },
+      successor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'b' },
       type: 'FF' as const,
     };
     const after = {
       ...before,
-      successor: { scope: 'node' as const, workItemId: 'b', stepId: 'review' },
+      successor: {
+        projectId: 'project-a',
+        scope: 'node' as const,
+        workItemId: 'b',
+        stepId: 'review',
+      },
       type: 'SS' as const,
     };
     try {
@@ -205,6 +218,7 @@ describe('the admitted working batch baseline', () => {
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock: testClock,
         broadcast,
@@ -212,6 +226,7 @@ describe('the admitted working batch baseline', () => {
       });
     const publicGraph = compose(source.stores, direct);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: source.uow,
       announcements: direct,
       publicServices: publicGraph,
@@ -226,7 +241,9 @@ describe('the admitted working batch baseline', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Working baseline', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Working baseline', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -366,6 +383,7 @@ describe('the admitted working batch baseline', () => {
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock: testClock,
         broadcast,
@@ -377,10 +395,12 @@ describe('the admitted working batch baseline', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Working lifecycle', OWNER)).project.id;
+      const projectId = expectCreated(await publicGraph.projects.create('Working lifecycle', OWNER))
+        .project.id;
       let retainedRead:
         (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -413,6 +433,7 @@ describe('the admitted working batch baseline', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const graph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -422,6 +443,7 @@ describe('the admitted working batch baseline', () => {
     let retainedRead:
       (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: source.uow,
       announcements: direct,
       publicServices: graph,
@@ -450,6 +472,7 @@ describe('the admitted working batch baseline', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -461,7 +484,9 @@ describe('the admitted working batch baseline', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Lazy retained plan', OWNER)).project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Lazy retained plan', OWNER),
+      ).project.id;
       const created = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -539,6 +564,7 @@ describe('targeted working-plan refreshes', () => {
   it('reloads every loaded collection and keeps unloaded collections lazy after a global write', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -549,8 +575,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Global reload barrier', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Global reload barrier', OWNER),
+      ).project.id;
       const row = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -647,6 +674,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -658,8 +686,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Ordered targeted rows', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Ordered targeted rows', OWNER),
+      ).project.id;
       for (const [position, id] of ['z', 'a', 'b', 'c'].entries()) {
         await source.stores.workItems.insert(
           workItemRow({ id, projectId, position: (position + 1) * 10, name: `Row ${id}` }),
@@ -688,6 +717,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -699,8 +729,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Ordered incident edges', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Ordered incident edges', OWNER),
+      ).project.id;
       for (const [position, id] of ['z', 'a', 'b', 'c'].entries()) {
         await source.stores.workItems.insert(
           workItemRow({ id, projectId, position: (position + 1) * 10, name: `Row ${id}` }),
@@ -736,6 +767,7 @@ describe('targeted working-plan refreshes', () => {
   it('keeps a newly added edge in authoritative order and returned edges detached', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -747,8 +779,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Ordered dependency writes', OWNER))
-        .project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Ordered dependency writes', OWNER),
+      ).project.id;
       for (const id of ['a', 'b', 'c', 'd', 'e']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -805,6 +838,7 @@ describe('targeted working-plan refreshes', () => {
   it('refreshes every restore-related collection and preserves borrowed before-images', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -816,7 +850,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Retained subtree restore', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Retained subtree restore', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -957,6 +993,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -968,7 +1005,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Targeted label refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Targeted label refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const created = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
@@ -1041,6 +1080,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -1052,8 +1092,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Targeted edge refusal', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Targeted edge refusal', OWNER),
+      ).project.id;
       const target = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1141,6 +1182,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -1152,8 +1194,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Bounded row refresh', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Bounded row refresh', OWNER),
+      ).project.id;
       const retainedCount = 200;
       for (let index = 0; index < retainedCount; index += 1) {
         await source.stores.workItems.insert(
@@ -1218,6 +1261,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -1229,8 +1273,10 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectA = (await publicGraph.projects.create('Targeted project A', OWNER)).project.id;
-      const projectB = (await publicGraph.projects.create('Targeted project B', OWNER)).project.id;
+      const projectA = expectCreated(await publicGraph.projects.create('Targeted project A', OWNER))
+        .project.id;
+      const projectB = expectCreated(await publicGraph.projects.create('Targeted project B', OWNER))
+        .project.id;
       const rowA = await publicGraph.workItems.create(projectA, OWNER, {
         parentId: null,
         afterId: null,
@@ -1301,6 +1347,7 @@ describe('working plan value failures', () => {
   it('does not advance a retained value after a modeled set refusal', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -1311,7 +1358,9 @@ describe('working plan value failures', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Refused value refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Refused value refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1368,6 +1417,7 @@ describe('working plan value failures', () => {
   it('does not advance a retained value before a throwing mutation succeeds', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -1378,7 +1428,9 @@ describe('working plan value failures', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Throwing value refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Throwing value refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1435,6 +1487,7 @@ describe('working plan value failures', () => {
   it('does not advance retained edges before throwing dependency mutations succeed', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -1445,8 +1498,9 @@ describe('working plan value failures', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Throwing dependency refresh', OWNER))
-        .project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Throwing dependency refresh', OWNER),
+      ).project.id;
       for (const id of ['a', 'b', 'c']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -1498,4 +1552,72 @@ describe('working plan value failures', () => {
       await source.close();
     }
   });
+});
+
+it('refreshes only retained owner rows after external typed writes and representation changes', async () => {
+  const source = openMemorySource();
+  await source.stores.projects.create(projectRow({ id: 'a', ownerId: OWNER }), [], {
+    at: 1,
+    by: OWNER,
+  });
+  await source.stores.projects.create(projectRow({ id: 'b', ownerId: OWNER }), [], {
+    at: 1,
+    by: OWNER,
+  });
+  for (const row of [
+    workItemRow({ id: 'A', projectId: 'a' }),
+    workItemRow({ id: 'B', projectId: 'b' }),
+    workItemRow({ id: 'C', projectId: 'b', position: 20 }),
+  ])
+    await source.stores.workItems.insert(row, [], { at: 1, by: OWNER });
+  const changed = await source.uow
+    .run(async (scope) => {
+      const workItems = new Proxy(scope.stores.workItems, {
+        get(target, key) {
+          if (key === 'listByIds')
+            return async (owner: string, ids: readonly string[]) => {
+              if (ids.includes('A'))
+                throw new Error('retained owner refresh requested a remote identity');
+              return target.listByIds(owner, ids);
+            };
+          const member: unknown = Reflect.get(target, key);
+          if (typeof member === 'function')
+            return (...args: unknown[]): unknown => Reflect.apply(member, target, args);
+          return member;
+        },
+      });
+      const plan = createWorkingPlan({ stores: { ...scope.stores, workItems } }, 'b');
+      try {
+        expect((await plan.stores.workItems.listByProject('b')).map((row) => row.id)).toEqual([
+          'B',
+          'C',
+        ]);
+        const relationship = {
+          id: 'external',
+          projectId: 'b',
+          predecessor: { projectId: 'a', scope: 'whole' as const, workItemId: 'A' },
+          successor: { projectId: 'b', scope: 'whole' as const, workItemId: 'B' },
+          type: 'FS' as const,
+        };
+        await plan.stores.typedDependencies.add(relationship, { at: 2, by: OWNER });
+        await plan.stores.typedDependencies.update(
+          { ...relationship, predecessor: { projectId: 'b', scope: 'whole', workItemId: 'C' } },
+          { at: 3, by: OWNER },
+        );
+        await plan.stores.typedDependencies.update(relationship, { at: 4, by: OWNER });
+        await plan.stores.typedDependencies.remove(relationship.id, { at: 5, by: OWNER });
+        expect(await plan.stores.workItems.listByProject('b')).toEqual(
+          await scope.stores.workItems.listByProject('b'),
+        );
+        expect(await refusesCall(() => plan.stores.workItems.listByIds('a', ['A']))).toBe(true);
+        return { commit: true, value: undefined };
+      } finally {
+        plan.close();
+      }
+    })
+    .then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+  expect(changed).toBeNull();
 });

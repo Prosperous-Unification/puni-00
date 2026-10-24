@@ -1,0 +1,61 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+{"direction":"undo","status":200,"body":{"done":"2 changes","detail":null},"relationship":{"id":"75645b90-1085-4976-a2c1-08a9c0fb0d1c","type":"FS","predecessor_project_id":"0f49bc86-4af3-4b71-8fee-6d43a4ba8df9","predecessor_work_item_id":"eb2c44ca-d283-44c4-9ad6-5c0a6809f433","predecessor_scope":"node","predecessor_step_id":"dea7b7f2-d65c-40b7-82ac-027bf734e6e4","successor_project_id":"e23c8f7e-09eb-4750-83f7-45ed892085f3","successor_work_item_id":"20b4b857-03af-434d-ac9a-2ef46036abfb","successor_scope":"node","successor_step_id":"f86102db-6c49-4cd1-bab3-8bf1d9fa1252"},"notes":{"notes":""},"changedTables":["command_journal","event_log","event_sequencer","external_dependency","work_item"],"selected":{"id":"a007813d-77d0-41ba-b5c1-affb25800203","undone":1}}
+847 |         });
+848 |         expect(harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(selected.id)).toEqual({ undone: direction === 'undo' ? 1 : 0 });
+849 |         return;
+850 |       }
+851 |       console.info(JSON.stringify({ direction, status: response.status, body, relationship: readRelationship(), notes: harness.sqlite.query('SELECT notes FROM work_item WHERE id=?').get(b.workItemId), changedTables: readTables().filter((table, index) => JSON.stringify(table) !== JSON.stringify(before[index])).map(({name}) => name), selected: harness.sqlite.query('SELECT id,undone FROM command_journal WHERE id=?').get(selected.id) }));
+852 |       expect({ status: response.status, body }).toEqual({
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "detail": "that relationship would now be refused: cycle.",
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-compound-replay/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:852:49)
+(fail) synthetic mounted compound undo refuses a remote-only cycle atomically and prunes exactly its selected journal [672.45ms]
+{"direction":"redo","status":200,"body":{"done":"2 changes","detail":null},"relationship":{"id":"088dcf28-ccd7-48fb-81da-aac380cabd48","type":"FS","predecessor_project_id":"ed015911-7cf8-4dc4-999c-fcc5314ca1e6","predecessor_work_item_id":"c5fcd8b3-2649-43ec-95c2-9cd654fe1958","predecessor_scope":"node","predecessor_step_id":"629418a5-62cb-4a12-9c45-2d6467e2cd13","successor_project_id":"918ee0da-55ff-4ebb-8dab-d64583ef99ef","successor_work_item_id":"a5060897-8d15-401a-9685-fa49c5bd8ce2","successor_scope":"node","successor_step_id":"6cb6f803-e388-4b6b-bdb2-0eaae3e8c7b5"},"notes":{"notes":"Compound replay patch"},"changedTables":["command_journal","event_log","event_sequencer","external_dependency","work_item"],"selected":{"id":"fb75de5b-9dce-473d-b514-8e9913f54325","undone":0}}
+847 |         });
+848 |         expect(harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(selected.id)).toEqual({ undone: direction === 'undo' ? 1 : 0 });
+849 |         return;
+850 |       }
+851 |       console.info(JSON.stringify({ direction, status: response.status, body, relationship: readRelationship(), notes: harness.sqlite.query('SELECT notes FROM work_item WHERE id=?').get(b.workItemId), changedTables: readTables().filter((table, index) => JSON.stringify(table) !== JSON.stringify(before[index])).map(({name}) => name), selected: harness.sqlite.query('SELECT id,undone FROM command_journal WHERE id=?').get(selected.id) }));
+852 |       expect({ status: response.status, body }).toEqual({
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "detail": "that relationship would now be refused: cycle.",
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-compound-replay/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:852:49)
+(fail) synthetic mounted compound redo refuses a remote-only cycle atomically and prunes exactly its selected journal [528.96ms]
+
+ 0 pass
+ 28 filtered out
+ 2 fail
+ 46 expect() calls
+Ran 2 tests across 1 file. [4.11s]

@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+149 |   const endpoint = foreign === null ? defect === 'malformed-project' ? { ...fixture.input.predecessor, projectId: 7 } : defect === 'blank-project' ? { ...fixture.input.predecessor, projectId: '' } : defect === 'wrong-row-project' ? { ...fixture.input.predecessor, projectId: fixture.owner.projectId } : defect === 'scoped-alias' ? { projectId: fixture.predecessor.projectId, scope: 'whole', workItemRef: 'new' } : defect === 'foreign-project' ? { ...fixture.input.predecessor, projectId: 'absent' } : defect === 'foreign-step' ? { ...fixture.input.predecessor, scope: 'node', stepId: 'absent' } : fixture.input.predecessor : { ...foreign, scope: 'whole' };
+150 |   const successor = defect === 'owner-step' ? { ...fixture.input.successor, scope: 'node', stepId: remoteStep.id } : defect === 'foreign-successor' ? { ...fixture.input.successor, projectId: fixture.predecessor.projectId } : fixture.input.successor;
+151 |   const before = effects();
+152 |   const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, { commands: [{ kind: 'patchWorkItem', workItemId: fixture.owner.workItemId, patch: { name: 'Must roll back' } }, { kind: 'addTypedDependency', predecessor: endpoint, successor, type: 'FS' }] });
+153 |   expect(response.status).toBe(malformed ? 400 : 404);
+154 |   expect(await response.json()).toMatchObject({ error: malformed ? 'invalid_typed_endpoint' : 'not_found', at: 1, kind: 'addTypedDependency' });
+                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "at": 1,
+-   "error": "not_found",
++   "error": "unknown_step",
+    "kind": "addTypedDependency",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:154:33)
+(fail) mounted owner-step refuses before writes and conceals endpoint facts [366.68ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [2.50s]

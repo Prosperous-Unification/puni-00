@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts:
+167 |       );
+168 |       expect(
+169 |         await refusesCall(() => plan.stores.typedDependencies.removeAllFor(['foreign'], stamp)),
+170 |       ).toBe(true);
+171 |       plan.close();
+172 |       expect(() => plan.stores.typedDependencies.listIncident([])).toThrow();
+                                                                         ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts:172:68)
+(fail) the admitted working batch baseline > passes typed links through the batch and refuses cross-project and closed access [7.26ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [1.99s]

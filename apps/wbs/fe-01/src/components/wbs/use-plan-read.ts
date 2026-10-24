@@ -6,6 +6,7 @@ import { ALL_RESOURCES, type DirectoryRead } from '@/lib/plan-refresh';
 import type { AssignedPersonView, ElsewhereHolderView } from '@/lib/wbs-api';
 import {
   DEFAULT_PERT_WEIGHTS_VIEW,
+  dependencyViewsOf,
   type EstimateMethod,
   type EstimateRoundingView,
   type PertWeightsView,
@@ -22,6 +23,7 @@ import type { PlanRefusal, ProjectRuntime } from '@/modules/project/contract';
 import type { Store } from '@/modules/store';
 
 import { type CellCards } from './cell-card-store';
+import type { GeneralPanelProps } from './general-panel';
 import type { FocusIntent } from './live-editing';
 import { forgetRefusedDrafts } from './live-editing';
 import { NOTHING_TO_REDO, NOTHING_TO_UNDO, refusalSentence } from './plan-refusal';
@@ -58,6 +60,8 @@ export interface WbsTableProps {
    * in the app — see {@link UNNAMED_PROJECT} for what an export says without it.
    */
   projectName?: string;
+  /** Page-owned catalog observation and edit lifecycle. */
+  generalSettings?: Omit<GeneralPanelProps, 'onDirtyChange' | 'onBusyChange'>;
   /**
    * The saved-plan shelf, for the phone's `Plan actions` sheet — and rendered
    * **only** there, in the `cards` arm below.
@@ -123,7 +127,7 @@ export interface ChartRead {
   /**
    * The work items in other projects this plan's slices wait for, named, in
    * the same payload as the slices that point at them. Empty for a plan
-   * nothing outranks, where be-01 sends none.
+   * no foreign person floor is displayed, where be-01 sends none.
    */
   elsewhereHolders: ElsewhereHolderView[];
   /**
@@ -176,6 +180,8 @@ export interface ChartRead {
 /** Everything the chart is drawn from, off one delivered plan read. */
 export function chartReadOf(read: PlanRead, generation: number): ChartRead {
   return {
+    // Proof: substituting [] removed the fractional B=0.2→1.2 bar; the
+    // producer-mounted fractional dates/bars/cards case failed (2026-10-22).
     slices: read.slices,
     steps: read.steps,
     people: read.assignedPeople,
@@ -189,6 +195,7 @@ export function chartReadOf(read: PlanRead, generation: number): ChartRead {
     depReach: read.depReach,
     pertWeights: read.pertWeights,
     estimateRounding: read.estimateRounding,
+    // Proof: omitting this field failed the complete captured optimization equality in optimization-cue-reading.test.ts (2026-10-22).
     ...(read.optimization === undefined ? {} : { optimization: read.optimization }),
     timezone: read.timezone ?? null,
     stepNodes: read.stepNodes,
@@ -278,7 +285,12 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
 
   const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
   const stepNodes = tree === null ? undefined : tree.value.stepNodes;
-  const typedDependencies = tree === null ? [] : (tree.value.typedDependencies ?? []);
+  // Proof: delivering undefined failed unavailable hold/step and both rename/clear mounted layouts (2026-10-23).
+  const remoteBlockageLabels = tree === null ? undefined : tree.value.remoteBlockageLabels;
+  const typedDependencies = useMemo(
+    () => (tree === null ? [] : dependencyViewsOf(tree.value, projectId)),
+    [tree, projectId],
+  );
 
   /** The project whose whole tree most recently completed a successful read. */
   const treeReadProject = useRef<string | null>(null);
@@ -454,6 +466,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     workItems,
     stepNodes,
     typedDependencies,
+    remoteBlockageLabels,
     treeReadProject,
     chartRead,
     steps,

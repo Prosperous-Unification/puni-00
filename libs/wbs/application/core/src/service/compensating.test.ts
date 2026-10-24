@@ -10,6 +10,8 @@ import {
   readCommand,
   readPreconditions,
   referencesOf,
+  restoredTypedAddressesOf,
+  scopedRevisionKey,
   STEP_BLOCKAGE_REPLAY_CAPABILITIES,
   subjectOf,
   touchedBy,
@@ -24,26 +26,69 @@ const estimate: CompensatingCommand = {
 };
 const edge: CompensatingCommand = { do: 'add_dependency', successorId: 'w2', predecessorId: 'w1' };
 
-it('reads typed compensating commands and names both touched endpoints and the successor', () => {
-  const before = {
+it('normalizes legacy local typed history and preserves touched identities', () => {
+  const dependency = {
     id: 'd',
     projectId: 'p',
-    predecessor: { scope: 'whole' as const, workItemId: 'a' },
-    successor: { scope: 'whole' as const, workItemId: 'b' },
-    type: 'FS' as const,
+    predecessor: { scope: 'whole', workItemId: 'a' },
+    successor: { scope: 'node', workItemId: 'b', stepId: 's' },
+    type: 'FS',
+  } as const;
+  const scopedDependency = {
+    ...dependency,
+    predecessor: { ...dependency.predecessor, projectId: 'p' },
+    successor: { ...dependency.successor, projectId: 'p' },
   };
-  const after = { ...before, predecessor: { scope: 'whole' as const, workItemId: 'c' } };
-  const commands: CompensatingCommand[] = [
-    { do: 'add_typed_dependency', dependency: before },
-    { do: 'remove_typed_dependency', dependency: before },
-    { do: 'update_typed_dependency', from: before, to: after },
-  ];
-  for (const command of commands) expect(readCommand(command)).toEqual(command);
-  expect(touchedBy(commands[0])).toEqual(['a', 'b']);
-  expect(touchedBy(commands[1])).toEqual(['a', 'b']);
-  expect(touchedBy(commands[2])).toEqual(['a', 'b', 'c']);
-  for (const command of commands)
-    expect(subjectOf(command)).toEqual({ workItemId: 'b', stepId: null });
+  const command = readCommand({ do: 'add_typed_dependency', dependency });
+  expect(command).toEqual({ do: 'add_typed_dependency', dependency: scopedDependency });
+  expect(touchedBy(command)).toEqual(['a', 'b']);
+  expect(subjectOf(command)).toEqual({ workItemId: 'b', stepId: null });
+  const batch = readCommand({
+    do: 'batch',
+    steps: [{ do: 'remove_typed_dependency', dependency }],
+  });
+  expect(batch).toEqual({
+    do: 'batch',
+    steps: [{ do: 'remove_typed_dependency', dependency: scopedDependency }],
+  });
+});
+
+it('refuses partial scoped history and malformed new scoped history', () => {
+  const dependency = {
+    id: 'd',
+    projectId: 'p',
+    predecessor: { scope: 'whole', workItemId: 'a' },
+    successor: { scope: 'whole', workItemId: 'b' },
+    type: 'FS',
+  };
+  for (const changed of [
+    { ...dependency, predecessor: { ...dependency.predecessor, projectId: 'remote' } },
+    {
+      ...dependency,
+      predecessor: { ...dependency.predecessor, projectId: 'remote' },
+      successor: { ...dependency.successor, projectId: 42 },
+    },
+    {
+      ...dependency,
+      predecessor: { ...dependency.predecessor, projectId: 42 },
+      successor: { ...dependency.successor, projectId: 'p' },
+    },
+    {
+      ...dependency,
+      predecessor: { ...dependency.predecessor, projectId: 'remote' },
+      successor: { ...dependency.successor, projectId: 'wrong' },
+    },
+    { ...dependency, predecessor: { scope: 'node', workItemId: 'a' } },
+    { ...dependency, type: 'SF' },
+    { ...dependency, id: 3 },
+    { ...dependency, projectId: 3 },
+    { ...dependency, predecessor: { scope: 'unknown', workItemId: 'a' } },
+    { ...dependency, predecessor: { scope: 'whole', workItemId: 3 } },
+    { ...dependency, predecessor: { scope: 'whole', workItemId: 'a', stepId: 's' } },
+  ])
+    expect(() => readCommand({ do: 'add_typed_dependency', dependency: changed })).toThrow(
+      'typed dependency',
+    );
 });
 
 describe('conditional blockage replay vocabulary', () => {
@@ -501,4 +546,139 @@ describe('demand replay vocabulary', () => {
     ])
       expect(() => readCommand({ ...restore, demands })).toThrow(/restore holds/);
   });
+});
+
+it('requires exact external revision coverage across both nested journal directions', async () => {
+  const { externalAddressesOf, requireExternalRevisions } = await import('./compensating');
+  const dependency = {
+    id: 'd',
+    projectId: 'owner',
+    predecessor: { projectId: 'remote', scope: 'whole' as const, workItemId: 'a' },
+    successor: { projectId: 'owner', scope: 'whole' as const, workItemId: 'b' },
+    type: 'FS' as const,
+  };
+  const commands: CompensatingCommand[] = [
+    {
+      do: 'batch',
+      steps: [
+        { do: 'add_typed_dependency', dependency },
+        { do: 'patch', workItemId: 'foreign-unrelated', patch: { name: 'x' } },
+      ],
+    },
+    { do: 'remove_typed_dependency', dependency },
+  ];
+  expect(externalAddressesOf(commands, 'owner')).toEqual([
+    { projectId: 'remote', workItemId: 'a' },
+  ]);
+  const metadata = {
+    expected: [{ projectId: 'remote', workItemId: 'a', revision: 4 }],
+    from: [{ projectId: 'remote', workItemId: 'a', revision: 3 }],
+  };
+  expect(
+    requireExternalRevisions(
+      { expected: {}, from: {}, externalRevisions: metadata },
+      'owner',
+      commands,
+    ),
+  ).toEqual(metadata);
+  expect(() => requireExternalRevisions({ expected: {}, from: {} }, 'owner', commands)).toThrow(
+    'external revision',
+  );
+  for (const externalRevisions of [
+    null,
+    { expected: [], from: [] },
+    { expected: [...metadata.expected, ...metadata.expected], from: metadata.from },
+    { expected: [{ projectId: 'owner', workItemId: 'b', revision: 4 }], from: metadata.from },
+    { expected: metadata.expected, from: [] },
+    { expected: [{ ...metadata.expected[0], revision: -1 }], from: metadata.from },
+  ]) {
+    expect(() =>
+      requireExternalRevisions(
+        readPreconditions({ expected: {}, from: {}, externalRevisions }),
+        'owner',
+        commands,
+      ),
+    ).toThrow();
+  }
+  const references = referencesOf(commands[0]);
+  expect(references.workItems).toEqual(['foreign-unrelated']);
+  expect(references.scopedEndpoints).toEqual([dependency.predecessor, dependency.successor]);
+});
+
+const restoreForTypedReplay = (projectId: string, workItemId: string): CompensatingCommand => ({
+  do: 'restore_subtree',
+  rows: [workItemRow({ id: workItemId, projectId })],
+  rootPosition: 1,
+  reparented: [],
+  estimates: [],
+  actuals: [],
+  progress: [],
+  measures: [],
+  assignments: [],
+  internalDependencies: [],
+  externalDependencies: [],
+  removedEstimates: [],
+  removedActuals: [],
+  removedProgress: [],
+  removedMeasures: [],
+});
+
+it('predicts only earlier owner-local restores before nested typed adds and updates in application order', () => {
+  const local = { projectId: 'owner', scope: 'whole' as const, workItemId: 'restored' };
+  const remote = { ...local, projectId: 'remote' };
+  const dependency = {
+    id: 'link',
+    projectId: 'owner',
+    predecessor: local,
+    successor: { ...local, workItemId: 'successor' },
+    type: 'FS' as const,
+  };
+  const add: CompensatingCommand = { do: 'add_typed_dependency', dependency };
+  const update: CompensatingCommand = {
+    do: 'update_typed_dependency',
+    from: { ...dependency, predecessor: { ...local, workItemId: 'before' } },
+    to: dependency,
+  };
+  const nested = (...steps: CompensatingCommand[]): CompensatingCommand => ({ do: 'batch', steps });
+  const restored = restoreForTypedReplay('owner', 'restored');
+  const key = scopedRevisionKey(local);
+  for (const typed of [add, update]) {
+    expect([
+      ...restoredTypedAddressesOf(nested(nested(restored), nested(nested(typed))), 'owner'),
+    ]).toEqual([key]);
+    expect([...restoredTypedAddressesOf(nested(nested(typed), nested(restored)), 'owner')]).toEqual(
+      [],
+    );
+  }
+  expect([
+    ...restoredTypedAddressesOf(nested(restoreForTypedReplay('owner', 'different'), add), 'owner'),
+  ]).toEqual([]);
+  expect([
+    ...restoredTypedAddressesOf(nested(restoreForTypedReplay('remote', 'restored'), add), 'owner'),
+  ]).toEqual([]);
+  expect([
+    ...restoredTypedAddressesOf(
+      nested(restored, {
+        do: 'add_typed_dependency',
+        dependency: { ...dependency, predecessor: remote },
+      }),
+      'owner',
+    ),
+  ]).toEqual([]);
+  expect([
+    ...restoredTypedAddressesOf(
+      nested(restored, { do: 'remove_typed_dependency', dependency }),
+      'owner',
+    ),
+  ]).toEqual([]);
+  expect([
+    ...restoredTypedAddressesOf(
+      nested(restored, {
+        do: 'patch',
+        workItemId: 'restored',
+        patch: { name: 'Ordinary reference' },
+      }),
+      'owner',
+    ),
+  ]).toEqual([]);
 });

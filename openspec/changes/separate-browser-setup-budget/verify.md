@@ -1,8 +1,8 @@
 # Verification Report
 
-**Change:** `separate-browser-setup-budget`  
-**Verification date:** 2026-10-24 (Europe/Kyiv)  
-**Implementation baseline:** `70bafc2d7982e2a5713d4d681398debeed807809`
+- Change: `separate-browser-setup-budget`
+- Verification date: 2026-10-24 (Europe/Kyiv)
+- Implementation baseline: `70bafc2d7982e2a5713d4d681398debeed807809`
 
 ## Structural validation
 
@@ -85,3 +85,9 @@ Raw source derivation, command receipts, logs, metadata and oracle captures are 
 The final-head required `gate` and `pixels` verdicts, actual synthetic merge/base, selected scope, job links and timings belong in [PR #692's verification receipt](https://github.com/Prosperous-Unification/puni-00/pull/692). This record does not assert those external verdicts before publication. A receipt update preserves the tested source instead of creating a further evidence-only commit.
 
 No duplicate local full app/browser/host gate is credited. The required PR pipeline remains canonical final verification; a host wrapper is reserved for additional necessary host validation. Full formatting and current-code gates remain required in that pipeline. No merge, deployment, secret change, ruleset change or runner migration occurred. The correction contains slow setup within a finite limit; it does not make network transfers faster. Longer worst-case job time is the explicit trade-off for giving setup and test phases independent allowances.
+
+## Eight-shard integration amendment
+
+The earlier four-shard/50-minute observations above remain historical. The integration of main `df8b9bcc3529abb6e78adfbf2b871a4ead33a03a` with the reviewed eight-shard dependency branch retains eight layout partitions and one dedicated cross-project command on shard four. The active declaration is a uniform 55-minute job: 15 Chromium + 25 layout + max(5 organization on shard one, 10 dedicated cross-project on shard four) + five overhead. The 50-minute declaration cannot fund shard four's selected path. The parsed-YAML budget oracle checks unique phase steps, finite positive limits, exact values and the selected path on every shard. The unchanged coverage oracle still pins `/8`, the dedicated command and conditions, fail-fast, scope and the required reducer.
+
+`bun test --preload ./tools/test/scratch/preload.ts tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts --timeout=10000`: 11 pass, 132 assertions after restoration. Isolated mutations of the actual workflow each exited 1 and were restored: omit each of four phase timeouts; omit job timeout; lower job to 50; lower dedicated phase to five or raise it to 11; remove or duplicate its command; move its condition to shard three; change layout `/8` to `/4`; omit shard eight; enable fail-fast or job continue-on-error. The 50-minute and 11-minute faults specifically reached the shard-four arithmetic assertion. Logs are `/tmp/puni-main-df8-{fault}.log`; they are local scratch evidence, not repository artifacts. The focused dedicated configuration case passed one test with 18 filtered cases. The previously recorded Actions shortened-clock proof establishes platform enforcement for the former phases; no cross-project-specific deadline dispatch or final integrated hosted acceptance was observed here.

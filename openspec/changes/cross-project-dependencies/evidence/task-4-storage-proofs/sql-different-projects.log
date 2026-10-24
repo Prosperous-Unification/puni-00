@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+196 |     for (const assignment of [
+197 |       "predecessor_scope='other',predecessor_step_id='a'", "successor_scope='other',successor_step_id='b'", "type='SF'",
+198 |       "predecessor_step_id='a'", "successor_step_id='b'",
+199 |       "predecessor_scope='node'", "successor_scope='node'",
+200 |       "predecessor_project_id='b',predecessor_work_item_id='b2'",
+201 |     ]) expect(() => sqlite.run(`UPDATE external_dependency SET ${assignment}`), assignment).toThrow('CHECK constraint failed');
+                                                                                                  ^
+error: predecessor_project_id='b',predecessor_work_item_id='b2'
+
+Expected substring: "CHECK constraint failed"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 0,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:201:93)
+(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [134.30ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [2.21s]

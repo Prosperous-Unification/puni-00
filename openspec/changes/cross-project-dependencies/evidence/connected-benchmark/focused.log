@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-benchmark.test.ts:
+(pass) the leveled pass, at the size of a real plan > measures CPU work without charging a descheduled interval [30.27ms]
+(pass) the leveled pass, at the size of a real plan > also measures elapsed time spent blocked inside a schedule call [30.15ms]
+(pass) the leveled pass, at the size of a real plan > is the plan it claims to be, so the budget below measures something [17.50ms]
+{"metric":"process-cpu-ms","samples":[11.966,11.61,17.016,6.539,8.626]}
+(pass) the leveled pass, at the size of a real plan > schedules 600 slices in under 20ms of process CPU [22.71ms]
+(skip) the leveled pass, at the size of a real plan > certifies 600 slices in under 20ms elapsed
+
+libs/wbs/domain/domain/src/schedule-connected-benchmark.test.ts:
+{"metric":"connected-domain-schedule","shape":"sparse","projects":202,"relationships":101,"deriveMs":1.6637059999999906}
+(pass) sparse connected fixture retains its graph density and complete scheduled projections [8.08ms]
+{"metric":"connected-domain-schedule","shape":"dense","projects":26,"relationships":300,"deriveMs":0.4419019999999989}
+(pass) dense connected fixture retains its graph density and complete scheduled projections [1.04ms]
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+(pass) captures both incident directions once with local projection and own labels [186.55ms]
+(pass) shared closure alternates person bridges and incoming dependencies without rank cutoff [145.84ms]
+(pass) concurrent predecessor edit yields one coherent state until next observation [131.62ms]
+(pass) refuses missing required ownership [111.40ms]
+(pass) snapshot capability expires when callback closes [120.37ms]
+(pass) connected isolated cache publication stays invisible through sequential selections [123.99ms]
+(pass) borrowed capture sees staged writes and preserves owner transaction [107.22ms]
+(pass) refuses absent required project evidence [101.98ms]
+(pass) refuses malformed required project evidence [104.55ms]
+(pass) refuses unreadable required project evidence [105.58ms]
+(pass) capture never admits solver work or writes events [115.63ms]
+(pass) requires existing admitted organization authority even for cached components [97.27ms]
+(pass) memoizes complete project capture across component targets [103.45ms]
+(pass) owned connected success closes exactly once after ending transaction [106.48ms]
+(pass) owned connected refusal closes exactly once after ending transaction [109.48ms]
+(pass) owned connected throw closes exactly once after ending transaction [113.33ms]
+(pass) refuses missing component rank rather than synthesizing priority [103.50ms]
+(pass) refuses a project lost by the full-input reader after topology admission [115.87ms]
+(pass) refuses inconsistent identity evidence inside production capture [134.80ms]
+(pass) refuses inconsistent local-projection evidence inside production capture [109.11ms]
+(pass) borrowed live reader refuses acquisition and reads after its one-way scope expires [101.00ms]
+(pass) concurrent component requests read every full project input once [107.55ms]
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:
+{"metric":"connected-capture","shape":"sparse","projects":202,"relationships":101,"captureQueries":10303,"totalQueries":10517,"captureMs":565.690243,"deriveMs":15.396044000000074}
+(pass) sparse: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [1343.82ms]
+{"metric":"connected-capture","shape":"dense","projects":26,"relationships":300,"captureQueries":5897,"totalQueries":5935,"captureMs":124.55446399999983,"deriveMs":1.914039999999659}
+(pass) dense: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [425.26ms]
+
+1 tests skipped:
+(skip) the leveled pass, at the size of a real plan > certifies 600 slices in under 20ms elapsed
+
+ 30 pass
+ 1 skip
+ 0 fail
+ 1595 expect() calls
+Ran 31 tests across 4 files. [6.82s]

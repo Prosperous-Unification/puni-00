@@ -11,7 +11,11 @@
         "commands": [
           "bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js",
           "bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js",
-          "bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js"
+          "bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js",
+          "bun build tools/tool-remote-scripts/src/activate-dependencies.ts --target=bun --outfile dist/tool-remote-scripts/activate-dependencies.js",
+          "bun build tools/tool-remote-scripts/src/initialize-edge-policy.ts --target=bun --outfile dist/tool-remote-scripts/initialize-edge-policy.js",
+          "bun build tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts --target=bun --outfile dist/tool-remote-scripts/dependency-complete-activation.js",
+          "bun build tools/tool-remote-scripts/src/adopt-edge-init.ts --target=bun --outfile dist/tool-remote-scripts/adopt-edge-init.js"
         ],
         "parallel": false
       },
@@ -46,6 +50,10 @@
         "default",
         "^production",
         "{workspaceRoot}/apps/wbs/be-01/**/*",
+        "{workspaceRoot}/apps/wbs/gw-01/src/dependency-capabilities-cli.ts",
+        "{workspaceRoot}/apps/wbs/gw-01/src/runtime/dependency-support.ts",
+        "{workspaceRoot}/apps/wbs/mcp-01/src/dependency-capabilities-cli.ts",
+        "{workspaceRoot}/apps/wbs/mcp-01/src/runtime/dependency-support.ts",
         "{workspaceRoot}/libs/wbs/**/*",
         "{workspaceRoot}/libs/shared/**/*",
         "{workspaceRoot}/apps/wbs/be-01/src/config.ts",
@@ -63,10 +71,13 @@
         "!{workspaceRoot}/libs/wbs/adapters/config/src/*.test.ts",
         "{workspaceRoot}/libs/wbs/domain/validation/src/*.ts",
         "!{workspaceRoot}/libs/wbs/domain/validation/src/*.test.ts",
-        "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate"
+        "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
+        "{workspaceRoot}/deploy/compose/base.yml",
+        "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
-        "command": "bun test src --preload ../test/scratch/preload.ts --timeout=10000",
+        "command": "bun test src test/edge-init.test.ts test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts test/source-exclusion-transport.test.ts test/source-exclusion-topology.test.ts test/source-exclusion-native.test.ts test/fixture-failure.test.ts --preload ../test/scratch/preload.ts --timeout=10000",
         "cwd": "tools/tool-remote-scripts"
       },
       "dependsOn": ["test:caddy"]
@@ -103,12 +114,76 @@
         "command": "bun run tools/tool-remote-scripts/test/backend-recreation.ts"
       }
     },
+    "test:edge-init": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/edge-init.ts"
+      }
+    },
     "check-installed-solver": {
       "executor": "nx:run-commands",
       "options": {
         "command": "bun run tools/tool-remote-scripts/src/check-installed-solver.ts"
       },
       "cache": false
+    },
+    "test:gateway-exclusion": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/gateway-exclusion.ts"
+      }
+    },
+    "test:backend-exclusion": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/backend-exclusion.ts"
+      }
+    },
+    "inspect-installed-writers": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/src/inspect-installed-writers.ts"
+      }
+    },
+    "test:dependency-ingress": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/dependency-ingress.ts"
+      }
+    },
+    "test:solver-drain": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/solver-drain.ts"
+      }
+    },
+    "initialize-edge-policy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/src/initialize-edge-policy.ts"
+      }
+    },
+    "adopt-edge-init": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build"],
+      "options": {
+        "command": "bun run dist/tool-remote-scripts/adopt-edge-init.js"
+      }
+    },
+    "test:source-exclusion": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/source-exclusion.ts"
+      }
     }
   }
 }

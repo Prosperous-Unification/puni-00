@@ -7,8 +7,10 @@ import { DirectoryService } from '@wbs/core/module/directory/directory.resource'
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { readPreconditions } from '@wbs/core/service/compensating';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
@@ -59,6 +61,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -68,18 +71,21 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 let folder: string;
 let app: ReturnType<typeof buildApp>;
 let typed: TypedDependencyRepository;
+let journal: CommandJournalRepository;
+let workItems: WorkItemRepository;
 beforeEach(() => {
   folder = mkdtempSync(join(tmpdir(), 'wbs-typed-lifecycle-'));
   const db = openDrizzle(join(folder, 'test.db'));
   runMigrations(join(folder, 'test.db'), FOLDER);
   const projects = new ProjectRepository(db, OPEN);
   const steps = new StepRepository(db, OPEN);
-  const workItems = new WorkItemRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
+  journal = new CommandJournalRepository(db, OPEN);
   const estimates = new EstimateRepository(db, OPEN);
   const dependencies = new DependencyRepository(db, OPEN);
   typed = new TypedDependencyRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);
-  const dependencyGraph = new DependencyGraphGuard({
+  const dependencyContext = createLocalDependencyContext({
     projects,
     workItems,
     estimates,
@@ -100,16 +106,24 @@ beforeEach(() => {
       clock: testClock,
       projects,
       broadcast: recordingBroadcaster(),
-      dependencyGraph,
+      dependencyContext,
     }),
     steps: new StepService({
       clock: testClock,
       projects,
       steps,
       broadcast: recordingBroadcaster(),
-      dependencyGraph,
+      dependencyContext,
     }),
     workItems: new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projects,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies: typed,
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
@@ -130,7 +144,7 @@ beforeEach(() => {
       resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       priorityBands: inMemoryPriorityBands(),
       subtrees: new SubtreeRepository(db, OPEN),
-      journal: new CommandJournalRepository(db, OPEN),
+      journal,
       broadcast: recordingBroadcaster(),
     }),
   };
@@ -139,6 +153,7 @@ beforeEach(() => {
     clock: testClock,
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -160,6 +175,7 @@ beforeEach(() => {
     }),
     ...writing,
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes: {
@@ -167,6 +183,14 @@ beforeEach(() => {
       batch: (scope, broadcast) => ({
         ...writing,
         workItems: new WorkItemService({
+          dependencyContext: createLocalDependencyContext({
+            projects: scope.stores.projects,
+            workItems: scope.stores.workItems,
+            estimates: scope.stores.estimates,
+            dependencies: scope.stores.dependencies,
+            typedDependencies: scope.stores.typedDependencies,
+          }),
+          externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
           admission: CREATOR_ADMISSION,
           scheduler: fastScheduler,
           clock: testClock,
@@ -191,7 +215,10 @@ beforeEach(() => {
           broadcast,
         }),
       }),
-      uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
+      uow: sqliteUnitOfWork(db, new WriteCoordinator(), {
+        createScope: () => ({ stores: buildStores(db, OPEN) }),
+        createRepairScope: () => ({ stores: buildStores(db, OPEN) }),
+      }),
     },
     migrationsApplied: true,
   });
@@ -260,7 +287,7 @@ const descendant = (workItemId: string, stepId: string): DependencyEndpoint => (
   stepId,
 });
 
-it('copies only internal typed relationships and replays them with stable ids', async () => {
+it('copies typed prerequisites and replays them with stable ids', async () => {
   const plan = await setup();
   const parent = await plan.create('P');
   const first = await plan.create('C1', parent);
@@ -274,6 +301,8 @@ it('copies only internal typed relationships and replays them with stable ids', 
   const externalId = await plan.add(node(outside, plan.devId), whole(first));
   const outgoingId = await plan.add(whole(branch), whole(outside));
 
+  const beforeOutside = await workItems.findById(outside);
+  if (beforeOutside === null) throw new Error('outside prerequisite missing');
   const duplicated = await plan.command({ kind: 'duplicateWorkItem', workItemId: parent });
   expect(duplicated.status).toBe(200);
   const copyId = ((await duplicated.json()) as { results: { id: string }[] }).results[0].id;
@@ -307,8 +336,16 @@ it('copies only internal typed relationships and replays them with stable ids', 
     type: 'FF',
   });
   expect(copied?.id).toBeDefined();
-  // Proof: 2026-09-28, admitting the outside endpoints made duplication return 500.
-  expect(tree.typedDependencies).toHaveLength(8);
+  expect(tree.typedDependencies).toHaveLength(9);
+  const copiedIncoming = tree.typedDependencies.find(
+    (edge) => edge.predecessor.workItemId === outside && edge.successor.workItemId === firstCopy.id,
+  );
+  expect(copiedIncoming).toMatchObject({
+    predecessor: node(outside, plan.devId),
+    successor: whole(firstCopy.id),
+    type: 'FS',
+  });
+  expect(copiedIncoming?.id).not.toBe(externalId);
   const copiedWhole = tree.typedDependencies.find(
     (edge) => edge.predecessor.workItemId === firstCopy.id && edge.predecessor.scope === 'whole',
   );
@@ -340,7 +377,22 @@ it('copies only internal typed relationships and replays them with stable ids', 
     predecessor: whole(branch),
     successor: whole(outside),
   });
-  expect(await typed.listByProject(plan.projectId)).toHaveLength(8);
+  expect(await typed.listByProject(plan.projectId)).toHaveLength(9);
+  const entry = (await journal.entriesFor(plan.projectId, plan.userId)).at(-1);
+  if (entry === undefined) throw new Error('copy journal missing');
+  const preconditions = readPreconditions(entry.preconditions);
+  expect(preconditions.from).toEqual({ [outside]: beforeOutside.revision });
+  expect(preconditions.expected[outside]).toBe(beforeOutside.revision + 1);
+  expect(Object.keys(preconditions.expected).sort()).toEqual(
+    [
+      outside,
+      ...tree.workItems
+        .filter(
+          (row) => row.id === copyId || row.parentId === copyId || row.parentId === branchCopy.id,
+        )
+        .map((row) => row.id),
+    ].sort(),
+  );
 
   expect(
     (await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST')).status,

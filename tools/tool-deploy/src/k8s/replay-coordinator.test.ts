@@ -399,6 +399,7 @@ for (const [phase, forbidden] of [
     let injected = false;
     const corrupting = {
       ...journal,
+      read: () => journal.read(),
       write: (record: Parameters<typeof journal.write>[0]) => {
         journal.write(record);
         if (!injected && record.state.phase === phase) {

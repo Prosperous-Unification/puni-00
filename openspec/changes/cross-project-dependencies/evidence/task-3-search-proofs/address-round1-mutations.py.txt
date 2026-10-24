@@ -1,0 +1,36 @@
+from pathlib import Path
+import subprocess,json,re
+root=Path('/tmp/puni-cross-address')
+service='libs/wbs/application/core/src/service/project-address-search.ts';adapter='libs/wbs/adapters/store-sqlite/src/project-address-search.ts'
+mounted='apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts';snapshot='libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts'
+faults=[
+ ('null-cursor',service,'  if (input.cursor !== undefined && cursor === null) return null;','',[mounted],'rejects present JSON null',4,4,'error: expect(received).toEqual(expected)'),
+ ('scope-type',service,"          typeof cursor['scope'] !== 'string' ||\n          !['whole', 'node', 'descendant-step'].includes(cursor['scope']) ||",'',[mounted],'rejects array cursor scope',2,1,'error: expect(received).toEqual(expected)'),
+ ('placement-validation',adapter,"throw new Error('malformed project address placement');",';',[mounted,snapshot],'malformed.*placement evidence',2,2,'error: capture admitted malformed placement evidence'),
+]
+def run_check(name,phase,files,pattern,expected_executed,expected_fail,marker=None):
+ command=['bun','test',*files,'-t',pattern]
+ checked=subprocess.run(command,cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+ log=f'/tmp/address-round1-{name}-{phase}.txt';Path(log).write_text(checked.stdout)
+ def count(word):
+  match=re.search(r'^\s*(\d+) '+word+r'$',checked.stdout,re.M)
+  if match is None:raise RuntimeError(f'{name}/{phase}: missing Bun {word} summary')
+  return int(match.group(1))
+ passed=count('pass');failed=count('fail')
+ if passed+failed!=expected_executed or failed!=expected_fail:raise RuntimeError(f'{name}/{phase}: unexpected selected test counts {passed}pass {failed}fail')
+ if checked.returncode != (1 if expected_fail else 0):raise RuntimeError(f'{name}/{phase}: unexpected exit {checked.returncode}')
+ if expected_fail and ('(fail) ' not in checked.stdout or marker not in checked.stdout):raise RuntimeError(f'{name}/{phase}: no named intended assertion failure')
+ print(name,phase,f'{passed}pass {failed}fail',flush=True)
+ return {'phase':phase,'exit':checked.returncode,'passed':passed,'failed':failed,'command':command,'log':log}
+evidence=[]
+for name,filename,before,after,files,pattern,executed,failed,marker in faults:
+ path=root/filename;original=path.read_text()
+ if original.count(before)!=1:raise RuntimeError('expected unique fault anchor '+name)
+ phases=[run_check(name,'control',files,pattern,executed,0)]
+ try:
+  path.write_text(original.replace(before,after,1))
+  phases.append(run_check(name,'fault',files,pattern,executed,failed,marker))
+ finally:path.write_text(original)
+ phases.append(run_check(name,'restored',files,pattern,executed,0))
+ evidence.append({'fault':name,'checks':phases})
+Path('/tmp/address-round1-proof-evidence.json').write_text(json.dumps(evidence,indent=2))

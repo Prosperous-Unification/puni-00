@@ -1,0 +1,15 @@
+
+> nx run tool-remote-scripts:typecheck
+
+> bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project tool-remote-scripts
+
+
+  Run duration:      420ms
+  Cache:             0/1 hit (0%)
+  Critical path:     406ms (1 task)
+  Recoverable time:  <1ms

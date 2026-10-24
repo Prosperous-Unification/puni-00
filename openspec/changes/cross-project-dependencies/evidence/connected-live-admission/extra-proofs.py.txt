@@ -1,0 +1,28 @@
+from pathlib import Path
+import subprocess
+base=Path.cwd()
+evidence=base/'openspec/changes/cross-project-dependencies/evidence/connected-live-admission'
+proofs=[
+ ('omitted-admission-call','apps/wbs/be-01/src/services.ts','await coordinator.admitCaptured(ask);','await Promise.resolve(ask);','cold mounted isolated',False),
+ ('recaptured-admission','libs/wbs/application/core/src/module/work-item/work-item.resource.ts','const observation = captureConnectedOptimization(captured, projectId);',"const observation = await this.optimizationCapture(projectId);",'cold mounted isolated',False),
+ ('unclosed-read','libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts','mounted admission check saw one open snapshot at both launch handoffs.\n      lifetime.expire();\n      connection.close();','mounted admission check saw one open snapshot at both launch handoffs.\n      lifetime.expire();','cold mounted isolated',False),
+ ('final-placement-unproven','libs/wbs/application/core/src/module/work-item/work-item.resource.ts',"input: { kind: 'connected', stage: selection.stage }", "input: { kind: 'connected', stage: { ...selection.stage, starts: new Map([...placement.combined.slices].map(([key, slice]) => [key, slice.earliestStart])), finishes: new Map([...placement.combined.slices].map(([key, slice]) => [key, slice.earliestFinish])) } }",'cold mounted isolated',True),
+]
+for name,relative,original,fault,pattern,may_survive in proofs:
+ path=base/relative;contents=path.read_text()
+ # The public treeWithin observation is deliberately the final occurrence among scoped capture callers.
+ if name=='recaptured-admission':
+  start=contents.index('  async treeWithin(')
+  before,tail=contents[:start],contents[start:]
+  if tail.count(original)!=1:raise RuntimeError(name+' target ambiguity')
+  mutated=before+tail.replace(original,fault)
+ else:
+  if contents.count(original)!=1:raise RuntimeError(name+' target ambiguity '+str(contents.count(original)))
+  mutated=contents.replace(original,fault)
+ try:
+  path.write_text(mutated)
+  run=subprocess.run(['bun','test','apps/wbs/be-01/src/services-connected.db.test.ts','-t',pattern,'--timeout=15000'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=60)
+  (evidence/(name+'.log.txt')).write_text(run.stdout.decode()+f'\nWatched exit: {run.returncode}\n')
+  print(f'{name}: exit {run.returncode}',flush=True)
+  if run.returncode==0 and not may_survive:raise RuntimeError(name+' survived')
+ finally:path.write_text(contents)

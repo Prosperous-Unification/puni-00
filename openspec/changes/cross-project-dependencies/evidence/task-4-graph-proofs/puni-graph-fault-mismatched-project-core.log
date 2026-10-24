@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+288 | });
+289 |
+290 | it('rejects a required project read returning another project identity', async () => {
+291 |   const scope = observation();
+292 |   scope.reads.projects.findById = async () => ({ id: 'foreign', depReach: 'anchor-slice' });
+293 |   await expect(scope.reader.read(['a'])).rejects.toThrow(/project a.*mismatched/);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:293:50)
+(fail) rejects a required project read returning another project identity [1.36ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [141.00ms]

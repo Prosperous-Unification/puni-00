@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:
+270 |               expired,
+271 |             ),
+272 |           )
+273 |         ).message,
+274 |       ).toContain('closed');
+275 |       expect(queries.length).toBe(before);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 48
+Received: 49
+
+      at refuses (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:275:30)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:277:11)
+(fail) transaction snapshot and raw cache capability never revive after settlement [148.59ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [2.10s]

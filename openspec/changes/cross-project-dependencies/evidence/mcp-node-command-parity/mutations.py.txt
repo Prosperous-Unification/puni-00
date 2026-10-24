@@ -1,0 +1,25 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-mcp-node-parity')
+proofs=root/'openspec/changes/cross-project-dependencies/evidence/mcp-node-command-parity'
+proofs.mkdir(parents=True,exist_ok=True)
+cases=[
+('forward-project','apps/wbs/mcp-01/src/wbs-client.ts','JSON.stringify(body)','JSON.stringify(body, (key, value) => key === "projectId" ? undefined : value)','MCP node split binds'),
+('bind-project','libs/wbs/application/core/src/module/plan-commands/command-bindings.ts','endpoint.projectId ?? context.requireProjectId()','context.requireProjectId()','MCP node split binds'),
+('bind-alias','libs/wbs/application/core/src/module/plan-commands/command-bindings.ts',"'workItemRef' in endpoint ? endpoint.workItemRef : undefined",'undefined','MCP node split binds'),
+('alias-refusal','libs/wbs/application/core/src/service/command-fields.ts','if (projectId !== undefined && workItemRef !== undefined)','if (false)','MCP node explicit-owner-alias'),
+('remote-step','libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts','candidate.id === endpoint.stepId && candidate.projectId === endpoint.projectId','candidate.projectId === endpoint.projectId','MCP node remote-step'),
+('scope-shape','libs/wbs/application/core/src/module/work-item/work-item.resource.ts',"if (endpoint.scope === 'descendant-step' && evidence.isLeaf)","if (false)",'MCP node descendant-leaf'),
+('dormant','libs/wbs/application/core/src/ports/external-dependency-authoring.ts',"= { state: 'inactive' }","= { state: 'active' }",'MCP node dormant'),
+]
+for name,path,before,after,selected in cases:
+    source=root/path
+    original=source.read_text()
+    if original.count(before)!=1: raise RuntimeError((name,original.count(before)))
+    try:
+        source.write_text(original.replace(before,after))
+        completed=subprocess.run(['bun','test','apps/wbs/mcp-01/src/connected-command-parity.test.ts','-t',selected],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        (proofs/f'{name}.log').write_text(completed.stdout)
+        print(name,completed.returncode,flush=True)
+        if completed.returncode==0: raise RuntimeError('negative unexpectedly passed: '+name)
+    finally: source.write_text(original)

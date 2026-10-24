@@ -475,6 +475,87 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "openspec/changes/cross-project-dependencies/evidence/fast-capacity-2026-10-23/capacity-resource-scope-fault.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/mounted-calendar/calendar-fault-deadline-shift.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/mounted-calendar/calendar-fault-deadline-weekend.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/mounted-calendar/calendar-fault-round-projection.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/mounted-calendar/calendar-fault-substitute-anchor.log",
+        "format": "application/octet-stream",
+        "consumer": "openspec/changes/cross-project-dependencies/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/external-edge-fault.log.raw.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/hold-fault.log.raw.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/union-steps-fault.log.raw.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical fault execution recorded in openspec/changes/cross-project-dependencies/evidence/task-6-3-evidence/report.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/cross-project-dependencies/evidence/browser-refresh/B-installed-waiting.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/cross-project-dependencies/evidence/browser-refresh/report.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts"
+        }
+      },
+      {
         "path": "apps/twilight-structure/twilight-dash/cli/fixtures/activation/pre-relocation-activation.tar",
         "format": "application/x-tar",
         "consumer": "apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts",
@@ -5696,6 +5777,37 @@
           "mode": "100644",
           "blob": "cf119189e6e35cbd71f6ef44f55049cc6f98bd9e",
           "path": "libs/wbs/application/core/src/module/event-log/module.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.dependency-lookup",
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/dependency-lookup"
+      },
+      "creationRevision": "67a80399326e9861c0cdc9f598f9823cd08f8e8d",
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "fea7e35cd457573ef729aa582c50179e2208a4fe",
+          "path": "apps/wbs/fe-01/src/modules/dependency-lookup/contract.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "d5dd4596f5c4c35b5a4982adc5b5f1cc5fcbb425",
+          "path": "apps/wbs/fe-01/src/modules/dependency-lookup/dependency-lookup.feature.test.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "33e49090494cacb504dfd32da5116041aaeb9820",
+          "path": "apps/wbs/fe-01/src/modules/dependency-lookup/dependency-lookup.feature.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "311a04c648adddaa9e880b7d0c317515bfd13f60",
+          "path": "apps/wbs/fe-01/src/modules/dependency-lookup/tsconfig.json"
         }
       ],
       "obligationIds": []

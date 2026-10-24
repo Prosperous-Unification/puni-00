@@ -28,12 +28,27 @@ function encoded(value: unknown): Uint8Array {
 
 describe('the solver supervisor executable', () => {
   it('accepts only one bounded absolute config argument', () => {
-    expect(parseSolverSupervisorArgs(['--config=/etc/wbs/supervisor.json'])).toBe(
-      '/etc/wbs/supervisor.json',
-    );
+    expect(parseSolverSupervisorArgs(['--config=/etc/wbs/supervisor.json'])).toEqual({
+      config: '/etc/wbs/supervisor.json',
+      admission: 'ordinary',
+    });
     expect(() => parseSolverSupervisorArgs([])).toThrow(/exactly/);
     expect(() => parseSolverSupervisorArgs(['--config=relative.json'])).toThrow(/absolute/);
     expect(() => parseSolverSupervisorArgs(['--config=/a', '--verbose'])).toThrow(/exactly/);
+  });
+
+  it('accepts policy admission only in its fixed argument position', () => {
+    expect(parseSolverSupervisorArgs(['--config=/a', '--admission=policy'])).toEqual({
+      config: '/a',
+      admission: 'policy',
+    });
+    for (const argv of [
+      ['--admission=policy', '--config=/a'],
+      ['--config=/a', '--admission=ordinary'],
+      ['--config=/a', '--config=/b'],
+      ['--config=/a', '--admission=policy', '--admission=policy'],
+    ])
+      expect(() => parseSolverSupervisorArgs(argv)).toThrow();
   });
 
   it('bounds bytes and rejects malformed text before decoding authority', () => {

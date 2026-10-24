@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+{"level":"error","time":1792702647579,"service":"be-01","err":{"occurrence_id":"AE_DYER5C8HVXNENZ13Q7H2TH5DC2","fingerprint":"fp1_b38fd2d1120d1325c11c1216c2b6d63d","stack":["Error: external dependency endpoint lifecycle requires incident transfer admission","    at findEndpointConflict (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/service/dependency-graph.ts:251:21)","    at async <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1482:46)","    at async withDependencyContext (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)","    at async remove (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:5273:35)","    at async <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/plan-commands/command-bindings.ts:404:25)","    at async applyAll (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:776:26)","    at async collect (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8863:28)","    at async <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:497:53)","    at async <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/plan-commands/composition.ts:144:34)","    at async <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+1232 |       const refusal = await fixture.request(`${route}/commands`, {
+1233 |         commands: [
+1234 |           { kind: 'deleteWorkItem', workItemId: fixture.owner.workItemId, strategy: 'promote' },
+1235 |         ],
+1236 |       });
+1237 |       expect(refusal.status).toBe(409);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 500
+
+      at <anonymous> (/tmp/puni-promote-lifecycle/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:1237:30)
+(fail) synthetic mounted promote outgoing preserves surviving child incidents [863.68ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 16 expect() calls
+Ran 1 test across 1 file. [3.61s]

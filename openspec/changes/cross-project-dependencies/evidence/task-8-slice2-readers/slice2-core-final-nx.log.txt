@@ -1,0 +1,52 @@
+
+ NX   Running targets typecheck, lint for project wbs-core and 1 task it depends on:
+
+- wbs-core
+
+
+
+> nx run wbs-core:"typecheck:module"
+
+> bun tools/tool-devsync/src/typecheck-modules.ts libs/wbs/application/core/src/module
+
+typecheck libs/wbs/application/core/src/module/authentication
+typecheck libs/wbs/application/core/src/module/bounded-replay-sweep
+typecheck libs/wbs/application/core/src/module/calendar-marker
+typecheck libs/wbs/application/core/src/module/capacity
+typecheck libs/wbs/application/core/src/module/directory
+typecheck libs/wbs/application/core/src/module/event-log
+typecheck libs/wbs/application/core/src/module/plan-commands
+typecheck libs/wbs/application/core/src/module/plan-document
+typecheck libs/wbs/application/core/src/module/plan-event
+typecheck libs/wbs/application/core/src/module/plan-history
+typecheck libs/wbs/application/core/src/module/plan-import
+typecheck libs/wbs/application/core/src/module/priority-band
+typecheck libs/wbs/application/core/src/module/project
+typecheck libs/wbs/application/core/src/module/realtime
+typecheck libs/wbs/application/core/src/module/saved-plans
+typecheck libs/wbs/application/core/src/module/step
+typecheck libs/wbs/application/core/src/module/work-item
+
+> nx run wbs-core:lint
+
+> bunx eslint libs/wbs/application/core/src libs/wbs/application/core/testing libs/wbs/application/core/playwright.config.ts
+
+
+> nx run wbs-core:typecheck
+
+> bunx tsc --build --force libs/wbs/application/core/tsconfig.json
+
+
+
+
+ NX   Successfully ran targets typecheck, lint for project wbs-core and 1 task it depends on
+
+
+  Run duration:      2m 45s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     2m 1s (2 tasks)
+  Recoverable time:  44.1s (27% of the run)
+
+  Recommendations:
+    - Increase parallelism to recover up to 44.1s → https://nx.dev/docs/concepts/ci-concepts/parallelization-distribution?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=parallelization.
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.

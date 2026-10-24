@@ -74,3 +74,64 @@ because no cached project graph exists in the isolated checkout; no graph/full N
 Full local Nx, Burokrat and
 browser checks remain intentionally skipped for laptop RAM. Exact-head hosted CI and the canonical
 h2puni gate remain release requirements. No complete aggregate gate pass is claimed.
+
+## Whole-project capacity partition, 2026-10-24
+
+The older [run 40060433745](https://github.com/Prosperous-Unification/puni-00/actions/runs/40060433745)
+cancelled the 90-minute workspace job. Its artifact records Nx starting at 04:02:13 UTC
+and cancellation about 86m11s later without a final Nx summary. The backend and remote
+suite elapsed times were 42m57s and 31m18s respectively; the frontend main test and final
+typecheck were unfinished. Five remote-script cases and one contracts matrix failed
+independently. The partition does not repair or waive those failures.
+
+The parsed former workspace job has 23 non-Nx steps after removing only the old runtime
+and upload steps. The new `gate_checks` steps compare equal as parsed YAML, in order,
+including all commands, environment and conditions. Four runtime jobs have distinct
+whole-project ownership, exact full-depth checkout, pinned Bun and Python, shellcheck,
+native bubblewrap/BusyBox provision, frozen install, 90-minute job limits and 75-minute
+runtime phase cutoffs. `ci-run-runtime` emits the selected project/target roster, Nx command
+elapsed time and exit code; the pinned Nx task-timings lifecycle logs per-task durations
+when each command completes. Each runtime job uploads a unique per-attempt log with
+missing-log refusal. The `gate` reducer requires every selected runner and checks job.
+
+Focused local commands and observed outcomes:
+
+| Command or check                                                                                                                                 | Outcome                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Eight focused Bun suites: CI plan, capacity workflow, runtime partitions, reducer, PR shell, corpus workflow, toolchain and Burokrat entrypoints | 175 pass, 0 fail, 1,118 assertions with `TOOL_WIKI_TRUSTED_NODE_MODULES` set to this checkout's installed `node_modules` for the existing scratch fixture |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show projects --json`                                                                          | JSON roster includes all three dedicated names and the residual projects                                                                                  |
+| Pinned OpenSpec validation for `workspace-gate-time-budget`                                                                                      | 1 change passed, 0 issues                                                                                                                                 |
+| Scoped ESLint, TypeScript builds for hooks/devsync/Burokrat CLI, Prettier and `git diff --check`                                                 | Exit 0 after formatting the runner                                                                                                                        |
+
+Watched fault injections were applied only to the isolated worktree and restored in
+`finally` blocks. In each row, the named focused test became red with the fault:
+
+| Fault                                                                 | Observed focused test                                                           |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Map `wbs-fe-01` to the backend owner                                  | `partitions all three heavy projects`: 1 fail                                   |
+| Change first runtime phase from 75m to 90m                            | `each whole-project runtime`: 1 fail                                            |
+| Remove BusyBox from first runtime provision                           | `every runtime keeps exact checkout`: 1 fail                                    |
+| Change workspace log upload to `if-no-files-found: warn`              | `each whole-project runtime`: 1 fail                                            |
+| Remove selected-owner success assertions from reducer                 | `requires each selected dedicated runner`: 1 fail                               |
+| Remove checks-job success assertion from reducer                      | same reducer test: 1 fail                                                       |
+| Remove backend plan ownership equality from published scope validator | `refuses malformed, inconsistent and polluted plans`: 1 fail                    |
+| Remove full inventory name-shape guard                                | `full runner refuses stale head, missing owner and failed Nx inventory`: 1 fail |
+| Remove published-plan project-name refusal                            | `refuses malformed, inconsistent and polluted plans`: 1 fail                    |
+| Remove frontend `test:unit` dependency or Pacific/Auckland command    | `retains frontend node dependency and both timezone suites`: 1 fail for each    |
+| Replace Caddy network assertion with gateway                          | `non-Nx checks retain their own finite budget`: 1 fail                          |
+| Remove duplicate-owner or unknown runtime mode refusals               | corresponding focused partition/CLI tests: 1 fail each                          |
+| Rename the runtime phase end record in the production shell           | `gate_workspace propagates runtime and annotation failures`: 1 fail             |
+
+The GitHub job and `timeout` ceilings are declaration proofs only. The new partition has
+not run on a hosted runner, so no complete exact-head cold gate, post-partition elapsed
+times, or sustainable-capacity claim exists yet. The h2/h4 canonical host gate was not
+run under this local source-only task. Docker release shape timeout and the remote
+global cleanup-hook incident remain separate investigations, not capacity fixes.
+
+The implementation commit `fc3dc813d1c50536462cd64ba5696f778263d858` passed normal
+lefthook pre-commit: plaintext secrets,
+private nesting, Prettier and scoped ESLint. Migration, website migration and doc-cap hooks
+reported no matching staged files. Tool Wiki reported `inactive`, `certified:false` because
+the external activation root is not provisioned. Both agent trailer hooks passed. No hook
+was bypassed. This evidence update is a separate documentation commit so the recorded hook
+outcome follows the commit it describes.

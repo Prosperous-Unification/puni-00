@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:
+{"metric":"connected-capture","shape":"sparse","projects":202,"relationships":101,"captureQueries":10303,"totalQueries":10517,"captureMs":586.1119689999996,"deriveMs":19.048159999999825}
+222 |           captureRead: {
+223 |             afterFirstRead: ({ projectId }) => {
+224 |               const count = (fullCaptures.get(projectId) ?? 0) + 1;
+225 |               fullCaptures.set(projectId, count);
+226 |               // Proof: bypassing connectedByProject reuse makes the second component projection capture its first member twice.
+227 |               expect(count).toBe(1);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 2
+
+      at afterFirstRead (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:227:29)
+      at readPlanInputValuesIn (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:204:21)
+      at async captureConnectedPlanIn (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts:149:25)
+      at async <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:187:34)
+      at async readConnectedLivePlanIn (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:585:25)
+      at async readLiveAggregateIn (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:519:27)
+      at async observe (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:354:32)
+      at async <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:238:12)
+(fail) sparse: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [2169.82ms]
+{"metric":"connected-capture","shape":"dense","projects":26,"relationships":300,"captureQueries":5897,"totalQueries":5935,"captureMs":96.55782900000031,"deriveMs":1.7729819999995016}
+222 |           captureRead: {
+223 |             afterFirstRead: ({ projectId }) => {
+224 |               const count = (fullCaptures.get(projectId) ?? 0) + 1;
+225 |               fullCaptures.set(projectId, count);
+226 |               // Proof: bypassing connectedByProject reuse makes the second component projection capture its first member twice.
+227 |               expect(count).toBe(1);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 2
+
+      at afterFirstRead (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:227:29)
+      at readPlanInputValuesIn (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:204:21)
+      at async captureConnectedPlanIn (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts:149:25)
+      at async <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:187:34)
+      at async readConnectedLivePlanIn (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:585:25)
+      at async readLiveAggregateIn (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:519:27)
+      at async observe (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:354:32)
+      at async <anonymous> (/tmp/puni-connected-benchmark/libs/wbs/adapters/store-sqlite/src/connected-plan-benchmark.db.test.ts:238:12)
+(fail) dense: captures each required project once; closure includes incident and shared person bridges; lookup page bounds never truncate scheduling closure [604.27ms]
+
+ 0 pass
+ 2 fail
+ 1174 expect() calls
+Ran 2 tests across 1 file. [5.09s]

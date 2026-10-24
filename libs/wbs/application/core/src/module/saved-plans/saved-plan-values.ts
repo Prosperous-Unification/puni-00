@@ -1,5 +1,6 @@
 import type { PlanDiff, PlanSide } from '@wbs/domain';
 
+import type { SavedComparisonSide } from './saved-plan-comparison';
 import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
 
 /** One side of a saved plan, as it was read back and verified. */
@@ -58,7 +59,12 @@ export type SavedPlanSideRef =
  * its two pickers to correct.
  */
 export type SavedPlanCompareOutcome =
-  | { readonly outcome: 'compared'; readonly diff: PlanDiff }
+  | {
+      readonly outcome: 'compared';
+      readonly diff: PlanDiff;
+      readonly left: SavedComparisonSide;
+      readonly right: SavedComparisonSide;
+    }
   | { readonly outcome: 'no_project' }
   | { readonly outcome: 'not_found'; readonly savedPlanId: string }
   | {

@@ -1,0 +1,25 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts
+  373:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  399:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  431:22  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+✖ 3 problems (3 errors, 0 warnings)

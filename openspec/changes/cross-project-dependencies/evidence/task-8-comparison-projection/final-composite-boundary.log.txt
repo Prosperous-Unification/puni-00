@@ -1,0 +1,53 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:
+135 |       variants: {
+136 |         pri: { state: 'pending' },
+137 |         time: { state: 'ready', questionHash: 'question', chosen: 'optimized', proof: 'proven' },
+138 |       },
+139 |     });
+140 |     expect(captured.stages[0]?.boundary.fixed).toEqual([
+                                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "finish": 3,
++     "finish": 5,
+      "projectAbbreviation": "B",
+      "projectId": "B",
+      "projectName": "Beta",
+-     "start": 1,
++     "start": 3,
+      "stepId": "build",
+      "stepName": "Build",
+      "workItemId": "b",
+      "workItemName": "b",
+    },
+  ]
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-saved-comparison-c/libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:140:48)
+(fail) historical comparison side projection > retains captured context and exact stage boundaries when the diff is empty [19.19ms]
+(pass) historical comparison side projection > marks legacy input unknown while explicit input9 local stays local [4.06ms]
+(pass) historical comparison side projection > retains unavailable scope and absence without manufacturing stages [3.70ms]
+(pass) historical comparison side projection > preserves boundary and plan terminal outcomes distinctly without losing a present schedule [5.69ms]
+(pass) historical comparison side projection > detaches summaries from caller changes and never needs live capabilities [5.37ms]
+(pass) historical comparison side projection > preserves pending without inferring readiness or changing selection [5.13ms]
+(pass) historical comparison side projection > preserves retrying without inferring readiness or changing selection [7.69ms]
+(pass) historical comparison side projection > preserves idle without inferring readiness or changing selection [5.32ms]
+(pass) historical comparison side projection > preserves failed without inferring readiness or changing selection [4.79ms]
+(pass) historical comparison side projection > preserves corrupt without inferring readiness or changing selection [4.54ms]
+(pass) historical comparison side projection > preserves baseline without inferring readiness or changing selection [4.60ms]
+(pass) historical comparison side projection > preserves quantisation-floor without inferring readiness or changing selection [4.74ms]
+(pass) historical comparison side projection > retains captured idle project labels without manufacturing an idle stage [4.82ms]
+(pass) historical comparison side projection > refuses missing captured project labels rather than inventing them [6.85ms]
+(pass) historical comparison side projection > refuses missing captured row labels rather than inventing them [3.78ms]
+(pass) historical comparison side projection > refuses missing captured step labels rather than inventing them [3.45ms]
+
+ 15 pass
+ 1 fail
+ 29 expect() calls
+Ran 16 tests across 1 file. [395.00ms]

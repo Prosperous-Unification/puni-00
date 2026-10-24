@@ -1,0 +1,13 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-mcp-node-parity')
+source=root/'apps/wbs/mcp-01/src/connected-command-parity.test.ts'
+original=source.read_text()
+try:
+    if original.count('      await close();')!=1: raise RuntimeError('cleanup mutation anchor is ambiguous')
+    source.write_text(original.replace('      await close();','      await Promise.resolve();'))
+    completed=subprocess.run(['bun','test','apps/wbs/mcp-01/src/connected-command-parity.test.ts','-t','readiness deadline failure'],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+    (root/'openspec/changes/cross-project-dependencies/evidence/mcp-node-command-parity/readiness-cleanup.log').write_text(completed.stdout)
+    print(completed.returncode)
+    if completed.returncode==0: raise RuntimeError('cleanup bypass unexpectedly passed')
+finally: source.write_text(original)

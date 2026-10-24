@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1564 |   });
+1565 |   expect(added).toMatchObject({ ok: true });
+1566 |   const undone = await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+1567 |   expect(undone).toMatchObject({ ok: true });
+1568 |   const redone = await semantic(fixture, (service) => service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+1569 |   expect(redone).toMatchObject({ ok: true });
+                        ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "detail": null,
++   "ok": false,
++   "reason": "not_found",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1569:18)
+(fail) ordered restore lets an external create-link batch redo its local successor [366.00ms]
+
+ 0 pass
+ 77 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [2.27s]

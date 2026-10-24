@@ -1,0 +1,120 @@
+[
+  {
+    "name": "distinct-cycle",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const cycle = await context.graph.findCycle(projectId, {\n          typed: [...existing.filter((row) => row.id !== proposed.id), proposed],\n        });",
+    "after": "const cycle = null;",
+    "selected": "admitted distinct tasks",
+    "classification": "semantic acceptance: local closing link bypasses actual remote cycle",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0",
+    "restoredSha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0"
+  },
+  {
+    "name": "batch-cycle",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const cycle = await context.graph.findCycle(projectId, {\n          typed: [...existing.filter((row) => row.id !== proposed.id), proposed],\n        });",
+    "after": "const cycle = null;",
+    "selected": "admitted batch rolls back",
+    "classification": "semantic acceptance: later graph-invalid command succeeds after staged external write",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0",
+    "restoredSha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0"
+  },
+  {
+    "name": "move-cycle",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const cycle = await context.graph.findCycle(projectId, change);",
+    "after": "const cycle = null;",
+    "selected": "admitted subtree move",
+    "classification": "semantic acceptance: move commits an actual remote cycle",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0",
+    "restoredSha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0"
+  },
+  {
+    "name": "estimate-cycle",
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "before": "const cycle = await context.graph.findCycle(projectId, change);",
+    "after": "const cycle = null;",
+    "selected": "admitted clear-estimate",
+    "classification": "semantic acceptance: clear-estimate commits an actual remote cycle",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0",
+    "restoredSha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0"
+  },
+  {
+    "name": "reach-cycle",
+    "path": "libs/wbs/application/core/src/module/project/project.resource.ts",
+    "before": "if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };",
+    "after": "if (false) return { ok: false, reason: 'dependency_cycle' };",
+    "selected": "admitted project-reach",
+    "classification": "semantic acceptance: changed reach commits an actual remote cycle",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "0e850dcd0e51e1e5b78b0c8a2a9b0ed776fd3ea3d2a934843209dc85c0a23908",
+    "restoredSha256": "0e850dcd0e51e1e5b78b0c8a2a9b0ed776fd3ea3d2a934843209dc85c0a23908"
+  },
+  {
+    "name": "step-remove-cycle",
+    "path": "libs/wbs/application/core/src/module/step/step.resource.ts",
+    "before": "(await dependencyContext.graph.findCycle(projectId, { withoutStepId: stepId })) !== null",
+    "after": "false",
+    "selected": "admitted step-remove",
+    "classification": "semantic acceptance: step removal commits an actual remote cycle",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "d0bfba8af60cbcf4391b08cd6ff8726974cc9aac234af931dac3ca5aaa4f13e1",
+    "restoredSha256": "d0bfba8af60cbcf4391b08cd6ff8726974cc9aac234af931dac3ca5aaa4f13e1"
+  },
+  {
+    "name": "omit-expanded-pair",
+    "path": "libs/wbs/domain/domain/src/slice-edges.ts",
+    "before": "return before.flatMap((predecessor) =>",
+    "after": "return before.slice(0, 1).flatMap((predecessor) =>",
+    "selected": "admitted remote scopes",
+    "classification": "semantic acceptance: one of four real expanded pairs no longer closes cycle",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "a4791e99201e92c791954e81d51f7ad113000b252a7b27ed228936a98daf7ccf",
+    "restoredSha256": "a4791e99201e92c791954e81d51f7ad113000b252a7b27ed228936a98daf7ccf"
+  },
+  {
+    "name": "target-reach-globally",
+    "path": "libs/wbs/application/core/src/service/connected-dependency-graph.ts",
+    "before": "reach: change?.reach ?? project.depReach,",
+    "after": "reach: changes.find((candidate) => candidate.projectId === projectIds[0])?.reach ?? (await this.reads.projects.findById(projectIds[0])).depReach,",
+    "selected": "admitted remote legacy",
+    "classification": "compatibility: owner whole-item reach incorrectly applied to a remote anchor-slice project; final valid estimate write refused",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "4264abdf0ae49b2e2636361a85414e174f7471a084a90ebc47043fb57cd5473e",
+    "restoredSha256": "4264abdf0ae49b2e2636361a85414e174f7471a084a90ebc47043fb57cd5473e"
+  },
+  {
+    "name": "project-dag-refusal",
+    "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
+    "before": "    this.assertOwner(projectId);\n    const proposed =",
+    "after": "    this.assertOwner(projectId);\n    if (captured.external.some((left) => captured.external.some((right) => left.predecessor.projectId === right.successor.projectId && left.successor.projectId === right.predecessor.projectId))) return { kind: 'cycle', relationshipIds: captured.external.map((edge) => edge.id) };\n    const proposed =",
+    "selected": "admitted distinct tasks",
+    "classification": "compatibility: reciprocal project arcs incorrectly refuse valid distinct-task interleaving",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "fc681257be4ddedd6a890bccce4c8877cdd5f51318083ccd37db0366196cd0d1",
+    "restoredSha256": "fc681257be4ddedd6a890bccce4c8877cdd5f51318083ccd37db0366196cd0d1"
+  },
+  {
+    "name": "rollback",
+    "path": "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts",
+    "before": "decision.commit ? 'COMMIT' : 'ROLLBACK'",
+    "status": 1,
+    "selectedAssertionFailed": true,
+    "beforeSha256": "198e1b351943f93014b0e6ba5b04ad5ed143af42429105bdf5f875fb9999287a",
+    "restoredSha256": "198e1b351943f93014b0e6ba5b04ad5ed143af42429105bdf5f875fb9999287a",
+    "classification": "atomicity: forced COMMIT retains earlier external link/revisions despite later real cycle refusal"
+  }
+]

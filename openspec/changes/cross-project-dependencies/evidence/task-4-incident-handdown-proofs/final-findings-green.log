@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+(pass) incident final graph result refuses node_on_parent atomically with held announcements [552.15ms]
+(pass) incident final graph result refuses cycle atomically with held announcements [435.34ms]
+(pass) incident final graph result refuses self_node atomically with held announcements [408.37ms]
+
+ 3 pass
+ 13 filtered out
+ 0 fail
+ 45 expect() calls
+Ran 3 tests across 1 file. [3.82s]

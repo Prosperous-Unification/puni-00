@@ -133,6 +133,10 @@ it.each([
     // persisting optimistic=241 after rollback failed all eight exact-state comparisons (2026-10-14).
     expect(rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit')).toEqual([
       '20261023100000_add_claim_lease',
+      '20261022213000_add_optimization_boundary_certificates',
+      '20261022212000_add_cross_project_dependency_activation',
+      '20261022211000_add_external_dependencies',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',

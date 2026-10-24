@@ -1,0 +1,24 @@
+Injected private-hash; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+68 |   Reflect.set(failure, 'toJSON', () => {
+69 |     throw new Error('error serialization must never execute');
+70 |   });
+71 |   const report = summarizeFixtureFailure(failure);
+72 |   expect(report.chain).toHaveLength(2);
+73 |   for (const entry of report.chain) expect(entry.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+                                                                   ^
+error: expect(received).toMatch(expected)
+
+Expected substring or pattern: /^[a-f0-9]{64}$/
+Received: "PRIVATE_ERROR_NAMEPRIVATE_ENV=secret"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:73:63)
+(fail) unknown error name message enumerable properties and raw causes stay hash-only [0.52ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [40.00ms]

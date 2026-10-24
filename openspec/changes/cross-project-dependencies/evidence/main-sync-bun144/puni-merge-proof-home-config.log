@@ -1,0 +1,58 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts:
+654 |     const desired = [...controls, `HOME=${root}/image-home`];
+655 |     f.source.Config.Env = [...desired];
+656 |     f.setImageEnvironment([`HOME=${root}/image-home`]);
+657 |     f.setImageProbeRoot(root);
+658 |     await f.scoped(async (owner, token) => {
+659 |       await rejects(
+                  ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts:659:13
+      at withSourceDevExcluded (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at /tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts:167:15
+      at acquire (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) only passwd-home bunfig poison independently refuses before any role CLI [782.72ms]
+654 |     const desired = [...controls, `HOME=${root}/image-home`];
+655 |     f.source.Config.Env = [...desired];
+656 |     f.setImageEnvironment([`HOME=${root}/image-home`]);
+657 |     f.setImageProbeRoot(root);
+658 |     await f.scoped(async (owner, token) => {
+659 |       await rejects(
+                  ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts:659:13
+      at withSourceDevExcluded (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at /tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts:167:15
+      at acquire (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at /tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24
+      at acquireLock (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) only image-home bunfig poison independently refuses before any role CLI [1558.68ms]
+
+ 0 pass
+ 53 filtered out
+ 2 fail
+Ran 2 tests across 1 file. [2.38s]

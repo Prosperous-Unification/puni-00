@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+{"level":"error","time":1792689363308,"service":"be-01","err":{"occurrence_id":"AE_52N8NRD85EPRM0QXXBRF30924B","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiSaved-plansById returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792689363312,"service":"be-01","err":{"occurrence_id":"AE_DYA65D5DCNAQYJP04N59FGMQK8","fingerprint":"fp1_938187b25707ab8d0b127a2079b19831","stack":["Error: Endpoint getApiProjectsByIdSaved-plansCompare returned an undeclared refusal","    at renderReply (/tmp/puni-saved-resource/apps/wbs/be-01/src/http/elysia/mount.ts:465:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+1448 |   const f = fixture();
+1449 |   for (const field of ['path', 'code']) {
+1450 |     const incomplete = { ...refusal };
+1451 |     Reflect.deleteProperty(incomplete, field);
+1452 |     f.read.mockResolvedValueOnce({ outcome: 'corrupt', refusal: incomplete });
+1453 |     expect((await f.call('/api/saved-plans/s')).status).toBe(500);
+                                                               ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 422
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:1453:57)
+(fail) mounted malformed-history refusal requires its path and code on read and compare [101.70ms]
+
+ 0 pass
+ 57 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [4.76s]

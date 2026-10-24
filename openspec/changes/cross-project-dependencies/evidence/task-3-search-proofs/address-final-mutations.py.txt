@@ -1,0 +1,15 @@
+from pathlib import Path
+import subprocess,json
+root=Path('/tmp/puni-cross-address');service='libs/wbs/application/core/src/service/project-address-search.ts';adapter='libs/wbs/adapters/store-sqlite/src/project-address-search.ts';test='apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts'
+faults=[('candidate-binding',service,"cursor['kind'] !== 'address-candidates' ||\n          cursor['binding'] !== binding", "cursor['kind'] !== 'address-candidates'",'cursor reuse'),('candidate-stale',service,"if (cursor !== null && cursor['revision'] !== addressRevision)",'if (false)','changes revision'),('impossible-coordinate',service,'if (!resumed) return invalid;','','impossible and malformed'),('current-prefix',service,"if (parsed.kind === 'qualified' && parsed.abbreviation !== captured.project.abbreviation)",'if (false)','duplicate numbers'),('unicode-superset',adapter,"      sql`${project.name} GLOB '*[^ -~]*'`,",'','exact Unicode')]
+evidence=[]
+for name,filename,before,after,pattern in faults:
+ path=root/filename; original=path.read_text()
+ if before not in original: raise Exception('anchor missing '+name)
+ try:
+  path.write_text(original.replace(before,after,1));run=subprocess.run(['bun','test',test,'-t',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+  Path('/tmp/address-proof-'+name+'.txt').write_text(run.stdout);print(name,run.returncode,flush=True)
+  evidence.append({'fault':name,'exit':run.returncode,'test':pattern,'log':'/tmp/address-proof-'+name+'.txt'})
+  if run.returncode==0:raise Exception('survived '+name)
+ finally:path.write_text(original)
+Path('/tmp/address-final-proof-evidence.json').write_text(json.dumps(evidence,indent=2))

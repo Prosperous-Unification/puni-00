@@ -48,7 +48,7 @@ describe('buildPlan', () => {
   };
 
   it('orders steps: bootstrap, base.yml, configure, then (if wbs-host given) install', () => {
-    const steps = buildPlan({ ...base, wbsHost: 'h2puni' });
+    const steps = buildPlan({ ...base, wbsHost: 'h2puni' }, 'fixture');
     expect(steps).toHaveLength(5);
     expect(steps[0].description).toContain('scp');
     expect(steps[0].description).toContain('bootstrap.sh');
@@ -61,13 +61,13 @@ describe('buildPlan', () => {
   });
 
   it('omits the install step entirely when --wbs-host is not given', () => {
-    const steps = buildPlan(base);
+    const steps = buildPlan(base, 'fixture');
     expect(steps).toHaveLength(4);
     expect(steps.some((s) => s.description.includes('tool-remote-scripts:install'))).toBe(false);
   });
 
   it('runs bootstrap.sh directly (no sudo) when already root', () => {
-    const steps = buildPlan({ ...base, user: 'root' });
+    const steps = buildPlan({ ...base, user: 'root' }, 'fixture');
     const bootstrapStep = steps[1];
     expect(bootstrapStep.kind).toBe('run');
     if (bootstrapStep.kind === 'run') {
@@ -76,7 +76,7 @@ describe('buildPlan', () => {
   });
 
   it('prefixes sudo for a non-root ssh user', () => {
-    const steps = buildPlan({ ...base, user: 'deploy' });
+    const steps = buildPlan({ ...base, user: 'deploy' }, 'fixture');
     const bootstrapStep = steps[1];
     expect(bootstrapStep.kind).toBe('run');
     if (bootstrapStep.kind === 'run') {
@@ -84,15 +84,15 @@ describe('buildPlan', () => {
     }
   });
 
-  it('scps base.yml to /home/puni1/wbs/base.yml before configure.sh runs', () => {
-    const steps = buildPlan(base);
+  it('stages base.yml until configure admission commits it', () => {
+    const steps = buildPlan(base, 'fixture');
     const scpStep = steps[2];
     expect(scpStep.kind).toBe('run');
     if (scpStep.kind === 'run') {
       expect(scpStep.argv).toEqual([
         'scp',
         'deploy/compose/base.yml',
-        'root@h:/home/puni1/wbs/base.yml',
+        'root@h:/tmp/wbs-base-fixture.yml',
       ]);
     }
   });
@@ -102,11 +102,16 @@ describe('buildPlan', () => {
   // its own args (host, user, wbsUser, registryUser), never the secret —
   // this asserts that structurally, not just "the test didn't pass one in".
   it('names REGISTRY_PASS by key for the configure.sh step, never touches a value', () => {
-    const steps = buildPlan(base);
+    const steps = buildPlan(base, 'fixture');
     const configureStep = steps[3];
     expect(configureStep.kind).toBe('script-over-stdin');
     if (configureStep.kind === 'script-over-stdin') {
-      expect(configureStep.envKeys).toEqual(['WBS_USER', 'REGISTRY_USER', 'REGISTRY_PASS']);
+      expect(configureStep.envKeys).toEqual([
+        'WBS_USER',
+        'REGISTRY_USER',
+        'REGISTRY_PASS',
+        'WBS_BASE_COMPOSE_STAGE',
+      ]);
     }
     expect(JSON.stringify(steps)).not.toContain('hunter2');
   });

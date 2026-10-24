@@ -1,0 +1,61 @@
+# Independent Astra High review — task 9.1 correction round 2
+
+**Verdict: APPROVE the bounded frontend autocomplete/new-selection editor slice.** Both round-one blocking findings are closed by the reviewed changes and fresh behavioral checks. No additional blocking regression was found. This approves frontend behavior against the supplied provisional contracts; it does not approve those contracts, production activation, or the unfinished persisted-remote/task-9.2 surfaces.
+
+Reviewed `/tmp/puni-cross-autocomplete`, branch `feat/cross-project-autocomplete`, frozen HEAD `09ebd88643b0c9c79cc45b2e64f70906c09091d1`, combining original `ffc402742`, first correction `56a9fceb2`, and round-two correction `09ebd8864`. Read the repository orientation/rules, UI guidance, authoritative autocomplete/editor ruling, original review evidence, round-one independent review, round-two report, changed implementation and its actual callers/tests. No source edits to the frozen worktree, Git mutations, WBS writes, or OpenSpec edits were made.
+
+## Findings and closure
+
+**R1 closed: old Customize success cannot close or refocus a newer gesture.** The caller-owned generation keys distinguish separate openings even when target coordinates are identical. The scoped editor retires in layout cleanup, and both Save and Remove continuations test retirement before cancellation, focus-return callbacks, or editor feedback. The existing commands can finish normally. Fresh mounted desktop/phone tests exercise a replacement project reusing abbreviation and bare IDs and a new opening for the same scoped project. After the old success, the newer dialog remains, its manually selected Whole predecessor and SS relationship remain, the Relationship selector remains the actual focused element, and its Add submits the newly chosen project/scope/type. The independent original pending-completion probes also pass. The removal continuation test passes.
+
+**R2 closed: known consumption preserves the earlier identical token's binding.** Successful captured consumption is represented explicitly through `DependencyDraftCapture.consumeToken` and the binding hook's matching transition. It removes the known active occurrence while retaining preceding binding coordinates and selection authority. Four fresh actual-field cases cover desktop/phone × one-click/Customize, with command order `[other, remote]`, exact retained first-token text, and only the two deliberate discovery calls. Desktop submits the retained token through Enter; phone reactivates it and selects its actual endpoint. The original independent reproducer passes. Genuine ambiguous human deletion still requires explicit project reselection, and the recovery case passes. Older same-text writes still cannot consume a newer selected holder.
+
+**Original F1–F6 remain closed in the reviewed flows.** All eleven retained independent round-one probes pass, including delimiter authority, switching different/same-abbreviation projects, local mixed-draft retention, focus return, visible cancellation, the HTTP 409 dormant refusal, both pending-session reproducers, known duplicate consumption and ambiguity recovery. The broader suite also exercises the original readable-refusal/repeated-tap behavior, draft capture, scoped choice filters, lookup lifetime, and completeness/revision handling. No wrong-project write was observed.
+
+**Remote selection and limits:** two additional independent probes mount the actual desktop and phone fields, delegate discovery/candidates through the real `httpProjectAddressApi`, and assert `X-WBS-Expected-Organization: org-a` plus `limit=25` on every request. Project selection causes no mutation. A deliberate More choices action makes exactly the next bounded request, merges duplicate endpoint evidence once, and selecting it submits the full remote node coordinates to successor owner `p1`. The existing fresh session-runtime test separately establishes shared credential/ResourceScope injection and withdrawal on organization replacement. These are frontend transport/lifetime proofs with controlled HTTP responses; same-organization authorization remains the server's responsibility and was not live-integrated here.
+
+## Fresh verification
+
+Commands used configured Vitest/Bun from `apps/wbs/fe-01`, except lint/format/hash checks from the worktree root. All completed with exit 0 unless listed as deliberate faults below.
+
+| Check | Fresh outcome | Evidence |
+| --- | --- | --- |
+| Exact 17-file View command from round-two report | 401 tests passed; 168.14 seconds | `/tmp/puni-review-autocomplete-round2-view.log` |
+| Exact four-file configured Node command | 26 tests passed | `/tmp/puni-review-autocomplete-round2-node.log` |
+| Retained independent probes, original round-one harness, `-t REVIEW` | 11 passed / 7 deliberately filtered | `/tmp/puni-review-autocomplete-round2-original-probes.log` |
+| Added real HTTP desktop/phone probes, `-t 'ROUND2 REVIEW'` | 2 passed / 18 deliberately filtered | `/tmp/puni-review-autocomplete-round2-http-probes.log` |
+| `bunx tsc -p <config> --noEmit`: app, spec, lookup module, project module | Four exit-0 checks | `/tmp/puni-review-autocomplete-round2-types-{app,spec,lookup,project}.log` |
+| `bunx eslint` over all ten owned paths | Exit 0, no warnings or skipped-boundary notice | `/tmp/puni-review-autocomplete-round2-lint.log` |
+| `bunx prettier --check` over all ten owned paths | All matched files formatted | `/tmp/puni-review-autocomplete-round2-format.log` |
+| `git diff --check`, owned SHA256 checks, HEAD/status | Passed; unchanged HEAD and only three excluded contract modifications | Fresh tool output |
+
+Independent HTTP harness: `/tmp/puni-round2-http-review/{autocomplete.test.tsx,review.vitest.config.ts,vitest.setup.ts}`. It imports the actual frontend aliases, React plugin, jsdom setup, components, runtime composition and HTTP wrapper. An initial attempt to copy the probe directory followed its node_modules symlink and was interrupted before tests; the final harness was created by explicit file copies and a dependency symlink. That interruption is not a product failure or a verification result.
+
+Vite reports the existing warning about future native-loader support (`__dirname` and the standalone harness's module format). The configured current loader collected and completed every named suite; these warnings did not mask skipped collection or failures.
+
+## Independently observed R5 negatives
+
+Copied the frontend/libs and exact provisional contract files into `/tmp/puni-review-round2-isolated`, using the existing installed dependencies. The frozen worktree was never mutated. Adapted the author's six-fault script only to point at this isolated copy and new log names: `/tmp/puni-review-autocomplete-round2-mutations.py` and `/tmp/puni-review-autocomplete-round2-mutations.log`.
+
+| Injected fault | Fresh observed production-path failure |
+| --- | --- |
+| Bypass retired Save fence | Both desktop/phone newer Customize dialogs disappear after old success: 2 failures |
+| Bypass retired Remove fence | Old cancellation callback invoked after replacement: 1 failure |
+| Remove desktop gesture key | Reopened identical target retains old pending busy state: 1 failure |
+| Remove phone gesture key | Same enabled-Add assertion fails on phone: 1 failure |
+| Disable controlled known-consumption transition | Desktop loses the second command; phone loses the retained pinned endpoint: 4 failures |
+| Bypass stale capture guard | Old Customize/one-click completion erases newer same-text selection: 3 failures |
+
+Logs: `/tmp/puni-review-autocomplete-round2-negative-{retired-save,retired-remove,desktop-gesture,phone-gesture,known-consumption,stale-consumption}.log`. Each failed at the intended UI assertion or missing required rendered outcome after actual interactions, not import/setup/type failure. Every isolated mutation was restored. All ten isolated restored hashes match the supplied source manifest. A final restored run of both affected files with `-t 'round2|older Customize success|older one-click completion|retired removal completion'` passes **13 tests / 38 deliberately filtered**, recorded in `/tmp/puni-review-autocomplete-round2-restored.log`.
+
+The controlled-transition predicate is tested as a composite; this is not separate mutation evidence for every conjunct. Historical original/round-one mutation sets were not independently rerun in this review. The fresh six-fault run supports the new round-two Proof comments without overstating that earlier history.
+
+## Ownership and completion limits
+
+All ten entries in `/tmp/puni-autocomplete-round2-owned-sha256.txt` matched before review and after all checks. The excluded contract hashes also matched before/after:
+
+- `commands/definitions.ts`: `438ebadf345ce8e9a9177baa7f410be0d2fd6ea08ffa7874974c664bc9ed603f`
+- `http/work-item-shapes.ts`: `d1e5fbe31cc477c817df9ac4c58501fe7ae10d391cecc4a6e2be0ad70245f84f`
+- `http/refusal.ts`: `7853e77b8d0f7a8c7dc33a06aab3cf5046a08d5c6e5f7008705cf5bb1dd9108e`
+
+These files remain separately owned and excluded from frontend approval. The worktree still has exactly those three modified tracked files. No required focused check was unavailable. No full repository/Nx gate, h2/h4 gate, heavy build, browser/manual visual test, live backend authorization/semantic integration, or production activation was run. Persisted remote relationship presentation/navigation/edit transport, task 9.2 settings/calendar/certificate views, and activation remain unfinished separate obligations. Root owns integration, final gate evidence and any task-status updates. This review closes the frontend correction findings and approves the bounded new-selection slice only.

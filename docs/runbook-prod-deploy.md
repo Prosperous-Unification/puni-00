@@ -618,6 +618,54 @@ Preparation (both image probes and prior receipt inspection) and activation (ide
 
 A failed command, failed intent publication/readback, identity drift, or missing/malformed activation readback leaves completion uncertain. An activation marker by itself also blocks ordinary retry; the executor does not generate a replacement attempt over retained evidence. Preserve all host intents, pinned image/database/container identities, snapshots and current database bytes. Keep application writers stopped, the inert maintenance identity retained, and automation paused until an attended recovery decides how to reconcile the exact receipt. Preserve `be-writer-activation.json` alongside all existing stop, maintenance, migration and exposure markers, including any markers whose writes may have completed before an interruption. Record the exact attempted activationId, receipt fields, maintenance/container/image identities, canonical database path and migration-capture hash. Read-only inspection through the retained capable image can establish current authority, but it grants no authority to clear markers, restart writers, expose applications or roll back. Recovery is attended; no automatic activation-resume or deactivation operation exists. Never infer DISABLED from a transport failure, restart an incompatible writer, or automatically reverse the migration after an activation attempt.
 
+## Dependency binary capability prerequisite
+
+Compose independently runs the exact candidate and retained rollback backend
+images' `src/dependency-capabilities-cli.ts` before recording writer stop intent,
+and repeats those observations through backend recovery admission. The probes are
+DB-free, use `--pull never --network none`, and share a 15-second deadline. Missing,
+unreadable, failing, stalled or malformed CLI refuses; an older image lacking the
+CLI cannot be used as either candidate or rollback. First installation probes only
+the candidate. Explicit empty semantics is a valid binary observation.
+
+The Kubernetes release coordinator now runs both exact backend image capability
+executables after F6 admission, before Flux suspension or writer interruption.
+Every resumed forward or rollback execution refreshes admission and runs two new
+Job/Pod-attributed probes, even for equal image digests. Missing, unreadable,
+failing, malformed or timed-out output refuses with the existing journal and
+serving state retained; no generic rollback, schema, tier or controller cleanup
+runs. Lease claim/renewal and F6 admission are the only coordination changes before
+refusal. Inspect the retained journal and observation artifacts in the configured
+state directory; these observations grant no recovery or activation permission.
+Kubernetes dependency store admission and semantic exposure remain open work.
+
+After every known writer is stopped, shared recovery admission runs the coordinator's
+strict dependency inventory against a private SQLite main/WAL/journal copy. The
+source bind is recursively readonly/private. Neither image's activation inspector
+supplies authoritative store evidence. The scanner requires both dependency
+migration identities, a well-formed unique name/hash ledger, actual tables, exact
+constrained marker/receipt schemas, all three exact admission triggers, exactly one
+DISABLED marker, no receipts and no external relationships. ENABLED always refuses,
+including an empty store and images advertising support.
+
+A fresh scan runs after maintenance stops and before durable application exposure.
+It first resolves the complete SQLite family again, verifies the retained rollback
+image association, inventories exactly the outgoing and replacement maintenance
+containers (maintenance only on first installation), and independently proves each
+stopped. A successful earlier observation cannot substitute for this scan.
+
+Historical stores without both dependency migrations refuse, even if otherwise
+coherent. This path cannot bootstrap an older store or a missing first-install
+file; a historical compatibility adapter needs separate specification and proof.
+Refusal after durable stop intent retains current bytes, migration capture and
+interruption evidence under the [attended recovery procedure](#backend-writer-barrier-recovery).
+Standalone inspection grants no restart or marker clearance authority.
+
+Task 10.2 remains open for complete semantic participant exclusion, activation and
+Kubernetes semantic admission. Writer inventory permits readonly readers and does not
+fence gateway/MCP/browser participation; a successful dormant observation grants no
+dependency rollout, activation or downgrade permission.
+
 ## Backend writer barrier recovery
 
 Every Compose `be` swap has an attended outage window. Before stopping a writer, the executor checks registry/pull, environment, existing SQLite integrity and ledger, Caddy/exposure state and effective merged Compose configuration. The candidate's image/name must match, its network aliases may name only its own colour, and published ports, dependencies, external links and unresolved env files refuse. A private resolved JSON snapshot preserves exactly the checked environment and mounts. Startup uses that snapshot with `--force-recreate --no-deps --pull never`; an unchanged stopped idle container must never be restarted with a dynamically retained `be-01.internal` alias.
@@ -692,3 +740,320 @@ verified binary extracted to `/tmp/puni-audit-busybox`. It requires Docker acces
 and that exact cached fixture image; missing dependencies fail. It checks normal
 admission, absent binary, restored Debian shell, and the 15-second supervisor
 deadline with a stalled scanner/descendant, then removes only its created IDs.
+
+## Dependency gateway fence admission prerequisite
+
+Ordinary image swaps read `state/dependency-gateway-fence.json` under the deploy
+lock before observing or planning any tier. Direct executor calls also check
+before phase, Docker or configuration effects. This applies to gateway-only,
+frontend-only, backend-only and mixed runs. Only an absent marker in a readable,
+existing state directory permits admission. Missing/unreadable state,
+unreadable/malformed markers, symlink markers (including dangling links), and valid
+retained markers refuse with the path. The reader verifies actual directory
+readability, including a traverse-only directory; mode bits alone are not the
+access authority.
+The closed v1 marker has exactly two fields:
+`{"format":"dependency-gateway-fence","version":1}`.
+
+Presence is a conservative deployment barrier, not proof of physical gateway
+exclusion or semantic activation. Retained `dependency-gateway-intent.json` or
+`dependency-gateway-complete.json` also refuses ordinary admission, including an
+orphan companion without its marker. The explicit lifecycle below is the only
+writer in this packet; it grants no activation or ordinary-swap bypass.
+
+## Managed Compose gateway exclusion
+
+This is an attended, disruptive prerequisite for the environment's two managed
+Compose gateway names only. It stops their existing sockets. It does not prove
+that every gateway, MCP process, browser, backend or background worker is excluded.
+Do not run it as an ordinary deploy or as an activation command. No live execution
+has been established by the repository tests.
+
+```sh
+bun /home/puni1/wbs/bin/swap.js gw --fence-dependency-gateways --execute --sha=<full-40-hex-git-sha>
+bun /home/puni1/wbs/bin/swap.js gw --inspect-dependency-gateway-fence
+```
+
+Use the environment's installed bundle and `WBS_ENV` layout. The requested SHA is
+provenance, not proof of the installed bundle or image's source revision. These
+commands reject mixed tiers, image/preflight/activation/dry-run flags, duplicate
+flags and each other. Dispatch happens before ordinary registry/image/plan work;
+each command acquires the same environment `state/deploy.lock` itself.
+
+A new attempt requires a canonical, readable, existing state directory and all
+three records absent. The executor inventories all containers using unfiltered,
+full-ID `docker ps -a`, accounts for every returned inspect identity, and resolves
+the two expected managed names. Extra managed names/services, inconsistent Compose
+projects, incomplete inventory and unsupported process states refuse. Each managed
+member must have a digest-pinned gateway image resolving to its exact image ID,
+matching Compose service and nonempty project labels, exactly the environment
+network and its full network ID, init enabled, private PID namespace, no privilege
+or added capabilities, a complete restart policy, and stable process/start identity.
+Old existing containers without these prerequisites require separate attended
+preparation; this command never recreates them. Two absent names prove only an empty
+managed cohort.
+
+Under that lock the executor exclusively publishes, fsyncs and reads back the exact
+v1 two-field marker, then a separate closed/versioned `dependency-gateway-intent.json`.
+Intent binds its unique attempt, environment/root/network, requested SHA, both
+colour identities or explicit absences, original restart policies and process state.
+It reobserves before effects, runs `docker update --restart=no <full-id>` for every
+member with full cohort readback after each update, then bounded
+`docker stop --time 10 <full-id>` with identity and stopped-state readbacks.
+All Docker calls share a 60-second attempt budget; a timed-out local client does
+not prove a daemon-side operation stopped or failed.
+
+Before completion it freshly inventories the full cohort and requires stable
+image/name/network/label/start identity, unchanged restart count, `Running=false`,
+`Paused=false`, `Restarting=false`, PID 0, exited/created status and restart policy
+`no` with zero policy retry count. It exclusively publishes and reads back
+`dependency-gateway-complete.json`, bound to the attempt and SHA256 of the exact
+persisted intent bytes, then freshly proves the same current cohort again.
+Inspection validates all records and repeats that complete physical observation;
+a completion file by itself is historical evidence only.
+
+A marker alone classifies an interruption before durable intent. Intent without
+completion is uncertain. A completion without marker/intent, changed intent bytes,
+foreign records, malformed/unreadable state or current Docker drift refuses.
+Every failure after marker publication retains existing records and current Docker
+state. There is no automatic cleanup, restart, policy restoration, retry, marker
+clearance or activation. Keep the three records and inspect exact container IDs
+and restart policies with the pinned executor available; recovery requires an
+explicit attended compatible procedure outside this packet. Never delete evidence
+or restart a previously fenced gateway to make an ordinary deploy pass.
+
+The lock coordinates this deploy executor only. Docker administrators and other
+controllers must respect the exclusion interval; a fresh observation is not a
+continuous daemon-side lease. Representative Docker timing and a disposable real
+Docker/websocket lifecycle proof remain necessary before operational acceptance.
+
+## Managed Compose backend exclusion
+
+This attended disruptive prerequisite stops only the selected environment's
+managed blue/green backend containers. First establish and inspect the managed
+Compose gateway fence above. Use the installed environment bundle and layout:
+
+```sh
+bun /home/puni1/wbs/bin/swap.js be --fence-dependency-backends --execute --sha=<full-40-hex-git-sha>
+bun /home/puni1/wbs/bin/swap.js be --inspect-dependency-backend-fence
+```
+
+Both commands own the same `state/deploy.lock`; the backend owner invokes the
+narrow gateway inspector under its held lock. Mixed ordinary/image/activation/
+preflight/dry-run flags and duplicate flags refuse. This operation neither
+migrates nor activates semantics. Requested SHA records provenance only.
+
+A fresh attempt requires all `dependency-backend-{fence,intent,complete}.json`
+records absent and a nonempty backend cohort satisfying the existing managed
+gateway process/image/security/network/Compose prerequisites for backend images.
+Every member needs exactly one absolute DB_PATH through a writable directory bind.
+Both colours must resolve the same canonical main/WAL/SHM/journal family, main-file
+inode and parent-directory inode. File binds, sidecar shadows/aliases and missing
+or unreadable trusted paths refuse. Unmanaged writable mounts overlapping that
+family's directory refuse, including stopped/restartable foreign containers.
+This can require attended preparation of existing containers.
+
+The backend intent retains both colour identities/absences and original restart/
+process identity, canonical database identity and exact SHA256 hashes of gateway
+marker/intent/completion bytes. Exclusive fsynced/readback publication precedes
+restart disable on every exact full backend ID; every update has a complete fresh
+readback before any stop. Bounded stops then require unchanged identity/start,
+PID zero, stopped state and policy `no`. All Docker calls share one 60-second
+budget. Every observation validates gateway and backend cohorts jointly from one
+full inventory. Completion binds persisted intent bytes; final fresh joint
+inventory and later read-only inspection establish only the observed interval.
+
+Any interrupted publication, orphan/corrupt records, timeout or current-state drift
+refuses. Retain all backend and gateway records and current Docker state for
+explicit attended recovery. No automatic restart, policy restoration, retry,
+cleanup, marker clearance or ordinary deployment bypass exists. A historical
+receipt grants no semantic authority. This slice excludes neither MCP, ingress,
+browsers, background/host processes nor external Docker supervisors; cooperating
+administrators remain an assumption. Continuous participant exclusion and safe
+activation remain separate parent tasks.
+
+Every running managed backend additionally proves its actual mounted main file
+and parent directory against the captured canonical host family. Replacing a
+Source pathname, splitting colours between old/new directories, or hardlinking
+all current files into a replacement directory refuses before intent. Captured
+host identities and complete inventory are read back after census. This remains
+only the managed backend/gateway DB cohort; MCP, ingress and external supervisors
+require their separate participant preflight.
+
+Unmanaged mount inspection uses the existing initialized actual-namespace census,
+including Docker-read-only mounts and host Source paths that cannot be traversed.
+Host EACCES/ENOENT is unknown, never clean exclusion; only complete namespace
+receipts with exact pre/post container identity and reaped scanner groups can
+admit an otherwise opaque participant. Host-readable source paths also require
+that audit, so held/rebound mounts, hardlinks and nested writable aliases cannot
+rely on the daemon's top-level RW flag. All declared destinations are checked
+under the same attempt deadline. A second complete joint inventory must match
+membership, mount/config/security/network and PID/start/restart identity before
+intent publication. Unsupported privileged, capability-expanded, no-init or
+host-PID containers require attended maintenance or a dedicated daemon; there is
+no BuildKit exemption and this command never stops unrelated services.
+
+## Compose dependency participant observation
+
+After retaining the managed gateway and backend fences above, the dedicated
+read-only inspection uses the same installed environment bundle and layout:
+
+```sh
+bun /home/puni1/wbs/bin/swap.js be --inspect-dependency-participants
+```
+
+It owns the selected deploy lock once and refreshes retained proof and the full
+Docker container/network/process plus live Caddy configuration twice under one
+60-second Docker budget. Mixed tiers, flags and image arguments refuse before
+ordinary planning. Unknown ingress, source-run `wbs-dev-src`, edge DNS/hosts
+overrides, unsupported proxy transports and aliases unavailable on Caddy's
+networks refuse; it never narrows the shared live configuration to one site's
+primary route.
+
+Returned JSON is a version 1 observation with `activation: "blocked"`, hashes
+instead of sensitive inspection/configuration bodies, and unresolved ingress,
+restart authority, MCP, retained clients, host processes and continuous exclusion
+obligations. It publishes no receipt, changes no restart policy, stops no
+application container and reloads no proxy. A successful observation grants no
+activation or deployment bypass; retain all fence evidence for attended recovery.
+
+## Shared edge owner admission prerequisite
+
+The source launchers share `/home/puni1/wbs/state/edge.lock` across prod and dev.
+Lock order is `edge.lock`, optional dev `poll.lock`, optional `devsync.lock`, then
+the selected environment's `deploy.lock` (the dev solver binding can also take the
+prod deploy lock inside devsync). Do not acquire the outer edge lock after a
+poll/deploy lock. Lock files are durable inodes and must never be unlinked.
+
+Every present `edge-owner.json` or `edge-owner.pending` in that same directory
+closes ordinary deployment before swap, dev checkout/reset/extraction, bootstrap
+or configuration effects. Payloads cannot grant permission: malformed content,
+unreadable files, directories and dangling links also refuse. Absence preserves
+legacy deployment and proves no owner fence or activation permission. No owner
+publisher, initializer, release or activation command ships in this prerequisite.
+`WBS_EDGE_STATE` selects the host state directory only for controlled isolated
+fixtures; prod and dev must use the same canonical default on the real host.
+
+The poller, candidate loader and child executor retain the same kernel lock using
+an inherited descriptor. `WBS_EDGE_LOCK_FD` is verified against the canonical
+lock's device/inode and real nonblocking `flock`, so a forged number or an
+independent open description cannot borrow another process's lock.
+
+These are source guarantees pending reviewed installation. The installed poller
+lives outside the reset checkout and can reset watched source before a new target
+loader starts. Installing a new swap bundle or merging this source does not prove
+that old installed pollers, scheduled launchers, manual scripts or already running
+processes adopted admission. Future owner publication must identify every installed
+writer, drain prior holders, verify installed bytes and retain the marker under
+`edge.lock`; until then participant observation remains `activation: blocked`.
+The shared `wbs-caddy-1` also serves unrelated applications and registry traffic;
+this prerequisite does not stop, restart, reload or repoint it.
+
+Devsync explicitly maps the admitted descriptor into child FD 3 before starting
+`flock` and the locked Bun executor. The environment token alone is insufficient
+on pinned Bun 1.4.2: Bun shell's second spawn drops the original descriptor. Manual
+dev deployment checks retained markers under the outer edge lock before fetch.
+
+Provisioning uploads base Compose bytes to a unique `/tmp/wbs-base-<uuid>.yml`
+staging file. Configure admission precedes moving those bytes to a sibling of
+live `base.yml` and atomically renaming the sibling into place. Refused configure
+leaves the live file unchanged and retains the staged file for diagnosis; no
+staged candidate grants admission or activation. This does not install or prove
+adoption by any existing host writer.
+
+## Read-only installed-writer capture inventory
+
+This offline prerequisite compares captured files; it does not adopt installed
+writers. Prepare the reviewed manifest before collecting host bytes. Record its
+reviewed source commit (`sourceSha`), build commit (`buildSha`), build identifier
+(`buildId`) and v1 members. Derive each `sha256` from reviewed source or a reviewed
+build artifact, never the discovered installed copy. Record each member's
+`origin` (`source` or `build`), absolute declared `hostPath`, and distinct relative
+`reviewed` and `installed` capture paths. Keep review provenance with the manifest.
+The tool validates identities and equality, not the truth of that provenance.
+
+Required member names are `prod-swap`, `prod-smoke`, `dev-swap`, `dev-smoke`,
+`dev-poller`, `dev-loader`, `dev-interpreter`, `declared-manual-launcher`,
+`declared-bootstrap`, `declared-configure`, `shared-launch-authority`, and
+`shared-restart-authority`. Prod/dev swap+smoke live under each environment's
+`bin/`; derive durable poller/helper/interpreter locations from the dev recovery
+procedure. Manual/bootstrap/configure locations are explicitly declared copies,
+not assumed canonical host installations. Launch/restart members hold reviewed
+and captured configuration file bytes; if a required file/location has not been
+established, stop and record the unresolved inventory instead of inventing bytes.
+
+Copy reviewed artifacts and separately collected installed files beneath a local
+capture root. Use ordinary files of at most 128 MiB, unique paths and dev/inode identities, and no symlink components. Run:
+
+```sh
+bunx nx run tool-remote-scripts:inspect-installed-writers --args='/absolute/reviewed-manifest.json /absolute/capture-root'
+```
+
+The manifest shape is `{ "version": 1, "sourceSha": "<40 hex>", "buildSha":
+"<40 hex>", "buildId": "<reviewed build identifier>", "members": [{ "member":
+"prod-swap", "origin": "build", "hostPath": "/home/puni1/wbs/bin/swap.js",
+"reviewed": "reviewed/prod-swap.js", "installed": "captured/prod-swap.js",
+"sha256": "<64 hex>" }] }`; supply every required member, not only this example.
+
+Success means matching local supplied bytes and always prints `activation:
+blocked`. Preserve the JSON including exact reviewed-manifest byte digest and
+unknowns. Failure emits no inventory; investigate missing/unreadable/mismatching
+or changing captures and repeat with independent reviewed expectations. Nothing
+is published, installed, stopped or restarted by this command.
+
+Cron file equality cannot prove installed crontab/no duplicate timers; systemd
+unit equality cannot prove loaded units/drop-ins/transient units/MainPID; Compose
+equality cannot prove actual Docker configuration or restart policy. Solver
+supervisor runtime/bundle/config/systemd and installer shared-edge admission are
+explicitly unsupported restart surfaces. Captured equality proves neither actual
+interpreter selection nor absence of old/manual writers, live host attribution,
+process drain or continuous exclusion. Tasks 10.1/10.2 remain open.
+
+## Dedicated managed dependency owner slice
+
+`activate-dependencies.js --fence-managed <full-sha> <prod|dev> [prod|dev]`
+is an explicit maintenance operation, built separately from swap. There is no
+implicit mutation, activation mode or swap bypass. It takes the shared edge lock,
+selected dev poll/devsync locks and sorted environment deploy locks once, then
+publishes a private, synced `edge-owner.pending` containing the attempt and exact
+managed plan. Each Docker boundary retains numbered intent and response records;
+existing gateway/backend intents retain the exact managed cohort snapshots.
+
+Success reports `managed-excluded` and `activation: blocked`. It establishes only
+the existing managed gateway/backend fences. Installed-writer adoption, ingress,
+MCP, solver, replay/background and restart authority remain unresolved. It never
+creates a complete participant proof, changes SQLite activation, restores a
+process or exposes traffic. No live invocation is authorized by source delivery.
+
+Both success and interruption retain the pending owner, numbered records and
+managed fence records. Ordinary deployment remains closed after the process
+releases its kernel locks. Retained records cannot recreate the expired live
+owner, resume an attempt or authorize cleanup. Preserve current Docker state and
+all evidence for attended recovery; a later complete ownership/handoff and
+compatible restoration workflow is required before admission can reopen.
+
+## Selected-site ingress closure under dependency ownership
+
+The separately built `activate-dependencies.js --fence-ingress-managed <full-sha>
+<prod|dev> [prod|dev]` operation persists whole-site 503 responses for selected
+WBS sites before managed gateway/backend exclusion. The earlier `--fence-managed`
+operation keeps its managed-only behavior. Both retain ownership and block
+activation; neither establishes the complete participant roster or grants a
+restoration/exposure operation.
+
+The inclusive operation requires the shared edge's fixed Caddyfile startup and
+canonical read-only config bind, and requires independently adapted persistent
+configuration to equal fresh live admin configuration before writing. It retains
+private original file identities/bytes, adapts the replacement configuration,
+checks explicit selected-site maintenance and unrelated configuration equality,
+then reloads only the captured full container ID and reads back the actual admin
+configuration. It never stops or recreates the shared edge. Config bodies and
+original credentials stay in private evidence rather than diagnostic output.
+
+An interruption can leave selected files persistently closed while the running
+edge still serves an earlier configuration. Preserve every owner/ingress record,
+current file and any named UUID sibling; no automatic restoration is safe. The
+source operation has no recovery, marker cleanup or restart path. Disposable
+actual-Caddy acceptance is a separate reviewed host action under the heavy lock;
+its fixture result does not prove installed production writer adoption or full
+continuous participant exclusion.

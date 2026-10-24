@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts:
+70 | it('refuses successor-owner disagreement and owner changes', async () => {
+71 |   const row = link('one', 'a', 'b');
+72 |   const store = inMemoryTypedDependencies([row]);
+73 |   expect(await refuses(() => store.add({ ...link('two', 'c', 'd'), projectId: 'other' }, stamp))).toBe(true);
+74 |   expect(await refuses(() => store.update({ ...row, projectId: 'other', successor: { ...row.successor, projectId: 'other' } }, stamp))).toBe(true);
+75 |   expect(await refuses(() => store.add({ ...link('unscoped', 'x', 'y'), predecessor: { scope:'whole', workItemId:'x' } } as unknown as StoredTypedDependency, stamp))).toBe(true);
+                                                                                                                                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts:75:168)
+(fail) refuses successor-owner disagreement and owner changes [0.59ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [142.00ms]

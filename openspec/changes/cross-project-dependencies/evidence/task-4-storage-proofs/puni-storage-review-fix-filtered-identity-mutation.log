@@ -1,0 +1,79 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+536 |     const repo = repository();
+537 |     const read = query === 'owned-a' ? repo.listByProject('a')
+538 |       : query === 'owned-b' ? repo.listByProject('b')
+539 |       : query === 'incident-a' ? repo.listIncident(['a'])
+540 |       : repo.removeAllFor([query === 'remove-a' ? 'a' : 'b2'], { ...stamp, at: 3 });
+541 |     expect(await rejection(read)).toContain('duplicate unified dependency same-id');
+                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "duplicate unified dependency same-id"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:541:35)
+(fail) refuses a physical identity hidden by the owned-a filter before any mutation [135.35ms]
+536 |     const repo = repository();
+537 |     const read = query === 'owned-a' ? repo.listByProject('a')
+538 |       : query === 'owned-b' ? repo.listByProject('b')
+539 |       : query === 'incident-a' ? repo.listIncident(['a'])
+540 |       : repo.removeAllFor([query === 'remove-a' ? 'a' : 'b2'], { ...stamp, at: 3 });
+541 |     expect(await rejection(read)).toContain('duplicate unified dependency same-id');
+                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "duplicate unified dependency same-id"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:541:35)
+(fail) refuses a physical identity hidden by the owned-b filter before any mutation [97.00ms]
+536 |     const repo = repository();
+537 |     const read = query === 'owned-a' ? repo.listByProject('a')
+538 |       : query === 'owned-b' ? repo.listByProject('b')
+539 |       : query === 'incident-a' ? repo.listIncident(['a'])
+540 |       : repo.removeAllFor([query === 'remove-a' ? 'a' : 'b2'], { ...stamp, at: 3 });
+541 |     expect(await rejection(read)).toContain('duplicate unified dependency same-id');
+                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "duplicate unified dependency same-id"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:541:35)
+(fail) refuses a physical identity hidden by the incident-a filter before any mutation [92.98ms]
+536 |     const repo = repository();
+537 |     const read = query === 'owned-a' ? repo.listByProject('a')
+538 |       : query === 'owned-b' ? repo.listByProject('b')
+539 |       : query === 'incident-a' ? repo.listIncident(['a'])
+540 |       : repo.removeAllFor([query === 'remove-a' ? 'a' : 'b2'], { ...stamp, at: 3 });
+541 |     expect(await rejection(read)).toContain('duplicate unified dependency same-id');
+                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "duplicate unified dependency same-id"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:541:35)
+(fail) refuses a physical identity hidden by the remove-a filter before any mutation [86.16ms]
+536 |     const repo = repository();
+537 |     const read = query === 'owned-a' ? repo.listByProject('a')
+538 |       : query === 'owned-b' ? repo.listByProject('b')
+539 |       : query === 'incident-a' ? repo.listIncident(['a'])
+540 |       : repo.removeAllFor([query === 'remove-a' ? 'a' : 'b2'], { ...stamp, at: 3 });
+541 |     expect(await rejection(read)).toContain('duplicate unified dependency same-id');
+                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "duplicate unified dependency same-id"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:541:35)
+(fail) refuses a physical identity hidden by the remove-b2 filter before any mutation [88.27ms]
+
+ 0 pass
+ 18 filtered out
+ 5 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [2.42s]

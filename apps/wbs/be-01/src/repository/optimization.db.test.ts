@@ -609,6 +609,45 @@ describe('Optimization SQLite adapter', () => {
     }
   });
 
+  it('refuses a member-ceiling Retry for a stored super-admin without writes', async () => {
+    const { db, log, key } = fixture();
+    db.run(
+      sql.raw(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'hash', 1)",
+      ),
+    );
+    db.run(sql.raw("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"));
+    db.run(
+      sql.raw(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
+      ),
+    );
+    db.run(
+      sql.raw(
+        "INSERT INTO project_organization (resource_id, organization_id) VALUES ('p-1', 'org-a')",
+      ),
+    );
+    db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'p-1'"));
+    const snapshot = () =>
+      ['solver_slot', 'optimization_generation', 'organization_audit', 'event_log'].map((table) =>
+        db.all(sql.raw(`SELECT * FROM ${table} ORDER BY rowid`)),
+      );
+    const before = snapshot();
+    expect(
+      await createOptimizationRepository(db, log, OPEN)
+        .admitRetry({
+          key,
+          objective: 'pri',
+          ownerId: 'green',
+          now: 21,
+          attemptToken: () => 'outside-cap',
+          scoped: { organizationId: 'org-a', actorId: 'sam', role: 'member' },
+        })
+        .then(decisionOf),
+    ).toEqual({ kind: 'forbidden' });
+    expect(snapshot()).toEqual(before);
+  });
+
   it('waits for an overlapping rolled-back unit of work before accepting Retry', async () => {
     const { db, log, key, generation } = fixture();
     db.run(
@@ -677,7 +716,7 @@ describe('Optimization SQLite adapter', () => {
           ownerId: 'green',
           now: 21,
           attemptToken: () => 'retry',
-          scoped: { organizationId: 'org-a', actorId: 'sam' },
+          scoped: { organizationId: 'org-a', actorId: 'sam', role: 'super_admin' as const },
         })
         .then(decisionOf),
     ).then((decision) => {

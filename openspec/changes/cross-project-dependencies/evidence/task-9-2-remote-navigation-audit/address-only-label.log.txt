@@ -1,0 +1,59 @@
+Fault: src/components/wbs/typed-dependency-editor.tsx
+Replace:     const captured = endpoint.captured;
+With:     const captured = endpoint.captured;
+    if (captured.qualifiedReference !== null) return captured.qualifiedReference;
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '--testTimeout=30000', '--hookTimeout=30000', '-t', 'keeps captured node step name beside non-null address']
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (35 tests | 2 failed | 33 skipped) 578ms
+   × keeps captured node step name beside non-null address on desktop 452ms
+   × keeps captured node step name beside non-null address on phone 124ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps captured node step name beside non-null address on desktop
+Error: expect(element).toHaveAccessibleName()
+
+Expected element to have accessible name:
+  /REMOTE\.080\.s2-dev.*Remote development/
+Received:
+  Edit dependency: REMOTE.080.s2-dev Captured remote build to 010 Local successor, Finish-to-start. Enter to edit. Delete to remove. Escape to return to dependency search.
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:451:18
+    449|       name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/,
+    450|     });
+    451|     expect(edit).toHaveAccessibleName(/REMOTE\.080\.s2-dev.*Remote dev…
+       |                  ^
+    452|     expect(edit).toHaveAccessibleName(/Captured remote build/);
+    453|     if (!phone) expect(edit).toHaveTextContent(/REMOTE\.080\.s2-dev.*R…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps captured node step name beside non-null address on phone
+Error: expect(element).toHaveAccessibleName()
+
+Expected element to have accessible name:
+  /REMOTE\.080\.s2-dev.*Remote development/
+Received:
+  Edit REMOTE.080.s2-dev Captured remote build to 010 Local successor, Finish-to-start
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:451:18
+    449|       name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/,
+    450|     });
+    451|     expect(edit).toHaveAccessibleName(/REMOTE\.080\.s2-dev.*Remote dev…
+       |                  ^
+    452|     expect(edit).toHaveAccessibleName(/Captured remote build/);
+    453|     if (!phone) expect(edit).toHaveTextContent(/REMOTE\.080\.s2-dev.*R…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 33 skipped (35)
+   Start at  00:18:14
+   Duration  8.61s (import 63%, transform 23%, tests 7%, environment 6%, setup 2%)
+
+
+AUDIT_EXIT=1

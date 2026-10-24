@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/dependency-admission.integration.test.ts:
+(pass) legacy reconnect rereads ENABLED authority and exact V1 offers remain admitted [36.08ms]
+{"level":"error","time":1792772760165,"service":"gw-01","err":{"occurrence_id":"AE_0GTS9YQS4EAX8W2A55JQ20BZZD","fingerprint":"fp1_c318b3086833730566be9bd05a6704ef","stack":["Error: offline","    at fetchImpl (/tmp/puni-v1-clients/apps/wbs/gw-01/src/dependency-admission.integration.test.ts:92:57)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:34:35)","    at untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:32)","    at withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at admitDependencyUpgrade (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:29:10)","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/app.ts:216:21)","    at handle (file:///home/df/wd/puni/puni-00/node_modules/elysia/dist/compose.mjs:80:70)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"dependency upgrade admission unavailable"}
+{"level":"error","time":1792772760184,"service":"gw-01","err":{"occurrence_id":"AE_24MET5XJD5JQVQ24WBAESZNZK2","fingerprint":"fp1_92c4ebca8685ca0602f98e2ae219f07c","stack":["Error: dependency admission failed 200","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:47:19)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"dependency upgrade admission unavailable"}
+{"level":"error","time":1792772760199,"service":"gw-01","err":{"occurrence_id":"AE_E0WVCFGGT6PJYGXW8SEG8DGWMF","fingerprint":"fp1_aa68dfd814d31bb7d5f6330cef53cc86","stack":["Error: malformed dependency admission refusal","    at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-admission.ts:60:19)","    at async untilAborted (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"dependency upgrade admission unavailable"}
+{"level":"error","time":1792772760233,"service":"gw-01","err":{"occurrence_id":"AE_YRGECS045Z763YZ57KBC5B77XR","fingerprint":"fp1_23ed83a491fb9bd09be3340ca8f57737","as_json":{"name":"DeadlineExceeded"},"stack":["DeadlineExceeded: request deadline exceeded","    at <anonymous> (/tmp/puni-v1-clients/libs/wbs/application/core/src/runtime/deadline.ts:29:26)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"dependency upgrade admission unavailable"}
+(pass) transport, malformed success and malformed refusal fail closed within the upgrade deadline [83.79ms]
+(pass) origin and credential refusals never inspect backend dependency authority [15.74ms]
+(pass) dual offers explicitly select V1 and retained presence keeps that exact admission [15.43ms]
+(pass) raw NBSP protocol octets refuse before presence, project access, replay or backend work [21.38ms]
+
+apps/wbs/gw-01/src/service/dependency-admission.test.ts:
+(pass) requires independent binary support and exact offered WebSocket token [0.08ms]
+(pass) capable binaries forward only an exact offered WS claim and strictly decode the decision [0.36ms]
+(pass) unexpected status, extra refusal fields and invalid budgets remain infrastructure failures [0.16ms]
+(pass) selection refuses duplicate, malformed and unknown-only offers without implicit echo [0.12ms]
+(pass) protocol selection trims HTTP space/tab only and rejects non-ASCII whitespace [0.10ms]
+
+ 10 pass
+ 0 fail
+ 74 expect() calls
+Ran 10 tests across 2 files. [3.04s]

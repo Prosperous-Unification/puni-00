@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+(pass) closes success modeled refusal and throws and rejects retained reader capabilities [157.79ms]
+(pass) holds authorization metadata and selected placements in one snapshot across rival writes [111.07ms]
+47 |   } finally {writer.close();}
+48 | });
+49 | it('uses bounded metadata SQL without work item trees and captures only selected project facts', async () => {
+50 |   await repository().withSnapshot({id:'ada'},reader=>{expect(reader.searchProjects('a',null,2).length).toBe(2);});
+51 |   expect(statements.some(statement=>statement.includes('work_item'))).toBe(false);
+52 |   expect(statements.filter(statement=>statement.includes('from "project"')).length).toBe(2);
+                                                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: 2
+Received: 0
+
+      at <anonymous> (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:52:85)
+(fail) uses bounded metadata SQL without work item trees and captures only selected project facts [95.56ms]
+
+ 2 pass
+ 1 fail
+ 15 expect() calls
+Ran 3 tests across 1 file. [2.75s]

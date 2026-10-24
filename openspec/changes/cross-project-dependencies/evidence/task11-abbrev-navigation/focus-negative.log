@@ -1,0 +1,64 @@
+
+> nx run wbs-fe-01:e2e-cross-project --grep abbreviation edit
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "abbreviation edit"
+
+(node:1925510) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:1926320) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:1926416) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination (19.4s)
+
+
+  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByLabel('Name of 010')
+    Expected: focused
+    Received: inactive
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toBeFocused" getByLabel('Name of 010') with timeout 5000ms
+      - waiting for getByLabel('Name of 010')
+        14 × locator resolved to <textarea rows="1" aria-label="Name of 010" data-rendered-at-rest="" data-name-input="f87e6aaf-b27f-4602-bd47-e35c805291b6" data-cell="f87e6aaf-b27f-4602-bd47-e35c805291b6::name">RenameSource row</textarea>
+           - unexpected value "inactive"
+
+
+      809 |     expect(tree.status(), await tree.text()).toBe(200);
+      810 |     await expect(targetPage.getByLabel('Name of 010')).toHaveValue('RenameSource row');
+    > 811 |     // Proof: omitting the work-item branch left Name of 010 unfocused (Task11 receipt).
+          |                                                        ^
+      812 |     await expect(targetPage.getByLabel('Name of 010')).toBeFocused();
+      813 |     const installed: unknown = await tree.json();
+      814 |     await testInfo.attach('abbreviation-stable-navigation', {
+        at /tmp/puni-task11-abbrev-navigation/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:811:56
+
+    Error Context: test-results/cross-project-refresh.real-dda03-uses-its-stable-destination/error-context.md
+
+  1 failed
+    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination
+Warning: command "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "abbreviation edit"" exited with non-zero status code
+
+
+ NX   Running target e2e-cross-project for project wbs-fe-01 failed
+
+Failed tasks:
+
+- wbs-fe-01:e2e-cross-project
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      27.8s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     27.8s (1 task)
+  Recoverable time:  <1ms

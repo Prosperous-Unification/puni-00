@@ -335,3 +335,12 @@ Slice 6 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, stacked on
   request.
 
 See `verify.md`, "Slice 6 record".
+
+### Writer authority integration after current-authority merge
+
+- [x] Add mounted current-credential mismatch and queued revocation negatives before implementation; observe capture reached with membership still valid.
+- [x] Require a same-database read-only machine credential reader in `SqliteCommandAccess`; refuse changed retained principals as typed `409 organization_context_changed` before graph/capture/prelude.
+- [x] Cover machine HTTP queue entries and machine/consent direct runner queue entries, trusted storage faults, and successful current principals.
+- [x] Remove each new admission predicate independently, observe its negative fail, restore it and record proofs in `verify.md`.
+- [ ] Separately retain immutable verifier evidence and revalidate API rotation-window, OIDC token and consent/delegation expiry while queued.
+- [ ] Separately carry the effective machine/consent role ceiling into restricted-project recovery classification and fan-out authorization.

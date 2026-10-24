@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
-import { WbsRequestError, type WorkItemView } from '@/lib/wbs-api';
+import { httpProjectApi, WbsRequestError, type WorkItemView } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
@@ -2624,6 +2624,38 @@ describe('write failure recovery scopes', () => {
     expect(input.value).toBe('');
   });
 
+  it('clears a submitted local list immediately without erasing a newer draft', async () => {
+    const api = fakeApi();
+    const first = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'First',
+    });
+    for (const name of ['Second', 'Successor'])
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name });
+    const addDependency = api.addDependency.bind(api);
+    let releaseWrite!: () => void;
+    api.addDependency = (...args) =>
+      args[1] === first.id
+        ? new Promise<void>((resolve) => {
+            releaseWrite = resolve;
+          }).then(() => addDependency(...args))
+        : addDependency(...args);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 030');
+    const input = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+    fireEvent.change(input, { target: { value: '010, 020' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(input.value).toBe('');
+    fireEvent.change(input, { target: { value: '999' } });
+    await act(async () => {
+      releaseWrite();
+      await Promise.resolve();
+    });
+    await screen.findByRole('button', { name: 'Stop 030 waiting for 010' });
+    expect(input.value).toBe('999');
+  });
+
   it('keeps a dependency success before an ambiguous later failure', async () => {
     const api = fakeApi();
     for (const name of ['First', 'Second', 'Successor']) {
@@ -3156,4 +3188,39 @@ describe('the mounted Type cell', () => {
       expect(document.querySelector('[data-type-conflict]')).toBeNull();
     });
   });
+});
+
+// Removing either decoding or presentation must hide the compatible-client instruction.
+itDom('shows resource dependency incompatibility through the real HTTP client', async () => {
+  const send = vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          error: 'client_dependency_incompatible',
+          required: 'cross-project-dependencies-v1',
+        }),
+        { status: 409 },
+      ),
+    ),
+  );
+  try {
+    render(
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(httpProjectApi('token'))}
+      />,
+    );
+    await screen.findByText(
+      'This client cannot open plans with dependencies between projects. Reload with a compatible client.',
+    );
+    expect(document.querySelector('[data-export]')).toBeNull();
+    for (const [, init] of send.mock.calls) {
+      // Proof: omitting browserClient's V1 opt-in made this mounted test receive null.
+      expect(new Headers(init?.headers).get('X-WBS-Dependency-Semantics')).toBe(
+        'cross-project-dependencies-v1',
+      );
+    }
+  } finally {
+    send.mockRestore();
+  }
 });

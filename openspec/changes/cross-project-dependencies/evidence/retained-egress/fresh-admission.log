@@ -1,0 +1,42 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/delivery.integration.test.ts:
+204 |     forward: () => Promise.resolve({ ack: true }),
+205 |     resume: () => Promise.resolve({ [PROJECT]: { status: 'replaying', events: [
+206 |       { seq: 1, message: 'first' }, { seq: 2, message: 'sentinel' },
+207 |     ] } }),
+208 |   });
+209 |   expect(accepted.map((payload) => JSON.parse(payload))).toEqual([
+                                                               ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+      "message": "first",
+      "seq": 1,
+      "subscription": "project:11111111-1111-4111-8111-111111111111",
+    },
++   {
++     "message": "sentinel",
++     "seq": 2,
++     "subscription": "project:11111111-1111-4111-8111-111111111111",
++   },
++   {
++     "replayed": {
++       "project:11111111-1111-4111-8111-111111111111": 2,
++     },
++     "type": "resume_ack",
++   },
+  ]
+
+- Expected  - 0
++ Received  + 11
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/gw-01/src/delivery.integration.test.ts:209:58)
+(fail) fresh admission stops replay when authority changes after the first accepted event [10.63ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.98s]

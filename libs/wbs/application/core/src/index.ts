@@ -66,6 +66,7 @@ export * from './ports/domain-challenges';
 export * from './ports/edit-admission';
 export * from './ports/estimate-store';
 export type { EventLogStore, RecordedEvent } from './ports/event-log-store';
+export * from './ports/external-dependency-authoring';
 export * from './ports/measure-store';
 export type { OidcVerifier } from './ports/oidc-verifier';
 export * from './ports/plan-event-store';
@@ -89,6 +90,7 @@ export * from './ports/join-request';
 export * from './ports/machine-credentials';
 export * from './ports/membership-administration';
 export * from './ports/onboarding';
+export * from './ports/optimization-input';
 export * from './ports/organization-access';
 export * from './ports/organization-audit';
 export * from './ports/organization-limits';
@@ -194,16 +196,36 @@ export * from './module/step/step.resource';
 export * from './module/work-item/work-item.resource';
 export * from './ports/chain-snapshot-store';
 export * from './ports/claim-store';
+export * from './ports/command-access';
 export * from './ports/demand-store';
+export type {
+  CommandGraphAuthority,
+  DependencyContext,
+  DependencyEndpointEvidence,
+  EndpointEvidence,
+  ScopedRevision,
+  ServiceDependencyContext,
+  WorkItemAddress,
+} from './ports/dependency-context';
+export { withDependencyContext } from './ports/dependency-context';
+export * from './ports/project-address-search';
 export * from './ports/resource-capacity-store';
 export * from './ports/shared-people-restore-approvals';
 export * from './ports/shared-people-values';
 export * from './ports/step-blockage-store';
 export * from './ports/step-parallel-store';
+export * from './service/connected-dependency-graph';
+export { deriveConnectedPlan } from './service/connected-plan';
+export type { ConnectedPlanCapture } from './service/connected-plan-values';
+export { deriveConnectedReadiness, deriveExecutionReadiness } from './service/connected-readiness';
+export { createLocalDependencyContext } from './service/dependency-context';
+export { captureLocalTypedDependency } from './service/local-typed-dependency';
 export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';
 export * from './service/person-load.feature';
 export * from './service/plan-command';
+export * from './service/project-address-revision';
+export * from './service/project-address-search';
 export * from './service/saved-plan.service';
 export * from './service/saved-plan-schedule';
 export * from './service/shared-people';

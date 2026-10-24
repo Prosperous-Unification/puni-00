@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+380 |
+381 | test('mounted local batch aliases survive create link undo redo under current admission', async () => {
+382 |   const fixture = await open();
+383 |   expect((await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, { commands: [{ kind: 'createWorkItem', name: 'Alias predecessor', ref: 'created' }, { kind: 'addTypedDependency', predecessor: { scope: 'whole', workItemRef: 'created' }, successor: { scope: 'whole', workItemId: fixture.owner.workItemId }, type: 'FS' }] })).status).toBe(200);
+384 |   expect((await fixture.request(`/api/projects/${fixture.owner.projectId}/undo`)).status).toBe(200);
+385 |   expect((await fixture.request(`/api/projects/${fixture.owner.projectId}/redo`)).status).toBe(200);
+                                                                                                ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:385:91)
+(fail) mounted local batch aliases survive create link undo redo under current admission [416.53ms]
+
+ 0 pass
+ 53 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [2.49s]

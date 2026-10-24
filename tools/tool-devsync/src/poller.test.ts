@@ -12,7 +12,7 @@ interface CommandResult {
 
 async function command(argv: string[], env: Record<string, string> = {}): Promise<CommandResult> {
   const child = Bun.spawn(argv, {
-    env: { ...process.env, ...env },
+    env: { ...process.env, WBS_EDGE_STATE: await scratchAsync('edge-state-'), ...env },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -62,9 +62,12 @@ async function requireOverlappingRuns(
   argvs: string[][],
   env: Record<string, string>,
 ): Promise<CommandResult[]> {
-  const children = argvs.map((argv) =>
+  // Each candidate-race fixture represents an independent host; shared-host exclusion
+  // is exercised through the actual writer entrypoints in edge-admission.test.ts.
+  const edgeStates = await Promise.all(argvs.map(() => scratchAsync('edge-state-')));
+  const children = argvs.map((argv, index) =>
     Bun.spawn(argv, {
-      env: { ...process.env, ...env },
+      env: { ...process.env, WBS_EDGE_STATE: edgeStates[index], ...env },
       stdout: 'pipe',
       stderr: 'pipe',
       detached: true,

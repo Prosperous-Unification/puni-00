@@ -7,9 +7,10 @@ import { DirectoryService } from '@wbs/core/module/directory/directory.resource'
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { readPreconditions } from '@wbs/core/service/compensating';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
@@ -61,6 +62,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -87,7 +89,7 @@ beforeEach(() => {
   typed = new TypedDependencyRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);
   journal = new CommandJournalRepository(db, OPEN);
-  const dependencyGraph = new DependencyGraphGuard({
+  const dependencyContext = createLocalDependencyContext({
     projects,
     workItems,
     estimates,
@@ -108,16 +110,24 @@ beforeEach(() => {
       clock: testClock,
       projects,
       broadcast: recordingBroadcaster(),
-      dependencyGraph,
+      dependencyContext,
     }),
     steps: new StepService({
       clock: testClock,
       projects,
       steps,
       broadcast: recordingBroadcaster(),
-      dependencyGraph,
+      dependencyContext,
     }),
     workItems: new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projects,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies: typed,
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
@@ -147,6 +157,7 @@ beforeEach(() => {
     clock: testClock,
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -168,6 +179,7 @@ beforeEach(() => {
     }),
     ...writing,
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes: {
@@ -175,6 +187,14 @@ beforeEach(() => {
       batch: (scope, broadcast) => ({
         ...writing,
         workItems: new WorkItemService({
+          dependencyContext: createLocalDependencyContext({
+            projects: scope.stores.projects,
+            workItems: scope.stores.workItems,
+            estimates: scope.stores.estimates,
+            dependencies: scope.stores.dependencies,
+            typedDependencies: scope.stores.typedDependencies,
+          }),
+          externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
           admission: CREATOR_ADMISSION,
           scheduler: fastScheduler,
           clock: testClock,
@@ -199,7 +219,10 @@ beforeEach(() => {
           broadcast,
         }),
       }),
-      uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
+      uow: sqliteUnitOfWork(db, new WriteCoordinator(), {
+        createScope: () => ({ stores: buildStores(db, OPEN) }),
+        createRepairScope: () => ({ stores: buildStores(db, OPEN) }),
+      }),
     },
     migrationsApplied: true,
   });
@@ -353,12 +376,14 @@ it('removes node and whole endpoints on delete and restores their identities on 
   ).toBe(200);
   const restored = await typed.listByProject(plan.projectId);
   expect(restored).toHaveLength(2);
-  expect(restored.find((dependency) => dependency.id === first)?.predecessor).toEqual(
-    node(doomed, plan.devId),
-  );
-  expect(restored.find((dependency) => dependency.id === second)?.predecessor).toEqual(
-    whole(doomed),
-  );
+  expect(restored.find((dependency) => dependency.id === first)?.predecessor).toEqual({
+    ...node(doomed, plan.devId),
+    projectId: plan.projectId,
+  });
+  expect(restored.find((dependency) => dependency.id === second)?.predecessor).toEqual({
+    ...whole(doomed),
+    projectId: plan.projectId,
+  });
 });
 
 it('refuses deleting or moving the last child of a descendant-step parent', async () => {
@@ -458,8 +483,8 @@ for (const refreshRevisions of [false, true]) {
       {
         id,
         projectId: plan.projectId,
-        predecessor: node(parent, plan.devId),
-        successor: whole(other),
+        predecessor: { ...node(parent, plan.devId), projectId: plan.projectId },
+        successor: { ...whole(other), projectId: plan.projectId },
         type: 'FS',
       },
       testClock.stampFor(peer.user.id),
@@ -507,8 +532,8 @@ it('refuses redo of a child create when a newer node relationship pins its paren
     {
       id: 'redo-create-relationship',
       projectId: plan.projectId,
-      predecessor: node(parent, plan.devId),
-      successor: whole(other),
+      predecessor: { ...node(parent, plan.devId), projectId: plan.projectId },
+      successor: { ...whole(other), projectId: plan.projectId },
       type: 'FS',
     },
     testClock.stampFor(plan.userId),
@@ -546,8 +571,13 @@ it('refuses undo of a move when a newer descendant-step endpoint would lose its 
     {
       id: 'replay-move-relationship',
       projectId: plan.projectId,
-      predecessor: { scope: 'descendant-step', workItemId: destination, stepId: plan.devId },
-      successor: node(other, plan.devId),
+      predecessor: {
+        projectId: plan.projectId,
+        scope: 'descendant-step',
+        workItemId: destination,
+        stepId: plan.devId,
+      },
+      successor: { ...node(other, plan.devId), projectId: plan.projectId },
       type: 'FS',
     },
     testClock.stampFor(plan.userId),
@@ -581,8 +611,13 @@ it('refuses redo of a deletion when a newer descendant-step endpoint needs its l
     {
       id: 'replay-delete-relationship',
       projectId: plan.projectId,
-      predecessor: { scope: 'descendant-step', workItemId: parent, stepId: plan.devId },
-      successor: node(other, plan.devId),
+      predecessor: {
+        projectId: plan.projectId,
+        scope: 'descendant-step',
+        workItemId: parent,
+        stepId: plan.devId,
+      },
+      successor: { ...node(other, plan.devId), projectId: plan.projectId },
       type: 'FS',
     },
     testClock.stampFor(plan.userId),
@@ -612,8 +647,8 @@ it('refuses undo of a move into a leaf with a newer pinned node endpoint', async
     {
       id: 'replay-node-relationship',
       projectId: plan.projectId,
-      predecessor: node(parent, plan.devId),
-      successor: node(other, plan.devId),
+      predecessor: { ...node(parent, plan.devId), projectId: plan.projectId },
+      successor: { ...node(other, plan.devId), projectId: plan.projectId },
       type: 'FS',
     },
     testClock.stampFor(plan.userId),

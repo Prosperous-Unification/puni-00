@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+(pass) throws for missing required projects, unreadable facts and foreign work-item rows [1.86ms]
+
+ 1 pass
+ 14 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [141.00ms]

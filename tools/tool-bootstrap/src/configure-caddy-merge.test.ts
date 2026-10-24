@@ -104,6 +104,8 @@ const PINNED_BY_CONSTRUCTION: Record<string, string> = {
   PATH: 'the stub directory must come first: it is what makes the script runnable unprivileged and stops it at htpasswd, before the one step that writes outside WBS_ROOT',
   WBS_ROOT:
     'a fresh /tmp directory this harness reads its results out of; it must never be a real /home/*/wbs',
+  WBS_EDGE_STATE:
+    'a private state directory beneath each fixture root; real admission and flock run here without touching or contending on a host edge lock',
 };
 
 // The part of the harness environment that is a fixed VALUE rather than a
@@ -349,6 +351,7 @@ const prepareShippedScript = (opts: ShippedScriptOptions): ShippedScriptFixture 
     Object.entries<string | null>({
       PATH: `${bin}:${process.env['PATH'] ?? '/usr/bin:/bin'}`,
       WBS_ROOT: root,
+      WBS_EDGE_STATE: join(root, 'state'),
       ...BASE_ENV,
       ...overrides,
     }).filter((entry): entry is [string, string] => entry[1] !== null),
@@ -484,6 +487,77 @@ const OWNED = ['import log-redact.caddy', 'import site.caddy'];
 const RUNNING_AS_ROOT = process.getuid?.() === 0;
 
 describe('configure.sh Caddyfile merge, executed', () => {
+  it('isolates whole-script admission while retaining real lock contention', async () => {
+    const held = prepareShippedScript({});
+    const independent = prepareShippedScript({});
+    try {
+      // Refuse to execute an unisolated fixture, including during a regression.
+      // Proof: removing the state pin failed here before any shell ran.
+      expect(held.env['WBS_EDGE_STATE']).toBe(join(held.root, 'state'));
+      expect(independent.env['WBS_EDGE_STATE']).toBe(join(independent.root, 'state'));
+      mkdirSync(join(held.root, 'state'));
+      const lock = join(held.root, 'state', 'edge.lock');
+      const release = join(held.root, 'state', 'release');
+      writeFileSync(lock, '');
+      const holder = spawn(
+        'flock',
+        [
+          '-n',
+          lock,
+          'sh',
+          '-c',
+          'printf held; attempt=0; while [ ! -e "$1" ] && [ "$attempt" -lt 500 ]; do attempt=$((attempt + 1)); sleep 0.01; done; test -e "$1"',
+          'edge-holder',
+          release,
+        ],
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+      );
+      const closed = new Promise<number | null>((resolve, reject) => {
+        holder.once('error', reject);
+        holder.once('close', resolve);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          holder.once('error', reject);
+          holder.stdout.once('data', () => {
+            resolve();
+          });
+          holder.once('close', () => {
+            reject(new Error('lock holder exited before admission'));
+          });
+        });
+        const blocked = spawnSync('/bin/sh', [held.script], {
+          encoding: 'utf8',
+          env: held.env,
+        });
+        if (blocked.error) throw blocked.error;
+        // Proof: removing configure.sh's flock reached htpasswd (7), failing this 75 assertion.
+        expect(blocked.status).toBe(75);
+        expect(blocked.stderr).toContain(`shared edge lock held: ${lock}`);
+        expect(
+          inspectShippedScript(held.root, blocked.status, blocked.stderr).siteCaddy,
+        ).toBeNull();
+
+        const admitted = spawnSync('/bin/sh', [independent.script], {
+          encoding: 'utf8',
+          env: independent.env,
+        });
+        if (admitted.error) throw admitted.error;
+        expect(admitted.status).toBe(STOP_STATUS);
+        expect(admitted.stderr).toBe('');
+        const inspected = inspectShippedScript(independent.root, admitted.status, admitted.stderr);
+        expect(inspected.siteCaddy).not.toBeNull();
+        expect(importsOf(inspected.caddyfile ?? '')).toEqual(OWNED);
+      } finally {
+        writeFileSync(release, 'release');
+        expect(await closed).toBe(0);
+      }
+    } finally {
+      rmSync(held.root, { force: true, recursive: true });
+      rmSync(independent.root, { force: true, recursive: true });
+    }
+  });
+
   it('removes each whole-script fixture after reading its outcome', () => {
     const fixtureNames = (): string[] => readdirSync(SHIPPED_FIXTURE_DIRECTORY).sort();
     const before = fixtureNames();
@@ -913,9 +987,10 @@ describe('configure.sh Caddyfile merge, executed', () => {
   // once, and any property shared by every value this harness can give a
   // pin it cannot vary -- the entries of PINNED_BY_CONSTRUCTION. So
   // `case "$WBS_ROOT" in /tmp/*)` and `[ "${PATH%%:*}" = "$WBS_ROOT/stubbin" ]`
-  // both survive this file. Neither pin can be dropped: one is where the
-  // results are read from, the other is what stops the script before it writes
-  // outside WBS_ROOT. What the list buys is that the set is CLOSED, and after
+  // both survive this file, as does a condition recognizing the private
+  // WBS_EDGE_STATE. These pins keep results and edge admission in scratch
+  // space and stop the script before it writes outside WBS_ROOT. What the
+  // list buys is that the set is CLOSED, and after
   // round 10 that is a claim about the env configure.sh actually receives
   // rather than about one literal on the way to it: every name in it is a
   // boundary pin, a BASE_ENV pin at the shipped default, or an axis

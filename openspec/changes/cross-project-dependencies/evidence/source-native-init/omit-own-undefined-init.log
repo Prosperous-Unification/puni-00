@@ -1,0 +1,90 @@
+Injected own-undefined-init; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:
+110 | });
+111 | for (const invalid of [undefined, 'false', 0])
+112 |   test(`source decoder rejects own malformed Init ${String(invalid)}`, () => {
+113 |     const source = sourceFixture();
+114 |     Reflect.set(source.HostConfig, 'Init', invalid);
+115 |     expect(() => decodeSourceDev(source, envLayout('dev'))).toThrow('typed init');
+                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "typed init"
+
+Received function did not throw
+Received value: {
+  id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  path: "bun",
+  args: [ "run", "dev" ],
+  image: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  config: {
+    Image: "wbs-dev-src:1",
+    WorkingDir: "/src",
+    Cmd: [ "bun", "run", "dev" ],
+    Entrypoint: null,
+    User: "1000:1000",
+    Labels: {
+      "com.docker.compose.service": "dev-src",
+      "com.docker.compose.project": "dev-src",
+    },
+  },
+  host: {
+    Init: undefined,
+    PidMode: "",
+    Privileged: false,
+    CapAdd: null,
+    NetworkMode: "wbs-dev-net",
+    RestartPolicy: {
+      Name: "unless-stopped",
+      MaximumRetryCount: 0,
+    },
+  },
+  mounts: [
+    {
+      Type: "bind",
+      Source: "/home/puni1/wbs-dev/src",
+      Destination: "/src",
+      RW: true,
+    }, {
+      Type: "bind",
+      Source: "/home/puni1/wbs-dev/data",
+      Destination: "/data",
+      RW: true,
+    }, {
+      Type: "bind",
+      Source: "/run/user/1000/wbs-solver",
+      Destination: "/run/wbs-solver",
+      RW: false,
+    }
+  ],
+  networks: {
+    "wbs-dev-net": {
+      NetworkID: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    },
+  },
+  restartCount: 0,
+  state: {
+    Running: true,
+    Paused: false,
+    Restarting: false,
+    Dead: false,
+    OOMKilled: false,
+    Pid: 100,
+    Status: "running",
+    StartedAt: "2026-10-23T00:00:00Z",
+    FinishedAt: "0001-01-01T00:00:00Z",
+    ExitCode: 0,
+    Error: "",
+  },
+}
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:115:61)
+(fail) source decoder rejects own malformed Init undefined [2.12ms]
+
+ 0 pass
+ 32 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [52.00ms]

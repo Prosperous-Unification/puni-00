@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:
+438 |       delete cluster.objects['cronjob/sqlite-backup'].metadata.annotations[
+439 |         'puni.dev/storage-owner'
+440 |       ];
+441 |     return text;
+442 |   };
+443 |   await expect(suspendController(owner, suspended, call, authority())).rejects.toThrow(
+                                                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "token changed during observation"
+Received message: "acknowledged backup suspension lost"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-lifecycle.test.ts:443:80)
+(fail) owned token changing between read passes refuses before acknowledgment [3.18ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [42.00ms]

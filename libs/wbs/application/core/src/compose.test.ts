@@ -18,13 +18,16 @@ import { createPlanCommandRunner } from './module/plan-commands/composition';
 import { replay } from './module/realtime/realtime.feature';
 import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
-import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
+import { CREATOR_ADMISSION } from './ports/edit-admission';
 import { NO_MACHINE_CREDENTIALS } from './ports/machine-credentials';
 import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
+import { createLocalDependencyContext } from './service/dependency-context';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
+import { expectCreated } from './testing/expect-created';
+import { localCommandAccess } from './testing/organization-access-fixture';
 import { fastScheduler } from './testing/scheduler-fixture';
 
 function signal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
@@ -86,6 +89,7 @@ function fixture() {
   const clock = clockOf({ now: () => instant, newId: () => `id-${String(++nextId)}` });
   const pushed: unknown[] = [];
   const runtime: RuntimePorts = {
+    commandAccess: localCommandAccess,
     clock,
     digest: { sha256: (bytes) => Promise.resolve(`digest:${bytes}`) },
     timers: { nowMs: () => instant, schedule: () => () => undefined },
@@ -272,7 +276,7 @@ test('accountful composition exposes auth when its source and runtime both offer
 describe('composeServices', () => {
   test('commits a mixed-store batch and rolls every store back on refusal', async () => {
     const { graph, runner } = fixture();
-    const project = await graph.projects.create('Plan', 'owner');
+    const project = expectCreated(await graph.projects.create('Plan', 'owner'));
     const committed = await runner.run(project.project.id, 'owner', [
       { kind: 'createTeam', ref: 'team', name: 'Platform' },
       {
@@ -350,7 +354,7 @@ describe('composeServices', () => {
 
   test('denies a foreign save and persists an owner save through independent history', async () => {
     const { graph } = fixture();
-    const project = await graph.projects.create('Private', 'owner');
+    const project = expectCreated(await graph.projects.create('Private', 'owner'));
     await graph.projects.update(project.project.id, 'owner', { restricted: true });
     const foreign = { id: 'other', username: 'other', scopes: ['write'] as const };
     const owner = { id: 'owner', username: 'owner', scopes: ['write'] as const };
@@ -377,7 +381,7 @@ describe('composeServices', () => {
     // Proof: giving ReplayOrchestrator a second buffer changed this answer from
     // the buffered tree_replaced event to `{status:"denied", reason:"out_of_range"}`.
     const { graph, runner, source } = fixture();
-    const project = await graph.projects.create('Replay', 'owner');
+    const project = expectCreated(await graph.projects.create('Replay', 'owner'));
     const subscription = `project:${project.project.id}`;
     const before = await source.stores.eventLog.latestSeq(subscription);
     for (const name of ['First buffered', 'Second buffered']) {
@@ -433,7 +437,7 @@ describe('composeServices', () => {
 
   test('shares runtime identities while creating a fresh scope, collector and graph per batch', async () => {
     const { graph, source, clock, runtime } = fixture();
-    const project = await graph.projects.create('Identities', 'owner');
+    const project = expectCreated(await graph.projects.create('Identities', 'owner'));
     const scopes: Scope[] = [];
     const broadcasts: Broadcaster[] = [];
     const graphs: WritingServices[] = [];
@@ -445,15 +449,16 @@ describe('composeServices', () => {
         return act(scope);
       });
     const observedGraph = graph as typeof graph & {
-      batch: (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => WritingServices;
+      batch: typeof graph.batch;
     };
-    observedGraph.batch = (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => {
+    observedGraph.batch = (scope, broadcast, admission, dependencies, ...hooks) => {
       broadcasts.push(broadcast);
-      const services = originalBatch(scope, broadcast, admission);
+      const services = originalBatch(scope, broadcast, admission, dependencies, ...hooks);
       graphs.push(services);
       return services;
     };
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       batchServices: observedGraph.batch,
       publicServices: graph,
       uow: graph.uow,
@@ -481,7 +486,7 @@ describe('composeServices', () => {
 
   test('discards a stale journal entry through the fresh repair scope', async () => {
     const { graph, runner, source } = fixture();
-    const project = await graph.projects.create('Repair', 'owner');
+    const project = expectCreated(await graph.projects.create('Repair', 'owner'));
     await runner.run(project.project.id, 'owner', [
       { kind: 'createWorkItem', name: 'Original', parentId: null, afterId: null },
     ]);
@@ -513,14 +518,19 @@ describe('servicesOver', () => {
   const TEAM = 'team-1';
 
   /** One source holding the project and the team, and a writing graph over its stores. */
-  async function scopeOver(shared: ServicesOverOptions): Promise<WritingServices> {
+  async function scopeOver(
+    shared: Omit<ServicesOverOptions, 'dependencyContext'>,
+  ): Promise<WritingServices> {
     const source = openMemorySource();
     await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
       at: 1,
       by: OWNER,
     });
     await source.stores.directory.addTeam({ id: TEAM, name: 'Platform' }, { at: 1, by: OWNER });
-    return servicesOver(source.stores, shared);
+    return servicesOver(source.stores, {
+      ...shared,
+      dependencyContext: createLocalDependencyContext(source.stores),
+    });
   }
 
   /** Two such scopes, sharing only what every admission shares. */
@@ -529,7 +539,7 @@ describe('servicesOver', () => {
     readonly second: WritingServices;
   }> {
     let next = 0;
-    const shared: ServicesOverOptions = {
+    const shared: Omit<ServicesOverOptions, 'dependencyContext'> = {
       admission: CREATOR_ADMISSION,
       clock: clockOf({ now: () => 1_000, newId: () => `id-${String(++next)}` }),
       broadcast: recordingBroadcaster(),
@@ -609,7 +619,7 @@ describe('servicesOver', () => {
   // the write resolved instead of rejecting; watched 2026-09-28.
   test('fails closed on a write through a graph built without an admission', async () => {
     // @ts-expect-error a graph without an admission does not compile
-    const shared: ServicesOverOptions = {
+    const shared: Omit<ServicesOverOptions, 'dependencyContext'> = {
       clock: clockOf({ now: () => 1_000, newId: () => 'unused' }),
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
@@ -640,7 +650,7 @@ describe('servicesOver', () => {
   test("installs Project per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 
-    const created = await first.projects.create('Alpha', OWNER);
+    const created = expectCreated(await first.projects.create('Alpha', OWNER));
     // Proof (2026-09-24): memoizing one `installProject(...)` result in a module-level `let` and
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
     // with `-t`): the second scope read the first scope's `Alpha` project instead of null.

@@ -1,8 +1,9 @@
 import type { ResourceScope } from '@/lib/organization-context';
 import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream';
 import { httpSavedPlanApi, savedPlansAvailable } from '@/lib/saved-plan-api';
-import type { ProjectApi } from '@/lib/wbs-api';
+import type { ProjectAddressApi, ProjectApi } from '@/lib/wbs-api';
 import { calendarMarkersForReader } from '@/modules/calendar-markers/composition';
+import { openDependencyLookup } from '@/modules/dependency-lookup/dependency-lookup.feature';
 import { createPlanCommands } from '@/modules/plan-commands/plan-commands.feature';
 import { planFeedForReader } from '@/modules/plan-feed/composition';
 import type { SavedPlanRoutes } from '@/modules/saved-plans/contract';
@@ -31,11 +32,13 @@ import type { ProjectServices, ProjectSource } from './contract';
 export function projectServicesOver(
   client: ProjectApi,
   savedPlanRoutes: SavedPlanRoutes,
+  addressRoutes: ProjectAddressApi,
 ): ProjectServices {
   // Proof: on 2026-09-24, cutting the ports from a copy of the client taken here (`{ ...client }`)
   // failed `reaches the client at the moment of each call, not when it was composed` with
   // `expected [] to deeply equal [ 'tree:p1', 'arrange:p1' ]`.
   return {
+    dependencyLookupFor: (reader) => openDependencyLookup({ ...reader, routes: addressRoutes }),
     // Proof: on 2026-09-24, reading the feed through a second client (`httpProjectApi('')`) failed
     // `reads the reader’s project through the one client, and nothing before it is asked` with
     // `expected null not to be null`: no tree ever arrived.
@@ -111,11 +114,12 @@ export function browserSavedPlanRoutes(
  */
 export function projectSourceOver(
   client: ProjectApi,
+  addressRoutes: ProjectAddressApi,
   streamDeps?: ProjectStreamDeps,
   savedPlanRoutes: SavedPlanRoutes = browserSavedPlanRoutes(streamDeps),
 ): ProjectSource {
   return {
-    services: projectServicesOver(client, savedPlanRoutes),
+    services: projectServicesOver(client, savedPlanRoutes, addressRoutes),
     subscribe: (projectId, handlers, baseline) =>
       subscribeToProject(
         {

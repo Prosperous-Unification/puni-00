@@ -1,0 +1,134 @@
+[
+  {
+    "fault": "typed_dependency_cross_identity_insert",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "Expected substring: \"duplicate unified dependency identity\"",
+      "Received function did not throw",
+      "Received value: undefined",
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [134.82ms]"
+    ]
+  },
+  {
+    "fault": "typed_dependency_cross_endpoints_insert",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "Expected substring: \"duplicate unified dependency endpoints\"",
+      "Received function did not throw",
+      "Received value: undefined",
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [125.11ms]"
+    ]
+  },
+  {
+    "fault": "typed_dependency_cross_identity_update",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "Expected substring: \"duplicate unified dependency identity\"",
+      "Received function did not throw",
+      "Received value: undefined",
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [126.75ms]"
+    ]
+  },
+  {
+    "fault": "typed_dependency_cross_endpoints_update",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "Expected substring: \"duplicate unified dependency endpoints\"",
+      "Received function did not throw",
+      "Received value: undefined",
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [137.05ms]"
+    ]
+  },
+  {
+    "fault": "external_dependency_cross_identity_insert",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "Expected substring: \"duplicate unified dependency identity\"",
+      "Received function did not throw",
+      "Received value: undefined",
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [130.36ms]"
+    ]
+  },
+  {
+    "fault": "external_dependency_cross_endpoints_insert",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "Expected substring: \"duplicate unified dependency endpoints\"",
+      "Received function did not throw",
+      "Received value: undefined",
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [137.39ms]"
+    ]
+  },
+  {
+    "fault": "external_dependency_cross_identity_update",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "Expected substring: \"duplicate unified dependency identity\"",
+      "Received function did not throw",
+      "Received value: undefined",
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [134.56ms]"
+    ]
+  },
+  {
+    "fault": "external_dependency_cross_endpoints_update",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'duplicates refuse across representations'",
+    "observed": [
+      "Expected substring: \"duplicate unified dependency endpoints\"",
+      "Received function did not throw",
+      "Received value: undefined",
+      "(fail) duplicates refuse across representations on insert and relevant update in both tables [134.67ms]"
+    ]
+  },
+  {
+    "fault": "sql-predecessor-scope",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"CHECK constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [129.08ms]"
+    ]
+  },
+  {
+    "fault": "sql-successor-scope",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"CHECK constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [138.85ms]"
+    ]
+  },
+  {
+    "fault": "sql-different-projects",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"CHECK constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [134.30ms]"
+    ]
+  },
+  {
+    "fault": "sql-unique-endpoints",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'enforces external discriminants'",
+    "observed": [
+      "Expected substring: \"UNIQUE constraint failed\"",
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [135.66ms]"
+    ]
+  }
+]

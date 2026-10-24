@@ -1,0 +1,58 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/generated-document.test.ts:
+(pass) default MCP document is generated directly from the shared declarations [20.43ms]
+(pass) generated project command tool exposes addTypedDependency with endpoints [3.56ms]
+(pass) required exclusion drift remains a failure when operational routes are absent [3.37ms]
+(pass) keeps browser organization selection out of the generated MCP tools [2.87ms]
+(pass) keeps provisioning-token administration out of the generated MCP tools [3.46ms]
+(pass) pins every generated MCP operation name independently of the registry [4.03ms]
+(pass) refuses a generated operation whose name was lost before MCP derivation [4.62ms]
+(pass) optional operational deny paths cannot become tools in external documents [5.64ms]
+(pass) keeps browser current-context discovery out of generated MCP tools [5.29ms]
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+(pass) alphabetic prefix is bounded and organization scoped [263.85ms]
+(pass) numeric input is not external discovery [162.68ms]
+(pass) selected project scopes steps and work items and caps flattened candidates [150.48ms]
+(pass) manual punctuation and lowercase resolve and malformed syntax precedes stale [161.28ms]
+(pass) foreign and absent addresses have identical refusal [152.29ms]
+(pass) refuses malformed queries and cursor reuse across query project organization and kind [135.98ms]
+(pass) keeps exact Unicode name matching and literal punctuation [301.75ms]
+(pass) refuses duplicate numbers and missing endpoints without changing database state [358.42ms]
+(pass) changes revision for leafhood and uncoded step order but keeps label-only edits [184.37ms]
+{"level":"error","time":1792623172116,"service":"be-01","err":{"occurrence_id":"AE_TGN0CNR0TYQJYEKH8AWX85REKP","fingerprint":"fp1_6296f33447cf0caa1885735f69dc2552","stack":["Error: project 3fb0380f-8e2f-4f53-8dcc-8b91defe3fb4 abbreviation is missing","    at decodeProjectAbbreviation (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at searchProjects (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:108:32)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:179:32)","    at async withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:20:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792623172120,"service":"be-01","err":{"occurrence_id":"AE_W8JTDCSQQSP6AGZFXS3GN3DDJY","fingerprint":"fp1_b24d945b71c87c83374f97bb91991c5f","stack":["Error: project 3fb0380f-8e2f-4f53-8dcc-8b91defe3fb4 abbreviation is missing","    at decodeProjectAbbreviation (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at capture (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:142:21)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:213:33)","    at withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:38:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) fails missing abbreviation evidence visibly even outside the discovery match [110.81ms]
+(pass) viewer can discover a restricted project and leaf steps belong to that project [103.05ms]
+(pass) legacy authority keeps duplicate organization codes as separate explicit choices [189.11ms]
+(pass) rejects impossible and malformed endpoint continuation coordinates [113.43ms]
+
+libs/wbs/domain/domain/src/project-address.test.ts:
+(pass) parseProjectAbbreviation > accepts one and twenty character manual abbreviations [0.10ms]
+(pass) parseProjectAbbreviation > rejects empty and twenty-one character abbreviations [0.04ms]
+(pass) parseProjectAbbreviation > rejects leading digits hyphens and underscores [0.02ms]
+(pass) parseProjectAbbreviation > rejects dots whitespace and non-ASCII characters before normalization [0.05ms]
+(pass) suggestProjectAbbreviations > suggests deterministic name-based prefixes [0.08ms]
+(pass) suggestProjectAbbreviations > suggests only three to five ASCII letters [0.08ms]
+(pass) parseWorkItemAddress > parses PUNI-CORE.080.39 and PUNI_CORE.020.s1-dev [0.06ms]
+(pass) parseWorkItemAddress > keeps numeric numbers and 010.s1-dev local [0.03ms]
+(pass) parseWorkItemAddress > rejects empty qualified endpoints [0.03ms]
+(pass) parseWorkItemAddress > rejects malformed project prefixes [0.08ms]
+(pass) parseWorkItemAddress > rejects malformed local and qualified references [0.09ms]
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+(pass) closes success modeled refusal and throws and rejects retained reader capabilities [93.55ms]
+(pass) holds authorization metadata and selected placements in one snapshot across rival writes [107.22ms]
+(pass) uses bounded metadata SQL without work item trees and captures only selected project facts [100.64ms]
+(pass) rejects malformed trusted step evidence at capture before returning detached facts [94.16ms]
+
+libs/wbs/application/core/src/module/work-item/step-addresses.test.ts:
+(pass) reads only leaf nodes in step order, with effective numbers and null for uncoded steps [0.40ms]
+(pass) answers no nodes for a stepless project [0.05ms]
+(pass) address revision ignores names but follows numbers, codes, order, and leafhood [0.24ms]
+
+ 40 pass
+ 0 fail
+ 241 expect() calls
+Ran 40 tests across 5 files. [8.28s]

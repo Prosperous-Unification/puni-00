@@ -1,0 +1,42 @@
+from pathlib import Path
+import subprocess,json
+base=Path('/tmp/puni-cross-fast-calendar')
+service=base/'libs/wbs/application/core/src/service'
+cases=[
+('prepared-calendar', 'connected-plan-calendar.ts', 'if (input === undefined)', 'if (false)'),
+('reverse-identity', 'connected-plan-projection.ts', 'if (id === undefined)', 'if (false)'),
+('owner', 'connected-plan.ts', 'relationship.projectId !== relationship.successor.projectId', 'false'),
+('uncaptured-project', 'connected-plan.ts', "!projectIds.has(relationship.predecessor.projectId) ||\n      !projectIds.has(relationship.successor.projectId)", 'false'),
+('project-identity', 'connected-plan.ts', 'member.reads.project.id !== member.projectId', 'false'),
+('rank-finiteness', 'connected-plan.ts', '!Number.isFinite(member.rank)', 'false'),
+('row-ownership', 'connected-plan.ts', 'member.reads.workItems.some((row) => row.projectId !== member.projectId)', 'false'),
+('local-evidence', 'connected-plan.ts', 'expected.size !== actual.size || [...expected].some(([id, key]) => actual.get(id) !== key)', 'false'),
+('required-engine', 'connected-plan.ts', 'if (required.length > 0)', 'if (false)'),
+('team-namespace', 'connected-plan.ts', 'JSON.stringify([kind, member.projectId, id])', "JSON.stringify([kind, kind === 'team' ? '' : member.projectId, id])"),
+('resource-namespace', 'connected-plan.ts', 'JSON.stringify([kind, member.projectId, id])', "JSON.stringify([kind, kind === 'resource' ? '' : member.projectId, id])"),
+('person-namespace', 'connected-plan.ts', "kind === 'person' && capture.mode === 'shared'", "kind === 'person'"),
+('missing-calendar', 'connected-plan-calendar.ts', 'if (anchor === null)', 'if (false)'),
+('own-start-floor', 'connected-plan-calendar.ts', 'notBefore.set(id, Math.max(shift, notBefore.get(id) ?? shift));', 'notBefore.set(id, notBefore.get(id) ?? 0);'),
+('own-shift', 'connected-plan-calendar.ts', 'ordinal - originOrdinal', '0'),
+('fraction-roundtrip', 'connected-plan-calendar.ts', 'shift + offset', 'Math.ceil(shift + offset)'),
+('own-method', 'schedule-parts.ts', 'method: project.estimateMethod', "method: 'realistic'"),
+('own-reach', 'schedule-parts.ts', 'reach: project.depReach', "reach: 'whole-item'"),
+('own-rounding', 'schedule-parts.ts', 'rounding: project.estimateRounding', "rounding: 'ceil'"),
+('hold-reduction', 'schedule-parts.ts', 'withoutHeldSubtrees(unreducedInput, heldLeafIds)', 'withoutHeldSubtrees(unreducedInput, new Set())'),
+('target-membership', 'connected-plan-projection.ts', '!projection.capture.projects.some((member) => member.projectId === projectId)', 'false'),
+]
+observed=[]
+for name,filename,source,replacement in cases:
+    path=service/filename; original=path.read_text()
+    if source not in original:
+        print('MISSING MUTATION',name); observed.append({'fault':name,'missing':True});continue
+    try:
+        path.write_text(original.replace(source,replacement))
+        run=subprocess.run(['bun','test',str(service/'connected-plan.test.ts')],cwd=base,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        (Path('/tmp')/f'connected-fast-proof-{name}.log').write_text(run.stdout)
+        failures=[line for line in run.stdout.splitlines() if '(fail)' in line]
+        observed.append({'fault':name,'exit':run.returncode,'failures':failures})
+        print(name,run.returncode,failures)
+    finally:path.write_text(original)
+Path('/tmp/puni-connected-fast-mutations.json').write_text(json.dumps(observed,indent=2)+'\n')
+if any(record.get('exit')!=1 or not record.get('failures') for record in observed):raise SystemExit(1)

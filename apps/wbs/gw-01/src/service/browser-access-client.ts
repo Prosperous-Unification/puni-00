@@ -1,3 +1,5 @@
+import { type DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts';
+
 import type { FetchLike } from './backend-request';
 import type { CheckProjectAccess, ProjectAccessVerdict } from './project-access';
 
@@ -40,14 +42,21 @@ export function browserProjectAccess(opts: {
   beUrl: string;
   secret: string;
   fetchImpl: FetchLike;
-}): (credential: ForwardedBrowserCredential) => CheckProjectAccess {
-  return (credential) => async (projectId, signal) => {
+}): (
+  credential: ForwardedBrowserCredential,
+  dependencySemantics?: typeof DEPENDENCY_SEMANTICS,
+) => CheckProjectAccess {
+  return (credential, dependencySemantics) => async (projectId, signal) => {
     const send = () =>
       opts.fetchImpl(
         `${opts.beUrl}/internal/gateway/projects/${encodeURIComponent(projectId)}/browser-access`,
         {
           method: 'POST',
           headers: {
+            // Proof: omitting this claim or unconditionally claiming V1 failed capable or legacy browser access in dependency-forwarding.test.ts.
+            ...(dependencySemantics === undefined
+              ? {}
+              : { [DEPENDENCY_SEMANTICS_HEADER]: dependencySemantics }),
             'x-internal-auth': opts.secret,
             cookie: forwardedCookieHeader(credential),
           },

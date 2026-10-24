@@ -1,0 +1,71 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+735 |     },
+736 |   });
+737 |   expect((await startable()).body).toMatchObject({ leaves: [] });
+738 |   await assertRefusal(() => claim());
+739 |   recordCompletion();
+740 |   expect((await startable()).body).toMatchObject({
+                                         ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "leaves": [
++   "claimed": [],
++   "doesNotFit": [],
++   "leaves": [],
++   "occupancyScope": "project",
++   "prerequisites": [
+      {
+-       "stepIds": [
+-         "721deb80-69aa-47bd-80fe-9771370dfa94",
++       "canFinish": true,
++       "canStart": false,
++       "finishBlockers": [],
++       "startBlockers": [
++         {
++           "provenance": "authored",
++           "relationshipId": "prerequisite",
++           "stepId": "9242f95d-5117-49ac-9321-333cd2900606",
++           "type": "FS",
++           "workItemId": "predecessor-leaf",
++         },
+        ],
++       "started": false,
++       "stepId": "721deb80-69aa-47bd-80fe-9771370dfa94",
++       "workItemId": "target-leaf",
++     },
++     {
++       "canFinish": true,
++       "canStart": false,
++       "finishBlockers": [],
++       "startBlockers": [
++         {
++           "provenance": "workflow",
++           "relationshipId": null,
++           "stepId": "721deb80-69aa-47bd-80fe-9771370dfa94",
++           "type": "FS",
++           "workItemId": "target-leaf",
++         },
++       ],
++       "started": false,
++       "stepId": "37a1cf65-9cab-4073-81d9-4684a43cabeb",
+        "workItemId": "target-leaf",
+      },
+    ],
++   "resources": [],
++   "subtreeClaims": [],
+  }
+
+- Expected  - 3
++ Received  + 37
+
+      at <anonymous> (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:740:36)
+(fail) missing remote calendar preserves mounted readiness and governed execution [475.68ms]
+
+ 0 pass
+ 36 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [3.80s]

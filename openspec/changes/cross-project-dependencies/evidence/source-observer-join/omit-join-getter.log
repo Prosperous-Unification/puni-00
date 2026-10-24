@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+896 |                 ).length;
+897 |                 expect(after).toBe(before + (cleanup === 'complete' ? 1 : 0));
+898 |                 expect(inspectFailure(outcome.failure, { depth: null })).not.toContain(
+899 |                   'PRIVATE_DOCKER',
+900 |                 );
+901 |                 expect(getterReads).toBe(0);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:901:37)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:844:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection deadline joins accessor child and owner cleanup before returning [252.00ms]
+896 |                 ).length;
+897 |                 expect(after).toBe(before + (cleanup === 'complete' ? 1 : 0));
+898 |                 expect(inspectFailure(outcome.failure, { depth: null })).not.toContain(
+899 |                   'PRIVATE_DOCKER',
+900 |                 );
+901 |                 expect(getterReads).toBe(0);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:901:37)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:332:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:844:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition deadline joins accessor child and owner cleanup before returning [222.90ms]
+
+ 0 pass
+ 51 filtered out
+ 2 fail
+ 20 expect() calls
+Ran 2 tests across 1 file. [517.00ms]

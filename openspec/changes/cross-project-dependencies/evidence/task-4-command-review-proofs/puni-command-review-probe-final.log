@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+Internal error: directory mismatch for directory "/tmp/puni-cross-command-integration/tsconfig.base.json", fd 3. You don't need to do anything, but this indicates a bug.
+
+../puni-command-review-probe.test.ts:
+REVIEW redo outcome {
+  ok: false,
+  reason: "not_found",
+  detail: null,
+} unchanged true
+374 |   const undone = await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+375 |   expect(undone).toMatchObject({ ok: true });
+376 |   const before = effects();
+377 |   const redone = await semantic(fixture, (service) => service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+378 |   console.log('REVIEW redo outcome', redone, 'unchanged', JSON.stringify(before) === JSON.stringify(effects()));
+379 |   expect(redone).toMatchObject({ ok: true });
+                       ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "detail": null,
++   "ok": false,
++   "reason": "not_found",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-command-review-probe.test.ts:379:18)
+(fail) REVIEW external create-link batch can redo its restored local successor [712.88ms]
+REVIEW mounted create-update redo 409 {
+  error: "stale_undo",
+  detail: "a local dependency endpoint changed or was removed.",
+}
+396 |   expect(updated.status).toBe(200);
+397 |   const undone = await fixture.request(`${route}/undo`);
+398 |   expect(undone.status).toBe(200);
+399 |   const redone = await fixture.request(`${route}/redo`);
+400 |   console.log('REVIEW mounted create-update redo', redone.status, await redone.json());
+401 |   expect(redone.status).toBe(200);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-command-review-probe.test.ts:401:25)
+(fail) REVIEW mounted local create-update batch can redo its restored predecessor [649.61ms]
+
+ 0 pass
+ 1 filtered out
+ 2 fail
+ 23 expect() calls
+Ran 2 tests across 1 file. [4.99s]

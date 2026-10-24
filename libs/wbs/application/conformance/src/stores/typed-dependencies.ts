@@ -29,13 +29,13 @@ export function typedDependencyRegistrations(
         const row: StoredTypedDependency = {
           id: 'typed-one',
           projectId,
-          predecessor: { scope: 'whole', workItemId: firstId },
-          successor: { scope: 'whole', workItemId: secondId },
+          predecessor: { projectId, scope: 'whole', workItemId: firstId },
+          successor: { projectId, scope: 'whole', workItemId: secondId },
           type: 'FS',
         };
         const changed: StoredTypedDependency = {
           ...row,
-          successor: { scope: 'node', workItemId: secondId, stepId: seed.stepIds[0][0] },
+          successor: { projectId, scope: 'node', workItemId: secondId, stepId: seed.stepIds[0][0] },
         };
         expect(await port.listByProject(projectId)).toEqual([]);
         await port.add(row, seed.stamps[0]);
@@ -47,7 +47,31 @@ export function typedDependencyRegistrations(
         expect(await port.listByProject(projectId)).toEqual([changed]);
         expect(await port.removeAllFor([firstId], seed.stamps[1])).toEqual([changed]);
         expect(await port.listByProject(projectId)).toEqual([]);
+        const remoteProjectId = seed.projectIds[1];
+        const external: StoredTypedDependency = {
+          ...row,
+          predecessor: {
+            projectId: remoteProjectId,
+            scope: 'whole',
+            workItemId: seed.workItemIds[1][0],
+          },
+        };
         await port.add(row, seed.stamps[0]);
+        await port.update(external, seed.stamps[1]);
+        expect(await port.listByProject(remoteProjectId)).toEqual([]);
+        expect(await port.listByProject(projectId)).toEqual([external]);
+        expect(await port.listIncident([remoteProjectId, projectId, remoteProjectId])).toEqual([
+          external,
+        ]);
+        expect(await port.listIncident([])).toEqual([]);
+        expect(
+          await refusesCall(() =>
+            port.removeAllFor([external.predecessor.workItemId], seed.stamps[1]),
+          ),
+        ).toBe(true);
+        await port.update(row, seed.stamps[1]);
+        expect(await port.listIncident([remoteProjectId])).toEqual([]);
+        expect(await port.listByProject(projectId)).toEqual([row]);
         await port.remove(row.id, seed.stamps[1]);
         expect(await port.listByProject(projectId)).toEqual([]);
       },

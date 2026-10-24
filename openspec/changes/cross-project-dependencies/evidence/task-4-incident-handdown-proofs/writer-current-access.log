@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+392 |       const before = tables();
+393 |       release();
+394 |       await held;
+395 |       const response = await pending;
+396 |       expect({status:response.status,changed:JSON.stringify(tables())!==JSON.stringify(before)}).toEqual({status:403,changed:false});
+397 |       expect(await response.json()).toMatchObject({ error: 'not_a_member' });
+                                          ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "error": "not_a_member",
++   "error": "forbidden",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:397:37)
+(fail) mounted compound undo rechecks membership after request admission while queued for the writer [507.29ms]
+392 |       const before = tables();
+393 |       release();
+394 |       await held;
+395 |       const response = await pending;
+396 |       expect({status:response.status,changed:JSON.stringify(tables())!==JSON.stringify(before)}).toEqual({status:403,changed:false});
+397 |       expect(await response.json()).toMatchObject({ error: 'not_a_member' });
+                                          ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "error": "not_a_member",
++   "error": "forbidden",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:397:37)
+(fail) mounted compound redo rechecks membership after request admission while queued for the writer [488.09ms]
+
+ 0 pass
+ 19 filtered out
+ 2 fail
+ 28 expect() calls
+Ran 2 tests across 1 file. [3.64s]

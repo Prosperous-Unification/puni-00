@@ -36,11 +36,18 @@ import type { SavedPlanService } from './module/saved-plans/saved-plans.feature'
 import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
+import type { CommandAccess } from './ports/command-access';
+import type { DependencyContext, ServiceDependencyContext } from './ports/dependency-context';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
-import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
+import type {
+  BeforeProjectUpdate,
+  BeforeStepRemoval,
+  BeforeStepWrite,
+} from './ports/fanout-capture-store';
 import type { MachineCredentials } from './ports/machine-credentials';
 import type { OidcVerifier } from './ports/oidc-verifier';
+import type { ConnectedOptimizationAdmission } from './ports/optimization-input';
 import type { ResourceAccess } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
@@ -51,7 +58,7 @@ import type { PlanTransactionalStores, TransactionalStores } from './ports/store
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
 import type { CommittedFanoutDelivery } from './service/committed-fanout';
-import { DependencyGraphGuard } from './service/dependency-graph';
+import { createLocalDependencyContext } from './service/dependency-context';
 import {
   OptimizerTriggerBroadcaster,
   reactToProjectEvent,
@@ -59,12 +66,15 @@ import {
 
 /** Runtime capabilities required by every service composition. */
 export interface RuntimePorts {
+  readonly commandAccess: CommandAccess;
   readonly clock: Clock;
   readonly digest: Digest;
   readonly timers: Timers;
   readonly intervals: Intervals;
   readonly push: PushTransport;
   readonly scheduler: Scheduler;
+  /** Live connected target admission; borrowed graphs never receive this capability. */
+  readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** Adapter callback for plan edits that should refresh runtime-owned optimization. */
   readonly onPlanChanged?: (projectId: string) => void;
 }
@@ -99,9 +109,12 @@ export interface SharedComposition {
 }
 
 export interface ServicesOverOptions {
+  readonly dependencyContext: ServiceDependencyContext;
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
+  /** Live connected target admission; borrowed graphs never receive this capability. */
+  readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** A borrowed command graph reads the transaction-captured cache without live admission. */
   readonly schedulerMode?: 'capture';
   /** Who may write a project through the built services; see {@link EditAdmission}. */
@@ -110,6 +123,7 @@ export interface ServicesOverOptions {
   readonly recoveryAdmission?: EditAdmission;
   readonly beforeProjectUpdate?: BeforeProjectUpdate;
   readonly beforeStepRemoval?: BeforeStepRemoval;
+  readonly beforeStepWrite?: BeforeStepWrite;
 }
 
 /**
@@ -127,14 +141,13 @@ export interface ServicesOverOptions {
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
   const { clock, broadcast, scheduler, admission } = shared;
   const recoveryAdmission = shared.recoveryAdmission ?? NO_ADMISSION;
-  const dependencyGraph = new DependencyGraphGuard(stores);
   return {
     projects: installProject({
       clock,
       projects: stores.projects,
       broadcast,
       optimizerAvailable: () => scheduler.supports('optimized'),
-      dependencyGraph,
+      dependencyContext: shared.dependencyContext,
       beforeUpdate: shared.beforeProjectUpdate,
     }).projects,
     capacity: installCapacity({
@@ -171,8 +184,9 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       steps: stores.steps,
       broadcast,
       recoveryAdmission,
-      dependencyGraph,
+      dependencyContext: shared.dependencyContext,
       beforeRemove: shared.beforeStepRemoval,
+      beforeWrite: shared.beforeStepWrite,
     }).steps,
     directory: installDirectory({
       clock,
@@ -207,9 +221,15 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       priorityBands: stores.priorityBands,
       subtrees: stores.subtrees,
       journal: stores.journal,
+      // Proof: inactive substitution hid deleted authority in the mounted production command reread test.
+      externalDependencyAuthoring: stores.externalDependencyAuthoring,
+      dependencyContext: shared.dependencyContext,
       broadcast,
       admission,
       scheduler,
+      ...(shared.admitConnectedOptimization === undefined
+        ? {}
+        : { admitConnectedOptimization: shared.admitConnectedOptimization }),
       ...(shared.schedulerMode === undefined ? {} : { schedulerMode: shared.schedulerMode }),
     }).workItems,
   };
@@ -233,8 +253,10 @@ interface CommonServices extends WritingServices {
     scope: Scope,
     broadcast: Broadcaster,
     admission: EditAdmission,
+    dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
+    beforeStepWrite?: BeforeStepWrite,
   ) => WritingServices;
   readonly history: HistoryService;
   readonly plans: SavedPlanService;
@@ -334,9 +356,13 @@ export function composeServices(
     },
   };
   const rawPublicServices = servicesOver(source.stores, {
+    dependencyContext: createLocalDependencyContext(source.stores),
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
+    ...(runtime.admitConnectedOptimization === undefined
+      ? {}
+      : { admitConnectedOptimization: runtime.admitConnectedOptimization }),
     admission: CREATOR_ADMISSION,
   });
   const publicServices = {
@@ -356,8 +382,10 @@ export function composeServices(
     scope: Scope,
     broadcast: Broadcaster,
     admission: EditAdmission,
+    dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
+    beforeStepWrite?: BeforeStepWrite,
   ) =>
     // Proof: binding the public standalone directory service here made a
     // project-null command attempt a nested UoW (typed 500 instead of 200)
@@ -373,8 +401,10 @@ export function composeServices(
       schedulerMode: 'capture',
       admission,
       recoveryAdmission: admission,
+      dependencyContext: { kind: 'bound', context: dependencies },
       beforeProjectUpdate,
       beforeStepRemoval,
+      beforeStepWrite,
     });
   const { savedPlans } = installSavedPlans({
     digest: runtime.digest,
@@ -401,6 +431,7 @@ export function composeServices(
     now: () => Math.floor(runtime.clock.now() / 1_000),
   });
   const commands = installPlanCommands({
+    commandAccess: runtime.commandAccess,
     batchServices: batch,
     publicServices,
     uow: source.uow,
@@ -418,6 +449,9 @@ export function composeServices(
     uow: source.uow,
     batch,
     imports: installPlanImport({
+      commandAccess: runtime.commandAccess,
+      // Proof: inactive substitution returned 409 instead of 500 after authority deletion in the mounted production import test.
+      externalDependencies: (scope) => scope.stores.externalDependencyAuthoring,
       clock: runtime.clock,
       scheduler: runtime.scheduler,
       uow: source.uow,
@@ -429,7 +463,15 @@ export function composeServices(
       // the creator rule admits.
       // Proof: replacing this borrowed directory with the public standalone
       // wrapper made the mounted import hit its bounded nested-owner refusal.
-      batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
+      batchServices: (scope, broadcast) =>
+        servicesOver(scope.stores, {
+          clock: runtime.clock,
+          broadcast,
+          scheduler: runtime.scheduler,
+          schedulerMode: 'capture',
+          admission: CREATOR_ADMISSION,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        }),
     }).imports,
     commands,
     claimLeases: new ClaimLeaseSweep({

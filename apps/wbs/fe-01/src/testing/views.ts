@@ -148,6 +148,7 @@ export function projectListEntry(overrides: Partial<ProjectListEntry> = {}): Pro
     id: 'p1',
     name: 'Rewire the shed',
     restricted: false,
+    abbreviation: 'PLAN',
     lastOpenedAt: null,
     ownerName: 'kat',
     startDate: null,

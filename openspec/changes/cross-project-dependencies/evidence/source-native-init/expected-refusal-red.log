@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+121 | export async function withFixtureStage<T>(stage:FixtureStage,action:()=>Promise<T>):Promise<T> {
+122 |   try {return await action();}
+123 |   catch(cause){if(cause instanceof FixtureFailure)throw cause;throw new FixtureFailure(stage,cause);}
+124 | }
+125 | 
+126 | export async function requireFixtureRefusal(_stage:FixtureStage,_category:string,_action:()=>Promise<unknown>):Promise<FixtureDiagnostic>{throw new Error('expected refusal diagnostic not implemented');}
+                                                                                                                                                          ^
+error: expected refusal diagnostic not implemented
+      at requireFixtureRefusal (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.ts:126:149)
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:80:20)
+(fail) expected negative preserves known refusal and rejects unknown or missing failures [0.32ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+Ran 1 test across 1 file. [45.00ms]

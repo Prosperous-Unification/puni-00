@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+201 |   try {
+202 |     await crossesSettlement('success',(scope) => {
+203 |       if (scope.stores.livePlans===undefined) throw new Error('missing plans');
+204 |       return scope.stores.livePlans.readAggregate('ada',access);
+205 |     },reached,released);
+206 |     expect(escaped).toBe(0);
+                          ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:206:21)
+(fail) aggregate cached schedule cannot escape a resumed expired chain [176.53ms]
+
+ 0 pass
+ 81 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.27s]

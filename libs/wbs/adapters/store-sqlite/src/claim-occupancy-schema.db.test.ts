@@ -93,6 +93,7 @@ describe(MIGRATION, () => {
   });
 
   it('refuses rollback while a claim holds units, keeping the table and the ledger', () => {
+    rollbackTo(path, FOLDER, MIGRATION);
     occupy('c1', 'ram', 4);
     const before = db
       .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id')
@@ -106,6 +107,10 @@ describe(MIGRATION, () => {
       before.filter(
         ({ name }) =>
           ![
+            '20261022213000_add_optimization_boundary_certificates',
+            '20261022212000_add_cross_project_dependency_activation',
+            '20261022211000_add_external_dependencies',
+            '20261022210000_add_project_abbreviations',
             '20261022100000_add_machine_credential',
             '20261022110000_widen_organization_audit_machine_credentials',
             '20261022110100_check_machine_credential_id',
@@ -123,6 +128,10 @@ describe(MIGRATION, () => {
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
       '20261023100000_add_claim_lease',
+      '20261022213000_add_optimization_boundary_certificates',
+      '20261022212000_add_cross_project_dependency_activation',
+      '20261022211000_add_external_dependencies',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',

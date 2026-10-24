@@ -10,8 +10,14 @@ type PlanImporter = Pick<ImportService, 'import'>;
 type ImportReply = HttpReply<typeof importProject>;
 type ImportRefusalReply = Extract<ImportReply, { ok: false }>;
 
-function refusal(outcome: Extract<ImportOutcome, { ok: false }>): ImportRefusalReply {
+function refusal(outcome: Extract<ImportOutcome, { code: string }>): ImportRefusalReply {
   if (outcome.code === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
+  if (outcome.code === 'external_dependencies_inactive')
+    return {
+      ok: false,
+      status: 409,
+      body: { error: 'external_dependencies_inactive', detail: outcome.path },
+    };
   if (outcome.code === 'agent_person_limit')
     return {
       ok: false,
@@ -35,7 +41,12 @@ function refusal(outcome: Extract<ImportOutcome, { ok: false }>): ImportRefusalR
         asked: outcome.asked,
       },
     };
-  if (outcome.code === 'engine_unavailable' || outcome.code === 'source_refused') {
+  if (
+    outcome.code === 'engine_unavailable' ||
+    outcome.code === 'source_refused' ||
+    outcome.code === 'abbreviation_taken' ||
+    outcome.code === 'abbreviation_exhausted'
+  ) {
     return {
       ok: false,
       status: 409,
@@ -90,8 +101,17 @@ export function importRoutes(imports: PlanImporter, organizations: OrganizationA
           };
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
-        const outcome = await imports.import(classified.value, principal.id, resolved.access);
-        if (!outcome.ok) return refusal(outcome);
+        // Proof: synthesizing an id/scopes-only principal failed exact binding/authentication/delegation preservation (import.routes.test.ts, 2026-10-22).
+        const outcome = await imports.import(classified.value, {
+          kind: 'human',
+          principal,
+          expectedAccess: resolved.access,
+        });
+        if (!outcome.ok) {
+          if ('refusal' in outcome) return organizationRefusal(outcome);
+          if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
+          return refusal(outcome);
+        }
         return {
           ok: true,
           status: 201,

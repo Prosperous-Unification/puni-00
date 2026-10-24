@@ -1,0 +1,64 @@
+
+> nx run wbs-solver-py:test --cwd=/tmp/puni-wire-review-python-sandbox/libs/wbs/adapters/solver-py
+
+> python3 -m unittest discover -s tests -t tests
+
+.............................wbs-solver: unexpected arguments ['--search-workers', '0']; usage: wbs-solver [--version | --search-workers COUNT [--child-deadline-epoch-ms EPOCH_MS]]
+...wbs-solver: empty request: expected one JSON object on stdin
+.............................................................................................................................................................................................................................................EE..
+======================================================================
+ERROR: test_every_declared_dependency_is_pinned_to_the_locked_version (test_version.LockPin.test_every_declared_dependency_is_pinned_to_the_locked_version)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-wire-review-python-sandbox/libs/wbs/adapters/solver-py/tests/test_version.py", line 91, in test_every_declared_dependency_is_pinned_to_the_locked_version
+    locked = self.parse_lock()
+  File "/tmp/puni-wire-review-python-sandbox/libs/wbs/adapters/solver-py/tests/test_version.py", line 73, in parse_lock
+    for line in self.LOCK.read_text().splitlines():
+                ~~~~~~~~~~~~~~~~~~~^^
+  File "/home/df/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py", line 787, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/df/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/puni-wire-review-python-sandbox/libs/wbs/adapters/solver-py/requirements.lock'
+
+======================================================================
+ERROR: test_every_locked_line_carries_at_least_one_hash (test_version.LockPin.test_every_locked_line_carries_at_least_one_hash)
+`--require-hashes` is only a guarantee if every line has hashes.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-wire-review-python-sandbox/libs/wbs/adapters/solver-py/tests/test_version.py", line 104, in test_every_locked_line_carries_at_least_one_hash
+    body = self.LOCK.read_text()
+  File "/home/df/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py", line 787, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/df/.local/share/uv/python/cpython-3.14.7-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/puni-wire-review-python-sandbox/libs/wbs/adapters/solver-py/requirements.lock'
+
+----------------------------------------------------------------------
+Ran 273 tests in 35.245s
+
+FAILED (errors=2)
+Warning: command "python3 -m unittest discover -s tests -t tests" exited with non-zero status code
+
+
+ NX   Running target test for project wbs-solver-py failed
+
+Failed tasks:
+
+- wbs-solver-py:test
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      35.7s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     35.7s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-solver-py:test    35.7s

@@ -1,3 +1,4 @@
+import type { ConnectedDigest } from '@wbs/contracts/solver/connected-durable';
 import {
   evaluateSolverOutcome,
   type SolverProcessOutcome,
@@ -11,12 +12,17 @@ import {
   type SolverRequestPair,
 } from '@wbs/contracts/solver/solver-request-pair';
 import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { OptimizationCapture, OptimizationInput } from '@wbs/core/ports/optimization-input';
+import type { ConnectedOptimizationStage } from '@wbs/domain';
+import type { OrganizationRole } from '@wbs/domain';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import { connectedOutcomeOf, prepareConnectedQuestion } from './connected-question';
 import type {
   OptimizationOutcomeWrite,
   OptimizationRepository,
+  ReservedSolverAdmission,
   ReservedSolverChild,
   ReservedSpawner,
   ReservedSpawnRequest,
@@ -49,7 +55,9 @@ export interface OptimizationCoordinatorOptions {
   /** Whether an edit-triggered read may spend solver capacity for this project. */
   readonly enabledOf: (projectId: string) => Promise<boolean>;
   /** One project-owned observation of shared input and enablement, closed before admission. */
+  readonly hashConnectedBytes?: ConnectedDigest;
   readonly captureOf?: (projectId: string) => Promise<
+    | OptimizationCapture
     | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
     | { readonly kind: 'not_found' }
     | {
@@ -77,7 +85,10 @@ export interface OptimizationCoordinatorOptions {
 export type OptimizationRetryResult =
   | { readonly kind: 'forbidden' | 'not_found' }
   | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
-  | { readonly kind: 'not-retryable'; readonly state: OptimizationVariantState['state'] }
+  | {
+      readonly kind: 'not-retryable';
+      readonly state: OptimizationVariantState['state'] | 'boundary-infeasible';
+    }
   | { readonly kind: 'already-running' }
   | {
       readonly kind: 'accepted';
@@ -230,7 +241,7 @@ export class OptimizationCoordinator {
       if (captured.kind !== 'scheduled' || !captured.enabled) return;
       // Proof: the mounted upstream-only edit test failed with no elsewhere
       // when this branch fell through to the local input reader.
-      await this.readPlan({ projectId, objective: 'pri', input: captured.input, enabled: true });
+      await this.admitCaptured({ projectId, input: captured.input, enabled: true });
       return;
     }
     if (!(await this.options.enabledOf(projectId))) return;
@@ -258,7 +269,13 @@ export class OptimizationCoordinator {
       claim: { ...this.slotOf(request), ownerId: this.options.ownerId },
       inputHash: request.key.inputHash,
       admittedCancelEpoch: request.admission.admittedCancelEpoch,
-      outcome: { kind: 'failed', reason: 'internal-error' },
+      ...(request.kind === 'connected'
+        ? ({
+            kind: 'connected',
+            question: request.question,
+            outcome: { kind: 'failed', reason: 'internal-error' },
+          } as const)
+        : ({ outcome: { kind: 'failed', reason: 'internal-error' } } as const)),
       now: this.outcomeTimestamp(request),
     });
   }
@@ -361,7 +378,18 @@ export class OptimizationCoordinator {
             claim: { ...slot, ownerId: this.options.ownerId },
             inputHash: request.key.inputHash,
             admittedCancelEpoch: request.admission.admittedCancelEpoch,
-            outcome: evaluateSolverOutcome(request.input, request.request, outcome),
+            ...(request.kind === 'connected'
+              ? ({
+                  kind: 'connected',
+                  question: request.question,
+                  outcome: connectedOutcomeOf(
+                    this.prepareConnected(request.stage, request.key.budgetMs),
+                    request.objective,
+                    this.connectedHash(),
+                    outcome,
+                  ),
+                } as const)
+              : { outcome: evaluateSolverOutcome(request.input, request.request, outcome) }),
             now: this.outcomeTimestamp(request),
           });
         },
@@ -447,10 +475,64 @@ export class OptimizationCoordinator {
         // Proof: bypassing this typed refusal sent an unavailable capture to
         // the hash port and broke the queued pump before its next FIFO entry.
         if (captured !== undefined && captured.kind !== 'scheduled') continue;
+        if (
+          captured?.kind === 'scheduled' &&
+          'kind' in captured.input &&
+          captured.input.kind === 'connected'
+        ) {
+          if (!captured.enabled) continue;
+          const prepared = this.prepareConnected(captured.input.stage);
+          const key = this.connectedKey(prepared);
+          const question = prepared.questions[next.entry.objective];
+          if (
+            question.inputHash !== next.inputHash ||
+            question.contractVersion !== next.entry.contractVersion ||
+            // Proof: omitting budget correspondence left the old-budget queued question without its two current-budget certificates.
+            question.budgetMs !== next.entry.budgetMs
+          ) {
+            await releaseUnlaunched();
+            await this.admitCaptured({
+              projectId: next.entry.projectId,
+              input: captured.input,
+              enabled: true,
+            });
+            continue;
+          }
+          // The immediate observation consults retained evidence before any generation mutation.
+          const observed = await this.options.repository.observeForAdmission(
+            key,
+            this.options.now(),
+          );
+          this.trackCommittedDelivery(observed.envelopes);
+          if (observed.decision.kind !== 'connected-observed') continue;
+          const previous = observed.decision.variants[next.entry.objective];
+          // Proof: the queued connected Retry regression launched only its two original children
+          // when diagnostics were treated as terminal even after explicit later Retry admission.
+          const retry =
+            (previous.kind === 'failed' || previous.kind === 'corrupt') &&
+            next.entry.enqueuedAt > previous.createdAt;
+          if (previous.kind !== 'miss' && !retry) continue;
+          if (observed.decision.generation !== next.entry.generation) {
+            await releaseUnlaunched();
+            await this.admitCaptured({
+              projectId: next.entry.projectId,
+              input: captured.input,
+              enabled: true,
+            });
+            continue;
+          }
+          handedOff = await this.launchConnected(
+            prepared,
+            next.entry.objective,
+            next.entry.generation,
+            next.admission,
+          );
+          continue;
+        }
         const input =
           captured === undefined
             ? await this.options.inputOf(next.entry.projectId)
-            : captured.input;
+            : this.localInput(captured.input);
         if (input === null) continue;
         // Proof: omitting this captured enablement guard launched PRI despite
         // a disabled queued observation; only the next TIME entry should run.
@@ -526,10 +608,17 @@ export class OptimizationCoordinator {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
-    readonly input: ScheduleInput;
-    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
+    readonly input: ScheduleInput | OptimizationInput;
+    readonly scoped?: {
+      readonly organizationId: string;
+      readonly actorId: string;
+      readonly role: OrganizationRole;
+    };
   }): Promise<OptimizationRetryResult> => {
-    const currentInputHash = this.options.hashInput(ask.input);
+    if ('kind' in ask.input && ask.input.kind === 'connected')
+      return this.retryConnected({ ...ask, stage: ask.input.stage });
+    const input = this.localInput(ask.input);
+    const currentInputHash = this.options.hashInput(input);
     if (ask.inputHash !== currentInputHash) {
       return { kind: 'stale-input-hash', currentInputHash };
     }
@@ -555,7 +644,7 @@ export class OptimizationCoordinator {
 
     if (decision.kind !== 'accepted') return decision;
     if (decision.admission !== null) {
-      const built = buildSolverRequestPair(ask.input, this.options.solverVersion, key.budgetMs)[
+      const built = buildSolverRequestPair(input, this.options.solverVersion, key.budgetMs)[
         ask.objective
       ];
       const slot = {
@@ -592,7 +681,7 @@ export class OptimizationCoordinator {
           generation: decision.generation,
           admission: decision.admission,
           request: built.request,
-          input: ask.input,
+          input,
         });
       }
     }
@@ -603,6 +692,176 @@ export class OptimizationCoordinator {
       inputHash: currentInputHash,
     };
   };
+
+  private connectedHash(): ConnectedDigest {
+    const hash = this.options.hashConnectedBytes;
+    if (hash === undefined) throw new Error('connected optimizer lacks installed digest');
+    return hash;
+  }
+
+  private prepareConnected(stage: ConnectedOptimizationStage, budgetMs = this.options.budgetMs) {
+    return prepareConnectedQuestion(
+      stage,
+      { solverVersion: this.options.solverVersion, budgetMs },
+      this.connectedHash(),
+    );
+  }
+
+  private connectedKey(prepared: ReturnType<typeof prepareConnectedQuestion>) {
+    const question = prepared.questions.pri;
+    if (question.contractVersion !== this.options.contractVersion)
+      throw new Error('connected optimizer contract differs from installed runtime');
+    return {
+      projectId: question.projectId,
+      inputHash: question.inputHash,
+      contractVersion: question.contractVersion,
+      budgetMs: question.budgetMs,
+      questions: prepared.questions,
+    };
+  }
+
+  private localInput(input: ScheduleInput | OptimizationInput): ScheduleInput {
+    if (!('kind' in input)) return input;
+    if (input.kind === 'local') return input.input;
+    throw new Error('connected capture cannot use local materialization');
+  }
+
+  /** Admit detached current questions only after their capture owner has closed. */
+  readonly admitCaptured = async (ask: {
+    readonly projectId: string;
+    readonly input: ScheduleInput | OptimizationInput;
+    readonly enabled: boolean;
+  }): Promise<void> => {
+    if (!('kind' in ask.input) || ask.input.kind === 'local') {
+      await this.readPlan({ ...ask, objective: 'pri', input: this.localInput(ask.input) });
+      return;
+    }
+    if (!ask.enabled) return;
+    if (ask.projectId !== ask.input.stage.projectId)
+      throw new Error('connected capture target differs');
+    const prepared = this.prepareConnected(ask.input.stage);
+    const key = this.connectedKey(prepared);
+    const committed = await this.options.repository.observeForAdmission(key, this.options.now());
+    this.trackCommittedDelivery(committed.envelopes);
+    const observed = committed.decision;
+    if (observed.kind === 'idle') return;
+    if (observed.kind !== 'connected-observed')
+      throw new Error('connected observation returned local scope');
+    for (const asked of observed.requests) {
+      if (observed.generation === null) throw new Error('connected miss lacks generation');
+      const reserved = await this.options.repository.reserveSlot({
+        questions: key.questions,
+        projectId: key.projectId,
+        contractVersion: key.contractVersion,
+        generation: observed.generation,
+        objective: asked.objective,
+        budgetMs: key.budgetMs,
+        ownerId: this.options.ownerId,
+        attemptToken: this.options.attemptToken(),
+        now: this.options.now(),
+      });
+      this.trackCommittedDelivery(reserved.envelopes);
+      const admission = reserved.decision;
+      if (admission.kind === 'project-full' || admission.kind === 'global-full') {
+        await this.options.repository.enqueueRequest({
+          projectId: key.projectId,
+          contractVersion: key.contractVersion,
+          generation: observed.generation,
+          objective: asked.objective,
+          budgetMs: key.budgetMs,
+          enqueuedAt: this.options.now(),
+        });
+      } else if (admission.kind === 'reserved') {
+        await this.launchConnected(prepared, asked.objective, observed.generation, admission);
+      }
+    }
+  };
+
+  /** False means the reserved preflight terminal was committed and its exact seat released. */
+  private async launchConnected(
+    prepared: ReturnType<typeof prepareConnectedQuestion>,
+    objective: SolverObjectiveName,
+    generation: number,
+    admission: ReservedSolverAdmission,
+  ): Promise<boolean> {
+    const key = this.connectedKey(prepared);
+    const built = prepared.requests[objective];
+    if (built.kind === 'request') {
+      this.startReserved({
+        kind: 'connected',
+        key,
+        objective,
+        generation,
+        admission,
+        stage: prepared.stage,
+        question: prepared.questions[objective],
+        request: built.request,
+      });
+      return true;
+    }
+    const slot = {
+      projectId: key.projectId,
+      contractVersion: key.contractVersion,
+      generation,
+      objective,
+      budgetMs: key.budgetMs,
+      attemptToken: admission.attemptToken,
+    };
+    try {
+      // Proof: dropping this await released the connected preflight seat while its terminal transaction was held (connected-publication.test.ts).
+      await this.storeOutcome({
+        kind: 'connected',
+        question: prepared.questions[objective],
+        claim: { ...slot, ownerId: this.options.ownerId },
+        inputHash: key.inputHash,
+        admittedCancelEpoch: admission.admittedCancelEpoch,
+        outcome: connectedOutcomeOf(prepared, objective, this.connectedHash()),
+        now: Math.max(this.options.now(), admission.startedAt),
+      });
+    } finally {
+      await this.options.repository.releaseSlot(slot);
+      this.requestPump();
+    }
+    return false;
+  }
+
+  private async retryConnected(ask: {
+    readonly projectId: string;
+    readonly objective: SolverObjectiveName;
+    readonly inputHash: string;
+    readonly stage: ConnectedOptimizationStage;
+    readonly scoped?: {
+      readonly organizationId: string;
+      readonly actorId: string;
+      readonly role: OrganizationRole;
+    };
+  }): Promise<OptimizationRetryResult> {
+    if (ask.projectId !== ask.stage.projectId) throw new Error('connected Retry target differs');
+    const prepared = this.prepareConnected(ask.stage);
+    const key = this.connectedKey(prepared);
+    // Proof: bypassing this comparison made mounted stale Retry report boundary-infeasible instead of stale-input-hash.
+    if (ask.inputHash !== key.inputHash)
+      return { kind: 'stale-input-hash', currentInputHash: key.inputHash };
+    const committed = await this.options.repository.admitRetry({
+      key,
+      objective: ask.objective,
+      ownerId: this.options.ownerId,
+      now: this.options.now(),
+      attemptToken: this.options.attemptToken,
+      ...(ask.scoped === undefined ? {} : { scoped: ask.scoped }),
+    });
+    this.trackCommittedDelivery(committed.envelopes);
+    const decision = committed.decision;
+    if (decision.kind !== 'accepted') return decision;
+    if (decision.admission !== null)
+      await this.launchConnected(prepared, ask.objective, decision.generation, decision.admission);
+    return {
+      kind: 'accepted',
+      state: 'retrying',
+      inputHash: key.inputHash,
+      generation: decision.generation,
+    };
+  }
 
   /**
    * The reader wired into {@link WorkItemService}. It is an arrow so handing it
@@ -646,6 +905,7 @@ export class OptimizationCoordinator {
     }
     // Proof: rereading after preflight changed the captured idle display to
     // failed while this read's failure markers were being persisted.
+    if (observed.kind !== 'observed') throw new Error('local observation returned connected scope');
     const { generation, pair } = observed;
     let requests: SolverRequestPair | undefined;
     for (const request of observed.requests) {

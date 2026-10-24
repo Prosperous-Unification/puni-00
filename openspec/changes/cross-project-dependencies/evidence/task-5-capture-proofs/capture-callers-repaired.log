@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts:
+{"measurement":"plan-json-import-500","rows":500,"inputBytes":403594,"prepareMs":11.487,"prepareStatements":{"drizzle":0,"nativeControls":0,"total":0},"admittedMs":266.145,"admittedStatements":{"drizzle":7078,"nativeTransactionWrappers":508,"nativeControls":1016,"total":8094},"queuedWrite":{"completed":true,"elapsedMs":267.323,"completedAfterAdmission":true}}
+(pass) measures preparation and admitted SQLite work separately for exactly 500 rows [424.57ms]
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+(pass) sparse parallelism SQL contract > down refuses retained facts and preserves table and applied ledger [140.53ms]
+(pass) sparse parallelism SQL contract > empty down and forward preserve existing work items [111.68ms]
+
+ 3 pass
+ 26 filtered out
+ 0 fail
+ 20 expect() calls
+Ran 3 tests across 2 files. [2.80s]

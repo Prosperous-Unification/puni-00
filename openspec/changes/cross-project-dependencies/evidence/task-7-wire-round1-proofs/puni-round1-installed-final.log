@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+../puni-round1-installed.test.ts:
+(pass) installed 0.4.0 classifies valid terminal and invalid witness [765.43ms]
+(pass) installed 0.4.0 refuses nonfinite fixed and occupancy evidence [3013.78ms]
+(pass) installed 0.4.0 refuses finite quantization overflow [760.99ms]
+
+ 3 pass
+ 0 fail
+ 36 expect() calls
+Ran 3 tests across 1 file. [4.55s]

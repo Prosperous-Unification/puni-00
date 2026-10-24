@@ -11,8 +11,11 @@ import {
   normalizeCommand,
   type PlanCommand,
 } from '../../service/command-normalizers';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -32,12 +35,15 @@ async function seeded() {
     broadcast,
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   await source.stores.users.create(
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = await graph.projects.create('Resources', F);
+  const created = expectCreated(await graph.projects.create('Resources', F));
   const projectId = created.project.id;
   for (const step of created.steps) {
     await source.stores.steps.add(
@@ -75,13 +81,18 @@ async function seeded() {
     pinnedPersonOf: () => Promise.resolve(null),
   });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
       servicesOver(
         { ...scope.stores, claims: bound(scope.stores.claims) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   const demands = () => source.stores.demands.listByProject(projectId);
@@ -105,7 +116,7 @@ async function seeded() {
         unitLabel: 'env',
       },
     ]);
-    if (!answer.ok) throw new Error(`resources were refused: ${answer.reason}`);
+    if (!answer.ok) throw new Error(`resources were refused: ${JSON.stringify(answer)}`);
     const [ram, stage] = answer.results.map(({ id }) => id);
     if (ram === undefined || stage === undefined) throw new Error('resources minted no ids');
     return { ram, stage };
@@ -456,13 +467,15 @@ describe('setDemand', () => {
   });
 
   it('constrains nothing without a stated capacity: a demanding leaf is still claimed', async () => {
-    const { source, runner, projectId, declare } = await seeded();
+    const { source, runner, projectId, steps, declare } = await seeded();
     try {
       const { ram } = await declare();
+      const firstStep = steps.at(0);
+      if (firstStep === undefined) throw new Error('seeded project has no first step');
       expect(
         await runner.run(projectId, F, [
           { kind: 'setDemand', workItemId: '090', resourceId: ram, units: 4 },
-          { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
+          { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [firstStep] },
         ]),
       ).toMatchObject({ ok: true, results: [{ index: 0 }, { index: 1, alreadyHeld: false }] });
     } finally {

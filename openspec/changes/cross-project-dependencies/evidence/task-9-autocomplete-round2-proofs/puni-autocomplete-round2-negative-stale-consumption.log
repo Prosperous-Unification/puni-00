@@ -1,0 +1,53 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-cross-autocomplete/apps/wbs/fe-01
+
+ ❯ src/components/wbs/dependency-autocomplete.test.tsx (49 tests | 3 failed | 46 skipped) 3820ms
+   × an older Customize success does not erase a newly selected holder with the identical draft text 1457ms
+   × an older one-click completion preserves the new identical token on desktop 1277ms
+   × an older one-click completion preserves the new identical token on phone 1083ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/dependency-autocomplete.test.tsx > an older Customize success does not erase a newly selected holder with the identical draft text
+AssertionError: expected '999, ' to be '999, PUNI.' // Object.is equality
+
+Expected: "999, PUNI."
+Received: "999, "
+
+ ❯ src/components/wbs/dependency-autocomplete.test.tsx:770:21
+    768|     expect(document.activeElement).toBe(box);
+    769|   });
+    770|   expect(box.value).toBe('999, PUNI.');
+       |                     ^
+    771| });
+    772|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/components/wbs/dependency-autocomplete.test.tsx > an older one-click completion preserves the new identical token on desktop
+ FAIL  src/components/wbs/dependency-autocomplete.test.tsx > an older one-click completion preserves the new identical token on phone
+AssertionError: expected '' to be 'PUNI.080.s1-dev' // Object.is equality
+
+- Expected
++ Received
+
+- PUNI.080.s1-dev
+
+ ❯ src/components/wbs/dependency-autocomplete.test.tsx:807:23
+    805|       await Promise.resolve();
+    806|     });
+    807|     expect(box.value).toBe('PUNI.080.s1-dev');
+       |                       ^
+    808|     await act(async () => {
+    809|       releases[1]?.();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 46 skipped (49)
+   Start at  07:38:11
+   Duration  9.68s (tests 40%, import 37%, transform 18%, environment 5%, setup 1%)

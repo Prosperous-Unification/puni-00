@@ -1,0 +1,13 @@
+import { readSpace } from '/home/df/.codex/worktrees/b3b7/puni-00/libs/wbs/domain/contracts/src/http/space-shapes';
+import { WRITABLE_REPLIES } from '/home/df/.codex/worktrees/b3b7/puni-00/apps/wbs/fe-01/e2e/spaces-stub';
+const fixture = WRITABLE_REPLIES['GET /api/spaces/s'].body;
+const shape = readSpace.responses.find((response) => response.status === 200);
+if (shape === undefined) throw new Error('Missing read-space success schema');
+const before = await shape.schema.validator['~standard'].validate(fixture);
+console.log('Original fixture', JSON.stringify(before));
+if (before.issues === undefined) throw new Error('Expected missing abbreviation refusal');
+const corrected = structuredClone(fixture);
+for (const row of corrected.rows) row.project.abbreviation = row.project.id.toUpperCase();
+const after = await shape.schema.validator['~standard'].validate(corrected);
+console.log('With abbreviation', after.issues === undefined ? 'accepted' : JSON.stringify(after));
+if (after.issues !== undefined) throw new Error('Corrected fixture still refused');

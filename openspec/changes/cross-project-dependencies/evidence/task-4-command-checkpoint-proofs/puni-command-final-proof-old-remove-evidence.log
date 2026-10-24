@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+372 |   const added = await semantic(fixture, (service) => service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input));
+373 |   if (!added.ok) throw new Error('fixture relationship refused');
+374 |   // Reject exactly the old predecessor's scoped read; immutable ownership and
+375 |   // external composite FKs prohibit moving that live root between organizations.
+376 |   const before = effects();
+377 |   expect(await observed(semantic(fixture, (service) => operation === 'remove' ? service.removeTypedDependency(fixture.owner.projectId, fixture.principal.id, added.value) : service.updateTypedDependency(fixture.owner.projectId, fixture.principal.id, added.value, { ...fixture.input, predecessor: fixture.input.successor }), undefined, fixture.predecessor.projectId))).toMatchObject({ ok: false, reason: 'not_found' });
+                                                                                                                                                                                                                                                                                                                                                                                     ^
+error: expect(received).toMatchObject(expected)
+
+- {
+-   "ok": false,
+-   "reason": "not_found",
+- }
++ [Error: required dependency project e7d096cd-bad5-4884-b479-f33a75c3f098 is not readable]
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:377:368)
+(fail) remove refuses an injected denial of the old predecessor scoped project read [399.61ms]
+
+ 0 pass
+ 53 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [2.85s]

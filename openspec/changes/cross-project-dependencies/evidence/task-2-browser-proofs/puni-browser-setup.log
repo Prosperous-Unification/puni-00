@@ -1,0 +1,6 @@
+[dev:setup] seeding local .env files (non-destructive)
+[dev:setup] be-01: wrote apps/wbs/be-01/.env
+[dev:setup] gw-01: wrote apps/wbs/gw-01/.env
+[dev:setup] fe-01: wrote apps/wbs/fe-01/.env
+[dev:setup] mcp-01: wrote apps/wbs/mcp-01/.env
+[dev:setup] done. run `bun run dev` to start be-01 + gw-01 + fe-01.

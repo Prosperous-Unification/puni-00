@@ -1,11 +1,12 @@
 import { foldStatuses, type WorkItemStatus } from './progress';
+import type { ScheduleError } from './schedule-error';
 import type { IsoDate } from './workday';
 
 /**
  * Bumped whenever {@link ProjectRollUp}'s shape or meaning changes, so a
  * process cache keyed on it never answers a roll-up computed by other rules.
  */
-export const ROLLUP_DTO_VERSION = 1;
+export const ROLLUP_DTO_VERSION = 2;
 
 /** The fields of one tree row a roll-up reads (a structural slice of the project read). */
 export interface RollUpRow {
@@ -23,11 +24,11 @@ export interface RollUpRow {
 /** The project read a roll-up is computed from: the one the project page reads. */
 export interface RollUpTree {
   workItems: readonly RollUpRow[];
-  scheduleError: string | null;
+  scheduleError: ScheduleError;
   waitingForPerson: number;
   waitingForCapacity: number;
-  /** The engine whose dates the rows carry. */
-  displayed: string;
+  /** The engine whose dates the rows carry; null when connected placement is unavailable. */
+  displayed: string | null;
   projectRevision: number;
   seq: number;
 }
@@ -43,10 +44,10 @@ export interface ProjectRollUp {
     leaves: number;
     estimated: number;
   };
-  scheduleError: string | null;
+  scheduleError: ScheduleError;
   waitingForPerson: number;
   waitingForCapacity: number;
-  displayed: string;
+  displayed: string | null;
   projectRevision: number;
   seq: number;
 }

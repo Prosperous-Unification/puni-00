@@ -1,23 +1,20 @@
 import type { PlanDocumentImport } from '@wbs/contracts';
-import {
-  attemptOf,
-  canWriteInOrganization,
-  type CapacityLimitCrossed,
-  type LimitCrossed,
-} from '@wbs/domain';
+import { attemptOf, type CapacityLimitCrossed, type LimitCrossed } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
-import type { ResourceAccess } from '../../ports/organization-access';
+import type { CommandCaller } from '../../ports/command-access';
+import type { RefusedOrganizationAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
-import type { ImportTransaction } from './imported-plan.resource';
+import type { ImportDependencyRefusal, ImportTransaction } from './imported-plan.resource';
 import {
   type ImportPreparation,
   type PreparedNamedEntry,
   type PreparedWorkItem,
   prepareImport,
 } from './prepare-import';
+import { resolveImportDependencies } from './resolve-import-dependencies';
 
 export interface ImportServiceOptions {
   clock: Clock;
@@ -44,9 +41,13 @@ export interface ImportAdmission {
 /** A typed store refusal encountered after preparation and admission. */
 export interface ImportSourceRefusal {
   ok: false;
-  code: 'source_refused';
+  code:
+    | 'source_refused'
+    | 'abbreviation_taken'
+    | 'abbreviation_exhausted'
+    | 'external_dependencies_inactive';
   path: string;
-  detail: string;
+  detail: string | null;
 }
 
 /** A viewer's import after activation: reading an organization is not importing into it. */
@@ -73,13 +74,19 @@ export type ImportLimitRefusal =
 
 export type ImportOutcome =
   | ImportAdmission
+  | RefusedOrganizationAccess
+  | { readonly ok: false; readonly error: 'insufficient_scope' }
   | ImportSourceRefusal
   | ImportForbidden
   | ImportLimitRefusal
   | Extract<ImportPreparation, { ok: false }>;
 
 type AdmittedImportOutcome =
-  ImportAdmission | ImportSourceRefusal | ImportForbidden | ImportLimitRefusal;
+  | ImportAdmission
+  | ImportSourceRefusal
+  | ImportForbidden
+  | ImportDependencyRefusal
+  | ImportLimitRefusal;
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
@@ -170,7 +177,10 @@ export class ImportService {
   constructor(private readonly opts: ImportServiceOptions) {}
 
   /**
-   * Imports a plan document as a new project through the caller's access.
+   * Imports a plan document using retained caller evidence and current writer authority.
+   * The mapped transaction supplies current access for every callback operation.
+   * Persisted binding freshness does not reverify API secret rotation or
+   * upstream/delegation expiry; production external authoring remains inactive.
    * Under scoped access the project is the organization's, every directory
    * name resolves among the organization's own entries under their local
    * names and anything missing is created there, a solution reference is left
@@ -183,26 +193,24 @@ export class ImportService {
    * `import-export-organization.controller.db.test.ts` create a second
    * `Release` tag instead of resolving A's own; watched 2026-09-27.
    */
-  async import(
-    document: PlanDocumentImport,
-    actorId: string,
-    access: ResourceAccess,
-  ): Promise<ImportOutcome> {
-    // Proof: skipping this refusal made `refuses a viewer's import` in
-    // `import-export-organization.controller.db.test.ts` answer 201;
-    // watched 2026-09-27.
-    if (access.kind === 'scoped' && !canWriteInOrganization(access.scope.role)) {
-      return { ok: false, code: 'forbidden', path: '', detail: null };
-    }
+  async import(document: PlanDocumentImport, caller: CommandCaller): Promise<ImportOutcome> {
+    // Proof: omitting this guard let the direct read-scope integration import enter the writer and commit (2026-10-22).
+    if (caller.kind === 'human' && !caller.principal.scopes.includes('write'))
+      return { ok: false, error: 'insufficient_scope' };
+    const actorId = caller.kind === 'human' ? caller.principal.id : caller.actorId;
     const preparation = prepareImport(document, this.opts.scheduler);
     if (!preparation.ok) return preparation;
     const collector = new AnnouncementCollector(this.opts.announcements);
     const admitted = await this.opts.transaction.run<AdmittedImportOutcome>(
-      actorId,
-      access,
+      caller,
       { ok: false, code: 'forbidden', path: '', detail: null },
       collector,
-      async ({ writes, services: graph }) => {
+      async ({ writes, services: graph }, access) => {
+        const external = preparation.value.externalDependencies.at(0);
+        if (external !== undefined) {
+          const dormant = writes.checkExternalAuthoring(external.path);
+          if (dormant !== null) return { commit: false, value: dormant };
+        }
         const directory = graph.directory;
         const [services, teams, people, tags, types, systems, resources] = await Promise.all([
           directory.listWithin('services', access),
@@ -404,7 +412,13 @@ export class ImportService {
           scheduleEngine: settings.scheduleEngine,
           scheduleObjective: settings.scheduleObjective,
         };
-        await writes.createProject(project, steps, stamp, access);
+        const creationRefusal = await writes.createProject(project, steps, stamp, access);
+        // Proof: forcing commit:true leaked new directory, ownership and person_team rows in both mounted counter/family exhaustion tests (2026-10-22).
+        if (creationRefusal !== null)
+          return {
+            commit: false,
+            value: { ok: false, code: creationRefusal, path: 'project', detail: null },
+          };
         await writes.replacePriorityBands(projectId, prepared.priorityBands, stamp);
         for (const capacity of prepared.capacity) {
           const teamId = teamsByFileId.get(capacity.teamFileId);
@@ -598,37 +612,17 @@ export class ImportService {
             );
           }
         }
-        for (const relationship of prepared.typedDependencies) {
-          const remapEndpoint = (endpoint: typeof relationship.predecessor) =>
-            endpoint.scope === 'whole'
-              ? {
-                  scope: 'whole' as const,
-                  workItemId: resolvedId(
-                    rowsByFileId,
-                    endpoint.workItemId,
-                    'typed dependency work item',
-                  ),
-                }
-              : {
-                  scope: endpoint.scope,
-                  workItemId: resolvedId(
-                    rowsByFileId,
-                    endpoint.workItemId,
-                    'typed dependency work item',
-                  ),
-                  stepId: resolvedId(stepsByFileId, endpoint.stepId, 'typed dependency step'),
-                };
-          await writes.addTypedDependency(
-            {
-              id: this.opts.clock.newId(),
-              projectId,
-              predecessor: remapEndpoint(relationship.predecessor),
-              successor: remapEndpoint(relationship.successor),
-              type: relationship.type,
-            },
-            stamp,
-          );
-        }
+        // Proof: the former per-edge allocation failed SQLite `allocates every relationship before the first insert` (2026-10-22).
+        const relationships = resolveImportDependencies(
+          prepared,
+          projectId,
+          rowsByFileId,
+          stepsByFileId,
+          () => this.opts.clock.newId(),
+        );
+        const dependencyRefusal = await writes.writeDependencies(projectId, relationships, stamp);
+        // Proof: commit:true here leaked project/directory/fact rows after concealed missing-reference refusals (real SQLite, 2026-10-22).
+        if (dependencyRefusal !== null) return { commit: false, value: dependencyRefusal };
         for (const [at, row] of prepared.workItems.entries()) {
           const written = await writes.labelWorkItem(
             resolvedId(rowsByFileId, row.fileId, 'labelled work item'),

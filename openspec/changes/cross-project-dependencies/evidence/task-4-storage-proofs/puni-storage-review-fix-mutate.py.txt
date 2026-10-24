@@ -1,0 +1,21 @@
+from pathlib import Path
+import subprocess,json
+root=Path('/tmp/puni-cross-storage');repository=root/'libs/wbs/adapters/store-sqlite/src/typed-dependency.ts'
+cases=[
+ ('filtered-identity', 'if (duplicate !== undefined)', 'if (false)', 'libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts', 'hidden by'),
+ ('coherent-owner-move', 'if (prior.dependency.projectId !== row.projectId)', 'if (false)', 'libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts', 'refuses moving a typed'),
+]
+observed=[]
+for name,guard,removed,test,pattern in cases:
+ before=repository.read_text()
+ if before.count(guard)!=1:raise RuntimeError('unexpected guard count '+name)
+ try:
+  repository.write_text(before.replace(guard,removed))
+  command=['bun','test',test,'-t',pattern]
+  execution=subprocess.run(command,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+  (Path('/tmp')/('puni-storage-review-fix-'+name+'-mutation.log')).write_text(execution.stdout)
+  check={'fault':name,'command':command,'exit':execution.returncode,'observed':[line for line in execution.stdout.splitlines() if '(fail)' in line or 'Received' in line]}
+  observed.append(check);print(json.dumps(check),flush=True)
+ finally:repository.write_text(before)
+Path('/tmp/puni-storage-review-fix-mutations.json').write_text(json.dumps(observed,indent=2))
+if any(check['exit']==0 for check in observed):raise RuntimeError('surviving mutation')

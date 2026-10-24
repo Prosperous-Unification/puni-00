@@ -1,0 +1,6 @@
+
+/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts
+   26:97  error  Passing a string to String() does not change the type or value of the string                @typescript-eslint/no-unnecessary-type-conversion
+  139:6   error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+
+✖ 2 problems (2 errors, 0 warnings)

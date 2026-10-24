@@ -24,7 +24,7 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -43,6 +43,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -179,12 +180,13 @@ describe('the calendar-marker routes', () => {
       passwords: bunPasswordHasher,
     });
     const projectService = new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
+      dependencyContext: sqliteDependencyContext(db, projects),
       clock: testClock,
       projects,
       broadcast,
     });
     app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -220,6 +222,7 @@ describe('the calendar-marker routes', () => {
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       // The same project service the routes use: a project PATCH runs through

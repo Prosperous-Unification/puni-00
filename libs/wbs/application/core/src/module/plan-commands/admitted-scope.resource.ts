@@ -1,5 +1,7 @@
 import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
 
+import type { CommandAccess } from '../../ports/command-access';
+import type { CommandGraphAuthority, DependencyContext } from '../../ports/dependency-context';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-values';
@@ -14,6 +16,7 @@ export type AdmittedGraphFactory<G> = (
   scope: Scope,
   broadcast: Broadcaster,
   admission: EditAdmission,
+  dependencies: DependencyContext,
 ) => G;
 
 /**
@@ -75,6 +78,7 @@ export class AdmittedScope {
       organization.organizationId,
       actorId,
       detail,
+      organization.role,
     );
     if (admitted === null) return 'not_found';
     // Proof: skipping this refusal made `refuses a viewer every batch, undo
@@ -104,18 +108,21 @@ export interface OpenCommandGraph {
 
 /** Repository-free operations available to a command act. */
 export interface CommandAdmission {
+  /** Coordinator expiry without caller admission. */
+  releaseExpiredLeases(projectId: string, broadcast: Broadcaster): Promise<number>;
+  resolveAccess: CommandAccess['resolve'];
   refuseOutsideScope: AdmittedScope['refuseOutsideScope'];
   listCrossReferenceKinds: AdmittedScope['listCrossReferenceKinds'];
   openCommandGraph(
     projectId: string | null,
     broadcast: Broadcaster,
-    admission: EditAdmission,
+    authority: CommandGraphAuthority,
   ): OpenCommandGraph;
 }
 
 /** The sole repair operation a failed replay needs over surviving state. */
 export interface CommandRepair {
-  discardEntry(entryId: string, broadcast: Broadcaster): Promise<void>;
+  discardEntry(entryId: string): Promise<void>;
 }
 
 export type CommandDecision<T> =

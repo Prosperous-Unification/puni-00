@@ -1,0 +1,17 @@
+
+> nx run wbs-mcp-01:lint
+
+> bunx eslint apps/wbs/mcp-01/src
+
+(node:683528) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+
+ NX   Successfully ran target lint for project wbs-mcp-01
+
+
+  Run duration:      26.6s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     26.6s (1 task)
+  Recoverable time:  <1ms

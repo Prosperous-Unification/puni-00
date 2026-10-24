@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+530 |       capturedIds.length = 0;
+531 |       const causeProjectId = topology === 'alternating' ? 'a1' : 'a2';
+532 |       connection.db.run(sql`INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (${causeProjectId}, ${`${causeProjectId}-step`}, 'done', 1)`);
+533 |       const after = await readFanoutObservationIn(connection.db, 'org-a', options, createReadSnapshotLifetime());
+534 |       expect(capturedIds.sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
+535 |       expect(after.observation.projects.map(({ projectId }) => projectId)).toEqual(topology === 'alternating' ? [] : ['a1', 'a4']);
+                                                                                 ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "a1",
++   "a4",
++ ]
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:535:76)
+(fail) captures staged alternating shared connected facts once without scheduling the component [1193.61ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [20.17s]

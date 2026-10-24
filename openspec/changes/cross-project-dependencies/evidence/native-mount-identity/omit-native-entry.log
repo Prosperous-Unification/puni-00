@@ -1,0 +1,188 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:
+117 | test('complete native identity refuses an array mount entry with a named Destination', () => {
+118 |   const containers = inventory();
+119 |   const entry: unknown[] = [];
+120 |   Reflect.set(entry, 'Destination', '/array');
+121 |   Reflect.set(containers[0], 'Mounts', [entry]);
+122 |   expect(() => identifyInventory(containers)).toThrow();
+                                                    ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: [
+  {
+    id: "1111111111111111111111111111111111111111111111111111111111111111",
+    name: "/source",
+    image: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    config: {
+      Image: "wbs-dev-src:1",
+      WorkingDir: "/src",
+      Cmd: [ "bun", "run", "dev" ],
+      Entrypoint: null,
+      User: "1000:1000",
+      Labels: {
+        "com.docker.compose.service": "dev-src",
+        "com.docker.compose.project": "dev-src",
+      },
+    },
+    host: {
+      Init: null,
+      PidMode: "",
+      Privileged: false,
+      CapAdd: null,
+      NetworkMode: "wbs-dev-net",
+      RestartPolicy: {
+        Name: "unless-stopped",
+        MaximumRetryCount: 0,
+      },
+    },
+    mounts: [
+      []
+    ],
+    networks: {
+      "wbs-dev-net": {
+        NetworkID: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      },
+    },
+    restarts: 0,
+    process: {
+      running: true,
+      paused: false,
+      restarting: false,
+      dead: false,
+      pid: 100,
+      startedAt: "2026-10-23T00:00:00Z",
+    },
+  }, {
+    id: "2222222222222222222222222222222222222222222222222222222222222222",
+    name: "/caddy",
+    image: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    config: {
+      Image: "wbs-dev-src:1",
+      WorkingDir: "/src",
+      Cmd: [ "bun", "run", "dev" ],
+      Entrypoint: null,
+      User: "1000:1000",
+      Labels: {
+        "com.docker.compose.service": "dev-src",
+        "com.docker.compose.project": "dev-src",
+      },
+    },
+    host: {
+      Init: null,
+      PidMode: "",
+      Privileged: false,
+      CapAdd: null,
+      NetworkMode: "wbs-dev-net",
+      RestartPolicy: {
+        Name: "unless-stopped",
+        MaximumRetryCount: 0,
+      },
+    },
+    mounts: [
+      {
+        Type: "volume",
+        Source: "/fixture/caddy/a",
+        Destination: "/a",
+        RW: false,
+        Name: "caddy-volume",
+        Driver: "local",
+      }, {
+        Type: "bind",
+        Source: "/fixture/caddy/z",
+        Destination: "/z",
+        RW: true,
+        Mode: "rw",
+        Propagation: "rprivate",
+        Extension: {
+          flag: "kept",
+        },
+      }
+    ],
+    networks: {
+      "wbs-dev-net": {
+        NetworkID: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      },
+    },
+    restarts: 0,
+    process: {
+      running: true,
+      paused: false,
+      restarting: false,
+      dead: false,
+      pid: 100,
+      startedAt: "2026-10-23T00:00:00Z",
+    },
+  }, {
+    id: "3333333333333333333333333333333333333333333333333333333333333333",
+    name: "/unrelated",
+    image: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    config: {
+      Image: "wbs-dev-src:1",
+      WorkingDir: "/src",
+      Cmd: [ "bun", "run", "dev" ],
+      Entrypoint: null,
+      User: "1000:1000",
+      Labels: {
+        "com.docker.compose.service": "dev-src",
+        "com.docker.compose.project": "dev-src",
+      },
+    },
+    host: {
+      Init: null,
+      PidMode: "",
+      Privileged: false,
+      CapAdd: null,
+      NetworkMode: "wbs-dev-net",
+      RestartPolicy: {
+        Name: "unless-stopped",
+        MaximumRetryCount: 0,
+      },
+    },
+    mounts: [
+      {
+        Type: "volume",
+        Source: "/fixture/unrelated/a",
+        Destination: "/a",
+        RW: false,
+        Name: "unrelated-volume",
+        Driver: "local",
+      }, {
+        Type: "bind",
+        Source: "/fixture/unrelated/z",
+        Destination: "/z",
+        RW: true,
+        Mode: "rw",
+        Propagation: "rprivate",
+        Extension: {
+          flag: "kept",
+        },
+      }
+    ],
+    networks: {
+      "wbs-dev-net": {
+        NetworkID: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      },
+    },
+    restarts: 0,
+    process: {
+      running: true,
+      paused: false,
+      restarting: false,
+      dead: false,
+      pid: 100,
+      startedAt: "2026-10-23T00:00:00Z",
+    },
+  }
+]
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:122:47)
+(fail) complete native identity refuses an array mount entry with a named Destination [0.98ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [43.00ms]

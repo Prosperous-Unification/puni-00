@@ -1,0 +1,27 @@
+{
+  "root": "/tmp/puni-cross-command-integration",
+  "base": "db2d38ec903a9f87e51f1d6e20c9328ccbdbda4d",
+  "branch": "feat/cross-project-command-integration",
+  "paths": [
+    {
+      "path": "apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+      "sha256": "371970aa7daaa6b7dc4a1047314182c17d553ec63d31b22924080af22a4746c8",
+      "bytes": 72910
+    },
+    {
+      "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "7305e59992ad5d11fb97c9ca312dc932052582f13442035876a707d1a5e49eb0",
+      "bytes": 432535
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/compensating.test.ts",
+      "sha256": "b6013f3d7d42aa377ed0fd8e72c987a6dec73247acd56a5d4a766980c156d4dd",
+      "bytes": 24401
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/compensating.ts",
+      "sha256": "af82608a518f941b3907fe3a2ef1074d2b8abdc203004fc28ed0809a63d6e014",
+      "bytes": 53455
+    }
+  ]
+}

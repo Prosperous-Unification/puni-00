@@ -1,3 +1,4 @@
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
@@ -7,11 +8,13 @@ import type { Project } from '../../ports/project-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { createPlanCommandRunner } from './composition';
 import { type PlanCommandServices } from './plan-commands.feature';
 
 const PROJECT = 'project-1';
 const ACTOR = 'super-admin';
+const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as const };
 const SCOPED: ResourceAccess = {
   kind: 'scoped',
   scope: { organizationId: 'org-a', userId: ACTOR, role: 'super_admin' },
@@ -30,6 +33,8 @@ function runnerOver(entryToDiscard?: string) {
   const admissions: EditAdmission[] = [];
   // A stand-in for the stores the runner reads itself; the graph is stubbed.
   const stores = {
+    typedDependencies: inMemoryTypedDependencies(),
+    journal: { discard: () => Promise.resolve() },
     projects: {
       admitEditInOrganization: () => Promise.resolve('recovery'),
       findCrossReferences: () => Promise.resolve([]),
@@ -73,6 +78,7 @@ function runnerOver(entryToDiscard?: string) {
     } as unknown as PlanCommandServices;
   };
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: (_scope, _broadcast, admission) => graph(admission),
     publicServices: graph(CREATOR_ADMISSION),
     uow,
@@ -87,7 +93,7 @@ describe('the admission a batch graph is built with', () => {
   it('admits the granted actor on the granted project only while its unit of work runs', async () => {
     const { runner, admissions, whileBuilt } = runnerOver();
 
-    expect(await runner.runWithin(PROJECT, ACTOR, [], SCOPED, null)).toMatchObject({ ok: true });
+    expect(await runner.runWithin(PROJECT, PRINCIPAL, [], SCOPED)).toMatchObject({ ok: true });
 
     expect(whileBuilt).toEqual([{ granted: true, otherActor: false, otherProject: false }]);
     // Proof: skipping `expire` in `execute` made this receive true (0 pass,
@@ -98,7 +104,7 @@ describe('the admission a batch graph is built with', () => {
   it('never falls back to the creator rule under scoped access', async () => {
     const { runner, admissions } = runnerOver();
 
-    await runner.runDirectoryWithin(ACTOR, [], SCOPED);
+    await runner.runDirectoryWithin(PRINCIPAL, [], SCOPED);
     await runner.run(PROJECT, ACTOR, []);
 
     expect(admissions).toEqual([NO_ADMISSION, CREATOR_ADMISSION]);
@@ -107,20 +113,29 @@ describe('the admission a batch graph is built with', () => {
   it('grants a journal walk until it settles, and its repair nothing', async () => {
     const { runner, admissions, whileBuilt } = runnerOver('entry-1');
 
-    await runner.undoWithin(PROJECT, ACTOR, SCOPED);
+    await runner.undoWithin(PROJECT, PRINCIPAL, SCOPED);
 
-    expect(admissions).toHaveLength(2);
+    expect(admissions).toHaveLength(1);
     expect(whileBuilt[0]?.granted).toBe(true);
     // Proof: skipping `expire` in `walk` made this receive true; watched 2026-09-28.
     expect(admissions[0]?.admits(restricted(), ACTOR)).toBe(false);
-    expect(admissions[1]).toBe(NO_ADMISSION);
   });
 
   it('builds a legacy journal walk with the creator rule', async () => {
     const { runner, admissions } = runnerOver();
 
-    await runner.undoWithin(PROJECT, ACTOR, LEGACY_ACCESS);
+    await runner.undoWithin(PROJECT, PRINCIPAL, LEGACY_ACCESS);
 
     expect(admissions).toEqual([CREATOR_ADMISSION]);
   });
+});
+
+it('refuses a direct runner principal without write scope before opening a graph', async () => {
+  const { runner, admissions } = runnerOver();
+  const principal = { id: ACTOR, username: ACTOR, scopes: ['read'] as const };
+  expect(await runner.runWithin(PROJECT, principal, [], SCOPED)).toEqual({
+    ok: false,
+    error: 'insufficient_scope',
+  });
+  expect(admissions).toEqual([]);
 });

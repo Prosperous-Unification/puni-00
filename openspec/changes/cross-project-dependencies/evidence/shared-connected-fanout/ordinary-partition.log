@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+ 7 |  * External links require connected capture and cannot be represented by this format.
+ 8 |  */
+ 9 | export function captureLocalTypedDependency(row: StoredTypedDependency): TypedDependency {
+10 |   // Proof: bypassing this comparison made `refuses external rows in the historical single-project capture` resolve with a stripped foreign endpoint (2026-10-22).
+11 |   if (row.predecessor.projectId !== row.projectId || row.successor.projectId !== row.projectId) {
+12 |     throw new Error(`external dependency ${row.id} requires connected capture`);
+                   ^
+error: external dependency edge requires connected capture
+      at captureLocalTypedDependency (/tmp/puni-connected-fanout/libs/wbs/application/core/src/service/local-typed-dependency.ts:12:15)
+      at map (1:11)
+      at readPlanInputValuesIn (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:232:6)
+      at async <anonymous> (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:322:30)
+      at async <anonymous> (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.ts:357:36)
+      at async readFanoutObservationIn (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.ts:355:34)
+      at async <anonymous> (/tmp/puni-connected-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:528:28)
+(fail) captures staged external shared connected facts once without scheduling the component [214.37ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+Ran 1 test across 1 file. [2.60s]

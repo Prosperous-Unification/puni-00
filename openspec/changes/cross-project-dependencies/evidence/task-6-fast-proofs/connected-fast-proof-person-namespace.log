@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-plan.test.ts:
+(pass) connected detached Fast placement > uses one real placement for A.design B.build A.test [4.18ms]
+(pass) connected detached Fast placement > retains own Wednesday floor and projects back to each own anchor [0.38ms]
+(pass) connected detached Fast placement > retains graph and capture when a required calendar is missing [0.13ms]
+(pass) connected detached Fast placement > inspects the nontarget required optimized member before calendar refusal [0.17ms]
+(pass) connected detached Fast placement > ignores stored optimized preference when disabled and allows real Fast comparison [0.45ms]
+(pass) connected detached Fast placement > retains authored held endpoints but schedules no held work and needs no empty anchor [0.20ms]
+(pass) connected detached Fast placement > selects either target without placement or calendar changes and refuses absent target [0.34ms]
+(pass) connected detached Fast placement > allows a lower ranked remote prerequisite before a high priority successor [0.28ms]
+239 |     });
+240 |     const held = { ...capture(assigned('A'), assigned('B')), relationships: [] };
+241 |     const shared = scheduled({ ...held, mode: 'shared' });
+242 |     const isolated = scheduled({ ...held, mode: 'isolated' });
+243 |     expect(start(shared.combined, 'b')).toBe(1);
+244 |     expect(start(isolated.combined, 'b')).toBe(0);
+                                                ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/service/connected-plan.test.ts:244:43)
+(fail) connected detached Fast placement > shares people only in shared mode and restores actual person identity and own waiting counts [0.76ms]
+(pass) connected detached Fast placement > uses own rounding, units, allowance, team capacity and width before injective namespacing [0.69ms]
+(pass) connected detached Fast placement > keeps identical resource catalog IDs project local and restores binding identities [0.67ms]
+(pass) connected detached Fast placement > retains fractional effort and translates a weekend manual floor and deadline under own anchor [0.53ms]
+(pass) connected detached Fast placement > uses the earliest anchor independent of project rank and capture order [0.54ms]
+(pass) connected detached Fast placement > reduces partial held parent selectors without losing authored pairs [0.40ms]
+(pass) connected detached Fast placement > keeps unknown, zero and stepless nodes as real zero duration boundaries [0.67ms]
+(pass) connected detached Fast placement > requires an active shared-person peer anchor even without its external endpoint [0.10ms]
+(pass) connected detached Fast placement > refuses wrong relationship ownership and mismatched local captured evidence [0.61ms]
+(pass) connected detached Fast placement > refuses foreign project rows, absent endpoint project and cross owned endpoint identity [0.33ms]
+(pass) connected detached Fast placement > applies each project minute conversion, estimate method and allowance exactly once [0.34ms]
+(pass) connected detached Fast placement > preserves signed fractional numeric calendar constraints without date round trips [0.08ms]
+(pass) connected detached Fast placement > refuses corrupted project identity and nonfinite rank, and throws unknown scheduling failures [0.20ms]
+(pass) connected detached Fast placement > models real node cycles without hiding graph evidence [0.21ms]
+(pass) connected detached Fast placement > expands partly held parent relationships to surviving leaves only [0.30ms]
+(pass) connected detached Fast placement > keeps own steps and local reach before resolving remote FS SS FF selectors [1.72ms]
+(pass) connected detached Fast placement > validates rank before an engine refusal and target membership before any unavailable return [0.13ms]
+(pass) connected detached Fast placement > resolves every project local dependency under its own reach and step order [0.47ms]
+(pass) connected detached Fast placement > refuses absent prepared calendars and broken reverse identities on real placements [0.39ms]
+
+1 tests failed:
+(fail) connected detached Fast placement > shares people only in shared mode and restores actual person identity and own waiting counts [0.76ms]
+
+ 26 pass
+ 1 fail
+ 74 expect() calls
+Ran 27 tests across 1 file. [147.00ms]

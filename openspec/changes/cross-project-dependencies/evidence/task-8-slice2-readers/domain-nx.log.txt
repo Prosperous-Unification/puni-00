@@ -1,0 +1,31 @@
+
+ NX   Running targets typecheck, lint for project wbs-domain:
+
+- wbs-domain
+
+
+
+> nx run wbs-domain:lint
+
+> bunx eslint libs/wbs/domain/domain/src
+
+
+> nx run wbs-domain:typecheck
+
+> bunx tsc --build --force libs/wbs/domain/domain/tsconfig.json
+
+
+
+
+ NX   Successfully ran targets typecheck, lint for project wbs-domain
+
+
+  Run duration:      37.6s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     35.6s (1 task)
+  Recoverable time:  2.0s (5% of the run)
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-domain:lint    35.6s

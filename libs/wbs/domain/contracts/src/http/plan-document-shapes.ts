@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
-import { project } from './project-response';
+import { documentConnected } from './plan-document-connected-shapes';
+import { documentProject } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
 import { numberedWorkItem, workItemTree } from './work-item-response';
 
@@ -16,6 +17,8 @@ import { numberedWorkItem, workItemTree } from './work-item-response';
  * classifier converts earlier versions explicitly.
  */
 export const PLAN_DOCUMENT_VERSION = 10;
+/** Connected exports carry stable external identities and required captured history; local/shared exports remain v10. */
+export const PLAN_DOCUMENT_EXTERNAL_VERSION = 11;
 
 const planHeader = type({
   format: "'wbs-plan'",
@@ -98,6 +101,63 @@ export const documentTypedDependency = type({
 });
 export const documentTypedDependencyRequest = requestSchema(documentTypedDependency);
 export type DocumentTypedDependency = (typeof documentTypedDependency)['infer'];
+export const documentV10TypedDependencyRequest = documentTypedDependencyRequest;
+
+const internalEndpoint = type({ kind: "'internal'", scope: "'whole'", workItem: 'string' })
+  .or({ kind: "'internal'", scope: "'node'", workItem: 'string', step: 'string' })
+  .or({ kind: "'internal'", scope: "'descendant-step'", workItem: 'string', step: 'string' });
+
+const externalDisplay = type({
+  projectName: 'string',
+  abbreviation: 'string',
+  workItemName: 'string',
+  address: 'string',
+  'stepName?': 'string',
+});
+
+const externalEndpoint = type({
+  kind: "'external'",
+  scope: "'whole'",
+  projectId: 'string',
+  workItemId: 'string',
+  display: externalDisplay,
+}).or({
+  kind: "'external'",
+  scope: "'node' | 'descendant-step'",
+  projectId: 'string',
+  workItemId: 'string',
+  stepId: 'string',
+  // Proof: making stepName optional admitted the missing-label classifier test
+  // in plan-document.resource.test.ts (2026-10-22).
+  display: externalDisplay.and({ stepName: 'string' }),
+});
+
+/** Authored v11 links belong to the imported successor; labels never bind identity. */
+export const documentV11TypedDependency = type({
+  id: 'string',
+  predecessor: internalEndpoint.or(externalEndpoint),
+  successor: internalEndpoint,
+  type: "'FS' | 'SS' | 'FF'",
+});
+export const documentV11TypedDependencyRequest = requestSchema(documentV11TypedDependency);
+export type DocumentV11TypedDependency = (typeof documentV11TypedDependency)['infer'];
+
+export const documentExternalIdentity = type({
+  scope: "'whole'",
+  projectId: 'string',
+  workItemId: 'string',
+}).or({
+  scope: "'node' | 'descendant-step'",
+  projectId: 'string',
+  workItemId: 'string',
+  stepId: 'string',
+});
+export const documentExternalMapping = type({
+  source: documentExternalIdentity,
+  destination: documentExternalIdentity,
+});
+export const documentExternalMappingRequest = requestSchema(documentExternalMapping);
+export type DocumentExternalMapping = (typeof documentExternalMapping)['infer'];
 
 /** Version 4's converter accepts only the relationship type that release wrote. */
 export const documentV4TypedDependencyRequest = requestSchema(
@@ -145,7 +205,7 @@ const documentWorkItem = numberedWorkItem
   .omit('attempts', 'spans', 'span', 'blockages', 'blockageCauses', 'nodeResources')
   .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
 
-export const planDocument = workItemTree.omit('typedDependencies', 'workItems').and({
+export const planDocumentV10 = workItemTree.omit('typedDependencies', 'workItems').and({
   workItems: documentWorkItem.array(),
   stepBlockages: type({
     workItemId: 'string',
@@ -160,7 +220,7 @@ export const planDocument = workItemTree.omit('typedDependencies', 'workItems').
     stepId: 'string',
     reference: 'string',
   }).array(),
-  project,
+  project: documentProject,
   document: planHeader,
   settings: planSettings,
   capacity: type({ teamId: 'string', size: 'number' }).array(),
@@ -170,10 +230,26 @@ export const planDocument = workItemTree.omit('typedDependencies', 'workItems').
   directory: directory.and({ resources: documentResource.array() }),
 });
 
-export type PlanDocument = (typeof planDocument)['infer'];
+export type PlanDocumentV10 = (typeof planDocumentV10)['infer'];
+
+/** Explicit external predecessor identities; import mappings are never exported. */
+export const planDocumentV11 = planDocumentV10.omit('document', 'typedDependencies').and({
+  // Proof: replacing 11 with 10 failed the versioned-response test (2026-10-22).
+  document: planHeader.omit('version').and({ version: '11' }),
+  typedDependencies: documentV11TypedDependency.array(),
+  // Proof: optional-evidence.txt: making this optional made mounted absent-history return 200 instead of 500.
+  connected: documentConnected,
+});
+export type PlanDocumentV11 = (typeof planDocumentV11)['infer'];
+
+/** Version discrimination keeps historic local endpoints separate from v11 endpoints. */
+export const planDocument = planDocumentV10.or(planDocumentV11);
+export type PlanDocument = PlanDocumentV10 | PlanDocumentV11;
 
 /** Additive responses remain readable by clients written for this version. */
 export const planDocumentResponse = responseSchema(planDocument);
+export const planDocumentV10Response = responseSchema(planDocumentV10);
+export const planDocumentV11Response = responseSchema(planDocumentV11);
 
 /** The classifier reads only the format/version header before version-specific content. */
 export const planDocumentHeaderRequest = requestSchema(
@@ -256,6 +332,8 @@ const writablePlanDocument = type({
     'code?': 'unknown',
   }).array(),
   'typedDependencies?': 'unknown',
+  /** Import-only instructions; never part of an authored export. */
+  'externalMappings?': 'unknown',
   'stepBlockages?': 'unknown',
 });
 
@@ -282,6 +360,7 @@ export type PlanDocumentImport = Omit<
   | 'directory'
   | 'resourceCapacities'
   | 'demands'
+  | 'externalMappings'
 > & {
   /** The file's directory, its resources as version 10 states them and none before. */
   directory: Omit<PlanDocumentRequest['directory'], 'resources'> & {
@@ -291,7 +370,8 @@ export type PlanDocumentImport = Omit<
   demands: DocumentDemand[];
   /** The zone as version 7 names it, `UTC` for an earlier version. */
   settings: Omit<PlanDocumentRequest['settings'], 'timezone'> & { timezone: string };
-  typedDependencies: DocumentTypedDependency[];
+  typedDependencies: (DocumentTypedDependency | DocumentV11TypedDependency)[];
+  externalMappings: DocumentExternalMapping[];
   stepBlockages: { workItemId: string; stepId: string; blockedAt: number }[];
   /**
    * Readiness and hold as the file states them from version 6, null before;

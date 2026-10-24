@@ -743,6 +743,7 @@ export function ProjectPage({
         const naming = url.searchParams.has('stepNode') ? 'Step link' : 'Project link';
         url.searchParams.delete('project');
         url.searchParams.delete('stepNode');
+        url.searchParams.delete('workItem');
         window.history.replaceState(window.history.state, '', url.href);
         // Said on the page rather than as a toast: toasts are drawn by the
         // table, and a link that opens nothing leaves no table to draw them.
@@ -1504,6 +1505,18 @@ export function ProjectPage({
                   // list rather than held twice: a rename lands in `projects` and
                   // the next export says the new name.
                   projectName={selectedProject?.name}
+                  {...(selectedProject === undefined
+                    ? {}
+                    : {
+                        generalSettings: {
+                          abbreviation: selectedProject.abbreviation,
+                          setAbbreviation: (abbreviation: string) =>
+                            catalog.setAbbreviation(selectedProject.id, abbreviation),
+                          onChanged: async () => {
+                            await load();
+                          },
+                        },
+                      })}
                   planImport={planImport}
                   // Proof: omitting this page-owned API left the remounted table's
                   // toast list empty after a successful import. Observed 2026-09-14.

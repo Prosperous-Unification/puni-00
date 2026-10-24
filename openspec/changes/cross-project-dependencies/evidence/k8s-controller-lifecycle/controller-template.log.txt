@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+810 |           () => undefined,
+811 |           fixture.options,
+812 |         ),
+813 |       ).rejects.toThrow('rollback-failed');
+814 |       fixture.load();
+815 |       expect(fixture.objects['cronjob/sqlite-backup'].spec.suspend).toBe(false);
+                                                                          ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:815:69)
+(fail) mounted atomic template guard refuses a patch race before changing suspension [539.93ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [583.00ms]

@@ -1,9 +1,21 @@
-import { type EstimateUnit, isEstimateUnit } from '@wbs/domain';
+import {
+  type EstimateUnit,
+  isDependencyEndpointScope,
+  isEstimateUnit,
+  isRelationshipType,
+  type ScopedDependencyEndpoint,
+} from '@wbs/domain';
 
+import type { ScopedRevision, WorkItemAddress } from '../ports/dependency-context';
+import type { IncidentNodeReceipt } from '../ports/incident-node-transition';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { StoredAttempt } from '../ports/step-node-attempt-store';
+import type { IncidentReceipt } from '../ports/typed-dependency-store';
+import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { Reparented } from '../ports/work-item-store';
 import type { CommandSubject, CompensatingCommand, JournalPayload } from './compensating-command';
+import { formatIncidentKey, mapIncidentNode } from './incident-node-transition';
+import { STEP_BLOCKAGE_REPLAY_KINDS } from './replay-capabilities';
 
 export type {
   AttemptKey,
@@ -15,6 +27,10 @@ export type {
   JournalPayload,
   RestoreSubtree,
 } from './compensating-command';
+export {
+  STEP_BLOCKAGE_REPLAY_CAPABILITIES,
+  STEP_BLOCKAGE_REPLAY_KINDS,
+} from './replay-capabilities';
 
 /**
  * `{workItemId: revision}`, for one moment in one entity's life — and, under
@@ -59,7 +75,13 @@ export function stepOfRevisionKey(key: string): string | null {
  * somebody else did write in between it does not match, is not re-stamped, and
  * refuses. See `openspec/changes/conditional-undo/design.md`.
  */
+export interface ExternalRevisionPreconditions {
+  readonly expected: readonly ScopedRevision[];
+  readonly from: readonly ScopedRevision[];
+}
+
 export interface Preconditions {
+  externalRevisions?: ExternalRevisionPreconditions;
   /** Exact destination progress sets checked before any move replay batch can clear them. */
   moveProgress?: Record<string, StoredProgress[]>;
   /** Immutable units from the original write; absent only in legacy workday-only journals. */
@@ -67,15 +89,6 @@ export interface Preconditions {
   expected: Revisions;
   from: Revisions;
 }
-
-export const STEP_BLOCKAGE_REPLAY_KINDS = ['replace_blockage'] as const;
-
-/** Persisted replay semantics understood by this image, distinct from command discriminators. */
-export const STEP_BLOCKAGE_REPLAY_CAPABILITIES = [
-  'replace_blockage',
-  'move_progress_v1',
-  'delete_state_v1',
-] as const;
 
 const COMMANDS = [
   'patch',
@@ -100,6 +113,7 @@ const COMMANDS = [
   'add_typed_dependency',
   'remove_typed_dependency',
   'update_typed_dependency',
+  'transition_incident_nodes',
   'move',
   'set_frozen',
   'set_step_allowance',
@@ -135,7 +149,98 @@ export function readCommand(value: unknown): CompensatingCommand {
   if (named === 'batch') {
     if (!('steps' in value) || !Array.isArray(value.steps))
       throw new Error('a journal batch has no steps');
-    for (const step of value.steps) readCommand(step);
+    return { do: 'batch', steps: value.steps.map((step: unknown) => readCommand(step)) };
+  }
+  if (named === 'add_typed_dependency' || named === 'remove_typed_dependency') {
+    if (!('dependency' in value)) throw new Error('journal typed dependency is missing');
+    return { do: named, dependency: readJournalDependency(value.dependency) };
+  }
+  if (named === 'update_typed_dependency') {
+    if (!('from' in value) || !('to' in value))
+      throw new Error('journal typed dependency update is missing');
+    return {
+      do: named,
+      from: readJournalDependency(value.from),
+      to: readJournalDependency(value.to),
+    };
+  }
+  // Proof: omitting receipt-list validation changed missing-receipt replay from named corruption to TypeError; omitting mapping/audit validation deferred corrupted step/audit to stale refusal, 2026-10-22.
+  if (named === 'transition_incident_nodes') {
+    if (
+      !('projectId' in value) ||
+      typeof value.projectId !== 'string' ||
+      value.projectId.length === 0 ||
+      !('fromWorkItemId' in value) ||
+      typeof value.fromWorkItemId !== 'string' ||
+      value.fromWorkItemId.length === 0 ||
+      !('toWorkItemId' in value) ||
+      typeof value.toWorkItemId !== 'string' ||
+      value.toWorkItemId.length === 0 ||
+      value.fromWorkItemId === value.toWorkItemId ||
+      !('structural' in value) ||
+      !('receipts' in value) ||
+      !Array.isArray(value.receipts) ||
+      value.receipts.length === 0
+    )
+      throw new Error('journal incident transition is malformed');
+    const projectId = value.projectId;
+    const fromWorkItemId = value.fromWorkItemId;
+    const toWorkItemId = value.toWorkItemId;
+    const structural = readCommand(value.structural);
+    // Proof: bypassing creation-time validation changed missing-created-at to stale refusal; bypassing direction presence changed its named diagnostic, real SQLite replay, 2026-10-22.
+    const readReceipt = (candidate: unknown): IncidentReceipt => {
+      if (
+        typeof candidate !== 'object' ||
+        candidate === null ||
+        !('dependency' in candidate) ||
+        !('createdAt' in candidate) ||
+        !(
+          candidate.createdAt === null ||
+          (typeof candidate.createdAt === 'number' && Number.isSafeInteger(candidate.createdAt))
+        ) ||
+        !('createdBy' in candidate) ||
+        !(candidate.createdBy === null || typeof candidate.createdBy === 'string')
+      )
+        throw new Error('journal incident receipt is malformed');
+      return {
+        dependency: readJournalDependency(candidate.dependency),
+        createdAt: candidate.createdAt,
+        createdBy: candidate.createdBy,
+      };
+    };
+    const seen = new Set<string>();
+    const candidates: readonly unknown[] = value.receipts;
+    const receipts: IncidentNodeReceipt[] = candidates.map((candidate) => {
+      if (
+        typeof candidate !== 'object' ||
+        candidate === null ||
+        !('from' in candidate) ||
+        !('to' in candidate)
+      )
+        throw new Error('journal incident receipt directions are missing');
+      const from = readReceipt(candidate.from);
+      const to = readReceipt(candidate.to);
+      const mapped = mapIncidentNode(from.dependency, projectId, fromWorkItemId, toWorkItemId);
+      if (
+        seen.has(from.dependency.id) ||
+        from.dependency.predecessor.projectId === from.dependency.successor.projectId ||
+        formatIncidentKey(mapped) === formatIncidentKey(from.dependency) ||
+        formatIncidentKey(mapped) !== formatIncidentKey(to.dependency) ||
+        from.createdAt !== to.createdAt ||
+        from.createdBy !== to.createdBy
+      )
+        throw new Error('journal incident receipt does not describe its exact node mapping');
+      seen.add(from.dependency.id);
+      return { from, to };
+    });
+    return {
+      do: named,
+      projectId: value.projectId,
+      fromWorkItemId: value.fromWorkItemId,
+      toWorkItemId: value.toWorkItemId,
+      structural,
+      receipts,
+    };
   }
   if (named === 'replace_blockage') {
     const blockedTime = (time: unknown): boolean =>
@@ -246,6 +351,69 @@ export function readCommand(value: unknown): CompensatingCommand {
   return value as CompensatingCommand;
 }
 
+/**
+ * Historical local relationships have neither endpoint project; current records have both.
+ * A partial or malformed scoped record must never fall back to legacy interpretation.
+ * Proof: removing required relationship shape, endpoint shape, project type, step type,
+ * whole/step pairing, mixed-scope refusal or successor-owner agreement separately
+ * made `refuses partial scoped history and malformed new scoped history` accept its
+ * malformed payload (2026-10-22).
+ */
+function readJournalDependency(value: unknown): StoredTypedDependency {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('id' in value) ||
+    typeof value.id !== 'string' ||
+    !('projectId' in value) ||
+    typeof value.projectId !== 'string' ||
+    !('predecessor' in value) ||
+    !('successor' in value) ||
+    !('type' in value) ||
+    !isRelationshipType(value.type)
+  ) {
+    throw new Error('journal typed dependency is malformed');
+  }
+  const hasProject = (endpoint: unknown): boolean =>
+    typeof endpoint === 'object' && endpoint !== null && 'projectId' in endpoint;
+  const isScoped = hasProject(value.predecessor);
+  if (isScoped !== hasProject(value.successor))
+    throw new Error('journal typed dependency has partial project scope');
+  const endpoint = (candidate: unknown): ScopedDependencyEndpoint => {
+    if (
+      typeof candidate !== 'object' ||
+      candidate === null ||
+      !('scope' in candidate) ||
+      !isDependencyEndpointScope(candidate.scope) ||
+      !('workItemId' in candidate) ||
+      typeof candidate.workItemId !== 'string'
+    )
+      throw new Error('journal typed dependency endpoint is malformed');
+    const projectId: unknown =
+      isScoped && 'projectId' in candidate ? candidate.projectId : value.projectId;
+    if (typeof projectId !== 'string')
+      throw new Error('journal typed dependency project is malformed');
+    if (candidate.scope === 'whole') {
+      if ('stepId' in candidate)
+        throw new Error('journal typed dependency whole endpoint has a step');
+      return { scope: candidate.scope, workItemId: candidate.workItemId, projectId };
+    }
+    if (!('stepId' in candidate) || typeof candidate.stepId !== 'string')
+      throw new Error('journal typed dependency step is malformed');
+    return {
+      scope: candidate.scope,
+      workItemId: candidate.workItemId,
+      stepId: candidate.stepId,
+      projectId,
+    };
+  };
+  const predecessor = endpoint(value.predecessor);
+  const successor = endpoint(value.successor);
+  if (successor.projectId !== value.projectId)
+    throw new Error('journal typed dependency successor owner disagrees');
+  return { id: value.id, projectId: value.projectId, predecessor, successor, type: value.type };
+}
+
 /** Validates exact blockage identities and safe times within the deletion boundary. */
 function readDeletionBlockages(value: unknown, owners: readonly string[]): void {
   if (!Array.isArray(value)) throw new Error('journal deletion blockages are not an array');
@@ -334,6 +502,9 @@ export function readPreconditions(value: unknown): Preconditions {
     throw new Error(`a journal entry holds no preconditions: ${JSON.stringify(value)}`);
   }
   return {
+    ...('externalRevisions' in value
+      ? { externalRevisions: readExternalRevisions(value.externalRevisions) }
+      : {}),
     expected: readRevisions(value.expected),
     from: readRevisions(value.from),
     ...('moveProgress' in value
@@ -341,6 +512,151 @@ export function readPreconditions(value: unknown): Preconditions {
       : {}),
     ...('estimateUnits' in value ? { estimateUnits: readEstimateUnits(value.estimateUnits) } : {}),
   };
+}
+
+/** Stable pair key; neither row IDs nor display references replace scoped identity. */
+export function scopedRevisionKey(address: WorkItemAddress): string {
+  return JSON.stringify([address.projectId, address.workItemId]);
+}
+
+function readExternalRevisions(value: unknown): ExternalRevisionPreconditions {
+  // Proof: metadata-object-shape bypass failed `replay refuses missing-from trusted`'s selected assertion
+  // (named diagnostic; later guards also refuse; watched 2026-10-22).
+  if (typeof value !== 'object' || value === null || !('expected' in value) || !('from' in value))
+    throw new Error('journal external revisions are malformed');
+  const read = (entries: unknown): ScopedRevision[] => {
+    // Proof: metadata-list-shape bypass failed `replay refuses non-list trusted`'s selected assertion
+    // (named diagnostic; later guards also refuse; watched 2026-10-22).
+    if (!Array.isArray(entries)) throw new Error('journal external revisions are not a list');
+    const revisions: ScopedRevision[] = [];
+    const seen = new Set<string>();
+    const candidates: readonly unknown[] = entries;
+    for (const entry of candidates) {
+      // Proof: metadata-revision-value bypass failed `replay refuses invalid-revision trusted`'s selected assertion
+      // (named diagnostic; later guards also refuse; watched 2026-10-22).
+      if (
+        typeof entry !== 'object' ||
+        entry === null ||
+        !('projectId' in entry) ||
+        !('workItemId' in entry) ||
+        !('revision' in entry) ||
+        typeof entry.projectId !== 'string' ||
+        entry.projectId.length === 0 ||
+        typeof entry.workItemId !== 'string' ||
+        entry.workItemId.length === 0 ||
+        typeof entry.revision !== 'number' ||
+        !Number.isSafeInteger(entry.revision) ||
+        entry.revision < 0
+      )
+        throw new Error('journal external revision is malformed');
+      const key = scopedRevisionKey({ projectId: entry.projectId, workItemId: entry.workItemId });
+      // Proof: metadata-duplicate bypass failed `replay refuses duplicate trusted`'s selected assertion
+      // (named diagnostic; later guards also refuse; watched 2026-10-22).
+      if (seen.has(key)) throw new Error('journal external revisions contain a duplicate');
+      seen.add(key);
+      revisions.push({
+        projectId: entry.projectId,
+        workItemId: entry.workItemId,
+        revision: entry.revision,
+      });
+    }
+    return revisions;
+  };
+  return { expected: read(value.expected), from: read(value.from) };
+}
+
+/**
+ * Owner-local typed add/update endpoints supplied by an earlier restore in the
+ * selected replay direction's nested application order. This predicts missing
+ * rows only; replay still authorizes restored rows and validates steps/shapes.
+ */
+export function restoredTypedAddressesOf(
+  command: CompensatingCommand,
+  ownerId: string,
+): Set<string> {
+  const restored = new Set<string>();
+  const allowed = new Set<string>();
+  const visit = (step: CompensatingCommand): void => {
+    if (step.do === 'batch') {
+      // Proof: precollecting later restores changed the real SQLite later-restore
+      // refusal from not_found to application-time stale_undo (round1 ordering diagnostic).
+      for (const nested of step.steps) visit(nested);
+      return;
+    }
+    // Proof: skipping this ordered recursion refused actual outgoing first-child redo, 2026-10-22.
+    if (step.do === 'transition_incident_nodes') {
+      visit(step.structural);
+      for (const endpoint of referencesOf(step).scopedEndpoints)
+        if (endpoint.projectId === ownerId && restored.has(endpoint.workItemId))
+          allowed.add(scopedRevisionKey(endpoint));
+      return;
+    }
+    if (step.do === 'restore_subtree') {
+      // Proof: removing the row-project condition failed the pure scanner's foreign
+      // restore oracle; SQLite restored-row authority is independently retained.
+      for (const row of step.rows) if (row.projectId === ownerId) restored.add(row.id);
+    }
+    // Proof: omitting UPDATE made both real mounted create/update redo regressions
+    // return 409 instead of 200 (round1 compatibility failure).
+    if (step.do === 'add_typed_dependency' || step.do === 'update_typed_dependency')
+      for (const endpoint of referencesOf(step).scopedEndpoints) {
+        // Proof: weakening exact membership changed SQLite different-address
+        // not_found to stale_undo. Removing endpoint project equality failed the
+        // pure remote-address oracle (ordering/classification, not unsafe writes).
+        if (endpoint.projectId === ownerId && restored.has(endpoint.workItemId))
+          allowed.add(scopedRevisionKey(endpoint));
+      }
+  };
+  visit(command);
+  return allowed;
+}
+
+/** Exact external address union named by forward and inverse, including nested batches. */
+export function externalAddressesOf(
+  commands: readonly CompensatingCommand[],
+  ownerId: string,
+): WorkItemAddress[] {
+  const addresses = new Map<string, WorkItemAddress>();
+  for (const command of commands)
+    for (const endpoint of referencesOf(command).scopedEndpoints) {
+      if (endpoint.projectId === ownerId) continue;
+      addresses.set(scopedRevisionKey(endpoint), {
+        projectId: endpoint.projectId,
+        workItemId: endpoint.workItemId,
+      });
+    }
+  return [...addresses.values()];
+}
+
+/** Trusted history cannot omit external preconditions or carry extra/local address authority. */
+export function requireExternalRevisions(
+  preconditions: Preconditions,
+  ownerId: string,
+  commands: readonly CompensatingCommand[],
+): ExternalRevisionPreconditions | null {
+  const required = new Set(externalAddressesOf(commands, ownerId).map(scopedRevisionKey));
+  const external = preconditions.externalRevisions;
+  if (external === undefined) {
+    // Proof: missing-external-history-metadata bypass failed `history refuses missing external revision metadata`'s selected assertion
+    // (actual SQLite boundary; watched 2026-10-22).
+    if (required.size > 0) throw new Error('journal external revision coverage is missing');
+    return null;
+  }
+  for (const entries of [external.expected, external.from]) {
+    const keys = new Set(entries.map(scopedRevisionKey));
+    // Proof: metadata-exact-coverage bypass failed `replay refuses omitted trusted`'s selected assertion
+    // (actual SQLite boundary; watched 2026-10-22).
+    // Proof: bypassing this consumer failed `omitted final remote revision`
+    // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+    if (
+      entries.some((entry) => entry.projectId === ownerId) ||
+      keys.size !== entries.length ||
+      keys.size !== required.size ||
+      [...keys].some((key) => !required.has(key))
+    )
+      throw new Error('journal external revision coverage is not exact');
+  }
+  return external;
 }
 
 /** Validates a present binding map; malformed trusted history never means legacy history. */
@@ -363,6 +679,10 @@ export function estimateStepsOf(commands: readonly CompensatingCommand[]): Set<s
   const steps = new Set<string>();
   for (const command of commands) {
     switch (command.do) {
+      case 'transition_incident_nodes':
+        // Proof: omission recorded empty units instead of the child's inherited step binding, 2026-10-22.
+        for (const stepId of estimateStepsOf([command.structural])) steps.add(stepId);
+        break;
       case 'set_estimate':
       case 'clear_estimate':
         steps.add(command.stepId);
@@ -419,6 +739,8 @@ function readRevisions(value: unknown): Revisions {
 /** Exact progress pairs written by this command, including explicit structural rows and nested batches. */
 export function progressKeysOf(command: CompensatingCommand): ProgressKey[] {
   switch (command.do) {
+    case 'transition_incident_nodes':
+      return progressKeysOf(command.structural);
     case 'set_progress':
     case 'clear_progress':
       return [{ workItemId: command.workItemId, stepId: command.stepId }];
@@ -458,6 +780,23 @@ export function progressKeysOf(command: CompensatingCommand): ProgressKey[] {
  */
 export function touchedBy(command: CompensatingCommand): string[] {
   switch (command.do) {
+    case 'transition_incident_nodes':
+      return [
+        ...new Set([
+          ...touchedBy(command.structural),
+          ...command.receipts.flatMap(({ from, to }) =>
+            [
+              from.dependency.predecessor,
+              from.dependency.successor,
+              to.dependency.predecessor,
+              to.dependency.successor,
+            ]
+              // Proof: partitioning by successor owner lost the structural parent from actual undo flip preconditions, 2026-10-22.
+              .filter((endpoint) => endpoint.projectId === command.projectId)
+              .map(({ workItemId }) => workItemId),
+          ),
+        ]),
+      ];
     case 'patch':
     case 'set_estimate':
     case 'clear_estimate':
@@ -490,14 +829,18 @@ export function touchedBy(command: CompensatingCommand): string[] {
       return [command.successorId, command.predecessorId];
     case 'add_typed_dependency':
     case 'remove_typed_dependency':
-      return [command.dependency.predecessor.workItemId, command.dependency.successor.workItemId];
+      return [command.dependency.predecessor, command.dependency.successor]
+        .filter((endpoint) => endpoint.projectId === command.dependency.projectId)
+        .map((endpoint) => endpoint.workItemId);
     case 'update_typed_dependency':
       return [
         ...new Set([
-          command.from.predecessor.workItemId,
-          command.from.successor.workItemId,
-          command.to.predecessor.workItemId,
-          command.to.successor.workItemId,
+          ...[command.from.predecessor, command.from.successor]
+            .filter((endpoint) => endpoint.projectId === command.from.projectId)
+            .map((endpoint) => endpoint.workItemId),
+          ...[command.to.predecessor, command.to.successor]
+            .filter((endpoint) => endpoint.projectId === command.to.projectId)
+            .map((endpoint) => endpoint.workItemId),
         ]),
       ];
     case 'move':
@@ -545,6 +888,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
  * inverse move carries the snapshot. Other command owners are excluded.
  */
 export function expectedProgressOwnersOf(command: CompensatingCommand): string[] {
+  if (command.do === 'transition_incident_nodes')
+    return expectedProgressOwnersOf(command.structural);
   if (command.do === 'batch') return [...new Set(command.steps.flatMap(expectedProgressOwnersOf))];
   if (
     (command.do === 'delete_subtree' || command.do === 'restore_subtree') &&
@@ -578,6 +923,7 @@ export interface CompensatingReferences {
   types: string[];
   systems: string[];
   resources: string[];
+  scopedEndpoints: ScopedDependencyEndpoint[];
 }
 
 /** {@link CompensatingReferences} of one command. */
@@ -593,6 +939,7 @@ export function referencesOf(command: CompensatingCommand): CompensatingReferenc
     types: [],
     systems: [],
     resources: [],
+    scopedEndpoints: [],
   };
   collectReferences(command, found);
   return found;
@@ -627,6 +974,27 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
     ].forEach(onStep);
   }
   switch (command.do) {
+    case 'transition_incident_nodes':
+      collectReferences(command.structural, found);
+      found.projects.push(command.projectId);
+      // Proof: dropping receipt references lost actual mixed history external revision coverage, 2026-10-22.
+      for (const { from, to } of command.receipts)
+        for (const dependency of [from.dependency, to.dependency]) {
+          found.scopedEndpoints.push(dependency.predecessor, dependency.successor);
+        }
+      return;
+    case 'add_typed_dependency':
+    case 'remove_typed_dependency':
+      found.scopedEndpoints.push(command.dependency.predecessor, command.dependency.successor);
+      return;
+    case 'update_typed_dependency':
+      found.scopedEndpoints.push(
+        command.from.predecessor,
+        command.from.successor,
+        command.to.predecessor,
+        command.to.successor,
+      );
+      return;
     case 'patch': {
       rows(command.workItemId);
       const { patch } = command;
@@ -777,6 +1145,9 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
  */
 export function subjectOf(command: CompensatingCommand): CommandSubject {
   switch (command.do) {
+    case 'transition_incident_nodes':
+      // Proof: omission recorded null instead of the created child in the real plan event, 2026-10-22.
+      return subjectOf(command.structural);
     case 'set_estimate':
     case 'clear_estimate':
     case 'set_actual':
@@ -1009,4 +1380,23 @@ function readClaims(value: object): readonly object[] {
     checked.push(each);
   }
   return checked;
+}
+
+/** Exact derived structural mappings do not activate general external authoring. */
+export function requiresExternalAuthoring(command: CompensatingCommand): boolean {
+  switch (command.do) {
+    case 'transition_incident_nodes':
+      return requiresExternalAuthoring(command.structural);
+    case 'batch':
+      return command.steps.some(requiresExternalAuthoring);
+    case 'add_typed_dependency':
+    case 'remove_typed_dependency':
+      return command.dependency.predecessor.projectId !== command.dependency.successor.projectId;
+    case 'update_typed_dependency':
+      return [command.from, command.to].some(
+        (dependency) => dependency.predecessor.projectId !== dependency.successor.projectId,
+      );
+    default:
+      return false;
+  }
 }

@@ -8,7 +8,9 @@ import { DirectoryService } from '@wbs/core/module/directory/directory.resource'
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -42,7 +44,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -61,6 +63,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -163,7 +166,7 @@ beforeEach(async () => {
     // project settings — and exactly the shape in which a future assertion
     // reads an empty log and passes. See {@link writes}.
     projects: new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
+      dependencyContext: sqliteDependencyContext(db, projects),
       clock: testClock,
       projects,
       broadcast: announcements,
@@ -171,13 +174,21 @@ beforeEach(async () => {
     // The shared wrapper, as `services.ts` wires `StepService` — not a private
     // recorder. See {@link writes}.
     steps: new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
+      dependencyContext: sqliteDependencyContext(db, projects),
       clock: testClock,
       projects,
       steps: stepStore,
       broadcast: announcements,
     }),
     workItems: new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projects,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: new DependencyRepository(db, OPEN),
+        typedDependencies: new TypedDependencyRepository(db, OPEN),
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
@@ -204,6 +215,7 @@ beforeEach(async () => {
   };
   writes = testWrites(broadcast, writing);
   app = buildApp({
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -224,9 +236,16 @@ beforeEach(async () => {
     auth,
     ...writing,
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
-    writes: { ...writes, uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)) },
+    writes: {
+      ...writes,
+      uow: sqliteUnitOfWork(db, new WriteCoordinator(), {
+        createScope: () => ({ stores: buildStores(db, OPEN) }),
+        createRepairScope: () => ({ stores: buildStores(db, OPEN) }),
+      }),
+    },
     migrationsApplied: true,
   });
 });

@@ -1,0 +1,1445 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+> nx run wbs-core:test
+
+> bun test src --coverage --coverage-reporter=lcov --timeout=10000
+
+[0m[1mbun test [0m[2mv1.4.2 (744846f84)[0m
+[0m
+src/module-boundaries.test.ts:
+[0m[32m✓[0m[0m[1m closed feature modules do not reference repository ports and debt stays live[0m [0m[2m[[0m[33m10195.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m resolved alias type from a repository port is refused[0m [0m[2m[[1m1616.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m repository method reached through compatibility options is refused[0m [0m[2m[[1m1769.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m renamed scope inside a nested transaction callback is refused[0m [0m[2m[[1m3651.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m import transaction cannot return a raw scope through a nested resource callback[0m [0m[2m[[1m7815.45ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m public resource surfaces cannot pass raw repository authority to a feature[0m [0m[2m[[1m7615.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m indexed resource results cannot contain raw scope but may contain value records[0m [0m[2m[[1m7550.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m feature wrappers cannot hide a resource with a public raw scope[0m [0m[2m[[0m[33m8182.97ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m repository-owned value types are refused without a Store suffix[0m [0m[2m[[1m1515.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m named value import from a repository port is refused[0m [0m[2m[[1m1502.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m wildcard export of a repository port is refused[0m [0m[2m[[1m1455.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m malformed import type cannot silently leave the audit[0m [0m[2m[[1m1446.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m new feature debt cannot be added to the shrink-only ledger[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m a closed module with no directory is refused[0m [0m[2m[[1m1399.59ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m every feature module is closed or recorded as debt[0m [0m[2m[[1m1063.24ms[0m[2m][0m
+[0m
+src/compose.test.ts:
+[0m[32m✓[0m[0m[1m stored outcome and downstream recipient retain their sequences while reaction precedes held outcome transport[0m [0m[2m[[1m21.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accountless composition has no auth capability[0m [0m[2m[1.77ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accountful composition exposes auth when its source and runtime both offer accounts[0m [0m[2m[3.33ms[0m[2m][0m
+[0m[32m✓[0m [0mcomposeServices[2m >[0m[1m commits a mixed-store batch and rolls every store back on refusal[0m [0m[2m[[1m17.57ms[0m[2m][0m
+[0m[32m✓[0m [0mcomposeServices[2m >[0m[1m installs Plan commands once, building every batch over its own admitted scope[0m [0m[2m[4.06ms[0m[2m][0m
+[0m[32m✓[0m [0mcomposeServices[2m >[0m[1m composes one Saved plans instance behind both the plans and savedPlans names[0m [0m[2m[1.22ms[0m[2m][0m
+[0m[32m✓[0m [0mcomposeServices[2m >[0m[1m denies a foreign save and persists an owner save through independent history[0m [0m[2m[4.93ms[0m[2m][0m
+[0m[32m✓[0m [0mcomposeServices[2m >[0m[1m replays two committed batches from their public buffer after durable rows are pruned[0m [0m[2m[5.80ms[0m[2m][0m
+[0m[32m✓[0m [0mcomposeServices[2m >[0m[1m retention waits for an admitted batch to release the source turn[0m [0m[2m[1.50ms[0m[2m][0m
+[0m[32m✓[0m [0mcomposeServices[2m >[0m[1m shares runtime identities while creating a fresh scope, collector and graph per batch[0m [0m[2m[2.57ms[0m[2m][0m
+[0m[32m✓[0m [0mcomposeServices[2m >[0m[1m discards a stale journal entry through the fresh repair scope[0m [0m[2m[6.22ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m installs Calendar marker per supplied scope, over that scope's own stores[0m [0m[2m[1.80ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m installs Capacity per supplied scope, over that scope's own stores[0m [0m[2m[1.29ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m installs Priority band per supplied scope, over that scope's own stores[0m [0m[2m[1.39ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m hands its admission to every gated writing service it installs[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m fails closed on a write through a graph built without an admission[0m [0m[2m[1.00ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m installs Step per supplied scope, over that scope's own stores[0m [0m[2m[2.18ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m installs Project per supplied scope, over that scope's own stores[0m [0m[2m[1.93ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m installs Directory per supplied scope, over that scope's own stores[0m [0m[2m[1.53ms[0m[2m][0m
+[0m[32m✓[0m [0mservicesOver[2m >[0m[1m installs Work item per supplied scope, over that scope's own stores[0m [0m[2m[2.26ms[0m[2m][0m
+[0m
+src/playwright-config.test.ts:
+[0m[32m✓[0m[0m[1m portable Browser config writes its own JUnit report[0m [0m[2m[0.12ms[0m[2m][0m
+[0m
+src/service/shared-people-fanout.test.ts:
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m selected displayed bookings determine fan-out rather than Fast[0m [0m[2m[1.46ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m equal hashes retain availability transitions with no bookings[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m removed bridge retains recipients reached in the old topology[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m does not invent a path from mixed old and new edges[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m deduplicates and orders recipient/cause pairs independent of capture order[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m keeps isolated and foreign organization projects outside shared fan-out[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m topology-only connection changes invalidate only changed incoming bases[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m rename and rank respacing with the same order are silent[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m compares absolute fractional bookings with slice identity[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m stops traversal at an undated bridge and keeps modeled absence separate[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m keeps cycle and calendar-range bridges reachable while skipping their bookings[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m an undated cause cannot pass bookings to a dated lower project[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m omits zero-time and unassigned slices without calling them unavailable[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m retains deleted cause identity and excludes deleted recipients[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m does not fan out topology-only changes to unchanged incoming bases[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m canonicalizes booking order independently of captured slice-map order[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m refuses an explicit cause missing from both captures[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mcompareSharedPeopleFanout[2m >[0m[1m refuses shared captures with missing or inconsistent organization identity[0m [0m[2m[0.14ms[0m[2m][0m
+[0m
+src/service/retention-timer.test.ts:
+[0m[32m✓[0m [0mRetentionTimer[2m >[0m[1m prunes the log on every tick[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m [0mRetentionTimer[2m >[0m[1m keeps sweeping after one sweep fails[0m [0m[2m[1.35ms[0m[2m][0m
+[0m[32m✓[0m [0mRetentionTimer[2m >[0m[1m stops the schedule and waits for a sweep already running[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mRetentionTimer[2m >[0m[1m does not start a second schedule[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mRetentionTimer[2m >[0m[1m does not start a sweep on top of one still running[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mRetentionTimer, on the plan’s history[2m >[0m[1m prunes the history by age on every tick, and the log by count on the same one[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mRetentionTimer, on the plan’s history[2m >[0m[1m keeps an event a day short of the window, so the boundary is not off by one[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mRetentionTimer, on the plan’s history[2m >[0m[1m keeps sweeping after a history sweep fails[0m [0m[2m[1.24ms[0m[2m][0m
+[0m
+src/service/command-normalizers.test.ts:
+[0m[32m✓[0m[0m[1m normalizes all step-node commands to the original pair[0m [0m[2m[0.85ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses conflicting, missing and invalid step addresses[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves priority absence null and number[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m defaults missing assignee to null[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing and nonboolean blockage intent before dispatch[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m bounds a claim’s run to 1 to 256 characters and keeps steps and parent as given[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses an empty step list on a claim and a release[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0ma claim’s resources (wbs-resources R4)[2m >[0m[1m keeps absent absent and each entry as given[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0ma claim’s resources (wbs-resources R4)[2m >[0m[1m refuses resources naming one resource twice[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0ma claim’s resources (wbs-resources R4)[2m >[0m[1m refuses an empty list, a non-list, a malformed entry and units outside 1 to the bound[0m [0m[2m[0.18ms[0m[2m][0m
+[0m
+src/service/optimizer-trigger-broadcaster.test.ts:
+[0m[32m✓[0m [0mOptimizerTriggerBroadcaster[2m >[0m[1m triggers only after a scheduling-input event was published[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mOptimizerTriggerBroadcaster[2m >[0m[1m does not trigger when publication fails[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mOptimizerTriggerBroadcaster and step allowances[2m >[0m[1m starts the optimizer debounce after a step allowance edit[0m [0m[2m[0.07ms[0m[2m][0m
+[0m
+src/service/plan-history.test.ts:
+[0m[32m✓[0m [0mthe plan’s history, as commands are recorded[2m >[0m[1m records the estimate that was set, with the trio it replaced[0m [0m[2m[3.29ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan’s history, as commands are recorded[2m >[0m[1m names the work item and the step an estimate was aimed at[0m [0m[2m[1.26ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan’s history, as commands are recorded[2m >[0m[1m records the clearing of an estimate, and nothing when there was none to clear[0m [0m[2m[2.16ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan’s history, as commands are recorded[2m >[0m[1m records every journalled kind, not only the estimate ones[0m [0m[2m[7.53ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan’s history, as commands are recorded[2m >[0m[1m names the successor for a dependency, and no row at all for a freeze[0m [0m[2m[2.71ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan’s history, as commands are recorded[2m >[0m[1m dates the event at the same instant as the undo entry it was written with[0m [0m[2m[1.19ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan’s history, as commands are recorded[2m >[0m[1m gives the event an id of its own, not the undo entry’s[0m [0m[2m[1.81ms[0m[2m][0m
+[0m
+src/service/person-load.feature.test.ts:
+[0m[32m✓[0m [0mPersonLoad[2m >[0m[1m reads bookings from the engine the project displays[0m [0m[2m[1.43ms[0m[2m][0m
+[0m[32m✓[0m [0mPersonLoad[2m >[0m[1m lists a project whose engine is not installed as unavailable, whoever it names[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m [0mPersonLoad[2m >[0m[1m lists a plan in a cycle as unavailable only to the people it names[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mPersonLoad[2m >[0m[1m reuses a reading while the project’s sequence stands[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mPersonLoad[2m >[0m[1m answers null for a person outside the directory[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mloadWindowOf[2m >[0m[1m admits 182 days and refuses 183[0m [0m[2m[0.04ms[0m[2m][0m
+[0m
+src/service/connected-plan.test.ts:
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m uses one real placement for A.design B.build A.test[0m [0m[2m[2.21ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m retains own Wednesday floor and projects back to each own anchor[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m retains graph and capture when a required calendar is missing[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m inspects the nontarget required optimized member before calendar refusal[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m ignores stored optimized preference when disabled and allows real Fast comparison[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m retains authored held endpoints but schedules no held work and needs no empty anchor[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m selects either target without placement or calendar changes and refuses absent target[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m allows a lower ranked remote prerequisite before a high priority successor[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m shares people only in shared mode and restores actual person identity and own waiting counts[0m [0m[2m[0.69ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m uses own rounding, units, allowance, team capacity and width before injective namespacing[0m [0m[2m[0.75ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m keeps identical resource catalog IDs project local and restores binding identities[0m [0m[2m[0.75ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m retains fractional effort and translates a weekend manual floor and deadline under own anchor[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m uses the earliest anchor independent of project rank and capture order[0m [0m[2m[0.49ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m reduces partial held parent selectors without losing authored pairs[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m keeps unknown, zero and stepless nodes as real zero duration boundaries[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m requires an active shared-person peer anchor even without its external endpoint[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m refuses wrong relationship ownership and mismatched local captured evidence[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m refuses foreign project rows, absent endpoint project and cross owned endpoint identity[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m applies each project minute conversion, estimate method and allowance exactly once[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m preserves signed fractional numeric calendar constraints without date round trips[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m refuses corrupted project identity and nonfinite rank, and throws unknown scheduling failures[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m models real node cycles without hiding graph evidence[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m expands partly held parent relationships to surviving leaves only[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m keeps own steps and local reach before resolving remote FS SS FF selectors[0m [0m[2m[2.03ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m validates rank before an engine refusal and target membership before any unavailable return[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m resolves every project local dependency under its own reach and step order[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m [0mconnected detached Fast placement[2m >[0m[1m refuses absent prepared calendars and broken reverse identities on real placements[0m [0m[2m[0.46ms[0m[2m][0m
+[0m
+src/service/dependency-graph.test.ts:
+[0m[32m✓[0m [0mfindDependencyGraphCycle[2m >[0m[1m accepts A.dev → B.dev beside B.qa → A.qa, which only looks cyclic by work item[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m [0mfindDependencyGraphCycle[2m >[0m[1m refuses a legacy link that closes a cycle against a typed one[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mfindDependencyGraphCycle[2m >[0m[1m refuses the state an estimate clearing leaves when it moves the legacy anchor[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mfindDependencyGraphCycle[2m >[0m[1m refuses the state a reach change to whole-item leaves[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mfindDependencyGraphCycle[2m >[0m[1m ignores an estimate stored on a parent, which schedules nothing[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mfindDependencyGraphCycle[2m >[0m[1m resolves a stepless project to work-item boundaries[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses legacy endpoints absent from the full tree before expanding to leaves[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a typed node endpoint absent from the full tree[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exposes the same local graph with its own slices and scoped provenance[0m [0m[2m[0.18ms[0m[2m][0m
+[0m
+src/service/list-query.test.ts:
+[0m[32m✓[0m [0mpageQueryOf[2m >[0m[1m takes the defaults when nothing is sent[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mpageQueryOf[2m >[0m[1m reads every parameter inside its grammar[0m [0m[2m[0.49ms[0m[2m][0m
+[0m[32m✓[0m [0mpageQueryOf[2m >[0m[1m refuses every value outside the grammar[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mcursor codec[2m >[0m[1m round-trips a payload through base64url[0m [0m[2m[0.09ms[0m[2m][0m
+[0m
+src/service/domain-proof.service.test.ts:
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m returns partial counts without counting a cancelled completion as stale[0m [0m[2m[0.95ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m preserves a completion failure after parent cancellation[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m records modeled DNS unavailability as a failed proof[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m propagates unexpected resolver failures without finishing the proof[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m pre-aborted cancellation starts no repository read[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m cancellation during snapshot read starts no lookup or finish[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m cancellation before DNS reply commits no proof for 0 TXT records[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m cancellation before DNS reply commits no proof for 1 TXT records[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m parent abort joins a modeled DNS failure without recording a failed proof[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mretained proof DNS failure and cancellation[2m >[0m[1m delayed unexpected cleanup failure survives parent cancellation[0m [0m[2m[0.12ms[0m[2m][0m
+[0m
+src/service/connected-dependency-graph.test.ts:
+[0m[32m✓[0m[0m[1m walks incoming and outgoing incidents once, without an owned-empty shortcut[0m [0m[2m[1.53ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads each project with its own reach, steps, estimate presence and unreduced holds[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m replaces complete successor-owned sets and seeds both old and new components[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m observes staged changes freshly on every evaluation and applies precise local overrides[0m [0m[2m[0.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m finds incoming step references with project identity and preserves local links[0m [0m[2m[0.47ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses expired borrowed capabilities before reads and if expiry happens during a read[0m [0m[2m[0.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires reached-project authority before any project or tree read[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws for missing required projects, unreadable facts and foreign work-item rows[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects malformed owner, unrelated incident rows and conflicting stored identities[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects duplicate overrides and a proposed set owned by another project[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps held work in the authored cycle decision[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects each proposed ownership mismatch independently[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects conflicting stored identities even if an override removes their owner[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects conflicts between effective proposed sets and retained owners[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects a required project read returning another project identity[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks lifetime for an empty observation and immediately after every awaited boundary[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reobserves staged estimate anchors and project reach between cycle evaluations[0m [0m[2m[0.58ms[0m[2m][0m
+[0m
+src/service/prepare-import.test.ts:
+[0m[32m✓[0m[0m[1m prepares normalized names, indexes and leaf values[0m [0m[2m[2.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m blank project name refuses at the first stable path[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid project start refuses at the first stable path[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid PERT weights refuses at the first stable path[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m duplicate row id refuses at the first stable path[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m duplicate trimmed tag name refuses at the first stable path[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid date refuses at the first stable path[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid priority refuses at the first stable path[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid band refuses at the first stable path[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m nonpositive band start refuses at the first stable path[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m nonpositive band default refuses at the first stable path[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m band default outside its range refuses at the first stable path[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid capacity refuses at the first stable path[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m duplicate capacity team refuses at the first stable path[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown step refuses at the first stable path[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown system refuses at the first stable path[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown person refuses at the first stable path[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown capacity team refuses at the first stable path[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown owned service refuses at the first stable path[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown membership team refuses at the first stable path[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown row tag refuses at the first stable path[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid row position refuses at the first stable path[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m blank row name refuses at the first stable path[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid parallelism refuses at the first stable path[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m empty external URL refuses at the first stable path[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m overlong external ref name refuses at the first stable path[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m duplicate external ref id refuses at the first stable path[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown assignment step refuses at the first stable path[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unordered estimate is refused as an invalid leaf value[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m negative actual is refused as an invalid leaf value[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m invalid progress is refused as an invalid leaf value[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown measure metric is refused as an invalid leaf value[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m negative measure is refused as an invalid leaf value[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m measure map is not an object is refused as an invalid leaf value[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m validates step positions, marker colors and not-before reasons[0m [0m[2m[0.64ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accepts forward references and out-of-order parents[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m missing parent refuses before preparation[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m parent self-cycle refuses before preparation[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m duplicate sibling position refuses before preparation[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown dependency refuses before preparation[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fully declared parent cycle refuses before admission[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete dependency rules refuse ancestry and cycles independent of edge order[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m parent aggregate maps never become prepared facts[0m [0m[2m[0.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m deadline before day zero is refused[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m enabled unavailable optimizer refuses while a disabled preference is retained[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a step allowance over 1000%, and carries a valid one to the prepared step[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses rows carrying several types, naming every such row[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m counts a repeated type id as one type[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m carries a version-3 file’s step codes to the prepared steps[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m suggests codes in step order for an earlier-version file, exactly as for new steps[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-3 step code that is malformed, reserved or a duplicate[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m prepares whole minute trios with their step unit and refuses fractional minute imports[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m prepares exact direct blockage identities and negative timestamps[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses direct blockage unknown owner[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses direct blockage unknown step[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses direct blockage fractional time[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses direct blockage unsafe time[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses direct blockage duplicate pair[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses direct blockage on a parent[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m prepares resources by file id, their capacities and demands (wbs-resources)[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-10 file whose resources do not resolve: a capacity naming no resource of the file[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-10 file whose resources do not resolve: a resource stated twice[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-10 file whose resources do not resolve: a demand naming no resource of the file[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-10 file whose resources do not resolve: a demand naming no row of the file[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-10 file whose resources do not resolve: one pair demanded twice[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-10 file whose resources do not resolve: two units of an exclusive resource[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-10 file whose resources do not resolve: two resources of one name[0m [0m[2m[0.06ms[0m[2m][0m
+[0m
+src/service/project-page.test.ts:
+[0m[32m✓[0m [0mpageProjects[2m >[0m[1m a tie is broken by id and a null instant sorts last[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m [0mpageProjects[2m >[0m[1m newest update first, and the last page has no cursor[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mpageProjects[2m >[0m[1m updatedSince is inclusive and never matches null[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mpageProjects[2m >[0m[1m searches names case-insensitively[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mpageProjects[2m >[0m[1m a project edited mid-walk is not answered again[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0ma walk is not a snapshot[2m >[0m[1m a project not yet answered that is edited mid-walk is missed[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0ma walk is not a snapshot[2m >[0m[1m a project whose instant went down is answered again[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mprojectKeyOf[2m >[0m[1m reads the key it issued[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mprojectKeyOf[2m >[0m[1m refuses a cursor that is not a project cursor[0m [0m[2m[0.08ms[0m[2m][0m
+[0m
+src/service/directory-usage.test.ts:
+[0m[32m✓[0m [0mdirectoryUsageOfTeam over a set[2m >[0m[1m names a work item labelled with the team, whichever member of its set it is[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m [0mdirectoryUsageOfTeam over a set[2m >[0m[1m says nothing about a team no row in the set names[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mdirectoryUsageOfTeam over a set[2m >[0m[1m releases the capacity of an inherited set, on either member[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mdirectoryUsageOfPerson over claims[2m >[0m[1m names each claim the removal releases, a subtree claim with no step[0m [0m[2m[0.28ms[0m[2m][0m
+[0m
+src/service/estimate.test.ts:
+[0m[32m✓[0m [0msetting estimates[2m >[0m[1m stores an estimate against a leaf and shows it in the tree[0m [0m[2m[2.77ms[0m[2m][0m
+[0m[32m✓[0m [0msetting estimates[2m >[0m[1m refuses an estimate on a work item that has children[0m [0m[2m[2.06ms[0m[2m][0m
+[0m[32m✓[0m [0msetting estimates[2m >[0m[1m marks a parent as rolled up and a leaf as not[0m [0m[2m[1.92ms[0m[2m][0m
+[0m[32m✓[0m [0mestimates follow the first and last child[2m >[0m[1m hands the estimate down when a first child arrives[0m [0m[2m[2.45ms[0m[2m][0m
+[0m[32m✓[0m [0mestimates follow the first and last child[2m >[0m[1m takes the estimate back when the last child goes[0m [0m[2m[5.49ms[0m[2m][0m
+[0m[32m✓[0m [0mestimates follow the first and last child[2m >[0m[1m leaves the estimate alone when a second child arrives[0m [0m[2m[3.49ms[0m[2m][0m
+[0m[32m✓[0m [0mroll-up through the tree[2m >[0m[1m sums two children into their parent, per step[0m [0m[2m[4.51ms[0m[2m][0m
+[0m[32m✓[0m [0mroll-up through the tree[2m >[0m[1m omits a step no descendant estimated[0m [0m[2m[2.20ms[0m[2m][0m
+[0m[32m✓[0m [0mclearing estimates[2m >[0m[1m takes the trio away and leaves the other step alone[0m [0m[2m[2.00ms[0m[2m][0m
+[0m[32m✓[0m [0mclearing estimates[2m >[0m[1m is a success when there was nothing to clear[0m [0m[2m[0.92ms[0m[2m][0m
+[0m[32m✓[0m [0mclearing estimates[2m >[0m[1m refuses a stranger on a restricted project, and clears nothing[0m [0m[2m[1.46ms[0m[2m][0m
+[0m[32m✓[0m [0mclearing estimates[2m >[0m[1m refuses a work item that is not there[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mclearing estimates[2m >[0m[1m tells the project’s subscribers, with the ancestors whose totals moved[0m [0m[2m[2.23ms[0m[2m][0m
+[0m
+src/service/compensating.test.ts:
+[0m[32m✓[0m[0m[1m normalizes legacy local typed history and preserves touched identities[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses partial scoped history and malformed new scoped history[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mconditional blockage replay vocabulary[2m >[0m[1m decodes nested commands and carries their owner and step through every index[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mconditional blockage replay vocabulary[2m >[0m[1m refuses unknown nested commands and malformed blockage times[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0ma batch as one compensating command[2m >[0m[1m touches what its steps touch, each once[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0ma batch as one compensating command[2m >[0m[1m takes its first step as its subject[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0ma batch as one compensating command[2m >[0m[1m reads back from the journal as a command this release can apply[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mjournal estimate unit bindings[2m >[0m[1m collects nested estimate-bearing commands in both directions[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mjournal estimate unit bindings[2m >[0m[1m interprets a legacy absent map as workdays and preserves a present map[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mjournal estimate unit bindings[2m >[0m[1m refuses malformed and incomplete present maps as damaged trusted journal state[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mmove historical progress snapshots[2m >[0m[1m reads exact move snapshots through nested journal commands and keeps legacy moves absent[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mmove historical progress snapshots[2m >[0m[1m tracks only explicit snapshot owners across nested directions[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mmove historical progress snapshots[2m >[0m[1m refuses malformed present snapshots instead of treating them as empty history[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mmove destination progress preconditions[2m >[0m[1m reads empty and populated destination snapshots without defaulting malformed metadata[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m advertises move safety metadata without accepting its capability as a command[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m attributes exact progress writes to the selected command through nested and structural replay[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state null[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {}[0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":"","parentBlockages":[],"restoredParentProgress":[]}[0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {"blockages":null,"parentId":"parent","parentBlockages":[],"restoredParentProgress":[]}[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {"blockages":[{"workItemId":"stray","stepId":"dev","blockedAt":-10}],"parentId":"parent","parentBlockages":[],"restoredParentProgress":[]}[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":1.5}],"parentId":"parent","parentBlockages":[],"restoredParentProgress":[]}[0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10},{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":"parent","parentBlockages":[],"restoredParentProgress":[]}[0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":"parent","parentBlockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"restoredParentProgress":[]}[0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":"parent","parentBlockages":[],"restoredParentProgress":null}[0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m refuses malformed deletion state {"blockages":[{"workItemId":"child","stepId":"dev","blockedAt":-10}],"parentId":null,"parentBlockages":[],"restoredParentProgress":[{"workItemId":"parent","stepId":"dev","state":"done","statedAt":1}]}[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m validates nested restore owners and includes empty snapshot parent and step references[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mdeletion state boundary[2m >[0m[1m binds restore deletion metadata to the recorded root parent[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mclaim replay vocabulary[2m >[0m[1m reads both directions back and names their rows, steps, people and progress[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mclaim replay vocabulary[2m >[0m[1m refuses a malformed claim replay[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mclaim replay vocabulary[2m >[0m[1m reads a claim move back and names both work items[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mclaim replay vocabulary[2m >[0m[1m refuses a malformed claim move[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mclaim replay vocabulary[2m >[0m[1m reads a claim replay written before occupancy as holding nothing[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mclaim replay vocabulary[2m >[0m[1m refuses a claim replay whose occupancy is malformed or names a claim it does not carry[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mdemand replay vocabulary[2m >[0m[1m reads both directions back and names their row and resource[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mdemand replay vocabulary[2m >[0m[1m refuses a malformed demand replay[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mdemand replay vocabulary[2m >[0m[1m names the resources a restore’s demands name[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mdemand replay vocabulary[2m >[0m[1m refuses a malformed restored demand[0m [0m[2m[0.14ms[0m[2m][0m
+[0m
+src/service/work-item-page.test.ts:
+[0m[32m✓[0m [0mpageWorkItems[2m >[0m[1m answers the outline in tree order by default[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m [0mpageWorkItems[2m >[0m[1m a walk answers every row once, in tree order[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mpageWorkItems[2m >[0m[1m filters never reorder, and a filtered walk resumes after its last row[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mpageWorkItems[2m >[0m[1m parentId answers the rows below it to the depth asked[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mpageWorkItems[2m >[0m[1m named groups add exactly their fields[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mpageWorkItems[2m >[0m[1m refuses a stale cursor and an unknown parent[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mpageWorkItems[2m >[0m[1m the estimates group preserves present optional tree fields[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mpageWorkItems[2m >[0m[1m leaves out a work item deleted after the tree was read[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mworkItemPageQueryOf[2m >[0m[1m refuses every value outside the grammar[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m depthIn throws for an id its tree does not hold[0m [0m[2m[0.04ms[0m[2m][0m
+[0m
+src/service/service-boundaries.test.ts:
+[0m[32m✓[0m[0m[1m keeps extracted production services inside the core boundary[0m [0m[2m[[1m4079.67ms[0m[2m][0m
+[0m
+src/service/shared-people.test.ts:
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m keeps the transitive Ana booking before B gives Ben to C[0m [0m[2m[8.86ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m stops at an undated bridge and gives an undated target no bookings[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m keeps fractional bookings across different anchors and leaves touching time free[0m [0m[2m[0.64ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m does not traverse from an earlier influencer down to unrelated later projects[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m records cyclic and calendar-range influencers without supplying bookings[0m [0m[2m[0.84ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m rejects an unassigned out-of-range influencer item with some assigned slices[0m [0m[2m[0.60ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m rejects an unassigned out-of-range influencer item with no assigned slices[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m rejects an out-of-range target with no assigned slices[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m refuses an optimized capability that returns no optimization state[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m throws when the trusted rank list contains a missing project[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m supplies no booking for an assigned slice holding no time[0m [0m[2m[0.44ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m refuses a ready optimized variant whose schedule is missing[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m throws unexpected scheduling failures[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m refuses an unavailable required influencer by identity[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m labels each holder a target slice waits for from the influencer it read[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m [0mreadSharedPeople[2m >[0m[1m throws when a target slice names a holder the chain read no label for[0m [0m[2m[0.37ms[0m[2m][0m
+[0m
+src/service/saved-plan-input.test.ts:
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m schedules captured assignments around the detached elsewhere calendar[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m schedules a captured node relationship into a later successor step[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m schedules a saved plan without its on-hold work, and captures readiness and hold[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m schedules a Kyiv capture exactly as the same capture in UTC: no engine reads the zone[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m carries the project settings the dates come from, and its solution ref split in two[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m emits a row for every pair any of the three reads mentions[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m turns external ref rows into canonical links, ranked in the order they were read[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m spreads a row's team and service sets into the two junction collections[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m keeps the teams the plan names — through work items and through capacity[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m keeps the assigned people plus every member of a captured team[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m narrows person_team to the captured teams, not to every team a person is in[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m keeps the services the items deliver and the ones a captured team does[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m keeps only the registry rows the captured items reference[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mplanInputRowsOf[2m >[0m[1m hands over a value the canonicaliser makes order-independent[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m captures minute units and schedules captured 240-minute effort as half a workday[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m captures direct blockage while canonical schedule input and full Fast schedule stay identical[0m [0m[2m[0.64ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m drops live node resources before canonical saved-plan persistence and hashing[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves sparse explicit parallel policy through the authored capture fold[0m [0m[2m[0.14ms[0m[2m][0m
+[0m
+src/service/scim-admission.test.ts:
+[0m[32m✓[0m [0mScimAdmission[2m >[0m[1m admits 300 requests in a rolling minute and refuses the 301st with Retry-After[0m [0m[2m[1.03ms[0m[2m][0m
+[0m[32m✓[0m [0mScimAdmission[2m >[0m[1m frees a slot exactly when the oldest request leaves the window[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mScimAdmission[2m >[0m[1m counts no refused request[0m [0m[2m[0.04ms[0m[2m][0m
+[0m
+src/service/node-resources-schedule.test.ts:
+[0m[32m✓[0m[0m[1m preserves base schedule slice bytes, pool order, canonical hash and Fast schedule[0m [0m[2m[1.24ms[0m[2m][0m
+[0m
+src/service/work-item-status-command.test.ts:
+[0m[32m✓[0m [0mreadiness[2m >[0m[1m marks a leaf ready and resumes it from a hold to ready[0m [0m[2m[7.92ms[0m[2m][0m
+[0m[32m✓[0m [0mreadiness[2m >[0m[1m refuses readiness once a step has spoken, and writes nothing[0m [0m[2m[2.15ms[0m[2m][0m
+[0m[32m✓[0m [0mholds[2m >[0m[1m holds and blocks a leaf without touching its progress, readiness or facts[0m [0m[2m[2.11ms[0m[2m][0m
+[0m[32m✓[0m [0mholds[2m >[0m[1m refuses a hold on a leaf reading done[0m [0m[2m[1.93ms[0m[2m][0m
+[0m[32m✓[0m [0mholds[2m >[0m[1m holds every leaf beneath a parent, and one undo restores each prior hold[0m [0m[2m[9.70ms[0m[2m][0m
+[0m[32m✓[0m [0mholds[2m >[0m[1m writes nothing when a hold is already there[0m [0m[2m[1.30ms[0m[2m][0m
+[0m[32m✓[0m [0min progress[2m >[0m[1m starts the first silent step, fills an empty fact start and clears the hold[0m [0m[2m[2.12ms[0m[2m][0m
+[0m[32m✓[0m [0min progress[2m >[0m[1m on a parent starts one leaf, preferring an unheld one, and clears only its hold[0m [0m[2m[6.82ms[0m[2m][0m
+[0m[32m✓[0m [0min progress[2m >[0m[1m on a parent whose every silent leaf is held starts the first held one and clears its hold[0m [0m[2m[4.50ms[0m[2m][0m
+[0m[32m✓[0m [0min progress[2m >[0m[1m reopens a done leaf: its last step goes back to in progress and its fact end is cleared[0m [0m[2m[3.05ms[0m[2m][0m
+[0m[32m✓[0m [0min progress[2m >[0m[1m reopens a done parent through its first leaf and clears the parent fact end too[0m [0m[2m[3.99ms[0m[2m][0m
+[0m[32m✓[0m [0ma project with no steps[2m >[0m[1m refuses in progress and done with no_steps[0m [0m[2m[0.74ms[0m[2m][0m
+[0m[32m✓[0m [0munknown and done clear readiness and holds[2m >[0m[1m done clears a hold, and unknown clears both[0m [0m[2m[2.89ms[0m[2m][0m
+[0m[32m✓[0m [0mstructural edits carry readiness and hold with the leaf[2m >[0m[1m hands a leaf’s readiness and hold down to its first child, and one undo hands them back[0m [0m[2m[3.70ms[0m[2m][0m
+[0m[32m✓[0m [0mstructural edits carry readiness and hold with the leaf[2m >[0m[1m clears the readiness and hold of a leaf another row moves under, and one undo restores them[0m [0m[2m[4.91ms[0m[2m][0m
+[0m[32m✓[0m [0mstructural edits carry readiness and hold with the leaf[2m >[0m[1m gives a parent losing its last child the readiness and hold every former leaf agreed on[0m [0m[2m[6.69ms[0m[2m][0m
+[0m[32m✓[0m [0mstructural edits carry readiness and hold with the leaf[2m >[0m[1m copies a readiness and never a hold[0m [0m[2m[2.82ms[0m[2m][0m
+[0m[32m✓[0m [0mstructural edits carry readiness and hold with the leaf[2m >[0m[1m gives it none where the former leaves disagreed[0m [0m[2m[4.39ms[0m[2m][0m
+[0m[32m✓[0m [0mreview follow-ups[2m >[0m[1m refuses an undo that would put a hold back on a row that has since gained a child[0m [0m[2m[2.49ms[0m[2m][0m
+[0m[32m✓[0m [0mreview follow-ups[2m >[0m[1m gives the parent a moved last child leaves the statements it agreed on[0m [0m[2m[3.67ms[0m[2m][0m
+[0m[32m✓[0m [0mreview follow-ups[2m >[0m[1m starts a held branch whose progress fold reads in progress but whose status does not[0m [0m[2m[4.48ms[0m[2m][0m
+[0m[32m✓[0m [0mreview follow-ups[2m >[0m[1m takes the hold off a done leaf when its branch is held[0m [0m[2m[4.11ms[0m[2m][0m
+[0m[32m✓[0m [0mreview follow-ups[2m >[0m[1m guards the parent a last-child delete hands statements up to[0m [0m[2m[2.44ms[0m[2m][0m
+[0m[32m✓[0m [0mno read sees a parent holding a statement mid-write (Fable review, I1)[2m >[0m[1m no read sees a parent holding a statement while a first child is created[0m [0m[2m[2.16ms[0m[2m][0m
+[0m[32m✓[0m [0mno read sees a parent holding a statement mid-write (Fable review, I1)[2m >[0m[1m no read sees a parent holding a statement while a row moves under a leaf[0m [0m[2m[3.41ms[0m[2m][0m
+[0m[32m✓[0m [0mno read sees a parent holding a statement mid-write (Fable review, I1)[2m >[0m[1m no read sees a parent holding a statement while a move that emptied it is undone[0m [0m[2m[4.48ms[0m[2m][0m
+[0m[32m✓[0m [0man on-hold leaf takes no part in the schedule[2m >[0m[1m arranges a plan holding an on-hold leaf, and leaves the held row where it was[0m [0m[2m[6.78ms[0m[2m][0m
+[0m[32m✓[0m [0man on-hold leaf takes no part in the schedule[2m >[0m[1m lets a successor start at day zero, and reports the held row with no schedule[0m [0m[2m[5.30ms[0m[2m][0m
+[0m[32m✓[0m [0man on-hold leaf takes no part in the schedule[2m >[0m[1m keeps a blocked leaf in the schedule where the forecast puts it[0m [0m[2m[4.93ms[0m[2m][0m
+[0m[32m✓[0m [0man on-hold leaf takes no part in the schedule[2m >[0m[1m brackets a parent by its unheld leaves, and gives a wholly held parent none[0m [0m[2m[4.66ms[0m[2m][0m
+[0m[32m✓[0m [0mthe attempt is the better witness (step-node-attempts D4)[2m >[0m[1m done fills the fact end from the last attempt's end day in the project zone[0m [0m[2m[2.48ms[0m[2m][0m
+[0m[32m✓[0m [0mthe attempt is the better witness (step-node-attempts D4)[2m >[0m[1m in_progress fills the fact start from the first attempt's start day[0m [0m[2m[1.25ms[0m[2m][0m
+[0m[32m✓[0m [0mthe attempt is the better witness (step-node-attempts D4)[2m >[0m[1m no attempt fills the day of the act, byte-identical to today[0m [0m[2m[1.15ms[0m[2m][0m
+[0m[32m✓[0m [0mthe attempt is the better witness (step-node-attempts D4)[2m >[0m[1m a typed day is never overwritten, and an explicit on and factStart win[0m [0m[2m[2.56ms[0m[2m][0m
+[0m[32m✓[0m [0mthe attempt is the better witness (step-node-attempts D4)[2m >[0m[1m Kyiv at 23:30Z fills the next day[0m [0m[2m[1.65ms[0m[2m][0m
+[0m[32m✓[0m [0mthe attempt is the better witness (step-node-attempts D4)[2m >[0m[1m the attempt is the better witness: a UTC Dev attempt across midnight[0m [0m[2m[1.21ms[0m[2m][0m
+[0m
+src/service/freeze.test.ts:
+[0m[32m✓[0m [0mfreezing[2m >[0m[1m writes every derived number into storage[0m [0m[2m[2.13ms[0m[2m][0m
+[0m[32m✓[0m [0mfreezing[2m >[0m[1m leaves later work items deriving until the next freeze[0m [0m[2m[2.23ms[0m[2m][0m
+[0m[32m✓[0m [0mfreezing[2m >[0m[1m a second freeze pins the newcomer and rewrites neither neighbour[0m [0m[2m[2.05ms[0m[2m][0m
+[0m[32m✓[0m [0mfreezing[2m >[0m[1m unfreezing the project clears every stored number[0m [0m[2m[1.76ms[0m[2m][0m
+[0m[32m✓[0m [0mfreezing[2m >[0m[1m unfreezing one work item releases only that one[0m [0m[2m[1.69ms[0m[2m][0m
+[0m[32m✓[0m [0ma frozen work item moves, and keeps the number that left the tool[2m >[0m[1m moves a frozen work item and reports its number unchanged[0m [0m[2m[1.98ms[0m[2m][0m
+[0m[32m✓[0m [0ma frozen work item moves, and keeps the number that left the tool[2m >[0m[1m gives an unfrozen mover the first label its frozen sibling leaves free[0m [0m[2m[2.11ms[0m[2m][0m
+[0m[32m✓[0m [0mdeletion against a frozen project[2m >[0m[1m leaves the hole where the deleted number was[0m [0m[2m[2.47ms[0m[2m][0m
+[0m
+src/service/node-readings.test.ts:
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m reads each leaf in step order, a QA after a done Dev waiting[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m never reads a legacy join as a predecessor[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m leaves a stepless leaf an empty map[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m projects a stored authored cycle without inventing a proxy root[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m converges roots around a stored legacy cycle and preserves running barriers[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m propagates a direct row hold around a cycle and into downstream nodes[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m converges an external root through a silent cycle and into downstream work[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m throws on an edge naming a node the graph does not hold[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m [0mnodeReadingsOf[2m >[0m[1m throws on a leaf with no row on the plan[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m propagates direct roots through workflow and legacy edges without changing waiting[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m does not spread a sibling blockage through a different typed endpoint or row proxy[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m stops incoming propagation at statements and running attempts[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m propagates FS SS and FF as informational causes[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m traverses held stepless boundaries without exposing a public step[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m deduplicates roots through a diamond and sorts independent roots[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m refuses duplicate node identities even at distinct graph positions[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m refuses distinct step identities sharing one graph position[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m refuses missing legacy endpoints even when their successor is done[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m refuses an absent successor before projecting any visible node[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mstep blockage projection[2m >[0m[1m refuses blockage outside the graph instead of silently dropping it[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains known parent progress outside the leaf node projection[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unknown progress owners and steps without hiding them as parent compatibility[0m [0m[2m[0.07ms[0m[2m][0m
+[0m
+src/service/work-item-statuses.test.ts:
+[0m[32m✓[0m [0mworkItemStatusesOf[2m >[0m[1m reads each leaf from its progress, hold and readiness, and each parent from its children[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mworkItemStatusesOf[2m >[0m[1m marks a successor of held work blocked by proxy, through the dependency graph[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mworkItemStatusesOf[2m >[0m[1m refuses a readiness or hold stored on a parent[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mworkItemStatusesOf[2m >[0m[1m refuses a leaf with no progress reading[0m [0m[2m[0.03ms[0m[2m][0m
+[0m
+src/service/space.resource.test.ts:
+[0m[32m✓[0m [0mSpaceResource[2m >[0m[1m omits a project the caller cannot open from the rows and the count[0m [0m[2m[1.48ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m >[0m[1m answers a project the caller cannot open as not_found, adding nothing[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m > [0ma hidden member, over space {a1, a2 hidden, a3}[2m >[0m[1m refuses to place a project after it, as if it were not a member[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m > [0ma hidden member, over space {a1, a2 hidden, a3}[2m >[0m[1m refuses to move it, or to move another after it[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m > [0ma hidden member, over space {a1, a2 hidden, a3}[2m >[0m[1m refuses to remove it[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m > [0ma hidden member, over space {a1, a2 hidden, a3}[2m >[0m[1m still places, moves and removes around it by visible members[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m >[0m[1m answers another organization's space as not_found to its members[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m >[0m[1m refuses a viewer every write and lets the viewer read[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m >[0m[1m answers every write to all as virtual_space and reads all as the project list[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m >[0m[1m uses the legacy organization under legacy access, and answers organization_required without one[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m >[0m[1m trims a name and refuses a blank or over-long one[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource[2m >[0m[1m counts revisions: rename, two adds and a move, not a refused add[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m rolls each requested member up from its tree[0m [0m[2m[1.23ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m answers a command's new total on the next read, and serves an unchanged one from the cache[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m expires a roll-up after the TTL even at the same sequence[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m answers no roll-up for a project the caller cannot open[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m answers not_found for a non-member and for a foreign space[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m marks an unavailable engine and never caches it[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m lists the leaves in progress across readable members, by end date then place then number[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m cuts the list at the limit and says it was cut[0m [0m[2m[3.37ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m takes nothing from a member the caller cannot open, and names unavailable engines[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m keeps a legacy read's assignee names from a scoped reader[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m [0mSpaceResource roll-ups[2m >[0m[1m names no unavailable engine of a member the caller cannot open[0m [0m[2m[0.13ms[0m[2m][0m
+[0m
+src/service/actual.test.ts:
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m stores the days against a leaf and shows them beside the estimate[0m [0m[2m[2.85ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m leaves a step nobody has recorded absent rather than zero[0m [0m[2m[1.04ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m keeps a recorded zero, which is a person saying the work took no days[0m [0m[2m[0.99ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m refuses to record days on a work item that has children[0m [0m[2m[1.33ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m refuses a step this project does not hold, and writes nothing[0m [0m[2m[0.76ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m refuses a work item that is not there, and a plan the actor cannot edit[0m [0m[2m[0.65ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m sums a parent’s recorded days from its descendants, and reports nothing where nothing was recorded[0m [0m[2m[5.03ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m takes the days back off, and a clear of nothing is not an error[0m [0m[2m[1.65ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m journals the write as a command, which is what puts it in the plan’s history[0m [0m[2m[1.06ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m records nothing at all for clearing days that were never recorded[0m [0m[2m[0.69ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m undoes a first recording back to absence, not to zero[0m [0m[2m[1.31ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m undoes a correction back to the figure it replaced, and redoes it again[0m [0m[2m[2.24ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording actual days[2m >[0m[1m undoes a clear by putting the figure back[0m [0m[2m[1.60ms[0m[2m][0m
+[0m[32m✓[0m [0mactuals through the structural commands[2m >[0m[1m hands the recorded days down when a leaf gains its first child, and back up on undo[0m [0m[2m[2.54ms[0m[2m][0m
+[0m[32m✓[0m [0mactuals through the structural commands[2m >[0m[1m hands the branch’s recorded days up when its last child is deleted[0m [0m[2m[2.70ms[0m[2m][0m
+[0m[32m✓[0m [0mactuals through the structural commands[2m >[0m[1m copies the estimate into a duplicate and leaves the recorded days behind[0m [0m[2m[2.06ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat recording days does not do[2m >[0m[1m moves no date: the plan schedules identically with and without an actual[0m [0m[2m[3.97ms[0m[2m][0m
+[0m
+src/service/broadcast.test.ts:
+[0m[32m✓[0m [0mwhat a project subscriber receives[2m >[0m[1m sends the whole tree when a work item is created[0m [0m[2m[0.78ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a project subscriber receives[2m >[0m[1m sends the whole tree when a work item moves[0m [0m[2m[1.25ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a project subscriber receives[2m >[0m[1m sends the whole tree when an estimate changes, ancestors included[0m [0m[2m[2.35ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a project subscriber receives[2m >[0m[1m sends the whole tree when a name changes[0m [0m[2m[0.80ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a project subscriber receives[2m >[0m[1m sends the whole tree when the project is frozen[0m [0m[2m[0.72ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a project subscriber receives[2m >[0m[1m says nothing when a mutation is refused[0m [0m[2m[0.98ms[0m[2m][0m
+[0m[32m✓[0m [0ma calendar marker write announces itself[2m >[0m[1m announces one content-free event per write, on all four[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m [0ma calendar marker write announces itself[2m >[0m[1m announces deleting one, which is the write a re-read cannot recover[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0ma calendar marker write announces itself[2m >[0m[1m announces nothing for a write it refused[0m [0m[2m[0.17ms[0m[2m][0m
+[0m
+src/service/arrange-by-schedule.test.ts:
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m puts the work item that starts first at the top[0m [0m[2m[2.86ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m arranges a frozen work item with the rest, and leaves its number alone[0m [0m[2m[2.50ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m arranges a group at every depth[0m [0m[2m[4.51ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m writes nothing at all when the plan already reads in schedule order[0m [0m[2m[1.23ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m refuses a plan whose dependencies run in a circle[0m [0m[2m[1.15ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m announces the tree once for one press[0m [0m[2m[1.83ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m leaves a work item that keeps its place where it is[0m [0m[2m[2.51ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m puts every work item back where it was when the press is undone[0m [0m[2m[2.96ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m re-applies the stored positions on a redo[0m [0m[2m[3.00ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m undoes an arrangement whose work item has been frozen since[0m [0m[2m[2.69ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m refuses to arrange for somebody who cannot edit a restricted project[0m [0m[2m[1.10ms[0m[2m][0m
+[0m[32m✓[0m [0marrangeBySchedule[2m >[0m[1m refuses a project that is not there[0m [0m[2m[0.19ms[0m[2m][0m
+[0m
+src/service/progress.test.ts:
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m stores a step’s state on a leaf and shows it beside the figures[0m [0m[2m[3.27ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m is not started while nobody has said anything, with no row anywhere[0m [0m[2m[2.38ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m is in progress when one step is done and another has said nothing[0m [0m[2m[2.62ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m is done only when every step with work on the row says so[0m [0m[2m[2.91ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m counts a step that only has a recorded day as work still to be spoken about[0m [0m[2m[1.89ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m refuses to state a work item that has children[0m [0m[2m[1.45ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m refuses a step this project does not hold, and writes nothing[0m [0m[2m[0.71ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m refuses a work item that is not there, and a plan the actor cannot edit[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m folds a parent from its children, and a mixed branch reads as in progress[0m [0m[2m[4.58ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m a branch is not done while one of its rows has never been spoken about[0m [0m[2m[2.77ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m takes a statement back, and clearing what nobody said is not an error[0m [0m[2m[1.56ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m journals the write as a command, which is what puts it in the plan’s history[0m [0m[2m[0.95ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m records nothing at all for clearing a statement that was never made[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m undoes a first statement back to absence, not to not-started-as-a-row[0m [0m[2m[1.29ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m undoes a correction back to the state it replaced, and redoes it again[0m [0m[2m[1.69ms[0m[2m][0m
+[0m[32m✓[0m [0mstating where the work has got to[2m >[0m[1m undoes a clear by saying it again[0m [0m[2m[1.24ms[0m[2m][0m
+[0m[32m✓[0m [0mstates through the structural commands[2m >[0m[1m hands a statement down when a leaf gains its first child, and back up on undo[0m [0m[2m[1.90ms[0m[2m][0m
+[0m[32m✓[0m [0mstates through the structural commands[2m >[0m[1m hands the branch’s reading up when its last child is deleted[0m [0m[2m[2.15ms[0m[2m][0m
+[0m[32m✓[0m [0mstates through the structural commands[2m >[0m[1m hands up what was said and nothing else, so the parent still reads as in progress[0m [0m[2m[2.72ms[0m[2m][0m
+[0m[32m✓[0m [0mstates through the structural commands[2m >[0m[1m copies the estimate into a duplicate and leaves the statement behind[0m [0m[2m[1.76ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat stating progress does not do[2m >[0m[1m moves no date: the plan schedules identically with and without a state[0m [0m[2m[3.98ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m marks every step of a leaf done and fills its fact end with the day given[0m [0m[2m[1.89ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m marks every leaf beneath a parent, skips one already done, and speaks for the parent too, as one entry[0m [0m[2m[5.28ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m fills an empty fact start with the day given, and keeps one somebody typed[0m [0m[2m[3.10ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m keeps a fact end somebody typed[0m [0m[2m[1.24ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m takes the UTC day of its own stamp when no day is given[0m [0m[2m[1.04ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m writes nothing when nothing would change[0m [0m[2m[1.04ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m unknown takes the statements away, and the fact end of a done row with them[0m [0m[2m[1.97ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m unknown on a row that was not done leaves its typed facts[0m [0m[2m[1.68ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m a parent’s unknown clears only the fact ends of what read done[0m [0m[2m[4.81ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m one undo of an unknown puts the cleared day back with the statements[0m [0m[2m[5.14ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m one undo puts every statement back and empties the fact ends it filled[0m [0m[2m[6.90ms[0m[2m][0m
+[0m[32m✓[0m [0msetting the row’s status as one act[2m >[0m[1m a duplicate has no facts, exactly as it has no statements[0m [0m[2m[1.76ms[0m[2m][0m
+[0m
+src/service/committed-fanout.test.ts:
+[0m[32m✓[0m[0m[1m treats both changed connection endpoints as direct causes without adding transitive recipients[0m [0m[2m[1.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m uses an addressed retirement cause when selected display changes at equal local facts[0m [0m[2m[0.52ms[0m[2m][0m
+[0m
+src/service/measure.test.ts:
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m stores a figure against a leaf, in the metric it was given[0m [0m[2m[1.58ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m keeps the three metrics of one pair as three rows, each absent on its own[0m [0m[2m[1.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m clears one metric and leaves that pair’s others alone[0m [0m[2m[1.44ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m keeps a recorded zero, which is an agent saying the work cost nothing[0m [0m[2m[0.62ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m refuses a metric this release does not keep, as unknown_metric, and writes nothing[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m refuses a clear in a metric this release does not keep, rather than treating it as a clear of nothing[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m refuses a figure on a work item that has children[0m [0m[2m[0.90ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m refuses a step this project does not hold, and writes nothing[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m refuses a work item that is not there, and a plan the actor cannot edit[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m takes a figure back off, and a clear of nothing is not an error[0m [0m[2m[1.08ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m journals both writes as commands, which is what puts them in the plan’s history[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m records nothing at all for clearing a metric that was never recorded[0m [0m[2m[0.85ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m undoes a first recording back to absence, not to zero[0m [0m[2m[0.99ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m undoes a first recording of one metric without touching the pair’s others[0m [0m[2m[1.16ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m undoes a correction back to the figure it replaced, and redoes it again[0m [0m[2m[1.53ms[0m[2m][0m
+[0m[32m✓[0m [0mrecording the figures that are not days[2m >[0m[1m undoes a clear by putting the figure back in its own metric[0m [0m[2m[1.18ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, read back through the tree[2m >[0m[1m answers a leaf’s own figures, metric first and then step[0m [0m[2m[1.29ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, read back through the tree[2m >[0m[1m leaves out a metric nobody recorded rather than carrying it empty[0m [0m[2m[0.75ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, read back through the tree[2m >[0m[1m answers an empty object for a row nobody has recorded anything against[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, read back through the tree[2m >[0m[1m sums a parent’s descendants per metric and per step, and no further[0m [0m[2m[3.19ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, read back through the tree[2m >[0m[1m reports a branch whose rows hold nothing as holding nothing[0m [0m[2m[1.43ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, read back through the tree[2m >[0m[1m keeps a recorded zero in the sum, because somebody said the work cost nothing[0m [0m[2m[2.29ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, read back through the tree[2m >[0m[1m stops reporting a metric once its last figure on the row is cleared[0m [0m[2m[1.18ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, through the structural commands[2m >[0m[1m hands every metric down when a leaf gains its first child, and back up on undo[0m [0m[2m[2.95ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, through the structural commands[2m >[0m[1m hands the branch’s figures up in every metric when its last child is deleted[0m [0m[2m[2.20ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, through the structural commands[2m >[0m[1m hands up a metric the branch holds and stays silent about one it does not[0m [0m[2m[1.76ms[0m[2m][0m
+[0m[32m✓[0m [0mthe figures that are not days, through the structural commands[2m >[0m[1m copies the token plan into a duplicate and leaves both records behind[0m [0m[2m[1.82ms[0m[2m][0m
+[0m
+src/http/saved-plan.routes.test.ts:
+[0m[32m✓[0m[0m[1m direct save and touch bindings pass the admitted actor and announce committed success[0m [0m[2m[1.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m direct unknown service errors preserve error identity[0m [0m[2m[0.23ms[0m[2m][0m
+[0m
+src/http/calendar-marker.routes.test.ts:
+[0m[32m✓[0m[0m[1m direct marker bindings preserve IDs, resolve automatic color and publish only marker refresh[0m [0m[2m[1.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m direct missing projects never blame a marker and marker misses do[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m a refused store write neither publishes nor becomes a successful marker response[0m [0m[2m[0.27ms[0m[2m][0m
+[0m
+src/http/project.routes.test.ts:
+[0m[32m✓[0m[0m[1m direct project bindings create, read, patch and record opening with admitted actor[0m [0m[2m[1.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m direct project and export failures propagate without conversion to not_found[0m [0m[2m[0.69ms[0m[2m][0m
+[0m
+src/http/directory.routes.test.ts:
+[0m[32m✓[0m[0m[1m direct directory bindings return every service list without inventing a project restriction[0m [0m[2m[1.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m every direct directory binding rejects the original unknown store failure[0m [0m[2m[0.24ms[0m[2m][0m
+[0m
+src/http/history.routes.test.ts:
+[0m[32m✓[0m[0m[1m returns the modeled missing-project refusal from a literal history request[0m [0m[2m[0.41ms[0m[2m][0m
+[0m
+src/http/import.routes.test.ts:
+[0m[32m✓[0m[0m[1m binds the import shape and returns its complete created summary[0m [0m[2m[8.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m maps import refusal 0 to its declared wire status[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m maps import refusal 1 to its declared wire status[0m [0m[2m[0.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m maps import refusal 2 to its declared wire status[0m [0m[2m[0.46ms[0m[2m][0m
+[0m
+src/http/solution.routes.test.ts:
+[0m[32m✓[0m[0m[1m direct solution binding reads the exact slug and complete project with ordered steps[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m direct solution binding preserves unknown project and step store failures[0m [0m[2m[0.25ms[0m[2m][0m
+[0m
+src/http/internal.routes.test.ts:
+[0m[32m✓[0m[0m[1m direct internal bindings preserve opaque payload, trace and nullable context headers[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m direct resume normalizes legacy array entries without narrowing numeric cursors[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m both direct callbacks reject original errors including ValidationError[0m [0m[2m[0.31ms[0m[2m][0m
+[0m
+src/http/step.routes.test.ts:
+[0m[32m✓[0m[0m[1m publishes a dependent recovery only after its unit of work commits[0m [0m[2m[0.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m scoped step service cannot borrow a recovery grant for another project, actor, or settled unit[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m typed step bindings preserve the service value, actor and trimmed name[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m typed name bindings preserve every modeled service refusal without a status fallback[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m typed removal carries every usage field and only literal true confirms cascade[0m [0m[2m[1.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m typed removal preserves project refusals and unknown repository failures reject[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m adds a step with the allowance it names, and refuses one with three decimals[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m a patched allowance runs as the one journalled setStepAllowance command[0m [0m[2m[0.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m a rename sent with an allowance is the batch prelude, and its refusal runs no command[0m [0m[2m[0.29ms[0m[2m][0m
+[0m
+src/http/endpoint.test.ts:
+[0m[32m✓[0m [0ma typed endpoint without an HTTP adapter[2m >[0m[1m accepts literal input and returns the declared success[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0ma typed endpoint without an HTTP adapter[2m >[0m[1m keeps EMPTY distinct from a declared JSON null[0m [0m[2m[0.11ms[0m[2m][0m
+[0m
+src/http/work-item.routes.test.ts:
+[0m[32m✓[0m[0m[1m typed undo and redo preserve actor and details without exposing journal entry ids[0m [0m[2m[0.91ms[0m[2m][0m
+[0m
+src/ports/announcement-collector.test.ts:
+[0m[32m✓[0m [0ma batch collects its own announcements[2m >[0m[1m sends nothing until it is drained, then everything in order[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0ma batch collects its own announcements[2m >[0m[1m keeps one content-free event per project, and every event that carries something[0m [0m[2m[0.51ms[0m[2m][0m
+[0m
+src/ports/store-boundaries.test.ts:
+[0m[32m✓[0m [0mstore ports[2m >[0m[1m admits an event-log consumer without a SQLite transaction method[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mstore ports[2m >[0m[1m admits a saved-plan consumer without transaction-only helpers[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mstore ports[2m >[0m[1m admits a capture consumer without a repository class[0m [0m[2m[0.08ms[0m[2m][0m
+[0m
+src/ports/sideways-type-boundaries.test.ts:
+[0m[32m✓[0m [0mthe no-sideways type routes of the 040.6 map[2m >[0m[1m rejects the checked sideways-type import routes[0m [0m[2m[[1m4036.91ms[0m[2m][0m
+[0m
+src/ports/event-port-boundaries.test.ts:
+[0m[32m✓[0m [0mthe neutral project-event port[2m >[0m[1m rejects the checked event-contract import routes[0m [0m[2m[[0m[33m11137.42ms[0m[2m][0m
+[0m
+src/ports/enterprise-connections.test.ts:
+[0m[32m✓[0m [0mthe subject prefix[2m >[0m[1m is the strategy and connection with the final bar[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe subject prefix[2m >[0m[1m admits the fixture subject[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mthe subject prefix[2m >[0m[1m refuses a longer connection name sharing the prefix[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe subject prefix[2m >[0m[1m refuses another connection, another strategy, no connection and a social subject[0m [0m[2m[0.07ms[0m[2m][0m
+[0m
+src/ports/credential-rules.test.ts:
+[0m[32m✓[0m [0mthe credential rules[2m >[0m[1m admit anyone in an organization with neither enforcement nor policy[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m >[0m[1m admit an identity carrying the enforced prefix[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m >[0m[1m refuse a social identity in an enforced organization[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m >[0m[1m refuse a password session, a direct context and a longer connection name[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m >[0m[1m admit a delegation carrying the prefix when there is no policy[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m > [0munder a session policy[2m >[0m[1m admits the exact bound and refuses one millisecond more[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m > [0munder a session policy[2m >[0m[1m refuses an unknown time[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m > [0munder a session policy[2m >[0m[1m reads a password session times from its issue[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m > [0munder a session policy[2m >[0m[1m uses only explicitly trusted delegation lifecycle evidence[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe credential rules[2m > [0munder a session policy[2m >[0m[1m refuses a delegation, which carries no authentication time yet[0m [0m[2m[0.01ms[0m[2m][0m
+[0m
+src/ports/stores.types.test.ts:
+[0m
+src/ports/session-policies.test.ts:
+[0m[32m✓[0m [0man admissible session policy[2m >[0m[1m takes bounds from 300 to 2,592,000 seconds, or none[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0man admissible session policy[2m >[0m[1m refuses a bound out of range or not an integer[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0man admissible session policy[2m >[0m[1m refuses an inverted policy[0m [0m[2m[0.01ms[0m[2m][0m
+[0m
+src/ports/clock.test.ts:
+[0m[32m✓[0m [0ma clock[2m >[0m[1m reads its own clock for each stamp, rather than one it took at birth[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0ma clock[2m >[0m[1m mints an id nobody has to supply[0m [0m[2m[0.12ms[0m[2m][0m
+[0m
+src/module/transaction-boundary.types.test.ts:
+[0m[32m✓[0m[0m[1m feature transactions expose only mapped resources[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m composition keeps source capabilities outside feature callbacks[0m [0m[2m[1.02ms[0m[2m][0m
+[0m
+src/testing/harness.test.ts:
+[0m[32m✓[0m [0mthe in-memory harness[2m >[0m[1m takes a removed row’s demands, so a row put back without them reads none[0m [0m[2m[1.91ms[0m[2m][0m
+[0m[32m✓[0m [0mthe in-memory harness[2m >[0m[1m puts a deleted row’s demands back through the journal, and takes them on redo[0m [0m[2m[4.01ms[0m[2m][0m
+[0m
+src/use-cases/admission.test.ts:
+[0m[32m✓[0m [0mrunCommandBatch[2m >[0m[1m refuses a read-only actor before the runner can mutate[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mrunCommandBatch[2m >[0m[1m refuses a trusted actor absent from the account and project authorization state[0m [0m[2m[1.22ms[0m[2m][0m
+[0m[32m✓[0m [0mrunCommandBatchAfter[2m >[0m[1m refuses a read-only actor before the prelude or the runner can write[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0msavePlan[2m >[0m[1m refuses read-only, wrong-owner, and absent-project calls before save[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0msavePlan[2m >[0m[1m publishes exactly once after success and never for quota or busy refusals[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m replay refuses a noninternal principal without calling the orchestrator[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retention refuses a noninternal principal without pruning either store[0m [0m[2m[0.13ms[0m[2m][0m
+[0m
+src/module/plan-history/module.test.ts:
+[0m[32m✓[0m [0mthe Plan history module[2m >[0m[1m answers not_found for a project nothing holds[0m [0m[2m[0.77ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan history module[2m >[0m[1m reads the events of a project that exists[0m [0m[2m[0.71ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan history module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan history module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan history module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.93ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan history module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.73ms[0m[2m][0m
+[0m
+src/module/plan-document/plan-document.resource.test.ts:
+[0m[32m✓[0m[0m[1m preserves the existing JSON export fields[0m [0m[2m[2.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m JSON export is a versioned plan document and settings says what project says[0m [0m[2m[[1m18.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m capacity-only team is named and assigned agent keeps memberships and owned services[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unreferenced tag is excluded[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m missing referenced entry throws[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m malformed priority names workItems[3].priority[0m [0m[2m[3.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown version precedes version-specific validation[0m [0m[2m[0.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-4 document without its typed dependency list[0m [0m[2m[1.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m version 5 classifies SS and FF while version 4 keeps its FS-only conversion[0m [0m[2m[3.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m version 5 refuses a missing relationship type[0m [0m[2m[0.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m the current export keeps SS and FF types from the trusted tree[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m archival validation projects derived fields away[0m [0m[2m[0.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exports each step’s allowance and reads it back from a current-format file[0m [0m[2m[0.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a current-format file whose step has no allowance[0m [0m[2m[[1m16.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads a version-1 file through the legacy conversion, every step at 0%[0m [0m[2m[2.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-1 file that names a step allowance[0m [0m[2m[1.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exports each step’s code and reads it back from a version-3 file[0m [0m[2m[1.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses to export a project holding an uncoded step, naming it[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on a step read without a code key[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws when the trusted tree omits typed dependencies[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws when a trusted typed endpoint has no step[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws when a trusted typed relationship has an unknown type[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-3 file whose step has no string code[0m [0m[2m[4.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads a version-2 file as before codes existed, leaving each code to suggestion[0m [0m[2m[5.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m spells each leaf’s step nodes beside their IDs[0m [0m[2m[1.70ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m version 6 carries each row’s readiness and hold, and earlier versions read as nothing said[0m [0m[2m[3.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-6 hold or readiness outside its vocabulary or on a parent, and accepts a hold on done work[0m [0m[2m[7.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exports a Kyiv project’s zone and each leaf’s attempts by step code, executors by name[0m [0m[2m[3.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads a version-7 file’s zone and attempts back, and a version-6 file as UTC with none[0m [0m[2m[5.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-7 zone, outcome, order, running pair or running number it cannot hold[0m [0m[2m[[1m11.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m version 8 keeps minute step units and refuses missing or unknown written units[0m [0m[2m[5.95ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 exports detached direct blockage facts and excludes row aliases[0m [0m[2m[0.90ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 requires facts and legacy files refuse facts instead of losing them[0m [0m[2m[7.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 excludes derived blockage causes and captured exports retain the same facts[0m [0m[2m[1.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 trusted export refuses absent leaf map[0m [0m[2m[0.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 trusted export refuses unknown step[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 trusted export refuses unsafe time[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 trusted export refuses parent owner[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 classifies malformed facts null[0m [0m[2m[[1m50.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 classifies malformed facts {}[0m [0m[2m[1.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 classifies malformed facts "wrong"[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 classifies malformed facts [null][0m [0m[2m[0.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 classifies malformed facts [{"workItemId":1,"stepId":"step-1","blockedAt":1}][0m [0m[2m[0.59ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 classifies malformed facts [{"workItemId":"row-1","stepId":1,"blockedAt":1}][0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 classifies malformed facts [{"workItemId":"row-1","stepId":"step-1","blockedAt":1.5}][0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 classifies malformed facts [{"workItemId":"row-1","stepId":"step-1","blockedAt":9007199254740992}][0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m legacy row blockage aliases are refused, while empty aliases normalize to no facts[0m [0m[2m[8.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 trusted export refuses a malformed leaf blockage map[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m plan document excludes derived node resources from isolated and captured exports[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses authored sparse parallelism on direct and captured JSON exports[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: missing collection[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: null collection[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: object collection[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: array row[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: missing maximum[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: string maximum[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: null row[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: numeric owner[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: numeric step[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: missing owner[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: missing step[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: fraction[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: zero[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: too large[0m
+[0m[32m✓[0m[0m[1m v9 refuses corrupt captured sparse evidence: duplicate[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 direct export propagates unreadable sparse state[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses construction without its sparse read capability[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses sparse ownership corruption: foreign owner[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses sparse ownership corruption: foreign step[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 refuses sparse ownership corruption: parent owner[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 sparse pair identities never alias at colons[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v9 zero-fact export retains canonical bytes[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m uncoded steps retain precedence over unreadable sparse export evidence[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m exports only the resources its capacities and demands name (wbs-resources)[0m [0m[2m[1.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m v10 resources export retains canonical bytes including captured abbreviation[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads a version-10 file’s resources, capacities and demands back[0m [0m[2m[1.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a version-10 file with a malformed resource, capacity or demand[0m [0m[2m[5.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses resources in a file older than version 10[0m [0m[2m[2.96ms[0m[2m][0m
+[0m
+src/module/plan-document/module.test.ts:
+[0m[32m✓[0m [0mthe Plan document module[2m >[0m[1m exports a project with its markers over the graph installPlanDocument wires[0m [0m[2m[3.14ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan document module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[1.82ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan document module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan document module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.40ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan document module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.36ms[0m[2m][0m
+[0m
+src/module/calendar-marker/calendar-marker.resource.test.ts:
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m publishes exactly one calendar_markers_changed for a successful create[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when create names a project that does not exist[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when create is refused as forbidden[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when the store refuses create after the gate passed[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m publishes exactly one calendar_markers_changed for a successful rename[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when rename names a project that does not exist[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when rename is refused as forbidden[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when the store refuses rename after the gate passed[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m publishes exactly one calendar_markers_changed for a successful recolor[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when recolor names a project that does not exist[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when recolor is refused as forbidden[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when the store refuses recolor after the gate passed[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m publishes exactly one calendar_markers_changed for a successful remove[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when remove names a project that does not exist[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when remove is refused as forbidden[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m announces nothing when the store refuses remove after the gate passed[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mCalendarMarkerService announcements[2m >[0m[1m still answers a write when it was built with no broadcaster[0m [0m[2m[0.11ms[0m[2m][0m
+[0m
+src/module/calendar-marker/module.test.ts:
+[0m[32m✓[0m [0mthe Calendar marker module[2m >[0m[1m announces a created marker through the broadcaster installCalendarMarker wires[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Calendar marker module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Calendar marker module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Calendar marker module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Calendar marker module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.26ms[0m[2m][0m
+[0m
+src/module/realtime/replay-buffer.property.test.ts:
+[0m[32m✓[0m [0mLayer-A invariants (ReplayBuffer)[2m >[0m[1m invariant: no replay below ack — since(lastAck) yields only seq > lastAck[0m [0m[2m[5.39ms[0m[2m][0m
+[0m[32m✓[0m [0mLayer-A invariants (ReplayBuffer)[2m >[0m[1m invariant: buffer bound — |buffer| never exceeds maxPerSubscription cap[0m [0m[2m[1.38ms[0m[2m][0m
+[0m[32m✓[0m [0mLayer-A invariants (ReplayBuffer)[2m >[0m[1m invariant: session isolation — two subscriptions never cross-deliver[0m [0m[2m[0.94ms[0m[2m][0m
+[0m
+src/module/realtime/module.test.ts:
+[0m[32m✓[0m [0mthe Realtime module[2m >[0m[1m builds a buffer, a broadcaster and a replay orchestrator over the same requirements[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Realtime module[2m >[0m[1m publishes through the broadcaster, fills the shared buffer, and replay reads it back[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Realtime module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Realtime module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Realtime module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Realtime module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.28ms[0m[2m][0m
+[0m
+src/module/realtime/replay-buffer.test.ts:
+[0m[32m✓[0m [0mReplayBuffer[2m >[0m[1m returns in-order events with seq strictly greater than sinceSeq[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mReplayBuffer[2m >[0m[1m evicts oldest when size cap reached[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mReplayBuffer[2m >[0m[1m evicts by age cap on subsequent record calls[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mReplayBuffer[2m >[0m[1m oldestSeq returns the first buffered seq or null when empty[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mReplayBuffer[2m > [0ma subscription nobody touches again[2m >[0m[1m is swept by the traffic on the others, not held forever[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mReplayBuffer[2m > [0ma subscription nobody touches again[2m >[0m[1m leaves the project being written to alone[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mReplayBuffer[2m > [0ma subscription nobody touches again[2m >[0m[1m keeps sweeping when the key it swept last has gone[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mbounded subscription selection[2m >[0m[1m bounds record iterator work with 100 subscriptions[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m [0mbounded subscription selection[2m >[0m[1m bounds record iterator work with 1000 subscriptions[0m [0m[2m[0.63ms[0m[2m][0m
+[0m[32m✓[0m [0mbounded subscription selection[2m >[0m[1m bounds record iterator work with 10000 subscriptions[0m [0m[2m[4.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reaches subscriptions added after a completed sweep lap[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m advances past an earlier subscription that remains unexpired[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reports expired coverage as absent before reading replay events[0m [0m[2m[0.03ms[0m[2m][0m
+[0m
+src/module/realtime/gateway-broadcaster.test.ts:
+[0m[32m✓[0m [0mGatewayBroadcaster[2m >[0m[1m records the event and pushes it under the project subscription[0m [0m[2m[0.40ms[0m[2m][0m
+[0m[32m✓[0m [0mGatewayBroadcaster[2m >[0m[1m pushes an already-recorded event without recording it a second time[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mGatewayBroadcaster[2m >[0m[1m keeps the event when the gateway refuses it[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mGatewayBroadcaster[2m >[0m[1m reports the project’s latest sequence[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mGatewayBroadcaster[2m >[0m[1m fills the buffer the orchestrator replays from[0m [0m[2m[0.13ms[0m[2m][0m
+[0m
+src/module/directory/directory.resource.test.ts:
+[0m[32m✓[0m [0man opaque root name[2m >[0m[1m retries an opaque root name another root holds, then gives up[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0man opaque root name[2m >[0m[1m retries a colliding opaque person name without touching the person it collided with[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m [0mbinding an account to a person[2m >[0m[1m refuses a binding under legacy access[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mresource writes[2m >[0m[1m run only inside a command batch, never through a standalone-built service[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0mresource writes[2m >[0m[1m creates a scoped resource under an opaque root name, refusing a local name held[0m [0m[2m[0.27ms[0m[2m][0m
+[0m
+src/module/directory/module.test.ts:
+[0m[32m✓[0m [0mthe Directory module[2m >[0m[1m names a new team with the clock installDirectory wires[0m [0m[2m[0.66ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Directory module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Directory module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Directory module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Directory module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.28ms[0m[2m][0m
+[0m
+src/module/plan-import/module.test.ts:
+[0m[32m✓[0m [0mthe Plan import module[2m >[0m[1m refuses a document whose deadline sits before the project start, without an admitted batch[0m [0m[2m[1.17ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan import module[2m >[0m[1m refuses a row carrying two types before any write, announcing nothing[0m [0m[2m[0.52ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan import module[2m >[0m[1m admits a small document over the graph installPlanImport wires[0m [0m[2m[7.29ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan import module[2m >[0m[1m refuses a scoped source without borrowed import authority before any write[0m [0m[2m[1.03ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan import module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan import module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan import module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan import module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m [0mImportedPlanResource[2m >[0m[1m keeps the raw scope out of reach at run time[0m [0m[2m[0.04ms[0m[2m][0m
+[0m
+src/module/plan-commands/claim-command.test.ts:
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m claims every step that is not done, states the unstated one, one journal entry[0m [0m[2m[[1m15.76ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m answers alreadyHeld to the holder repeating it and adds no entry[0m [0m[2m[7.04ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m undo removes exactly the claims and the progress it stated; redo puts them back[0m [0m[2m[[1m13.55ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m claims and assigns in one entry; undo clears both the claim and the assignment[0m [0m[2m[[1m17.97ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m leaves assignments untouched when assign is false or absent[0m [0m[2m[8.66ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m assigns nothing with a subtree claim, which claims no step[0m [0m[2m[4.22ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m refuses a claim on a leaf whose only worked step is done: it reads done[0m [0m[2m[5.25ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m refuses a redo of a claim once another holder took the step[0m [0m[2m[[1m10.52ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m shows the batch the progress its claim stated[0m [0m[2m[3.20ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m lets two agents hold two steps of one leaf[0m [0m[2m[6.39ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m refuses a step another holder has, naming the holder, and writes nothing[0m [0m[2m[5.79ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m refuses a leaf reading blocked_by_proxy with that status[0m [0m[2m[7.67ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m refuses a person nobody bound to a non-admin caller[0m [0m[2m[2.75ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m refuses a pinned credential claiming as another agent[0m [0m[2m[5.30ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m claims as an owned person bound to a member of its organization[0m [0m[2m[5.31ms[0m[2m][0m
+[0m[32m✓[0m [0mclaimWorkItem in a batch[2m >[0m[1m chains a subagent’s leaf claim to the superagent’s subtree, and refuses a stranger[0m [0m[2m[8.12ms[0m[2m][0m
+[0m[32m✓[0m [0ma claimed leaf that gains its first child[2m >[0m[1m hands a claimed leaf's claims to its first child and back on undo[0m [0m[2m[[1m20.51ms[0m[2m][0m
+[0m[32m✓[0m [0ma claimed leaf that gains its first child[2m >[0m[1m releases the handed-down claim on the child[0m [0m[2m[8.74ms[0m[2m][0m
+[0m[32m✓[0m [0ma claimed leaf that gains its first child[2m >[0m[1m refuses a move under a claimed leaf, naming its holders, until they are released[0m [0m[2m[[1m13.09ms[0m[2m][0m
+[0m[32m✓[0m [0ma claimed leaf that gains its first child[2m >[0m[1m refuses an undo of a claim once another actor split the leaf[0m [0m[2m[8.69ms[0m[2m][0m
+[0m[32m✓[0m [0ma claimed leaf that gains its first child[2m >[0m[1m refuses an undo of a split once the child's claims changed[0m [0m[2m[[1m11.82ms[0m[2m][0m
+[0m[32m✓[0m [0mreleaseWorkItem in a batch[2m >[0m[1m releases a half-done leaf and leaves its progress as it was[0m [0m[2m[6.12ms[0m[2m][0m
+[0m[32m✓[0m [0mreleaseWorkItem in a batch[2m >[0m[1m cascades a subtree release in one entry, and undo restores all three[0m [0m[2m[[1m12.15ms[0m[2m][0m
+[0m[32m✓[0m [0mreleaseWorkItem in a batch[2m >[0m[1m refuses releasing what the person does not hold[0m [0m[2m[2.16ms[0m[2m][0m
+[0m
+src/module/plan-commands/working-plan.test.ts:
+[0m[32m✓[0m [0mthe admitted working batch baseline[2m >[0m[1m keeps blockage calls inside the project and batch lifetime and refreshes successful writes[0m [0m[2m[1.59ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admitted working batch baseline[2m >[0m[1m passes typed links through the batch and refuses cross-project and closed access[0m [0m[2m[0.87ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admitted working batch baseline[2m >[0m[1m reads the committed SS type and endpoints after an FF edit[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admitted working batch baseline[2m >[0m[1m preserves the four mutation sequences through a working collection[0m [0m[2m[[1m21.24ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admitted working batch baseline[2m >[0m[1m throws after its batch closes[0m [0m[2m[3.16ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admitted working batch baseline[2m >[0m[1m closes the working plan when graph composition throws[0m [0m[2m[1.12ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admitted working batch baseline[2m >[0m[1m loads on first demand and detaches every retained answer[0m [0m[2m[2.46ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m reloads every loaded collection and keeps unloaded collections lazy after a global write[0m [0m[2m[2.05ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m preserves the admitted work-item order when one row refreshes[0m [0m[2m[1.51ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m preserves unrelated dependency interleaving when incident edges refresh[0m [0m[2m[1.67ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m keeps a newly added edge in authoritative order and returned edges detached[0m [0m[2m[1.68ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m refreshes every restore-related collection and preserves borrowed before-images[0m [0m[2m[3.19ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m refreshes a labelled row and rejects an unrequested satellite row[0m [0m[2m[3.02ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m rejects dependencies outside the requested incident project set[0m [0m[2m[3.21ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m hydrates only the affected identity after ordinary single-row patches[0m [0m[2m[4.94ms[0m[2m][0m
+[0m[32m✓[0m [0mtargeted working-plan refreshes[2m >[0m[1m rejects work items outside the requested project and identity set[0m [0m[2m[4.22ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value failures[2m >[0m[1m does not advance a retained value after a modeled set refusal[0m [0m[2m[1.81ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value failures[2m >[0m[1m does not advance a retained value before a throwing mutation succeeds[0m [0m[2m[1.71ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value failures[2m >[0m[1m does not advance retained edges before throwing dependency mutations succeed[0m [0m[2m[1.43ms[0m[2m][0m
+[0m
+src/module/plan-commands/resource-command.test.ts:
+[0m[32m✓[0m [0mthe resource directory commands[2m >[0m[1m declares a host’s RAM, lists it, and refuses a second of one name as taken[0m [0m[2m[4.37ms[0m[2m][0m
+[0m[32m✓[0m [0mthe resource directory commands[2m >[0m[1m renames a resource and changes its unit label, keeping its kind[0m [0m[2m[5.53ms[0m[2m][0m
+[0m[32m✓[0m [0mthe resource directory commands[2m >[0m[1m refuses a patch naming the kind at the command boundary[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m [0mthe resource directory commands[2m >[0m[1m refuses removing a demanded resource, naming 2 demands, 0 capacities, 0 occupancies[0m [0m[2m[5.58ms[0m[2m][0m
+[0m[32m✓[0m [0mthe resource directory commands[2m >[0m[1m removes a resource with cascade, taking its demands and capacities with it[0m [0m[2m[8.74ms[0m[2m][0m
+[0m[32m✓[0m [0msetResourceCapacity[2m >[0m[1m states, zeroes, remembers and clears one pair, journalling nothing[0m [0m[2m[6.95ms[0m[2m][0m
+[0m[32m✓[0m [0msetResourceCapacity[2m >[0m[1m refuses units below 0 or above the bound at the command boundary[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0msetDemand[2m >[0m[1m states, replaces and removes a demand, each one undoable entry[0m [0m[2m[[1m14.80ms[0m[2m][0m
+[0m[32m✓[0m [0msetDemand[2m >[0m[1m refuses 2 units on an exclusive resource, writing nothing[0m [0m[2m[5.90ms[0m[2m][0m
+[0m[32m✓[0m [0msetDemand[2m >[0m[1m keeps a parent’s demand on the parent: its leaves state none and no date moves[0m [0m[2m[5.76ms[0m[2m][0m
+[0m[32m✓[0m [0msetDemand[2m >[0m[1m constrains nothing without a stated capacity: a demanding leaf is still claimed[0m [0m[2m[4.73ms[0m[2m][0m
+[0m[32m✓[0m [0msetDemand[2m >[0m[1m goes with its work item[0m [0m[2m[4.57ms[0m[2m][0m
+[0m[32m✓[0m [0msetDemand[2m >[0m[1m holds every stored demand at 1 unit or more, exactly 1 on an exclusive resource, after any sequence[0m [0m[2m[[1m303.51ms[0m[2m][0m
+[0m
+src/module/plan-commands/working-plan-directory.test.ts:
+[0m[32m✓[0m [0mworking plan global directory barrier[2m >[0m[1m delegates every directory read on every call[0m [0m[2m[1.06ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan global directory barrier[2m >[0m[1m reloads after every successful global entry or membership mutation[0m [0m[2m[0.75ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan global directory barrier[2m >[0m[1m does not reload after any modeled global refusal or a thrown write[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan assignment boundary[2m >[0m[1m refreshes only the successful target and never uses the global barrier[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan assignment boundary[2m >[0m[1m does not advance after either assignment refusal or a thrown assignment[0m [0m[2m[0.26ms[0m[2m][0m
+[0m
+src/module/plan-commands/resource-schedule.test.ts:
+[0m[32m✓[0m [0mthe live plan read levels resource demands[2m >[0m[1m serialises two leaves on the one staging environment and names it[0m [0m[2m[9.57ms[0m[2m][0m
+[0m[32m✓[0m [0mthe live plan read levels resource demands[2m >[0m[1m constrains nothing while the capacity is unstated[0m [0m[2m[7.53ms[0m[2m][0m
+[0m[32m✓[0m [0mthe live plan read levels resource demands[2m >[0m[1m moves neither the schedule key nor a date when a leaf is claimed[0m [0m[2m[[1m10.55ms[0m[2m][0m
+[0m
+src/module/plan-commands/admitted-write.test.ts:
+[0m[32m✓[0m [0madmittedWrites[2m >[0m[1m checks and writes a project update inside one unit of work, announcing after commit[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0madmittedWrites[2m >[0m[1m rolls a refused step removal back and announces nothing[0m [0m[2m[0.13ms[0m[2m][0m
+[0m
+src/module/plan-commands/assignee-calendar.test.ts:
+[0m[32m✓[0m [0massignments that run the plan past the calendar[2m >[0m[1m refuses assignSubtree with calendar_range and writes nothing[0m [0m[2m[[1m27.63ms[0m[2m][0m
+[0m[32m✓[0m [0massignments that run the plan past the calendar[2m >[0m[1m refuses a claim that assigns past the calendar, and admits the same claim without assign[0m [0m[2m[[1m13.23ms[0m[2m][0m
+[0m
+src/module/plan-commands/plan-command-scope.test.ts:
+[0m[32m✓[0m [0mthe command runner builds services from each unit-of-work scope[2m >[0m[1m settles staged writes, repairs through the surviving scope, and reads after commit publicly[0m [0m[2m[1.49ms[0m[2m][0m
+[0m[32m✓[0m [0mAdmittedScope[2m >[0m[1m keeps the raw scope out of reach at run time[0m [0m[2m[0.04ms[0m[2m][0m
+[0m
+src/module/plan-commands/plan-commands.test.ts:
+[0m[32m✓[0m [0mworking plan batch ownership[2m >[0m[1m refuses then runs another batch without leaked values[0m [0m[2m[7.47ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan batch ownership[2m >[0m[1m ordinary write between batches is the next before-image[0m [0m[2m[7.90ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan batch ownership[2m >[0m[1m closes the admitted graph after success, refusal, and throw[0m [0m[2m[4.75ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan batch ownership[2m >[0m[1m announces after commit through the nonworking graph[0m [0m[2m[4.04ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan command before-images[2m >[0m[1m two patches undo to the value before the batch[0m [0m[2m[6.61ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan directory mutations through runner commands[2m >[0m[1m delegates person reads and target-refreshes an assignment before the next patch[0m [0m[2m[7.21ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan directory mutations through runner commands[2m >[0m[1m runs a team cascade before the next patch through the memory working graph[0m [0m[2m[3.70ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan dependency mutations through runner commands[2m >[0m[1m lets a later command read the committed FF type after an edit[0m [0m[2m[8.39ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan dependency mutations through runner commands[2m >[0m[1m refuses a reversed edge through the dependency added earlier in the batch[0m [0m[2m[2.19ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan subtree mutations through runner commands[2m >[0m[1m patches a copied descendant immediately after duplicating its subtree[0m [0m[2m[4.27ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value mutations through runner commands[2m >[0m[1m keeps mixed-case memory value groups in the full readers order after population[0m [0m[2m[7.47ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value mutations through runner commands[2m >[0m[1m keeps every memory value group in source order after sets populate an earlier group[0m [0m[2m[6.72ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value mutations through runner commands[2m >[0m[1m refreshes every set, hand-down endpoint, and measure metric before later commands[0m [0m[2m[8.64ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value mutations through runner commands[2m >[0m[1m removes every moveAll source during the same create command[0m [0m[2m[9.96ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value mutations through runner commands[2m >[0m[1m refreshes every delete-last-child hand-up before editing the parent[0m [0m[2m[[1m11.71ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value mutations through runner commands[2m >[0m[1m removes every value and metric from retained reads before the store method returns[0m [0m[2m[6.06ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan row mutations through runner commands[2m >[0m[1m refreshes an inserted row and every densely respaced sibling before the next placement[0m [0m[2m[3.02ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan row mutations through runner commands[2m >[0m[1m refreshes a moved row and dense destination siblings before the next move[0m [0m[2m[3.18ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan row mutations through runner commands[2m >[0m[1m freezes arranged numbers from the preceding command in the same batch[0m [0m[2m[3.98ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan row mutations through runner commands[2m >[0m[1m refreshes every frozen row before an unfreeze in the same batch[0m [0m[2m[2.99ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan row mutations through runner commands[2m >[0m[1m refreshes removed rows and promoted children before the next placement[0m [0m[2m[3.18ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan row mutations through runner commands[2m >[0m[1m does not advance a retained row after a refused patch[0m [0m[2m[2.27ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects an omitted placement from a multi-row subtree refresh[0m [0m[2m[2.87ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects a malformed placement from a multi-row subtree refresh[0m [0m[2m[2.21ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects an omitted placement[0m [0m[2m[1.85ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects an unexpected placement identity[0m [0m[2m[1.42ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects a duplicate placement identity[0m [0m[2m[1.37ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects a missing placement predecessor[0m [0m[2m[1.34ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects a malformed placement predecessor[0m [0m[2m[1.40ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects a placement that follows itself[0m [0m[2m[1.38ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan placement validation rolls back its production unit of work[2m >[0m[1m rejects a newly returned identity without an authorized insertion[0m [0m[2m[1.92ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value placement validation rolls back its production unit of work[2m >[0m[1m rejects an omitted estimates group placement[0m [0m[2m[[1m12.94ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value placement validation rolls back its production unit of work[2m >[0m[1m rejects an omitted actuals group placement[0m [0m[2m[1.85ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value placement validation rolls back its production unit of work[2m >[0m[1m rejects an omitted progress group placement[0m [0m[2m[1.57ms[0m[2m][0m
+[0m[32m✓[0m [0mworking plan value placement validation rolls back its production unit of work[2m >[0m[1m rejects an omitted measures group placement[0m [0m[2m[1.58ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m rolls back cleared facts and moved rows when a later batch command refuses[0m [0m[2m[3.37ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m rolls back an earlier handed blockage clear when move undo finds new progress[0m [0m[2m[5.03ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m rolls back state historical progress refusal through the memory runner[0m [0m[2m[5.69ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m rolls back time historical progress refusal through the memory runner[0m [0m[2m[4.89ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m rolls back extra historical progress refusal through the memory runner[0m [0m[2m[5.22ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m rolls back missing historical progress refusal through the memory runner[0m [0m[2m[5.53ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m refuses known destination progress state before the memory redo clears it[0m [0m[2m[8.40ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m refuses known destination progress time before the memory redo clears it[0m [0m[2m[6.92ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m refuses known destination progress missing before the memory redo clears it[0m [0m[2m[6.61ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m does not launder stale destination facts through memory rename replay[0m [0m[2m[[1m11.47ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m does not launder stale destination facts through memory progress replay[0m [0m[2m[[1m10.86ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m rolls back memory deletion facts and rows when a later batch command refuses[0m [0m[2m[2.70ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m preserves collected memory deletion facts and progress through undo redo[0m [0m[2m[7.97ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m refuses memory parent state changes before deletion undo[0m [0m[2m[4.53ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m refuses memory parent time changes before deletion undo[0m [0m[2m[4.47ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m refuses memory parent missing changes before deletion undo[0m [0m[2m[4.73ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m refuses memory parent blockage changes before deletion undo[0m [0m[2m[4.38ms[0m[2m][0m
+[0m[32m✓[0m [0mtransactional memory move blockage closure[2m >[0m[1m rolls back memory restore rows and earlier blockage writes after an injected insertion failure[0m [0m[2m[4.68ms[0m[2m][0m
+[0m
+src/module/plan-commands/command-bindings.test.ts:
+[0m[32m✓[0m[0m[1m refuses an endpoint conflict missing its relationship ids at the command boundary[0m [0m[2m[0.29ms[0m[2m][0m
+[0m
+src/module/plan-commands/plan-command-admission.test.ts:
+[0m[32m✓[0m [0mthe admission a batch graph is built with[2m >[0m[1m admits the granted actor on the granted project only while its unit of work runs[0m [0m[2m[0.72ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admission a batch graph is built with[2m >[0m[1m never falls back to the creator rule under scoped access[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admission a batch graph is built with[2m >[0m[1m grants a journal walk until it settles, and its repair nothing[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mthe admission a batch graph is built with[2m >[0m[1m builds a legacy journal walk with the creator rule[0m [0m[2m[0.07ms[0m[2m][0m
+[0m
+src/module/plan-commands/module.test.ts:
+[0m[32m✓[0m [0mthe Plan commands module[2m >[0m[1m passes the committed fan-out capability through its installed command graph[0m [0m[2m[2.53ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan commands module[2m >[0m[1m drains a committed batch into the broadcaster installPlanCommands wires[0m [0m[2m[2.17ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan commands module[2m >[0m[1m hands every batch its own collector, never the direct broadcaster[0m [0m[2m[2.22ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan commands module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.92ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan commands module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan commands module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan commands module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.77ms[0m[2m][0m
+[0m[32m✓[0m [0ma step allowance edit over the memory source[2m >[0m[1m undoes an allowance edit committed in an earlier unit of work[0m [0m[2m[3.75ms[0m[2m][0m
+[0m
+src/module/plan-commands/step-blockage.test.ts:
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m collects one undo unit, refreshes retained facts, and emits committed readings[0m [0m[2m[7.02ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m rolls back a prior mutation and emits no fanout after a refuse store write[0m [0m[2m[2.21ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m rolls back a prior mutation and emits no fanout after a throw store write[0m [0m[2m[1.78ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m rolls back an earlier fact when the later command is unknown[0m [0m[2m[1.95ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m refuses direct service ownership before an equivalent clear[0m [0m[2m[1.07ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m refuses stale memory undo without accepting forged owner revisions[0m [0m[2m[4.29ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m refuses stale memory redo without accepting forged owner revisions[0m [0m[2m[4.96ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m keeps progress, canonical input and full Fast schedule unchanged[0m [0m[2m[4.77ms[0m[2m][0m
+[0m[32m✓[0m [0mpublic blockage authoring over transactional memory[2m >[0m[1m refuses an unknown service step before an equivalent clear[0m [0m[2m[1.17ms[0m[2m][0m
+[0m
+src/module/plan-commands/working-plan.types.test.ts:
+[0m
+src/module/priority-band/module.test.ts:
+[0m[32m✓[0m [0mthe Priority band module[2m >[0m[1m announces a ladder write through the broadcaster installPriorityBand wires[0m [0m[2m[0.57ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Priority band module[2m >[0m[1m asks the admission installPriorityBand wires before a ladder write[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Priority band module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Priority band module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Priority band module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Priority band module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.21ms[0m[2m][0m
+[0m
+src/module/step/module.test.ts:
+[0m[32m✓[0m [0mthe Step module[2m >[0m[1m announces an added step through the broadcaster installStep wires[0m [0m[2m[0.69ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Step module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Step module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Step module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Step module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Step module[2m >[0m[1m refuses a host without its dependency graph guard[0m [0m[2m[0.26ms[0m[2m][0m
+[0m
+src/module/saved-plans/saved-plan-integrity.test.ts:
+[0m[32m✓[0m [0mverifyBody[2m >[0m[1m accepts bytes whose recomputed digest is the stored one[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mverifyBody[2m >[0m[1m names the plan and the body when the digest disagrees[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mverifyBody[2m >[0m[1m reports an absent body as absent rather than as a hash fault[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mverifyBody[2m >[0m[1m refuses an empty body against a real digest instead of treating it as absent[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mverifyBody[2m >[0m[1m hashes over utf8 bytes, so a multi-byte character is not two code units[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0massertKnownBodyVersion[2m >[0m[1m accepts a body at an older version the reader still knows[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0massertKnownBodyVersion[2m >[0m[1m throws naming the plan, the body and the version it does not know[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0massertKnownBodyVersion[2m >[0m[1m never defaults an unknown version to the newest it knows (R5)[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0massertKnownBodyVersion[2m >[0m[1m knows the version this build writes, on both sides[0m [0m[2m[0.02ms[0m[2m][0m
+[0m
+src/module/saved-plans/module.test.ts:
+[0m[32m✓[0m [0mthe Saved plans module[2m >[0m[1m saves and reads back a plan over the graph installSavedPlans wires[0m [0m[2m[2.01ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Saved plans module[2m >[0m[1m refuses installed shared save and current before capture without admitted access[0m [0m[2m[1.35ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Saved plans module[2m >[0m[1m passes a supplied quota through to the installed feature[0m [0m[2m[1.93ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Saved plans module[2m >[0m[1m saves and announces through savePlan over the installed feature[0m [0m[2m[1.32ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Saved plans module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.84ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Saved plans module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Saved plans module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Saved plans module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0ma saved plan and step allowances[2m >[0m[1m keeps the allowance it was saved with when the live step changes later[0m [0m[2m[1.55ms[0m[2m][0m
+[0m
+src/module/plan-event/module.test.ts:
+[0m[32m✓[0m [0mthe Plan event module[2m >[0m[1m keeps the repository ordering and prunes by age[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan event module[2m >[0m[1m exports only the resource[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan event module[2m >[0m[1m keeps the private binding out of the host graph[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan event module[2m >[0m[1m labels the private binding[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Plan event module[2m >[0m[1m names the missing requirement[0m [0m[2m[0.11ms[0m[2m][0m
+[0m
+src/module/event-log/module.test.ts:
+[0m[32m✓[0m [0mthe Event log module[2m >[0m[1m records, reads, and prunes durable subscription events[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Event log module[2m >[0m[1m exports only the resource[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Event log module[2m >[0m[1m keeps the private binding out of the host graph[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Event log module[2m >[0m[1m labels the private binding[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Event log module[2m >[0m[1m names the missing requirement[0m [0m[2m[0.11ms[0m[2m][0m
+[0m
+src/module/project/module.test.ts:
+[0m[32m✓[0m [0mthe Project module[2m >[0m[1m switches the optimizer on through the availability installProject wires[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Project module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Project module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Project module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Project module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Project module[2m >[0m[1m refuses a host without its dependency graph guard[0m [0m[2m[0.22ms[0m[2m][0m
+[0m
+src/module/work-item/delete-step-parallel.test.ts:
+[0m[32m✓[0m [0mdelete sparse owner preservation[2m >[0m[1m refuses leaf null with exact equal-default pairs before stamps or writes[0m [0m[2m[2.40ms[0m[2m][0m
+[0m[32m✓[0m [0mdelete sparse owner preservation[2m >[0m[1m refuses leaf cascade with exact equal-default pairs before stamps or writes[0m [0m[2m[1.13ms[0m[2m][0m
+[0m[32m✓[0m [0mdelete sparse owner preservation[2m >[0m[1m refuses cascade descendant owners while promote keeps their exact sparse policy[0m [0m[2m[3.88ms[0m[2m][0m
+[0m[32m✓[0m [0mdelete sparse owner preservation[2m >[0m[1m keeps missing, authorization and required strategy precedence before failed evidence[0m [0m[2m[1.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted maximum corruption before deletion[0m [0m[2m[1.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted step corruption before deletion[0m [0m[2m[0.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted project corruption before deletion[0m [0m[2m[1.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted parent corruption before deletion[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted duplicate corruption before deletion[0m [0m[2m[0.90ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m copies detached exact refusal nodes and allows deletion when cleared[0m [0m[2m[1.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws when the required deletion sparse reader is absent before writes[0m [0m[2m[0.92ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads admitted sparse deletion evidence and rolls a preceding patch and journal back[0m [0m[2m[2.41ms[0m[2m][0m
+[0m
+src/module/work-item/first-child-step-parallel.test.ts:
+[0m[32m✓[0m [0mfirst-child sparse step parallel preservation[2m >[0m[1m refuses 1 retained pairs before stamping or clearing parent statements[0m [0m[2m[1.38ms[0m[2m][0m
+[0m[32m✓[0m [0mfirst-child sparse step parallel preservation[2m >[0m[1m refuses 2 retained pairs before stamping or clearing parent statements[0m [0m[2m[0.94ms[0m[2m][0m
+[0m[32m✓[0m [0mfirst-child sparse step parallel preservation[2m >[0m[1m checks authorization and parent membership before a poisoned reader[0m [0m[2m[0.70ms[0m[2m][0m
+[0m[32m✓[0m [0mfirst-child sparse step parallel preservation[2m >[0m[1m allows an empty parent policy and a new root while a sibling retains a fact[0m [0m[2m[3.66ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads the admitted sparse store and rolls a preceding patch back with its journal/events[0m [0m[2m[2.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m confines borrowed sparse reads to their project and open working-plan scope[0m [0m[2m[0.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted maximum corruption without creating or clearing statements[0m [0m[2m[1.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted step corruption without creating or clearing statements[0m [0m[2m[0.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted project corruption without creating or clearing statements[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted parent corruption without creating or clearing statements[0m [0m[2m[0.90ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted duplicate corruption without creating or clearing statements[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m copies exact node references and allows create after clearing the final fact[0m [0m[2m[1.64ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws when the required sparse reader is absent before any writes[0m [0m[2m[0.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves empty-policy first-child undo and redo[0m [0m[2m[6.50ms[0m[2m][0m
+[0m
+src/module/work-item/work-item.resource.test.ts:
+[0m[32m✓[0m [0mthe pools a row spends slots in[2m >[0m[1m spends nothing where the set is empty[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m [0mthe pools a row spends slots in[2m >[0m[1m spends nothing in a team this project has stated no capacity for[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mthe pools a row spends slots in[2m >[0m[1m spends in the one sized team the row names, at its stated size[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe pools a row spends slots in[2m >[0m[1m spends in every sized team the row names[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mthe pools a row spends slots in[2m >[0m[1m takes the narrowest stated size, whichever team states it[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting blocked work items[2m >[0m[1m restores exact root leaf blockage beneath done through delete undo redo[0m [0m[2m[3.61ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting blocked work items[2m >[0m[1m hands up deletion blockage only with all direct former leaves (%s)[0m [0m[2m[5.99ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting blocked work items[2m >[0m[1m hands up deletion blockage only with all direct former leaves (%s)[0m [0m[2m[4.40ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting blocked work items[2m >[0m[1m reports a refused deletion blockage hand-up[0m [0m[2m[1.56ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting blocked work items[2m >[0m[1m reports refused historical progress restoration during deletion undo[0m [0m[2m[2.19ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting blocked work items[2m >[0m[1m refuses new parent progress before restore deletes any hand-up facts[0m [0m[2m[2.03ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m numbers roots in the order they are added[0m [0m[2m[1.14ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m inserts between two siblings without writing either[0m [0m[2m[1.49ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m nests children under their parent[0m [0m[2m[1.78ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m preserves exact blockage and progress through first-child create undo redo[0m [0m[2m[2.95ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m reports a refused first-child blockage write[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m reports a refused parent blockage clear before inserting a first child[0m [0m[2m[0.73ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m accepts an empty name[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m hands a leaf’s attempts down to its first child, numbers kept[0m [0m[2m[1.62ms[0m[2m][0m
+[0m[32m✓[0m [0mcreating work items[2m >[0m[1m refuses a stranger on a restricted project[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m clears destination progress before moving and restores it after undo (blockage: %s)[0m [0m[2m[2.86ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m clears destination progress before moving and restores it after undo (blockage: %s)[0m [0m[2m[2.86ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m reports a refused move destination clear before reparenting[0m [0m[2m[1.64ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m reports a refused move blockage hand-up[0m [0m[2m[1.37ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m hands up only unanimous direct blockage with the latest negative timestamp and no progress[0m [0m[2m[5.15ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m does not hand up blockage when any former leaf lacks a direct fact[0m [0m[2m[2.65ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m preserves unchanged historical parent progress through last-child move undo redo[0m [0m[2m[2.72ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m preserves historical parent progress during same-parent reorder and reparent into an existing parent[0m [0m[2m[2.18ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m duplicates blocked leaves and descendants without inheriting blockage[0m [0m[2m[2.55ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m renumbers everything the move displaced[0m [0m[2m[2.07ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m re-parents into another branch[0m [0m[2m[1.30ms[0m[2m][0m
+[0m[32m✓[0m [0mmoving work items[2m >[0m[1m refuses to move a work item beneath itself[0m [0m[2m[1.17ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting work items[2m >[0m[1m removes a leaf and closes the gap[0m [0m[2m[1.84ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting work items[2m >[0m[1m refuses a parent with no strategy, writing nothing[0m [0m[2m[1.11ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting work items[2m >[0m[1m cascade takes the whole subtree[0m [0m[2m[2.44ms[0m[2m][0m
+[0m[32m✓[0m [0mdeleting work items[2m >[0m[1m promote lifts children into their parent’s place, in order[0m [0m[2m[2.86ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m records an edge and reports it against the dependent work item[0m [0m[2m[1.40ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m refuses an edge that closes a cycle and writes nothing[0m [0m[2m[1.32ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m refuses an edge onto its own parent[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m refuses a predecessor that is not in the project[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m removes an edge, and removing one that is not there is not an error[0m [0m[2m[2.04ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m takes a work item's edges with it when it is deleted[0m [0m[2m[1.61ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m takes the edges when a parent is deleted and its children are promoted[0m [0m[2m[2.43ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m still reads a project whose dependencies contain a cycle[0m [0m[2m[1.03ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m lets a failure that is not a cycle out rather than calling it one[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m refuses a stored legacy predecessor absent from the project[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m refuses stored progress naming an unknown work item or project step[0m [0m[2m[0.80ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m refuses a stored typed dependency whose endpoint is absent[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m keeps canonical input and full Fast bytes while direct blockage projects over a typed edge[0m [0m[2m[2.53ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m reports no schedule error for a project that schedules[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m [0mdependencies[2m >[0m[1m schedules a dependent work item after the one it waits for[0m [0m[2m[2.04ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m runs two work items one person is doing one after the other[0m [0m[2m[1.65ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m frees a held assignee for the rest of their queue (add-work-item-statuses)[0m [0m[2m[2.28ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m starts the work somebody said matters most, end to end[0m [0m[2m[2.30ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m reaches every leaf beneath a parent somebody gave a priority[0m [0m[2m[3.94ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m leaves them where they were when the two are different people[0m [0m[2m[1.66ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m queues every step of a work item its one assignee is assumed to be doing[0m [0m[2m[2.22ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m stops assuming at two, and lets the second person work alongside the first[0m [0m[2m[2.88ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m reports nobody waiting on a plan nobody is assigned to[0m [0m[2m[0.77ms[0m[2m][0m
+[0m[32m✓[0m [0mthe plan waits for the people in it[2m >[0m[1m reports nobody waiting on a plan that could not be scheduled at all[0m [0m[2m[0.96ms[0m[2m][0m
+[0m[32m✓[0m [0mwho is doing the work[2m >[0m[1m reports nobody when nobody is assigned[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m [0mwho is doing the work[2m >[0m[1m assumes one assignee does every step, and stops assuming at two[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m [0mwho is doing the work[2m >[0m[1m assigns somebody who is not in the work item’s team[0m [0m[2m[1.16ms[0m[2m][0m
+[0m[32m✓[0m [0mwho is doing the work[2m >[0m[1m refuses an assignment naming a person the directory has lost[0m [0m[2m[0.52ms[0m[2m][0m
+[0m[32m✓[0m [0mwho is doing the work[2m >[0m[1m refuses a label naming a team the directory has lost, leaving the old one[0m [0m[2m[0.86ms[0m[2m][0m
+[0m[32m✓[0m [0mwho is doing the work[2m >[0m[1m clears an assignment[0m [0m[2m[0.91ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m lands the copy next to the original, with the numbers derived afresh[0m [0m[2m[3.07ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m copies notes, estimates, assignees, the team label and the date[0m [0m[2m[3.10ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m remaps a dependency inside the subtree onto the copies[0m [0m[2m[3.00ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m leaves behind a dependency with one end outside the subtree[0m [0m[2m[2.56ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m gives no copy a frozen number, and leaves every original with its own[0m [0m[2m[1.97ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m copies a leaf on its own[0m [0m[2m[0.93ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m tells the project once, with the whole tree[0m [0m[2m[1.24ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m refuses a subtree of more than 500 work items, changing nothing[0m [0m[2m[[1m42.59ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicating a subtree[2m >[0m[1m copies a subtree of exactly 500 work items[0m [0m[2m[[1m168.86ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar[2m >[0m[1m reports no dates while the project has no start date[0m [0m[2m[1.58ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar[2m >[0m[1m places the plan on working days, skipping the weekend[0m [0m[2m[2.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar[2m >[0m[1m pushes an item later when it may not start before a date[0m [0m[2m[1.17ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar[2m >[0m[1m lets a dependency push past the constraint, never the other way[0m [0m[2m[2.33ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar[2m >[0m[1m reports no dates when the schedule itself failed[0m [0m[2m[0.95ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m starts a plan whose start date is a Saturday on the Monday[0m [0m[2m[0.93ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m carries a span across two weekends without counting them[0m [0m[2m[0.71ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m keeps a half-day task inside its single day[0m [0m[2m[0.80ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m hands a fractional finish and its successor the same calendar day[0m [0m[2m[2.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m keeps a zero-length row on its own start day, whole or fractional[0m [0m[2m[6.57ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m moves the dates and the printed figure together when the method changes[0m [0m[2m[1.11ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m floors every leaf beneath a parent told not to start before a day[0m [0m[2m[1.82ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m ends a chain of PERT estimates on the day the estimates add up to[0m [0m[2m[3.23ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m holds the calendar steady when a chained finish drifts above the whole day[0m [0m[2m[5.16ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m holds the calendar steady when a chained finish drifts below the whole day[0m [0m[2m[5.10ms[0m[2m][0m
+[0m[32m✓[0m [0mthe calendar — weekend edges and fractions of a day[2m >[0m[1m keeps a genuine fraction just shy of a boundary as real work[0m [0m[2m[2.24ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s dependency reach[2m >[0m[1m each project is scheduled by its own reach[0m [0m[2m[4.83ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s dependency reach[2m >[0m[1m reports the project’s reach on the wire beside the dates it produced[0m [0m[2m[1.87ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate method[2m >[0m[1m reports the final figure per step and their sum, under PERT[0m [0m[2m[1.00ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate method[2m >[0m[1m reports the chosen point instead when the project chose one[0m [0m[2m[2.45ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate method[2m >[0m[1m plans the dates with the same figure it prints[0m [0m[2m[0.72ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate method[2m >[0m[1m leaves a step nobody estimated absent rather than zero[0m [0m[2m[0.48ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate arithmetic — weights, and the rounding per step[2m >[0m[1m rounds each step before summing them[0m [0m[2m[1.42ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate arithmetic — weights, and the rounding per step[2m >[0m[1m floors, rounds and keeps the fraction when the project says so[0m [0m[2m[2.92ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate arithmetic — weights, and the rounding per step[2m >[0m[1m weighs the three points by the coefficients the project set[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate arithmetic — weights, and the rounding per step[2m >[0m[1m gives a parent the days its children were charged, and the chart the same[0m [0m[2m[3.30ms[0m[2m][0m
+[0m[32m✓[0m [0mthe project’s estimate arithmetic — weights, and the rounding per step[2m >[0m[1m plans the dates with the rounded figures it prints[0m [0m[2m[1.23ms[0m[2m][0m
+[0m[32m✓[0m [0mcapacity, as the adapter resolves it[2m >[0m[1m compresses a work item across the people its parallelism allows[0m [0m[2m[0.66ms[0m[2m][0m
+[0m[32m✓[0m [0mcapacity, as the adapter resolves it[2m >[0m[1m clamps a work item’s parallelism down to the size of its team[0m [0m[2m[0.62ms[0m[2m][0m
+[0m[32m✓[0m [0mcapacity, as the adapter resolves it[2m >[0m[1m reports the non-first team that bound a joint-capacity slice[0m [0m[2m[2.29ms[0m[2m][0m
+[0m[32m✓[0m [0mcapacity, as the adapter resolves it[2m >[0m[1m runs a named person’s work one at a time however parallel the item is[0m [0m[2m[0.56ms[0m[2m][0m
+[0m[32m✓[0m [0mcapacity, as the adapter resolves it[2m >[0m[1m draws a leaf’s pool from the team its parent labels[0m [0m[2m[1.59ms[0m[2m][0m
+[0m[32m✓[0m [0mcapacity, as the adapter resolves it[2m >[0m[1m leaves an unsized team labelling the work and constraining nothing[0m [0m[2m[1.08ms[0m[2m][0m
+[0m[32m✓[0m [0mthe slices the schedule placed, on the wire[2m >[0m[1m names the slice the person was finishing, under the engine’s own id[0m [0m[2m[1.51ms[0m[2m][0m
+[0m[32m✓[0m [0mthe slices the schedule placed, on the wire[2m >[0m[1m reports the engine’s fractional numbers verbatim[0m [0m[2m[1.46ms[0m[2m][0m
+[0m[32m✓[0m [0mthe slices the schedule placed, on the wire[2m >[0m[1m carries no slices at all when the plan could not be scheduled[0m [0m[2m[0.87ms[0m[2m][0m
+[0m[32m✓[0m [0mthe slices the schedule placed, on the wire[2m >[0m[1m carries the steps its slices were placed under, in the engine’s order[0m [0m[2m[1.26ms[0m[2m][0m
+[0m[32m✓[0m [0mthe slices the schedule placed, on the wire[2m >[0m[1m names everybody its slices are assigned to, and nobody else[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe slices the schedule placed, on the wire[2m >[0m[1m answers from one read of the steps, whatever a later read would say[0m [0m[2m[1.20ms[0m[2m][0m
+[0m[32m✓[0m [0mthe slices the schedule placed, on the wire[2m >[0m[1m adds slices and moves nothing else in the payload[0m [0m[2m[0.73ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a not-before reason does not do[2m >[0m[1m moves no date: the plan schedules identically with and without a reason[0m [0m[2m[2.82ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a not-before reason does not do[2m >[0m[1m refuses words on a row with no date, through the service[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a not-before reason does not do[2m >[0m[1m carries the words to every reader of the tree, beside the date[0m [0m[2m[0.70ms[0m[2m][0m
+[0m[32m✓[0m [0mthe priority a create stamps[2m >[0m[1m refuses to create against a ladder with no middle rung[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mthe priority a create stamps[2m >[0m[1m writes the explicit priority a caller names, and null for an unprioritised row[0m [0m[2m[0.63ms[0m[2m][0m
+[0m[32m✓[0m [0massignment projections isolate memory projects[2m >[0m[1m [PROJECT-ASSIGNMENT-READS-003] names only the people assigned in the requested project[0m [0m[2m[0.86ms[0m[2m][0m
+[0m[32m✓[0m [0mattempts at step nodes (step-node-attempts D2)[2m >[0m[1m takes the write stamp as the start and refuses an at after it, never the client clock[0m [0m[2m[1.31ms[0m[2m][0m
+[0m[32m✓[0m [0mattempts at step nodes (step-node-attempts D2)[2m >[0m[1m numbers past every number issued, so a removed number is never reused[0m [0m[2m[2.47ms[0m[2m][0m
+[0m[32m✓[0m [0mattempts at step nodes (step-node-attempts D2)[2m >[0m[1m numbers past a removed highest attempt: remove 2 of {1, 2}, the next is 3[0m [0m[2m[1.76ms[0m[2m][0m
+[0m[32m✓[0m [0mattempts at step nodes (step-node-attempts D2)[2m >[0m[1m refuses an end before its running start, and stores the reference and note given[0m [0m[2m[0.90ms[0m[2m][0m
+[0m[32m✓[0m [0mattempts at step nodes (step-node-attempts D2)[2m >[0m[1m one undo per command restores the row verbatim[0m [0m[2m[2.66ms[0m[2m][0m
+[0m[32m✓[0m [0mattempts at step nodes (step-node-attempts D2)[2m >[0m[1m writes no statement, and setStatus done leaves a running attempt running[0m [0m[2m[1.52ms[0m[2m][0m
+[0m[32m✓[0m [0mattempts at step nodes (step-node-attempts D2)[2m >[0m[1m gives a leaf's attempts back when its first child's create is undone[0m [0m[2m[2.53ms[0m[2m][0m
+[0m
+src/module/work-item/duplicate-step-parallel.test.ts:
+[0m[32m✓[0m [0mduplicate sparse source preservation[2m >[0m[1m refuses leaf equal-default policy before IDs, stamps or writes[0m [0m[2m[2.44ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicate sparse source preservation[2m >[0m[1m refuses nested equal-default policy before IDs, stamps or writes[0m [0m[2m[3.28ms[0m[2m][0m
+[0m[32m✓[0m [0mduplicate sparse source preservation[2m >[0m[1m keeps missing, authorization and 501-row precedence before failed evidence[0m [0m[2m[[1m57.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted maximum corruption before duplication[0m [0m[2m[1.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted step corruption before duplication[0m [0m[2m[0.88ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted project corruption before duplication[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted parent corruption before duplication[0m [0m[2m[2.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on selected trusted duplicate corruption before duplication[0m [0m[2m[0.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m copies detached exact refusal nodes and allows duplication when cleared[0m [0m[2m[1.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws when the required duplication sparse reader is absent before writes[0m [0m[2m[0.92ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads admitted sparse duplication evidence and rolls a preceding patch and journal back[0m [0m[2m[2.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m duplicates an empty selection while unrelated and foreign policies keep their owners[0m [0m[2m[1.75ms[0m[2m][0m
+[0m
+src/module/work-item/person-work.test.ts:
+[0m[32m✓[0m [0mfindPersonWork[2m >[0m[1m lists three assignments and one claim with their ids and numbers (the spec scenario)[0m [0m[2m[0.44ms[0m[2m][0m
+[0m[32m✓[0m [0mfindPersonWork[2m >[0m[1m lists one person's assignments and claims, and no one else's[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mfindPersonWork[2m >[0m[1m orders by tree then step, and keeps frozen numbers beside derived ones[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mfindPersonWork[2m >[0m[1m answers empty lists for a person who holds nothing[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mfindPersonWork[2m >[0m[1m throws on an assignment to a row or a step the read does not hold[0m [0m[2m[0.06ms[0m[2m][0m
+[0m
+src/module/work-item/startable.test.ts:
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m lists a team's allotment, its claimed leaf apart, and omits the unlabelled leaf[0m [0m[2m[2.48ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m lists every startable step with no team, unlabelled leaves included[0m [0m[2m[2.19ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m leaves a ready leaf behind an unfinished held predecessor out[0m [0m[2m[1.91ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m names the unfinished predecessors of a startable leaf, and drops finished ones[0m [0m[2m[1.65ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m leaves a done step out and keeps the other[0m [0m[2m[1.23ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m names the subtree holder and still lists the subtree's free steps[0m [0m[2m[2.14ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m lists a silent subtree claim whose every leaf has stopped[0m [0m[2m[1.60ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m shows a claimed step beside its assignee[0m [0m[2m[1.27ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m answers the frozen number, never the derived path[0m [0m[2m[1.39ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m names the assignee of each startable step that has one[0m [0m[2m[1.16ms[0m[2m][0m
+[0m[32m✓[0m [0mthe startable read[2m >[0m[1m refuses a team the directory does not hold, and an absent project[0m [0m[2m[0.91ms[0m[2m][0m
+[0m[32m✓[0m [0mresource fit in the startable read[2m >[0m[1m lists a leaf whose demand exceeds the free units apart, with its shortfall[0m [0m[2m[2.12ms[0m[2m][0m
+[0m[32m✓[0m [0mresource fit in the startable read[2m >[0m[1m never excludes on an unstated capacity, and lists no resource for it[0m [0m[2m[1.09ms[0m[2m][0m
+[0m[32m✓[0m [0mresource fit in the startable read[2m >[0m[1m excludes any demand on a stated capacity of 0[0m [0m[2m[1.94ms[0m[2m][0m
+[0m[32m✓[0m [0mresource fit in the startable read[2m >[0m[1m fits a held leaf whose demand was raised past the free units[0m [0m[2m[1.29ms[0m[2m][0m
+[0m[32m✓[0m [0mresource fit in the startable read[2m >[0m[1m keeps the team filter on the leaves that do not fit[0m [0m[2m[1.27ms[0m[2m][0m
+[0m
+src/module/work-item/module.test.ts:
+[0m[32m✓[0m [0mthe Work item module[2m >[0m[1m refuses an SF write at the application boundary[0m [0m[2m[[1m10.56ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Work item module[2m >[0m[1m refuses a direct legacy write that closes a typed SS cycle[0m [0m[2m[2.60ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Work item module[2m >[0m[1m announces a created work item through the broadcaster installWorkItem wires[0m [0m[2m[0.92ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Work item module[2m >[0m[1m asks the admission installWorkItem wires before a work item write[0m [0m[2m[0.45ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Work item module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Work item module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.40ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Work item module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Work item module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.48ms[0m[2m][0m
+[0m
+src/module/work-item/move-step-parallel.test.ts:
+[0m[32m✓[0m [0mmove sparse step parallel preservation[2m >[0m[1m refuses 1 retained pairs before stamping or clearing parent statements[0m [0m[2m[1.89ms[0m[2m][0m
+[0m[32m✓[0m [0mmove sparse step parallel preservation[2m >[0m[1m refuses 2 retained pairs before stamping or clearing parent statements[0m [0m[2m[1.17ms[0m[2m][0m
+[0m[32m✓[0m [0mmove sparse step parallel preservation[2m >[0m[1m checks authorization and parent membership and cycles before a poisoned reader[0m [0m[2m[0.96ms[0m[2m][0m
+[0m[32m✓[0m [0mmove sparse step parallel preservation[2m >[0m[1m allows an empty destination policy and a root move while a sibling retains a fact[0m [0m[2m[3.00ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads the admitted sparse store and rolls a preceding patch back with its journal/events[0m [0m[2m[2.49ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted maximum corruption without moving or clearing statements[0m [0m[2m[1.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted step corruption without moving or clearing statements[0m [0m[2m[0.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted project corruption without moving or clearing statements[0m [0m[2m[0.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted parent corruption without moving or clearing statements[0m [0m[2m[0.98ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on trusted duplicate corruption without moving or clearing statements[0m [0m[2m[0.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m copies exact node references and allows move after clearing the final fact[0m [0m[2m[1.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws when the required sparse reader is absent before any writes[0m [0m[2m[0.97ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not consult sparse evidence for root moves[0m [0m[2m[1.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m validates selected facts for same-parent moves and existing parents[0m [0m[2m[1.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains moving subtree and sibling policy while moving under an empty destination[0m [0m[2m[2.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves empty-policy move undo and redo while unrelated facts survive[0m [0m[2m[7.06ms[0m[2m][0m
+[0m
+src/module/work-item/step-addresses.test.ts:
+[0m[32m✓[0m[0m[1m reads only leaf nodes in step order, with effective numbers and null for uncoded steps[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m answers no nodes for a stepless project[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m address revision ignores names but follows numbers, codes, order, and leafhood[0m [0m[2m[0.27ms[0m[2m][0m
+[0m
+src/module/work-item/step-allowance.test.ts:
+[0m[32m✓[0m [0ma project step allowance[2m >[0m[1m charges each estimated leaf once and parents the sum, leaving raw points alone[0m [0m[2m[7.28ms[0m[2m][0m
+[0m[32m✓[0m [0ma project step allowance[2m >[0m[1m schedules charged effort, and the edit changes the canonical input[0m [0m[2m[2.34ms[0m[2m][0m
+[0m[32m✓[0m [0ma project step allowance[2m >[0m[1m leaves an unknown estimate unknown and an explicit zero at zero[0m [0m[2m[2.42ms[0m[2m][0m
+[0m[32m✓[0m [0ma project step allowance[2m >[0m[1m charges a duplicated branch’s copied base estimates once[0m [0m[2m[1.76ms[0m[2m][0m
+[0m[32m✓[0m [0ma project step allowance[2m >[0m[1m charges an estimate handed down to a first child once, at the child[0m [0m[2m[1.92ms[0m[2m][0m
+[0m[32m✓[0m [0ma project step allowance[2m >[0m[1m announces the edited step[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mundoing a step allowance edit[2m >[0m[1m undoes an allowance edit in one step[0m [0m[2m[0.62ms[0m[2m][0m
+[0m[32m✓[0m [0mundoing a step allowance edit[2m >[0m[1m refuses an allowance undo after somebody else changed it[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m [0mundoing a step allowance edit[2m >[0m[1m refuses an allowance undo after somebody else changed it and changed it back[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m [0mundoing a step allowance edit[2m >[0m[1m walks back two of one editor’s allowance edits in turn[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m [0mundoing a step allowance edit[2m >[0m[1m journals nothing for an edit that leaves the allowance where it was[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mundoing a step allowance edit[2m >[0m[1m refuses a step of another project as not found[0m [0m[2m[0.09ms[0m[2m][0m
+[0m
+src/module/authentication/account.resource.test.ts:
+[0m[32m✓[0m[0m[1m direct account resource reports an absent OIDC identity store[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m read-only OIDC lookup cannot link a same-email password account or create a new account[0m [0m[2m[0.16ms[0m[2m][0m
+[0m
+src/module/authentication/module.test.ts:
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m registers and signs in a password-only account, with no oidc store dependency[0m [0m[2m[0.47ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m authenticates an OIDC identity through the combined users store[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m throttles a sixth same-account, same-IP reservation over the graph installAuthentication wires[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m keeps its authOptions binding out of a host graph[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m keeps its throttleOptions binding out of a host graph[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Authentication module[2m >[0m[1m cannot build a verifier-without-identity-store account (compile-negative)[0m [0m[2m[0.01ms[0m[2m][0m
+[0m
+src/module/authentication/login-throttle.test.ts:
+[0m[32m✓[0m[0m[1m never evicts a live lock when the bounded map fills with attacker keys[0m [0m[2m[[1m217.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m bounds attacker-controlled usernames before retaining them as map keys[0m [0m[2m[0.14ms[0m[2m][0m
+[0m
+src/module/bounded-replay-sweep/module.test.ts:
+[0m[32m✓[0m [0mthe Bounded replay sweep module[2m >[0m[1m builds a timer that is not running until started[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Bounded replay sweep module[2m >[0m[1m starts, sweeps on the borrowed schedule and stops[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Bounded replay sweep module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Bounded replay sweep module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Bounded replay sweep module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Bounded replay sweep module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.24ms[0m[2m][0m
+[0m
+src/module/capacity/module.test.ts:
+[0m[32m✓[0m [0mthe Capacity module[2m >[0m[1m announces a capacity write through the broadcaster installCapacity wires[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Capacity module[2m >[0m[1m asks the admission installCapacity wires before a capacity write[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Capacity module[2m >[0m[1m exposes only the contract exports from its installer[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Capacity module[2m >[0m[1m keeps its private bindings out of a host graph[0m [0m[2m[0.53ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Capacity module[2m >[0m[1m labels its private bindings with the module name[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Capacity module[2m >[0m[1m names itself when a host omits a requirement[0m [0m[2m[0.28ms[0m[2m][0m
+
+[0m[32m 1195 pass[0m
+[0m[2m 0 fail[0m
+ 4307 expect() calls
+Ran 1195 tests across 107 files. [0m[2m[[1m82.42s[0m[2m][0m
+
+
+
+ NX   Successfully ran target test for project wbs-core
+
+
+  Run duration:      1m 23s
+  Cache:             0/1 hit (0%)
+  Critical path:     1m 23s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-core:test    1m 23s

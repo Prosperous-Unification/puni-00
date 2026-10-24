@@ -1,0 +1,10 @@
+075d0b24ad957b2d21211634421e15a94c3c4b10990f2801ab8632ac980cfdaf  apps/wbs/fe-01/src/components/wbs/dependency-autocomplete.test.tsx
+dc5f2a79c6a8234ff1d48e54950d6f6969c65923f77d3ddf7bb6a45c0acca749  apps/wbs/fe-01/src/components/wbs/dependency-token-bindings.ts
+5181a19bfc5f26a0f36692d00b4bfec6430886980abc6e40c0f763e7151aa8d4  apps/wbs/fe-01/src/components/wbs/plan-cards.tsx
+afc32e5caee5ae0aae7a21f79dd488004d3e5b46f4c8dba9492713f646547c58  apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx
+2ccaaeccc2edcbee63d1e64e103f5e0c8dff6c286a9c4bad04d6a389f246dadf  apps/wbs/fe-01/src/components/wbs/plan-live.ts
+2729b899aea529e79f8eb1a60b5ef9f76c6e888b36ccaaf1a71417f2e0796791  apps/wbs/fe-01/src/components/wbs/scoped-dependency-editor.test.tsx
+7e901a29e754b4866d93545155bf8aad6f71deaf3fa399bc37d2d7871d73fe56  apps/wbs/fe-01/src/components/wbs/typed-dependency-editor.tsx
+67b2dc3143eac9a23302b939b6738b5a6fe002dad83bf022e49f392c01eaa06b  apps/wbs/fe-01/src/components/wbs/use-dependency-search.ts
+3ba8433499a7af22033164803ff1eb6a726898905b95e23a7a8438bb810dbbbf  apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
+35337fc471c31f9a67ac05053dc9e64c680832ff6bc4d13bb4d50221b1695eda  apps/wbs/fe-01/src/components/wbs/wbs-table.tsx

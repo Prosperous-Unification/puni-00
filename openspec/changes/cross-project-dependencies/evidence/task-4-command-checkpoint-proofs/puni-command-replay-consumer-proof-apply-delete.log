@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+903 |         undefined,
+904 |         undefined,
+905 |         failedGraphRead,
+906 |       ),
+907 |     );
+908 |     expect(failure).toBeInstanceOf(Error);
+                          ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: {
+    done: "add “Replay-created leaf”",
+    detail: null,
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:908:21)
+(fail) connected replay-delete refuses an injected failed graph read without partial effects [412.81ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 1 test across 1 file. [2.65s]

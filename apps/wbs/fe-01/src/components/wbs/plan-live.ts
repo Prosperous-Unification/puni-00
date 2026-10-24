@@ -3,11 +3,17 @@ import type { IsoDate } from '@wbs/domain/workday';
 import type * as React from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
+import type { DependencyLookup } from '@/modules/dependency-lookup/contract';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 
 import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
 import type { PickerEntry } from './dep-picker';
+import type { DependencySelection } from './dependency-selection';
+import type {
+  DependencyDraftCapture,
+  DependencyTokenObservation,
+} from './dependency-token-bindings';
 import { type DropHint } from './drag-drop';
 import { type CellElement } from './editable-grid';
 import type { FocusIntent } from './live-editing';
@@ -24,6 +30,7 @@ import { type TreeRow } from './wbs-rows';
  */
 export interface PlanLiveValues {
   projectId: string;
+  dependencyLookup: DependencyLookup;
   pushToast: (toast: Toast) => void;
   focusIntent: React.RefObject<FocusIntent>;
   gridElement: React.RefObject<HTMLElement | null>;
@@ -42,7 +49,12 @@ export interface PlanLiveValues {
   onCommandKey: (event: React.KeyboardEvent, row: TreeRow, columnId: string) => void;
   setDragging: React.Dispatch<React.SetStateAction<string | null>>;
   setDropHint: React.Dispatch<React.SetStateAction<DropHint | null>>;
-  dependOn: (successorId: string, typed: string) => void;
+  dependOn: (
+    successorId: string,
+    typed: string,
+    observations: readonly DependencyTokenObservation[],
+    draftCapture: DependencyDraftCapture,
+  ) => void;
   setDepPicker: React.Dispatch<
     React.SetStateAction<{
       rowId: string;
@@ -58,7 +70,11 @@ export interface PlanLiveValues {
     forRow: { id: string; dependsOn: readonly string[] },
     typed: string,
   ) => PickerEntry[];
-  pickDependency: (successorId: string, predecessorId: string) => Promise<CommitOutcome>;
+  pickDependency: (
+    successorId: string,
+    selection: DependencySelection,
+    draftCapture: DependencyDraftCapture,
+  ) => Promise<CommitOutcome>;
   moveDepHighlight: (rowId: string, delta: 1 | -1, entryIds: readonly string[]) => void;
   commitEstimate: (
     row: TreeRow,

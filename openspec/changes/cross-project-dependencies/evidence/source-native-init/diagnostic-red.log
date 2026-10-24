@@ -1,0 +1,110 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+ 5 | import { FixtureCommandFailure,FixtureFailure,describeFixtureFailure,summarizeFixtureFailure,withFixtureStage } from './fixture-failure';
+ 6 | 
+ 7 | test('nested fixture failure retains closed source stage and known assertion category',()=>{
+ 8 |  const failure=new Error('OUTER_PRIVATE_SENTINEL',{cause:new FixtureFailure('fixture-tag-negative',new Error('source dev requires typed init, private PID, unprivileged and no added caps'))});
+ 9 |  const report=summarizeFixtureFailure(failure);
+10 |  expect(report.stage).toBe('fixture-tag-negative');
+                           ^
+error: expect(received).toBe(expected)
+
+Expected: "fixture-tag-negative"
+Received: "unimplemented"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:10:23)
+(fail) nested fixture failure retains closed source stage and known assertion category [0.34ms]
+12 |  expect(JSON.stringify(report)).not.toContain('OUTER_PRIVATE_SENTINEL');
+13 | });
+14 | test('nested command failure retains only closed operation class and numeric exit',()=>{
+15 |  const failure=new FixtureFailure('fixture-edge-attach',new Error('PRIVATE_COMMAND_WRAPPER',{cause:new FixtureCommandFailure(['docker','network','connect','PRIVATE_ARG'],17)}));
+16 |  const report=summarizeFixtureFailure(failure);
+17 |  expect(report.stage).toBe('fixture-edge-attach');
+                           ^
+error: expect(received).toBe(expected)
+
+Expected: "fixture-edge-attach"
+Received: "unimplemented"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:17:23)
+(fail) nested command failure retains only closed operation class and numeric exit [0.08ms]
+20 | });
+21 | test('unclassified executable and malformed command metadata never retain arbitrary fields',()=>{
+22 |  const command=new FixtureCommandFailure(['PRIVATE_EXECUTABLE','PRIVATE_ARGUMENT'],23);
+23 |  Reflect.set(command,'command','PRIVATE_FORGED_CLASS');Reflect.set(command,'status','PRIVATE_FORGED_STATUS');
+24 |  const contents=describeFixtureFailure(command);
+25 |  expect(contents).toContain('unclassified-command');expect(contents).not.toContain('PRIVATE_');
+                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "unclassified-command"
+Received: "{\"stage\":\"unimplemented\",\"chain\":[]}"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:25:19)
+(fail) unclassified executable and malformed command metadata never retain arbitrary fields [0.10ms]
+27 | test('unknown error name message enumerable properties and raw causes stay hash-only',()=>{
+28 |  const failure=new Error('PRIVATE_ENV=secret',{cause:new SyntaxError('PRIVATE_JSON_PAYLOAD')});
+29 |  failure.name='PRIVATE_ERROR_NAME';Reflect.set(failure,'Config',{Env:['PRIVATE_ENUMERABLE']});
+30 |  Reflect.set(failure,'toJSON',()=>{throw new Error('error serialization must never execute');});
+31 |  const report=summarizeFixtureFailure(failure);
+32 |  expect(report.chain).toHaveLength(2);
+                           ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:32:23)
+(fail) unknown error name message enumerable properties and raw causes stay hash-only [0.09ms]
+33 |  for(const entry of report.chain)expect(entry.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+34 |  expect(JSON.stringify(report)).not.toContain('PRIVATE_');
+35 | });
+36 | test('cause cycle depth and oversized errors terminate with explicit bounded markers',()=>{
+37 |  const cycle=new Error('cycle');Reflect.set(cycle,'cause',cycle);
+38 |  expect(summarizeFixtureFailure(cycle).chain.some((entry)=>entry.category==='cycle')).toBe(true);
+                                                                                           ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:38:87)
+(fail) cause cycle depth and oversized errors terminate with explicit bounded markers [0.15ms]
+41 |  const huge=summarizeFixtureFailure(new Error('PRIVATE_LONG'.repeat(10000)));
+42 |  expect(huge.chain.at(-1)?.category).toBe('size-limit');expect(JSON.stringify(huge).length).toBeLessThan(1500);
+43 | });
+44 | test('throwing error accessors and non-error payloads remain visibly unclassified',()=>{
+45 |  const unreadable=new Error('hidden');Object.defineProperty(unreadable,'cause',{get(){throw new Error('PRIVATE_ACCESSOR');}});
+46 |  expect(summarizeFixtureFailure(unreadable).chain.at(-1)?.category).toBe('unreadable-error');
+                                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "unreadable-error"
+Received: undefined
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:46:69)
+(fail) throwing error accessors and non-error payloads remain visibly unclassified [0.07ms]
+49 | });
+50 | test('stage wrapper preserves known failures and never converts unknown failure to success',async()=>{
+51 |  const original=new FixtureFailure('fixture-tag-negative',new Error('opaque'));
+52 |  await rejects(withFixtureStage('fixture-images',()=>Promise.reject(original)),(failure:unknown)=>failure===original);
+53 |  await rejects(withFixtureStage('fixture-component-cleanup',()=>Promise.reject('PRIVATE_STRING')),(failure:unknown)=>{
+54 |   const report=summarizeFixtureFailure(failure);expect(report.stage).toBe('fixture-component-cleanup');expect(JSON.stringify(report)).not.toContain('PRIVATE_STRING');return true;
+                                                                          ^
+error: expect(received).toBe(expected)
+
+Expected: "fixture-component-cleanup"
+Received: "unimplemented"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:54:70)
+      at expectedException (node:assert:309:30)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at async <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:53:8)
+(fail) stage wrapper preserves known failures and never converts unknown failure to success [0.53ms]
+
+ 0 pass
+ 7 fail
+ 7 expect() calls
+Ran 7 tests across 1 file. [35.00ms]

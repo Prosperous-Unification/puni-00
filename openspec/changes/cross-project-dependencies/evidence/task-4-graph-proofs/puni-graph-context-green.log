@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/dependency-graph.test.ts:
+(pass) findDependencyGraphCycle > accepts A.dev → B.dev beside B.qa → A.qa, which only looks cyclic by work item [1.10ms]
+(pass) findDependencyGraphCycle > refuses a legacy link that closes a cycle against a typed one [0.18ms]
+(pass) findDependencyGraphCycle > refuses the state an estimate clearing leaves when it moves the legacy anchor [0.15ms]
+(pass) findDependencyGraphCycle > refuses the state a reach change to whole-item leaves [0.07ms]
+(pass) findDependencyGraphCycle > ignores an estimate stored on a parent, which schedules nothing [0.07ms]
+(pass) findDependencyGraphCycle > resolves a stepless project to work-item boundaries [0.08ms]
+(pass) refuses legacy endpoints absent from the full tree before expanding to leaves [0.18ms]
+(pass) refuses a typed node endpoint absent from the full tree [0.14ms]
+(pass) exposes the same local graph with its own slices and scoped provenance [0.16ms]
+
+ 9 pass
+ 0 fail
+ 14 expect() calls
+Ran 9 tests across 1 file. [165.00ms]

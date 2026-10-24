@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+(pass) rejects array cursor scope before current revision checks [127.71ms]
+368 |   const page = await candidates(selected, 'limit=1');
+369 |   if (page.nextCursor === null) throw new Error('continuation missing');
+370 |   const cursor = decodeCursor(page.nextCursor) as Record<string, unknown> & { v: 1 };
+371 |   const revision = observation === 'current' ? page.addressRevision : 'old';
+372 |   const altered = encodeCursor({ ...cursor, scope: ['node'], stepId: 'anything', revision });
+373 |   expect(await h.call('ada', 'GET', `/api/projects/${selected}/address-candidates?cursor=${altered}`)).toEqual({ status: 400, body: { error: 'invalid_query' } });
+                                                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "addressRevision": "qar1:77441593eab0ed09dcc3fba669e4f67b3241268601f31ff683eef6f364151a13",
++     "error": "stale_address_revision",
+    },
+-   "status": 400,
++   "status": 409,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:373:104)
+(fail) rejects array cursor scope before stale revision checks [87.28ms]
+
+ 1 pass
+ 18 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [2.28s]

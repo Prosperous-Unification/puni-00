@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-command-access.controller.db.test.ts:
+(pass) active mounted queued external add revalidates successor edit access [719.16ms]
+(pass) active mounted queued external update revalidates successor edit access [601.81ms]
+(pass) active mounted queued external remove revalidates successor edit access [711.26ms]
+
+apps/wbs/be-01/src/controller/cross-project-dependency-commands.controller.db.test.ts:
+(pass) active mounted restricted readable predecessor needs no edit permission [522.62ms]
+(pass) active mounted foreign-project conceals facts and rolls back every table and publication [529.43ms]
+(pass) active mounted absent-project conceals facts and rolls back every table and publication [495.05ms]
+(pass) active mounted foreign-row conceals facts and rolls back every table and publication [458.76ms]
+(pass) active mounted absent-row conceals facts and rolls back every table and publication [483.61ms]
+(pass) active mounted foreign-step conceals facts and rolls back every table and publication [501.05ms]
+(pass) active mounted absent-step conceals facts and rolls back every table and publication [489.75ms]
+(pass) active mounted second successor owner add refuses before reading its row [343.80ms]
+(pass) active mounted second successor owner update refuses before reading its row [413.63ms]
+(pass) active mounted update rechecks old external predecessor evidence [412.02ms]
+(pass) active mounted remove rechecks old external predecessor evidence [397.21ms]
+(pass) active mounted lookup then queued external write revalidates membership [338.40ms]
+(pass) active mounted lookup then queued external write revalidates revocation [354.96ms]
+
+ 16 pass
+ 0 fail
+ 301 expect() calls
+Ran 16 tests across 2 files. [11.03s]

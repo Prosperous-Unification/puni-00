@@ -358,6 +358,9 @@ export class SpaceResource {
    * change the cache key does not carry, such as a person renamed in the
    * directory (no event, no project revision). Both last at most the 5 min TTL;
    * the next miss reads the tree afresh and fails closed.
+   * Connected trees are not stored under this target-only cache identity; their
+   * foreign calendars and required engines can change independently. Shared
+   * connected aggregate entries carry a null basis to bypass cache lookup too.
    */
   private async rolledOf(
     projectId: string,
@@ -405,7 +408,11 @@ export class SpaceResource {
       scheduleError: tree.scheduleError,
       waitingForPerson: tree.waitingForPerson,
       waitingForCapacity: tree.waitingForCapacity,
-      displayed: tree.optimization?.displayed ?? 'fast',
+      // Proof: restoring the Fast default failed mounted isolated-capacity unavailable roll-ups (displayed was fast).
+      displayed:
+        tree.connectedDependencies !== undefined && tree.scheduleError !== null
+          ? null
+          : (tree.optimization?.displayed ?? 'fast'),
       projectRevision: tree.projectRevision,
       seq: tree.seq,
     });
@@ -421,7 +428,8 @@ export class SpaceResource {
     // Keyed by the sequence and revision the tree itself read, which are the
     // ones its rows are current at.
     // Proof: omitting the null-basis storage guard failed the same mounted test: the following isolated roll-up kept calendar_range.
-    if (cacheable)
+    // Proof: allowing connected storage failed mounted isolated-capacity calendar recovery: Target roll-up retained missing-calendar after Remote gained an anchor.
+    if (cacheable && tree.connectedDependencies === undefined)
       this.opts.rollUpCache.set(
         RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision, access, basis),
         rolled,

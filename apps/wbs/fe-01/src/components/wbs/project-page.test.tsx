@@ -41,6 +41,7 @@ import {
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 import { createProjectOwner } from '@/runtime/project-runtime';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import mountedTransfer from '@/testing/fixtures/connected-transfer.json';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { pageWiring, ProjectPageOverOwner } from '@/testing/project-page-over-owner';
 import { recordCalls } from '@/testing/record-calls';
@@ -89,19 +90,29 @@ function fakeProjects(
             id,
             name,
             restricted: false,
+            abbreviation: 'PLAN',
             startDate: null,
             lastOpenedAt: null,
             ownerName: 'kat',
             createdAt: MADE_ON,
           },
         ];
-        const created: CreatedProject = { id, name, restricted: false };
+        const created: CreatedProject = { id, name, restricted: false, abbreviation: 'PLAN' };
         return Promise.resolve(created);
       },
       renameProject(id: string, name: string) {
         renamed.push([id, name]);
         projects = projects.map((p) => (p.id === id ? { ...p, name } : p));
         return Promise.resolve();
+      },
+      setAbbreviation(id: string, abbreviation: string) {
+        const canonical = abbreviation.toUpperCase();
+        if (projects.some((project) => project.id !== id && project.abbreviation === canonical))
+          return Promise.reject(new Error('abbreviation_taken'));
+        projects = projects.map((project) =>
+          project.id === id ? { ...project, abbreviation: canonical } : project,
+        );
+        return Promise.resolve(canonical);
       },
       tree: () =>
         Promise.resolve(
@@ -199,6 +210,7 @@ const TWO: ProjectListEntry[] = [
     id: 'p1',
     name: 'Rewire the shed',
     restricted: false,
+    abbreviation: 'PLAN',
     startDate: null,
     lastOpenedAt: null,
     ownerName: 'kat',
@@ -208,6 +220,7 @@ const TWO: ProjectListEntry[] = [
     id: 'p2',
     name: 'Paint the fence',
     restricted: false,
+    abbreviation: 'PLAN',
     startDate: null,
     lastOpenedAt: null,
     ownerName: 'strip',
@@ -311,6 +324,7 @@ const THREE: ProjectListEntry[] = [
     id: 'p3',
     name: 'Sand the floor',
     restricted: false,
+    abbreviation: 'PLAN',
     startDate: null,
     lastOpenedAt: null,
     ownerName: 'kat',
@@ -348,7 +362,19 @@ const savedPlanCompareReply = (): SavedPlanCompareReply => ({
   representation: 'json',
   status: 200,
   headers: new Headers(),
-  body: { diff: { input: [], schedule: [] } },
+  body: {
+    diff: { input: [], schedule: [] },
+    left: {
+      source: { kind: 'saved', savedPlanId: CHECKPOINT.id },
+      schedule: { present: true, algorithmId: 'retired' },
+      provenance: { kind: 'legacy-unknown' },
+    },
+    right: {
+      source: { kind: 'current' },
+      schedule: { present: false, absentReason: 'pending' },
+      provenance: { kind: 'legacy-unknown' },
+    },
+  },
 });
 const savedPlanRenameReply = (): SavedPlanRenameReply => ({
   kind: 'success',
@@ -737,6 +763,7 @@ describe('opening an imported project', () => {
           id: 'p3',
           name: 'Imported exact',
           restricted: false,
+          abbreviation: 'PLAN',
           startDate: null,
           lastOpenedAt: null,
           ownerName: 'kat',
@@ -901,6 +928,35 @@ describe('opening an imported project', () => {
     });
     expect(importPlan).not.toHaveBeenCalled();
   });
+
+  itDom(
+    'submits the mounted v11 archival projection and keeps selection on inactive external import',
+    async () => {
+      const api = fakeProjects(TWO);
+      let submitted: PlanDocumentRequest | undefined;
+      api.importPlan = (request) => {
+        submitted = request;
+        return Promise.reject(
+          new PlanImportRefusalError({ error: 'external_dependencies_inactive', detail: null }),
+        );
+      };
+      pageWith(api);
+      await selectProject('p1');
+      await screen.findByLabelText('Import JSON');
+      importFile(mountedTransfer);
+      await waitFor(() => {
+        expect(toastTexts()).toEqual([
+          'This server does not accept dependencies between projects yet, so nothing was imported.',
+        ]);
+      });
+      expect(submitted?.typedDependencies).toEqual(mountedTransfer.typedDependencies);
+      expect(submitted).not.toHaveProperty('connected');
+      expect(submitted).not.toHaveProperty('connectedDependencies');
+      expect(picker()).toHaveValue('Rewire the shed');
+      expect(localStorage.getItem('wbs.project')).toBe('p1');
+      expect(document.querySelector('[data-project-id="p3"]')).toBeNull();
+    },
+  );
 
   itDom('keeps the selected project when the request returns a structured refusal', async () => {
     const api = fakeProjects(TWO);
@@ -2166,6 +2222,77 @@ describe('a project link, /?project=<id>', () => {
     });
   });
 
+  for (const phone of [false, true]) {
+    for (const destination of ['work-item', 'step'] as const) {
+      itDom(
+        `selects a stable ${destination} destination over the remembered project on ${phone ? 'phone' : 'desktop'}`,
+        async () => {
+          const width = window.innerWidth;
+          Object.defineProperty(window, 'innerWidth', {
+            configurable: true,
+            value: phone ? 390 : 1024,
+          });
+          try {
+            const model = fakeProjectApi();
+            await model.createWorkItem('p2', {
+              parentId: null,
+              afterId: null,
+              name: 'Destination',
+            });
+            const api = fakeProjects(TWO);
+            const workItemId = '11111111-1111-4111-8111-111111111111';
+            const stepId = '22222222-2222-4222-8222-222222222222';
+            api.tree = async (projectId) => {
+              const plan = await model.tree(projectId);
+              return {
+                ...plan,
+                workItems: plan.workItems.map((each) => ({ ...each, id: workItemId })),
+                steps: plan.steps.map((step) =>
+                  step.id === 'step-qa' ? { ...step, id: stepId } : step,
+                ),
+                stepNodes: plan.stepNodes?.map((node) => {
+                  const nodeStepId = node.stepId === 'step-qa' ? stepId : node.stepId;
+                  return {
+                    ...node,
+                    id: `sn1.${workItemId}.${nodeStepId}`,
+                    workItemId,
+                    stepId: nodeStepId,
+                  };
+                }),
+              };
+            };
+            api.steps = async (projectId) =>
+              (await model.steps(projectId)).map((step) =>
+                step.id === 'step-qa' ? { ...step, id: stepId } : step,
+              );
+            localStorage.setItem('wbs.project', 'p1');
+            const stepQuery = destination === 'step' ? `&stepNode=sn1.${workItemId}.${stepId}` : '';
+            window.history.replaceState(
+              null,
+              '',
+              `/?project=p2&workItem=${workItemId}${stepQuery}&view=plan`,
+            );
+            pageWith(api);
+            await waitFor(() =>
+              expect(
+                screen.getByLabelText(
+                  destination === 'step' ? 'QA estimate for 010' : 'Name of 010',
+                ),
+              ).toHaveFocus(),
+            );
+            expect(picker().value).toBe('Paint the fence');
+            expect(localStorage.getItem('wbs.project')).toBe('p2');
+            expect(window.location.search).toBe('?view=plan');
+            expect(api.opened).toContain('p2');
+            expect(api.opened).not.toContain('p1');
+          } finally {
+            Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+          }
+        },
+      );
+    }
+  }
+
   itDom('shows the empty state for a link to a project it cannot open', async () => {
     localStorage.setItem('wbs.project', 'p1');
     window.history.replaceState(window.history.state, '', '/?project=unknown');
@@ -2575,6 +2702,7 @@ describe('the picker searches', () => {
           id: 'p2',
           name: 'Paint the fence',
           restricted: false,
+          abbreviation: 'PLAN',
           startDate: null,
           lastOpenedAt: 900,
           ownerName: 'strip',
@@ -2584,6 +2712,7 @@ describe('the picker searches', () => {
           id: 'p1',
           name: 'Rewire the shed',
           restricted: false,
+          abbreviation: 'PLAN',
           startDate: null,
           lastOpenedAt: null,
           ownerName: 'kat',
@@ -3541,5 +3670,62 @@ it.each(['resume_denied', 'resume_ack'] as const)(
       cleanup();
       vi.unstubAllGlobals();
     }
+  },
+);
+
+describe('project settings abbreviation through the real page and table', () => {
+  itDom(
+    'refreshes the selected catalog entry after a canonical abbreviation edit without changing identity',
+    async () => {
+      const api = fakeProjects(
+        TWO.map((project, at) => ({ ...project, abbreviation: at === 0 ? 'SHED' : 'FENCE' })),
+      );
+      const writes = recordCalls(api, 'setAbbreviation');
+      pageWith(api);
+      await selectProject('p1');
+      fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+      fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+      const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+      expect(field).toHaveValue('SHED');
+      fireEvent.change(field, { target: { value: 'shed2-main_core12345' } });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      await waitFor(() => expect(field).toHaveValue('SHED2-MAIN_CORE12345'));
+      expect(writes).toEqual([['p1', 'shed2-main_core12345']]);
+      expect((await api.listProjects()).find((project) => project.id === 'p1')).toMatchObject({
+        id: 'p1',
+        name: 'Rewire the shed',
+        abbreviation: 'SHED2-MAIN_CORE12345',
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+      expect(screen.getByRole('textbox', { name: 'Project abbreviation' })).toHaveValue(
+        'SHED2-MAIN_CORE12345',
+      );
+    },
+  );
+});
+
+itDom(
+  'an occupied abbreviation stays visible in real page settings without changing project identity',
+  async () => {
+    const api = fakeProjects(
+      TWO.map((project, at) => ({ ...project, abbreviation: at === 0 ? 'SHED' : 'FENCE' })),
+    );
+    pageWith(api);
+    await selectProject('p1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+    const field = screen.getByRole('textbox', { name: 'Project abbreviation' });
+    fireEvent.change(field, { target: { value: 'fence' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('already uses');
+    });
+    expect(field).toHaveValue('fence');
+    expect((await api.listProjects()).find((project) => project.id === 'p1')).toMatchObject({
+      id: 'p1',
+      name: 'Rewire the shed',
+      abbreviation: 'SHED',
+    });
   },
 );

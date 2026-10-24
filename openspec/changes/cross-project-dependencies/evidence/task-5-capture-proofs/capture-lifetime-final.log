@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:
+(pass) source borrowed readers expire after success and never revive in the next run [139.63ms]
+(pass) source borrowed readers expire after refusal and never revive in the next run [90.31ms]
+(pass) source borrowed readers expire after throw and never revive in the next run [79.85ms]
+(pass) source borrowed shared reads include staged edits without closing their owner [96.03ms]
+(pass) suspended first-plan-read refuses before further reads during a later transaction [85.71ms]
+(pass) transaction snapshot and raw cache capability never revive after settlement [79.98ms]
+(pass) source fanout capability and authority callbacks expire permanently [77.08ms]
+(pass) refused command repair discard uses surviving journal state and expired old captures [78.94ms]
+(pass) refused command repair throw uses surviving journal state and expired old captures [75.64ms]
+(pass) legacy early reads expire while the reusable public owner keeps opening observations [94.15ms]
+(pass) scope construction failure expires acquired readers and rolls back its BEGIN [91.80ms]
+
+ 11 pass
+ 0 fail
+ 95 expect() calls
+Ran 11 tests across 1 file. [2.95s]

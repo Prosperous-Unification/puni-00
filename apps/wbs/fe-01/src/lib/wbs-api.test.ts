@@ -2,6 +2,8 @@ import { importProject, type PlanDocumentRequest, preflightRequest } from '@wbs/
 import { automaticColor } from '@wbs/domain/marker-color';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import mountedTransfer from '@/testing/fixtures/connected-transfer.json';
+
 import { sentenceForRefusal } from './refusal';
 import {
   type DirectoryEffect,
@@ -9,6 +11,7 @@ import {
   type DirectoryUsage,
   httpDirectoryApi,
   httpProjectApi,
+  planDocumentRequestFromJson,
   PlanImportRefusalError,
   STEP_REFUSALS,
   type StepUsage,
@@ -107,6 +110,7 @@ const IN_USE: StepUsage = {
 
 const PROJECT = {
   id: 'p1',
+  abbreviation: 'PLAN',
   name: 'Plan',
   ownerId: 'owner',
   restricted: false,
@@ -251,6 +255,93 @@ describe('plan JSON transfer', () => {
     vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(document))));
 
     await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
+  });
+
+  it('accepts complete v11 history and strips it only at the JSON import boundary', async () => {
+    const document = PLAN_DOCUMENT(['kept-row']);
+    document['document'] = {
+      format: 'wbs-plan',
+      version: 11,
+      exportedAt: '2026-10-22T00:00:00.000Z',
+    };
+    document['typedDependencies'] = [
+      {
+        id: 'remote-link',
+        type: 'SS',
+        predecessor: {
+          kind: 'external',
+          projectId: 'remote-project',
+          workItemId: 'remote-row',
+          scope: 'node',
+          stepId: 'remote-step',
+          display: {
+            projectName: 'Remote',
+            abbreviation: 'REM',
+            workItemName: 'Remote row',
+            address: 'REM.010',
+            stepName: 'Build',
+          },
+        },
+        successor: { kind: 'internal', scope: 'whole', workItem: 'kept-row' },
+      },
+    ];
+    document['connected'] = {
+      kind: 'connected',
+      projectId: 'p1',
+      mode: 'isolated',
+      projects: [
+        {
+          projectId: 'p1',
+          name: 'Plan',
+          abbreviation: 'PLAN',
+          rank: 0,
+          startDate: null,
+          timezone: 'UTC',
+          revision: 1,
+          seq: 2,
+        },
+      ],
+      relationships: [],
+      placement: { kind: 'unavailable', reason: 'cycle' },
+    };
+    vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(document))));
+    await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
+    const request = await planDocumentRequestFromJson(JSON.stringify(document));
+    expect(request.typedDependencies).toEqual(document['typedDependencies']);
+    expect(request).not.toHaveProperty('connected');
+    delete document['connected'];
+    await expect(httpProjectApi('token').exportPlan('p1')).rejects.toThrow();
+    document['connected'] = { kind: 'connected' };
+    await expect(httpProjectApi('token').exportPlan('p1')).rejects.toThrow();
+    await expect(planDocumentRequestFromJson(JSON.stringify(document))).resolves.not.toHaveProperty(
+      'connected',
+    );
+  });
+
+  it('projects the actual mounted v11 transfer artifact after generated-client validation', async () => {
+    vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(mountedTransfer))));
+    const exported = await httpProjectApi('token').exportPlan(mountedTransfer.connected.projectId);
+    expect(exported).toEqual(mountedTransfer);
+    const request = await planDocumentRequestFromJson(JSON.stringify(exported));
+    expect(request.typedDependencies).toEqual(mountedTransfer.typedDependencies);
+    expect(request.steps).toEqual(
+      mountedTransfer.steps.map(({ projectId: _projectId, ...step }) => step),
+    );
+    expect(request).not.toHaveProperty('connected');
+    expect(request).not.toHaveProperty('connectedDependencies');
+    for (const row of request.workItems) {
+      expect(row).not.toHaveProperty('schedule');
+      expect(row).not.toHaveProperty('dates');
+      expect(row).not.toHaveProperty('slices');
+    }
+    const { connected, ...authored } = mountedTransfer;
+    expect(connected.relationships.length).toBeGreaterThan(
+      mountedTransfer.typedDependencies.length,
+    );
+    for (const archival of [authored, { ...authored, connected: { arbitrary: ['history'] } }]) {
+      const projected = await planDocumentRequestFromJson(JSON.stringify(archival));
+      expect(projected).toEqual(request);
+    }
   });
 
   it('imports the archival request and returns its typed summary', async () => {
@@ -498,6 +589,7 @@ describe('adding and renaming a step', () => {
       estimateUnit: 'workdays' as const,
       id: 'r3',
       name: 'Design',
+      code: 'design',
       allowancePercent: 0,
     });
     expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/steps');
@@ -1829,4 +1921,194 @@ it('sends explicit estimate units on create and unit patch without converting va
     JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
     JSON.stringify({ estimateUnit: 'minutes' }),
   ]);
+});
+
+describe('project address observation client', () => {
+  it('preserves typed stale refusals and passes selected identity and observation', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        response(
+          409,
+          JSON.stringify({ error: 'stale_address_revision', addressRevision: 'qar1:new' }),
+        ),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    const { httpProjectAddressApi } = await import('./wbs-api');
+    const answer = await httpProjectAddressApi('token').resolve('selected', 'P.010', 'qar1:old');
+    expect(answer.kind).toBe('refusal');
+    if (answer.kind === 'refusal')
+      expect(answer.body).toEqual({ error: 'stale_address_revision', addressRevision: 'qar1:new' });
+    const called = String(fetcher.mock.calls[0][0]);
+    expect(called).toContain('/api/projects/selected/address-references');
+    expect(called).toContain('revision=qar1%3Aold');
+  });
+  it('cancels before issuing an external project discovery request', async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    const abort = new AbortController();
+    abort.abort();
+    const { httpProjectAddressApi } = await import('./wbs-api');
+    expect(await httpProjectAddressApi('token').projects({ q: 'P' }, abort.signal)).toEqual({
+      kind: 'failure',
+      failure: { code: 'cancelled' },
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});
+
+describe('project abbreviation settings', () => {
+  it('patches only the abbreviation and returns the canonical stored code', async () => {
+    const fetched = stub(() =>
+      response(
+        200,
+        JSON.stringify({ project: { ...PROJECT, abbreviation: 'PUNI2-CORE_MAIN12345' } }),
+      ),
+    );
+    expect(await httpProjectApi('t').setAbbreviation('p1', 'puni2-core_main12345')).toBe(
+      'PUNI2-CORE_MAIN12345',
+    );
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1');
+    expect(fetched.mock.calls[0]?.[1]).toMatchObject({
+      method: 'PATCH',
+      body: JSON.stringify({ abbreviation: 'puni2-core_main12345' }),
+    });
+  });
+  it.each([
+    [422, 'invalid_abbreviation'],
+    [409, 'abbreviation_taken'],
+  ] as const)('retains typed refusal %s %s', async (status, error) => {
+    stub(() => response(status, JSON.stringify({ error })));
+    await expect(httpProjectApi('t').setAbbreviation('p1', 'other')).rejects.toThrow(error);
+  });
+  it('rejects a successful response missing its trusted abbreviation', async () => {
+    const { abbreviation: _abbreviation, ...missing } = PROJECT;
+    stub(() => response(200, JSON.stringify({ project: missing })));
+    await expect(httpProjectApi('t').setAbbreviation('p1', 'other')).rejects.toThrow();
+  });
+});
+
+it('preserves exact captured remote coordinates and labels through the HTTP tree adapter', async () => {
+  const endpoint = {
+    endpoint: { projectId: 'remote-id', scope: 'whole', workItemId: 'remote-row' },
+    isLeaf: true,
+    revision: 4,
+    name: 'Captured title',
+    projectAbbreviation: 'RENAMED',
+    workItemNumber: '080',
+    step: null,
+    qualifiedReference: 'RENAMED.080',
+    stepReference: null,
+    stepNodeId: null,
+  };
+  const wire = JSON.parse(TREE('p1', ['w1'])) as Record<string, unknown>;
+  wire['connectedDependencies'] = [
+    {
+      id: 'remote-relationship',
+      projectId: 'p1',
+      type: 'FS',
+      predecessor: endpoint,
+      successor: { ...endpoint, endpoint: { projectId: 'p1', scope: 'whole', workItemId: 'w1' } },
+    },
+  ];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(response(200, JSON.stringify(wire)))),
+  );
+  const plan = await httpProjectApi('t').tree('p1');
+  expect(plan.typedDependencies).toMatchObject([
+    {
+      id: 'remote-relationship',
+      predecessor: { projectId: 'remote-id', workItemId: 'remote-row', captured: endpoint },
+      successor: { workItemId: 'w1' },
+    },
+  ]);
+});
+
+it('keeps the typed boundary Retry refusal through the generated client', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(
+      response(
+        409,
+        JSON.stringify({
+          code: 'not-retryable',
+          state: 'boundary-infeasible',
+        }),
+      ),
+    ),
+  );
+  await expect(httpProjectApi('token').retryOptimization('p1', 'pri', 'q1')).rejects.toMatchObject({
+    problem: {
+      kind: 'refusal',
+      operation: 'postApiProjectsByIdOptimizationRetry',
+      refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+    },
+  });
+});
+
+it.each([
+  ['p1', 'pending'],
+  ['other', 'pending'],
+  ['p1', 'terminal'],
+  ['other', 'terminal'],
+])('preserves connected packets only for the URL project: %s %s', async (projectId, state) => {
+  const tree = JSON.parse(TREE('p1', [])) as { optimization?: unknown };
+  tree.optimization = {
+    enabled: true,
+    engine: 'optimized',
+    objective: 'time',
+    inputHash: 'input',
+    generation: null,
+    contractVersion: 'test',
+    budgetMs: 100,
+    displayed: 'fast',
+    variants: {
+      pri: { state: 'pending' },
+      time:
+        state === 'pending'
+          ? { state: 'pending' }
+          : {
+              state: 'boundary-infeasible',
+              certificate: {
+                kind: 'boundary-infeasible',
+                question: {
+                  projectId: 'p1',
+                  objective: 'time',
+                  inputHash: 'input',
+                  questionHash: 'separate',
+                  contractVersion: 'test',
+                  budgetMs: 100,
+                  quantum: 48,
+                  wireVersion: 5,
+                  stageBytes: 'captured',
+                },
+                evidence: 'contradictory-bounds',
+              },
+            },
+    },
+    finishDays: { fast: 1 },
+    sameOrderAsFast: {},
+    scope: {
+      kind: 'connected-stage',
+      projectId: 'p1',
+      originOrdinal: 1,
+      mode: 'isolated',
+      quantum: 48,
+      wireVersion: 5,
+      boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'captured' },
+      fixed: [],
+    },
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
+  );
+  if (projectId === 'p1') {
+    expect((await httpProjectApi('t').tree(projectId)).optimization).toEqual(tree.optimization);
+  } else {
+    await expect(httpProjectApi('t').tree(projectId)).rejects.toThrow(
+      'connected_optimization_project_mismatch',
+    );
+  }
 });

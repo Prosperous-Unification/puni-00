@@ -1,0 +1,52 @@
+[
+  {
+    "fault": "coordinate-key",
+    "exit": 1,
+    "pattern": "refuses stale.*node"
+  },
+  {
+    "fault": "initial-whole",
+    "exit": 1,
+    "pattern": "edits persisted local successor scope from node|exact persisted descendant-step"
+  },
+  {
+    "fault": "missing-step",
+    "exit": 1,
+    "pattern": "rejects a persisted local successor missing"
+  },
+  {
+    "fault": "unavailable-save",
+    "exit": 1,
+    "pattern": "refuses stale.*node"
+  },
+  {
+    "fault": "retired",
+    "exit": 1,
+    "pattern": "retires a pending captured edit"
+  },
+  {
+    "fault": "pending-scope",
+    "exit": 1,
+    "pattern": "retires a pending captured edit"
+  },
+  {
+    "fault": "desktop-fixed-target",
+    "exit": 1,
+    "pattern": "edits persisted local successor scope.*desktop"
+  },
+  {
+    "fault": "phone-fixed-target",
+    "exit": 1,
+    "pattern": "edits persisted local successor scope.*phone"
+  },
+  {
+    "fault": "desktop-owner",
+    "exit": 1,
+    "pattern": "foreign-owned.*desktop"
+  },
+  {
+    "fault": "phone-owner",
+    "exit": 1,
+    "pattern": "foreign-owned.*phone"
+  }
+]

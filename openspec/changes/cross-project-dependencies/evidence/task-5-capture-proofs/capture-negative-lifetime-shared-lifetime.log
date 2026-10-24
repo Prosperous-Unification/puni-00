@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:
+ 7 | export function createReadSnapshotLifetime(): ReadSnapshotLifetime & { expire(): void } {
+ 8 |   let open = true;
+ 9 |   return {
+10 |     assertOpen() {
+11 |       // Proof: omitting the guard returned cached input after `snapshot capability expires when callback closes`.
+12 |       if (!open) throw new Error('read snapshot is closed');
+                                ^
+error: read snapshot is closed
+      at assertOpen (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.ts:12:28)
+      at createScope (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/source.ts:111:24)
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:47:34)
+(fail) source borrowed readers expire after success and never revive in the next run [127.43ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [2.18s]

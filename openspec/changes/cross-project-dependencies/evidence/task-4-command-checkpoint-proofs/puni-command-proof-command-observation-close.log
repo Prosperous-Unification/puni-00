@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+330 |     const outcome = await observed(run());
+331 |     if (ending === 'throw') expect(outcome instanceof Error ? outcome.message : outcome).toBe('injected callback throw');
+332 |     else expect(outcome).toBeUndefined();
+333 |     for (const context of contexts) {
+334 |       const evidence = await observed(context.endpoints.readEndpoint(fixture.input.successor));
+335 |       expect(evidence).toBeInstanceOf(Error);
+                             ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  evidence: {
+    endpoint: {
+      projectId: "72b37e9f-494a-4172-a4ea-3ee9345f6df6",
+      workItemId: "e6601541-fba8-413f-9a63-2060b3685830",
+      scope: "whole",
+    },
+    isLeaf: true,
+    revision: 0,
+    name: "Owner row",
+    projectAbbreviation: "OWN",
+    workItemNumber: "010",
+    step: null,
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:335:24)
+(fail) real SQLite command observation closes escaped capabilities on success and a later run cannot revive them [463.39ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [2.71s]

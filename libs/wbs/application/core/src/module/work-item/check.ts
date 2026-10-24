@@ -83,9 +83,22 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
         factoryReturnKind: 'sync-value',
       }),
+      externalDependencyAuthoring: DiBag.createProvider(
+        () => requirements.externalDependencyAuthoring,
+        { factoryReturnKind: 'sync-value' },
+      ),
+      dependencyContext: DiBag.createProvider(() => requirements.dependencyContext, {
+        factoryReturnKind: 'sync-value',
+      }),
       editAdmission: DiBag.createProvider(() => requirements.admission, {
         factoryReturnKind: 'sync-value',
       }),
+      admitConnectedOptimization: DiBag.createProvider(
+        () => requirements.admitConnectedOptimization,
+        {
+          factoryReturnKind: 'sync-value',
+        },
+      ),
       scheduler: DiBag.createProvider(() => requirements.scheduler, {
         factoryReturnKind: 'sync-value',
       }),

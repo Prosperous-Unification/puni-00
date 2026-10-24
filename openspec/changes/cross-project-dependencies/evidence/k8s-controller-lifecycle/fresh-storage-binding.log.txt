@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+860 |         fixture.journal,
+861 |         fixture.fake,
+862 |         () => undefined,
+863 |         fixture.options,
+864 |       ),
+865 |     ).rejects.toThrow('controller interval storage or owner identity changed');
+                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "controller interval storage or owner identity changed"
+Received message: "release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed\njournal: /tmp/wbs-test-6897-jwPVoW/k8s-controller-release-kzLus3/release.json\nfailed step: check-replay: storage controller barrier failed: backup storage identity changed\ncaptured migration set: (not captured)\nreplay forward: (not checked)\nreplay rollback: (not checked)\nsnapshot: (none)\nwrites remain fenced and the Lease stays held\nmanual command: '/tmp/wbs-test-6897-jwPVoW/k8s-controller-release-kzLus3/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token c3fb1b1d-bf7b-4d1e-b541-c94e57d1cbbe; preserve journal /tmp/wbs-test-6897-jwPVoW/k8s-controller-release-kzLus3/release.json; restore the recorded suspension only after verifying the stopped source interval"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:865:15)
+(fail) mounted storage replacement after drain refuses before source capture [1512.70ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.56s]

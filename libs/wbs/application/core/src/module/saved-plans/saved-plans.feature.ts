@@ -3,6 +3,8 @@ import {
   buildScheduleBody,
   CalendarRangeError,
   canonicalisePlanInput,
+  type CanonicalPlanInput,
+  type CanonicalPlanInputV9,
   DEFAULT_SAVED_PLAN_QUOTA,
   defaultSavedPlanName,
   diffPlans,
@@ -11,6 +13,7 @@ import {
   PlanInputVersionError,
   type PlanScheduleValue,
   type PlanSide,
+  readSavedPlanInput,
   type SavedPlanQuota,
   type SavedPlanQuotaRefusal,
   type Schedule,
@@ -18,6 +21,7 @@ import {
   ScheduleCycleError,
   serialiseCanonicalPlanInput,
   serialiseScheduleBody,
+  serializeSavedConnectedScheduleBody,
 } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
@@ -30,8 +34,14 @@ import type {
   ScopedSavedPlanWrite,
 } from '../../ports/saved-plan-values';
 import type { Scheduler } from '../../ports/scheduler';
-import type { AccessRefused, SharedPeopleRead } from '../../ports/shared-people-values';
+import type {
+  AccessRefused,
+  LivePlanRead,
+  SharedPeopleRead,
+} from '../../ports/shared-people-values';
+import { captureConnectedHistory, type ConnectedHistoryCapture } from './connected-history';
 import type { SavedPlanResource } from './saved-plan.resource';
+import { summarizeSavedComparisonSide } from './saved-plan-comparison';
 import { bodyByteLength } from './saved-plan-integrity';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
 import type {
@@ -158,11 +168,16 @@ export interface SavedPlanServiceOptions {
   readonly quota?: SavedPlanQuota;
   /** The installed scheduling capability used after captured reads detach. */
   readonly scheduler: Scheduler;
-  /** Shared-mode capture keeps upstream selection coherent; omitted for isolated captures. */
+  /** Shared/connected capture keeps component selection coherent; isolated reads use the legacy capture store. */
   readonly captureSharedPlan?: (
     projectId: string,
     access: ResourceAccess,
-  ) => Promise<SharedPeopleRead | AccessRefused | { readonly kind: 'isolated' }>;
+  ) => Promise<
+    | SharedPeopleRead
+    | AccessRefused
+    | Extract<LivePlanRead, { kind: 'connected' }>
+    | { readonly kind: 'isolated' }
+  >;
 }
 
 /** A human whose admission expired before the shared read snapshot opened. */
@@ -188,6 +203,19 @@ type CapturedSchedule =
 interface ScheduleAttempt {
   readonly reads: PlanInputReads;
   readonly schedule: CapturedSchedule;
+}
+
+interface SerializedSchedulePlan {
+  readonly input: CanonicalPlanInput | CanonicalPlanInputV9;
+  readonly inputBytes: string;
+  readonly schedule:
+    | { readonly present: false; readonly absentReason: SavedPlanScheduleAbsentReason }
+    | {
+        readonly present: true;
+        readonly bytes: string;
+        readonly version: number;
+        readonly algorithmId: string;
+      };
 }
 
 /**
@@ -248,65 +276,24 @@ export class SavedPlanService {
   }
 
   /**
-   * The live plan as a comparison side. Writes nothing and consumes no quota.
-   *
-   * **It reuses {@link captureAndAttempt}, which is the save path's own
-   * capture**, rather than reads of its own (task 7.3). Spec requires `current`
-   * to come through the same canonical function the save uses, and the reason
-   * is concrete: a `current` built from the projection's twelve awaited reads
-   * lacks the registry and junction rows *by value*, so every saved-vs-current
-   * comparison would report the saved side's tags, types and external systems
-   * as removed. The diff's own completeness property never catches that — it
-   * mutates `CanonicalPlanInput` values directly and never runs this path.
-   *
-   * Reuse also gives `current` the one `BEGIN DEFERRED` read snapshot. Without
-   * it a torn `current` renders a comparison against a live plan that never
-   * existed — the display-side twin of the defect the torn-read test (3.2)
-   * exists to catch.
-   *
-   * **`current` carries a schedule, and it is not an absent one** (task 7.3a).
-   * Spec's stored-schedule bound lawfully permits returning `unavailable` here,
-   * and that would answer "no schedule was saved" about the live side of this
-   * feature's primary direction. So the schedule is `schedule()`'s return over
-   * the values just captured — computed outside the read snapshot under isolated
-   * capture, or selected coherently within the shared chain snapshot by
-   * {@link captureSharedPlan}, as {@link captureAndAttempt} arranges for the save path — labelled
-   * with the algorithm identity currently in force, with a `ScheduleCycleError`
-   * mapping to `infeasible` on the same derivation a save records.
-   *
-   * The body is round-tripped through {@link serialiseScheduleBody} rather than
-   * handed over as the built object. The live side must compare against a
-   * stored side on identical serialization terms; comparing a live object
-   * against parsed stored bytes would report every difference the serializer
-   * normalises away as a real one.
+   * Compare the current authorized observation using save's exact input and schedule serializers.
+   * Connected evidence retains captured component placement and optimization boundaries; ordinary
+   * isolated and shared observations retain their legacy input8/schedule1 byte contract.
+   * No quota or write is consumed. Missing projects return null; expired capture authority throws.
    */
   async projectCurrentPlan(projectId: string, access?: ResourceAccess): Promise<PlanSide | null> {
-    const attempt = await this.captureAndAttempt(projectId, access);
-    if (attempt === null) return null;
-    const input = canonicalisePlanInput(planInputRowsOf(attempt.reads));
-    if (!attempt.schedule.present) {
-      return { input, schedule: { present: false, absentReason: attempt.schedule.absentReason } };
-    }
-    // The captured project's own start date, not today's — `scheduleWrite`'s
-    // rule, for the same reason: re-rendering against a start that has since
-    // moved would restate the plan.
-    const built = representableScheduleBody(
-      attempt.schedule.planned,
-      attempt.reads.project.startDate,
-      attempt.schedule.algorithmId,
-    );
-    // Proof: return the builder call directly and `maps a calendar-range plan
-    // to infeasible` throws instead of returning a comparison side.
-    if (built === null) {
-      return { input, schedule: { present: false, absentReason: 'infeasible' } };
-    }
+    const captured = await this.captureSchedulePlan(projectId, access);
+    if (captured === null) return null;
     return {
-      input,
-      schedule: {
-        present: true,
-        algorithmId: built.algorithmId,
-        body: JSON.parse(serialiseScheduleBody(built)) as PlanScheduleValue,
-      },
+      input: captured.input,
+      schedule: captured.schedule.present
+        ? {
+            present: true,
+            algorithmId: captured.schedule.algorithmId,
+            // Boundary: captureSchedulePlan serialized a validated domain schedule body.
+            body: JSON.parse(captured.schedule.bytes) as PlanScheduleValue,
+          }
+        : captured.schedule,
     };
   }
 
@@ -363,9 +350,19 @@ export class SavedPlanService {
   ): Promise<SavedPlanCompareOutcome> {
     const leftSide = await this.sideOf(projectId, left, access);
     if (leftSide.outcome !== 'side') return leftSide;
-    const rightSide = await this.sideOf(projectId, right, access);
+    // Proof: removing reuse made mounted `captures current/current once` observe two captures.
+    const rightSide =
+      left.kind === 'current' && right.kind === 'current'
+        ? leftSide
+        : await this.sideOf(projectId, right, access);
     if (rightSide.outcome !== 'side') return rightSide;
-    return { outcome: 'compared', diff: diffPlans(leftSide.side, rightSide.side) };
+    return {
+      outcome: 'compared',
+      diff: diffPlans(leftSide.side, rightSide.side),
+      // Proof: forcing a current read made the poisoned-capability SQLite comparison throw.
+      left: summarizeSavedComparisonSide(leftSide.side, left),
+      right: summarizeSavedComparisonSide(rightSide.side, right),
+    };
   }
 
   /**
@@ -500,21 +497,25 @@ export class SavedPlanService {
     // earlier than the snapshot, never later, so the label never claims to
     // cover a write that happened after it.
     const createdAt = this.opts.now();
-    const attempt = await this.captureAndAttempt(request.projectId, request.access);
-    if (attempt === null) return { outcome: 'no_project' };
-
-    // Folded once. The header's `input_schema_version` is read off **this**
-    // value rather than from `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` a second
-    // time, for the reason {@link scheduleWrite} states about the schedule
-    // side: the version stored beside the bytes is the version those bytes
-    // carry, not a constant that happened to agree with them.
-    const canonical = canonicalisePlanInput(planInputRowsOf(attempt.reads));
+    const captured = await this.captureSchedulePlan(request.projectId, request.access);
+    if (captured === null) return { outcome: 'no_project' };
     const input = await bodyWrite(
       this.opts.digest,
-      serialiseCanonicalPlanInput(canonical),
-      canonical.schemaVersion,
+      captured.inputBytes,
+      captured.input.schemaVersion,
     );
-    const schedule = await scheduleWrite(this.opts.digest, attempt, input.sha256);
+    const schedule: SavedPlanScheduleWrite = captured.schedule.present
+      ? {
+          present: true,
+          body: await bodyWrite(
+            this.opts.digest,
+            captured.schedule.bytes,
+            captured.schedule.version,
+          ),
+          inputSha256: input.sha256,
+          algorithmId: captured.schedule.algorithmId,
+        }
+      : captured.schedule;
 
     const early = bodyBytesRefusal(
       {
@@ -557,6 +558,61 @@ export class SavedPlanService {
   }
 
   /**
+   * Serialize one detached observation for both saving and current comparison.
+   * Connected derivation/cache selection finishes before the live reader returns;
+   * historical conversion, serialization and subsequent digest work hold no live snapshot.
+   * Header versions and algorithm identity come from the serialized body. Legacy input8/schedule1
+   * use their existing serializers unchanged; dates use the captured target anchor.
+   */
+  private async captureSchedulePlan(
+    projectId: string,
+    access?: ResourceAccess,
+  ): Promise<SerializedSchedulePlan | null> {
+    const attempt = await this.captureAndAttempt(projectId, access);
+    if (attempt === null) return null;
+    if ('kind' in attempt) {
+      const { input, schedule } = attempt.history;
+      return {
+        input,
+        inputBytes: JSON.stringify(input),
+        schedule: schedule.present
+          ? {
+              present: true,
+              bytes: serializeSavedConnectedScheduleBody(schedule.body),
+              version: schedule.body.version,
+              algorithmId: schedule.body.algorithmId,
+            }
+          : schedule,
+      };
+    }
+    const input = canonicalisePlanInput(planInputRowsOf(attempt.reads));
+    const built = attempt.schedule.present
+      ? representableScheduleBody(
+          attempt.schedule.planned,
+          attempt.reads.project.startDate,
+          attempt.schedule.algorithmId,
+        )
+      : null;
+    return {
+      input,
+      inputBytes: serialiseCanonicalPlanInput(input),
+      schedule:
+        // Proof: bypassing this absence branch made the existing calendar-range current test throw on null (slice-d-fault-calendar-range.log, 2026-10-22).
+        built === null
+          ? {
+              present: false,
+              absentReason: attempt.schedule.present ? 'infeasible' : attempt.schedule.absentReason,
+            }
+          : {
+              present: true,
+              bytes: serialiseScheduleBody(built),
+              version: built.version,
+              algorithmId: built.algorithmId,
+            },
+    };
+  }
+
+  /**
    * Captures one detached input and asks the shared scheduler for that exact input.
    * Explicit shared capture borrows {@link SharedPeopleReader}'s coherent chain selection;
    * the same detached evidence feeds save and current comparison through the S4 policy below.
@@ -576,7 +632,11 @@ export class SavedPlanService {
   private async captureAndAttempt(
     projectId: string,
     access?: ResourceAccess,
-  ): Promise<ScheduleAttempt | null> {
+  ): Promise<
+    | ScheduleAttempt
+    | { readonly kind: 'connected'; readonly history: ConnectedHistoryCapture }
+    | null
+  > {
     // Proof: ignoring shared capture stored start 2 instead of 3 in the upstream-edit/delete negative.
     let observed:
       Awaited<ReturnType<NonNullable<SavedPlanServiceOptions['captureSharedPlan']>>> | undefined;
@@ -587,6 +647,9 @@ export class SavedPlanService {
         throw new Error('installed shared saved-plan capture requires admitted human access');
       observed = await this.opts.captureSharedPlan(projectId, access);
     }
+    // Proof: a second callback failed installed cache-replacement equality; forcing live scheduler mode wrote a generation in the mounted no-admission test (2026-10-22).
+    if (observed?.kind === 'connected')
+      return { kind: 'connected', history: captureConnectedHistory(observed, projectId) };
     if (observed?.kind === 'access_refused') throw new SavedPlanCaptureRefusal(observed.refusal);
     const shared = observed?.kind === 'isolated' ? undefined : observed;
     if (shared?.kind === 'not_found') return null;
@@ -670,15 +733,18 @@ export class SavedPlanService {
 /**
  * A verified read, as a comparison side (task 7.3b).
  *
- * The bytes are parsed here and **nowhere else**: {@link SavedPlanService.read}
- * hands over the stored bytes unparsed on purpose, so the one place that turns
- * them into values is the one place that also runs them forward through
- * {@link normalisePlanInputForward}. Splitting those two apart is how a body
- * comes to be diffed at its stored shape against a reader that has moved on.
+ * The resource verifies new-format semantics without rewriting stored bytes.
+ * This projection decodes input9 with its captured context and retains the legacy
+ * forward normalizer for older bodies. Neither path consults live foreign facts.
  */
 function planSideOfRead(plan: SavedPlanRead): PlanSide {
   return {
-    input: normalisePlanInputForward(JSON.parse(plan.input.bytes), plan.input.schemaVersion),
+    // Proof: always using the legacy decoder returned 422 for the mounted complete
+    // connected self-comparison (use-legacy-comparison-reader.log.txt).
+    input:
+      plan.input.schemaVersion === 9
+        ? readSavedPlanInput(JSON.parse(plan.input.bytes), 9)
+        : normalisePlanInputForward(JSON.parse(plan.input.bytes), plan.input.schemaVersion),
     schedule: plan.schedule.present
       ? {
           present: true,
@@ -686,45 +752,5 @@ function planSideOfRead(plan: SavedPlanRead): PlanSide {
           body: JSON.parse(plan.schedule.body.bytes) as PlanScheduleValue,
         }
       : { present: false, absentReason: plan.schedule.absentReason },
-  };
-}
-
-/**
- * The schedule side of the write, built from the attempt.
- *
- * The header's `schema_version` and `scheduler_algorithm_id` are read **off the
- * built body** rather than from the constants a second time. The body already
- * carries both, and two independent readings of one fact are two things that
- * can drift; a reader that checks the header against the body would then have
- * to decide which is right.
- *
- * `inputSha256` is this save's own input hash, stored so a reader can *check*
- * that this historical display was saved beside these target rows and refuse
- * to render it against another captured target. Shared-mode dates also reflect
- * detached upstream bookings, whose durable replay provenance is out of scope.
- */
-async function scheduleWrite(
-  digest: Digest,
-  attempt: ScheduleAttempt,
-  inputSha256: string,
-): Promise<SavedPlanScheduleWrite> {
-  if (!attempt.schedule.present) {
-    return { present: false, absentReason: attempt.schedule.absentReason };
-  }
-  // The captured project's own start date, not today's: re-rendering the dates
-  // against a start that has since moved would restate the plan.
-  const built = representableScheduleBody(
-    attempt.schedule.planned,
-    attempt.reads.project.startDate,
-    attempt.schedule.algorithmId,
-  );
-  // A dimensionless schedule can be valid while its saved calendar body is
-  // not representable. Save the input and name the absent schedule, as cycles do.
-  if (built === null) return { present: false, absentReason: 'infeasible' };
-  return {
-    present: true,
-    body: await bodyWrite(digest, serialiseScheduleBody(built), built.version),
-    inputSha256,
-    algorithmId: built.algorithmId,
   };
 }

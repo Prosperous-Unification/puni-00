@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:
+63 |     expect(execution.stderr.toString()).toContain('requires explicit DB_PATH');
+64 |   });
+65 | it('refuses an absent database without creating it', () => {
+66 |   const path = database(false);
+67 |   expect(inspect(path).exitCode).not.toBe(0);
+68 |   expect(existsSync(path)).toBe(false);
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:68:28)
+(fail) refuses an absent database without creating it [2209.03ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [4.45s]

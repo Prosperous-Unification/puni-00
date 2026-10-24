@@ -1,0 +1,1 @@
+libs/wbs/application/core/src/module/work-item/work-item.resource.ts(489,5): error TS2741: Property 'timezone' is missing in type 'Project' but required in type 'CapturedProject'.

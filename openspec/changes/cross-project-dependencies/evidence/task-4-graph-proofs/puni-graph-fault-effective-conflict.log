@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+282 | });
+283 |
+284 | it('rejects conflicts between effective proposed sets and retained owners', async () => {
+285 |   const scope = observation();
+286 |   scope.relationships.push(link('same', 'a', 'b'));
+287 |   await expect(scope.reader.read(['a'], [{ projectId: 'a', typed: [link('same', 'c', 'a')] }])).rejects.toThrow(/conflicting relationship same/);
+                                                                                                              ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:287:105)
+(fail) rejects conflicts between effective proposed sets and retained owners [1.51ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [130.00ms]

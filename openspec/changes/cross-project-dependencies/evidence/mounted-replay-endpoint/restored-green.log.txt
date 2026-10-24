@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+(pass) actual first child hands an outgoing node to its child and undo redo preserves the remote row [495.26ms]
+(pass) mixed incident handdown preserves scopes steps both owners history and local retained rows through nested undo redo [513.25ms]
+(pass) compound undo refuses remote-revision atomically after an earlier patch [444.30ms]
+(pass) compound undo refuses relationship-type atomically after an earlier patch [379.73ms]
+(pass) compound undo refuses missing-receipt atomically after an earlier patch [399.82ms]
+(pass) compound undo refuses missing-created-at atomically after an earlier patch [351.70ms]
+(pass) compound undo refuses missing-receipt-direction atomically after an earlier patch [375.62ms]
+(pass) compound undo refuses changed-step atomically after an earlier patch [347.03ms]
+(pass) compound undo refuses changed-owner atomically after an earlier patch [340.88ms]
+(pass) compound undo refuses changed-scope atomically after an earlier patch [388.43ms]
+(pass) compound undo refuses changed-audit atomically after an earlier patch [361.59ms]
+(pass) compound undo refuses missing-scoped-revision atomically after an earlier patch [389.68ms]
+(pass) compound undo refuses new-incident atomically after an earlier patch [356.80ms]
+(pass) compound undo refuses missing-relationship atomically after an earlier patch [363.45ms]
+(pass) compound undo refuses both-receipt-types atomically after an earlier patch [396.46ms]
+(pass) compound undo refuses both-receipt-audits atomically after an earlier patch [374.00ms]
+(pass) mounted compound undo rechecks membership after request admission while queued for the writer [362.88ms]
+(pass) mounted compound redo rechecks membership after request admission while queued for the writer [413.11ms]
+(pass) mounted compound undo rechecks credential after request admission while queued for the writer [380.07ms]
+(pass) mounted compound redo rechecks credential after request admission while queued for the writer [408.14ms]
+(pass) compound handdown carries local statement estimate and progress facts with exact unit bindings through neighboring history [501.08ms]
+(pass) outer batch retains earliest remote before revisions across two consecutive incident mappings [535.06ms]
+(pass) compound redo refuses current unreadable-project evidence and rolls back a preceding local patch [382.82ms]
+(pass) compound redo refuses current missing-row evidence and rolls back a preceding local patch [463.30ms]
+(pass) compound redo refuses current foreign-row evidence and rolls back a preceding local patch [424.12ms]
+(pass) synthetic mounted undo refuses a legally destroyed predecessor before restoring the successor or consuming history [509.96ms]
+(pass) synthetic mounted compound undo restores the exact relationship and flips its selected journal [466.60ms]
+(pass) synthetic mounted compound undo refuses a remote-only cycle atomically and prunes exactly its selected journal [472.23ms]
+(pass) synthetic mounted compound undo refuses a final-only graph finding after healthy reattachment [434.04ms]
+(pass) synthetic mounted compound redo restores the exact relationship and flips its selected journal [538.50ms]
+(pass) synthetic mounted compound redo refuses a remote-only cycle atomically and prunes exactly its selected journal [705.68ms]
+(pass) synthetic mounted compound redo refuses a final-only graph finding after healthy reattachment [625.03ms]
+
+apps/wbs/be-01/src/controller/cross-project-history-neighbors.controller.db.test.ts:
+(pass) mounted newer relationship undo restamps a valid older neighbor [427.49ms]
+(pass) mounted newer relationship undo preserves older remote conflict [500.69ms]
+
+apps/wbs/be-01/src/controller/cross-project-history-endpoint.controller.db.test.ts:
+(pass) mounted external redo revalidates healthy endpoint delivery without consuming history [497.85ms]
+(pass) mounted external redo revalidates wrong-owner endpoint delivery without consuming history [456.61ms]
+{"level":"error","time":1792764937655,"service":"be-01","err":{"occurrence_id":"AE_KCM46PW5KQ3X66PBQMY71HQXSP","fingerprint":"fp1_ae7015935ab776cd146f81957230b602","stack":["Error: endpoint row identity mismatch","    at <anonymous> (/tmp/puni-mounted-replay-endpoint/libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts:91:50)","    at async <anonymous> (/tmp/puni-mounted-replay-endpoint/libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts:104:27)","    at async <anonymous> (/tmp/puni-mounted-replay-endpoint/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:7329:63)","    at async withDependencyContext (/tmp/puni-mounted-replay-endpoint/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) mounted external redo revalidates wrong-identity endpoint delivery without consuming history [635.25ms]
+
+ 37 pass
+ 0 fail
+ 714 expect() calls
+Ran 37 tests across 3 files. [19.37s]

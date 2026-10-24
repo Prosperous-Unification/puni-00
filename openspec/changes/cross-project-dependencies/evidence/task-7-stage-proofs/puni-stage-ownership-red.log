@@ -1,0 +1,134 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:
+(pass) retains exact local and foreign placements without rounding [1.46ms]
+(pass) identifies changed stage owner [0.57ms]
+(pass) identifies changed mode [0.31ms]
+(pass) identifies changed origin [0.19ms]
+(pass) identifies changed rank [0.27ms]
+(pass) identifies changed anchor [0.17ms]
+(pass) identifies changed row position [0.16ms]
+(pass) identifies changed row priority [0.38ms]
+(pass) identifies changed row parent [0.38ms]
+(pass) identifies changed effort [0.15ms]
+(pass) identifies changed null effort [0.10ms]
+(pass) identifies changed width [0.09ms]
+(pass) identifies changed person [0.11ms]
+(pass) identifies changed team [0.10ms]
+(pass) identifies changed resource units [0.11ms]
+(pass) identifies changed resource identity [0.11ms]
+(pass) identifies changed pool capacity [0.12ms]
+(pass) identifies changed resource capacity [0.16ms]
+(pass) identifies changed floor [0.17ms]
+(pass) identifies changed deadline [0.10ms]
+(pass) identifies changed elsewhere start [0.09ms]
+(pass) identifies changed elsewhere finish [0.10ms]
+(pass) identifies changed elsewhere holder project [0.10ms]
+(pass) identifies changed elsewhere holder work [0.09ms]
+(pass) identifies changed elsewhere person [0.11ms]
+(pass) identifies changed graph provenance [0.10ms]
+(pass) identifies changed relationship type [0.13ms]
+(pass) identifies changed relationship identity [0.11ms]
+(pass) identifies changed graph predecessor position [0.08ms]
+(pass) identifies changed original selector identity [0.09ms]
+(pass) identifies changed original selector scope [0.10ms]
+(pass) identifies changed original selector step [0.10ms]
+(pass) identifies changed local start [0.09ms]
+(pass) identifies changed local finish [0.08ms]
+(pass) identifies changed foreign start [0.10ms]
+(pass) identifies changed foreign finish [0.10ms]
+(pass) identifies changed ownership [0.10ms]
+(pass) identifies changed step order [0.16ms]
+(pass) canonicalizes set and map permutations without mutating the capture [0.21ms]
+(pass) ignores descriptive labels and frozen numbers [0.17ms]
+(pass) refuses unknown stage owner [0.12ms]
+(pass) refuses local input [0.05ms]
+(pass) refuses duplicate project [0.36ms]
+(pass) refuses missing rank [0.06ms]
+(pass) refuses inconsistent rank [0.05ms]
+(pass) refuses extra rank [0.04ms]
+(pass) refuses nonfinite rank [0.05ms]
+(pass) refuses nonfinite origin [0.04ms]
+(pass) refuses missing anchor [0.05ms]
+(pass) refuses nonfinite anchor [0.04ms]
+(pass) refuses missing ownership [0.03ms]
+(pass) refuses unknown ownership [0.03ms]
+(pass) refuses duplicate row [0.04ms]
+(pass) refuses duplicate slice [0.04ms]
+(pass) refuses missing start [0.05ms]
+(pass) refuses extra finish [0.04ms]
+(pass) refuses nonfinite start [0.04ms]
+(pass) refuses nonfinite finish [0.05ms]
+(pass) refuses reversed interval [0.04ms]
+(pass) refuses nonfinite effort [0.04ms]
+(pass) refuses nonfinite position [0.04ms]
+(pass) refuses nonfinite priority [0.03ms]
+(pass) refuses nonfinite floor [0.04ms]
+(pass) refuses nonfinite deadline [0.05ms]
+(pass) refuses nonfinite pool [0.05ms]
+(pass) refuses nonfinite resource [0.04ms]
+(pass) refuses missing graph node [0.04ms]
+(pass) refuses foreign graph endpoint [0.13ms]
+(pass) refuses duplicate relationship [0.05ms]
+(pass) refuses missing relationship evidence [0.05ms]
+(pass) refuses relationship type mismatch [0.06ms]
+(pass) refuses relationship owner mismatch [0.05ms]
+(pass) refuses unknown selector project [0.05ms]
+(pass) refuses stage discriminator and capacity mode outside their vocabularies [0.08ms]
+(pass) refuses unsupported selectors, relationship types and graph provenance [0.15ms]
+(pass) refuses foreign workflow endpoints through the shared graph validator [0.06ms]
+(pass) permits null anchor only on projects without active reduced nodes [0.13ms]
+690 |  expect(canonicalConnectedStageInput(s)).not.toBe(canonicalConnectedStageInput(stage()));
+691 | });
+692 |
+693 | test('refuses extra reduced ownership facts',()=>{
+694 |  const s=mutableStage();connectedOrder(s).projectIdByWorkItem.set('original-parent','A');
+695 |  expect(()=>canonicalConnectedStageInput(s)).toThrow('ownership keys');
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "ownership keys"
+
+Received function did not throw
+Received value: "{\"kind\":\"connected-stage\",\"projectId\":\"A\",\"mode\":\"shared\",\"originOrdinal\":20000,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":20000},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":20001}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":1,\"priority\":2},{\"id\":\"b\",\"parentId\":null,\"position\":2,\"priority\":3}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"],[\"original-parent\",\"A\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":0.2,\"width\":1,\"personId\":\"person\",\"poolIds\":[\"team-a\",\"team-z\"],\"demands\":[{\"resourceId\":\"resource\",\"units\":1}]},{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":null,\"days\":1,\"width\":1,\"personId\":\"person\",\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"boundary\",\"workItemId\":\"b\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"build\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"a\",\"at\":1},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"relationship\"}],\"relationships\":[{\"id\":\"relationship\",\"type\":\"FS\",\"predecessor\":[\"A\",\"whole\",\"a\"],\"successor\":[\"B\",\"whole\",\"b\"]}],\"notBefore\":[[\"a\",0.1]],\"deadlines\":[[\"b\",7]],\"poolSizes\":[[\"team-a\",2],[\"team-z\",3]],\"resourceCapacities\":[[\"resource\",2]],\"elsewhere\":[{\"personId\":\"person\",\"bookings\":[{\"start\":4,\"end\":5,\"projectId\":\"outside\",\"workItemId\":\"outside-work\"}]}],\"starts\":[[\"a\\u0000build\",0.3],[\"a\\u0000design\",0.1],[\"b\\u0000\",1.3]],\"finishes\":[[\"a\\u0000build\",1.3],[\"a\\u0000design\",0.3],[\"b\\u0000\",2.3]]}"
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:695:46)
+(fail) refuses extra reduced ownership facts [0.26ms]
+66 |   const index = indexTree(input.rows);
+67 |   const groups = groupSlicesByLeaf(index.leafIds, input.slices);
+68 |   const unseen = new Map<string, Set<number>>();
+69 |   for (const leafId of index.leafIds) {
+70 |     const group = groups.get(leafId);
+71 |     if (group === undefined) throw new Error(`no slice for work item ${leafId}`);
+                                                                                    ^
+error: no slice for work item parent
+      at validateResolvedGraph (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/resolved-schedule-input.ts:71:80)
+      at canonicalConnectedStageInput (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.ts:68:3)
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:701:55)
+(fail) identifies reparenting without changes to the retained row set [0.24ms]
+(pass) identifies a resource demand changing within unchanged capacities [0.17ms]
+(pass) identifies ownership independently of authored selectors [0.13ms]
+ 95 |         !Number.isInteger(endpoint.at) ||
+ 96 |         groups.get(endpoint.leafId)?.[endpoint.at] === undefined
+ 97 |       ) {
+ 98 |         throw new Error(
+ 99 |           `resolved graph edge endpoint does not match slice ${endpoint.leafId}/${String(endpoint.at)}`,
+100 |         );
+              ^
+error: resolved graph edge endpoint does not match slice b/1
+      at validateResolvedGraph (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/resolved-schedule-input.ts:100:9)
+      at canonicalConnectedStageInput (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.ts:68:3)
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:719:10)
+(fail) identifies each graph endpoint independently [0.33ms]
+(pass) identifies unused authored identity, type and successor selector independently [0.31ms]
+(pass) identifies graph relationship attribution between equivalent authored constraints [0.18ms]
+
+3 tests failed:
+(fail) refuses extra reduced ownership facts [0.26ms]
+(fail) identifies reparenting without changes to the retained row set [0.24ms]
+(fail) identifies each graph endpoint independently [0.33ms]
+
+ 81 pass
+ 3 fail
+ 91 expect() calls
+Ran 84 tests across 1 file. [38.00ms]

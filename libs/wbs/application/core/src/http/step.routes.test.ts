@@ -1,6 +1,8 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import type {
@@ -9,11 +11,14 @@ import type {
 } from '../module/plan-commands/plan-commands.feature';
 import { StepService } from '../module/step/step.resource';
 import type { EditAdmission } from '../ports/edit-admission';
-import { DependencyGraphGuard } from '../service/dependency-graph';
+import { LEGACY_ACCESS } from '../ports/organization-access';
+import { createLocalDependencyContext } from '../service/dependency-context';
 import type { PlanCommand } from '../service/plan-command';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { localCommandAccess } from '../testing/organization-access-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
+import { testWrites } from '../testing/writes-fixture';
 import { EMPTY } from './endpoint';
 import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 import { stepRoutes } from './step.routes';
@@ -30,10 +35,14 @@ test('publishes a dependent recovery only after its unit of work commits', async
   const order: string[] = [];
   let held: RecoveryWriteBoundary['announcements'] | null = null;
   const boundary = {
+    commandAccess: localCommandAccess,
     uow: {
       run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) => {
         const decision = await act({
-          stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+          stores: {
+            typedDependencies: inMemoryTypedDependencies(),
+            projects: { admitEditInOrganization: () => Promise.resolve('recovery') },
+          },
         });
         order.push('commit');
         return decision.value;
@@ -56,7 +65,7 @@ test('publishes a dependent recovery only after its unit of work commits', async
       boundary,
       { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' } },
       'project',
-      'sam',
+      { id: 'sam', username: 'sam', scopes: ['write'] },
       { step: 'add' },
       async () => {
         const broadcast = held;
@@ -92,11 +101,15 @@ test('scoped step service cannot borrow a recovery grant for another project, ac
   };
   let retained: StepService | undefined;
   const boundary = {
+    commandAccess: localCommandAccess,
     uow: {
       run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) =>
         (
           await act({
-            stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+            stores: {
+              typedDependencies: inMemoryTypedDependencies(),
+              projects: { admitEditInOrganization: () => Promise.resolve('recovery') },
+            },
           })
         ).value,
     },
@@ -110,7 +123,7 @@ test('scoped step service cannot borrow a recovery grant for another project, ac
         steps: stored,
         broadcast,
         clock: testClock,
-        dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects }),
+        dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects }),
         recoveryAdmission: admission,
       });
       retained = service;
@@ -122,7 +135,7 @@ test('scoped step service cannot borrow a recovery grant for another project, ac
     boundary,
     access,
     'granted',
-    'sam',
+    { id: 'sam', username: 'sam', scopes: ['write'] },
     { step: 'add' },
     async (services) => {
       expect(
@@ -162,7 +175,7 @@ async function fixture(restricted = false) {
   const addWrite = spyOn(stored, 'add');
   const broadcast = recordingBroadcaster();
   const service = new StepService({
-    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
+    dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects: projects }),
     clock: testClock,
     projects,
     steps: stored,
@@ -174,14 +187,17 @@ async function fixture(restricted = false) {
   const commands = {
     runAfterWithin: async <R>(
       projectId: string,
-      actorId: string,
+      actor: AuthenticatedUser,
       prelude: BatchPrelude<R>,
       batch: readonly PlanCommand[],
     ) => {
       // A partial graph: this prelude reads only `steps`.
-      const refused = await prelude({ steps: service } as unknown as PlanCommandServices);
+      const refused = await prelude(
+        { steps: service } as unknown as PlanCommandServices,
+        LEGACY_ACCESS,
+      );
       if (refused !== null) return { ok: false as const, prelude: refused };
-      commandsRun.push({ projectId, actorId, batch });
+      commandsRun.push({ projectId, actorId: actor.id, batch });
       return { ok: true as const, results: [], undoable: true, redoable: false };
     },
   };
@@ -192,7 +208,12 @@ async function fixture(restricted = false) {
     broadcast,
     service,
     commandsRun,
-    endpoints: stepRoutes(service, commands, legacyOrganizationAccess),
+    endpoints: stepRoutes(
+      service,
+      commands,
+      legacyOrganizationAccess,
+      testWrites(undefined, { steps: service }),
+    ),
   };
 }
 
@@ -290,7 +311,7 @@ test('typed name bindings preserve every modeled service refusal without a statu
 test('typed removal carries every usage field and only literal true confirms cascade', async () => {
   const { projects, stored, broadcast } = await fixture();
   const service = new StepService({
-    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
+    dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects: projects }),
     clock: testClock,
     projects,
     broadcast,
@@ -314,6 +335,7 @@ test('typed removal carries every usage field and only literal true confirms cas
     service,
     { runAfterWithin: () => Promise.reject(new Error('a removal ran a command batch')) },
     legacyOrganizationAccess,
+    testWrites(undefined, { steps: service }),
   )[2];
   for (const cascade of [undefined, '1', 'TRUE', 'false']) {
     const removeReply: unknown = await remove.handle({

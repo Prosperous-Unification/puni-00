@@ -12,26 +12,37 @@ import {
   trustedIssuerDiscovery,
   TrustedIssuerKeySets,
 } from '@wbs/auth';
+import type { AuthenticatedUser } from '@wbs/contracts';
+import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import {
   type CapacityModeSwitch,
+  clockOf,
   CREATOR_ADMISSION,
   type DomainResolver,
   type EmailMessage,
   type PasswordHasher,
   type ProjectRankStore,
 } from '@wbs/core';
+import { servicesOver } from '@wbs/core/compose';
+import type { RecoveryWriteBoundary } from '@wbs/core/http/recovery-write';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import type { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
+import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { createImportService } from '@wbs/core/module/plan-import/composition';
+import type { ImportService } from '@wbs/core/module/plan-import/plan-import.feature';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
 import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
@@ -59,6 +70,7 @@ import {
   SharedPeopleRestoreApprovalRepository,
   SpaceRepository,
   SqliteBrowserCredentialRevocations,
+  SqliteCommandAccess,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
@@ -68,14 +80,18 @@ import {
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
-import { type Connection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import type { Connection } from '@wbs/store-sqlite/db';
+import { openReadOnlyConnection as openAddressConnection } from '@wbs/store-sqlite/db';
+import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
-import { buildApp } from '../app';
+import { type AppOptions, buildApp } from '../app';
 import type { ReservedSpawner } from '../module/optimization/contract';
 import type { OptimizationCoordinator } from '../module/optimization/optimization.feature';
 import { ActualRepository } from '../repository/actual';
@@ -94,6 +110,7 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bearerContextIssuer, nativeCredentialSource } from '../runtime/bearer-context';
+import { nodeDigest } from '../runtime/bun-runtime';
 import { joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
@@ -107,7 +124,7 @@ import { TEST_JWT_KEY } from './auth-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
-import { sqliteDependencyGraph } from './dependency-graph-fixture';
+import { sqliteDependencyContext } from './dependency-graph-fixture';
 import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
@@ -138,6 +155,7 @@ export interface Answer {
 
 /** What {@link OrganizationHarness.open} wires beyond its defaults. */
 export interface OrganizationHarnessOptions {
+  readonly admitDependencyClient?: AppOptions['admitDependencyClient'];
   readonly delegationKey?: CryptoKey;
   readonly directSigningKey?: CryptoKey;
   readonly policyDirectory?: string;
@@ -179,6 +197,7 @@ interface TestMail {
  * binding when enabled (`boot-browser-session.db.test.ts`).
  */
 export class OrganizationHarness {
+  private appOrigin = 'http://localhost';
   private readonly tokens = new Map<string, string>();
   private readonly ids = new Map<string, string>();
   /**
@@ -211,6 +230,14 @@ export class OrganizationHarness {
     private readonly optimizerCoordinator?: OptimizationCoordinator,
     private readonly savedPlanCapture?: SavedPlanCaptureStore,
     private readonly composedSource?: SqliteSource,
+    private readonly composedCommands?: PlanCommandRunner,
+    private readonly commandPrincipal?: (
+      token: string,
+      cookie: string,
+    ) => Promise<AuthenticatedUser>,
+    private readonly composedWrites?: RecoveryWriteBoundary,
+    private readonly composedImports?: ImportService,
+    private readonly syntheticTransferImporter?: ImportService,
     private readonly composedClaimLeases?: ClaimLeaseSweep,
   ) {}
 
@@ -233,6 +260,7 @@ export class OrganizationHarness {
 
   /** Stops the composed app and closes both connections, leaving its exact database for host recovery. Caller owns directory cleanup. */
   async stopForRecovery(): Promise<string> {
+    await this.composedClaimLeases?.stop();
     await this.optimizerCoordinator?.stop();
     await this.composedSource?.close();
     this.sqlite.close();
@@ -294,6 +322,49 @@ export class OrganizationHarness {
     return this.bareRemoveStep(...args);
   }
 
+  /** Original authenticated request evidence for direct runner boundary tests. */
+  authenticatedCommandPrincipal(username: string, cookie: string): Promise<AuthenticatedUser> {
+    if (this.commandPrincipal === undefined)
+      throw new Error('composed command principal fixture is absent');
+    return this.commandPrincipal(this.token(username), cookie);
+  }
+
+  /** Verifies a machine key before a direct runner test queues its retained principal. */
+  authenticatedMachinePrincipal(key: string): Promise<AuthenticatedUser> {
+    if (this.commandPrincipal === undefined)
+      throw new Error('composed command principal fixture is absent');
+    return this.commandPrincipal(key, '');
+  }
+
+  /** The actual core runner installed beside the mounted HTTP runner. */
+  publicCommands(): PlanCommandRunner {
+    if (this.composedCommands === undefined) throw new Error('composed commands are absent');
+    return this.composedCommands;
+  }
+
+  /** The actual import service installed beside the mounted HTTP route. */
+  publicImports(): ImportService {
+    if (this.composedImports === undefined) throw new Error('composed imports are absent');
+    return this.composedImports;
+  }
+
+  /**
+   * Test-only active import over the same process SQLite writer and current authority.
+   * Synthetic storage authority is seeded by the fixture. This proves transactional
+   * transfer semantics, never runtime activation or mounted external import support.
+   */
+  syntheticImports(): ImportService {
+    if (this.syntheticTransferImporter === undefined)
+      throw new Error('synthetic transfer imports are absent');
+    return this.syntheticTransferImporter;
+  }
+
+  /** Actual process writer boundary for direct admission integration tests. */
+  publicWrites(): RecoveryWriteBoundary {
+    if (this.composedWrites === undefined) throw new Error('composed write boundary is absent');
+    return this.composedWrites;
+  }
+
   /** Runs the composed background edit admission in integration tests. */
   triggerOptimization(projectId: string): void {
     if (this.inputChanged === undefined) throw new Error('composed optimizer is absent');
@@ -341,6 +412,7 @@ export class OrganizationHarness {
    * their TXT lookups.
    */
   static open({
+    admitDependencyClient = () => null,
     delegationKey,
     directSigningKey,
     policyDirectory,
@@ -422,19 +494,27 @@ export class OrganizationHarness {
         clock: testClock,
       }),
       projects: new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(db, projects),
+        dependencyContext: sqliteDependencyContext(db, projects),
         clock: testClock,
         projects,
         broadcast: recordingBroadcaster(),
       }),
       steps: new StepService({
-        dependencyGraph: sqliteDependencyGraph(db, projects),
+        dependencyContext: sqliteDependencyContext(db, projects),
         clock: testClock,
         projects,
         steps: new StepRepository(db, OPEN),
         broadcast: recordingBroadcaster(),
       }),
       workItems: new WorkItemService({
+        dependencyContext: createLocalDependencyContext({
+          projects: projects,
+          workItems: new WorkItemRepository(db, OPEN),
+          estimates: new EstimateRepository(db, OPEN),
+          dependencies: new DependencyRepository(db, OPEN),
+          typedDependencies: new TypedDependencyRepository(db, OPEN),
+        }),
+        externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
         admission: CREATOR_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
@@ -469,6 +549,27 @@ export class OrganizationHarness {
     };
     const mail: TestMail = { tokens: new Map<string, string>(), purposes: new Map(), fail: false };
     const app = buildApp({
+      projectAddressSearch: new ProjectAddressSearch(
+        new ProjectAddressSearchRepository({
+          openConnection: () => openAddressConnection(path),
+          activeOrganizationOf: (snapshot) =>
+            selection === undefined
+              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+              : organizationSelection(
+                  new SqliteOrganizationSelection(snapshot),
+                  organizationCookieBinding(sessionKey),
+                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                  (principal, organizationId) =>
+                    new SqliteOrganizationAccess(
+                      snapshot,
+                      selection.activeOrganizationOf,
+                      now,
+                    ).admitTo(principal, organizationId),
+                ).activeOrganizationOf,
+          now,
+        }),
+        nodeDigest,
+      ),
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
@@ -554,6 +655,7 @@ export class OrganizationHarness {
       history: testHistoryService(),
       auth,
       replay: testReplay().replay,
+      admitDependencyClient,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(undefined, writing),
@@ -599,7 +701,13 @@ export class OrganizationHarness {
    * extending the positional list.
    */
   static openComposedWith({
+    dependencyCapability = CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    admitDependencyClient = () => null,
+    appOrigin = 'http://localhost',
+    now,
     withOptimizer = false,
+    syntheticTransferImports,
+    syntheticExternalCommands,
     delivery,
     deliveryLimits,
     afterResolve,
@@ -607,6 +715,7 @@ export class OrganizationHarness {
     solverVersion = '0.1.0',
     openReadOnlyConnection,
     pushFetch = () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+    internalAuthSecret,
     onFanoutCapture,
     onCapturedFanout,
     onBorrowedUnitOfWork,
@@ -614,7 +723,6 @@ export class OrganizationHarness {
     sessionBinding,
     provider,
     upstreamCredential,
-    now,
     trustedIssuers,
     migrate = (path) => {
       runMigrations(path, FOLDER);
@@ -626,6 +734,7 @@ export class OrganizationHarness {
     const path = join(dir, 'test.db');
     migrate(path);
     const source = openSqliteSource({
+      dependencyCapability,
       dbPath: path,
       organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       openReadOnlyConnection,
@@ -634,12 +743,35 @@ export class OrganizationHarness {
       onBorrowedUnitOfWork,
     });
     const bound = new Map<string, string>();
+    const clock = clockOf({ now: now ?? (() => Date.now()), newId: () => crypto.randomUUID() });
+    const selection =
+      sessionBinding === true
+        ? organizationSelection(
+            new SqliteOrganizationSelection(source.db),
+            organizationCookieBinding(TEST_JWT_KEY, () => clock.now()),
+            new SqliteBrowserCredentialRevocations(source.db, source.gate),
+            (principal, organizationId) => organizationAccess.admitTo(principal, organizationId),
+          )
+        : undefined;
+    const organizationAccess: SqliteOrganizationAccess = new SqliteOrganizationAccess(
+      source.db,
+      selection?.activeOrganizationOf ??
+        userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
+      () => clock.now(),
+    );
+    const commandAccess = new SqliteCommandAccess(
+      source.db,
+      organizationAccess,
+      new MachineCredentialRepository(source.db, source.gate),
+    );
     const services = buildServices({
       source,
+      clock,
+      commandAccess,
       logger: createLogger({ service: 'be-01' }),
       jwtKey: TEST_JWT_KEY,
       gwUrl: 'http://gw.invalid',
-      internalAuthSecret: 's'.repeat(32),
+      internalAuthSecret: internalAuthSecret ?? 's'.repeat(32),
       pushFetch,
       ...(now === undefined ? {} : { now }),
       ...(trustedIssuers === undefined
@@ -681,25 +813,29 @@ export class OrganizationHarness {
           }
         : {}),
     });
-    const selection =
-      sessionBinding === true
-        ? organizationSelection(
-            new SqliteOrganizationSelection(source.db),
-            organizationCookieBinding(TEST_JWT_KEY),
-            new SqliteBrowserCredentialRevocations(source.db, services.gate),
-            (principal, organizationId) => organizationAccess.admitTo(principal, organizationId),
-          )
-        : undefined;
-    const organizationAccess: SqliteOrganizationAccess = new SqliteOrganizationAccess(
-      source.db,
-      selection?.activeOrganizationOf ??
-        userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
-      () => services.clock.now(),
-    );
     const app = buildApp({
+      projectAddressSearch: new ProjectAddressSearch(
+        new ProjectAddressSearchRepository({
+          openConnection: () => (openReadOnlyConnection ?? openAddressConnection)(path),
+          activeOrganizationOf: (snapshot) =>
+            selection === undefined
+              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+              : organizationSelection(
+                  new SqliteOrganizationSelection(snapshot),
+                  organizationCookieBinding(TEST_JWT_KEY),
+                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                  (principal, organizationId) =>
+                    new SqliteOrganizationAccess(snapshot, selection.activeOrganizationOf, () =>
+                      services.clock.now(),
+                    ).admitTo(principal, organizationId),
+                ).activeOrganizationOf,
+          now: () => services.clock.now(),
+        }),
+        nodeDigest,
+      ),
+      appOrigin,
       ...(delivery === undefined ? {} : { delivery }),
       ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
-      appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,
       ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
@@ -774,15 +910,48 @@ export class OrganizationHarness {
       priorityBands: services.priorityBands,
       history: services.history,
       replay: services.replay,
+      admitDependencyClient,
       probeDatabase: () => 'ok',
       writes: {
+        commandAccess,
         imports: services.imports,
         uow: services.uow,
-        batch: services.batch,
+        batch:
+          syntheticExternalCommands !== true
+            ? services.batch
+            : (
+                scope,
+                broadcast,
+                admission,
+                dependencies,
+                beforeProjectUpdate,
+                beforeStepRemoval,
+                beforeStepWrite,
+              ) => ({
+                ...services.batch(
+                  scope,
+                  broadcast,
+                  admission,
+                  dependencies,
+                  beforeProjectUpdate,
+                  beforeStepRemoval,
+                  beforeStepWrite,
+                ),
+                workItems: new WorkItemService({
+                  ...scope.stores,
+                  clock,
+                  scheduler: services.scheduler,
+                  schedulerMode: 'capture',
+                  admission,
+                  dependencyContext: { kind: 'bound', context: dependencies },
+                  externalDependencyAuthoring: { state: 'active' },
+                  broadcast,
+                }),
+              }),
         announcements: services.announcements,
         committedFanout: services.committedFanout,
       },
-      internalAuthSecret: 'x'.repeat(32),
+      internalAuthSecret: internalAuthSecret ?? 'x'.repeat(32),
     });
     const harness = new OrganizationHarness(
       dir,
@@ -806,13 +975,14 @@ export class OrganizationHarness {
             objective: 'pri',
             inputHash,
             input,
-            scoped: { organizationId, actorId },
+            scoped: { organizationId, actorId, role: 'super_admin' },
           })
         ).kind;
       },
       services.optimizer?.inputChanged.bind(services.optimizer),
       services.optimizer?.start.bind(services.optimizer),
       createAdmittedWrites({
+        commandAccess,
         uow: services.uow,
         batch: services.batch,
         announcements: services.announcements,
@@ -824,8 +994,57 @@ export class OrganizationHarness {
       services.optimizer,
       source.history.savedPlanCapture,
       source,
+      services.commands,
+      async (token, cookie) => {
+        const principal = await services.auth.authenticate(token);
+        if (principal === null) throw new Error('command fixture token did not authenticate');
+        if (principal.authentication?.kind === 'machine') return principal;
+        const credential = await organizationCredentialEvidence(services.auth, TEST_JWT_KEY)(
+          token,
+          principal,
+        );
+        if (credential === null)
+          throw new Error('command fixture token has no verified browser evidence');
+        return {
+          ...principal,
+          organizationBinding: { credential, cookie },
+          organizationOperation: {
+            kind: 'mutation',
+            expected: { kind: 'present', organizationId: 'org-a' },
+          },
+        };
+      },
+      {
+        commandAccess,
+        uow: services.uow,
+        batch: services.batch,
+        announcements: services.announcements,
+        committedFanout: services.committedFanout,
+      },
+      services.imports,
+      syntheticTransferImports === true
+        ? createImportService({
+            commandAccess,
+            clock: services.clock,
+            externalDependencies: { state: 'active' },
+            scheduler: fastScheduler,
+            uow: services.uow,
+            announcements: services.announcements,
+            committedFanout: services.committedFanout,
+            batchServices: (scope, broadcast) =>
+              servicesOver(scope.stores, {
+                clock: services.clock,
+                broadcast,
+                scheduler: fastScheduler,
+                schedulerMode: 'capture',
+                admission: CREATOR_ADMISSION,
+                dependencyContext: createLocalDependencyContext(scope.stores),
+              }),
+          })
+        : undefined,
       services.claimLeases,
     );
+    harness.appOrigin = appOrigin;
     harness.federated = provider !== undefined;
     return harness;
   }
@@ -899,7 +1118,7 @@ export class OrganizationHarness {
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
         headers: {
-          origin: 'http://localhost',
+          origin: this.appOrigin,
           'content-type': 'application/json',
           // One address per account, so the registration throttle never joins them.
           ...(this.federated
@@ -990,7 +1209,7 @@ export class OrganizationHarness {
       new Request(`http://localhost${path}`, {
         method,
         headers: {
-          ...(method === 'GET' ? {} : { origin: 'http://localhost' }),
+          ...(method === 'GET' ? {} : { origin: this.appOrigin }),
           ...extraHeaders,
           authorization: `Bearer ${token}`,
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -1006,11 +1225,23 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  /** Explicit binary identity for semantic/refusal fixtures; real boot owns its immutable descriptor. */
+  readonly dependencyCapability?: DependencyRuntimeCapability;
+  /** Explicit authority boundary for mounted runtime admission tests. */
+  readonly admitDependencyClient?: AppOptions['admitDependencyClient'];
+  /** Explicit allowed browser origin, shared by the mounted controller and fixture clients. */
+  readonly appOrigin?: string;
+  /** Builds a separate test-only importer; mounted imports retain source binary and durable authority. */
+  readonly syntheticTransferImports?: true;
+  /** Replaces only the admitted command WorkItemService with explicit fixture authority. */
+  readonly syntheticExternalCommands?: true;
   /** Trusted external delivery reader; absent exercises production composition. */
   readonly delivery?: DeliveryReader;
   /** Delivery gate limits; absent uses the production defaults. */
   readonly deliveryLimits?: DeliveryGateLimits;
   readonly sessionBinding?: boolean;
+  /** One secret for the mounted backend and its outbound production push client. */
+  readonly internalAuthSecret?: string;
   /** The services clock's time source; real time unless a test fixes it. */
   readonly now?: () => number;
   withOptimizer?: boolean;

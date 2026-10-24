@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+322 |   if (original?.owner !== owner) throw new Error('source dev exclusion is not live for owner');
+323 |   const scope = observeWithin(original, deadline);
+324 |   await inspectScope(scope);
+325 |   // Proof: final live-scope omission returned in-flight source proof after callback expiry; gated recognition/inspection negatives failed.
+326 |   if (exclusions.get(token) !== scope)
+327 |     throw new Error('source dev exclusion expired during inspection');
+                    ^
+error: source dev exclusion expired during inspection
+      at inspectSourceDevExclusion (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:327:15)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:702:23)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:249:18)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection tighter deadline aborts and reaps stalled ps child without changing original scope [224.68ms]
+322 |   if (original?.owner !== owner) throw new Error('source dev exclusion is not live for owner');
+323 |   const scope = observeWithin(original, deadline);
+324 |   await inspectScope(scope);
+325 |   // Proof: final live-scope omission returned in-flight source proof after callback expiry; gated recognition/inspection negatives failed.
+326 |   if (exclusions.get(token) !== scope)
+327 |     throw new Error('source dev exclusion expired during inspection');
+                    ^
+error: source dev exclusion expired during inspection
+      at inspectSourceDevExclusion (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:327:15)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:702:23)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:249:18)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection tighter deadline aborts and reaps stalled image child without changing original scope [200.18ms]
+
+ 0 pass
+ 45 filtered out
+ 2 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [473.00ms]

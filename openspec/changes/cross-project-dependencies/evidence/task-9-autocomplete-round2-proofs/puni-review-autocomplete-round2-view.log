@@ -1,0 +1,14 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-cross-autocomplete/apps/wbs/fe-01
+
+
+ Test Files  17 passed (17)
+      Tests  401 passed (401)
+   Start at  07:48:35
+   Duration  168.14s (tests 70%, import 23%, environment 5%, transform 2%, setup 1%)
+
+    Isolate  17 workers spawned · ~556ms startup each (spawn + environment, per file)
+             at least ~8.90s faster with isolate: false — reuses workers across files instead of one per file

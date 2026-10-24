@@ -30,11 +30,13 @@ import { realpathSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
+  assertNoEdgeOwner,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_SOCKET,
+  withEdgeAdmission,
 } from '@tools/deploy-contract';
 import { $ } from 'bun';
 
@@ -456,9 +458,34 @@ export async function runDevSyncLock(
     : [];
   // Proof: removing `-E 75` failed the production-invocation test's exact argv
   // assertion: Expected began "-E", "75"; Received began "-n", devsync.lock.
-  const run =
-    await $`${flockPath} -E ${LOCK_BUSY_EXIT_CODE} -n ${lockPath} ${bunPath} ${scriptPath} --locked ${sha} ${pathArgs}`.nothrow();
-  return run.exitCode;
+  const inherited = process.env['WBS_EDGE_LOCK_FD'];
+  // withEdgeAdmission validated the descriptor against canonical state before
+  // this launcher. Remap it explicitly: Bun shell does not preserve extra FDs
+  // across its second spawn, even though the environment token survives.
+  // Proof: omitting this mapping failed the standalone and inherited-FD8 real
+  // launchers plus the completing locked-child exclusion test (3 failures).
+  const child = Bun.spawn(
+    [
+      flockPath,
+      '-E',
+      String(LOCK_BUSY_EXIT_CODE),
+      '-n',
+      lockPath,
+      bunPath,
+      scriptPath,
+      '--locked',
+      sha,
+      ...pathArgs,
+    ],
+    {
+      env: { ...process.env, WBS_EDGE_LOCK_FD: inherited === undefined ? undefined : '3' },
+      stdio:
+        inherited === undefined
+          ? ['inherit', 'inherit', 'inherit']
+          : ['inherit', 'inherit', 'inherit', Number(inherited)],
+    },
+  );
+  return child.exited;
 }
 
 /**
@@ -472,6 +499,9 @@ export async function runDevSyncLock(
  * - `package.json`, `nx.json`, `apps/wbs/<tier>/project.json` -- the Nx supervisor
  *   reads the serve targets once, at startup. A changed port, command or
  *   project list leaves the old topology running while HEAD moves on.
+ * - MCP OpenAPI emitter, contracts and validation sources/configs -- source
+ *   serve prepares the required document once per supervisor start; Bun's
+ *   runtime watcher no longer imports the HTTP registry or its validation.
  * - `apps/wbs/fe-01/vite.config.ts` -- Vite reloads app code, not its own config.
  *
  * Not covered, deliberately, because they need more than a restart: the
@@ -483,6 +513,21 @@ export const RESTART_PATHS: readonly string[] = [
   'package.json',
   'nx.json',
   'apps/wbs/be-01/drizzle',
+  // MCP reads a prepared document rather than importing these sources. Only a
+  // supervisor restart reruns its uncached Nx prepare dependency.
+  // Proof: independently omitting each source/config entry made the real Git-reset
+  // sync regression skip restart and MCP preparation (0/1 per fault).
+  'libs/wbs/domain/contracts/src',
+  'apps/wbs/be-01/src/openapi',
+  'libs/wbs/domain/validation/src',
+  'libs/shared/domain/validation/src',
+  // Proof: omitting either shared-delivery entry made its real Git-reset
+  // MCP document case report "watchers pick it up" without rerunning prepare.
+  'libs/shared/domain/delivery/src',
+  'libs/wbs/domain/contracts/tsconfig.json',
+  'libs/wbs/domain/validation/tsconfig.json',
+  'libs/shared/domain/validation/tsconfig.json',
+  'libs/shared/domain/delivery/tsconfig.json',
   'apps/wbs/be-01/project.json',
   'apps/wbs/gw-01/project.json',
   'apps/wbs/fe-01/project.json',
@@ -781,6 +826,8 @@ export interface DevSyncOptions extends Partial<DevSyncPaths> {
 }
 
 export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
+  // Proof: removing this guard failed the direct executor retained-owner negative before later IO.
+  await assertNoEdgeOwner();
   const paths = devSyncPathsOf(options);
   await assertMcpEnv(options.mcpEnvPath ?? `${paths.sourcePath}/apps/wbs/mcp-01/.env`);
   await assertBeEnv(options.beEnvPath ?? `${paths.sourcePath}/apps/wbs/be-01/.env`);
@@ -902,19 +949,21 @@ if (import.meta.main) {
     process.exit(1);
   }
 
-  if (invocation.locked) {
-    // Already inside flock: this is the real run.
-    await sync(invocation.sha, invocation.paths);
-  } else {
-    // Two overlapping runs can interleave their fetch, reset, install and
-    // restart, leaving dev on one SHA with another SHA's dependencies. flock
-    // makes the whole sequence exclusive; -n fails fast rather than queueing a
-    // deploy whose operator has stopped watching. The dedicated conflict exit
-    // keeps a child failure from being mislabeled as lock contention.
-    const exitCode = await runDevSyncLock(invocation.sha, { paths: invocation.paths });
-    if (exitCode !== 0) {
-      console.error(devSyncFailureMessage(exitCode));
+  await withEdgeAdmission(async () => {
+    if (invocation.locked) {
+      // Already inside flock: this is the real run.
+      await sync(invocation.sha, invocation.paths);
+    } else {
+      // Two overlapping runs can interleave their fetch, reset, install and
+      // restart, leaving dev on one SHA with another SHA's dependencies. flock
+      // makes the whole sequence exclusive; -n fails fast rather than queueing a
+      // deploy whose operator has stopped watching. The dedicated conflict exit
+      // keeps a child failure from being mislabeled as lock contention.
+      const exitCode = await runDevSyncLock(invocation.sha, { paths: invocation.paths });
+      if (exitCode !== 0) {
+        console.error(devSyncFailureMessage(exitCode));
+      }
+      process.exit(exitCode);
     }
-    process.exit(exitCode);
-  }
+  });
 }

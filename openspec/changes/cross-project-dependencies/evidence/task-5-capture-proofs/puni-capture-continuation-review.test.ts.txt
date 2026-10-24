@@ -1,0 +1,84 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { expect, spyOn, test } from 'bun:test';
+import { openSpaceDatabase } from '/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/testing/space-database';
+import { openSqliteSource } from '/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/source';
+import { ProjectRepository } from '/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/project';
+
+function hold() {
+  let release = () => { throw new Error('not initialized'); };
+  const promise = new Promise<void>((resolve) => { release = resolve; });
+  return { promise, release: () => release() };
+}
+test('expired live project continuation performs no SQL when resumed in the next UoW', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'review-capture-'));
+  const path = await openSpaceDatabase(folder);
+  const queries: string[] = [];
+  const sqlite = openSqliteSource({ dbPath: path, logger: { logQuery: query => queries.push(query) } });
+  sqlite.db.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+  const source = sqlite.bindLivePlans({ schedulerOf: () => ({ supports: () => true, read: () => { throw new Error('unexpected scheduling'); } }) });
+  const reached = hold();
+  const released = hold();
+  const original = ProjectRepository.prototype.findById;
+  let pause = true;
+  const spy = spyOn(ProjectRepository.prototype, 'findById').mockImplementation(async function (id) {
+    const project = await original.call(this, id);
+    if (pause) { pause = false; reached.release(); await released.promise; }
+    return project;
+  });
+  let pending: Promise<unknown> | undefined;
+  try {
+    await source.uow.run(async scope => {
+      if (!scope.stores.livePlans) throw new Error('missing live plans');
+      pending = scope.stores.livePlans.readProject('a1').catch(failure => failure);
+      await reached.promise;
+      return { commit: true, value: undefined };
+    });
+    await source.uow.run(async () => {
+      const before = queries.length;
+      released.release();
+      const failure = await pending;
+      expect(failure).toBeInstanceOf(Error);
+      console.log('POST-EXPIRY SQL:', queries.slice(before));
+      expect(queries.length - before).toBe(0);
+      return { commit: true, value: undefined };
+    });
+  } finally { spy.mockRestore(); await source.close(); rmSync(folder, { recursive: true, force: true }); }
+});
+
+test.each(['authorizeProjectUpdate', 'authorizeStepRemoval'] as const)('expired fanout %s continuation performs no SQL', async (method) => {
+  const folder = mkdtempSync(join(tmpdir(), 'review-fanout-'));
+  const path = await openSpaceDatabase(folder);
+  const queries: string[] = [];
+  const sqlite = openSqliteSource({ dbPath: path, logger: { logQuery: query => queries.push(query) } });
+  const source = sqlite.bindLivePlans({ schedulerOf: () => ({ supports: () => true, read: () => { throw new Error('unexpected scheduling'); } }) });
+  const reached = hold();
+  const released = hold();
+  const original = ProjectRepository.prototype.findInOrganization;
+  let pause = true;
+  const spy = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(async function (id, organizationId) {
+    const project = await original.call(this, id, organizationId);
+    if (pause) { pause = false; reached.release(); await released.promise; }
+    return project;
+  });
+  let pending: Promise<unknown> | undefined;
+  try {
+    await source.uow.run(async scope => {
+      const authorize = scope.fanoutCapture?.[method];
+      if (!authorize) throw new Error('missing fanout authority');
+      pending = authorize('a1', 'ada', {kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'member'}}).catch(failure => failure);
+      await reached.promise;
+      return { commit: true, value: undefined };
+    });
+    await source.uow.run(async () => {
+      const before = queries.length;
+      released.release();
+      const failure = await pending;
+      expect(failure).toBeInstanceOf(Error);
+      console.log('POST-EXPIRY FANOUT SQL:', queries.slice(before));
+      expect(queries.length - before).toBe(0);
+      return { commit: true, value: undefined };
+    });
+  } finally { spy.mockRestore(); await source.close(); rmSync(folder, { recursive: true, force: true }); }
+});

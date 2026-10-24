@@ -4,8 +4,9 @@ import {
   trustedIssuerDiscovery,
   TrustedIssuerKeySets,
 } from '@wbs/auth';
-import type { DelegationIssuer } from '@wbs/core';
+import { clockOf, type DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import {
@@ -33,13 +34,16 @@ import {
   SpaceRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
+  SqliteCommandAccess,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
   TrustedIssuerAdministrationRepository,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
+import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
+import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
 import { readStepBlockageActivation } from '@wbs/store-sqlite/step-blockage-activation';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -56,9 +60,16 @@ import { UserRepository } from './repository/user';
 import { AuthoritativeDnsResolver, type DnsTransport } from './runtime/authoritative-dns/resolver';
 import { SocketDnsTransport } from './runtime/authoritative-dns/transport';
 import { type BackgroundFailureSource, createBackgroundFailure } from './runtime/be-supervisor';
+import { nodeDigest } from './runtime/bun-runtime';
 import { delegationVerifier, type MappedUserOf, REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys, type ImportedDelegationKeys } from './runtime/delegation-keys';
+import {
+  assertDependencyMigrationRuntime,
+  assertDependencyRuntime,
+  BACKEND_DEPENDENCY_CAPABILITY,
+} from './runtime/dependency-capability';
+import { admitDependencyClient } from './runtime/dependency-client';
 import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
 import { createEmailDelivery } from './runtime/email-delivery';
 import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
@@ -148,14 +159,24 @@ export interface BootOptions {
  */
 function browserComposition(
   opts: BootOptions,
-  services: BeServices,
+  services: Pick<BeServices, 'clock' | 'gate'>,
   db: ReturnType<typeof openSqliteSource>['db'],
-): Pick<AppOptions, 'oidc' | 'browserSession' | 'organizationSelection' | 'organizations'> {
+): Pick<AppOptions, 'oidc' | 'organizationSelection' | 'organizations' | 'projectAddressSearch'> & {
+  browserSession?: Omit<NonNullable<AppOptions['browserSession']>, 'verifyNativeBrowserCredential'>;
+} {
   // Proof: composing the authority whatever the setting failed `keeps the
   // legacy browser composition when disabled` and the native-logout 404 case
   // in boot-browser-session.db.test.ts (3 pass, 2 fail, 2026-10-11).
   if (opts.browserSessionAuthority === 'disabled')
     return {
+      projectAddressSearch: new ProjectAddressSearch(
+        new ProjectAddressSearchRepository({
+          openConnection: () => openReadOnlyConnection(opts.dbPath),
+          activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+          now: () => services.clock.now(),
+        }),
+        nodeDigest,
+      ),
       oidc: opts.oidc,
       // Proof: wiring legacy access here instead made `refuses the
       // project and directory lists after activation until a session
@@ -181,7 +202,7 @@ function browserComposition(
     new SqliteOrganizationSelection(db),
     // The native session key, under its own token type and audience, so a
     // selection cannot be presented as an access token or the reverse.
-    organizationCookieBinding(opts.jwtKey),
+    organizationCookieBinding(opts.jwtKey, () => services.clock.now()),
     // Proof: a lookup that never answers revoked let the old access and
     // organization cookie pair list projects after its logout committed
     // (`refuses the whole old token…`, 4 pass, 1 fail, 2026-10-11).
@@ -201,13 +222,29 @@ function browserComposition(
       tokens: oidc?.tokens,
       revokeProvider: oidc?.client.revoke,
       revocations,
-      verifyNativeBrowserCredential: nativeBrowserCredentialEvidence(services.auth, opts.jwtKey),
     },
     organizationSelection: selection.endpoints,
     // Proof: keeping NO_BOUND_ORGANIZATION here refused the freshly selected
     // pair with 403 before any logout (`refuses the whole old token…`, 4 pass,
     // 1 fail, 2026-10-11).
     organizations,
+    projectAddressSearch: new ProjectAddressSearch(
+      new ProjectAddressSearchRepository({
+        openConnection: () => openReadOnlyConnection(opts.dbPath),
+        activeOrganizationOf: (snapshot) =>
+          organizationSelection(
+            new SqliteOrganizationSelection(snapshot),
+            organizationCookieBinding(opts.jwtKey, () => services.clock.now()),
+            new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+            (principal, organizationId) =>
+              new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, () =>
+                services.clock.now(),
+              ).admitTo(principal, organizationId),
+          ).activeOrganizationOf,
+        now: () => services.clock.now(),
+      }),
+      nodeDigest,
+    ),
   };
 }
 
@@ -318,8 +355,9 @@ type BuiltApp = ReturnType<typeof buildApp>;
  * script meant "the timer is running in production" was a claim no test could
  * reach — the same shape of gap as the `runRetention` that had no caller at all.
  *
- * **It owns what it acquires.** The bag below opens the source, composes the
- * services, starts retention, mounts the listener and starts configured proof scheduling, in that order,
+ * **It owns what it acquires.** The bag opens the source, admits the schema and
+ * runtime, composes services, starts retention, mounts the listener and starts
+ * configured proof scheduling, in that order,
  * and releases them in the reverse of it. A step that fails takes the whole
  * startup down with it and gives back every resource the earlier steps took;
  * that is why this is `async` — `source.close()` and `retention.stop()` are
@@ -351,6 +389,7 @@ export async function bootBe01(
           opts.organizationDnsResolvers,
           dependencies.dnsTransport ?? new SocketDnsTransport(),
         );
+  const clock = clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() });
   const state = { migrationsApplied: false, stopping: false };
   // Proof: replacing this with disabled delivery failed the combined boot submission after a real proof sweep.
   const emailDelivery = createEmailDelivery(opts.emailDelivery ?? { kind: 'disabled' });
@@ -369,6 +408,8 @@ export async function bootBe01(
           (): OwnedSource =>
             dependencies.openSource({
               dbPath: opts.dbPath,
+              // Proof: binding an empty source descriptor while advertising V1 made real backend external admission fail instead of persisting its identity.
+              dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
               organizationDefaultLimits: opts.organizationDefaultLimits,
             }),
           { factoryReturnKind: 'sync-value' },
@@ -377,10 +418,64 @@ export async function bootBe01(
         // error: expected `DiBagCleanupError`, received `undefined`.
         disposeService: (source) => source.close(),
       }),
+      // Proof: replacing all admittedSource dependencies with source let real
+      // listener/DNS/retention/optimizer startup run against enabled authority
+      // in cross-project-dependency.boot.db.test.ts (2026-10-22).
+      admittedSource: DiBag.createProvider(
+        ({ source }: { source: OwnedSource }): OwnedSource => {
+          if (opts.migrateOnStartup === true) {
+            // Proof: moving this after runMigrations changed the complete schema/ledger
+            // certificate in enabled-empty pending-migration boot refusal (2026-10-23).
+            assertDependencyMigrationRuntime(
+              source.db,
+              BACKEND_DEPENDENCY_CAPABILITY,
+              opts.migrationsFolder ?? './drizzle',
+            );
+            runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
+          }
+          readStepBlockageActivation(source.db);
+          // Proof: removing this invocation persisted local-dev during the real
+          // enabled-empty boot refusal test (2026-10-22). Removing it also started
+          // services after a migration dropped the receipt table (2026-10-23).
+          assertDependencyRuntime(source.db, BACKEND_DEPENDENCY_CAPABILITY);
+          if (opts.migrateOnStartup === true) {
+            const coded = backfillStepCodes(
+              source.db,
+              new DrizzleEventLogStore(source.db, OPEN),
+              Date.now(),
+            );
+            opts.logger.info({ coded: coded.length }, 'step codes backfilled');
+          }
+          if (opts.localIdentity !== undefined)
+            new UserRepository(source.db, OPEN).ensureLocalIdentity(opts.localIdentity, {
+              at: Date.now(),
+              by: opts.localIdentity.id,
+            });
+          return source;
+        },
+        { factoryReturnKind: 'sync-value' },
+      ),
+      browser: DiBag.createProvider(
+        ({ admittedSource: source }: { admittedSource: OwnedSource }) =>
+          browserComposition(opts, { clock, gate: source.gate }, source.db),
+        { factoryReturnKind: 'sync-value' },
+      ),
       services: DiBag.createProvider(
-        ({ source }: { source: OwnedSource }): BeServices =>
+        ({
+          admittedSource: source,
+          browser,
+        }: {
+          admittedSource: OwnedSource;
+          browser: ReturnType<typeof browserComposition>;
+        }): BeServices =>
           buildServices({
             source,
+            clock,
+            commandAccess: new SqliteCommandAccess(
+              source.db,
+              browser.organizations,
+              new MachineCredentialRepository(source.db, source.gate),
+            ),
             logger: opts.logger,
             jwtKey: opts.jwtKey,
             gwUrl: opts.gwUrl,
@@ -449,13 +544,15 @@ export async function bootBe01(
         provider: DiBag.createProvider(
           (
             {
-              source,
+              admittedSource: source,
               services,
+              browser,
               retention: _retention,
               claimLeases,
             }: {
-              source: OwnedSource;
+              admittedSource: OwnedSource;
               services: BeServices;
+              browser: ReturnType<typeof browserComposition>;
               // Read for its edge as `retention` is (its disposer runs after the
               // listener's), and handed to the app so a revoke asks it for a tick.
               claimLeases: BeServices['claimLeases'];
@@ -472,7 +569,7 @@ export async function bootBe01(
             // Proof: removing this resolver binding made the activated
             // `immediate configured sweep` fail instead of recording DNS absence.
             const domains = new DomainClaimRepository(db, services.gate, undefined, domainResolver);
-            const browser = browserComposition(opts, services, db);
+
             const app = (dependencies.makeApp ?? buildApp)({
               appOrigin: opts.appOrigin,
               clock: services.clock,
@@ -492,6 +589,16 @@ export async function bootBe01(
               // 13 filtered).
               loginThrottle: services.loginThrottle,
               ...browser,
+              browserSession:
+                browser.browserSession === undefined
+                  ? undefined
+                  : {
+                      ...browser.browserSession,
+                      verifyNativeBrowserCredential: nativeBrowserCredentialEvidence(
+                        services.auth,
+                        opts.jwtKey,
+                      ),
+                    },
               projects: services.projects,
               memberships: new OrganizationRepository(db, services.gate),
               sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
@@ -565,7 +672,10 @@ export async function bootBe01(
               history: services.history,
               replay: services.replay,
               probeDatabase: () => probeSchema(db),
+              admitDependencyClient: (claim) =>
+                admitDependencyClient(db, BACKEND_DEPENDENCY_CAPABILITY, claim),
               writes: {
+                commandAccess: services.commandAccess,
                 imports: services.imports,
                 uow: services.uow,
                 // The batch's own services, over stores that hold no turn: the
@@ -594,53 +704,11 @@ export async function bootBe01(
             factoryCtx.pushDisposer(async (disposerCtx) => {
               if (disposerCtx.reason !== 'service-disposed') await app.stop();
             });
-            // Elysia runs this callback inline, before `listen` returns, so the
-            // schema step and the identity write happen exactly where they did —
-            // and a throw in either still leaves this factory, which is now what
-            // releases the socket above.
             const startListener =
               dependencies.startListener ??
               ((server: BuiltApp, port: number, ready: () => void) => server.listen(port, ready));
             startListener(app, opts.port, () => {
-              if (opts.migrateOnStartup !== true) {
-                opts.logger.info(
-                  { port: opts.port },
-                  'be-01 listening (schema managed by the deploy pipeline)',
-                );
-              } else {
-                opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
-                runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
-                // Proof: post-migration admission check omitted; missing-marker boot completed instead of refusing readiness (2026-10-14).
-                readStepBlockageActivation(db);
-                // The swap's post-`stop-blue` step, here because a process that
-                // migrates itself has no older colour left to wait for.
-                const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
-                opts.logger.info({ coded: coded.length }, 'step codes backfilled');
-              }
-              if (opts.migrateOnStartup !== true) readStepBlockageActivation(db);
-              if (opts.localIdentity !== undefined) {
-                // The one write in the tree whose author is the row it writes:
-                // the fixed local-mode account brings itself into existence, so
-                // it is its own `created_by`. `Date.now()` rather than an
-                // injected clock because boot is not a service and has none —
-                // the rule the stamp exists for is that the *repository* reads
-                // no clock, and this is the caller.
-                //
-                // **This has to finish before the first write, and it does.**
-                // Every audit column's `created_by` references `users(id)` with
-                // foreign keys on, so a write attributed to this identity before
-                // its row exists is a `FOREIGN KEY constraint failed` rather
-                // than a quiet null. `/health` answers 503 `migrating` until the
-                // flag below, and both things that send the first request wait
-                // for a 200 first: Playwright's `webServer` does, and so does
-                // the deploy poller before it routes traffic to green. `OPEN`:
-                // this runs before the first request is served, so there is no
-                // batch for this write to land inside and no turn to wait for.
-                new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
-                  at: Date.now(),
-                  by: opts.localIdentity.id,
-                });
-              }
+              opts.logger.info({ port: opts.port }, 'be-01 listening (schema admitted)');
             });
             services.optimizer?.start();
             factoryCtx.pushDisposer(async () => {

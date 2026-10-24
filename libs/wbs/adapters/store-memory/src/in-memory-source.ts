@@ -1,4 +1,5 @@
 import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 
 import { inMemoryActuals } from './actual-fixture';
 import { inMemoryAttempts } from './attempt-fixture';
@@ -57,6 +58,7 @@ export function inMemoryStores(): TransactionalStores {
   const dependencies = inMemoryDependencies([], undefined, workItems);
   const demands = inMemoryDemands(directoryTables.resources, workItems);
   return {
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     users,
     projects,
     directory,

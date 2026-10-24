@@ -13,11 +13,14 @@ const CONFLICTS = new Set([
   // Arranging a plan whose selected optimized variant has not settled. The same
   // request lands once the solve does, which is the family's own definition.
   'schedule_not_ready',
+  'arrangement_positions_unavailable',
+  'dependency_calendar_missing',
   'frozen',
   'rolled_up',
   'ancestor',
   'self_node',
   'not_a_parent',
+  'project_deleting',
   'duplicate_dependency',
   'dependency_cycle',
   'referenced_by_dependency',

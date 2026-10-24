@@ -1,4 +1,4 @@
-import type { FanoutObservation } from '../service/shared-people-fanout';
+import type { DependencyFanout, FanoutObservation } from '../service/shared-people-fanout';
 import type { NamedCatalog } from './directory-store';
 import type { ResourceAccess } from './organization-access';
 
@@ -14,6 +14,13 @@ export type BeforeProjectUpdate = (
 
 /** Existing scoped recovery admission stays live while step preflights ask for observation. */
 export type BeforeStepRemoval = (
+  projectId: string,
+  actorId: string,
+  access: ResourceAccess,
+) => Promise<FanoutWriteAuthority>;
+
+/** Scoped add/rename observation after service authority, name and graph preflights. */
+export type BeforeStepWrite = (
   projectId: string,
   actorId: string,
   access: ResourceAccess,
@@ -87,6 +94,8 @@ export type LifecycleOwnership =
 /** Detached before/after values read on the owning command transaction. */
 export interface CapturedFanout {
   readonly observation: FanoutObservation;
+  /** External components, including shared-person bridges; ordinary shared components remain in observation. */
+  readonly dependency: DependencyFanout | null;
   readonly localFacts: ReadonlyMap<string, string>;
 }
 

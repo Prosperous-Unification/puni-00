@@ -24,8 +24,8 @@ import type { Step } from './step-store';
  */
 export type ProjectEvent =
   /**
-   * Another ranked project changed the shared-person bookings this project
-   * consumes; `causeProjectId` is null when the organization itself switched
+   * Another project changed shared-person bookings or dependency-component
+   * facts/labels this project consumes; `causeProjectId` is null when the organization itself switched
    * between isolated and shared people, which may move every project at once.
    */
   | { type: 'elsewhere_changed'; projectId: string; causeProjectId: string | null }
@@ -124,6 +124,17 @@ export type ProjectEvent =
       objective: SolverObjectiveName;
       contractVersion: string;
       budgetMs: number;
+    }
+  | {
+      type: 'schedule_optimization_boundary_infeasible';
+      projectId: string;
+      generation: number;
+      inputHash: string;
+      objective: SolverObjectiveName;
+      contractVersion: string;
+      budgetMs: number;
+      questionHash: string;
+      scope: 'connected-stage';
     }
   | {
       type: 'schedule_optimization_failed';

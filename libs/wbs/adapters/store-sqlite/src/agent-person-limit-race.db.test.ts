@@ -6,14 +6,17 @@ import type { OrganizationLimitGauge, ResourceAccess, Scope } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -33,7 +36,11 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'agent-person-limit-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+    organizationDefaultLimits: DEFAULTS,
+  });
   for (const statement of [
     sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`,
     sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`,
@@ -76,6 +83,7 @@ function runnerWith(hold: Hold) {
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const holding = (gauge: OrganizationLimitGauge | undefined): OrganizationLimitGauge => {
     if (gauge === undefined) throw new Error('the admitted stores carry no limits gauge');
@@ -95,13 +103,19 @@ function runnerWith(hold: Hold) {
     };
   };
   return createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: servicesOver(source.stores, options),
-    batchServices: (scope: Scope, announcements) =>
+    batchServices: (scope: Scope, announcements, admission, dependencyContext) =>
       servicesOver(
         { ...scope.stores, organizationLimits: holding(scope.stores.organizationLimits) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          admission,
+          dependencyContext: { kind: 'bound', context: dependencyContext },
+        },
       ),
   });
 }
@@ -130,7 +144,7 @@ describe('two concurrent promotions at 7 of 8', () => {
     const runner = runnerWith(hold);
     const promote = (personId: string) =>
       runner.runDirectoryWithin(
-        'dany',
+        { id: 'dany', username: 'dany', scopes: ['write'] },
         [{ kind: 'patchPerson', personId, patch: { kind: 'agent' } }],
         SCOPED,
       );
@@ -175,7 +189,7 @@ describe('two concurrent agent creations at 7 of 8', () => {
     const runner = runnerWith(hold);
     const create = (name: string) =>
       runner.runDirectoryWithin(
-        'dany',
+        { id: 'dany', username: 'dany', scopes: ['write'] },
         [{ kind: 'createPerson', name, personKind: 'agent' }],
         SCOPED,
       );

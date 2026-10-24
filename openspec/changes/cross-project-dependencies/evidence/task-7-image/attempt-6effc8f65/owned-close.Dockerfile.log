@@ -1,0 +1,2 @@
+FROM 127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706
+COPY fault.ts /app/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts

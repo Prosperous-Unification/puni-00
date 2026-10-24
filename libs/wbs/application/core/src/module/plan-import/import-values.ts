@@ -1,4 +1,8 @@
-import type { PlanDocumentImport } from '@wbs/contracts';
+import type {
+  DocumentExternalMapping,
+  DocumentV11TypedDependency,
+  PlanDocumentImport,
+} from '@wbs/contracts';
 import type {
   AllowancePercent,
   AttemptOutcome,
@@ -7,6 +11,7 @@ import type {
   MeasureMetric,
   Readiness,
   ResourceKind,
+  ScopedDependencyEndpoint,
   StepState,
   ThreePointEstimate as Estimate,
   TypedDependency,
@@ -153,6 +158,15 @@ export interface PreparedImport {
   workItems: PreparedWorkItem[];
   dependencies: PreparedDependency[];
   typedDependencies: TypedDependency[];
+  /** Original document paths keyed by authored internal relationship identity. */
+  typedDependencyPaths: ReadonlyMap<string, string>;
+  externalDependencies: {
+    path: string;
+    predecessor: Extract<DocumentV11TypedDependency['predecessor'], { kind: 'external' }>;
+    destination: DocumentExternalMapping['destination'];
+    successor: TypedDependency['successor'];
+    type: TypedDependency['type'];
+  }[];
   stepByFileId: ReadonlyMap<string, PreparedStep>;
   teamByFileId: ReadonlyMap<string, PreparedTeam>;
   personByFileId: ReadonlyMap<string, PreparedPerson>;
@@ -247,4 +261,38 @@ export function preparedRow(
       name: reference.name,
     })),
   };
+}
+
+/**
+ * Finds semantic duplicates in mapped relationships, ignoring source relationship IDs.
+ * Preparation accepts file-local successors without projectId; transaction admission
+ * must call again with the complete scoped set after allocating destination IDs.
+ */
+export function findImportDependencyDuplicate(
+  relationships: readonly {
+    path: string;
+    predecessor: ScopedDependencyEndpoint;
+    successor: TypedDependency['successor'] & { readonly projectId?: string };
+    type: TypedDependency['type'];
+  }[],
+): string | null {
+  const keys = new Set<string>();
+  for (const { predecessor, successor, type, path } of relationships) {
+    const key = JSON.stringify([
+      predecessor.projectId,
+      predecessor.workItemId,
+      predecessor.scope,
+      'stepId' in predecessor ? predecessor.stepId : null,
+      successor.projectId ?? null,
+      successor.workItemId,
+      successor.scope,
+      'stepId' in successor ? successor.stepId : null,
+      type,
+    ]);
+    // Proof: bypassing this guard failed mapped-destination and final scoped-tuple
+    // duplicate tests in prepare-import.test.ts (2026-10-22).
+    if (keys.has(key)) return path;
+    keys.add(key);
+  }
+  return null;
 }

@@ -1,0 +1,19 @@
+import {expect,test} from 'bun:test';
+import {stage,prepare} from './fixture';
+import {sliceKey} from '/tmp/puni-cross-solver-backend/libs/wbs/domain/domain/src/index.ts';
+import {revalidateConnectedSolverResult} from '/tmp/puni-cross-solver-backend/libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts';
+test('external FS constrains the second selected-project step and omission is refused even on unknown',()=>{
+ const candidate=stage();const second=sliceKey('b','second');const first=sliceKey('b',null);
+ candidate.input.slices.splice(2,0,{workItemId:'b',stepId:'second',days:.5,width:1,personId:null,poolIds:[]});
+ candidate.input.graph.nodes.push({kind:"step",ref:{workItemId:"b",stepId:"second"},at:1});candidate.starts.set(second,.2);candidate.finishes.set(second,.7);
+ candidate.input.graph.edges.splice(0,2,{predecessor:{leafId:'a',at:0},successor:{leafId:'b',at:1},provenance:'authored',relationshipId:'ab',type:'FS'});
+ const pair=prepare(candidate);expect(pair.pri.kind).toBe('request');if(pair.pri.kind!=='request')throw Error(pair.pri.kind);
+ const request=pair.pri.request;
+ expect(request.scope.boundaries).toHaveLength(1);
+ expect(request.scope.boundaries[0]).toMatchObject({type:'FS',direction:'incoming',localKey:second,minimumStartUnits:10});
+ expect(request.scope.boundaries[0].localKey).not.toBe(first);
+ const response={wireVersion:5 as const,scope:request.scope,status:'unknown' as const};
+ expect(revalidateConnectedSolverResult(candidate,request,response)).toMatchObject({ok:true,published:false});
+ const omitted=structuredClone(request);omitted.scope.boundaries=[];
+ expect(revalidateConnectedSolverResult(candidate,omitted,response)).toMatchObject({ok:false,failure:'malformed-request'});
+});

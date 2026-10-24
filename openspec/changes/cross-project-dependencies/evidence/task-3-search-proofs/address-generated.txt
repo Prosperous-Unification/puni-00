@@ -1,0 +1,124 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/app.routes.test.ts:
+(pass) binds each shared HTTP shape once in every configuration that owns it [15.91ms]
+(pass) keeps OIDC health readiness live after the endpoint table is built [19.56ms]
+(pass) enforces the complete pinned identity and origin policy inventory on the production app [39.85ms]
+707 |     probeDatabase: () => {
+708 |       probes++;
+709 |       return 'ok';
+710 |     },
+711 |   });
+712 |   const server = Bun.serve({
+                           ^
+EPERM: operation not permitted, listen
+ syscall: "listen",
+   errno: -1,
+    code: "EPERM"
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/app.routes.test.ts:712:22)
+(fail) refuses framed GET and HEAD bodies on the production health route [3.41ms]
+{"level":"error","time":1792622845238,"service":"be-01","err":{"occurrence_id":"AE_KR8A5G8M9V8CRKQQQJV5BQTKJ1","fingerprint":"fp1_8c3c7d79a15b8a9ec9f69fdba511c13c","stack":["Error: project address search not supplied by this fixture","    at withSnapshot (/tmp/puni-cross-address/apps/wbs/be-01/src/testing/project-address-search-fixture.ts:4:103)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:12:37)","    at handle (/tmp/puni-cross-address/libs/wbs/application/core/src/http/endpoint.ts:203:14)","    at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/http/elysia/mount.ts:324:38)","    at async handle (file:///home/df/wd/puni/puni-00/node_modules/elysia/dist/compose.mjs:6:76)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+791 |           reply: routerMiss,
+792 |         });
+793 |         expect({
+794 |           operationId: shape.operationId,
+795 |           serverError: reply.status >= 500 ? reply.status : null,
+796 |         }).toEqual({ operationId: shape.operationId, serverError: null });
+                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "operationId": "getApiProjectAddressesProjects",
+-   "serverError": null,
++   "serverError": 500,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/app.routes.test.ts:796:12)
+(fail) shared HTTP shape reachability through the production app > reaches every local path and method with structurally valid input [374.08ms]
+{"level":"error","time":1792622845285,"service":"be-01","err":{"occurrence_id":"AE_B9RSHT5M1GM1DM4GMKVQKD54KT","fingerprint":"fp1_8c3c7d79a15b8a9ec9f69fdba511c13c","stack":["Error: project address search not supplied by this fixture","    at withSnapshot (/tmp/puni-cross-address/apps/wbs/be-01/src/testing/project-address-search-fixture.ts:4:103)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:12:37)","    at handle (/tmp/puni-cross-address/libs/wbs/application/core/src/http/endpoint.ts:203:14)","    at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/http/elysia/mount.ts:324:38)","    at async handle (file:///home/df/wd/puni/puni-00/node_modules/elysia/dist/compose.mjs:6:76)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+791 |           reply: routerMiss,
+792 |         });
+793 |         expect({
+794 |           operationId: shape.operationId,
+795 |           serverError: reply.status >= 500 ? reply.status : null,
+796 |         }).toEqual({ operationId: shape.operationId, serverError: null });
+                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "operationId": "getApiProjectAddressesProjects",
+-   "serverError": null,
++   "serverError": 500,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/app.routes.test.ts:796:12)
+(fail) shared HTTP shape reachability through the production app > reaches every oidc path and method with structurally valid input [46.17ms]
+
+apps/wbs/mcp-01/src/generated-document.test.ts:
+(pass) default MCP document is generated directly from the shared declarations [12.80ms]
+(pass) generated project command tool exposes addTypedDependency with endpoints [3.50ms]
+(pass) required exclusion drift remains a failure when operational routes are absent [3.10ms]
+(pass) keeps browser organization selection out of the generated MCP tools [2.93ms]
+(pass) keeps provisioning-token administration out of the generated MCP tools [3.14ms]
+70 |   // `postApiProjectsImport` as the one expected-only operation.
+71 |   expect(
+72 |     toolsFromDocument(readDocument())
+73 |       .map((tool) => tool.name)
+74 |       .sort(),
+75 |   ).toEqual([
+         ^
+error: expect(received).toEqual(expected)
+
+@@ -19,23 +19,23 @@
+    "getApiOrganizationSession-policy",
+    "getApiOrganizationSso-connections",
+    "getApiPeople",
+    "getApiPeopleByPersonIdLoad",
+    "getApiPeopleLoad",
++   "getApiProjectAddressesProjects",
+    "getApiProjects",
+    "getApiProjectsById",
++   "getApiProjectsByIdAddressCandidates",
++   "getApiProjectsByIdAddressReferences",
+    "getApiProjectsByIdCalendar-markers",
+    "getApiProjectsByIdExport",
+    "getApiProjectsByIdHistory",
+    "getApiProjectsByIdPeopleByPersonIdWork",
+    "getApiProjectsByIdResources",
+    "getApiProjectsByIdSaved-plans",
+    "getApiProjectsByIdSaved-plansCompare",
+    "getApiProjectsByIdStartable",
+-   "getApiProjectAddressesProjects",
+-   "getApiProjectsByIdAddressCandidates",
+-   "getApiProjectsByIdAddressReferences",
+    "getApiProjectsByIdStep-references",
+    "getApiProjectsByIdWork-item-rows",
+    "getApiProjectsByIdWork-items",
+    "getApiProjectsByIdWork-itemsByWorkItemId",
+    "getApiSaved-plansById",
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/mcp-01/src/generated-document.test.ts:75:5)
+(fail) pins every generated MCP operation name independently of the registry [2.87ms]
+(pass) refuses a generated operation whose name was lost before MCP derivation [2.55ms]
+(pass) optional operational deny paths cannot become tools in external documents [3.00ms]
+(pass) keeps browser current-context discovery out of generated MCP tools [2.42ms]
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+(pass) closes success modeled refusal and throws and rejects retained reader capabilities [141.30ms]
+(pass) holds authorization metadata and selected placements in one snapshot across rival writes [134.11ms]
+(pass) uses bounded metadata SQL without work item trees and captures only selected project facts [96.32ms]
+
+ 14 pass
+ 4 fail
+ 1216 expect() calls
+Ran 18 tests across 3 files. [3.42s]

@@ -1,0 +1,67 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
+(pass) MCP organization delegation against a booted be-01 > before activation an MCP session works exactly as before [84.54ms]
+(pass) MCP organization delegation against a booted be-01 > the operator activates organizations [3057.08ms]
+(pass) MCP organization delegation against a booted be-01 > a session bound at consent lists projects and runs a command batch [116.34ms]
+(pass) MCP organization delegation against a booted be-01 > the same session is refused on another organization's project [34.09ms]
+(pass) MCP organization delegation against a booted be-01 > a raw upstream Bearer with no delegation is refused [4.77ms]
+(pass) MCP organization delegation against a booted be-01 > keeps the signed delegation through an upstream refresh retry [3035.31ms]
+(pass) MCP organization delegation against a booted be-01 > offers dany's agents at consent, and a consent as claire mints her credential [32.97ms]
+(pass) MCP organization delegation against a booted be-01 > a consent session's tool call claims as its agent, never with the human's reach [125.19ms]
+(pass) MCP organization delegation against a booted be-01 > a consent cannot borrow its super-admin account’s restricted-project recovery [167.93ms]
+(pass) MCP organization delegation against a booted be-01 > refresh keeps the agent alive as the agent [18.47ms]
+(pass) MCP organization delegation against a booted be-01 > authorizing as yourself beside agents stays the human session [57.93ms]
+(pass) MCP organization delegation against a booted be-01 > a second consent for the same agent mints a second credential [8.12ms]
+(pass) MCP organization delegation against a booted be-01 > revoking the consent in WBS ends the session: 401, and refresh is refused [8.14ms]
+(pass) MCP organization delegation against a booted be-01 > a family mcp-01 ends marks its credential revoked in WBS [10.34ms]
+(pass) MCP organization delegation against a booted be-01 > MCP and direct HTTP carry the same scoped external command to the dormant backend [88.75ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types [809.56ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP preserves legacy aliases and typed local stable relationship history [990.11ms]
+(pass) MCP organization delegation against a booted be-01 > MCP preserves legacy aliases and typed local stable relationship history [1080.99ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP preserve indexed malformed endpoint and closed request refusals atomically [1111.41ms]
+(pass) MCP organization delegation against a booted be-01 > explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP [2088.10ms]
+(pass) MCP organization delegation against a booted be-01 > consented HTTP and generated MCP commands commit active whole FS with the same authority [470.72ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP consented active node SS/FF preserves scoped identity and connected read parity [573.44ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP consented remote descendant-step FS resolves dotted batch refs without changing scope [260.34ms]
+(pass) MCP organization delegation against a booted be-01 > MCP consented active node SS/FF preserves scoped identity and connected read parity [715.19ms]
+(pass) MCP organization delegation against a booted be-01 > MCP consented remote descendant-step FS resolves dotted batch refs without changing scope [275.53ms]
+(pass) MCP organization delegation against a booted be-01 > real agent consent queued external update revalidates unchanged authority [443.97ms]
+1422 |             expect.objectContaining({ id: dependencyId, type: 'SS' }),
+1423 |           );
+1424 |           expect(await fixture('consent-write-state', {})).not.toEqual(before);
+1425 |           expect(await fixture('publications', {})).not.toEqual(sent);
+1426 |         } else {
+1427 |           expect(response.isError).toBe(true);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-task42-oauth/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1427:36)
+(fail) MCP organization delegation against a booted be-01 > real agent consent queued external update revalidates revocation authority [399.14ms]
+1422 |             expect.objectContaining({ id: dependencyId, type: 'SS' }),
+1423 |           );
+1424 |           expect(await fixture('consent-write-state', {})).not.toEqual(before);
+1425 |           expect(await fixture('publications', {})).not.toEqual(sent);
+1426 |         } else {
+1427 |           expect(response.isError).toBe(true);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-task42-oauth/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1427:36)
+(fail) MCP organization delegation against a booted be-01 > real agent consent queued external update revalidates family authority [477.38ms]
+(pass) MCP organization delegation against a booted be-01 > a removed member's session is refused on its next call and cannot refresh [3.72ms]
+
+2 tests failed:
+(fail) MCP organization delegation against a booted be-01 > real agent consent queued external update revalidates revocation authority [399.14ms]
+(fail) MCP organization delegation against a booted be-01 > real agent consent queued external update revalidates family authority [477.38ms]
+
+ 27 pass
+ 2 fail
+ 842 expect() calls
+Ran 29 tests across 1 file. [23.11s]

@@ -10,6 +10,8 @@ import { savePlan } from '../src/module/saved-plans/save-plan';
 import { clockOf } from '../src/ports/clock';
 import { NO_MACHINE_CREDENTIALS } from '../src/ports/machine-credentials';
 import { LEGACY_ACCESS } from '../src/ports/organization-access';
+import { expectCreated } from '../src/testing/expect-created';
+import { localCommandAccess } from '../src/testing/organization-access-fixture';
 import { fastScheduler } from '../src/testing/scheduler-fixture';
 
 type OperationName = 'batch' | 'save' | 'replay' | 'retention';
@@ -81,6 +83,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
   const graph = composeServices({
     source,
     runtime: {
+      commandAccess: localCommandAccess,
       clock,
       digest: { sha256: digest },
       timers: { nowMs: () => clock.now(), schedule: () => () => undefined },
@@ -106,6 +109,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     shared,
   });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: graph.batch,
     publicServices: graph,
     uow: graph.uow,
@@ -114,7 +118,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
   const actor = { id: 'owner', username: 'owner', scopes: ['write'] as const };
 
   try {
-    const project = await graph.projects.create('Browser composition', actor.id);
+    const project = expectCreated(await graph.projects.create('Browser composition', actor.id));
     const deniedBatch = await runCommandBatch(runner, {
       projectId: project.project.id,
       access: LEGACY_ACCESS,

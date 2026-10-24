@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "sourceSha": "6667d53632279e16388cbdbf04d54ae3a4e7882b",
+  "mainSha": "e763aa1a3d03c9d87a33fafcfb1224e10094d723",
+  "recordedAt": "2026-10-24T03:47:03.757125+00:00",
+  "runtime": {
+    "name": "bun",
+    "version": "1.4.4",
+    "sha256": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235"
+  },
+  "checks": {
+    "unit": {
+      "passed": 130,
+      "failed": 0,
+      "assertions": 575,
+      "files": 9,
+      "seconds": 14.84
+    },
+    "configuredInfra": {
+      "tasks": 12,
+      "cache": "skipped",
+      "seconds": 19.9
+    },
+    "openspec": {
+      "passed": 283,
+      "failed": 0
+    }
+  },
+  "logs": {
+    "unit": {
+      "name": "puni-integration-6667-unit.log",
+      "sha256": "7d07361b1d404ec19ee4e603f94b4cbaad555b5b69353fd12dabd13921d9bc69",
+      "bytes": 12089
+    },
+    "static": {
+      "name": "puni-integration-6667-static.log",
+      "sha256": "68a701b5d0258c12a8e98b40fede568e87521bc521000b6959fd1e0f8d822f2e",
+      "bytes": 4487
+    },
+    "openspec": {
+      "name": "puni-integration-6667-openspec.json",
+      "sha256": "f3acf02b92a95dc7eec776e9d60d9fc9cb7f9f83e759d9247703b2816896fe0d",
+      "bytes": 276411
+    }
+  },
+  "limits": [
+    "canonical exact-SHA host gate unrun",
+    "CI success unestablished",
+    "historical peer-client exit and full-suite cleanup timeout unreproduced",
+    "participant restoration, handoff and compatible controllers incomplete",
+    "production activation and deployment unperformed"
+  ]
+}

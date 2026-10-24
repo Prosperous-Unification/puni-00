@@ -1,0 +1,39 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+const sourcePath = '/tmp/puni-connected-publication-review-sandbox/src/connected-publication.ts';
+const original = readFileSync(sourcePath, 'utf8');
+const mutations: [string, string, string][] = [
+  ['canonical', 'canonicalConnectedStageInput(stage);', ''],
+  ['empty-local', "if (keys.size === 0) throw new ConnectedStageEvidenceError('empty local slice set');", ''],
+  ['captured-start', 'placed.earliestStart !== stage.starts.get(key) ||', ''],
+  ['captured-finish', 'placed.earliestFinish !== stage.finishes.get(key)\n      )', 'false\n      )'],
+  ['candidate-keys', '    localStarts,\n    localKeys,\n    (key, reason) => new ScheduleInvalidOptimizedStartError(key, reason),', '    new Map([...stage.starts].filter(([key]) => localKeys.has(key))),\n    localKeys,\n    (key, reason) => new ScheduleInvalidOptimizedStartError(key, reason),'],
+  ['reference-values', '    movementReference,\n    localKeys,', '    new Map([...stage.starts].filter(([key]) => localKeys.has(key))),\n    localKeys,'],
+  ['graph', 'optimized = scheduleResolved(stage.input, pins);', 'optimized = scheduleResolved({ ...stage.input, graph: { ...stage.input.graph, edges: stage.input.graph.edges.filter(edge => edge.provenance !== "authored") } }, pins);'],
+  ['unpinned', 'optimized = scheduleResolved(stage.input, pins);', 'optimized = scheduleResolved(stage.input);'],
+  ['deadline', 'checkLocalDeadlines(stage, optimized, localKeys);', ''],
+  ['filter', 'new Map([...schedule.slices].filter(([key]) => localKeys.has(key)))', 'new Map(schedule.slices)'],
+  ['priority-scope', 'priorityWeights(priorityByLeaf(ownRows, indexTree(ownRows)))', 'priorityWeights(priorityByLeaf(stage.input.rows, indexTree(stage.input.rows)))'],
+  ['strict', 'optimizedValues[primary] > baselineValues[primary]', 'optimizedValues[primary] >= baselineValues[primary]'],
+  ['finite-score', 'Object.values(values).some((value) => !Number.isFinite(value))', 'false'],
+  ['foreign-start', 'if (placed.earliestStart !== stage.starts.get(key)) {', 'if (false) {'],
+  ['foreign-finish', 'if (placed.earliestFinish !== stage.finishes.get(key)) {', 'if (false) {'],
+  ['foreign-both', 'if (placed.earliestStart !== stage.starts.get(key)) {', 'if (false) {'],
+];
+const observations: unknown[] = [];
+try {
+  for (const [name, needle, replacement] of mutations) {
+    if (!original.includes(needle)) throw new Error(`mutation target absent: ${name}`);
+    let changed = original.replace(needle, replacement);
+    if (name === 'foreign-both') changed = changed.replace('if (placed.earliestFinish !== stage.finishes.get(key)) {', 'if (false) {');
+    writeFileSync(sourcePath, changed);
+    const process = Bun.spawn(['bun', 'test', './src/connected-publication.test.ts'], { cwd: '/tmp/puni-connected-publication-review-sandbox', stdout: 'pipe', stderr: 'pipe' });
+    const [stdout, stderr, code] = await Promise.all([new Response(process.stdout).text(), new Response(process.stderr).text(), process.exited]);
+    writeFileSync(`/tmp/puni-connected-publication-review-sandbox/${name}.log`, stdout + stderr);
+    const observation = { name, code, failures: stderr.split('\n').filter(line => line.startsWith('(fail)') || /\d+ (pass|fail)$/.test(line.trim())) };
+    observations.push(observation);
+    console.log(JSON.stringify(observation));
+  }
+} finally {
+  writeFileSync(sourcePath, original);
+  writeFileSync('/tmp/puni-connected-publication-review-mutations.json', JSON.stringify(observations, null, 2));
+}

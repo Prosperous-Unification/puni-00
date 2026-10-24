@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+(pass) direct project update refuses read-only scope before opening its SQLite UoW [431.34ms]
+(pass) direct bare step removal refuses read-only scope before opening its SQLite UoW [195.56ms]
+(pass) direct recovery write refuses read-only scope before opening its SQLite UoW [310.42ms]
+
+ 3 pass
+ 61 filtered out
+ 0 fail
+ 27 expect() calls
+Ran 3 tests across 1 file. [3.53s]

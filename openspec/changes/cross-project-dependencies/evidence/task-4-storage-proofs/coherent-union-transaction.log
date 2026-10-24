@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+186 |   const ids = new Set<string>();
+187 |   const keys = new Set<string>();
+188 |   for (const stored of physical) {
+189 |     const { dependency } = stored;
+190 |     const key = formatTypedDependencyKey(dependency);
+191 |     if (ids.has(dependency.id) || keys.has(key)) throw new Error(`duplicate unified dependency ${dependency.id}`);
+                                                                 ^
+error: duplicate unified dependency external
+      at readPhysical (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/typed-dependency.ts:191:60)
+      at listByProject (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/typed-dependency.ts:218:12)
+      at async <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:247:21)
+(fail) keeps a coherent union while a rival commits a representation move between component reads [138.89ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+Ran 1 test across 1 file. [2.14s]

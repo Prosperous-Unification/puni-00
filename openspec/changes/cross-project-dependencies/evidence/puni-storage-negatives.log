@@ -1,0 +1,421 @@
+
+MUTATION allocator exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+38 | });
+39 | afterEach(() => { rmSync(directory, { recursive: true, force: true }); });
+40 |
+41 | it('old writer insert allocates five letters', () => { raw(sqlite => {
+42 |   insert(sqlite, 'p'); insert(sqlite, 'q');
+43 |   expect(codes(sqlite)).toEqual([
+                             ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "abbreviation": "AAAAA",
+-     "namespace": "legacy",
+-     "project_id": "p",
+-   },
+-   {
+-     "abbreviation": "AAAAB",
+-     "namespace": "legacy",
+-     "project_id": "q",
+-   },
+- ]
++ []
+
+- Expected  - 12
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:43:25)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:41:56)
+(fail) old writer insert allocates five letters [141.56ms]
+178 |     const errors=await new Response(writer.stderr).text();
+179 |     expect({status,errors}).toEqual({status:0,errors:''});
+180 |   }
+181 |   raw(sqlite => {
+182 |     const stored=codes(sqlite);
+183 |     expect(stored).toHaveLength(60);
+                         ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 60
+Received length: 0
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:183:20)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:181:3)
+(fail) concurrent old and new writers never collide [398.44ms]
+
+ 0 pass
+ 11 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [601.00ms]
+
+MUTATION namespace exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+57 |   expect(rollbackTo(path,FOLDER,BASE)).toEqual([MIGRATION]);
+58 |   expect(raw(sqlite => ({projects:sqlite.query('SELECT * FROM project ORDER BY id').all(),ledger:sqlite.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all()}))).toEqual(before);
+59 | });
+60 | it('organization mapping moves namespace atomically', () => { raw(sqlite => {
+61 |   insert(sqlite,'p'); own(sqlite,'p','a');
+62 |   expect(codes(sqlite)[0]?.namespace).toBe('org:a');
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: "org:a"
+Received: "legacy"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:62:39)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:60:63)
+(fail) organization mapping moves namespace atomically [113.22ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [174.00ms]
+
+MUTATION unique exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+68 | }); });
+69 | it('manual uniqueness is organization scoped and grammar requires normalized codes', () => { raw(sqlite => {
+70 |   for (const id of ['p','q','r']) insert(sqlite,id);
+71 |   own(sqlite,'p','a'); own(sqlite,'q','a'); own(sqlite,'r','b');
+72 |   sqlite.run("UPDATE project_abbreviation SET abbreviation='A-1_' WHERE project_id IN ('p','r')");
+73 |   expect(() => sqlite.run("UPDATE project_abbreviation SET abbreviation='A-1_' WHERE project_id='q'")).toThrow();
+                                                                                                            ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 3,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:73:104)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:69:94)
+(fail) manual uniqueness is organization scoped and grammar requires normalized codes [119.57ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [170.00ms]
+
+MUTATION grammar exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+70 |   for (const id of ['p','q','r']) insert(sqlite,id);
+71 |   own(sqlite,'p','a'); own(sqlite,'q','a'); own(sqlite,'r','b');
+72 |   sqlite.run("UPDATE project_abbreviation SET abbreviation='A-1_' WHERE project_id IN ('p','r')");
+73 |   expect(() => sqlite.run("UPDATE project_abbreviation SET abbreviation='A-1_' WHERE project_id='q'")).toThrow();
+74 |   for (const abbreviation of ['', 'a','1A','A.B','A B','A'.repeat(21)]) {
+75 |     expect(() => sqlite.run("UPDATE project_abbreviation SET abbreviation=? WHERE project_id='q'", [abbreviation])).toThrow();
+                                                                                                                         ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 3,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:75:117)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:69:94)
+(fail) manual uniqueness is organization scoped and grammar requires normalized codes [96.30ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [136.00ms]
+
+MUTATION scope-update exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+72 |   sqlite.run("UPDATE project_abbreviation SET abbreviation='A-1_' WHERE project_id IN ('p','r')");
+73 |   expect(() => sqlite.run("UPDATE project_abbreviation SET abbreviation='A-1_' WHERE project_id='q'")).toThrow();
+74 |   for (const abbreviation of ['', 'a','1A','A.B','A B','A'.repeat(21)]) {
+75 |     expect(() => sqlite.run("UPDATE project_abbreviation SET abbreviation=? WHERE project_id='q'", [abbreviation])).toThrow();
+76 |   }
+77 |   expect(() => sqlite.run("UPDATE project_abbreviation SET namespace='org:b' WHERE project_id='q'")).toThrow();
+                                                                                                          ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 3,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:77:102)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:69:94)
+(fail) manual uniqueness is organization scoped and grammar requires normalized codes [94.26ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [136.00ms]
+
+MUTATION scope-insert exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+189 |
+190 | it('namespace scope insert and project identity constraints reject forged rows', () => { raw(sqlite => {
+191 |   insert(sqlite,'p'); own(sqlite,'p','a');
+192 |   expect(() => sqlite.run("INSERT INTO project_abbreviation(project_id,namespace,abbreviation) VALUES ('p','org:a','OTHER')")).toThrow();
+193 |   sqlite.run("DELETE FROM project_abbreviation WHERE project_id='p'");
+194 |   expect(() => sqlite.run("INSERT INTO project_abbreviation(project_id,namespace,abbreviation) VALUES ('p','org:b','OTHER')")).toThrow('namespace');
+                                                                                                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "namespace"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 1,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:194:128)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:190:90)
+(fail) namespace scope insert and project identity constraints reject forged rows [96.50ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [130.00ms]
+
+MUTATION counter-range exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+128 |   expect(() => { insert(sqlite,'absent'); }).toThrow('counter missing');
+129 |   expect(sqlite.query("SELECT id FROM project WHERE id='absent'").get()).toBeNull();
+130 | }); });
+131 | it('counter refuses malformed ordinals and project deletion cascades', () => { raw(sqlite => {
+132 |   for (const ordinal of [-1,11881377,1.5,'broken'])
+133 |     expect(() => sqlite.run('UPDATE project_abbreviation_counter SET next=?',[ordinal])).toThrow();
+                                                                                               ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 0,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:133:90)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:131:80)
+(fail) counter refuses malformed ordinals and project deletion cascades [93.51ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [132.00ms]
+
+MUTATION counter-singleton exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+129 |   expect(sqlite.query("SELECT id FROM project WHERE id='absent'").get()).toBeNull();
+130 | }); });
+131 | it('counter refuses malformed ordinals and project deletion cascades', () => { raw(sqlite => {
+132 |   for (const ordinal of [-1,11881377,1.5,'broken'])
+133 |     expect(() => sqlite.run('UPDATE project_abbreviation_counter SET next=?',[ordinal])).toThrow();
+134 |   expect(() => sqlite.run('INSERT INTO project_abbreviation_counter(singleton,next) VALUES (2,0)')).toThrow();
+                                                                                                          ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 2,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:134:101)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:131:80)
+(fail) counter refuses malformed ordinals and project deletion cascades [89.06ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [121.00ms]
+
+MUTATION missing-counter exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+123 |   const before = sqlite.query('SELECT * FROM project_abbreviation_counter').all();
+124 |   expect(() => { insert(sqlite,'occupied'); }).toThrow('project abbreviation exhausted');
+125 |   expect(sqlite.query('SELECT * FROM project_abbreviation_counter').all()).toEqual(before);
+126 |   expect(sqlite.query("SELECT id FROM project WHERE id='occupied'").get()).toBeNull();
+127 |   sqlite.run('DELETE FROM project_abbreviation_counter');
+128 |   expect(() => { insert(sqlite,'absent'); }).toThrow('counter missing');
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "counter missing"
+Received message: "project abbreviation exhausted"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:128:46)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:119:72)
+(fail) occupied final code and absent counter refuse atomically [94.13ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [131.00ms]
+
+MUTATION exhaustion exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+82 |   insert(sqlite,'p');
+83 |   expect(codes(sqlite).find(row => row.project_id === 'p')?.abbreviation).toBe('AAAAC');
+84 |   sqlite.run('UPDATE project_abbreviation_counter SET next=11881375');
+85 |   insert(sqlite,'last');
+86 |   expect(codes(sqlite).find(row => row.project_id === 'last')?.abbreviation).toBe('ZZZZZ');
+87 |   expect(() => { insert(sqlite,'overflow'); }).toThrow('project abbreviation exhausted');
+                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "project abbreviation exhausted"
+Received message: "NOT NULL constraint failed: project_abbreviation_counter.next"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:87:48)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:79:97)
+(fail) allocator skips occupied codes and refuses exhaustion without inserting a project [94.10ms]
+119 | it('occupied final code and absent counter refuse atomically', () => { raw(sqlite => {
+120 |   insert(sqlite,'p');
+121 |   sqlite.run("UPDATE project_abbreviation SET abbreviation='ZZZZZ' WHERE project_id='p'");
+122 |   sqlite.run('UPDATE project_abbreviation_counter SET next=11881375');
+123 |   const before = sqlite.query('SELECT * FROM project_abbreviation_counter').all();
+124 |   expect(() => { insert(sqlite,'occupied'); }).toThrow('project abbreviation exhausted');
+                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "project abbreviation exhausted"
+Received message: "NOT NULL constraint failed: project_abbreviation_counter.next"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:124:48)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:19:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:119:72)
+(fail) occupied final code and absent counter refuse atomically [80.20ms]
+
+ 0 pass
+ 11 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [212.00ms]
+
+MUTATION read-missing exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+105 |   const db = openDrizzle(path);
+106 |   writeProjectAbbreviation(db,'p','P-1_');
+107 |   expect(readProjectAbbreviation(db,'p')).toEqual({projectId:'p',namespace:'org:a',abbreviation:'P-1_'});
+108 |   expect(readProjectAbbreviation(db,'absent')).toBeUndefined();
+109 |   raw(sqlite => sqlite.run("DELETE FROM project_abbreviation WHERE project_id='p'"));
+110 |   expect(() => readProjectAbbreviation(db,'p')).toThrow('missing');
+                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "missing"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:110:49)
+(fail) storage read and write require a persisted row and preserve stable identity [226.46ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [262.00ms]
+
+MUTATION read-malformed exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+142 |   raw(sqlite => {
+143 |     insert(sqlite,'p');
+144 |     sqlite.run('PRAGMA ignore_check_constraints=ON');
+145 |     sqlite.run("UPDATE project_abbreviation SET abbreviation='bad.code' WHERE project_id='p'");
+146 |   });
+147 |   expect(() => readProjectAbbreviation(openDrizzle(path),'p')).toThrow('malformed');
+                                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "malformed"
+
+Received function did not throw
+Received value: {
+  projectId: "p",
+  namespace: "legacy",
+  abbreviation: "bad.code",
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:147:64)
+(fail) storage read refuses malformed trusted code [216.65ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [253.00ms]
+
+MUTATION write-missing exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+106 |   writeProjectAbbreviation(db,'p','P-1_');
+107 |   expect(readProjectAbbreviation(db,'p')).toEqual({projectId:'p',namespace:'org:a',abbreviation:'P-1_'});
+108 |   expect(readProjectAbbreviation(db,'absent')).toBeUndefined();
+109 |   raw(sqlite => sqlite.run("DELETE FROM project_abbreviation WHERE project_id='p'"));
+110 |   expect(() => readProjectAbbreviation(db,'p')).toThrow('missing');
+111 |   expect(() => { writeProjectAbbreviation(db,'p','P'); }).toThrow('missing');
+                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "missing"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:111:59)
+(fail) storage read and write require a persisted row and preserve stable identity [213.34ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [251.00ms]

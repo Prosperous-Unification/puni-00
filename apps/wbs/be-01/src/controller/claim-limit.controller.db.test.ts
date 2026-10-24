@@ -41,7 +41,7 @@ async function openProject(): Promise<void> {
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
   projectId = (created.body as { project: { id: string } }).project.id;
   steps = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY id')
+    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
     .all(projectId)
     .map(({ id }) => id);
   for (const id of ['claire', 'codex', 'worker']) {
@@ -84,10 +84,18 @@ async function leaves(count: number): Promise<string[]> {
   return (created.body as { results: { id: string }[] }).results.map(({ id }) => id);
 }
 
-const claim = (workItemId: string, personId: string, more: Record<string, unknown> = {}) => ({
+const claim = (
+  workItemId: string,
+  personId: string,
+  more: Record<string, unknown> = {},
+  scope: 'first-step' | 'whole' = 'first-step',
+) => ({
   kind: 'claimWorkItem',
   workItemId,
   personId,
+  // The connected workflow admits an unstarted first step, while a whole
+  // leaf includes later steps whose prerequisites are not yet satisfied.
+  ...(scope === 'first-step' && !('steps' in more) ? { steps: [steps[0]] } : {}),
   ...more,
 });
 const release = (workItemId: string, personId: string) => ({
@@ -158,7 +166,8 @@ describe('the concurrent-claim cap, activated', () => {
       ({ id }) => id,
     );
     expect(
-      (await batch([claim(root, 'codex'), claim(x, 'worker'), claim(y, 'worker')])).status,
+      (await batch([claim(root, 'codex', {}, 'whole'), claim(x, 'worker'), claim(y, 'worker')]))
+        .status,
     ).toBe(200);
     // Lowered below usage (L11): three held, a cap of two.
     capClaims(2);
@@ -172,21 +181,19 @@ describe('the concurrent-claim cap, activated', () => {
     expect(await batch([inner])).toEqual(limitRefusal(0, 2, 2));
   });
 
-  it('claims a second step of a held leaf at the cap, and repeats a held claim', async () => {
+  it('answers a second step’s workflow prerequisite before the cap, and repeats a held claim', async () => {
     capClaims(1);
     const [leaf] = await leaves(1);
     const dev = claim(leaf, 'claire', { runId: 'r1', steps: [steps[0]] });
     expect((await batch([dev])).status).toBe(200);
-    // Another run of the same person on the same leaf is another bound claim,
-    // so the unheld second step under it is refused by the cap.
-    expect(await batch([claim(leaf, 'claire', { runId: 'r2', steps: [steps[1]] })])).toEqual(
-      limitRefusal(0, 1, 1),
-    );
+    // The later workflow step cannot start yet, so its dependency refusal
+    // precedes the organization cap even for a distinct run.
+    expect(await batch([claim(leaf, 'claire', { runId: 'r2', steps: [steps[1]] })])).toMatchObject({
+      status: 409,
+      body: { error: 'prerequisites_unmet' },
+    });
 
-    expect((await batch([claim(leaf, 'claire', { runId: 'r1', steps: [steps[1]] })])).status).toBe(
-      200,
-    );
-    expect(claimRows()).toBe(2);
+    expect(claimRows()).toBe(1);
     expect(boundClaims()).toBe(1);
     expect(await batch([dev])).toMatchObject({
       status: 200,

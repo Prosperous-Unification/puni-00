@@ -10,15 +10,18 @@ import type {
   PertWeights,
   PriorityBand,
   ScheduledSlice,
+  ScheduleError,
 } from '@wbs/domain';
 
+import type { ConnectedOptimizationScope } from '../service/connected-optimization-view';
+import type { ConnectedTreeDependency, RemoteBlockageLabel } from '../service/connected-tree';
 import type { NumberedWorkItem } from '../service/numbered-work-item';
 import type { TeamCapacity } from './capacity-store';
 // Documentation boundary: this type-only name resolves a JSDoc member and emits no JavaScript.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { DirectoryStore } from './directory-store';
 import type { Project } from './project-store';
-import type { OptimizationVariantState } from './scheduler';
+import type { ConnectedVariantState, OptimizationVariantState } from './scheduler';
 import type { ElsewhereHolderLabel } from './shared-people-values';
 import type { Step } from './step-store';
 
@@ -33,18 +36,33 @@ import type { Step } from './step-store';
  * second implementation of {@link sliceKey}, and the two would disagree the day
  * either changes.
  *
- * Everything else is {@link ScheduledSlice} unchanged. The numbers are the
- * engine's verbatim — a slice starting at 3.6666666666666665 leaves as that, so
- * a bar drawn from it and the Start column beside it cannot say different days.
+ * The numbers are the engine's verbatim — a slice starting at
+ * 3.6666666666666665 leaves as that, so a bar drawn from it and the Start column
+ * beside it cannot say different days. Connected presentation may transfer a
+ * checked foreign person predecessor from `resourcePredecessorId` to
+ * `elsewhereHolder`, changing only that display reference and `boundBy`.
  */
 export interface IdentifiedSlice extends ScheduledSlice {
   id: string;
 }
 
 /** Why a project has no dates, when it has none. `null` is the ordinary case. */
-export type ScheduleError = 'calendar_range' | 'cycle' | null;
+export type { ScheduleError } from '@wbs/domain';
 
-export interface PlanOptimization {
+export type PlanOptimization = LocalPlanOptimization | ConnectedPlanOptimization;
+
+export interface LocalPlanOptimization extends PlanOptimizationBase {
+  readonly scope?: never;
+  readonly variants: Readonly<Record<Project['scheduleObjective'], OptimizationVariantState>>;
+}
+
+/** Both objective states belong to the captured fixed boundary named by scope. */
+export interface ConnectedPlanOptimization extends PlanOptimizationBase {
+  readonly scope: ConnectedOptimizationScope;
+  readonly variants: Readonly<Record<Project['scheduleObjective'], ConnectedVariantState>>;
+}
+
+export interface PlanOptimizationBase {
   readonly enabled: boolean;
   readonly engine: Project['scheduleEngine'];
   readonly objective: Project['scheduleObjective'];
@@ -53,11 +71,10 @@ export interface PlanOptimization {
   readonly contractVersion: string;
   readonly budgetMs: number;
   readonly displayed: 'fast' | Project['scheduleObjective'];
-  readonly variants: Readonly<Record<Project['scheduleObjective'], OptimizationVariantState>>;
   /**
-   * The project finish each computed schedule reaches, in workdays from day
-   * zero. `fast` always — it is the schedule this read had to compute anyway —
-   * and a variant's only while this read materialized it.
+   * Project-relative finishes for the reference and validated alternatives.
+   * `fast` names local Fast on the local arm and the retained pre-selection
+   * placement on the connected arm. A variant appears only when materialized.
    *
    * Absolute figures rather than the one delta this shipped as: the cue names
    * all three schedules at once, every difference is taken against Fast, and a
@@ -80,9 +97,14 @@ export interface PlanOptimization {
   readonly sameOrderAsFast: Readonly<Partial<Record<Project['scheduleObjective'], boolean>>>;
 }
 
-/** A successful project-tree read, excluding absence and engine refusal. */
+/** A successful project-tree read, including connected placement refusal.
+ * Standalone local engine refusal remains outside this contract. */
 export interface PlanTree {
   workItems: NumberedWorkItem[];
+  /** Authored incident connected links with captured endpoint navigation evidence. */
+  connectedDependencies?: ConnectedTreeDependency[];
+  /** Qualified names for only the foreign roots referenced by this tree's blockage causes. */
+  remoteBlockageLabels?: RemoteBlockageLabel[];
   seq: number;
   scheduleError: ScheduleError;
   /**
@@ -104,9 +126,9 @@ export interface PlanTree {
    */
   waitingForCapacity: number;
   /**
-   * How many work items hold a slice a booking in another project is the
-   * reason for. Present exactly when the displayed schedule was placed
-   * around bookings elsewhere (ADR 0034), with {@link elsewhereHolders}.
+   * How many work items hold a slice whose person is held by another project.
+   * Present for ranked bookings (ADR 0034) or checked foreign person
+   * predecessors in a connected tree, with {@link elsewhereHolders}.
    */
   waitingElsewhere?: number;
   /**

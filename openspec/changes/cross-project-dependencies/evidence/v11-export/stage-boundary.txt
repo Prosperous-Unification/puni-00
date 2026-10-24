@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:
+94 |   expect(evidence.placement.selected).toEqual([
+95 |     { projectId: 'A', workItemId: 'a', stepId: 'build', start: 0, finish: 1 },
+96 |     { projectId: 'B', workItemId: 'b', stepId: 'build', start: 1, finish: 2 },
+97 |   ]);
+98 |   expect(evidence.placement.baseline).toEqual(evidence.placement.selected);
+99 |   expect(evidence.placement.stages.map((stage) => stage.boundary.canonical)).toEqual(
+                                                                                  ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "{"kind":"connected-stage","projectId":"A","mode":"isolated","originOrdinal":14810,"projects":[{"projectId":"A","rank":0,"anchorOrdinal":14810},{"projectId":"B","rank":1,"anchorOrdinal":14810}],"rows":[{"id":"a","parentId":null,"position":0,"priority":null},{"id":"b","parentId":null,"position":0,"priority":null}],"ownership":[["a","A"],["b","B"]],"ranks":[["A",0],["B",1]],"slices":[{"workItemId":"a","steps":[{"stepId":"build","days":1,"width":1,"personId":null,"poolIds":[],"demands":[]}]},{"workItemId":"b","steps":[{"stepId":"build","days":1,"width":1,"personId":null,"poolIds":[],"demands":[]}]}],"nodes":[{"kind":"step","workItemId":"a","stepId":"build","at":0},{"kind":"step","workItemId":"b","stepId":"build","at":0}],"edges":[{"predecessor":{"leafId":"a","at":0},"successor":{"leafId":"b","at":0},"type":"FS","provenance":"authored","relationshipId":"ab"}],"relationships":[{"id":"ab","type":"FS","predecessor":["A","whole","a"],"successor":["B","whole","b"]}],"notBefore":[["a",0],["b",0]],"deadlines":[],"poolSizes":[],"resourceCapacities":[],"elsewhere":[],"starts":[["a\u0000build",0],["b\u0000build",1]],"finishes":[["a\u0000build",1],["b\u0000build",2]]}",
+-   "{"kind":"connected-stage","projectId":"B","mode":"isolated","originOrdinal":14810,"projects":[{"projectId":"A","rank":0,"anchorOrdinal":14810},{"projectId":"B","rank":1,"anchorOrdinal":14810}],"rows":[{"id":"a","parentId":null,"position":0,"priority":null},{"id":"b","parentId":null,"position":0,"priority":null}],"ownership":[["a","A"],["b","B"]],"ranks":[["A",0],["B",1]],"slices":[{"workItemId":"a","steps":[{"stepId":"build","days":1,"width":1,"personId":null,"poolIds":[],"demands":[]}]},{"workItemId":"b","steps":[{"stepId":"build","days":1,"width":1,"personId":null,"poolIds":[],"demands":[]}]}],"nodes":[{"kind":"step","workItemId":"a","stepId":"build","at":0},{"kind":"step","workItemId":"b","stepId":"build","at":0}],"edges":[{"predecessor":{"leafId":"a","at":0},"successor":{"leafId":"b","at":0},"type":"FS","provenance":"authored","relationshipId":"ab"}],"relationships":[{"id":"ab","type":"FS","predecessor":["A","whole","a"],"successor":["B","whole","b"]}],"notBefore":[["a",0],["b",0]],"deadlines":[],"poolSizes":[],"resourceCapacities":[],"elsewhere":[],"starts":[["a\u0000build",0],["b\u0000build",1]],"finishes":[["a\u0000build",1],["b\u0000build",2]]}",
++   "",
++   "",
+  ]
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:99:78)
+(fail) scheduled evidence keeps exact component placement and retained stage boundaries [21.39ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.52s]
+
+exit=1

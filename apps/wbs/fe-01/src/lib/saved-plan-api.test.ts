@@ -197,6 +197,38 @@ describe('shape-derived saved-plan requests', () => {
     });
   });
 
+  it('preserves both empty-diff summaries and rejects either missing side', async () => {
+    const body = {
+      diff: { input: [], schedule: [] },
+      left: {
+        source: { kind: 'saved', savedPlanId: 'sp1' },
+        schedule: { present: true, algorithmId: 'retired' },
+        provenance: { kind: 'legacy-unknown' },
+      },
+      right: {
+        source: { kind: 'current' },
+        schedule: { present: false, absentReason: 'pending' },
+        provenance: { kind: 'local' },
+      },
+    };
+    const send = vi.fn(() => Promise.resolve(response(200, body)));
+    vi.stubGlobal('fetch', send);
+    await expect(
+      httpSavedPlanApi().compare('p1', { saved: 'sp1' }, 'current'),
+    ).resolves.toMatchObject({ kind: 'success', body });
+    for (const key of ['left', 'right']) {
+      const incomplete = structuredClone(body);
+      Reflect.deleteProperty(incomplete, key);
+      send.mockResolvedValueOnce(response(200, incomplete));
+      await expect(
+        httpSavedPlanApi().compare('p1', { saved: 'sp1' }, 'current'),
+      ).resolves.toMatchObject({
+        kind: 'failure',
+        failure: { code: 'invalid_response', reason: 'schema' },
+      });
+    }
+  });
+
   it('preserves complete 501 details and rejects an incomplete copy', async () => {
     const version = {
       error: 'unsupported_body_version',

@@ -25,6 +25,7 @@ const STORE_BINDINGS = [
   'directory',
   'estimates',
   'eventLog',
+  'externalDependencyAuthoring',
   'journal',
   'measures',
   'planEvents',
@@ -42,7 +43,12 @@ const STORE_BINDINGS = [
 
 it('refuses scoped saved-plan writes without a transactional membership source', async () => {
   const source = openMemorySource();
-  const scoped = { organizationId: 'org-a', actorId: 'writer', operation: 'rename' as const };
+  const scoped = {
+    organizationId: 'org-a',
+    actorId: 'writer',
+    role: 'admin' as const,
+    operation: 'rename' as const,
+  };
   expect(() => source.history.savedPlans.renameTo('missing', 'No', scoped)).toThrow(
     'cannot classify scoped writes',
   );
@@ -190,8 +196,8 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     {
       id: 'typed-1',
       projectId: 'p1',
-      predecessor: { scope: 'whole', workItemId: 'wi-1' },
-      successor: { scope: 'whole', workItemId: 'wi-2' },
+      predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+      successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
       type: 'FS',
     },
     stamp,
@@ -585,8 +591,8 @@ describe('the staged memory source', () => {
           {
             id: 'committed-typed',
             projectId: 'p1',
-            predecessor: { scope: 'whole', workItemId: 'wi-1' },
-            successor: { scope: 'whole', workItemId: 'wi-2' },
+            predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+            successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
             type: 'FS',
           },
           stamp,
@@ -639,7 +645,9 @@ describe('the staged memory source', () => {
     expect(first).toBe('pending');
     releaseBatch();
     await batch;
-    expect((await publicWrite)?.name).toBe('After batch');
+    const written = await publicWrite;
+    if (typeof written === 'string') throw new Error(`fixture update refused: ${written}`);
+    expect(written?.name).toBe('After batch');
   });
 
   it('discards refused state and gives the next batch a fresh scope', async () => {
@@ -652,8 +660,8 @@ describe('the staged memory source', () => {
         {
           id: 'refused-typed',
           projectId: 'p1',
-          predecessor: { scope: 'whole', workItemId: 'wi-1' },
-          successor: { scope: 'whole', workItemId: 'wi-2' },
+          predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+          successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
           type: 'FS',
         },
         stamp,
@@ -1030,6 +1038,189 @@ for (const cascade of [false, true])
     expect(await source.stores.stepParallels.listByProject('p1')).toEqual([fact]);
   });
 
+it('incident source restore preserves receipts across commit rollback and bumps only completed endpoint unions', async () => {
+  const source = await seededSource();
+  for (const id of ['parent', 'peer'])
+    await source.stores.workItems.insert(
+      workItemRow({ id, projectId: 'p1', position: 10 }),
+      [],
+      stamp,
+    );
+  const original = {
+    id: 'incident',
+    projectId: 'p1',
+    predecessor: { projectId: 'p1', workItemId: 'parent', scope: 'node' as const, stepId: 'st-1' },
+    successor: { projectId: 'p1', workItemId: 'peer', scope: 'whole' as const },
+    type: 'FS' as const,
+  };
+  await source.uow.run(async (scope) => {
+    await scope.stores.typedDependencies.add(original, stamp);
+    return { commit: true, value: undefined };
+  });
+  const receipt = await source.stores.typedDependencies.incidents.capture('incident');
+  const mapped = {
+    ...receipt,
+    dependency: { ...original, predecessor: { ...original.predecessor, workItemId: 'child' } },
+  };
+  await source.uow.run(async (scope) => {
+    await scope.stores.typedDependencies.incidents.detach(receipt);
+    await scope.stores.workItems.insert(
+      workItemRow({ id: 'child', projectId: 'p1', parentId: 'parent', position: 10 }),
+      [],
+      stamp,
+    );
+    await scope.stores.typedDependencies.incidents.restore(mapped, original, {
+      at: 2,
+      by: 'owner',
+    });
+    return { commit: true, value: undefined };
+  });
+  expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(mapped);
+  const before = await source.stores.workItems.listByProject('p1');
+  expect(
+    before.map(({ id, revision }) => ({ id, revision })).sort((a, b) => a.id.localeCompare(b.id)),
+  ).toEqual([
+    { id: 'child', revision: 1 },
+    { id: 'parent', revision: 1 },
+    { id: 'peer', revision: 1 },
+  ]);
+  const failure: unknown = await source.uow
+    .run(async (scope) => {
+      await scope.stores.typedDependencies.incidents.detach(mapped);
+      await scope.stores.typedDependencies.incidents.restore(receipt, mapped.dependency, {
+        at: 3,
+        by: 'owner',
+      });
+      return { commit: true, value: undefined };
+    })
+    .then(
+      () => null,
+      (error: unknown) => error,
+    );
+  expect(failure).toBeInstanceOf(Error);
+  expect(failure instanceof Error ? failure.message : '').toContain('node endpoint is not a leaf');
+  expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(mapped);
+  expect(await source.stores.workItems.listByProject('p1')).toEqual(before);
+  await source.uow.run(async (scope) => {
+    await scope.stores.typedDependencies.incidents.detach(mapped);
+    await scope.stores.workItems.remove(['child'], [], stamp);
+    await scope.stores.typedDependencies.incidents.restore(receipt, mapped.dependency, {
+      at: 4,
+      by: 'owner',
+    });
+    return { commit: true, value: undefined };
+  });
+  expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(receipt);
+  expect(
+    (await source.stores.workItems.listByProject('p1'))
+      .map(({ id, revision }) => ({ id, revision }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  ).toEqual([
+    { id: 'parent', revision: 2 },
+    { id: 'peer', revision: 2 },
+  ]);
+  await source.close();
+});
+
+for (const fault of [
+  'missing-work-item',
+  'wrong-work-item-owner',
+  'missing-step',
+  'wrong-step-owner',
+  'descendant-on-leaf',
+  'missing-organization',
+] as const)
+  it(`incident source restoration refuses ${fault} atomically`, async () => {
+    const source = await seededSource();
+    const project = await source.stores.projects.findById('p1');
+    if (project === null) throw new Error('fixture project missing');
+    for (const id of ['p2', 'p3'])
+      await source.stores.projects.createInOrganization(
+        { ...project, id, name: id },
+        [
+          {
+            id: `st-${id}`,
+            projectId: id,
+            name: id,
+            position: 1,
+            code: id,
+            allowancePercent: 0,
+            estimateUnit: 'workdays',
+          },
+        ],
+        stamp,
+        'org-a',
+      );
+    for (const id of ['parent', 'peer'])
+      await source.stores.workItems.insert(
+        workItemRow({ id, projectId: 'p2', position: 10 }),
+        [],
+        stamp,
+      );
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'legacy-remote', projectId: 'p1', position: 10 }),
+      [],
+      stamp,
+    );
+    const original = {
+      id: 'incident',
+      projectId: 'p2',
+      predecessor: {
+        projectId: 'p2',
+        workItemId: 'parent',
+        scope: 'node' as const,
+        stepId: 'st-p2',
+      },
+      successor: { projectId: 'p2', workItemId: 'peer', scope: 'whole' as const },
+      type: 'FS' as const,
+    };
+    await source.stores.typedDependencies.add(original, stamp);
+    const receipt = await source.stores.typedDependencies.incidents.capture('incident');
+    const predecessor =
+      fault === 'missing-work-item'
+        ? { ...original.predecessor, workItemId: 'absent' }
+        : fault === 'wrong-work-item-owner'
+          ? { ...original.predecessor, projectId: 'p3', stepId: 'st-p3' }
+          : fault === 'missing-step'
+            ? { ...original.predecessor, stepId: 'absent' }
+            : fault === 'wrong-step-owner'
+              ? { ...original.predecessor, stepId: 'st-p3' }
+              : fault === 'descendant-on-leaf'
+                ? { ...original.predecessor, scope: 'descendant-step' as const }
+                : {
+                    projectId: 'p1',
+                    workItemId: 'legacy-remote',
+                    scope: 'node' as const,
+                    stepId: 'st-1',
+                  };
+    const before = await source.stores.workItems.listByProject('p2');
+    const failure: unknown = await source.uow
+      .run(async (scope) => {
+        await scope.stores.typedDependencies.incidents.detach(receipt);
+        await scope.stores.typedDependencies.incidents.restore(
+          { ...receipt, dependency: { ...original, predecessor } },
+          original,
+          stamp,
+        );
+        return { commit: true, value: undefined };
+      })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(failure).toBeInstanceOf(Error);
+    const diagnostic = fault.includes('work-item')
+      ? 'work-item ownership'
+      : fault.includes('step')
+        ? 'step ownership'
+        : fault === 'descendant-on-leaf'
+          ? 'descendant endpoint is a leaf'
+          : 'matching organization ownership';
+    expect(failure instanceof Error ? failure.message : '').toContain(diagnostic);
+    expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(receipt);
+    expect(await source.stores.workItems.listByProject('p2')).toEqual(before);
+    await source.close();
+  });
 describe('the memory claims renewal', () => {
   it('renews nothing when a due claim names an absent work item', async () => {
     const table = memoryClaimTable();

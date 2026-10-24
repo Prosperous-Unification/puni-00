@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+629 |   const receipt = await repo.incidents.capture('external');
+630 |   const sqlite = openDatabase(path);
+631 |   try { sqlite.run("UPDATE external_dependency SET type='SS'"); }
+632 |   finally { sqlite.close(); }
+633 |   const before = stored('SELECT * FROM external_dependency');
+634 |   expect(await rejection(repo.incidents.detach(receipt))).toContain('incident receipt changed');
+                                                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "incident receipt changed"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:634:59)
+(fail) incident detach refuses changed relationship evidence before deleting it [149.54ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.09s]

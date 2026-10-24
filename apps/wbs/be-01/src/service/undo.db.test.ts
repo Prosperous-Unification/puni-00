@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { expectCreated } from '@wbs/core/testing/expect-created';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -33,7 +36,7 @@ import { AvailableWorkItemService as WorkItemService } from '../testing/availabl
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -122,12 +125,20 @@ beforeEach(async () => {
   );
 
   projects = new ProjectService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    dependencyContext: createLocalDependencyContext({
+      projects: projectStore,
+      workItems: workItemStore,
+      estimates: estimateStore,
+      dependencies: dependencyStore,
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
+    }),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
@@ -152,7 +163,7 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
 
-  const created = await projects.create('Rewire the shed', ownerId);
+  const created = expectCreated(await projects.create('Rewire the shed', ownerId));
   projectId = created.project.id;
   steps = created.steps;
 });
@@ -1579,6 +1590,26 @@ describe('restoring the edges that left the branch', () => {
     expect(await edges()).toEqual([[strip, cable]]);
   });
 
+  it('restores the branch while skipping an outside edge that now closes a cycle', async () => {
+    const strip = await root('Strip');
+    const cable = await root('Cable', strip);
+    const survivor = await root('Survivor', cable);
+    await workItems.addDependency(cable, ownerId, strip);
+    await workItems.addDependency(strip, ownerId, survivor);
+    expect((await workItems.remove(strip, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
+    expect((await workItems.addDependency(survivor, strangerId, cable)).ok).toBe(true);
+
+    const outcome = await undone();
+    expect(expectDone(outcome)).toBe('delete “Strip”');
+    if (!outcome.ok) throw new Error('unreachable');
+    expect(await namesByPosition(null)).toEqual(['Strip', 'Cable', 'Survivor']);
+    const restoredEdges = await edges();
+    expect(restoredEdges).toHaveLength(2);
+    expect(restoredEdges).toContainEqual([cable, survivor]);
+    expect(outcome.value.detail).toContain('without 1 dependency');
+    expect(outcome.value.detail).toContain('cycle');
+  });
+
   /**
    * The partial restore, said out loud.
    *
@@ -1587,22 +1618,26 @@ describe('restoring the edges that left the branch', () => {
    * for. This is why the far end is not a precondition: making it one would
    * turn a missing neighbour into a refusal to restore any of the work.
    */
-  it('restores the branch without an edge whose other end has gone, and says so', async () => {
-    const strip = await root('Strip');
-    const cable = await root('Cable', strip);
-    await workItems.addDependency(cable, ownerId, strip);
+  for (const missing of ['predecessor', 'successor'] as const)
+    it(`restores the branch without a missing ${missing} and keeps surviving outside edges`, async () => {
+      const strip = await root('Strip');
+      const cable = await root('Cable', strip);
+      const survivor = await root('Survivor', cable);
+      await workItems.addDependency(survivor, ownerId, strip);
+      if (missing === 'successor') await workItems.addDependency(cable, ownerId, strip);
+      else await workItems.addDependency(strip, ownerId, cable);
 
-    expect((await workItems.remove(strip, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
-    // Somebody else takes the far end away entirely.
-    expect((await workItems.remove(cable, strangerId, null, { kind: 'legacy' })).ok).toBe(true);
+      expect((await workItems.remove(strip, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
+      // Somebody else takes the far end away entirely.
+      expect((await workItems.remove(cable, strangerId, null, { kind: 'legacy' })).ok).toBe(true);
 
-    const outcome = await undone();
-    expect(expectDone(outcome)).toBe('delete “Strip”');
-    if (!outcome.ok) throw new Error('unreachable');
-    expect(await namesByPosition(null)).toEqual(['Strip']);
-    expect(await edges()).toEqual([]);
-    expect(outcome.value.detail).toContain('without 1 dependency');
-  });
+      const outcome = await undone();
+      expect(expectDone(outcome)).toBe('delete “Strip”');
+      if (!outcome.ok) throw new Error('unreachable');
+      expect(await namesByPosition(null)).toEqual(['Strip', 'Survivor']);
+      expect(await edges()).toEqual([[strip, survivor]]);
+      expect(outcome.value.detail).toContain('without 1 dependency');
+    });
 });
 
 describe('who may undo', () => {

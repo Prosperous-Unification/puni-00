@@ -1,0 +1,111 @@
+
+MUTATION project-identity exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+197 |   });
+198 | });
+199 |
+200 | it('namespace scope insert and project identity constraints reject forged rows', () => { raw(sqlite => {
+201 |   insert(sqlite,'p'); own(sqlite,'p','a');
+202 |   expect(() => sqlite.run("INSERT INTO project_abbreviation(project_id,namespace,abbreviation) VALUES ('p','org:a','OTHER')")).toThrow();
+                                                                                                                                     ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 2,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:202:128)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:20:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:200:90)
+(fail) namespace scope insert and project identity constraints reject forged rows [89.18ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [134.00ms]
+
+MUTATION foreign-key exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+200 | it('namespace scope insert and project identity constraints reject forged rows', () => { raw(sqlite => {
+201 |   insert(sqlite,'p'); own(sqlite,'p','a');
+202 |   expect(() => sqlite.run("INSERT INTO project_abbreviation(project_id,namespace,abbreviation) VALUES ('p','org:a','OTHER')")).toThrow();
+203 |   sqlite.run("DELETE FROM project_abbreviation WHERE project_id='p'");
+204 |   expect(() => sqlite.run("INSERT INTO project_abbreviation(project_id,namespace,abbreviation) VALUES ('p','org:b','OTHER')")).toThrow('namespace');
+205 |   expect(() => sqlite.run("INSERT INTO project_abbreviation(project_id,namespace,abbreviation) VALUES ('absent','legacy','OTHER')")).toThrow('FOREIGN KEY');
+                                                                                                                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "FOREIGN KEY"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 1,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:205:134)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:20:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:200:90)
+(fail) namespace scope insert and project identity constraints reject forged rows [122.97ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [155.00ms]
+
+MUTATION cascade exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+141 | it('counter refuses malformed ordinals and project deletion cascades', () => { raw(sqlite => {
+142 |   for (const ordinal of [-1,11881377,1.5,'broken'])
+143 |     expect(() => sqlite.run('UPDATE project_abbreviation_counter SET next=?',[ordinal])).toThrow();
+144 |   expect(() => sqlite.run('INSERT INTO project_abbreviation_counter(singleton,next) VALUES (2,0)')).toThrow();
+145 |   insert(sqlite,'p'); own(sqlite,'p','a');
+146 |   sqlite.run("DELETE FROM project WHERE id='p'");
+               ^
+SQLiteError: FOREIGN KEY constraint failed
+      at run (bun:sqlite:318:21)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:146:10)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:20:16)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:141:80)
+(fail) counter refuses malformed ordinals and project deletion cascades [119.89ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [172.00ms]
+
+MUTATION backfill exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+51 |   const before = raw(sqlite => {
+52 |     insert(sqlite,'p'); insert(sqlite,'q'); own(sqlite,'q','a');
+53 |     return {projects:sqlite.query('SELECT * FROM project ORDER BY id').all(), ownership:sqlite.query('SELECT * FROM project_organization ORDER BY resource_id').all(), ledger:sqlite.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all()};
+54 |   });
+55 |   runMigrations(path,FOLDER);
+56 |   expect(raw(codes)).toHaveLength(2);
+                          ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 0
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:56:22)
+(fail) backfills every project and rollback preserves old project rows and complete ledger [131.94ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [181.00ms]

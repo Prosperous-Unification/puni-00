@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services-connected.db.test.ts:
+(pass) cold mounted isolated connected tree admits only its detached target after read closure [1174.51ms]
+
+ 1 pass
+ 17 filtered out
+ 0 fail
+ 27 expect() calls
+Ran 1 test across 1 file. [4.04s]
+
+Watched exit: 0

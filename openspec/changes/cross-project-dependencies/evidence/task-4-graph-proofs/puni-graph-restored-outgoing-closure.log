@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+(pass) walks incoming and outgoing incidents once, without an owned-empty shortcut [2.09ms]
+
+ 1 pass
+ 14 filtered out
+ 0 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [135.00ms]

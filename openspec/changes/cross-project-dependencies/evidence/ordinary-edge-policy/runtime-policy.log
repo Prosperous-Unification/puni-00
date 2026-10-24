@@ -1,0 +1,27 @@
+Command: bun test tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern actual policy CLI missing
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
+262 |       ]);
+263 |       expect(await child.exited).toBe(1);
+264 |       const stderr = await new Response(child.stderr).text();
+265 |       if (fault === 'valid') expect(stderr).toContain('absent-config.json');
+266 |       else {
+267 |         expect(stderr).not.toContain('absent-config.json');
+                                 ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "absent-config.json"
+Received: "[wbs-solver-supervisor] startup failed: ENOENT: no such file or directory, open '/tmp/wbs-test-1339366-QUvrRY/solver-runtime-cli-UVnZ71/absent-config.json'\n"
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:267:28)
+      at async <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:282:18)
+(fail) actual policy CLI missing reaches only its admitted boundary [25.53ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [70.00ms]
+
+Exit: 1

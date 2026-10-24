@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+(pass) MCP node split FF preserves type and distinct connected placement [4027.07ms]
+
+ 1 pass
+ 47 filtered out
+ 0 fail
+ 19 expect() calls
+Ran 1 test across 1 file. [7.07s]

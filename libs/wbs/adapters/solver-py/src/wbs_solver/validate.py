@@ -2,7 +2,7 @@
 
 THE SCHEMA IS NOT A COPY OF THE RULES, IT IS THE RULES
 ------------------------------------------------------
-`solver-wire.v4.json` is the single normative definition of both messages
+`solver-wire.v5.json` is the single normative definition of both messages
 (design.md "Solver wire contract — one versioned schema, four consumers"). This
 module is the third of that file's four consumers. It validates against the copy
 installed **beside** the package, because a wheel deployed into the be-01 image
@@ -70,13 +70,14 @@ the message on stderr and nothing on stdout.
 from __future__ import annotations
 
 import json
+import math
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator
 
-SCHEMA_FILENAME = "solver-wire.v4.json"
+SCHEMA_FILENAME = "solver-wire.v5.json"
 SCHEMA_PATH = Path(__file__).resolve().parent / SCHEMA_FILENAME
 
 
@@ -109,6 +110,17 @@ def _no_duplicate_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return dict(pairs)
 
 
+def _reject_nonfinite(value: Any, path: str = "<root>") -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise RequestRejected(f"nonfinite number at {path}")
+    if isinstance(value, dict):
+        for key, member in value.items():
+            _reject_nonfinite(member, f"{path}/{key}")
+    elif isinstance(value, list):
+        for index, member in enumerate(value):
+            _reject_nonfinite(member, f"{path}/{index}")
+
+
 def parse_request(raw: bytes) -> dict[str, Any]:
     """Bytes to object, refusing anything that is not one JSON object.
 
@@ -125,6 +137,9 @@ def parse_request(raw: bytes) -> dict[str, Any]:
         raise RequestRejected(f"request is not valid JSON: {exc}") from exc
     if not isinstance(parsed, dict):
         raise RequestRejected(f"request must be a JSON object, got {type(parsed).__name__}")
+    # Proof: omitting the walk admitted a valid JSON 1e309 fixed finish and
+    # the installed CLI returned boundary-infeasible instead of exit 64.
+    _reject_nonfinite(parsed)
     return parsed
 
 
@@ -146,7 +161,14 @@ def validate_against_schema(message: dict[str, Any], branch: str = "request") ->
     All of them, sorted, because a request with three faults reported one at a
     time is three round trips through a deploy.
     """
-    errors = sorted(_validator(branch).iter_errors(message), key=lambda e: list(e.absolute_path))
+    selected = branch
+    if branch in ("request", "response") and isinstance(message.get("scope"), dict):
+        kind = message["scope"].get("kind")
+        if kind == "local":
+            selected = f"{branch}-local"
+        elif kind == "connected-stage":
+            selected = f"{branch}-connected"
+    errors = sorted(_validator(selected).iter_errors(message), key=lambda e: list(e.absolute_path))
     if errors:
         detail = "; ".join(
             f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}" for e in errors
@@ -165,8 +187,15 @@ def check_cross_field(request: dict[str, Any]) -> None:
     if len(key_set) != len(slice_keys):
         raise RequestRejected("slices[].key repeats: a slice key identifies one slice")
 
-    for field in ("baselineOffsets", "fastHint"):
+    connected = request["scope"]["kind"] == "connected-stage"
+    offset_fields = (
+        ("movementReferenceOffsets", "feasibleBaselineOffsets", "seedOffsets")
+        if connected else ("baselineOffsets", "fastHint")
+    )
+    for field in offset_fields:
         offsets = request[field]
+        if offsets is None:
+            continue
         if set(offsets) != key_set:
             missing = sorted(key_set - set(offsets))
             extra = sorted(set(offsets) - key_set)
@@ -189,7 +218,9 @@ def check_cross_field(request: dict[str, Any]) -> None:
             if start < previous_end:
                 raise RequestRejected(f"elsewhere[{person!r}] must be sorted without overlap")
             previous_end = end
-    for field in ("baselineOffsets", "fastHint"):
+    for field in offset_fields:
+        if request[field] is None:
+            continue
         for key, value in request[field].items():
             if value > horizon:
                 raise RequestRejected(
@@ -335,14 +366,80 @@ def check_cross_field(request: dict[str, Any]) -> None:
     # four million slices to reach MAX_SAFE_INTEGER. It is here so the two
     # arms of invariant 8 stay the same shape — if that ceiling is ever
     # raised, neither arm silently lags the other.
-    movement_worst_case = sum(
-        max(offset, horizon - offset) for offset in request["baselineOffsets"].values()
-    )
+    reference = (request["movementReferenceOffsets"] if connected
+                 else request["baselineOffsets"])
+    movement_worst_case = sum(max(offset, horizon - offset) for offset in reference.values())
     if movement_worst_case > MAX_SAFE_INTEGER:
         raise RequestRejected(
             f"objective-overflow: movement worst case {movement_worst_case} exceeds "
             f"Number.MAX_SAFE_INTEGER {MAX_SAFE_INTEGER}"
         )
+
+    if connected:
+        check_connected_scope(request, key_set)
+
+
+def check_connected_scope(request: dict[str, Any], key_set: set[str]) -> None:
+    """Check fixed ownership and the rounded person calendar independent of schema shape."""
+    scope = request["scope"]
+    project_id = scope["projectId"]
+    projects = {project["projectId"]: project for project in scope["projects"]}
+    if len(projects) != len(scope["projects"]) or project_id not in projects:
+        raise RequestRejected("connected projects must be unique and include the selected project")
+    fixed: dict[str, dict[str, Any]] = {}
+    for entry in scope["fixed"]:
+        key = entry["key"]
+        if key in fixed or key in key_set or entry["projectId"] not in projects or entry["projectId"] == project_id:
+            raise RequestRejected(f"invalid foreign fixed slice {key!r}")
+        if entry["start"] > entry["finish"]:
+            raise RequestRejected(f"fixed slice {key!r} has reversed placement")
+        fixed[key] = entry
+    # Proof: removing only the foreign-owner comparison made the configured
+    # production-CLI endpoint test fail for owner C instead of fixed owner A
+    # (276 tests, one real failure: exit 0 rather than 64).
+    for index, boundary in enumerate(scope["boundaries"]):
+        foreign = fixed.get(boundary["foreignKey"])
+        if boundary["localKey"] not in key_set or foreign is None or foreign["projectId"] != boundary["foreignProjectId"]:
+            raise RequestRejected(f"boundaries[{index}] does not name a local and its fixed foreign endpoint")
+        if not boundary["relationshipId"]:
+            raise RequestRejected(f"boundaries[{index}] has no authored relationship")
+    occupancy_by_person: dict[str, list[tuple[int, int]]] = {}
+    for index, holder in enumerate(scope["occupancy"]):
+        foreign = fixed.get(holder["key"])
+        if foreign is None or foreign["projectId"] != holder["projectId"] or (foreign["start"], foreign["finish"]) != (holder["start"], holder["finish"]):
+            raise RequestRejected(f"occupancy[{index}] does not match fixed foreign evidence")
+        if holder["start"] >= holder["finish"]:
+            raise RequestRejected(f"occupancy[{index}] must have positive duration")
+        scaled_start = holder["start"] * request["quantum"]
+        scaled_finish = holder["finish"] * request["quantum"]
+        # Proof: removing this guard makes a finite 1e308 occupancy finish
+        # escape as OverflowError instead of the CLI's modeled exit 64.
+        # The range comparison comes first: math.isfinite itself raises on
+        # arbitrarily large finite Python integers decoded from JSON.
+        if (scaled_start > MAX_SAFE_INTEGER or scaled_finish > MAX_SAFE_INTEGER
+                or not math.isfinite(scaled_start) or not math.isfinite(scaled_finish)):
+            raise RequestRejected(f"occupancy[{index}] exceeds the safe quantization range")
+        start = max(0, math.floor(scaled_start))
+        end = math.ceil(scaled_finish)
+        occupancy_by_person.setdefault(holder["personId"], []).append((start, end))
+    local_people = {slice_["personId"] for slice_ in request["slices"]
+                    if slice_["durationUnits"] > 0 and slice_["personId"] is not None}
+    expected: dict[str, list[list[int]]] = {}
+    for person, intervals in occupancy_by_person.items():
+        if person not in local_people:
+            continue
+        union: list[list[int]] = []
+        for start, end in sorted(intervals):
+            if union and start < union[-1][1]:
+                union[-1][1] = max(union[-1][1], end)
+            else:
+                union.append([start, end])
+        expected[person] = union
+    # Proof: disabling this comparison admitted a connected request whose
+    # foreign person holder was present but whose booking was omitted;
+    # configured Nx observed one failure among 272 tests.
+    if request["elsewhere"] != expected:
+        raise RequestRejected("elsewhere does not match rounded foreign occupancy")
 
 
 def validate_request(raw: bytes) -> dict[str, Any]:

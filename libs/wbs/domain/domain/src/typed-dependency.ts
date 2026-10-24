@@ -65,6 +65,15 @@ export interface TypedDependency {
   readonly type: RelationshipType;
 }
 
+/** An endpoint whose owning project is explicit at persistence and capture boundaries. */
+export type ScopedDependencyEndpoint = DependencyEndpoint & { readonly projectId: string };
+
+/** A relationship carrying stable project identities at both endpoints. */
+export interface ScopedTypedDependency extends TypedDependency {
+  readonly predecessor: ScopedDependencyEndpoint;
+  readonly successor: ScopedDependencyEndpoint;
+}
+
 /** Why an endpoint cannot be written against a project's tree and steps. */
 export type TypedEndpointDefect =
   'not_found' | 'unknown_step' | 'node_on_parent' | 'descendant_step_on_leaf';

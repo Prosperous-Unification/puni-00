@@ -1,0 +1,20 @@
+
+> nx run wbs-fe-01:e2e-cross-project --grep abbreviation edit|alphabetical discovery
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "abbreviation edit|alphabetical discovery"
+
+Warning: command "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "abbreviation edit|alphabetical discovery"" exited with non-zero status code
+
+
+ NX   Running target e2e-cross-project for project wbs-fe-01 failed
+
+Failed tasks:
+
+- wbs-fe-01:e2e-cross-project
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      4.2s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     4.2s (1 task)
+  Recoverable time:  <1ms

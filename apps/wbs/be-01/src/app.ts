@@ -1,6 +1,9 @@
 import type { DeliveryReader } from '@shared/delivery';
 import { createGitHubDeliveryReader } from '@shared/delivery-github';
+import type { DependencyClientRefusal } from '@wbs/contracts';
 import type { SessionFeatures } from '@wbs/contracts';
+import type { DependencyContext } from '@wbs/core';
+import type { CommandAccess } from '@wbs/core';
 import type { StepParallelStore } from '@wbs/core';
 import type {
   Broadcaster,
@@ -55,6 +58,7 @@ import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { organizationLimitsRoutes } from '@wbs/core/http/organization-limits.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
+import { projectAddressRoutes } from '@wbs/core/http/project-address.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
 import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
@@ -73,7 +77,11 @@ import type { PriorityBandService } from '@wbs/core/module/priority-band/priorit
 import type { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { StepService } from '@wbs/core/module/step/step.resource';
 import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
-import type { BeforeProjectUpdate, BeforeStepRemoval } from '@wbs/core/ports/fanout-capture-store';
+import type {
+  BeforeProjectUpdate,
+  BeforeStepRemoval,
+  BeforeStepWrite,
+} from '@wbs/core/ports/fanout-capture-store';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
@@ -83,6 +91,7 @@ import {
   type DeliveryGateLimits,
 } from '@wbs/core/service/delivery-gate';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
+import type { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { ScimService } from '@wbs/core/service/scim.feature';
 import { ScimAdmission } from '@wbs/core/service/scim-admission';
@@ -102,6 +111,7 @@ import { bearerContextRoutes } from './controller/bearer-context.routes';
 import type { BrowserSessionAuthority } from './controller/browser-session';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
 import { directoryRoutes } from './controller/directory.routes';
+import { gatewayDependencyRoutes } from './controller/gateway-dependency.routes';
 import { historyRoutes } from './controller/history.routes';
 import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
@@ -164,6 +174,8 @@ const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
 };
 
 export interface AppOptions {
+  /** Required production admission; reads current trusted dependency authority per protected request. */
+  admitDependencyClient: (claim: string | null) => DependencyClientRefusal | null;
   /** Overrides the anonymous public GitHub reader for a trusted composition. */
   delivery?: DeliveryReader;
   /** Overrides the delivery cache, per-organization and in-flight limits; production uses the defaults. */
@@ -284,6 +296,7 @@ export interface AppOptions {
   emailDelivery: EmailDelivery;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
+  projectAddressSearch: ProjectAddressSearch;
   /** Required sparse read capability for versioned JSON export preservation. */
   stepParallels: Pick<StepParallelStore, 'listByProject'>;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -389,12 +402,13 @@ export interface AppOptions {
   probeDatabase: () => DatabaseHealth;
   /**
    * What a command batch runs inside: the source's unit of work and the batch's
-   * own service graph — `sqliteUnitOfWork(db, coordinator, admitted)` in
+   * own service graph — `sqliteUnitOfWork(db, coordinator, scopes)` in
    * production, the counting fixture on in-memory stores. See
    * `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts`,
    * ADR 0007 and ADR 0015.
    */
   writes: {
+    commandAccess: CommandAccess;
     /** The process's atomic archival plan importer over this same source admission boundary. */
     imports: Pick<ImportService, 'import'>;
     /**
@@ -415,8 +429,10 @@ export interface AppOptions {
       scope: Scope,
       broadcast: Broadcaster,
       admission: EditAdmission,
+      dependencies: DependencyContext,
       beforeProjectUpdate?: BeforeProjectUpdate,
       beforeStepRemoval?: BeforeStepRemoval,
+      beforeStepWrite?: BeforeStepWrite,
     ) => WritingServices;
     /**
      * Where a batch's collected announcements go once it has committed and let
@@ -500,6 +516,7 @@ export function mountedEndpoints(
     throw new Error('browser lifecycle composition disagrees with OIDC routes');
   const passwordThrottle = opts.loginThrottle;
   const commands = createPlanCommandRunner({
+    commandAccess: opts.writes.commandAccess,
     batchServices: opts.writes.batch,
     publicServices: {
       workItems: opts.workItems,
@@ -630,7 +647,7 @@ export function mountedEndpoints(
         findWithin: (...args) => opts.steps.findWithin(...args),
         renameWithin: (...args) => opts.steps.renameWithin(...args),
         patchUnitWithin: (...args) => opts.steps.patchUnitWithin(...args),
-        removeWithin: admitted.removeStepWithin,
+        removeWithin: (...args) => opts.steps.removeWithin(...args),
       },
       commands,
       opts.organizations,
@@ -688,6 +705,7 @@ export function mountedEndpoints(
       opts.stepParallels,
       opts.optimizer,
     ),
+    ...projectAddressRoutes(opts.projectAddressSearch),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations, {
       reports: (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
       clock: opts.clock,
@@ -730,11 +748,15 @@ export function mountedEndpoints(
       organizations: opts.organizations,
     }),
     ...gatewayAccessRoutes(opts.projects, opts.organizations),
+    ...gatewayDependencyRoutes(),
     ...mcpDelegationRoutes(opts.mcpDelegation ?? REFUSE_MCP_DELEGATION),
   ] as const;
 }
 
 export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = createLogger) {
+  // Proof: omitted callback composed a serving app in dependency-client.db.test.ts before this guard.
+  if (typeof opts.admitDependencyClient !== 'function')
+    throw new Error('Dependency client admission is required');
   const secrets = [opts.internalAuthSecret];
   // Proof: on 2026-09-21, omitting `secrets` made “reports one redacted unexpected
   // production failure with its shared occurrence” receive undefined instead of the secret array.
@@ -787,6 +809,8 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
         // report postApiAuthRegister equal to the 404/NOT_FOUND router miss.
         mountEndpoints(endpoints, {
           appOrigin: opts.appOrigin,
+          // Proof: replacing this binding with null admission returned200 instead of409 on the real /api/projects route in dependency-client.db.test.ts.
+          admitDependencyClient: opts.admitDependencyClient,
           resolveIdentity: identityResolver(
             opts.auth,
             opts.internalAuthSecret,
@@ -799,6 +823,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           reportUnexpectedFailure,
         }),
       )
-      .use(scimEndpoints(scim, reportUnexpectedFailure))
+      // Proof: replacing the SCIM admission binding with null admission returned200 instead of409 in scim-dependency-client.controller.db.test.ts.
+      .use(scimEndpoints(scim, reportUnexpectedFailure, opts.admitDependencyClient))
   );
 }

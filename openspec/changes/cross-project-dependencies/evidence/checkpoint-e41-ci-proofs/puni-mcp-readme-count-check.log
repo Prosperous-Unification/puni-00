@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/openapi-tools.test.ts:
+(pass) toolsFromDocument, on a fixture document > names each tool after its operationId and keeps its method and path [0.23ms]
+(pass) toolsFromDocument, on a fixture document > throws on an operation with no operationId rather than synthesising one [0.21ms]
+(pass) toolsFromDocument, on a fixture document > emits no tool for any of D1’s three exclusion classes [0.10ms]
+(pass) toolsFromDocument, on a fixture document > throws when an exclusion entry matches nothing in the document [0.08ms]
+(pass) toolsFromDocument, on a fixture document > excludes a whole prefix, not just the path that was named [0.06ms]
+(pass) toolsFromDocument, on a fixture document > emits a route the document gained rather than filtering it silently [0.13ms]
+(pass) toolsFromDocument, on a fixture document > merges body properties with path parameters and keeps both sides required [0.07ms]
+(pass) toolsFromDocument, on a fixture document > leaves an optional query parameter optional [0.06ms]
+(pass) toolsFromDocument, on a fixture document > refuses a parameter it cannot send instead of dropping it [0.20ms]
+(pass) toolsFromDocument, on a fixture document > refuses a name claimed by both a parameter and a body property [0.08ms]
+(pass) toolsFromDocument, on a fixture document > passes a request body’s own description through unedited (D8) [0.04ms]
+(pass) toolsFromDocument, on a fixture document > says so when the document carries no prose, rather than inventing any [0.03ms]
+(pass) toolsFromDocument, on a fixture document > refuses a document with no paths [0.03ms]
+(pass) toolsFromDocument, on the generated document > derives exactly one tool per non-excluded operation in the document [0.35ms]
+(pass) toolsFromDocument, on the generated document > exposes the import document tool [0.11ms]
+(pass) toolsFromDocument, on the generated document > never offers the sign-in method list as a tool [0.06ms]
+(pass) toolsFromDocument, on the generated document > offers batches, not single writes (plan-commands) [0.09ms]
+(pass) toolsFromDocument, on the generated document > describes every command kind in the commands tool, so a model needs no other document [0.45ms]
+(pass) toolsFromDocument, on the generated document > tells a model a work item takes one type, and declares the refusal it gets otherwise [0.32ms]
+(pass) toolsFromDocument, on the generated document > derives the timezone list read and the attempt commands by step node ID [0.10ms]
+(pass) toolsFromDocument, on the generated document > derives a path-parameter-only read the way the document declares it [0.03ms]
+(pass) toolsFromDocument, on the generated document > keeps the whole-tree read callable with its id alone, full=true optional [0.02ms]
+(pass) toolsFromDocument, on the generated document > carries node resource constraints through generated read descriptors for MCP [0.40ms]
+(pass) toolsFromDocument, on the generated document > derives the work-item page with every filter optional [0.04ms]
+(pass) toolsFromDocument, on the generated document > exposes revision-bound step resolution as a read tool [0.02ms]
+(pass) toolsFromDocument, on the generated document > derives a write with path parameters and a body from both sides [0.04ms]
+(pass) toolsFromDocument, on the generated document > keeps the history filters optional and in the query string [0.02ms]
+(pass) toolsFromDocument, on the generated document > gives every tool a name the MCP protocol accepts and a description [0.10ms]
+(pass) the README names the tools that exist > names no tool the document does not derive [0.24ms]
+(pass) the README names the tools that exist > counts them the same way the document does [0.04ms]
+(pass) the README names the tools that exist > spells the example batch in the fields the commands tool declares [0.27ms]
+(pass) readDocument > names the path it could not read [0.09ms]
+
+ 32 pass
+ 0 fail
+ 389 expect() calls
+Ran 32 tests across 1 file. [2.00s]

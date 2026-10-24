@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+(pass) alphabetic prefix is bounded and organization scoped [172.54ms]
+(pass) numeric input is not external discovery [106.59ms]
+(pass) selected project scopes steps and work items and caps flattened candidates [101.76ms]
+(pass) manual punctuation and lowercase resolve and malformed syntax precedes stale [103.69ms]
+(pass) foreign and absent addresses have identical refusal [106.50ms]
+(pass) refuses malformed queries and cursor reuse across query project organization and kind [128.64ms]
+(pass) keeps exact Unicode name matching and literal punctuation [107.90ms]
+(pass) refuses duplicate numbers and missing endpoints without changing database state [108.55ms]
+(pass) changes revision for leafhood and uncoded step order but keeps label-only edits [109.17ms]
+{"level":"error","time":1792622913049,"service":"be-01","err":{"occurrence_id":"AE_DC0FZVRBKGW7EVSWXTYGHB0J2T","fingerprint":"fp1_df7ec5054ad3297b393bf0d7202a2326","stack":["Error: project 06d5dffc-75fe-4bd4-a88c-44aaac4ce215 abbreviation is missing","    at decodeProjectAbbreviation (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at searchProjects (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:46:32)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:76:32)","    at async withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:27:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:12:37)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792622913053,"service":"be-01","err":{"occurrence_id":"AE_ASV234H7F7VVGMJZHQ0Q1JP3J9","fingerprint":"fp1_e8f36baaaecd9fd58a0fe4cf435193ef","stack":["Error: project 06d5dffc-75fe-4bd4-a88c-44aaac4ce215 abbreviation is missing","    at decodeProjectAbbreviation (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at capture (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:56:26)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:92:33)","    at withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:27:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:18:37)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) fails missing abbreviation evidence visibly even outside the discovery match [100.84ms]
+(pass) viewer can discover a restricted project and leaf steps belong to that project [110.97ms]
+(pass) legacy authority keeps duplicate organization codes as separate explicit choices [182.48ms]
+
+ 12 pass
+ 0 fail
+ 90 expect() calls
+Ran 12 tests across 1 file. [3.79s]

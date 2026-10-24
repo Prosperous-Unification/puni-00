@@ -1,0 +1,15 @@
+
+> nx run wbs-domain:lint
+
+> bunx eslint libs/wbs/domain/domain/src
+
+
+
+
+ NX   Successfully ran target lint for project wbs-domain
+
+
+  Run duration:      11.9s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     11.8s (1 task)
+  Recoverable time:  <1ms

@@ -155,6 +155,28 @@ describe('the person load page', () => {
     ).toBeDefined();
   });
 
+  it('explains a missing dependency calendar instead of hiding the affected project', async () => {
+    stubServer({
+      [ROUTE]: [
+        () =>
+          answer(
+            200,
+            load({
+              unavailable: [
+                { projectId: 'p', name: 'Platform', reason: 'dependency_calendar_missing' },
+              ],
+            }),
+          ),
+      ],
+    });
+    renderPage();
+    expect(
+      await screen.findByText(
+        'Platform could not be read: a connected project has no scheduling calendar.',
+      ),
+    ).toBeDefined();
+  });
+
   it('shows the query failure for a reason the contract does not name, not a blank lane', async () => {
     stubServer({
       [ROUTE]: [

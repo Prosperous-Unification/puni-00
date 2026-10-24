@@ -1,10 +1,11 @@
 import { createFailureRedaction } from '@shared/failures';
-import type { Logger } from '@wbs/contracts';
+import type { Logger } from '@wbs/contracts/logger';
 import pino, { type LoggerOptions } from 'pino';
 
 import { createFailureSerializer, keepAbsentFailure } from './serializers';
 
-export { type Logger, noopLogger } from '@wbs/contracts';
+// Proof: restoring the contracts barrel failed MCP startup with poisoned barrels.
+export { type Logger, noopLogger } from '@wbs/contracts/logger';
 
 export type ServiceName = 'be-01' | 'gw-01' | 'fe-01' | 'mcp-01';
 

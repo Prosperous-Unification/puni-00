@@ -1,0 +1,20 @@
+
+> nx run wbs-fe-01:"test:unit" --args=src/lib/wbs-api.test.ts
+
+> TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000 src/lib/wbs-api.test.ts
+
+Warning: command "TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000 src/lib/wbs-api.test.ts" exited with non-zero status code
+
+
+ NX   Running target test:unit for project wbs-fe-01 failed
+
+Failed tasks:
+
+- wbs-fe-01:test:unit
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      269ms
+  Critical path:     259ms (1 task)
+  Recoverable time:  <1ms
+error: "nx" exited with code 1

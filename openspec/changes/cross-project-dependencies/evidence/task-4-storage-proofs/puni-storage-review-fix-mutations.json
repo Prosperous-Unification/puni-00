@@ -1,0 +1,40 @@
+[
+  {
+    "fault": "filtered-identity",
+    "command": [
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts",
+      "-t",
+      "hidden by"
+    ],
+    "exit": 1,
+    "observed": [
+      "Received: \"(resolved)\"",
+      "(fail) refuses a physical identity hidden by the owned-a filter before any mutation [135.35ms]",
+      "Received: \"(resolved)\"",
+      "(fail) refuses a physical identity hidden by the owned-b filter before any mutation [97.00ms]",
+      "Received: \"(resolved)\"",
+      "(fail) refuses a physical identity hidden by the incident-a filter before any mutation [92.98ms]",
+      "Received: \"(resolved)\"",
+      "(fail) refuses a physical identity hidden by the remove-a filter before any mutation [86.16ms]",
+      "Received: \"(resolved)\"",
+      "(fail) refuses a physical identity hidden by the remove-b2 filter before any mutation [88.27ms]"
+    ]
+  },
+  {
+    "fault": "coherent-owner-move",
+    "command": [
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts",
+      "-t",
+      "refuses moving a typed"
+    ],
+    "exit": 1,
+    "observed": [
+      "Received: \"(resolved without throwing)\"",
+      "(fail) TypedDependencyRepository > refuses moving a typed dependency to another project without changing rows or revisions [117.92ms]"
+    ]
+  }
+]

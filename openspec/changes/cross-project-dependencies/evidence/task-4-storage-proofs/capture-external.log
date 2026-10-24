@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+129 |
+130 |
+131 | it('refuses external rows in the historical single-project capture', async () => {
+132 |   await repository().add(link(), stamp);
+133 |   const capture = new SavedPlanCaptureRepository({openConnection:()=>openConnection(path)});
+134 |   expect(await rejection(capture.readPlanInput('b'))).toContain('external');
+                                                            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "external"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:134:55)
+(fail) refuses external rows in the historical single-project capture [159.53ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.97s]

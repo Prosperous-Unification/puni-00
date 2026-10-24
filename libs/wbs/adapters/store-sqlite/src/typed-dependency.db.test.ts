@@ -79,8 +79,8 @@ async function addWorkItem(
 const link = (predecessorId: string, successorId: string): StoredTypedDependency => ({
   id: crypto.randomUUID(),
   projectId,
-  predecessor: { scope: 'whole', workItemId: predecessorId },
-  successor: { scope: 'whole', workItemId: successorId },
+  predecessor: { projectId, scope: 'whole', workItemId: predecessorId },
+  successor: { projectId, scope: 'whole', workItemId: successorId },
   type: 'FS',
 });
 
@@ -168,7 +168,7 @@ describe('TypedDependencyRepository', () => {
         'foreign step',
         {
           ...link(leaf, parent),
-          predecessor: { scope: 'node', workItemId: leaf, stepId: otherStep },
+          predecessor: { projectId, scope: 'node', workItemId: leaf, stepId: otherStep },
         },
         'outside project',
       ],
@@ -176,7 +176,7 @@ describe('TypedDependencyRepository', () => {
         'node on a parent',
         {
           ...link(leaf, parent),
-          successor: { scope: 'node', workItemId: parent, stepId: devStepId },
+          successor: { projectId, scope: 'node', workItemId: parent, stepId: devStepId },
         },
         'a parent',
       ],
@@ -184,7 +184,7 @@ describe('TypedDependencyRepository', () => {
         'descendant-step on a leaf',
         {
           ...link(leaf, parent),
-          predecessor: { scope: 'descendant-step', workItemId: leaf, stepId: devStepId },
+          predecessor: { projectId, scope: 'descendant-step', workItemId: leaf, stepId: devStepId },
         },
         'a leaf',
       ],
@@ -209,7 +209,7 @@ describe('TypedDependencyRepository', () => {
     expect(await rejection(repo.add({ ...row, id: crypto.randomUUID() }, wrote()))).toContain(
       'Failed query',
     );
-    const changed = { ...row, successor: { scope: 'whole' as const, workItemId: c } };
+    const changed = { ...row, successor: { projectId, scope: 'whole' as const, workItemId: c } };
     await repo.update(changed, wrote());
     expect(await repo.listByProject(projectId)).toEqual([changed]);
     expect(revision(a)).toBe(beforeA + 2);
@@ -251,7 +251,6 @@ describe('TypedDependencyRepository', () => {
     const b = await addWorkItem('B');
     const row = link(a, b);
     await repo.add(row, wrote());
-    const revisions = [revision(a), revision(b)];
     const otherProject = crypto.randomUUID();
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: otherProject, ownerId }),
@@ -268,11 +267,37 @@ describe('TypedDependencyRepository', () => {
       ],
       wrote(),
     );
-    expect(await rejection(repo.update({ ...row, projectId: otherProject }, wrote()))).toContain(
-      'cannot move',
-    );
-    expect(await repo.listByProject(projectId)).toEqual([row]);
-    expect([revision(a), revision(b)]).toEqual(revisions);
+    const destinationPredecessor = await addWorkItem('Destination predecessor', null, otherProject);
+    const destinationSuccessor = await addWorkItem('Destination successor', null, otherProject);
+    const proposed: StoredTypedDependency = {
+      ...row,
+      projectId: otherProject,
+      predecessor: { projectId: otherProject, scope: 'whole', workItemId: destinationPredecessor },
+      successor: { projectId: otherProject, scope: 'whole', workItemId: destinationSuccessor },
+    };
+    const endpointIds = [a, b, destinationPredecessor, destinationSuccessor];
+    const revisions = endpointIds.map(revision);
+    const sqlite = openDatabase(path);
+    try {
+      const physicalBefore = sqlite.query('SELECT * FROM typed_dependency ORDER BY id').all();
+      const endpointsBefore = sqlite
+        .query('SELECT id,revision,updated_at FROM work_item ORDER BY id')
+        .all();
+      expect(await rejection(repo.update(proposed, { ...wrote(), at: 2 }))).toContain(
+        'cannot move',
+      );
+      expect(await repo.listByProject(projectId)).toEqual([row]);
+      expect(await repo.listByProject(otherProject)).toEqual([]);
+      expect(sqlite.query('SELECT * FROM typed_dependency ORDER BY id').all()).toEqual(
+        physicalBefore,
+      );
+      expect(
+        sqlite.query('SELECT id,revision,updated_at FROM work_item ORDER BY id').all(),
+      ).toEqual(endpointsBefore);
+      expect(endpointIds.map(revision)).toEqual(revisions);
+    } finally {
+      sqlite.close();
+    }
   });
 
   it('reads stored SS and FF relationships', async () => {
@@ -381,4 +406,30 @@ describe('TypedDependencyRepository', () => {
       sqlite.close();
     }
   });
+});
+
+it('refuses absent endpoint project state during typed authoring admission', async () => {
+  const dependency = link('a', 'b');
+  expect(
+    await rejection(
+      repo.hasDeletingEndpoint({
+        ...dependency,
+        predecessor: { projectId: 'absent-project', workItemId: 'a', scope: 'whole' },
+      }),
+    ),
+  ).toContain('missing endpoint project absent-project');
+});
+
+it('refuses unreadable endpoint project state during typed authoring admission', async () => {
+  const native = openDatabase(path);
+  try {
+    native.run(
+      'ALTER TABLE project RENAME COLUMN optimization_delete_pending_at TO broken_pending_at',
+    );
+  } finally {
+    native.close();
+  }
+  expect(await rejection(repo.hasDeletingEndpoint(link('a', 'b')))).toContain(
+    'unreadable endpoint project deletion state',
+  );
 });

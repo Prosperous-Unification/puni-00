@@ -1,0 +1,16 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+(pass) admitted distinct tasks interleave projects until a local edge closes the remote cycle [563.87ms]
+(pass) admitted remote scopes expand all four pairs under their own trees and steps [807.77ms]
+(pass) admitted subtree move closes a real remote descendant cycle and rolls back [543.95ms]
+(pass) admitted clear-estimate moves a legacy anchor into a real remote cycle and rolls back [499.62ms]
+(pass) admitted step-remove moves a legacy anchor into a real remote cycle and rolls back [432.76ms]
+(pass) admitted project-reach moves a legacy anchor into a real remote cycle and rolls back [430.11ms]
+(pass) admitted batch rolls back an actual external write when a later command closes the remote cycle [400.24ms]
+
+ 7 pass
+ 79 filtered out
+ 0 fail
+ 162 expect() calls
+Ran 7 tests across 1 file. [8.21s]

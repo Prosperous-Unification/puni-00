@@ -1,0 +1,37 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/solver-supervisor-peer.proc.test.ts:
+82 |         ]);
+83 |         expect(exit).toBe(0);
+84 |         expect(stderr).toBe('');
+85 |         expect(Number.isSafeInteger(acceptedFd)).toBe(true);
+86 |         if (fault === 'none') {
+87 |           expect(peerPid).toBe(client.pid);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 3697500
+Received: undefined
+
+      at <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/solver-supervisor-peer.proc.test.ts:87:27)
+(fail) Bun 1.4.4 source production listener authenticates separate client: none [14.07ms]
+82 |         ]);
+83 |         expect(exit).toBe(0);
+84 |         expect(stderr).toBe('');
+85 |         expect(Number.isSafeInteger(acceptedFd)).toBe(true);
+86 |         if (fault === 'none') {
+87 |           expect(peerPid).toBe(client.pid);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 3697511
+Received: undefined
+
+      at <anonymous> (/tmp/puni-main-merge-20261024/tools/tool-remote-scripts/src/lib/solver-supervisor-peer.proc.test.ts:87:27)
+(fail) Bun 1.4.4 built production listener authenticates separate client: none [25.59ms]
+
+ 0 pass
+ 4 filtered out
+ 2 fail
+ 11 expect() calls
+Ran 2 tests across 1 file. [72.00ms]

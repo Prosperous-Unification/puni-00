@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/schedule-connected.test.ts:
+171 |   const after = plan.slices.get(sliceKey('b', 'build'));
+172 |   if (after === undefined) throw new Error('missing placed slice');
+173 |   plan.slices.set(sliceKey('b', 'build'), { ...after, earliestStart: 0, earliestFinish: 0.7 });
+174 |   expect(() => {
+175 |     validateResolvedRealBoundaries(resolved, plan);
+176 |   }).toThrow(`violates ${type} real boundary`);
+           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "violates SS real boundary"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule-connected.test.ts:176:6)
+(fail) rejects a violated resolved SS real boundary [3.75ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [14.00ms]

@@ -1,0 +1,43 @@
+$ bun test apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts -t FF permits
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+52 | test('FF permits start and exposes the unmet finish prerequisite in the startable response', async () => {
+53 |   harness.sqlite.run("UPDATE external_dependency SET type='FF' WHERE id='prerequisite'");
+54 |   const answer = await startable();
+55 |   expect(answer.status).toBe(200);
+56 |   expect((answer.body as { leaves: { stepIds: string[] }[] }).leaves).toMatchObject([{ stepIds: [targetStep] }]);
+57 |   expect((answer.body as { prerequisites: { stepId: string }[] }).prerequisites.find((step) => step.stepId === targetStep)).toMatchObject({ workItemId: 'target-leaf', stepId: targetStep, canStart: true, canFinish: false, finishBlockers: [{ workItemId: 'predecessor-leaf', stepId: predecessorStep, type: 'FF', provenance: 'authored', relationshipId: 'prerequisite' }] });
+                                                                                                                                 ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "canFinish": false,
+    "canStart": true,
+-   "finishBlockers": [
+-     {
+-       "provenance": "authored",
+-       "relationshipId": "prerequisite",
+-       "stepId": "99aaf1dd-e530-4200-b3f3-c00c4b4f2349",
+-       "type": "FF",
+-       "workItemId": "predecessor-leaf",
+-     },
+-   ],
++   "finishBlockers": [],
++   "startBlockers": [],
++   "started": false,
+    "stepId": "8848954d-d8b5-4989-96bf-0400a4a9c49e",
+    "workItemId": "target-leaf",
+  }
+
+- Expected  - 9
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-start-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:57:125)
+(fail) FF permits start and exposes the unmet finish prerequisite in the startable response [307.53ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.33s]

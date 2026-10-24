@@ -7,15 +7,18 @@ import {
   recordProjectOpen,
   retryProjectOptimization,
 } from '@wbs/contracts';
+import type { OrganizationRole } from '@wbs/domain';
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import type { DirectoryService } from '../module/directory/directory.resource';
+import type { admittedWrites } from '../module/plan-commands/admitted-write';
 import { installPlanDocument } from '../module/plan-document/check';
 import type { ProjectService } from '../module/project/project.resource';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
+import type { OptimizationInput } from '../ports/optimization-input';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
@@ -31,12 +34,19 @@ export interface OptimizationRetry {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
-    readonly input: ScheduleInput;
-    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
+    readonly input: ScheduleInput | OptimizationInput;
+    readonly scoped?: {
+      readonly organizationId: string;
+      readonly actorId: string;
+      readonly role: OrganizationRole;
+    };
   }): Promise<
     | { readonly kind: 'forbidden' | 'not_found' }
     | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
-    | { readonly kind: 'not-retryable'; readonly state: OptimizationVariantState['state'] }
+    | {
+        readonly kind: 'not-retryable';
+        readonly state: OptimizationVariantState['state'] | 'boundary-infeasible';
+      }
     | { readonly kind: 'already-running' }
     | {
         readonly kind: 'accepted';
@@ -139,8 +149,8 @@ function projectPageQueryOf(query: PageQueryInput, url: URL) {
 export function projectRoutes(
   projects: Pick<
     ProjectService,
-    'authorizeRetry' | 'createWithin' | 'listWithin' | 'openWithin' | 'readWithin' | 'updateWithin'
-  >,
+    'authorizeRetry' | 'createWithin' | 'listWithin' | 'openWithin' | 'readWithin'
+  > & { updateWithin: ReturnType<typeof admittedWrites>['updateProjectWithin'] },
   organizations: OrganizationAccess,
   workItems: WorkItemService,
   directory: DirectoryService,
@@ -162,10 +172,22 @@ export function projectRoutes(
       async ({ body, principal }): Promise<HttpReply<typeof createProject>> => {
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
-        const outcome = await projects.createWithin(body.name, principal.id, resolved.access);
-        return outcome.ok
-          ? { ok: true, status: 200, body: outcome.value }
-          : { ok: false, status: 403, body: { error: outcome.reason } };
+        const outcome = await projects.createWithin(
+          body.name,
+          principal.id,
+          resolved.access,
+          body.abbreviation,
+        );
+        if (outcome.ok) return { ok: true, status: 200, body: outcome.value };
+        switch (outcome.reason) {
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: outcome.reason } };
+          case 'invalid_abbreviation':
+            return { ok: false, status: 422, body: { error: outcome.reason } };
+          case 'abbreviation_taken':
+          case 'abbreviation_exhausted':
+            return { ok: false, status: 409, body: { error: outcome.reason } };
+        }
       },
       { classifyRequestFailure: classifyBodyFailure },
     ),
@@ -226,7 +248,7 @@ export function projectRoutes(
             status: 409,
             body: { error: captured.error, engine: captured.engine },
           };
-        if (captured.kind === 'shared') {
+        if (captured.kind === 'shared' || captured.kind === 'connected') {
           if (query.format === 'markdown')
             return {
               ok: true,
@@ -234,11 +256,14 @@ export function projectRoutes(
               text: projectMarkdown(captured.project, captured.tree.workItems),
             };
           // Proof: independent project/catalog/marker rereads each failed mounted structured-export coherence.
-          const exported = planDocuments.exportCaptured(
-            captured.project,
-            captured.tree,
-            captured.document,
-          );
+          const exported =
+            captured.kind === 'connected'
+              ? planDocuments.exportConnectedCaptured(
+                  captured.project,
+                  captured.tree,
+                  captured.observation,
+                )
+              : planDocuments.exportCaptured(captured.project, captured.tree, captured.document);
           if (!exported.ok)
             return {
               ok: false,
@@ -314,7 +339,9 @@ export function projectRoutes(
       async ({ params, body, principal }): Promise<HttpReply<typeof patchProject>> => {
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
-        const outcome = await projects.updateWithin(params.id, principal.id, body, resolved.access);
+        const outcome = await projects.updateWithin(params.id, principal, body, resolved.access);
+        if ('refusal' in outcome) return organizationRefusal(outcome);
+        if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
         if (outcome.ok) return { ok: true, status: 200, body: { project: outcome.value } };
         switch (outcome.reason) {
           case 'not_found':
@@ -323,10 +350,12 @@ export function projectRoutes(
             return { ok: false, status: 403, body: { error: outcome.reason } };
           case 'bad_start_date':
           case 'bad_pert_weights':
+          case 'invalid_abbreviation':
           case 'invalid_timezone':
             return { ok: false, status: 422, body: { error: outcome.reason } };
           // Proof: mapping this to 422 made the mounted unavailable-optimizer test receive 500 instead of 409.
           case 'optimizer_unavailable':
+          case 'abbreviation_taken':
           case 'solution_taken':
             return { ok: false, status: 409, body: { error: outcome.reason } };
           case 'dependency_cycle':
@@ -345,6 +374,7 @@ export function projectRoutes(
           principal.id,
           resolved.access,
         );
+        // Proof: bypassing authorization made the mounted foreign Retry open a connected read before its 404.
         if (!authorization.ok) {
           return authorization.reason === 'not_found'
             ? { ok: false, status: 404, body: { error: 'not_found' } }
@@ -370,7 +400,20 @@ export function projectRoutes(
               projectId: captured.projectId,
             },
           };
-        if (optimizer === undefined) {
+        // Proof: removing this branch made mounted missing-calendar Retry return 500 instead of its typed 409.
+        if (captured.kind === 'dependency_calendar_missing')
+          return {
+            ok: false,
+            status: 409,
+            body: {
+              code: 'schedule-input-unavailable',
+              reason: 'dependency_calendar_missing',
+              projectId: params.id,
+              projects: captured.projects,
+            },
+          };
+        // Proof: removing idle handling made mounted held-target Retry return 500 instead of 409.
+        if (captured.kind === 'idle' || optimizer === undefined) {
           return {
             ok: false,
             status: 409,
@@ -386,6 +429,7 @@ export function projectRoutes(
                 scoped: {
                   organizationId: resolved.access.scope.organizationId,
                   actorId: principal.id,
+                  role: resolved.access.scope.role,
                 },
               }
             : {}),

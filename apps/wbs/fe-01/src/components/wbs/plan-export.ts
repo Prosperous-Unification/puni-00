@@ -8,6 +8,7 @@ import type { EstimateMethod } from '@/lib/wbs-api';
 import { DEADLINE_UNREACHABLE_CELL, deadlineBeforeProjectStart } from './deadline-impossible';
 import { minuteCharge, showDuration } from './duration-words';
 import type { ExportRow, FilteredScope, NamedEntry, PlanExport } from './plan-export-model';
+import { scheduleUnavailableWords } from './schedule-unavailable-words';
 import { STATUS_LABEL } from './status-cell';
 
 export type {
@@ -195,13 +196,16 @@ function headerFields(plan: PlanExport): { key: string; value: string }[] {
         'the figures are effort. "People at once" is what was asked for and "Ran at" is what the team had free — a row runs for its effort divided by that, so a blank means one at a time',
     },
   ];
+  // Proof: restoring the old calendar-range catch-all failed all six structured CSV/Markdown refusal tests (2026-10-22).
   if (plan.scheduleError !== null) {
     fields.push({
       key: 'Schedule',
       value:
         plan.scheduleError === 'cycle'
           ? `these dependencies run in a circle, so no dates could be worked out — every date and slack reads ${NO_SCHEDULE}`
-          : `this plan extends beyond the supported calendar range, so no dates could be worked out — every date and slack reads ${NO_SCHEDULE}`,
+          : plan.scheduleError === 'calendar_range'
+            ? `this plan extends beyond the supported calendar range, so no dates could be worked out — every date and slack reads ${NO_SCHEDULE}`
+            : `${scheduleUnavailableWords(plan.scheduleError)} Every date and slack reads ${NO_SCHEDULE}`,
     });
   }
   // Last, and in **both** formats: a document that is not the whole plan says

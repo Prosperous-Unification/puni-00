@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,10 +11,6 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
-/** The two compute-provider migrations newer than the limits, which reverse first. */
-const COMPUTE_PROVIDERS =
-  '20261022140100_widen_organization_audit_compute_providers, 20261022140000_add_resource_provider';
-const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -109,9 +105,11 @@ describe(LIMITS_AUDIT, () => {
     const down = await rollBack(root, dbPath, ORGANIZATION_LIMITS);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(
-      `rolled back: ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}\n`,
-    );
+    const reversed = readdirSync(join(root, 'drizzle'))
+      .filter((name) => name >= LIMITS_AUDIT)
+      .sort()
+      .reverse();
+    expect(down.stdout).toBe(`rolled back: ${reversed.join(', ')}\n`);
     expect(auditRows(dbPath)).toEqual([
       { action: 'session_policy_changed', subject_kind: 'session_policy' },
     ]);

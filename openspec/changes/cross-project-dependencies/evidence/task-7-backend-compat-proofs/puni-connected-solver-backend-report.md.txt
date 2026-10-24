@@ -1,0 +1,22 @@
+# Connected solver backend compatibility handoff
+
+Worktree `/tmp/puni-cross-solver-backend`, branch `feat/cross-project-solver-backend`, base `bb8bd4922`. This packet contains only backend and SQLite-store test fixtures; no production behavior, migration SQL, coordinator, or persistence code changed. Root owns Git integration and the overlapping command DI hunk in `services.db.test.ts`.
+
+## Changes
+
+- Active backend solver requests and response fixtures use Python `0.4.0`, scheduler contract `18`, wire `5`, and the required local response `scope`. The dynamic SS/FF command response echoes `request.scope`; omitting it was observed through the real `evaluateSolverOutcome` path as `invalid-output` in the first full backend run. The corrected file passes its 22-test focused suite.
+- Current cache, queue, and algorithm-ID expectations use `18+0.4.0`. The `0.1.0` test harness keeps its intentionally older solver version but its active cache identity is `18+0.1.0`. Deliberate historical `7+0.3.0` and `17+0.3.0` rows remain in `services.db.test.ts` and `boot.db.test.ts`; the distinct sibling contract in selected retirement is `18+0.3.0`.
+- Exact rollback arrays include the newly integrated `20261022211000_add_external_dependencies` migration before project abbreviations. The abbreviation backfill test verifies the new migration's explicit name and SHA-256 from its SQL, then rolls both migrations back in order. Three schema snapshot tests exclude only the new `external_dependency` table from the post-rollback set while comparing every remaining table.
+
+## Verification
+
+- Initial backend typecheck failed at `services.db.test.ts:575` because a wire-4 response lacked `scope`; final `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:typecheck --skip-nx-cache` passed (`/tmp/puni-backend-typecheck-frozen.log`).
+- Final `wbs-be-01:lint`, `wbs-store-sqlite:lint`, and `wbs-store-sqlite:typecheck` passed with `--skip-nx-cache` (`/tmp/puni-backend-lint-frozen.log`, `/tmp/puni-backend-store-lint-final.log`, `/tmp/puni-backend-store-typecheck-final.log`). Changed files passed Prettier check and `git diff --check`.
+- Focused migration suites: `55 pass` in `/tmp/puni-backend-migration-focused.log`, `54 pass` after the three schema-filter corrections in `/tmp/puni-backend-store-schema-final.log`, and `52 pass` in `/tmp/puni-backend-cli-final.log`.
+- First restricted full store target: `1946 pass / 1 skip / 7 fail` (`/tmp/puni-backend-store-full.log`). Three failures were exact schema snapshot mismatches caused by the new table and are fixed. Four were sandbox `EPERM` on Bun child-process stdin, a test-environment failure. The authorized escalated `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:test --skip-nx-cache` passed `1953 / 1 skip / 0 fail`, 1,954 tests in 137 files (`/tmp/puni-backend-store-full-escalated.log`).
+- The restricted full backend run hit sandbox `EPERM` on local Unix listeners and was interrupted without a behavior verdict (`/tmp/puni-backend-full.log`). The authorized escalated configured `wbs-be-01:test --skip-nx-cache` ran all 3,177 tests in 214 files: `3170 pass / 3 skip / 4 fail` (`/tmp/puni-backend-full-escalated.log`). One failure was the owned missing-scope response noted above, fixed and focused green. The other three are command-lane failures already identified by root: `undo.controller.db.test.ts` stale undo and first-child redo receive 500 from a counting-unit-of-work journal getter, and `http/elysia/work-item.test.ts` authenticated-principal priority spy differs. No command-lane files were edited. Root will run the combined full backend target after command integration.
+- Final focused backend suite using `bun test --timeout=10000` on the seven changed wire/optimization/controller files passed `346 / 0` across seven files (`/tmp/puni-backend-wire-final.log`).
+
+No full h1/h2 host gate, build, deployment, Python rerun, or connected runtime publication check was attempted in this backend-fixture lane. The retained P3 nested raw occupancy union discrepancy remains outside valid canonical-stage input and outside this packet.
+
+Exact source-byte manifest: `/tmp/puni-connected-solver-backend-sha256.txt` (paths relative to this worktree; 45 modified files; manifest SHA-256 `0deed0abb8caa5ceb0cd66aa9f9a621805620d9186191c2c3813083651d813d0`). `sha256sum -c` passed. No Git metadata mutations made here.

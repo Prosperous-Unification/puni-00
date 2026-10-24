@@ -1,0 +1,37 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-52-browser/apps/wbs/fe-01
+
+ ❯ src/components/wbs/cross-project-refresh.test.tsx (3 tests | 1 failed) 677ms
+   × keeps a superseded old response out of the mounted tree until the trailing covering read installs 142ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/cross-project-refresh.test.tsx > keeps a superseded old response out of the mounted tree until the trailing covering read installs
+Error: expect(element).toHaveAttribute("data-node-reading", "unknown") // element.getAttribute("data-node-reading") === "unknown"
+
+Expected the element to have attribute:
+  data-node-reading="unknown"
+Received:
+  data-node-reading="waiting"
+ ❯ src/components/wbs/cross-project-refresh.test.tsx:121:20
+    119|   await act(async () => { older.release(oldAnswer); });
+    120|   await waitFor(() => expect(trees(fixture)).toBe(3));
+    121|   expect(corner()).toHaveAttribute('data-node-reading', 'unknown');
+       |                    ^
+    122|   expect(fixture.reconnect()).toBe(11);
+    123|   const answer = fixture.captured.at(-1); if (answer === undefined) th…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  03:06:28
+   Duration  9.26s (import 52%, transform 28%, environment 9%, tests 7%, setup 4%)
+
+  Transform  transforming modules took 2.59s · 28% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns

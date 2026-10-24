@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:
+292 |       ),
+293 |   );
+294 |   const evidence = projectConnectedDocument(captured, 'B').connected;
+295 |   if (evidence.placement.kind !== 'scheduled') throw new Error('expected scheduled');
+296 |   expect(evidence.placement.baseline.map((position) => position.start)).toEqual([3, 4]);
+297 |   expect(evidence.placement.selected.map((position) => position.start)).toEqual([0, 4]);
+                                                                              ^
+error: expect(received).toEqual(expected)
+
+  [
+-   0,
++   3,
+    4,
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:297:73)
+(fail) optimized evidence preserves selected movement, earlier boundary and a baseline decision [16.50ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.44s]
+
+exit=1

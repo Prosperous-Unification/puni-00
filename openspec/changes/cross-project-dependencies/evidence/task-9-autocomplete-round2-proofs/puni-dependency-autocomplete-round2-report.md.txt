@@ -1,0 +1,71 @@
+# Task 9.1 frontend corrections, round 2
+
+Worktree `/tmp/puni-cross-autocomplete`, branch `feat/cross-project-autocomplete`, correction base `56a9fceb24b64e67e1db638ce708b2c467f4576e`. This packet addresses R1 and R2 in `/tmp/puni-dependency-autocomplete-round1-review.md`. Original reports, independent probe trees and their logs remain unchanged. No Git commits, branch changes, WBS/OpenSpec writes, other-worktree edits or shared command-contract edits by this worker. Root owns integration and review.
+
+## Reproduction and corrections
+
+Copied the three failing independent actual-field cases and the passing ambiguity/reselection case into the owned production test file. Before implementation, configured Vitest produced **3 failures / 1 pass / 40 intentionally filtered tests** (`/tmp/puni-autocomplete-round2-red.log`). Desktop/phone pending completion removed the newer dialog, and consuming the second identical occurrence sent only the other-project command instead of `[other, remote]`.
+
+R1: each Customize opening now has a caller-owned gesture generation, in addition to existing scoped target/revision/lookup identity. Reopening even the exact same target creates a distinct editor instance; compatible updates within the same gesture keep its state. A layout cleanup retires the old scoped editor before late Save/Remove continuation effects. Retired continuations return before closing, refocusing, or writing editor feedback. The existing authoring commands still complete normally. Actual desktop/phone tests retain the newer dialog, manual Whole predecessor, SS relationship, real focused selector, mixed draft, and ability to author the newly selected project. They cover both a different project reusing the same abbreviation/bare IDs and a new gesture for the identical scoped target. The identical-target cases first reproduced old busy-state reuse (`/tmp/puni-autocomplete-round2-same-target-red.log`). A production scoped-editor test also covers late removal completion.
+
+R2: a captured draft now exposes an explicit atomic `consumeToken` outcome: consumed or stale. A matching successful write queues a known consumption transition in the existing binding hook. On the matching next draft render, the active occurrence is removed while the earlier binding records remain intact; this transition is not interpreted as an unknown human deletion. Ordinary text edits still use the conservative ambiguity/reselection path unchanged. One-click and Customize callers on both faces reuse the same transition. Mixed-list completion retains its capture-match guard and clears the whole list only when still current. Existing same-text/newer-selection tests remain exercised; stale consumption returns without changing text or authority. No new writer, endpoint, backend operation, remote row fabrication or project-label identity was introduced.
+
+The strengthened round 2 actual-field cases cover four pending editor lifetimes (desktop/phone × same/different project), four known consumptions (desktop/phone × one-click/Customize), and deliberate recovery after genuine ambiguous deletion. Phone cases reactivate the first retained token and use the actual endpoint choice; desktop submits it through the existing Enter draft resolver. The successful command order is `[other, remote]` with exactly two project-discovery calls. The shared removal regression checks that an old successful removal never invokes its retired cancellation callback.
+
+## R5 observed guard negatives
+
+All six scripted faults were watched fail through actual production components, then restored. Adjacent Proof comments name the observations. Script `/tmp/puni-autocomplete-round2-mutations.py`; logs `/tmp/puni-autocomplete-round2-negative-<fault>.log`:
+
+| Fault | Observed failure |
+| --- | --- |
+| retired-save | desktop/phone newer Customize dialog disappeared after the old successful write (two behavioral failures) |
+| retired-remove | old cancellation callback called once after its removal editor was replaced |
+| desktop-gesture | reopened identical target retained the previous pending busy state; expected enabled Add, got disabled |
+| phone-gesture | same busy-state failure in the actual phone sheet |
+| known-consumption | earlier identical binding became ambiguous: desktop missed its second command and phone lacked its pinned endpoint (four failures) |
+| stale-consumption | old Customize and desktop/phone one-click completions erased newer identical-text selections (three failures) |
+
+The controlled-transition identity fence was bypassed as a composite; this is not a claim of separate mutation evidence for every conjunct. The initial independent failures and identical-target pre-fix failures are separately recorded above. No import/setup/type failure is counted as an R5 proof. Historical accepted round 1 mutations were preserved and are not claimed as freshly rerun in this packet.
+
+## Final verification
+
+Final commands start after the last source/test edit, all mutation restorations, lint autofixes and formatting. The 10-path hash snapshot below was captured before these commands; it is verified again afterward. Final frozen-source results: **17 View files / 401 tests passed**, including 49 actual-field tests and the scoped removal-completion regression; **4 Node files / 26 tests passed**. All four typechecks exited 0. Raw ESLint exited 0 with zero warnings and no skipped Nx boundary checks; Prettier checked all 10 owned paths and exited 0. Post-run `sha256sum -c` verified all 10 pre-run source hashes unchanged; `git diff --check` exited 0. The three excluded upstream contract hashes were rechecked exact. No source/test/dependency edit followed the final commands.
+
+From `apps/wbs/fe-01`:
+
+- View: `TZ=UTC bunx vitest run src/components/wbs/plan-dependencies.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/dependency-autocomplete.test.tsx src/components/wbs/dependency-search.test.tsx src/components/wbs/remote-dependency-editor.test.tsx src/components/wbs/scoped-dependency-editor.test.tsx src/components/wbs/typed-dependency-editor.test.tsx src/components/wbs/depends-input.test.ts src/lib/dependency-command-serialization.test.ts src/lib/step-view.test.ts src/modules/plan-feed/same-steps.test.ts src/runtime/project-runtime.test.ts src/runtime/session-runtime.test.ts src/modules/project/composition.test.ts src/test-tiers.test.ts src/lib/plan-refresh-stream.test.ts src/components/spaces/space-page.test.tsx --no-file-parallelism --maxWorkers=1`; `/tmp/puni-autocomplete-round2-view-final.log`.
+- Node: `TZ=UTC bunx vitest run --config vitest.node.config.ts src/components/wbs/dependency-draft.test.ts src/modules/dependency-lookup/dependency-lookup.feature.test.ts src/runtime/dependency-lookup.test.ts src/modules/plan-writer/plan-writer.test.ts --no-file-parallelism --maxWorkers=1`; `/tmp/puni-autocomplete-round2-node-final.log`.
+- Four typechecks: `bunx tsc -p tsconfig.app.json --noEmit`, `bunx tsc -p tsconfig.spec.json --noEmit`, `bunx tsc -p src/modules/dependency-lookup/tsconfig.json --noEmit`, `bunx tsc -p src/modules/project/tsconfig.json --noEmit`; `/tmp/puni-autocomplete-round2-types-{app,spec,lookup,project}-final.log`.
+
+From worktree root:
+
+- `bunx eslint <all paths in /tmp/puni-autocomplete-round2-owned-paths.txt>`; `/tmp/puni-autocomplete-round2-lint-final.log`. Existing Nx graph enables boundary checks; no skipped-rule warning accepted.
+- `bunx prettier --check <all owned paths>`; `/tmp/puni-autocomplete-round2-format-check-final.log`.
+- `git diff --check`; `sha256sum -c /tmp/puni-autocomplete-round2-owned-sha256.txt`.
+
+Vite prints the existing future-native-loader warnings (`__dirname`, Node JSON import attributes). Current configured loader is used. No full repository/Nx gate, heavy build, h2/h4 gate, manual/browser visual pass or live backend semantic integration was run. Earlier focused green subsets are not substituted for the final frozen-source checks.
+
+## Ownership and limits
+
+Only these 10 frontend paths changed since `56a9fceb2`; exact list `/tmp/puni-autocomplete-round2-owned-paths.txt`, source checksum list `/tmp/puni-autocomplete-round2-owned-sha256.txt`. Three root-supplied provisional command-owner dependencies remain unchanged and excluded:
+
+- `libs/wbs/domain/contracts/src/commands/definitions.ts`: `438ebadf345ce8e9a9177baa7f410be0d2fd6ea08ffa7874974c664bc9ed603f`
+- `libs/wbs/domain/contracts/src/http/work-item-shapes.ts`: `d1e5fbe31cc477c817df9ac4c58501fe7ae10d391cecc4a6e2be0ad70245f84f`
+- `libs/wbs/domain/contracts/src/http/refusal.ts`: `7853e77b8d0f7a8c7dc33a06aab3cf5046a08d5c6e5f7008705cf5bb1dd9108e`
+
+Their exact hashes were checked; this packet does not approve their independent command implementation. Production remains dormant and the exact external_dependencies_inactive refusal path stays covered. Persisted remote relationship presentation/edit transport, task 9.2 settings/outcomes, activation and full backend integration remain separate obligations. Root owns normal-hook commit, Astra re-review and final gate evidence.
+
+## Correction source manifest
+
+```text
+075d0b24ad957b2d21211634421e15a94c3c4b10990f2801ab8632ac980cfdaf  apps/wbs/fe-01/src/components/wbs/dependency-autocomplete.test.tsx
+dc5f2a79c6a8234ff1d48e54950d6f6969c65923f77d3ddf7bb6a45c0acca749  apps/wbs/fe-01/src/components/wbs/dependency-token-bindings.ts
+5181a19bfc5f26a0f36692d00b4bfec6430886980abc6e40c0f763e7151aa8d4  apps/wbs/fe-01/src/components/wbs/plan-cards.tsx
+afc32e5caee5ae0aae7a21f79dd488004d3e5b46f4c8dba9492713f646547c58  apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx
+2ccaaeccc2edcbee63d1e64e103f5e0c8dff6c286a9c4bad04d6a389f246dadf  apps/wbs/fe-01/src/components/wbs/plan-live.ts
+2729b899aea529e79f8eb1a60b5ef9f76c6e888b36ccaaf1a71417f2e0796791  apps/wbs/fe-01/src/components/wbs/scoped-dependency-editor.test.tsx
+7e901a29e754b4866d93545155bf8aad6f71deaf3fa399bc37d2d7871d73fe56  apps/wbs/fe-01/src/components/wbs/typed-dependency-editor.tsx
+67b2dc3143eac9a23302b939b6738b5a6fe002dad83bf022e49f392c01eaa06b  apps/wbs/fe-01/src/components/wbs/use-dependency-search.ts
+3ba8433499a7af22033164803ff1eb6a726898905b95e23a7a8438bb810dbbbf  apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts
+35337fc471c31f9a67ac05053dc9e64c680832ff6bc4d13bb4d50221b1695eda  apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+```

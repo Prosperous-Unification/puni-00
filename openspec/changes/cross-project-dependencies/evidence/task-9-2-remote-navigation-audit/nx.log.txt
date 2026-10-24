@@ -1,0 +1,47 @@
+
+ NX   Running targets lint, typecheck for project wbs-fe-01 and 1 task it depends on:
+
+- wbs-fe-01
+
+
+
+> nx run wbs-fe-01:"typecheck:module"
+
+> status=0; for module in apps/wbs/fe-01/src/modules/*/; do echo "typecheck:module $module"; bunx tsc -p "$module"tsconfig.json --noEmit || status=1; done; exit $status
+
+typecheck:module apps/wbs/fe-01/src/modules/calendar-markers/
+typecheck:module apps/wbs/fe-01/src/modules/dependency-lookup/
+typecheck:module apps/wbs/fe-01/src/modules/directory-management/
+typecheck:module apps/wbs/fe-01/src/modules/directory/
+typecheck:module apps/wbs/fe-01/src/modules/plan-commands/
+typecheck:module apps/wbs/fe-01/src/modules/plan-feed/
+typecheck:module apps/wbs/fe-01/src/modules/plan-writer/
+typecheck:module apps/wbs/fe-01/src/modules/preferences/
+typecheck:module apps/wbs/fe-01/src/modules/project/
+typecheck:module apps/wbs/fe-01/src/modules/saved-plans/
+
+> nx run wbs-fe-01:lint
+
+> bunx eslint apps/wbs/fe-01/src apps/wbs/fe-01/e2e apps/wbs/fe-01/e2e-packaged apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/playwright.organization.config.ts apps/wbs/fe-01/playwright.packaged.config.ts apps/wbs/fe-01/playwright.performance.config.ts apps/wbs/fe-01/playwright.ordinary-servers.ts apps/wbs/fe-01/ordinary-servers-cli.ts apps/wbs/fe-01/vite.config.ts apps/wbs/fe-01/vite.benchmark.config.ts apps/wbs/fe-01/vitest.config.ts apps/wbs/fe-01/vitest.node.config.ts apps/wbs/fe-01/vitest.zoned.config.ts apps/wbs/fe-01/vitest.view.config.ts apps/wbs/fe-01/vitest.unit-root.config.ts apps/wbs/fe-01/vitest.node-suites.ts apps/wbs/fe-01/vitest.view-level.test.ts apps/wbs/fe-01/vite-config.test.ts apps/wbs/fe-01/browser-packages.test.ts apps/wbs/fe-01/vitest.setup.ts apps/wbs/fe-01/playwright-config.test.ts apps/wbs/fe-01/vitest-budget.test.ts
+
+(node:2869695) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+> nx run wbs-fe-01:typecheck
+
+> bunx tsc --build --force apps/wbs/fe-01/tsconfig.json
+
+
+
+
+ NX   Successfully ran targets lint, typecheck for project wbs-fe-01 and 1 task it depends on
+
+
+  Run duration:      4m 24s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     3m 27s (1 task)
+  Recoverable time:  56.6s (21% of the run)
+
+  Recommendations:
+    - Increase parallelism to recover up to 56.6s → https://nx.dev/docs/concepts/ci-concepts/parallelization-distribution?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=parallelization.
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.

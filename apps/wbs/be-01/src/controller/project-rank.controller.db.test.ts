@@ -1,4 +1,5 @@
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
@@ -457,4 +458,67 @@ describe('before activation', () => {
       body: { error: 'organization_required' },
     });
   });
+});
+
+function seedRankDependencies(): void {
+  seedDependencyAuthority(h.databasePath());
+  for (const projectId of [platform, billing, search])
+    h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
+      projectId,
+      projectId,
+      projectId,
+    ]);
+  for (const [predecessor, successor] of [
+    [platform, billing],
+    [billing, search],
+  ])
+    h.sqlite.run(
+      "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES (?, 'org-a', ?, ?, ?, 'whole', ?, 'whole', 'FS')",
+      [predecessor, predecessor, successor, predecessor, successor],
+    );
+}
+
+it('rolls dependency rank events and rank writes back when the second recipient fails', async () => {
+  seedRankDependencies();
+  let delivered = 0;
+  pushDuringTest = () => {
+    delivered++;
+    return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+  };
+  const tables = ['project_rank', 'event_log', 'event_sequencer'];
+  const before = tables.map((table) =>
+    h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+  );
+  const second = [platform, billing, search].sort().at(1);
+  if (second === undefined) throw new Error('dependency rank fixture lacks second recipient');
+  h.sqlite.run(
+    `CREATE TRIGGER fail_dependency_rank BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:${second}' BEGIN SELECT RAISE(FAIL, 'injected second dependency rank recipient'); END`,
+  );
+  try {
+    expect((await h.call('ada', 'POST', move(search), { afterProjectId: null })).status).toBe(500);
+  } finally {
+    h.sqlite.run('DROP TRIGGER fail_dependency_rank');
+  }
+  expect(
+    tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
+  ).toEqual(before);
+  expect(delivered).toBe(0);
+});
+
+it('commits dependency rank events before independent delivery and releases the writer', async () => {
+  seedRankDependencies();
+  let deliveries = 0;
+  pushDuringTest = () => {
+    expect(h.sqlite.query('SELECT * FROM project_rank').all()).toHaveLength(3);
+    expect(
+      h.sqlite.query("SELECT * FROM event_log WHERE message LIKE '%elsewhere_changed%'").all(),
+    ).toHaveLength(6);
+    h.sqlite.run('UPDATE project SET name = name WHERE id = ?', [platform]);
+    deliveries++;
+    if (deliveries === 1)
+      return Promise.reject(new Error('injected first recipient delivery failure'));
+    return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+  };
+  expect((await h.call('ada', 'POST', move(search), { afterProjectId: null })).status).toBe(200);
+  expect(deliveries).toBe(6);
 });

@@ -358,6 +358,15 @@ describe('the adopted projects', () => {
     await verifyTargetInventory('apps/wbs/fe-01', await readManifest('apps/wbs/fe-01'));
   });
 
+  it('classifies the cross-project real-backend Browser target outside the report-bound levels', async () => {
+    const audited = auditManifest('apps/wbs/fe-01', await readManifest('apps/wbs/fe-01'));
+    expect(audited.stderr).toBe('');
+    expect(audited.exitCode).toBe(0);
+    expect(UNDECLARED_TEST_TARGETS['wbs-fe-01:e2e-cross-project']).toBe(
+      'Real-backend cross-project Browser Playwright target without this slice’s report binding.',
+    );
+  });
+
   it('refuses a missing required level target', async () => {
     const manifest = await readManifest('libs/wbs/adapters/store-memory');
     const targets = { ...manifest.targets };

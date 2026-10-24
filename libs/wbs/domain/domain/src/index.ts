@@ -10,6 +10,12 @@ export * from './attempt';
 // caller must arrange a plan exactly one way (ADR 0023).
 export * from './arrange-siblings';
 export * from './capacity';
+export {
+  type ConnectedPublicationDecision,
+  ConnectedStageEvidenceError,
+  guardConnectedPublication,
+  replayConnectedStage,
+} from './connected-publication';
 // The one trim-or-refuse rule every directory entry and step name goes through.
 export * from './clean-name';
 // The read-time resolution of stored deadline dates to `schedule()`'s offsets,
@@ -24,6 +30,8 @@ export * from './dependency-reach';
 // neither imported anything at all — and both answer questions about a plan's
 // shape rather than about storage: what number a work item takes from where it
 // sits, and where a new sibling goes. `schedule.ts` reads the first of them.
+export { canonicalConnectedStageInput } from './canonical-connected-stage-input';
+export type { ConnectedOptimizationStage } from './connected-optimization-input';
 export * from './contract-version';
 export * from './derive-numbers';
 // `effective-label` is deliberately absent: it is the walk the three dimensions
@@ -79,6 +87,7 @@ export * from './without-held-subtrees';
 // sibling resource for it is the sideways edge K6 forbids.
 export * from './in-progress-now';
 export * from './organization-access';
+export * from './project-address';
 // The three per-organization caps, their bound and the one limit decision (wbs-organization-limits).
 export * from './organization-limits';
 export * from './project-ownership';
@@ -102,6 +111,7 @@ export * from './saved-plan-schedule-body';
 // type was gone. 2,212 lines of pure planning that read five fields of a row
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
+export * from './resolved-schedule-input';
 export * from './schedule';
 // The canonical schedule string stays on its explicit subpath rather than the
 // browser-facing barrel. Backend cache addressing wraps that one canonicalizer
@@ -167,9 +177,12 @@ export * from './claim-lease';
 // The units a claim holds of its leaf's demand (wbs-resources R3, R4).
 export * from './occupancy';
 // Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
+export * from './connected-step-node';
+export * from './execution-eligibility';
 export * from './resource';
 // Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
 export * from './machine-credential';
+export type * from './schedule-error';
 // Provider instances and capacity reports beside a declared capacity (compute-providers P2-P7).
 export * from './compute-provider';
 export * from './step-parallel';

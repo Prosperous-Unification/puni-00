@@ -1,0 +1,57 @@
+{
+  "project": "gateway-proof-0f2b51b6-6996-475b-8d16-566bd2d89502",
+  "root": "/tmp/gateway-proof-0f2b51b6-6996-475b-8d16-566bd2d89502-daCTr2",
+  "network": "gateway-proof-0f2b51b6-6996-475b-8d16-566bd2d89502-net",
+  "image": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+  "sha": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+  "sourceProvenance": {
+    "head": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+    "verified": true,
+    "changes": ""
+  },
+  "createdIds": [],
+  "networkId": "3e39fbc91763d9d0139366eff07b0f9321ca1eb62bec934cb857e7b81754f704",
+  "pendingNetwork": false,
+  "pendingContainers": [],
+  "observations": [
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "network",
+        "name": "gateway-proof-0f2b51b6-6996-475b-8d16-566bd2d89502-net"
+      }
+    },
+    {
+      "label": "failure",
+      "proof": "Error: Docker operation deadline exceeded: network"
+    },
+    {
+      "label": "creation-reconciliation",
+      "proof": {
+        "containers": [],
+        "networks": [
+          {
+            "id": "3e39fbc91763d9d0139366eff07b0f9321ca1eb62bec934cb857e7b81754f704",
+            "name": "gateway-proof-0f2b51b6-6996-475b-8d16-566bd2d89502-net"
+          }
+        ]
+      }
+    },
+    {
+      "label": "cleanup-inventory",
+      "proof": {
+        "remainingContainers": [],
+        "remainingNetworks": []
+      }
+    },
+    {
+      "label": "cleanup",
+      "proof": {
+        "ids": [],
+        "networkId": "3e39fbc91763d9d0139366eff07b0f9321ca1eb62bec934cb857e7b81754f704",
+        "complete": true
+      }
+    }
+  ],
+  "cleanupFailures": []
+}

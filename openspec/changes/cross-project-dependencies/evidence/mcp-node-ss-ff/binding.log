@@ -1,0 +1,73 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+836 |               { index: 2 },
+837 |               { index: 3, id: relationship.id },
+838 |             ],
+839 |           });
+840 |           expect(staged).toMatchObject({ projectId: successor.projectId, revision: 3 });
+841 |           expect(relationship).toMatchObject({
+                                     ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "created_at": 1792368000000,
++   "created_by": "a23c1de2-62c0-4ade-8c5d-ab8437d7634a",
++   "id": "d06c6b9a-f7fa-4136-b0af-e00b0cf4ac90",
++   "organization_id": "org-a",
+    "predecessor_project_id": "9f76ea29-779b-4738-bdb9-fc5720d594de",
+    "predecessor_scope": "node",
+    "predecessor_step_id": "8bcedd90-54b8-46e7-9d6b-ead53afaca3c",
+    "predecessor_work_item_id": "595421d7-58aa-452b-81ae-40b88a71e819",
+    "successor_project_id": "e710fa6c-3327-44d1-9aa3-f87e4c8757ab",
+    "successor_scope": "node",
+    "successor_step_id": "d2c30b6c-f49b-4813-8e43-0f3ef26a1919",
+    "successor_work_item_id": "de964be2-3e70-4939-9a1f-3e38eed40140",
+-   "type": "SS",
++   "type": "FS",
++   "updated_at": 1792368000000,
+  }
+
+- Expected  - 1
++ Received  + 6
+
+      at <anonymous> (/tmp/puni-mcp-ss-ff/apps/wbs/mcp-01/src/connected-command-parity.test.ts:841:32)
+(fail) MCP node split SS preserves type and distinct connected placement [3957.99ms]
+836 |               { index: 2 },
+837 |               { index: 3, id: relationship.id },
+838 |             ],
+839 |           });
+840 |           expect(staged).toMatchObject({ projectId: successor.projectId, revision: 3 });
+841 |           expect(relationship).toMatchObject({
+                                     ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "created_at": 1792368000000,
++   "created_by": "e8727729-d1ba-415b-b450-2d0715795dd8",
++   "id": "ba9d8f6a-4349-4532-9f8c-57fd30f695fd",
++   "organization_id": "org-a",
+    "predecessor_project_id": "3d3da4bb-fee1-4ed6-a421-a31a64bab213",
+    "predecessor_scope": "node",
+    "predecessor_step_id": "5d549ec9-b26a-4047-af23-1cc60bf1f96e",
+    "predecessor_work_item_id": "04e8a148-4521-41ce-a6a8-45ce2ca741bb",
+    "successor_project_id": "458154f7-a0a5-4b73-97ae-81900ecc8eb3",
+    "successor_scope": "node",
+    "successor_step_id": "94751aee-0dc4-4fe9-89c2-2295596a2d7a",
+    "successor_work_item_id": "95dfbc0f-2651-4af8-8b15-702570fd8043",
+-   "type": "FF",
++   "type": "FS",
++   "updated_at": 1792368000000,
+  }
+
+- Expected  - 1
++ Received  + 6
+
+      at <anonymous> (/tmp/puni-mcp-ss-ff/apps/wbs/mcp-01/src/connected-command-parity.test.ts:841:32)
+(fail) MCP node split FF preserves type and distinct connected placement [3930.59ms]
+
+ 0 pass
+ 46 filtered out
+ 2 fail
+ 10 expect() calls
+Ran 2 tests across 1 file. [10.76s]

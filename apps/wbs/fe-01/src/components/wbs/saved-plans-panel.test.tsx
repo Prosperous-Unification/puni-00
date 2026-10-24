@@ -51,7 +51,19 @@ const compareReply = (diff: PlanDiffView): SavedPlanCompareReply => ({
   representation: 'json',
   status: 200,
   headers: headers(),
-  body: { diff },
+  body: {
+    diff,
+    left: {
+      source: { kind: 'saved', savedPlanId: ROW.id },
+      schedule: { present: true, algorithmId: 'retired' },
+      provenance: { kind: 'legacy-unknown' },
+    },
+    right: {
+      source: { kind: 'current' },
+      schedule: { present: false, absentReason: 'pending' },
+      provenance: { kind: 'legacy-unknown' },
+    },
+  },
 });
 const renameReply = (): SavedPlanRenameReply => ({
   kind: 'success',

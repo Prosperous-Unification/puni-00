@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 
 import { readDocument, toolsFromDocument } from './openapi-tools';
 
-test('default MCP document is generated directly from the shared declarations', () => {
+test('prepared default MCP document equals the current shared declarations', () => {
   expect(readDocument()).toEqual(documentFromShapes(httpShapes));
   const tools = toolsFromDocument(readDocument());
   expect(tools.map((tool) => tool.name)).toContain('postApiProjectsByIdCommands');
@@ -37,6 +37,66 @@ test('generated project command tool exposes addTypedDependency with endpoints',
       'FS',
       'SS',
     ]);
+    for (const field of ['predecessor', 'successor']) {
+      const endpoint = (typed?.properties as Record<string, unknown> | undefined)?.[field] as
+        { properties?: { projectId?: unknown } } | undefined;
+      // Proof: removing projectId from the shared endpoint declaration made
+      // this generated MCP contract assertion receive undefined for both scopes.
+      expect(endpoint?.properties?.projectId).toEqual({ type: 'string' });
+    }
+  }
+});
+
+test('generated dependency tools publish local aliases, scoped identity rules and stable removal', () => {
+  const tool = toolsFromDocument(readDocument()).find(
+    (candidate) => candidate.name === 'postApiProjectsByIdCommands',
+  );
+  if (tool === undefined) throw new Error('Project command tool missing');
+  const commands = tool.inputSchema.properties['commands'] as {
+    items: {
+      anyOf: {
+        description: string;
+        properties: Record<
+          string,
+          | {
+              const?: string;
+              type?: string;
+              enum?: string[];
+              properties?: Record<string, unknown>;
+              required?: string[];
+            }
+          | undefined
+        >;
+        required: string[];
+      }[];
+    };
+  };
+  for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+    const arm = commands.items.anyOf.find(
+      (candidate) => candidate.properties['kind']?.const === kind,
+    );
+    if (arm === undefined) throw new Error(`Missing ${kind}`);
+    expect(arm.description).toContain('projectId');
+    expect(arm.description).toContain('workItemRef');
+    for (const side of ['predecessor', 'successor']) {
+      const endpoint = arm.properties[side];
+      expect(endpoint?.properties?.['scope']).toEqual({
+        enum: ['descendant-step', 'node', 'whole'],
+      });
+      expect(endpoint?.properties?.['workItemRef']).toEqual({ type: 'string' });
+      expect(endpoint?.required).toEqual(['scope']);
+    }
+  }
+  const remove = commands.items.anyOf.find(
+    (candidate) => candidate.properties['kind']?.const === 'removeTypedDependency',
+  );
+  expect(remove?.required).toEqual(['dependencyId', 'kind']);
+  expect(remove?.properties['dependencyId']).toEqual({ type: 'string' });
+  for (const kind of ['addDependency', 'removeDependency']) {
+    const legacy = commands.items.anyOf.find(
+      (candidate) => candidate.properties['kind']?.const === kind,
+    );
+    expect(legacy?.properties['predecessorRef']).toEqual({ type: 'string' });
   }
 });
 
@@ -129,8 +189,11 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiPeople',
     'getApiPeopleByPersonIdLoad',
     'getApiPeopleLoad',
+    'getApiProjectAddressesProjects',
     'getApiProjects',
     'getApiProjectsById',
+    'getApiProjectsByIdAddressCandidates',
+    'getApiProjectsByIdAddressReferences',
     'getApiProjectsByIdCalendar-markers',
     'getApiProjectsByIdClaims',
     'getApiProjectsByIdExport',
@@ -207,6 +270,16 @@ test('refuses a generated operation whose name was lost before MCP derivation', 
   expect(() => toolsFromDocument(document)).toThrow('no operationId');
 });
 
+test('keeps runtime dependency capability in the document and out of generated MCP tools', () => {
+  const document = documentFromShapes(httpShapes);
+  expect(document.paths['/api/runtime/dependency-capability']?.['get']?.operationId).toBe(
+    'getDependencyCapability',
+  );
+  expect(toolsFromDocument(document).map((tool) => tool.name)).not.toContain(
+    'getDependencyCapability',
+  );
+});
+
 test('optional operational deny paths cannot become tools in external documents', () => {
   const document = documentFromShapes(httpShapes);
   document.paths['/health'] = {
@@ -222,4 +295,14 @@ test('optional operational deny paths cannot become tools in external documents'
 test('keeps browser current-context discovery out of generated MCP tools', () => {
   const names = toolsFromDocument(documentFromShapes(httpShapes)).map((tool) => tool.name);
   expect(names).not.toContain('getApiOrganizationActive');
+});
+
+test('generated command and startable documents expose execution prerequisites', () => {
+  const document = readDocument();
+  const paths = document.paths;
+  if (paths === undefined) throw new Error('Generated document paths are missing');
+  const serialized = JSON.stringify(paths['/api/projects/{id}/commands']);
+  expect(serialized).toContain('prerequisites_unmet');
+  expect(serialized).toContain('relationshipId');
+  expect(JSON.stringify(paths['/api/projects/{id}/startable'])).toContain('finishBlockers');
 });

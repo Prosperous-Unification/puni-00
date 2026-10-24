@@ -1,0 +1,24 @@
+✓ registered clients across a restart > keeps a promoted client proven and counted across the restart [132.91ms]
+✓ registered clients across a restart > refuses a stored redirect that is no longer on the allowlist [62.39ms]
+✓ registered clients across a restart > deletes an expired client from the store when the next request sweeps [75.67ms]
+✓ registered clients across a restart > keeps the absolute unproven lifetime an authorization extension stored before the restart [47.50ms]
+
+ 572 pass
+ 0 fail
+ 3421 expect() calls
+Ran 572 tests across 22 files. [254.83s]
+
+
+
+ NX   Successfully ran target test for project wbs-mcp-01
+
+
+  Run duration:      4m 15s
+  Cache:             0/1 hit (0%)
+  Critical path:     4m 15s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/connect/gSrppZuXrw.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-mcp-01:test    4m 15s

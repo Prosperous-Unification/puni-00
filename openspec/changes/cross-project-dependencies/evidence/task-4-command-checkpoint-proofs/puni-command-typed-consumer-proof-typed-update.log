@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+921 |         undefined,
+922 |         undefined,
+923 |         failedGraphRead,
+924 |       ),
+925 |     );
+926 |     expect(failure).toBeInstanceOf(Error);
+                          ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: null,
+}
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:926:21)
+(fail) connected typed-update refuses an injected failed graph read without partial effects [500.50ms]
+
+ 0 pass
+ 62 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [3.20s]

@@ -13,11 +13,17 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const MIGRATION = '20261022130000_add_organization_limits';
 /** The newer audit widening, which reverses first in its own transaction. */
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
-const CLAIM_LEASE = '20261023100000_add_claim_lease';
+const NEWER = [
+  '20261023100000_add_claim_lease',
+  '20261022213000_add_optimization_boundary_certificates',
+  '20261022212000_add_cross_project_dependency_activation',
+  '20261022211000_add_external_dependencies',
+  '20261022210000_add_project_abbreviations',
+  '20261022140100_widen_organization_audit_compute_providers',
+  '20261022140000_add_resource_provider',
+  LIMITS_AUDIT,
+];
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
-/** The newer compute-provider migrations, which reverse before the limits ones. */
-const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
-const PROVIDER_AUDIT = '20261022140100_widen_organization_audit_compute_providers';
 
 let dir: string;
 let path: string;
@@ -103,22 +109,11 @@ describe(MIGRATION, () => {
     expect(count()).toBe(1);
     expect(
       db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
-    ).toEqual(
-      before.filter(
-        ({ name }) =>
-          ![LIMITS_AUDIT, RESOURCE_PROVIDER, PROVIDER_AUDIT, CLAIM_LEASE].includes(name),
-      ),
-    );
+    ).toEqual(before.filter(({ name }) => !NEWER.includes(name)));
   });
 
   it('rolls back when empty and comes forward again', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      CLAIM_LEASE,
-      PROVIDER_AUDIT,
-      RESOURCE_PROVIDER,
-      LIMITS_AUDIT,
-      MIGRATION,
-    ]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([...NEWER, MIGRATION]);
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name = 'organization_limits'").all(),
     ).toEqual([]);

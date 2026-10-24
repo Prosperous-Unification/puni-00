@@ -1,0 +1,803 @@
+schema-arm
+error: expect(received).toThrow(expected)
+
+Expected pattern: /budgetMs/
+
+Received function did not throw
+Received value: {
+  pri: {
+    kind: "boundary-infeasible",
+    stage: {
+      kind: "connected-stage",
+      projectId: "B",
+      mode: "isolated",
+      originOrdinal: 0,
+      projects: [
+        {
+          projectId: "A",
+          rank: 0,
+          anchorOrdinal: 0,
+        }, {
+          projectId: "B",
+          rank: 1,
+          anchorOrdinal: 0,
+        }, {
+          projectId: "C",
+          rank: 2,
+          anchorOrdinal: 0,
+        }
+      ],
+      input: {
+        rows: [
+          {
+            id: "a",
+            parentId: null,
+            position: 0,
+            priority: 0,
+            frozenNumber: null,
+          }, {
+            id: "b",
+            parentId: null,
+            position: 1,
+            priority: 0,
+            frozenNumber: null,
+          }, {
+            id: "c",
+            parentId: null,
+            position: 2,
+            priority: 0,
+            frozenNumber: null,
+          }
+        ],
+        slices: [
+          {
+            workItemId: "a",
+            stepId: null,
+            days: 0.2,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }, {
+            workItemId: "b",
+            stepId: null,
+            days: 1,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }, {
+            workItemId: "c",
+            stepId: null,
+            days: 1,
+            width: 1,
+            personId: null,
+            poolIds: [],
+          }
+        ],
+        graph: {
+          nodes: [
+            {
+              kind: "boundary",
+              workItemId: "a",
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [186.00ms]
+
+slice-unique
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "slice keys repeat: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [187.00ms]
+
+offset-count
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "key on all local: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [196.00ms]
+
+offset-key
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "missing or out-of-horizon: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [191.00ms]
+
+offset-horizon
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "out-of-horizon: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [202.00ms]
+
+edge-predecessor
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "edge does not name: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [196.00ms]
+
+edge-successor
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "edge does not name: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [204.00ms]
+
+projects-unique
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "projects are inconsistent: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [212.00ms]
+
+selected-project
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "projects are inconsistent: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [226.00ms]
+
+fixed-unique
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "fixed keys repeat: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [220.00ms]
+
+fixed-local-collision
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "fixed slice has invalid ownership: Error: connected boundary has invalid endpoints or owner",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [209.00ms]
+
+fixed-known-project
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "fixed slice has invalid ownership: Error: connected boundary has invalid endpoints or owner",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [211.00ms]
+
+fixed-not-local-owner
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "fixed slice has invalid ownership: Error: connected boundary has invalid endpoints or owner",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [215.00ms]
+
+fixed-order
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "fixed slice has reversed placement: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [221.00ms]
+
+boundary-local
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "boundary has invalid endpoints: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [209.00ms]
+
+boundary-fixed-key
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "boundary has invalid endpoints: TypeError: undefined is not an object (evaluating 'foreign.projectId')",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [225.00ms]
+
+boundary-owner
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "boundary has invalid endpoints: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [207.00ms]
+
+occupancy-fixed-key
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "occupancy does not match: TypeError: undefined is not an object (evaluating 'foreign.projectId')",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [221.00ms]
+
+occupancy-owner
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "occupancy does not match: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [235.00ms]
+
+occupancy-start
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "occupancy does not match: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [194.00ms]
+
+occupancy-finish
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "occupancy does not match: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [203.00ms]
+
+occupancy-positive
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "occupancy does not match: accepted",
++ ]
+
+- Expected  - 1
++ Received  + 3
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [195.00ms]
+
+retained-range
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "failure": "horizon-overflow",
+-   "kind": "failed",
++   "evidence": {
++     "contributors": [
++       "floor:0",
++       "horizon:58",
++       "ab:incoming:10",
++       "bc:outgoing:9",
++     ],
++     "key": "b\u0000",
++     "kind": "contradictory-bounds",
++     "lower": 10,
++     "upper": 9,
++   },
++   "kind": "boundary-infeasible",
++   "request": {
++     "budgetMs": 1000,
++     "contractVersion": "18+0.4.0",
++     "edges": [],
++     "elsewhere": {},
++     "feasibleBaselineOffsets": null,
++     "horizonUnits": 58,
++     "movementReferenceOffsets": {
++       "b\u0000": 10,
++     },
++     "objective": "pri",
++     "pools": {},
++     "quantum": 48,
++     "resources": {},
++     "scope": {
++       "boundaries": [
++         {
++           "direction": "incoming",
++           "foreignKey": "a\u0000",
++           "foreignProjectId": "A",
++           "localKey": "b\u0000",
++           "minimumStartUnits": 10,
++           "relationshipId": "ab",
++           "type": "FS",
++         },
++         {
++           "direction": "outgoing",
++           "foreignKey": "c\u0000",
++           "foreignProjectId": "C",
++           "localKey": "b\u0000",
++           "maximumStartUnits": 9,
++           "relationshipId": "bc",
++           "type": "FS",
++         },
++       ],
++       "fixed": [
++         {
++           "finish": 0.2,
++           "key": "a\u0000",
++           "projectId": "A",
++           "start": 0,
++         },
++         {
++           "finish": 1000000000000001.2,
++           "key": "c\u0000",
++           "projectId": "C",
++           "start": 1.2,
++         },
++       ],
++       "inputHash": "input",
++       "kind": "connected-stage",
++       "occupancy": [
++         {
++           "finish": 1000000000000001.2,
++           "key": "c\u0000",
++           "personId": "foreign-only-person",
++           "projectId": "C",
++           "start": 1.2,
++         },
++       ],
++       "originOrdinal": 0,
++       "projectId": "B",
++       "projects": [
++         {
++           "anchorOrdinal": 0,
++           "projectId": "A",
++           "rank": 0,
++         },
++         {
++           "anchorOrdinal": 0,
++           "projectId": "B",
++           "rank": 1,
++         },
++         {
++           "anchorOrdinal": 0,
++           "projectId": "C",
++           "rank": 2,
++         },
++       ],
++       "questionHash": "question-pri",
++     },
++     "seedOffsets": {
++       "b\u0000": 10,
++     },
++     "slices": [
++       {
++         "deadlineUnits": null,
++         "demands": [],
++         "durationUnits": 48,
++         "key": "b\u0000",
++         "notBeforeUnits": 0,
++         "personId": null,
++         "poolIds": [],
++         "priorityWeight": 1,
++         "width": 1,
++         "workItemIsMilestone": false,
++         "workItemKey": "b",
++       },
++     ],
++     "solverVersion": "0.4.0",
++     "stageBudgetSplit": [
++       0.6,
++       0.25,
++       0.15,
++     ],
++     "wireVersion": 5,
++   },
++   "stage": {
++     "finishes":
++ Map {
++       "a\u0000" => 0.2,
++       "b\u0000" => 1.2,
++       "c\u0000" => 1000000000000001.2,
++     }
++ ,
++     "input": {
++       "deadlines": Map {},
++       "elsewhere": Map {},
++       "graph": {
++         "edges": [
++           {
++             "predecessor": {
++               "at": 0,
++               "leafId": "a",
++             },
++             "provenance": "authored",
++             "relationshipId": "ab",
++             "successor": {
++               "at": 0,
++               "leafId": "b",
++             },
++             "type": "FS",
++           },
++           {
++             "predecessor": {
++               "at": 0,
++               "leafId": "b",
++             },
++             "provenance": "authored",
++             "relationshipId": "bc",
++             "successor": {
++               "at": 0,
++               "leafId": "c",
++             },
++             "type": "FS",
++           },
++         ],
++         "nodes": [
++           {
++             "at": 0,
++             "kind": "boundary",
++             "workItemId": "a",
++           },
++           {
++             "at": 0,
++             "kind": "boundary",
++             "workItemId": "b",
++           },
++           {
++             "at": 0,
++             "kind": "boundary",
++             "workItemId": "c",
++           },
++         ],
++       },
++       "notBefore": Map {},
++       "order": {
++         "kind": "connected",
++         "projectIdByWorkItem":
++ Map {
++           "a" => "A",
++           "b" => "B",
++           "c" => "C",
++         }
++ ,
++         "rankByProject":
++ Map {
++           "A" => 0,
++           "B" => 1,
++           "C" => 2,
++         }
++ ,
++       },
++       "poolSizes": Map {},
++       "resourceCapacities": Map {},
++       "rows": [
++         {
++           "frozenNumber": null,
++           "id": "a",
++           "parentId": null,
++           "position": 0,
++           "priority": 0,
++         },
++         {
++           "frozenNumber": null,
++           "id": "b",
++           "parentId": null,
++           "position": 1,
++           "priority": 0,
++         },
++         {
++           "frozenNumber": null,
++           "id": "c",
++           "parentId": null,
++           "position": 2,
++           "priority": 0,
++         },
++       ],
++       "slices": [
++         {
++           "days": 0.2,
++           "personId": null,
++           "poolIds": [],
++           "stepId": null,
++           "width": 1,
++           "workItemId": "a",
++         },
++         {
++           "days": 1,
++           "personId": null,
++           "poolIds": [],
++           "stepId": null,
++           "width": 1,
++           "workItemId": "b",
++         },
++         {
++           "days": 1000000000000000,
++           "personId": "foreign-only-person",
++           "poolIds": [],
++           "stepId": null,
++           "width": 1,
++           "workItemId": "c",
++         },
++       ],
++     },
++     "kind": "connected-stage",
++     "mode": "shared",
++     "originOrdinal": 0,
++     "projectId": "B",
++     "projects": [
++       {
++         "anchorOrdinal": 0,
++         "projectId": "A",
++         "rank": 0,
++       },
++       {
++         "anchorOrdinal": 0,
++         "projectId": "B",
++         "rank": 1,
++       },
++       {
++         "anchorOrdinal": 0,
++         "projectId": "C",
++         "rank": 2,
++       },
++     ],
++     "relationships": [
++       {
++         "id": "ab",
++         "predecessor": {
++           "projectId": "A",
++           "scope": "whole",
++           "workItemId": "a",
++         },
++         "successor": {
++           "projectId": "B",
++           "scope": "whole",
++           "workItemId": "b",
++         },
++         "type": "FS",
++       },
++       {
++         "id": "bc",
++         "predecessor": {
++           "projectId": "B",
++           "scope": "whole",
++           "workItemId": "b",
++         },
++         "successor": {
++           "projectId": "C",
++           "scope": "whole",
++           "workItemId": "c",
++         },
++         "type": "FS",
++       },
++     ],
++     "starts":
++ Map {
++       "a\u0000" => 0,
++       "b\u0000" => 0.2,
++       "c\u0000" => 1.2,
++     }
++ ,
++   },
+  }
+
+- Expected  - 2
++ Received  + 307
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [199.00ms]
+
+local-person-filter
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "connected elsewhere person set differs from foreign occupancy"
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [189.00ms]
+
+occupancy-union
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "connected elsewhere intervals differ from foreign occupancy"
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [189.00ms]
+
+elsewhere-person-set
+error: expect(received).toThrow(expected)
+
+Expected pattern: /elsewhere person set/
+Received message: "connected elsewhere intervals differ from foreign occupancy"
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [183.00ms]
+
+elsewhere-intervals
+error: expect(received).toThrow(expected)
+
+Expected pattern: /elsewhere intervals/
+
+Received function did not throw
+Received value: undefined
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [185.00ms]
+
+booking-horizon
+error: expect(received).toThrow(expected)
+
+Expected pattern: /booking/
+
+Received function did not throw
+Received value: undefined
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [184.00ms]

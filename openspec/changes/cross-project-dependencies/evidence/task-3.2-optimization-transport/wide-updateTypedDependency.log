@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+1451 |         const before = await fixture.inspect();
+1452 |         const refused = await submit(fixture, transport, [{
+1453 |           ...fixture.command, kind, type: 'SF',
+1454 |           ...(kind === 'updateTypedDependency' ? { dependencyId: 'not-reached' } : {}),
+1455 |         }]);
+1456 |         if (transport === 'HTTP') expect(refused.status).toBe(400);
+                                                                ^
+error: expect(received).toBe(expected)
+
+Expected: 400
+Received: 422
+
+      at <anonymous> (/tmp/puni-32-mcp/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1456:58)
+(fail) HTTP rejects unsupported updateTypedDependency at the shared shape boundary [3550.39ms]
+1454 |           ...(kind === 'updateTypedDependency' ? { dependencyId: 'not-reached' } : {}),
+1455 |         }]);
+1456 |         if (transport === 'HTTP') expect(refused.status).toBe(400);
+1457 |         else {
+1458 |           expect(refused.status).toBe(0);
+1459 |           expect(refused.text).toContain('HTTP 400');
+                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "HTTP 400"
+Received: "postApiProjectsByIdCommands was refused: HTTP 422 unsupported_relationship_type from POST /api/projects/{id}/commands.\n{\"at\":0,\"kind\":\"updateTypedDependency\",\"error\":\"unsupported_relationship_type\"}"
+
+      at <anonymous> (/tmp/puni-32-mcp/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1459:32)
+(fail) MCP rejects unsupported updateTypedDependency at the shared shape boundary [3691.31ms]
+
+ 0 pass
+ 70 filtered out
+ 2 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [10.03s]

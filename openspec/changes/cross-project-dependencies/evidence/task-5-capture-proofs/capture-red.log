@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+30 |     schedulerOf: () => ({ supports: () => true, read: () => { throw new Error('capture admitted scheduler'); } }),
+31 |   });
+32 | }
+33 | test('captures both incident directions once with local projection and own labels', async () => {
+34 |   await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
+35 |     const captured = await snapshot.captureConnected('a1');
+                                         ^
+TypeError: snapshot.captureConnected is not a function. (In 'snapshot.captureConnected("a1")', 'snapshot.captureConnected' is undefined)
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:35:37)
+      at withSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:118:29)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:34:21)
+(fail) captures both incident directions once with local projection and own labels [163.36ms]
+
+ 0 pass
+ 1 fail
+Ran 1 test across 1 file. [2.69s]

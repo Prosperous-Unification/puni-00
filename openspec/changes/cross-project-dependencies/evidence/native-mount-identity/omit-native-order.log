@@ -1,0 +1,135 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:
+42 |     expect(mounts).toContain(container.Mounts[0]);
+43 |     expect(mounts).toContain(container.Mounts[1]);
+44 |     container.Mounts.reverse();
+45 |   }
+46 |   const permuted = structuredClone(containers);
+47 |   expect(identifyInventory(containers)).toEqual(baseline);
+                                             ^
+error: expect(received).toEqual(expected)
+
+@@ -28,28 +28,28 @@
+      },
+      "id": "1111111111111111111111111111111111111111111111111111111111111111",
+      "image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "mounts": [
+        {
++         "Destination": "/a",
++         "Driver": "local",
++         "Name": "source-volume",
++         "RW": false,
++         "Source": "/fixture/source/a",
++         "Type": "volume",
++       },
++       {
+          "Destination": "/z",
+          "Extension": {
+            "flag": "kept",
+          },
+          "Mode": "rw",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/fixture/source/z",
+          "Type": "bind",
+        },
+-       {
+-         "Destination": "/a",
+-         "Driver": "local",
+-         "Name": "source-volume",
+-         "RW": false,
+-         "Source": "/fixture/source/a",
+-         "Type": "volume",
+-       },
+      ],
+      "name": "/source",
+      "networks": {
+        "wbs-dev-net": {
+          "NetworkID": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+@@ -93,10 +93,18 @@
+        },
+      },
+      "id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "mounts": [
++       {
++         "Destination": "/a",
++         "Driver": "local",
++         "Name": "caddy-volume",
++         "RW": false,
++         "Source": "/fixture/caddy/a",
++         "Type": "volume",
++       },
+        {
+          "Destination": "/z",
+          "Extension": {
+            "flag": "kept",
+          },
+@@ -104,18 +112,10 @@
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/fixture/caddy/z",
+          "Type": "bind",
+        },
+-       {
+-         "Destination": "/a",
+-         "Driver": "local",
+-         "Name": "caddy-volume",
+-         "RW": false,
+-         "Source": "/fixture/caddy/a",
+-         "Type": "volume",
+-       },
+      ],
+      "name": "/caddy",
+      "networks": {
+        "wbs-dev-net": {
+          "NetworkID": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+@@ -160,27 +160,27 @@
+      },
+      "id": "3333333333333333333333333333333333333333333333333333333333333333",
+      "image": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "mounts": [
+        {
++         "Destination": "/a",
++         "Driver": "local",
++         "Name": "unrelated-volume",
++         "RW": false,
++         "Source": "/fixture/unrelated/a",
++         "Type": "volume",
++       },
++       {
+          "Destination": "/z",
+          "Extension": {
+            "flag": "kept",
+          },
+          "Mode": "rw",
+          "Propagation": "rprivate",
+          "RW": true,
+          "Source": "/fixture/unrelated/z",
+          "Type": "bind",
+-       },
+-       {
+-         "Destination": "/a",
+-         "Driver": "local",
+-         "Name": "unrelated-volume",
+-         "RW": false,
+-         "Source": "/fixture/unrelated/a",
+-         "Type": "volume",
+        },
+      ],
+      "name": "/unrelated",
+      "networks": {
+        "wbs-dev-net": {
+
+- Expected  - 24
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/docker-inventory.test.ts:47:41)
+(fail) complete native identity accepts every container mount permutation without changing raw inputs or entries [1.29ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [39.00ms]

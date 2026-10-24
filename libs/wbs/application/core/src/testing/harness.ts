@@ -23,6 +23,8 @@ import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fi
 
 import type { WorkItemServiceOptions } from '../module/work-item/work-item.resource';
 import { CREATOR_ADMISSION } from '../ports/edit-admission';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '../service/dependency-context';
 import { AvailableWorkItemService } from './available-work-item-service';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { testClock } from './clock-fixture';
@@ -228,6 +230,9 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
       admission: overrides.admission ?? CREATOR_ADMISSION,
       clock: overrides.clock ?? testClock,
       ...stores,
+      externalDependencyAuthoring:
+        overrides.externalDependencyAuthoring ?? INACTIVE_EXTERNAL_DEPENDENCIES,
+      dependencyContext: overrides.dependencyContext ?? createLocalDependencyContext(stores),
       ...(overrides.claims === undefined ? {} : { claims: overrides.claims }),
       broadcast,
       scheduler,

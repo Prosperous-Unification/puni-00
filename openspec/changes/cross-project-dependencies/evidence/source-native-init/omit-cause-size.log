@@ -1,0 +1,24 @@
+Injected cause-size; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+83 |   for (let index = 0; index < 20; index++) deep = new Error('depth', { cause: deep });
+84 |   const depth = summarizeFixtureFailure(deep);
+85 |   expect(depth.chain.length).toBeLessThanOrEqual(9);
+86 |   expect(depth.chain.at(-1)?.category).toBe('depth-limit');
+87 |   const huge = summarizeFixtureFailure(new Error('PRIVATE_LONG'.repeat(10000)));
+88 |   expect(huge.chain.at(-1)?.category).toBe('size-limit');
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: "size-limit"
+Received: "unclassified"
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:88:39)
+(fail) cause cycle depth and oversized errors terminate with explicit bounded markers [0.74ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [47.00ms]

@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+(pass) the real 0.2/1/1.2 FS window becomes signed lower 10 and upper 9 [0.52ms]
+(pass) SS and FF keep their own conservative start inequalities [0.08ms]
+(pass) production preparation certifies the contradictory fixed FS window without a feasible baseline [4.84ms]
+(pass) objective-specific full identities refuse crossed responses and survive terminal preparation [1.10ms]
+(pass) malformed complete requests never become prepared boundary findings [0.47ms]
+(pass) complete connected request validation rejects cross-field corruption before a terminal [2.26ms]
+(pass) finite unrepresentable incoming, reference and outgoing evidence yields typed horizon failure [1.06ms]
+(pass) foreign-only retained occupancy overflows before the 10/9 terminal is classified [0.74ms]
+(pass) production preparation sends local decisions, fixed holders and an untrusted seed separately [0.40ms]
+(pass) connected response parser requires the exact captured question identity [0.37ms]
+(pass) connected revalidation refuses a feasible solver placement before an incoming bound [1.36ms]
+(pass) connected revalidation refuses a feasible solver placement after an outgoing bound [0.68ms]
+(pass) boundary projection retains every resolved pair of a multi-step authored relationship [0.20ms]
+(pass) connected revalidation refuses a missing boundary or altered foreign holder even on unknown [0.95ms]
+(pass) fractional starts and rounded duration make each active FS SS FF rounding term observable [0.13ms]
+(pass) connected preflight includes a remote movement reference in its safe horizon [0.33ms]
+(pass) connected request names the exact foreign person holder and booking [0.76ms]
+(pass) old installed solver cannot prepare a connected wire-5 question [0.14ms]
+(pass) connected parser accepts occupancy-proven boundary infeasibility without a dependency bound [0.35ms]
+
+ 19 pass
+ 0 fail
+ 59 expect() calls
+Ran 19 tests across 1 file. [205.00ms]

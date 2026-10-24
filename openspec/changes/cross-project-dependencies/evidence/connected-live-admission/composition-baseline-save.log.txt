@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:
+189 |     });
+190 |     expect(saved.status).toBe(201);
+191 |     expect(mounted.sqlite.query('SELECT * FROM optimization_generation').all()).toEqual([]);
+192 |     expect(mounted.sqlite.query('SELECT * FROM optimized_schedule_cache').all()).toEqual([]);
+193 |     expect(admission).not.toHaveBeenCalled();
+194 |     expect(mounted.sqlite.query('SELECT schedule_absent_reason FROM saved_plan').get()).toEqual({
+                                                                                              ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "schedule_absent_reason": "unavailable",
++   "schedule_absent_reason": null,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-connected-composition/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:194:89)
+(fail) enabled connected capture never enters solver admission or changes durable optimization state [625.99ms]
+
+ 0 pass
+ 4 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [6.41s]

@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+(pass) captures both incident directions once with local projection and own labels [168.03ms]
+(pass) shared closure alternates person bridges and incoming dependencies without rank cutoff [174.00ms]
+(pass) concurrent predecessor edit yields one coherent state until next observation [121.21ms]
+(pass) refuses missing required ownership [121.29ms]
+(pass) snapshot capability expires when callback closes [97.66ms]
+(pass) connected isolated cache publication stays invisible through sequential selections [114.10ms]
+(pass) borrowed capture sees staged writes and preserves owner transaction [103.10ms]
+(pass) refuses absent required project evidence [102.38ms]
+(pass) refuses malformed required project evidence [101.28ms]
+(pass) refuses unreadable required project evidence [98.71ms]
+(pass) capture never admits solver work or writes events [111.16ms]
+(pass) requires existing admitted organization authority even for cached components [99.12ms]
+(pass) memoizes complete project capture across component targets [102.21ms]
+(pass) owned connected success closes exactly once after ending transaction [102.51ms]
+(pass) owned connected refusal closes exactly once after ending transaction [106.57ms]
+(pass) owned connected throw closes exactly once after ending transaction [97.59ms]
+(pass) refuses missing component rank rather than synthesizing priority [101.62ms]
+(pass) refuses a project lost by the full-input reader after topology admission [97.43ms]
+
+ 18 pass
+ 0 fail
+ 31 expect() calls
+Ran 18 tests across 1 file. [4.22s]

@@ -30,6 +30,7 @@ function routed(ui: ReactNode) {
 const project = (id: string, name = id) => ({
   id,
   name,
+  abbreviation: `P${id.toUpperCase()}`,
   ownerId: 'u',
   restricted: false,
   estimateMethod: 'pert',

@@ -1,0 +1,82 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:
+(pass) reads DISABLED authority without mutation [4205.45ms]
+(pass) reads ENABLED empty authority without mutation [2420.68ms]
+(pass) refuses arguments [] [2301.18ms]
+(pass) refuses arguments ["activate"] [2287.01ms]
+(pass) refuses arguments ["remove"] [2274.67ms]
+(pass) refuses arguments ["inspect","extra"] [2263.44ms]
+(pass) requires explicit nonempty DB_PATH undefined [2157.80ms]
+(pass) requires explicit nonempty DB_PATH  [2209.71ms]
+(pass) requires explicit nonempty DB_PATH   [2319.23ms]
+(pass) refuses an absent database without creating it [2262.45ms]
+(pass) refuses an unreadable database without mutation [2289.71ms]
+(pass) refuses corrupt authority without mutation: DELETE FROM cross_project_dependency_activation [2268.43ms]
+(pass) refuses corrupt authority without mutation: DROP TABLE cross_project_dependency_activation_receipt [2307.15ms]
+(pass) refuses corrupt authority without mutation: DROP TABLE cross_project_dependency_activation [2281.73ms]
+(pass) refuses corrupt authority without mutation: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [2317.71ms]
+(pass) refuses corrupt authority without mutation: UPDATE cross_project_dependency_activation SET state='ENABLED'; INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [2280.45ms]
+(pass) refuses corrupt authority without mutation: DROP TABLE __drizzle_migrations [2304.16ms]
+(pass) refuses corrupt authority without mutation: DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation' [2397.08ms]
+(pass) refuses corrupt authority without mutation: UPDATE cross_project_dependency_activation SET state='ENABLED' [2783.52ms]
+(pass) refuses corrupt authority without mutation: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [2553.00ms]
+(pass) refuses corrupt authority without mutation: DROP TRIGGER external_dependency_admit_update [2579.57ms]
+(pass) SQLite refuses a real write attempted by the inspector dependency [2669.26ms]
+
+apps/wbs/be-01/src/dependency-capabilities-cli.test.ts:
+(pass) advertises frozen empty support without database configuration or migrations [11.21ms]
+(pass) refuses capability arguments [9.13ms]
+
+libs/wbs/domain/contracts/src/dependency-runtime.test.ts:
+(pass) accepts exact attributed receipt [0.03ms]
+(pass) refuses receipt protocol=wrong [0.08ms]
+(pass) refuses receipt version=2 [0.01ms]
+(pass) refuses receipt version=true
+(pass) refuses receipt activationId=  [0.01ms]
+(pass) refuses receipt databaseIdentity=
+(pass) refuses receipt candidateImage=wbs:latest
+(pass) refuses receipt rollbackImage=wbs:latest
+(pass) refuses receipt participantProofSha256=xyz
+(pass) refuses receipt migrationCaptureSha256=xyz
+(pass) refuses receipt activatedAt=-1
+(pass) refuses receipt activatedAt=1.5
+(pass) refuses receipt activatedAt=9007199254740992
+(pass) refuses receipt extra=1
+(pass) refuses absent protocol [0.15ms]
+(pass) refuses absent version
+(pass) refuses absent activationId
+(pass) refuses absent databaseIdentity [0.02ms]
+(pass) refuses absent candidateImage
+(pass) refuses absent rollbackImage
+(pass) refuses absent participantProofSha256 [0.01ms]
+(pass) refuses absent migrationCaptureSha256
+(pass) refuses absent activatedAt
+(pass) refuses malformed receipt null [0.02ms]
+(pass) refuses malformed receipt []
+(pass) refuses malformed receipt true
+(pass) refuses malformed receipt 1
+(pass) refuses malformed receipt "receipt"
+(pass) refuses malformed receipt {}
+(pass) accepts explicit incapable and supported immutable runtime observations [0.08ms]
+(pass) refuses runtime observation null [0.02ms]
+(pass) refuses runtime observation []
+(pass) refuses runtime observation true
+(pass) refuses runtime observation "invalid JSON"
+(pass) refuses runtime observation {}
+(pass) refuses runtime observation {"version":1,"role":"backend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","role":"backend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend"}
+(pass) refuses runtime observation {"protocol":"unknown","version":1,"role":"backend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":2,"role":"backend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"frontend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["unknown"]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["cross-project-dependencies-v1","cross-project-dependencies-v1"]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":null}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":[],"extra":true}
+
+ 70 pass
+ 0 fail
+ 118 expect() calls
+Ran 70 tests across 3 files. [57.33s]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+218 | });
+219 |
+220 | it('refuses local/external misclassification and conflicting relationship identities', () => {
+221 |   expect(() =>
+222 |     resolveConnectedGraph({ projects: [{ ...a, relationships: [forward] }, b], external: [] }),
+223 |   ).toThrow(/local.*forward/);
+          ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /local.*forward/
+Received message: "no work item B in project a"
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:223:5)
+(fail) refuses local/external misclassification and conflicting relationship identities [0.58ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [26.00ms]

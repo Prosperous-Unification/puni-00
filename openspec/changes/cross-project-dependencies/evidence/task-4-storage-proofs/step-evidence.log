@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+267 |     sqlite.run('PRAGMA foreign_keys=OFF');
+268 |     sqlite.run("UPDATE external_dependency SET organization_id='foreign'");
+269 |     expect(await rejection(repo.listByProject('b'))).toContain('inconsistent organization');
+270 |     sqlite.run("UPDATE external_dependency SET organization_id='org'");
+271 |     sqlite.run("DELETE FROM step WHERE id='a'");
+272 |     expect(await rejection(repo.listIncident(['b']))).toContain('step a outside project a');
+                                                            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "step a outside project a"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:272:55)
+(fail) refuses missing steps and mismatched recorded organization evidence on reads [117.11ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.08s]

@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+152 |   raw((sqlite) => {
+153 |     insert(sqlite, 'manual');
+154 |     own(sqlite, 'manual', 'a');
+155 |     sqlite.run("UPDATE project_abbreviation SET abbreviation='AAAAB' WHERE project_id='manual'");
+156 |     insert(sqlite, 'p');
+157 |     expect(codes(sqlite).find((row) => row.project_id === 'p')?.abbreviation).toBe('AAAAC');
+                                                                                    ^
+error: expect(received).toBe(expected)
+
+Expected: "AAAAC"
+Received: "AAAAB"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:157:79)
+      at raw (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:21:12)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:152:3)
+(fail) allocator skips occupied codes and refuses exhaustion without inserting a project [183.55ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [228.00ms]

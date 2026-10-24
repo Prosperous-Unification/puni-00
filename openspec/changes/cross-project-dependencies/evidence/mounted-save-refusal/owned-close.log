@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:
+{"level":"error","time":1792744094014,"service":"be-01","err":{"occurrence_id":"AE_JXTQDR1BE1B6CSEWDG5RDBV8VT","fingerprint":"fp1_76d24324a56c4a2aac825537a1fe0809","stack":["Error: injected owned foreign row read failure","    at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:386:33)","    at listByProject (unknown)","    at readPlanInputValuesIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:207:60)","    at async captureConnectedPlanIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts:149:25)","    at async readConnectedLivePlanIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:603:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+418 |           fault === 'absent abbreviation'
+419 |             ? `project ${alpha} abbreviation is missing`
+420 |             : 'injected owned foreign row read failure',
+421 |         );
+422 |         expect(probe.opened - opened).toBe(1);
+423 |         expect(probe.closed - closed).toBe(1);
+                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:423:39)
+(fail) mounted isolated connected save refuses unreadable rows inside owned capture [375.29ms]
+{"level":"error","time":1792744094284,"service":"be-01","err":{"occurrence_id":"AE_8DYKP13BMMS3CFVKDVCJQW6BGS","fingerprint":"fp1_76d24324a56c4a2aac825537a1fe0809","stack":["Error: injected owned foreign row read failure","    at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:386:33)","    at listByProject (unknown)","    at readPlanInputValuesIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts:207:60)","    at async captureConnectedPlanIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts:149:25)","    at async readConnectedLivePlanIn (/tmp/puni-mounted-save-proof/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:603:25)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+418 |           fault === 'absent abbreviation'
+419 |             ? `project ${alpha} abbreviation is missing`
+420 |             : 'injected owned foreign row read failure',
+421 |         );
+422 |         expect(probe.opened - opened).toBe(1);
+423 |         expect(probe.closed - closed).toBe(1);
+                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-mounted-save-proof/apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts:423:39)
+(fail) mounted shared connected save refuses unreadable rows inside owned capture [269.65ms]
+
+ 0 pass
+ 13 filtered out
+ 2 fail
+ 18 expect() calls
+Ran 2 tests across 1 file. [3.90s]

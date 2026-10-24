@@ -37,12 +37,16 @@ const SRC = new URL('.', import.meta.url).pathname;
  * over it.
  * `openScimWorld` also opens a database: it opens an `OrganizationHarness` for the
  * SCIM suites.
+ * `openFixture` and `seedIncidents` open the composed organization harness
+ * from controller/cross-project-dependency-fixture.ts.
  */
 // Proof: 2026-10-13, omitting openComposedWith failed `names a suite
 // `.db.test.ts` when it opens a database, and only then` for the mounted
 // organization-context suite, despite its real migrated SQLite harness.
+// Proof: omitting openFixture and seedIncidents classified five migrated SQLite
+// controller suites as opening no database (2026-10-23, 1 pass / 1 fail).
 const OPENS_A_DATABASE =
-  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld)\b/;
+  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld|openFixture|seedIncidents)\b/;
 
 /** Every `*.test.ts` under `src`, as a path relative to it. */
 function suites(dir = SRC, prefix = ''): string[] {

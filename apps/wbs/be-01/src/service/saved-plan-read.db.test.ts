@@ -26,6 +26,7 @@ import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
 import { projectRow } from '../testing/project-fixture';
+import { savedConnectedHistoryFixture } from '../testing/saved-connected-history-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -162,6 +163,68 @@ describe('reading a saved plan back', () => {
       newId: () => id,
       now: () => OPENED_AT,
     });
+
+  it('compares frozen connected SQL bodies with capture and scheduling capabilities poisoned', async () => {
+    const captured = savedConnectedHistoryFixture('p1');
+    const inputBytes = JSON.stringify(captured.input);
+    const scheduleBytes = JSON.stringify(captured.schedule);
+    const inputHash = await bodySha256(nodeDigest, inputBytes);
+    const scheduleHash = await bodySha256(nodeDigest, scheduleBytes);
+    await new SavedPlanRepository({ openConnection: () => openConnection(path) }).write(
+      {
+        id: 'historical',
+        projectId: 'p1',
+        name: 'Frozen',
+        createdBy: 'Ada',
+        createdById: null,
+        createdAt: OPENED_AT,
+        input: { schemaVersion: 9, bytes: inputBytes, sha256: inputHash },
+        schedule: {
+          present: true,
+          body: { schemaVersion: 2, bytes: scheduleBytes, sha256: scheduleHash },
+          inputSha256: inputHash,
+          algorithmId: captured.schedule.algorithmId,
+        },
+      },
+      () => Promise.resolve(null),
+    );
+    const refuse = (): never => {
+      throw new Error('live capability poisoned');
+    };
+    const history = new SavedPlanService({
+      scheduler: { read: refuse, supports: refuse, readResolvedFast: refuse },
+      capture: new SavedPlanCaptureRepository({ openConnection: refuse }),
+      captureSharedPlan: refuse,
+      digest: nodeDigest,
+      plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
+      now: refuse,
+      newId: refuse,
+    });
+    const compared = await history.compare(
+      'p1',
+      { kind: 'saved', savedPlanId: 'historical' },
+      { kind: 'saved', savedPlanId: 'historical' },
+      { kind: 'legacy' },
+    );
+    expect(compared).toMatchObject({
+      outcome: 'compared',
+      diff: { input: [], schedule: [] },
+      left: {
+        provenance: {
+          kind: 'connected',
+        },
+      },
+    });
+    if (compared.outcome !== 'compared') throw new Error('compared history required');
+    expect(compared.left).toEqual(compared.right);
+    if (compared.left.provenance.kind !== 'connected')
+      throw new Error('connected summary required');
+    expect(compared.left.provenance.projects.map((project) => project.name).sort()).toEqual([
+      'Alpha',
+      'Beta',
+    ]);
+    expect(reader.db.all("SELECT id FROM project WHERE id = 'B'")).toEqual([]);
+  });
 
   /**
    * Saves one plan and back-stamps its `scheduler_algorithm_id` to an id this

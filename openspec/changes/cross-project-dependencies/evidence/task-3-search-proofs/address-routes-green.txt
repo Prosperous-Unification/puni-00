@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/app.routes.test.ts:
+(pass) binds each shared HTTP shape once in every configuration that owns it [21.54ms]
+(pass) enforces the complete pinned identity and origin policy inventory on the production app [48.67ms]
+(pass) shared HTTP shape reachability through the production app > reaches every local path and method with structurally valid input [330.71ms]
+(pass) shared HTTP shape reachability through the production app > reaches every oidc path and method with structurally valid input [35.30ms]
+
+ 4 pass
+ 2 filtered out
+ 0 fail
+ 1186 expect() calls
+Ran 4 tests across 1 file. [2.77s]

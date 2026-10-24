@@ -757,3 +757,133 @@ describe('product lint policy discovery', () => {
     expect(unresolved.output, unresolved.output).toContain('apps/probe/eslint.product.mjs');
   }, 90_000);
 });
+
+const ACTIVATION_IMPORTS = [
+  [
+    'lib/dependency-activation-storage.ts',
+    [
+      '@wbs/contracts/dependency-runtime',
+      '@wbs/store-sqlite/db',
+      '@wbs/store-sqlite/backup',
+      '@wbs/store-sqlite/migration-set',
+      '@wbs/store-sqlite/cross-project-dependency-activation',
+    ],
+  ],
+  ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
+  ['lib/dependency-activation-failure.ts', ['@wbs/contracts/dependency-runtime']],
+  ['lib/dependency-activation-records.ts', ['@wbs/contracts/dependency-runtime']],
+  [
+    'lib/complete-dependency-exclusion.test.ts',
+    ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+  ],
+  ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
+] as const;
+
+describe('source-bundled activation leaves', () => {
+  it('keeps every peer boundary option and only the exact needed activation edges', async () => {
+    const peer = boundaryOf(
+      await lint.calculateConfigForFile('tools/tool-remote-scripts/src/lib/docker.ts'),
+    )[1];
+    if (!isRecord(peer)) throw new Error('tools peer boundary options malformed');
+    for (const [file, aliases] of ACTIVATION_IMPORTS) {
+      const path = `tools/tool-remote-scripts/src/${file}`;
+      const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+      if (!isRecord(options)) throw new Error('activation boundary options malformed');
+      expect(options['allow'], file).toEqual([
+        ...PENDING_INFRA_TO_PRODUCT_ALIASES,
+        ...aliases.map((alias) => `^${alias}$`),
+      ]);
+      const retainedOptions: Readonly<Record<string, unknown>> = {
+        ...options,
+        allow: [...PENDING_INFRA_TO_PRODUCT_ALIASES],
+      };
+      expect(retainedOptions, file).toEqual(peer);
+      const source = await readFile(join(workspace, path), 'utf8');
+      for (const alias of aliases) {
+        expect(importsAlias(source, alias), `${file} actually imports ${alias}`).toBe(true);
+        expect(
+          await ruleIds(path, `import type * as Leaf from '${alias}'; type Evidence = Leaf;`),
+          `${file}:${alias}`,
+        ).not.toContain('@nx/enforce-module-boundaries');
+        expect(await ruleIds(path, `await import('${alias}');`), `${file}:${alias}`).not.toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+    }
+  }, 30000);
+
+  it('refuses barrels, siblings, foreign suffixes, relative paths and forward SQL outside the fixture', async () => {
+    const forbidden = [
+      '@wbs/store-sqlite',
+      '@wbs/store-sqlite/source',
+      '@wbs/store-sqlite/db/foreign',
+      '@wbs/store-sqlite/db-extra',
+      '@wbs/contracts',
+      '@wbs/contracts/ws-frames',
+      '@website/store-sqlite',
+      '../../../../libs/wbs/adapters/store-sqlite/src/db',
+    ];
+    for (const [file, aliases] of ACTIVATION_IMPORTS) {
+      const path = `tools/tool-remote-scripts/src/${file}`;
+      for (const alias of forbidden)
+        expect(await ruleIds(path, `await import('${alias}');`), `${file}:${alias}`).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      if (!aliases.some((alias) => alias === '@wbs/store-sqlite/migrate'))
+        expect(await ruleIds(path, "await import('@wbs/store-sqlite/migrate');"), file).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      if (
+        file.includes('records') ||
+        file.includes('failure') ||
+        file === 'lib/complete-dependency-exclusion.ts'
+      )
+        expect(await ruleIds(path, "await import('@wbs/store-sqlite/db');"), file).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+    }
+  }, 30000);
+
+  it('does not grant any activation alias to another importer', async () => {
+    const aliases = [...new Set(ACTIVATION_IMPORTS.flatMap(([, aliases]) => [...aliases]))];
+    for (const path of [
+      'tools/tool-remote-scripts/src/lib/docker.ts',
+      'tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts',
+      'tools/tool-remote-scripts/src/fixtures/source-dev.ts',
+      'tools/tool-remote-scripts/src/lib/dependency-capability.test.ts',
+      'tools/tool-smoke/src/color.ts',
+      'libs/shared/adapters/ui-core-01/src/index.ts',
+      'libs/wbs/domain/domain/src/index.ts',
+    ]) {
+      for (const alias of aliases)
+        expect(await ruleIds(path, `await import('${alias}');`), `${path}:${alias}`).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+    }
+  }, 30000);
+
+  it('keeps activation record imports type-only', async () => {
+    const path = 'tools/tool-remote-scripts/src/lib/dependency-activation-records.ts';
+    expect(
+      await ruleIds(
+        path,
+        "import type { DependencyActivationReceipt } from '@wbs/contracts/dependency-runtime';\n\nexport type Receipt = DependencyActivationReceipt;\n",
+      ),
+    ).toEqual([]);
+    expect(
+      await ruleIds(
+        path,
+        "import { parseDependencyReceipt } from '@wbs/contracts/dependency-runtime'; void parseDependencyReceipt;",
+      ),
+    ).toContain('@typescript-eslint/no-restricted-imports');
+    expect(await ruleIds(path, "await import('@wbs/contracts/dependency-runtime');")).toContain(
+      'no-restricted-syntax',
+    );
+    const annotation = await ruleIds(
+      path,
+      "type Receipt = import('@wbs/contracts/dependency-runtime').DependencyActivationReceipt;",
+    );
+    expect(annotation).not.toContain('no-restricted-syntax');
+    expect(annotation).not.toContain('@nx/enforce-module-boundaries');
+  }, 30000);
+});

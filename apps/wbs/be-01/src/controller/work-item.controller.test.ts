@@ -1,7 +1,8 @@
 import { CREATOR_ADMISSION, type OptimizedScheduleAdapter } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
@@ -33,6 +34,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { inMemoryProjects, memoryProjectTables } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -50,7 +52,7 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
   const capacity = testCapacityService();
   const priorityBands = testPriorityBandService();
   const projects = new ProjectService({
-    dependencyGraph: new DependencyGraphGuard(plan.stores),
+    dependencyContext: createLocalDependencyContext(plan.stores),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -61,6 +63,8 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
   const workItems =
     optimized === undefined
       ? new WorkItemService({
+          dependencyContext: createLocalDependencyContext(plan.stores),
+          externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
           admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
@@ -68,6 +72,8 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
           scheduler: plan.scheduler,
         })
       : new WorkItemService({
+          dependencyContext: createLocalDependencyContext(plan.stores),
+          externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
           admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
@@ -91,6 +97,7 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     calendarMarkers,
   });
   const app = buildApp({
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -123,6 +130,7 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     workItems,
     savedPlans: testSavedPlanService(),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes,

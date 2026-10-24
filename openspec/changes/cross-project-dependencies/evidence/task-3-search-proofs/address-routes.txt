@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/app.routes.test.ts:
+(pass) binds each shared HTTP shape once in every configuration that owns it [34.14ms]
+(pass) enforces the complete pinned identity and origin policy inventory on the production app [204.46ms]
+778 |         const refusal = boundaryError(reply);
+779 |         expect({
+780 |           operationId: shape.operationId,
+781 |           boundaryError:
+782 |             refusal !== undefined && REQUEST_BOUNDARY_ERRORS.has(refusal) ? refusal : null,
+783 |         }).toEqual({
+                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "boundaryError": null,
++   "boundaryError": "invalid_query",
+    "operationId": "getApiProjectsByIdAddressReferences",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/app.routes.test.ts:783:12)
+(fail) shared HTTP shape reachability through the production app > reaches every local path and method with structurally valid input [458.98ms]
+778 |         const refusal = boundaryError(reply);
+779 |         expect({
+780 |           operationId: shape.operationId,
+781 |           boundaryError:
+782 |             refusal !== undefined && REQUEST_BOUNDARY_ERRORS.has(refusal) ? refusal : null,
+783 |         }).toEqual({
+                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "boundaryError": null,
++   "boundaryError": "invalid_query",
+    "operationId": "getApiProjectsByIdAddressReferences",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/app.routes.test.ts:783:12)
+(fail) shared HTTP shape reachability through the production app > reaches every oidc path and method with structurally valid input [52.51ms]
+
+ 2 pass
+ 2 filtered out
+ 2 fail
+ 1180 expect() calls
+Ran 4 tests across 1 file. [3.59s]

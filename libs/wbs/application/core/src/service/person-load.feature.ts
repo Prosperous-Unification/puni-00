@@ -54,7 +54,8 @@ export function loadWindowOf(from: string, to: string): LoadWindow | null {
 }
 
 /** Why a readable project's bookings could not be read. */
-export type LoadUnavailableReason = 'engine_unavailable' | 'cycle' | 'calendar_range';
+export type LoadUnavailableReason =
+  'engine_unavailable' | 'dependency_calendar_missing' | 'cycle' | 'calendar_range';
 
 /** One booking as a load read reports it. */
 export interface BookingView {
@@ -122,7 +123,7 @@ interface Booking extends WorkdaySpan, BookingView {
 type ProjectReading =
   | { kind: 'dated'; engine: 'fast' | 'optimized'; bookings: readonly Booking[] }
   | { kind: 'undated'; assigned: ReadonlySet<string> }
-  | { kind: 'unschedulable'; reason: 'cycle' | 'calendar_range'; assigned: ReadonlySet<string> }
+  | { kind: 'unschedulable'; reason: LoadUnavailableReason; assigned: ReadonlySet<string> }
   | { kind: 'engine_unavailable' };
 
 export interface PersonLoadOptions {
@@ -239,7 +240,8 @@ export class PersonLoad {
 
   /**
    * Every project the caller can open, with a 1-based rank. Shared projects
-   * are detached from one authorized aggregate observation. Isolated projects
+   * are detached from one authorized aggregate observation. Connected members
+   * have a null basis and bypass this process's cache on every observation. Isolated projects
    * use the organization's project rank, or under legacy access, creation order.
    *
    * The rank is renumbered over the caller's listed projects, not copied from
@@ -353,6 +355,8 @@ export class PersonLoad {
    * An isolated project's reading, from the memo when neither the project row's
    * `revision` nor its event sequence has moved since it was computed. Shared
    * reads also compare the captured incoming-calendar basis in {@link readProjects}.
+   * Connected trees on the isolated-capacity path are not memoized: a foreign
+   * calendar or engine can change without moving this project's identity.
    *
    * Both, because they cover different writes. `revision` commits with every
    * edit to the project row — start date, PERT weights, reach, estimate method
@@ -401,6 +405,8 @@ export class PersonLoad {
     if ('kind' in tree && tree.kind === 'access_refused') return tree;
     if ('kind' in tree) return { kind: 'engine_unavailable' };
     const reading = readingOf(projectId, tree);
+    // Proof: allowing connected storage failed mounted isolated-capacity calendar recovery: Target retained missing-calendar after Remote gained an anchor.
+    if (tree.connectedDependencies !== undefined) return reading;
     this.memo.delete(key);
     this.memo.set(key, { revision, seq: tree.seq, basis: null, reading });
     while (this.memo.size > this.memoSize) {
@@ -429,7 +435,10 @@ type Tree = Exclude<Awaited<ReturnType<WorkItemService['treeWithin']>>, null | {
 function readingOf(projectId: string, tree: Tree): ProjectReading {
   const assigned = new Set(tree.assignedPeople.map((person) => person.id));
   if (tree.scheduleError !== null) {
-    return { kind: 'unschedulable', reason: tree.scheduleError, assigned };
+    // Proof: bypassing structured-reason mapping made mounted isolated-capacity load reads return 500.
+    const reason =
+      typeof tree.scheduleError === 'string' ? tree.scheduleError : tree.scheduleError.kind;
+    return { kind: 'unschedulable', reason, assigned };
   }
   if (tree.startDate === null) return { kind: 'undated', assigned };
   const startDate = tree.startDate;

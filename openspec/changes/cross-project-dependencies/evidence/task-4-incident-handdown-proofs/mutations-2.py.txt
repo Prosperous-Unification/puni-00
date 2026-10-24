@@ -1,0 +1,30 @@
+from pathlib import Path
+import subprocess,json
+root=Path('/tmp/puni-incident-handdown');evidence=Path('/tmp/puni-incident-handdown-evidence')
+cap='libs/wbs/application/core/src/service/incident-node-transition.ts'; command='libs/wbs/application/core/src/service/compensating.ts'; context='libs/wbs/application/core/src/service/dependency-context.ts'; memory='libs/wbs/adapters/store-memory/src/incident-dependency-fixture.ts'; service='libs/wbs/application/core/src/module/work-item/work-item.resource.ts'; runner='libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts'
+lifecycle='./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts'; history='./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts'; memtest='./libs/wbs/adapters/store-memory/src/memory-source.test.ts'; contexttest='./libs/wbs/application/core/src/service/dependency-context.test.ts'
+mutations=[
+('source-endpoint-union',memory,'revision: row.revision + 1','revision: row.revision',memtest,'incident source restore preserves'),
+('source-work-item-owner',memory,'if (row?.projectId !== endpoint.projectId)','if (false)',memtest,'incident source restoration refuses wrong-work-item-owner'),
+('source-step-owner',memory,"endpoint.scope !== 'whole' &&\n          !state.tables.projects.steps",'false &&\n          !state.tables.projects.steps',memtest,'incident source restoration refuses wrong-step-owner'),
+('source-organization',memory,'predecessorOrganization === undefined ||\n          predecessorOrganization !== successorOrganization','false',memtest,'incident source restoration refuses missing-organization'),
+('post-refresh-lifetime',cap,'await retention.refresh([request.fromWorkItemId, request.toWorkItemId]);\n          check(projectId, actorId);','await retention.refresh([request.fromWorkItemId, request.toWorkItemId]);',lifecycle,'genuine retained refresh'),
+('required-persistence',context,"    throw new Error('incident persistence is missing');",'    void persistence;',contexttest,'admitted incident persistence'),
+('restored-compound-recursion',command,"if (step.do === 'transition_incident_nodes') {\n      visit(step.structural);", "if (step.do === 'transition_incident_nodes') {\n      return;\n      visit(step.structural);",history,'actual first child'),
+('estimate-compound-recursion',command,'for (const stepId of estimateStepsOf([command.structural])) steps.add(stepId);','void command;',history,'local statement'),
+('references-compound-receipts',command,'for (const { from, to } of command.receipts)','for (const { from, to } of [])',history,'mixed incident handdown'),
+('remote-before-coverage',cap,'if (endpoint.projectId !== projectId)\n            addresses.set',"if (endpoint.projectId !== projectId && relationship.id !== 'outgoing-2')\n            addresses.set",history,'mixed incident handdown'),
+('remote-revision-comparison',service,'external.expected.some(\n              (revision) => revisions.get(scopedRevisionKey(revision)) !== revision.revision,\n            )','false',history,'compound undo refuses remote-revision'),
+('writer-current-access',runner,"// Proof: using request access instead admitted both queued revoked undo and redo (HTTP current-authority matrix).\n          const resolved = await scope.resolveAccess(caller);","// Fault: use request access at the real queued writer boundary.\n          const resolved = caller.kind === 'human' ? {ok:true,access:caller.expectedAccess} : await scope.resolveAccess(caller);",history,'mounted compound'),
+('structural-before-shape',cap,"          throw new Error('incident mapping does not describe a first-child transition');",'          void source;',lifecycle,'arbitrary node retarget'),
+('structural-after-shape',cap,"          throw new Error('incident mapping structural completion disagrees');",'          void destination;',lifecycle,'bound structural capability refuses detached-child'),
+]
+summary=[]
+for name,path,old,new,test,pattern in mutations:
+ target=root/path;original=target.read_text()
+ if old not in original:summary.append({'name':name,'status':'MISSING_ANCHOR'});print(name,'MISSING_ANCHOR',flush=True);continue
+ try:
+  target.write_text(original.replace(old,new,1));run=subprocess.run(['bun','test',test,'-t',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=35)
+  (evidence/(name+'.log')).write_text(run.stdout);status='CAUGHT' if run.returncode else 'SURVIVED';summary.append({'name':name,'exit':run.returncode,'status':status,'test':test,'pattern':pattern});print(name,status,run.returncode,flush=True)
+ finally:target.write_text(original)
+(evidence/'mutation-summary-2.json').write_text(json.dumps(summary,indent=2)+'\n')

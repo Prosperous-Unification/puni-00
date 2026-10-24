@@ -1,0 +1,13 @@
+16 |     return await Promise.race([
+17 |       runDocker(args, controller.signal),
+18 |       new Promise<never>((_, reject) => {
+19 |         timer = setTimeout(() => {
+20 |           controller.abort();
+21 |           reject(new Error(`Docker operation deadline exceeded: ${args[0]}`));
+                          ^
+error: Docker operation deadline exceeded: network
+      at <anonymous> (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/src/lib/docker-deadline.ts:21:22)
+error: creation reconciliation: Error: unresolved disposable creation; cleanup cannot claim completeness
+creation reconciliation: Error: unresolved disposable creation; cleanup cannot claim completeness
+
+Bun v1.4.2 (Linux x64)

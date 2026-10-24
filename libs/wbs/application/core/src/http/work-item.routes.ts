@@ -20,6 +20,7 @@ import {
 } from '@wbs/contracts';
 import { type, ValidationError } from '@wbs/validation';
 
+import type { ScopedUndoOutcome } from '../module/plan-commands/plan-commands.feature';
 import type {
   AppliedCommand,
   BatchRefusal,
@@ -28,9 +29,10 @@ import type {
 } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
-import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item.resource';
+import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
 import type { CapacityReports } from '../ports/compute-providers';
+import type { RefusedOrganizationAccess } from '../ports/organization-access';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
@@ -103,7 +105,9 @@ function asRecord(body: unknown): Record<string, unknown> {
  * change is that a refusal says why out loud.
  */
 // Proof: returning the whole value exposed private entryId in the direct undo/redo case.
-function answerUndo(outcome: UndoOutcome): HttpReply<typeof undoProject> {
+function answerUndo(outcome: ScopedUndoOutcome): HttpReply<typeof undoProject> {
+  if ('refusal' in outcome) return organizationRefusal(outcome);
+  if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
   if (outcome.ok)
     return {
       ok: true,
@@ -115,6 +119,7 @@ function answerUndo(outcome: UndoOutcome): HttpReply<typeof undoProject> {
       return { ok: false, status: 403, body: { error: outcome.reason } };
     case 'not_found':
       return { ok: false, status: 404, body: { error: outcome.reason } };
+    case 'external_dependencies_inactive':
     case 'nothing_to_undo':
     case 'stale_undo':
       return { ok: false, status: 409, body: { error: outcome.reason, detail: outcome.detail } };
@@ -231,9 +236,11 @@ async function parsedBatch(body: unknown) {
 
 /** A batch refused whole under scoped access: the same 404 as an absent project, or 403. */
 function answerWholeBatch(
-  refusal: WholeBatchRefusal['refusal'],
+  outcome: WholeBatchRefusal | RefusedOrganizationAccess,
 ): Extract<HttpReply<typeof applyProjectCommands>, { ok: false }> {
-  return refusal === 'not_found'
+  if (outcome.refusal !== 'not_found' && outcome.refusal !== 'forbidden')
+    return organizationRefusal(outcome);
+  return outcome.refusal === 'not_found'
     ? { ok: false, status: 404, body: { error: 'not_found' } }
     : { ok: false, status: 403, body: { error: 'forbidden' } };
 }
@@ -277,6 +284,7 @@ function answerBatch(
       };
     case 'descendant_step_on_leaf':
     case 'node_on_parent':
+    case 'referenced_by_external_dependency':
       return {
         ok: false,
         status: 409,
@@ -318,6 +326,8 @@ function answerBatch(
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'cycle':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'arrangement_positions_unavailable':
+    case 'dependency_calendar_missing':
     case 'schedule_not_ready':
       // A conflict, not a fault: the same request is accepted the moment the
       // solve lands. `refusal-status.ts` has the family's definition.
@@ -332,6 +342,8 @@ function answerBatch(
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'self_node':
     case 'not_a_parent':
+    case 'external_dependencies_inactive':
+    case 'project_deleting':
     case 'duplicate_dependency':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_large':
@@ -392,6 +404,12 @@ function answerBatch(
     case 'not_claimed_by':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'not_startable':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'prerequisites_unmet':
       return {
         ok: false,
         status: 409,
@@ -601,7 +619,7 @@ export function workItemRoutes(
         if ('error' in outcome) {
           return { ok: false, status: 403, body: { error: outcome.error } };
         }
-        if ('refusal' in outcome) return answerWholeBatch(outcome.refusal);
+        if ('refusal' in outcome) return answerWholeBatch(outcome);
         if (!outcome.ok) return answerBatch(outcome);
         return {
           ok: true,
@@ -631,7 +649,7 @@ export function workItemRoutes(
         if ('error' in outcome) {
           return { ok: false, status: 403, body: { error: outcome.error } };
         }
-        if ('refusal' in outcome) return answerWholeBatch(outcome.refusal);
+        if ('refusal' in outcome) return answerWholeBatch(outcome);
         if (!outcome.ok) return answerBatch(outcome);
         return {
           ok: true,
@@ -644,12 +662,12 @@ export function workItemRoutes(
     bind(undoProject, async ({ params, principal }): Promise<HttpReply<typeof undoProject>> => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      return answerUndo(await commands.undoWithin(params.id, principal.id, resolved.access));
+      return answerUndo(await commands.undoWithin(params.id, principal, resolved.access));
     }),
     bind(redoProject, async ({ params, principal }): Promise<HttpReply<typeof redoProject>> => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      return answerUndo(await commands.redoWithin(params.id, principal.id, resolved.access));
+      return answerUndo(await commands.redoWithin(params.id, principal, resolved.access));
     }),
     bind(
       getStepReference,

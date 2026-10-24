@@ -1,0 +1,270 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
+(pass) MCP organization delegation against a booted be-01 > before activation an MCP session works exactly as before [88.37ms]
+(pass) MCP organization delegation against a booted be-01 > the operator activates organizations [3067.67ms]
+476 |     const dany = await connect('auth0|dany');
+477 |     sessions['dany'] = dany.access;
+478 |     sessions['danyRefresh'] = dany.refresh;
+479 |     sessions['danyClient'] = dany.clientId;
+480 |     const listed = await tool(dany.access, 'getApiProjects', {});
+481 |     expect(listed.isError).toBe(false);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:481:28)
+(fail) MCP organization delegation against a booted be-01 > a session bound at consent lists projects and runs a command batch [18.63ms]
+493 |
+494 |   test("the same session is refused on another organization's project", async () => {
+495 |     const grace = await connect('auth0|grace');
+496 |     sessions['grace'] = grace.access;
+497 |     const created = await tool(grace.access, 'postApiProjects', { name: 'Foreign' });
+498 |     expect(created.isError).toBe(false);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:498:29)
+(fail) MCP organization delegation against a booted be-01 > the same session is refused on another organization's project [15.74ms]
+(pass) MCP organization delegation against a booted be-01 > a raw upstream Bearer with no delegation is refused [9.43ms]
+530 |     const dany = await connect('auth0|dany', { lifetimeSeconds: 2 });
+531 |     await Bun.sleep(3_000);
+532 |     const before = refreshes;
+533 |     const listed = await tool(dany.access, 'getApiProjects', {});
+534 |     expect(refreshes).toBe(before + 1);
+535 |     expect(listed.isError).toBe(false);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:535:28)
+(fail) MCP organization delegation against a booted be-01 > keeps the signed delegation through an upstream refresh retry [3043.02ms]
+542 |     await fixture('agent', { id: 'loose', account: null });
+543 |     const connected = await connect('auth0|dany', { agent: 'claire' });
+544 |     Object.assign(claire, connected);
+545 |     expect(await consents()).toEqual([{ personId: 'claire', issuedBy: 'u-dany', revokedAt: null }]);
+546 |     const listed = await tool(claire.access, 'getApiProjects', {});
+547 |     expect(listed.isError).toBe(false);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:547:28)
+(fail) MCP organization delegation against a booted be-01 > offers dany's agents at consent, and a consent as claire mints her credential [38.15ms]
+551 |   test("a consent session's tool call claims as its agent, never with the human's reach", async () => {
+552 |     const created = await tool(sessions['dany'] ?? '', 'postApiProjectsByIdCommands', {
+553 |       id: ids.launch,
+554 |       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Claimable' }],
+555 |     });
+556 |     expect(created.isError).toBe(false);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:556:29)
+(fail) MCP organization delegation against a booted be-01 > a consent session's tool call claims as its agent, never with the human's reach [15.00ms]
+583 |   test('a consent cannot borrow its super-admin account’s restricted-project recovery', async () => {
+584 |     const saved = await tool(sessions['dany'] ?? '', 'postApiProjectsByIdSaved-plans', {
+585 |       id: ids.launch,
+586 |       name: 'Consent cap original',
+587 |     });
+588 |     expect(saved.isError).toBe(false);
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:588:27)
+(fail) MCP organization delegation against a booted be-01 > a consent cannot borrow its super-admin account’s restricted-project recovery [9.25ms]
+625 |     expect(refreshed.status).toBe(200);
+626 |     const body = (await refreshed.json()) as { access_token: string; refresh_token: string };
+627 |     claire.access = body.access_token;
+628 |     claire.refresh = body.refresh_token;
+629 |     const asCodex = await claimLeaf(claire.access, 'codex');
+630 |     expect(asCodex.text).toContain('credential_not_for_person');
+                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "credential_not_for_person"
+Received: "postApiProjectsByIdCommands was refused: HTTP 403 no_active_organization from POST /api/projects/{id}/commands.\n{\"error\":\"no_active_organization\"}"
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:630:26)
+(fail) MCP organization delegation against a booted be-01 > refresh keeps the agent alive as the agent [11.96ms]
+636 |     // The human's own session is unpinned: dany may claim for any of dany's persons.
+637 |     const created = await tool(dany.access, 'postApiProjectsByIdCommands', {
+638 |       id: ids.launch,
+639 |       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Human' }],
+640 |     });
+641 |     const human = (JSON.parse(created.text) as { results: { id: string }[] }).results.at(0)?.id;
+                              ^
+SyntaxError: JSON Parse error: Unexpected identifier "postApiProjectsByIdCommands"
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:641:25)
+(fail) MCP organization delegation against a booted be-01 > authorizing as yourself beside agents stays the human session [14.46ms]
+(pass) MCP organization delegation against a booted be-01 > a second consent for the same agent mints a second credential [10.00ms]
+(pass) MCP organization delegation against a booted be-01 > revoking the consent in WBS ends the session: 401, and refresh is refused [9.07ms]
+(pass) MCP organization delegation against a booted be-01 > a family mcp-01 ends marks its credential revoked in WBS [12.09ms]
+695 |   test('MCP and direct HTTP carry the same scoped external command to the dormant backend', async () => {
+696 |     if (!Object.hasOwn(sessions, 'dany'))
+697 |       throw new Error('the organization-bound session is missing');
+698 |     const access = sessions['dany'];
+699 |     const created = await tool(access, 'postApiProjects', { name: 'External prerequisite' });
+700 |     expect(created.isError).toBe(false);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:700:29)
+(fail) MCP organization delegation against a booted be-01 > MCP and direct HTTP carry the same scoped external command to the dormant backend [6.16ms]
+760 |   test('HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types', async () => {
+761 |     if (!Object.hasOwn(sessions, 'dany'))
+762 |       throw new Error('organization-bound parity session missing');
+763 |     const access = sessions['dany'];
+764 |     const created = await tool(access, 'postApiProjects', { name: 'Dormant matrix prerequisite' });
+765 |     expect(created.isError).toBe(false);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:765:29)
+(fail) MCP organization delegation against a booted be-01 > HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types [6.24ms]
+355 |     method: 'POST',
+356 |     headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
+357 |     ...(operation === 'commands' ? { body: JSON.stringify(body) } : {}),
+358 |   });
+359 |   if (response.status !== 200)
+360 |     throw new Error(`${operation}: HTTP ${String(response.status)} ${await response.text()}`);
+                    ^
+error: commands: HTTP 404 {"at":0,"kind":"addTypedDependency","error":"unknown_step"}
+      at projectOperation (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:360:15)
+      at async <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:878:31)
+(fail) MCP organization delegation against a booted be-01 > HTTP preserves legacy aliases and typed local stable relationship history [463.20ms]
+338 |     const answer = await tool(
+339 |       access,
+340 |       `postApiProjectsById${operation.charAt(0).toUpperCase()}${operation.slice(1)}`,
+341 |       { id: ids.launch, ...body },
+342 |     );
+343 |     expect({ error: answer.isError, text: answer.isError ? answer.text : '' }).toEqual({
+                                                                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "error": false,
+-   "text": "",
++   "error": true,
++   "text":
++ "postApiProjectsByIdCommands was refused: HTTP 403 no_active_organization from POST /api/projects/{id}/commands.
++ {"error":"no_active_organization"}"
++ ,
+  }
+
+- Expected  - 2
++ Received  + 5
+
+      at projectOperation (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:343:80)
+      at async <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:843:29)
+(fail) MCP organization delegation against a booted be-01 > MCP preserves legacy aliases and typed local stable relationship history [5.18ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP preserve indexed malformed endpoint and closed request refusals atomically [328.40ms]
+(pass) MCP organization delegation against a booted be-01 > explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP [645.72ms]
+1033 |     const access = sessions['dany'];
+1034 |     if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
+1035 |     const created = await tool(access, 'postApiProjects', { name: 'Consented predecessor' });
+1036 |     // Proof: replacing server.ts's per-call bearerFor with the raw upstream
+1037 |     // token made this active tool call answer 403 no_active_organization.
+1038 |     expect(created, created.text).toMatchObject({ isError: false });
+                                         ^
+error: postApiProjects was refused: HTTP 403 no_active_organization from POST /api/projects.
+{"error":"no_active_organization"}
+
+  {
+-   "isError": false,
++   "isError": true,
++   "status": 200,
++   "text":
++ "postApiProjects was refused: HTTP 403 no_active_organization from POST /api/projects.
++ {"error":"no_active_organization"}"
++ ,
+  }
+
+- Expected  - 1
++ Received  + 6
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1038:35)
+(fail) MCP organization delegation against a booted be-01 > consented HTTP and generated MCP commands commit active whole FS with the same authority [9.48ms]
+1198 |   for (const transport of ['HTTP', 'MCP'] as const) {
+1199 |     test(`${transport} consented active node SS/FF preserves scoped identity and connected read parity`, async () => {
+1200 |       const access = sessions['dany'];
+1201 |       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
+1202 |       const created = await tool(access, 'postApiProjects', { name: `${transport} scoped remote` });
+1203 |       expect(created.isError).toBe(false);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1203:31)
+(fail) MCP organization delegation against a booted be-01 > HTTP consented active node SS/FF preserves scoped identity and connected read parity [4.97ms]
+1244 |
+1245 |     test(`${transport} consented remote descendant-step FS resolves dotted batch refs without changing scope`, async () => {
+1246 |       const access = sessions['dany'];
+1247 |       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
+1248 |       const created = await tool(access, 'postApiProjects', { name: `${transport} descendant remote` });
+1249 |       expect(created.isError).toBe(false);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1249:31)
+(fail) MCP organization delegation against a booted be-01 > HTTP consented remote descendant-step FS resolves dotted batch refs without changing scope [4.54ms]
+1198 |   for (const transport of ['HTTP', 'MCP'] as const) {
+1199 |     test(`${transport} consented active node SS/FF preserves scoped identity and connected read parity`, async () => {
+1200 |       const access = sessions['dany'];
+1201 |       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
+1202 |       const created = await tool(access, 'postApiProjects', { name: `${transport} scoped remote` });
+1203 |       expect(created.isError).toBe(false);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1203:31)
+(fail) MCP organization delegation against a booted be-01 > MCP consented active node SS/FF preserves scoped identity and connected read parity [3.14ms]
+1244 |
+1245 |     test(`${transport} consented remote descendant-step FS resolves dotted batch refs without changing scope`, async () => {
+1246 |       const access = sessions['dany'];
+1247 |       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
+1248 |       const created = await tool(access, 'postApiProjects', { name: `${transport} descendant remote` });
+1249 |       expect(created.isError).toBe(false);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/consented-scope-parity/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:1249:31)
+(fail) MCP organization delegation against a booted be-01 > MCP consented remote descendant-step FS resolves dotted batch refs without changing scope [3.36ms]
+(pass) MCP organization delegation against a booted be-01 > a removed member's session is refused on its next call and cannot refresh [3.91ms]
+
+ 9 pass
+ 17 fail
+ 444 expect() calls
+Ran 26 tests across 1 file. [15.98s]

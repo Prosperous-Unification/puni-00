@@ -1,0 +1,7 @@
+distinct-cycle 1 true
+batch-cycle 1 true
+move-cycle 1 true
+estimate-cycle 1 true
+reach-cycle 1 true
+step-remove-cycle 1 true
+omit-expanded-pair 1 true

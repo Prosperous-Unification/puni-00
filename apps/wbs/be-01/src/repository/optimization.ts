@@ -1,4 +1,9 @@
 import type { RecordedEvent } from '@wbs/core';
+import { subscriptionFor } from '@wbs/core';
+import {
+  readConnectedOptimizationPair,
+  storeConnectedOptimizationOutcomeIn,
+} from '@wbs/store-sqlite/connected-optimization-cache';
 import type { Gate } from '@wbs/store-sqlite/gate';
 import {
   bindSolverSlot,
@@ -28,6 +33,8 @@ import {
   readOptimizedPair,
   readOptimizedPairAndSpawn,
 } from '@wbs/store-sqlite/optimized-schedule-cache';
+import { project } from '@wbs/store-sqlite/schema';
+import { eq } from 'drizzle-orm';
 
 import type {
   CommittedDecision,
@@ -45,10 +52,10 @@ import { classifyProjectWriteIn, recordRecovery } from './project';
 
 type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
 type RetryAsk = Parameters<OptimizationRepository['admitRetry']>[0];
-type FailedRetryOutcome = Extract<
-  ReturnType<typeof readOptimizedPair>['pri'],
-  { readonly kind: 'failed' | 'corrupt' }
->;
+interface FailedRetryOutcome {
+  readonly kind: 'failed' | 'corrupt';
+  readonly createdAt: number;
+}
 
 export type RetryPreflight =
   | { readonly kind: 'refused'; readonly decision: OptimizationRetryDecision }
@@ -70,24 +77,64 @@ export function retryPreflightIn(tx: Transaction, ask: RetryAsk): RetryPreflight
           ask.key.projectId,
           ask.scoped.organizationId,
           ask.scoped.actorId,
+          ask.scoped.role,
         );
   // Proof: forcing ordinary here let a removed super-admin Retry succeed.
   // Proof: removing either refusal changed foreign/removed mounted outcomes.
   if (classified === null) return { kind: 'refused', decision: { kind: 'not_found' } };
+  // Proof: bypassing this refusal made mounted membership removal after read-close return 409 instead of 403.
   if (classified === 'refused') return { kind: 'refused', decision: { kind: 'forbidden' } };
+  // Proof: omitting this pre-generation lookup made Q1→Q2→Q1 Retry return idle instead of the retained boundary terminal.
+  const retained =
+    ask.key.questions === undefined
+      ? undefined
+      : {
+          question: ask.key.questions[ask.objective],
+          outcome: readConnectedOptimizationPair(tx, { questions: ask.key.questions }).variants[
+            ask.objective
+          ],
+        };
+  // Proof: bypassing terminal lookup made mounted Retry after generation replacement return idle instead of boundary-infeasible.
+  if (retained?.outcome.kind === 'boundary-infeasible')
+    return {
+      kind: 'refused',
+      decision: {
+        kind: 'not-retryable',
+        state: 'boundary-infeasible',
+        certificate: {
+          kind: 'boundary-infeasible',
+          question: retained.question,
+          evidence:
+            retained.outcome.outcome.certificate.evidence.kind === 'contradictory-bounds'
+              ? 'contradictory-bounds'
+              : 'initial-model-infeasible',
+        },
+      },
+    };
+
   const current = readGeneration(tx, ask.key.projectId, ask.key.contractVersion);
   // Proof: bypassing this guard let a public Retry with valid caller hash but
   // mismatched persisted generation reach accepted/launcher instead of refusal.
   if (current?.inputHash !== ask.key.inputHash)
     return { kind: 'refused', decision: { kind: 'not-retryable', state: 'idle' } };
-  const outcome = readOptimizedPair(tx, ask.key)[ask.objective];
+  const outcome =
+    retained === undefined ? readOptimizedPair(tx, ask.key)[ask.objective] : retained.outcome;
   const live = optimizedVariantIsLive(tx, ask.key, current.generation, ask.objective, ask.now);
   if (outcome.kind !== 'failed' && outcome.kind !== 'corrupt')
     return {
       kind: 'refused',
       decision: {
         kind: 'not-retryable',
-        state: optimizationVariantState(outcome, live).state,
+        state:
+          ask.key.questions === undefined
+            ? optimizationVariantState(readOptimizedPair(tx, ask.key)[ask.objective], live).state
+            : outcome.kind === 'ok'
+              ? 'ready'
+              : outcome.kind === 'miss'
+                ? live
+                  ? 'pending'
+                  : 'idle'
+                : outcome.kind,
       },
     };
   // Proof: minting a token on this live branch made the focused Retry test
@@ -97,7 +144,7 @@ export function retryPreflightIn(tx: Transaction, ask: RetryAsk): RetryPreflight
     kind: 'eligible',
     classified,
     generation: current.generation,
-    outcome,
+    outcome: { kind: outcome.kind, createdAt: outcome.createdAt },
     // Proof: using ask.now alone left C undeleted although its slot deadline
     // preceded the failed marker; the mounted adjusted-cutoff Retry test failed.
     admittedAt: Math.max(ask.now, outcome.createdAt + 1),
@@ -171,6 +218,42 @@ export function recordOptimizationOutcomeIn(
   eventLog: EventLogTransactionalWrite,
   write: Parameters<OptimizationRepository['recordOutcome']>[0],
 ): CommittedDecision<RecordedOptimizationOutcome> {
+  if (write.kind === 'connected')
+    return db.transaction((tx) => {
+      // Proof: COMMIT/BEGIN between this write and event insertion left one certificate after the real event-insert fault (connected-publication.test.ts).
+      const stored = storeConnectedOptimizationOutcomeIn(tx, write);
+      if (stored !== 'stored') return { decision: { kind: stored }, envelopes: [] };
+      const identity = {
+        projectId: write.claim.projectId,
+        generation: write.claim.generation,
+        inputHash: write.question.inputHash,
+        objective: write.claim.objective,
+        contractVersion: write.claim.contractVersion,
+        budgetMs: write.claim.budgetMs,
+      };
+      const event: Extract<RecordedOptimizationOutcome, { kind: 'stored' }>['event'] =
+        write.outcome.kind === 'boundary-infeasible'
+          ? {
+              type: 'schedule_optimization_boundary_infeasible',
+              ...identity,
+              scope: 'connected-stage',
+              questionHash: write.question.questionHash,
+            }
+          : write.outcome.kind === 'ok'
+            ? { type: 'schedule_optimized', ...identity }
+            : write.outcome.kind === 'failed'
+              ? {
+                  type: 'schedule_optimization_failed',
+                  ...identity,
+                  failureReason: write.outcome.reason,
+                }
+              : { type: 'schedule_optimization_infeasible', ...identity };
+      const subscription = subscriptionFor(write.claim.projectId);
+      const recorded = eventLog.recordEventIn(tx, subscription, event, write.now);
+      if (!isRecordedEvent(recorded))
+        throw new Error('stored connected outcome has no durable event envelope');
+      return { decision: { kind: 'stored', subscription, recorded, event }, envelopes: [] };
+    });
   const committed = storeOptimizedOutcomeAndRecord(
     db,
     {
@@ -219,6 +302,44 @@ export function observeForAdmissionIn(
 ): OptimizationAdmissionObservation {
   return db.transaction(
     (tx) => {
+      if (key.questions !== undefined) {
+        const enabled = tx
+          .select({ enabled: project.optimizationEnabled })
+          .from(project)
+          .where(eq(project.id, key.projectId))
+          .get();
+        const current = readGeneration(tx, key.projectId, key.contractVersion);
+        if (enabled?.enabled !== true || (current !== null && current.admissionState !== 'open'))
+          return { kind: 'idle' };
+        const captured = readConnectedOptimizationPair(tx, { questions: key.questions });
+        const missing = (['pri', 'time'] as const).filter(
+          (objective) => captured.variants[objective].kind === 'miss',
+        );
+        // Proof: allocating before this retained lookup advanced Q1→Q2→Q1 from generation 2 to 3 in connected-publication.test.ts.
+        if (missing.length === 0)
+          return {
+            kind: 'connected-observed',
+            generation: captured.generation,
+            variants: captured.variants,
+            requests: [],
+          };
+        const generation = allocateEnabledGenerationIn(
+          tx,
+          key.projectId,
+          key.contractVersion,
+          key.inputHash,
+          now,
+        );
+        if (generation === null) return { kind: 'idle' };
+        return {
+          kind: 'connected-observed',
+          generation,
+          variants: captured.variants,
+          requests: missing
+            .filter((objective) => !optimizedVariantIsLive(tx, key, generation, objective, now))
+            .map((objective) => ({ key, objective })),
+        };
+      }
       const generation = allocateEnabledGenerationIn(
         tx,
         key.projectId,
@@ -237,6 +358,19 @@ export function observeForAdmissionIn(
     },
     { behavior: 'immediate' },
   );
+}
+
+/** The writer rechecks terminal evidence after observation and before reclaim or token admission. */
+export function connectedReservationIsTerminal(
+  db: Drizzle,
+  request: Parameters<OptimizationRepository['reserveSlot']>[0],
+): boolean {
+  if (request.questions === undefined) return false;
+  const outcome = readConnectedOptimizationPair(db, { questions: request.questions }).variants[
+    request.objective
+  ];
+  // Proof: omitting this check returned two extra reserved seats after the competitor's terminal committed, rather than two closed decisions.
+  return outcome.kind !== 'miss';
 }
 
 export function reservationOf(
@@ -317,7 +451,9 @@ export function createOptimizationRepository(
       // Proof: omitting the source turn lost the reserved slot on owner rollback.
       gate.enter(() =>
         Promise.resolve().then(() => ({
-          decision: reservationOf(reserveSolverSlot(db, request), request.budgetMs),
+          decision: connectedReservationIsTerminal(db, request)
+            ? { kind: 'closed' as const }
+            : reservationOf(reserveSolverSlot(db, request), request.budgetMs),
           envelopes: [],
         })),
       ),

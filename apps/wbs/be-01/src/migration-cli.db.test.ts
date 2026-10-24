@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@wbs/store-sqlite/db';
 import type { SavedEstimateUnits } from '@wbs/store-sqlite/estimate-unit-rollback';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -114,6 +115,23 @@ function schemaAt(dbPath: string): string[] {
   }
 }
 
+function tableRowsAt(dbPath: string): unknown {
+  const sqlite = openDatabase(dbPath);
+  try {
+    return sqlite
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+      )
+      .all()
+      .map(({ name }) => ({
+        name,
+        rows: sqlite.query(`SELECT * FROM "${name.replaceAll('"', '""')}"`).all(),
+      }));
+  } finally {
+    sqlite.close();
+  }
+}
+
 async function prepareIntegrityFixture(
   names: {
     baseline: string;
@@ -186,6 +204,71 @@ async function restoreFixture(fixture: Awaited<ReturnType<typeof prepareIntegrit
 }
 
 describe('migration deploy entrypoints', () => {
+  for (const enabled of [true, false]) {
+    it(`capture-file ${enabled ? 'refuses enabled-empty' : 'admits dormant'} activation before reversing newer additions`, async () => {
+      const root = mkdtempSync(join(tmpdir(), 'wbs-activation-capture-'));
+      roots.push(root);
+      const dbPath = join(root, 'plan.db');
+      const candidate = join(root, 'drizzle');
+      const baseline = join(root, 'baseline');
+      cpSync(MIGRATIONS, candidate, { recursive: true });
+      mkdirSync(baseline);
+      for (const name of readdirSync(MIGRATIONS)) {
+        if (name <= '20261022211000_add_external_dependencies')
+          cpSync(join(MIGRATIONS, name), join(baseline, name), { recursive: true });
+      }
+      runMigrations(dbPath, baseline);
+      const baselineLedger = migrationLedgerAt(dbPath);
+      const identity = [
+        '--target=wbs-be-01',
+        '--attempt=activation-refusal',
+        '--candidate=fixture',
+      ];
+      const captured = await runCliFrom(
+        root,
+        'migrate-status-cli.ts',
+        dbPath,
+        '--capture',
+        ...identity,
+      );
+      expect(captured.exitCode).toBe(0);
+      const capturePath = join(root, 'capture.json');
+      writeFileSync(capturePath, captured.stdout);
+      runMigrations(dbPath, candidate);
+      if (enabled) seedDependencyAuthority(dbPath);
+      const beforeSchema = schemaAt(dbPath);
+      const beforeLedger = migrationLedgerAt(dbPath);
+      const beforeRows = tableRowsAt(dbPath);
+      const refused = await runCliFrom(
+        root,
+        'migrate-down-cli.ts',
+        dbPath,
+        `--capture-file=${capturePath}`,
+        ...identity,
+      );
+      if (enabled) {
+        expect(refused.exitCode).not.toBe(0);
+        expect(refused.stderr).toContain('dependency activation requires compatible recovery');
+        expect(schemaAt(dbPath)).toEqual(beforeSchema);
+        expect(migrationLedgerAt(dbPath)).toEqual(beforeLedger);
+        expect(tableRowsAt(dbPath)).toEqual(beforeRows);
+      } else {
+        expect(refused.exitCode).toBe(0);
+        expect(migrationLedgerAt(dbPath)).toEqual(baselineLedger);
+        const repeated = await runCliFrom(
+          root,
+          'migrate-down-cli.ts',
+          dbPath,
+          `--capture-file=${capturePath}`,
+          ...identity,
+        );
+        expect(repeated.exitCode).toBe(0);
+        expect(repeated.stdout).toContain('(already restored)');
+        expect(migrationLedgerAt(dbPath)).toEqual(baselineLedger);
+      }
+    }, 60_000);
+  }
+
   it('refuses exact-set down without the original capture digest', async () => {
     const fixture = await prepareIntegrityFixture();
     const before = migrationLedgerAt(fixture.dbPath);
@@ -1137,9 +1220,8 @@ describe('migration deploy entrypoints', () => {
     );
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('claims exist');
-    // The empty binding, resource, occupancy and organization limits migrations
-    // newer than add_claim reverse first, each in its own transaction, so
-    // add_claim's refusal leaves them reversed.
+    // The newer migrations reverse first, each in its own transaction,
+    // so the guarded migration's refusal leaves them reversed.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
@@ -1151,6 +1233,10 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
+          name !== '20261022210000_add_project_abbreviations' &&
+          name !== '20261022211000_add_external_dependencies' &&
+          name !== '20261022212000_add_cross_project_dependency_activation' &&
+          name !== '20261022213000_add_optimization_boundary_certificates' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
           name !== '20261022140000_add_resource_provider' &&
@@ -1207,7 +1293,7 @@ describe('migration deploy entrypoints', () => {
     const down = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('resources exist');
-    // The newer, empty claim occupancy, machine credential and organization limits migrations reverse first.
+    // The newer empty migrations reverse first before this guarded resource rollback.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
@@ -1216,6 +1302,10 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
+          name !== '20261022210000_add_project_abbreviations' &&
+          name !== '20261022211000_add_external_dependencies' &&
+          name !== '20261022212000_add_cross_project_dependency_activation' &&
+          name !== '20261022213000_add_optimization_boundary_certificates' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
           name !== '20261022140000_add_resource_provider' &&

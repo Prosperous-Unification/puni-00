@@ -1,0 +1,20 @@
+[
+  {
+    "path": "apps/wbs/fe-01/src/components/wbs/dependency-navigation.tsx",
+    "committedSha256": "e7bbdeb0a87c96e4e4e2b564504481f1c03eb3dde20f1309a7dabb5562b80d70",
+    "restoredSha256": "e7bbdeb0a87c96e4e4e2b564504481f1c03eb3dde20f1309a7dabb5562b80d70",
+    "matches": true
+  },
+  {
+    "path": "libs/wbs/adapters/store-sqlite/src/typed-dependency.ts",
+    "committedSha256": "43686f911ec71e43f23d1c1cd09164d9c8e2e31e4bdc65985e68934c18fa6bba",
+    "restoredSha256": "43686f911ec71e43f23d1c1cd09164d9c8e2e31e4bdc65985e68934c18fa6bba",
+    "matches": true
+  },
+  {
+    "path": "libs/wbs/domain/domain/src/execution-eligibility.ts",
+    "committedSha256": "c94746d0e9d6a9e66c981343acb32d6a77a04b3e16262953cf4200c29bcf2c32",
+    "restoredSha256": "c94746d0e9d6a9e66c981343acb32d6a77a04b3e16262953cf4200c29bcf2c32",
+    "matches": true
+  }
+]

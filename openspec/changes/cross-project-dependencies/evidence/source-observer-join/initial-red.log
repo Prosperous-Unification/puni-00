@@ -1,0 +1,85 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:
+820 |                     settled = true; return { state: 'failure' as const, failure };
+821 |                   });
+822 |                 try {
+823 |                   await aborted;
+824 |                   await Bun.sleep(10);
+825 |                   expect(settled).toBe(false);
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:825:35)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:251:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:811:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection deadline joins complete child and owner cleanup before returning [284.88ms]
+820 |                     settled = true; return { state: 'failure' as const, failure };
+821 |                   });
+822 |                 try {
+823 |                   await aborted;
+824 |                   await Bun.sleep(10);
+825 |                   expect(settled).toBe(false);
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:825:35)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:251:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:811:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source inspection deadline joins failure child and owner cleanup before returning [275.04ms]
+820 |                     settled = true; return { state: 'failure' as const, failure };
+821 |                   });
+822 |                 try {
+823 |                   await aborted;
+824 |                   await Bun.sleep(10);
+825 |                   expect(settled).toBe(false);
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:825:35)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:251:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:811:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition deadline joins complete child and owner cleanup before returning [258.93ms]
+820 |                     settled = true; return { state: 'failure' as const, failure };
+821 |                   });
+822 |                 try {
+823 |                   await aborted;
+824 |                   await Bun.sleep(10);
+825 |                   expect(settled).toBe(false);
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:825:35)
+      at async withSourceDevExcluded (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:251:18)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/source-dev-exclusion.test.ts:811:19)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source recognition deadline joins failure child and owner cleanup before returning [254.76ms]
+
+ 0 pass
+ 47 filtered out
+ 4 fail
+ 4 expect() calls
+Ran 4 tests across 1 file. [1144.00ms]

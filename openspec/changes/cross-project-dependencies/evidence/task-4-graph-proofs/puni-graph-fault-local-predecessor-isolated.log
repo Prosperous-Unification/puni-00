@@ -1,0 +1,88 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+253 | it('refuses each foreign local endpoint project independently even when work-item lookup would succeed', () => {
+254 |   for (const dependency of [
+255 |     link('foreign-before', ['b', 'A', 'design'], ['a', 'A', 'test']),
+256 |     link('foreign-after', ['a', 'A', 'design'], ['b', 'A', 'test']),
+257 |   ]) {
+258 |     expect(() => resolveConnectedGraph({ projects: [{ ...a, relationships: [dependency] }, b], external: [] })).toThrow(/local relationship/);
+                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /local relationship/
+
+Received function did not throw
+Received value: {
+  graph: {
+    nodes: [
+      {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "design",
+        },
+        at: 0,
+      }, {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "test",
+        },
+        at: 1,
+      }, {
+        kind: "step",
+        ref: {
+          workItemId: "B",
+          stepId: "build",
+        },
+        at: 0,
+      }
+    ],
+    edges: [
+      {
+        predecessor: {
+          leafId: "A",
+          at: 0,
+        },
+        successor: {
+          leafId: "A",
+          at: 1,
+        },
+        type: "FS",
+        provenance: "workflow",
+      }
+    ],
+  },
+  projectIdByWorkItem: Map(2) {
+    "A": "a",
+    "B": "b",
+  },
+  relationships: Map(1) {
+    "foreign-before": {
+      id: "foreign-before",
+      predecessor: {
+        projectId: "b",
+        workItemId: "A",
+        stepId: "design",
+        scope: "node",
+      },
+      successor: {
+        projectId: "a",
+        workItemId: "A",
+        stepId: "test",
+        scope: "node",
+      },
+      type: "FS",
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:258:113)
+(fail) refuses each foreign local endpoint project independently even when work-item lookup would succeed [0.64ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [25.00ms]

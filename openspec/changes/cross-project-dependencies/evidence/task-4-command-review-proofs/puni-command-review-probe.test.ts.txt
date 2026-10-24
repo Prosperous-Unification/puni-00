@@ -1,0 +1,402 @@
+import type { StoredTypedDependency } from '@wbs/core';
+import type { WritingServices } from '@wbs/core';
+import { clockOf, grantAdmission } from '@wbs/core';
+import { commandTransaction } from '@wbs/core/module/plan-commands/composition';
+import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
+import {
+  type CollectedRecording,
+  WorkItemService,
+} from '@wbs/core/module/work-item/work-item.resource';
+import { AnnouncementCollector } from '@wbs/core/ports/announcement-collector';
+import type { DependencyContext } from '@wbs/core/ports/dependency-context';
+import { createDependencyContext } from '@wbs/core/service/dependency-context';
+import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { afterEach, expect, test } from 'bun:test';
+
+import { OrganizationHarness } from '/tmp/puni-cross-command-integration/apps/wbs/be-01/src/testing/organization-harness';
+
+let harness: OrganizationHarness;
+afterEach(async () => {
+  await harness.closeComposed();
+});
+
+async function open() {
+  harness = OrganizationHarness.openComposedWith({ sessionBinding: true });
+  await harness.register('ada');
+  harness.organization('org-a');
+  harness.member('org-a', 'ada', 'super_admin');
+  harness.activate();
+  const selected = await harness.request('/api/organization/active', {
+    method: 'POST',
+    headers: {
+      origin: 'http://localhost',
+      authorization: `Bearer ${harness.token('ada')}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ organizationId: 'org-a' }),
+  });
+  expect(selected.status).toBe(200);
+  const cookie = selected.headers.get('set-cookie')?.split(';')[0];
+  if (cookie === undefined) throw new Error('fixture binding cookie missing');
+  const request = (path: string, body?: unknown) =>
+    harness.request(path, {
+      method: 'POST',
+      headers: {
+        origin: 'http://localhost',
+        authorization: `Bearer ${harness.token('ada')}`,
+        cookie,
+        'X-WBS-Expected-Organization': 'org-a',
+        'content-type': 'application/json',
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  for (const name of ['Predecessor', 'Owner']) {
+    expect((await request('/api/projects', { name })).status).toBe(200);
+    const project = harness.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM project WHERE name=?')
+      .get(name);
+    if (project === null) throw new Error('fixture project missing');
+    expect(
+      (
+        await request(`/api/projects/${project.id}/commands`, {
+          commands: [{ kind: 'createWorkItem', name: `${name} row` }],
+        })
+      ).status,
+    ).toBe(200);
+  }
+  const project = (name: string) => {
+    const found = harness.sqlite
+      .query<{ projectId: string; workItemId: string }, [string]>(
+        'SELECT project.id AS projectId, work_item.id AS workItemId FROM project JOIN work_item ON work_item.project_id=project.id WHERE project.name=?',
+      )
+      .get(name);
+    if (found === null) throw new Error('fixture endpoint missing');
+    return found;
+  };
+  const predecessor = project('Predecessor');
+  const owner = project('Owner');
+  const principal = await harness.authenticatedCommandPrincipal(
+    'ada',
+    decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1)),
+  );
+  const expectedAccess = {
+    kind: 'scoped' as const,
+    scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+  };
+  const input = {
+    predecessor: { ...predecessor, scope: 'whole' as const },
+    successor: { ...owner, scope: 'whole' as const },
+    type: 'FS' as const,
+  };
+  return { predecessor, owner, principal, expectedAccess, request, input };
+}
+
+async function foreignEndpoint() {
+  await harness.register('grace');
+  harness.organization('org-b');
+  harness.member('org-b', 'grace', 'super_admin');
+  const selected = await harness.request('/api/organization/active', {
+    method: 'POST',
+    headers: {
+      origin: 'http://localhost',
+      authorization: `Bearer ${harness.token('grace')}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ organizationId: 'org-b' }),
+  });
+  expect(selected.status).toBe(200);
+  const cookie = selected.headers.get('set-cookie')?.split(';')[0];
+  if (cookie === undefined) throw new Error('fixture foreign cookie missing');
+  const request = (path: string, body: unknown) =>
+    harness.request(path, {
+      method: 'POST',
+      headers: {
+        origin: 'http://localhost',
+        authorization: `Bearer ${harness.token('grace')}`,
+        cookie,
+        'X-WBS-Expected-Organization': 'org-b',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  expect((await request('/api/projects', { name: 'Foreign' })).status).toBe(200);
+  const project = harness.sqlite
+    .query<{ id: string }, []>("SELECT id FROM project WHERE name='Foreign'")
+    .get();
+  if (project === null) throw new Error('fixture foreign project missing');
+  expect(
+    (
+      await request(`/api/projects/${project.id}/commands`, {
+        commands: [{ kind: 'createWorkItem', name: 'Concealed foreign row' }],
+      })
+    ).status,
+  ).toBe(200);
+  const row = harness.sqlite
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id=?')
+    .get(project.id);
+  if (row === null) throw new Error('fixture foreign row missing');
+  return { projectId: project.id, workItemId: row.id };
+}
+
+function effects() {
+  return harness.sqlite
+    .query<{ name: string }, []>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .all()
+    .map(({ name }) => ({
+      name,
+      rows: harness.sqlite
+        .query(`SELECT * FROM "${name.replaceAll('"', '""')}"`)
+        .all()
+        .map((row) => JSON.stringify(row))
+        .sort(),
+    }));
+}
+
+test('mounted external authoring stays dormant and rolls back an earlier successful command', async () => {
+  const fixture = await open();
+  const before = effects();
+  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+    commands: [
+      {
+        kind: 'patchWorkItem',
+        workItemId: fixture.owner.workItemId,
+        patch: { name: 'Must roll back' },
+      },
+      { kind: 'addTypedDependency', ...fixture.input },
+    ],
+  });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+    error: 'external_dependencies_inactive',
+    at: 1,
+    kind: 'addTypedDependency',
+  });
+  expect(effects()).toEqual(before);
+  const alone = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+    commands: [{ kind: 'addTypedDependency', ...fixture.input }],
+  });
+  expect(alone.status).toBe(409);
+  expect(await alone.json()).toEqual({
+    error: 'external_dependencies_inactive',
+    at: 0,
+    kind: 'addTypedDependency',
+  });
+  expect(effects()).toEqual(before);
+});
+
+async function semantic<T extends { readonly ok: boolean }>(
+  fixture: Awaited<ReturnType<typeof open>>,
+  act: (service: WorkItemService, graph: WritingServices) => Promise<T>,
+  inspectCollected?: (recordings: CollectedRecording[]) => void,
+  refusedProjectRead?: string,
+  failedGraphRead?: 'findCycle' | 'findStepReferences' | 'proposedCycle',
+  omitRecordedRevision = false,
+  corruptStoredScope = false,
+): Promise<T> {
+  const boundary = harness.publicWrites();
+  const broadcast = recordingBroadcaster();
+  const held = new AnnouncementCollector(broadcast);
+  return boundary.uow.run(async (scope) => {
+    const resolved = await boundary.commandAccess.resolve({
+      kind: 'human',
+      principal: fixture.principal,
+      expectedAccess: fixture.expectedAccess,
+    });
+    if (!resolved.ok || resolved.access.kind !== 'scoped')
+      throw new Error('fixture current authority refused');
+    const admitted = await scope.stores.projects.admitEditInOrganization(
+      fixture.owner.projectId,
+      'org-a',
+      fixture.principal.id,
+      { commands: ['addTypedDependency'] },
+    );
+    if (admitted === null || admitted === 'forbidden')
+      throw new Error('fixture owner admission refused');
+    const granted = grantAdmission(fixture.owner.projectId, fixture.principal.id);
+    const projects =
+      refusedProjectRead === undefined
+        ? scope.stores.projects
+        : new Proxy(scope.stores.projects, {
+            get(target, key) {
+              if (key === 'findInOrganization')
+                return (projectId: string, organizationId: string) =>
+                  projectId === refusedProjectRead
+                    ? Promise.resolve(null)
+                    : target.findInOrganization(projectId, organizationId);
+              const member: unknown = Reflect.get(target, key);
+              if (typeof member === 'function')
+                return (...args: unknown[]): unknown => Reflect.apply(member, target, args);
+              return member;
+            },
+          });
+    const dependencies = createDependencyContext(
+      { ...scope.stores, projects },
+      {
+        projectId: fixture.owner.projectId,
+        actorId: fixture.principal.id,
+        access: resolved.access,
+        admission: granted.admission,
+      },
+      () => undefined,
+    );
+    // Negative-only dependency fault: finish the genuine connected SQLite read,
+    // then reject its delivery. No permissive graph is installed for positives.
+    const graphContext =
+      failedGraphRead === undefined
+        ? dependencies.context
+        : {
+            ...dependencies.context,
+            graph: new Proxy(dependencies.context.graph, {
+              get(target, key) {
+                const member: unknown = Reflect.get(target, key);
+                if (
+                  key === (failedGraphRead === 'proposedCycle' ? 'findCycle' : failedGraphRead) &&
+                  typeof member === 'function'
+                )
+                  return async (...args: unknown[]) => {
+                    const read: unknown = Reflect.apply(member, target, args);
+                    const value = await read;
+                    const change = args[1];
+                    if (
+                      failedGraphRead === 'proposedCycle' &&
+                      (typeof change !== 'object' || change === null || !('rows' in change))
+                    )
+                      return value;
+                    throw new Error(`injected connected ${failedGraphRead} read failure`);
+                  };
+                if (typeof member === 'function')
+                  return (...args: unknown[]): unknown => Reflect.apply(member, target, args);
+                return member;
+              },
+            }),
+          };
+    let revisionReads = 0;
+    const dependencyContext: DependencyContext = !omitRecordedRevision
+      ? graphContext
+      : {
+          ...graphContext,
+          endpoints: {
+            ...graphContext.endpoints,
+            readRevisions: async (addresses) => {
+              const read = await graphContext.endpoints.readRevisions(addresses);
+              revisionReads++;
+              // Negative-only fault after the write: omit the genuine remote
+              // revision when recordCollected reads its final expected set.
+              return read.ok && revisionReads > 2
+                ? { ok: true, revisions: read.revisions.slice(1) }
+                : read;
+            },
+          },
+        };
+    const plan = createWorkingPlan(scope, fixture.owner.projectId);
+    try {
+      expect(
+        (await plan.stores.workItems.listByProject(fixture.owner.projectId)).length,
+      ).toBeGreaterThan(0);
+      const graph = boundary.batch(
+        { stores: plan.stores },
+        held,
+        granted.admission,
+        dependencyContext,
+      );
+      const authoredStores = !corruptStoredScope
+        ? plan.stores
+        : {
+            ...plan.stores,
+            typedDependencies: new Proxy(plan.stores.typedDependencies, {
+              get(target, key) {
+                if (key === 'listByProject')
+                  return async (projectId: string) =>
+                    (await target.listByProject(projectId)).map((relationship) => ({
+                      ...relationship,
+                      predecessor: { ...relationship.predecessor, projectId },
+                    }));
+                const member: unknown = Reflect.get(target, key);
+                if (typeof member === 'function')
+                  return (...args: unknown[]): unknown => Reflect.apply(member, target, args);
+                return member;
+              },
+            }),
+          };
+      const service = new WorkItemService({
+        ...authoredStores,
+        clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
+        scheduler: fastScheduler,
+        admission: granted.admission,
+        dependencyContext: { kind: 'bound', context: dependencyContext },
+        externalDependencyAuthoring: { state: 'active' },
+        broadcast: held,
+      });
+      const collected = await service.collect(() => act(service, graph));
+      inspectCollected?.(collected.recordings);
+      if (collected.result.ok)
+        await service.recordCollected(
+          fixture.owner.projectId,
+          fixture.principal.id,
+          collected.recordings,
+        );
+      expect(broadcast.published).toEqual([]);
+      return { commit: collected.result.ok, value: collected.result };
+    } finally {
+      plan.close();
+      dependencies.close();
+      granted.expire();
+    }
+  });
+}
+
+async function observed<T>(operation: Promise<T>): Promise<T | Error> {
+  return operation.then(
+    (value) => value,
+    (cause: unknown) => {
+      if (cause instanceof Error) return cause;
+      throw cause;
+    },
+  );
+}
+
+
+test('REVIEW external create-link batch can redo its restored local successor', async () => {
+  const fixture = await open();
+  const added = await semantic(fixture, async (service) => {
+    const created = await service.create(fixture.owner.projectId, fixture.principal.id, { name: 'New external successor', parentId: null, afterId: null });
+    if (!created.ok) return created;
+    return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      ...fixture.input,
+      successor: { scope: 'whole', projectId: fixture.owner.projectId, workItemId: created.value.id },
+    });
+  });
+  expect(added).toMatchObject({ ok: true });
+  const undone = await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+  expect(undone).toMatchObject({ ok: true });
+  const before = effects();
+  const redone = await semantic(fixture, (service) => service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+  console.log('REVIEW redo outcome', redone, 'unchanged', JSON.stringify(before) === JSON.stringify(effects()));
+  expect(redone).toMatchObject({ ok: true });
+});
+
+test('REVIEW mounted local create-update batch can redo its restored predecessor', async () => {
+  const fixture = await open();
+  const route = `/api/projects/${fixture.owner.projectId}`;
+  const initial = await fixture.request(`${route}/commands`, { commands: [
+    { kind: 'createWorkItem', name: 'Original local predecessor', ref: 'original' },
+    { kind: 'addTypedDependency', predecessor: { scope: 'whole', workItemRef: 'original' }, successor: { scope: 'whole', workItemId: fixture.owner.workItemId }, type: 'FS' },
+  ] });
+  expect(initial.status).toBe(200);
+  const relationship = harness.sqlite.query<{ id: string }, []>('SELECT id FROM typed_dependency').get();
+  if (relationship === null) throw new Error('fixture local relationship missing');
+  const updated = await fixture.request(`${route}/commands`, { commands: [
+    { kind: 'createWorkItem', name: 'Replacement local predecessor', ref: 'replacement' },
+    { kind: 'updateTypedDependency', dependencyId: relationship.id, predecessor: { scope: 'whole', workItemRef: 'replacement' }, successor: { scope: 'whole', workItemId: fixture.owner.workItemId }, type: 'FS' },
+  ] });
+  expect(updated.status).toBe(200);
+  const undone = await fixture.request(`${route}/undo`);
+  expect(undone.status).toBe(200);
+  const redone = await fixture.request(`${route}/redo`);
+  console.log('REVIEW mounted create-update redo', redone.status, await redone.json());
+  expect(redone.status).toBe(200);
+});

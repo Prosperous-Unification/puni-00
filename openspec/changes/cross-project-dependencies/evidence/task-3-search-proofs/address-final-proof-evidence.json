@@ -1,0 +1,32 @@
+[
+  {
+    "fault": "candidate-binding",
+    "exit": 1,
+    "test": "cursor reuse",
+    "log": "/tmp/address-proof-candidate-binding.txt"
+  },
+  {
+    "fault": "candidate-stale",
+    "exit": 1,
+    "test": "changes revision",
+    "log": "/tmp/address-proof-candidate-stale.txt"
+  },
+  {
+    "fault": "impossible-coordinate",
+    "exit": 1,
+    "test": "impossible and malformed",
+    "log": "/tmp/address-proof-impossible-coordinate.txt"
+  },
+  {
+    "fault": "current-prefix",
+    "exit": 1,
+    "test": "duplicate numbers",
+    "log": "/tmp/address-proof-current-prefix.txt"
+  },
+  {
+    "fault": "unicode-superset",
+    "exit": 1,
+    "test": "exact Unicode",
+    "log": "/tmp/address-proof-unicode-superset.txt"
+  }
+]

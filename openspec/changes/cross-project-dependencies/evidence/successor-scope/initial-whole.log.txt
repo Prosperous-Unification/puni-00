@@ -1,0 +1,71 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-successor-92/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (80 tests | 4 failed | 76 skipped) 776ms
+   × edits persisted local successor scope from node on desktop 397ms
+   × edits persisted local successor scope from node on phone 130ms
+   × initializes exact persisted descendant-step successor on desktop 163ms
+   × initializes exact persisted descendant-step successor on phone 83ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted local successor scope from node on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted local successor scope from node on phone
+Error: expect(element).toHaveTextContent()
+
+Expected element to have text content:
+  Dev step
+Received:
+  Whole work item
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:769:72
+    767|       const dialog = within(screen.getByRole('dialog', { name: 'Captur…
+    768|       const selector = dialog.getByLabelText('This work item');
+    769|       expect(within(selector).getByRole('option', { selected: true }))…
+       |                                                                        ^
+    770|         initial === 'whole' ? 'Whole work item' : 'Dev step',
+    771|       );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > initializes exact persisted descendant-step successor on desktop
+Error: expect(element).toHaveTextContent()
+
+Expected element to have text content:
+  All descendant work items · Dev
+Received:
+  All descendant work items (1)
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:809:7
+    807|     expect(
+    808|       within(dialog.getByLabelText('This work item')).getByRole('optio…
+    809|     ).toHaveTextContent('All descendant work items · Dev');
+       |       ^
+    810|     fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    811|     await waitFor(() =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > initializes exact persisted descendant-step successor on phone
+Error: expect(element).toHaveTextContent()
+
+Expected element to have text content:
+  All descendant work items · Dev
+Received:
+  All descendant work items (1)
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:809:7
+    807|     expect(
+    808|       within(dialog.getByLabelText('This work item')).getByRole('optio…
+    809|     ).toHaveTextContent('All descendant work items · Dev');
+       |       ^
+    810|     fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    811|     await waitFor(() =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 76 skipped (80)
+   Start at  04:16:18
+   Duration  6.89s (import 57%, transform 25%, tests 11%, environment 6%, setup 1%)

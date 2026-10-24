@@ -1,0 +1,4 @@
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts 145ms
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts 18ms
+libs/wbs/application/core/src/service/project-address-search.ts 30ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/project-address-search.ts 14ms (unchanged)

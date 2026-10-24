@@ -1,0 +1,122 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+649 |       await effects.parkLease(holder, state.phase);
+650 |     }
+651 |   } finally {
+652 |     clearInterval(heartbeat);
+653 |   }
+654 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rolled-back
+journal: /tmp/wbs-test-4-JSOAq4/k8s-controller-release-ng9q7k/release.json
+failed step: capture-state: expect(received).toBe(expected)
+
+Expected: "drained"
+Received: undefined
+
+captured migration set: (not captured)
+replay forward: f8f66a5f6224daa8a4be277e45c7a0b0ef0dcaeed8fbc5a9e07c7726f7b75420
+replay rollback: 3c5f45cec7992b615067927f42986ed4a6762cacf44d7630e26bae4462301933
+snapshot: (none)
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-395488",
+  phase: "rolled-back",
+  rollbackFrom: "replay-checked",
+  capture: null,
+  replayForward: [Object ...],
+  replayRollback: [Object ...],
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-4-JSOAq4/k8s-controller-release-ng9q7k/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:654:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:105:25)
+(fail) mounted release checkpoints and restores exact undefined backup suspension [23.57ms]
+649 |       await effects.parkLease(holder, state.phase);
+650 |     }
+651 |   } finally {
+652 |     clearInterval(heartbeat);
+653 |   }
+654 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rolled-back
+journal: /tmp/wbs-test-4-JSOAq4/k8s-controller-release-gORACE/release.json
+failed step: capture-state: expect(received).toBe(expected)
+
+Expected: "drained"
+Received: undefined
+
+captured migration set: (not captured)
+replay forward: bf4ec52c1a00108550aa750234e801c1fef824b4c3e86a12abcdc8f8bb0bc04a
+replay rollback: 70161fe637d27968312374cee74e05c41702d3b033a94a7795893ae6d28dd125
+snapshot: (none)
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-abec5d",
+  phase: "rolled-back",
+  rollbackFrom: "replay-checked",
+  capture: null,
+  replayForward: [Object ...],
+  replayRollback: [Object ...],
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-4-JSOAq4/k8s-controller-release-gORACE/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:654:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:105:25)
+(fail) mounted release checkpoints and restores exact false backup suspension [18.95ms]
+649 |       await effects.parkLease(holder, state.phase);
+650 |     }
+651 |   } finally {
+652 |     clearInterval(heartbeat);
+653 |   }
+654 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rolled-back
+journal: /tmp/wbs-test-4-JSOAq4/k8s-controller-release-N2I2LU/release.json
+failed step: capture-state: expect(received).toBe(expected)
+
+Expected: "drained"
+Received: undefined
+
+captured migration set: (not captured)
+replay forward: 49f434f3dfee5d3051c11ebc917ef1ff53f53f4c10b59280eb11f698989a817a
+replay rollback: 862f356e49cd214725ffb5497501828df95cd9932b3928ae5487f672d8798a62
+snapshot: (none)
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-651b05",
+  phase: "rolled-back",
+  rollbackFrom: "replay-checked",
+  capture: null,
+  replayForward: [Object ...],
+  replayRollback: [Object ...],
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-4-JSOAq4/k8s-controller-release-N2I2LU/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:654:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:105:25)
+(fail) mounted release checkpoints and restores exact true backup suspension [16.57ms]
+
+ 0 pass
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [111.00ms]

@@ -1,0 +1,33 @@
+{
+  "sha": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+  "faults": [
+    {
+      "fault": "stop-omission",
+      "exitCode": 1,
+      "file": "tools/tool-remote-scripts/src/lib/gateway-exclusion.ts",
+      "before": "await runDockerBefore(['stop', '--time', '10', gateway.id], runDocker, deadline);",
+      "after": "await Promise.resolve();"
+    },
+    {
+      "fault": "init-admission-omission",
+      "exitCode": 1,
+      "file": "tools/tool-remote-scripts/src/lib/gateway-exclusion.ts",
+      "before": "host['Init'] !== true ||",
+      "after": "false ||"
+    },
+    {
+      "fault": "fresh-inspection-omission",
+      "exitCode": 1,
+      "file": "tools/tool-remote-scripts/src/lib/gateway-exclusion.ts",
+      "before": "const observed = await inspectCohort(layout, runDocker, performance.now() + 60000);",
+      "after": "const observed = completion.cohort;"
+    },
+    {
+      "fault": "absent-child",
+      "exitCode": 1,
+      "file": "tools/tool-remote-scripts/test/fixtures/gateway-probe.ts",
+      "before": "Bun.spawn([process.execPath, import.meta.path, 'child'], {",
+      "after": "false && Bun.spawn([process.execPath, import.meta.path, 'child'], {"
+    }
+  ]
+}

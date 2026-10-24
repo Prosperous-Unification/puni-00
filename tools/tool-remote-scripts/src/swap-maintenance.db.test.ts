@@ -1,4 +1,5 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { rejects } from 'node:assert/strict';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,7 +16,12 @@ const oldId = 'a'.repeat(64);
 const maintenanceId = 'd'.repeat(64);
 const image = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
 
-for (const fault of ['none', 'migration-interruption'] as const) {
+for (const fault of [
+  'none',
+  'migration-interruption',
+  'dependency-drift',
+  'historical-authority',
+] as const) {
   test(`authentic predecessor maintenance ${fault} precedes nonmigrating application boot`, async () => {
     const root = mkdtempSync(join(tmpdir(), 'compose-predecessor-'));
     const database = join(root, 'plan.db');
@@ -25,6 +31,13 @@ for (const fault of ['none', 'migration-interruption'] as const) {
       rmSync(join(root, 'drizzle', '20261015100000_add_step_blockage_activation_receipt'), {
         recursive: true,
       });
+      if (fault === 'historical-authority') {
+        for (const name of [
+          '20261022211000_add_external_dependencies',
+          '20261022212000_add_cross_project_dependency_activation',
+        ])
+          rmSync(join(root, 'drizzle', name), { recursive: true });
+      }
       const cli = (file: string, args: string[]) =>
         Bun.spawnSync([process.execPath, 'run', join(backend, file), ...args], {
           cwd: root,
@@ -68,30 +81,60 @@ for (const fault of ['none', 'migration-interruption'] as const) {
       const order: string[] = [];
       let stopped = false;
       let booted = false;
+      let stoppedFamily: readonly (readonly [string, string])[] = [];
       const command = (args: string[]): string => {
+        if (args.includes('src/dependency-capabilities-cli.ts'))
+          return JSON.stringify({
+            protocol: 'wbs-dependency-runtime',
+            version: 1,
+            role: 'backend',
+            semantics: [],
+          });
         if (args[0] === 'image' && args[3] === '{{json .}}')
           return JSON.stringify({ Id: `sha256:${'b'.repeat(64)}` });
         if (args[0] === 'image') return image;
+        if (
+          args[0] === 'run' &&
+          args.some((argument) => argument.includes('wbs-dependency-preservation'))
+        ) {
+          const entrypoint = args.indexOf('--entrypoint');
+          const child = Bun.spawnSync(['bun', ...args.slice(entrypoint + 3)], {
+            env: { ...process.env, DB_PATH: database },
+            stdout: 'pipe',
+            stderr: 'pipe',
+          });
+          if (child.exitCode !== 0) throw new Error(child.stderr.toString());
+          return child.stdout.toString();
+        }
         if (args[0] === 'run') return '[]';
-        if (args[0] === 'ps') return oldId;
+        if (args[0] === 'ps')
+          return order.includes('maintenance') ? `${oldId}\n${maintenanceId}` : oldId;
         if (
           args[0] === 'inspect' &&
-          (args[1] === oldId || (args[1] === '--type' && args[3] === oldId))
+          (args[1] === oldId || args[1] === maintenanceId || args[1] === '--type')
         )
-          return JSON.stringify([
-            {
-              Id: oldId,
+          return JSON.stringify(
+            (args[1] === '--type' ? args.slice(3) : args.slice(1)).map((identity) => ({
+              Id: identity,
               Image: `sha256:${'b'.repeat(64)}`,
-              Name: '/be-01-blue',
+              Name: identity === oldId ? '/be-01-blue' : '/be-01-green',
               Config: { Image: image, Env: ['DB_PATH=/data/plan.db'] },
               Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: true }],
-            },
-          ]);
+            })),
+          );
         if (args[0] === 'stop') {
           if (args[1] === oldId) stopped = true;
           else {
             expect(args[1]).toBe(maintenanceId);
             order.push('stop-maintenance');
+            if (fault === 'dependency-drift') {
+              const sqlite = new Database(database);
+              sqlite.run("UPDATE cross_project_dependency_activation SET state='ENABLED'");
+              sqlite.close();
+              stoppedFamily = readdirSync(root)
+                .filter((name) => name === 'plan.db' || name.startsWith('plan.db-'))
+                .map((name) => [name, readFileSync(join(root, name)).toString('hex')] as const);
+            }
           }
           return '';
         }
@@ -185,7 +228,24 @@ for (const fault of ['none', 'migration-interruption'] as const) {
         'predecessor',
         io,
       );
-      if (fault === 'migration-interruption') {
+      if (fault === 'dependency-drift' || fault === 'historical-authority') {
+        await rejects(transition, /explicit recovery/);
+        expect(booted).toBe(false);
+        expect(order).toEqual(
+          fault === 'dependency-drift'
+            ? ['maintenance', 'backup', 'migrate', 'stop-maintenance']
+            : [],
+        );
+        expect(() => readFileSync(join(root, 'be-writer-exposure.json'))).toThrow();
+        expect(readFileSync(join(root, 'be-writer-stop.json'), 'utf8')).toContain(image);
+        if (fault === 'dependency-drift') {
+          expect(stoppedFamily.length).toBeGreaterThan(0);
+          for (const [name, bytes] of stoppedFamily)
+            expect(readFileSync(join(root, name)).toString('hex')).toEqual(bytes);
+        }
+        if (fault === 'dependency-drift')
+          expect(readFileSync(join(root, 'be-writer-migration.json'), 'utf8')).toContain(image);
+      } else if (fault === 'migration-interruption') {
         let failure = '';
         try {
           await transition;
@@ -202,6 +262,7 @@ for (const fault of ['none', 'migration-interruption'] as const) {
         expect(order).toEqual(['maintenance', 'backup', 'migrate', 'stop-maintenance', 'boot']);
         expect(booted).toBe(true);
       }
+      if (fault === 'historical-authority') return;
       const sqlite = new Database(database, { readonly: true });
       try {
         expect(sqlite.query('SELECT state FROM step_blockage_activation').get()).toEqual({

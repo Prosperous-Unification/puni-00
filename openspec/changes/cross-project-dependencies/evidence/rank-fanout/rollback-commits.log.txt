@@ -1,0 +1,78 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-rank.controller.db.test.ts:
+{"level":"error","time":1792701039067,"service":"be-01","err":{"occurrence_id":"AE_3E8M5S826MGEBTNCYCFG7E5N8P","fingerprint":"fp1_d71748d536dea951440e4b6a76c68f9f","constructor_name":"DrizzleQueryError","message":"Failed query: \n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      \nparams: project:4834a83a-0bcb-426e-a064-eec1814323c3,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"4834a83a-0bcb-426e-a064-eec1814323c3\",\"causeProjectId\":\"46705a4c-33aa-49a5-b804-62fcc564e3be\"},1792701039059","as_string":"DrizzleQueryError: Failed query: \n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      \nparams: project:4834a83a-0bcb-426e-a064-eec1814323c3,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"4834a83a-0bcb-426e-a064-eec1814323c3\",\"causeProjectId\":\"46705a4c-33aa-49a5-b804-62fcc564e3be\"},1792701039059","as_json":{"query":"\n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      ","params":["project:4834a83a-0bcb-426e-a064-eec1814323c3",0,"{\"type\":\"elsewhere_changed\",\"projectId\":\"4834a83a-0bcb-426e-a064-eec1814323c3\",\"causeProjectId\":\"46705a4c-33aa-49a5-b804-62fcc564e3be\"}",1792701039059],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: ","        INSERT INTO event_log (subscription, seq, message, created_at)","        VALUES (?, ?, ?, ?)","      ","params: project:4834a83a-0bcb-426e-a064-eec1814323c3,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"4834a83a-0bcb-426e-a064-eec1814323c3\",\"causeProjectId\":\"46705a4c-33aa-49a5-b804-62fcc564e3be\"},1792701039059","    at run (/tmp/puni-rank-fanout/node_modules/drizzle-orm/sqlite-core/async/session.js:77:14)","    at recordEventIn (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/event-log.ts:68:8)","    at <anonymous> (/tmp/puni-rank-fanout/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/tmp/puni-rank-fanout/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/event-log.ts:82:17)","    at recordEvent (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/event-log.ts:80:28)","    at recordCommittedFanout (/tmp/puni-rank-fanout/libs/wbs/application/core/src/service/committed-fanout.ts:61:37)","    at async <anonymous> (/tmp/puni-rank-fanout/libs/wbs/application/core/src/service/standalone-rank.ts:58:30)","    at async <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"Error","message":"injected second dependency rank recipient","as_json":{"code":"SQLITE_CONSTRAINT_TRIGGER","errno":1811,"byteOffset":-1},"stack":["SQLiteError: injected second dependency rank recipient","    at run (unknown)","    at #run (bun:sqlite:187:20)","    at run (/tmp/puni-rank-fanout/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)","    at recordEventIn (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/event-log.ts:68:8)","    at <anonymous> (/tmp/puni-rank-fanout/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/tmp/puni-rank-fanout/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/event-log.ts:82:17)","    at recordEvent (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/event-log.ts:80:28)","    at recordCommittedFanout (/tmp/puni-rank-fanout/libs/wbs/application/core/src/service/committed-fanout.ts:61:37)","    at async <anonymous> (/tmp/puni-rank-fanout/libs/wbs/application/core/src/service/standalone-rank.ts:58:30)","    at async <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+478 |   if (second === undefined) throw new Error('dependency rank fixture lacks second recipient');
+479 |   h.sqlite.run(`CREATE TRIGGER fail_dependency_rank BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:${second}' BEGIN SELECT RAISE(FAIL, 'injected second dependency rank recipient'); END`);
+480 |   try {
+481 |     expect((await h.call('ada', 'POST', move(search), { afterProjectId: null })).status).toBe(500);
+482 |   } finally { h.sqlite.run('DROP TRIGGER fail_dependency_rank'); }
+483 |   expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all())).toEqual(before);
+                                                                                                     ^
+error: expect(received).toEqual(expected)
+
+  [
+-   [],
+-   [],
+-   [],
++   [
++     {
++       "created_at": 1792701039003,
++       "created_by": "f53d7e13-1f66-4841-8bac-5bfed68e3613",
++       "organization_id": "org-a",
++       "position": 10,
++       "project_id": "4834a83a-0bcb-426e-a064-eec1814323c3",
++       "updated_at": 1792701039003,
++     },
++     {
++       "created_at": 1792701039003,
++       "created_by": "f53d7e13-1f66-4841-8bac-5bfed68e3613",
++       "organization_id": "org-a",
++       "position": 20,
++       "project_id": "e66651c6-9977-42c9-bdd1-763bcb2cb15c",
++       "updated_at": 1792701039003,
++     },
++     {
++       "created_at": 1792701039003,
++       "created_by": "f53d7e13-1f66-4841-8bac-5bfed68e3613",
++       "organization_id": "org-a",
++       "position": 30,
++       "project_id": "46705a4c-33aa-49a5-b804-62fcc564e3be",
++       "updated_at": 1792701039003,
++     },
++   ],
++   [
++     {
++       "created_at": 1792701039058,
++       "id": 1,
++       "message": "{"type":"elsewhere_changed","projectId":"46705a4c-33aa-49a5-b804-62fcc564e3be","causeProjectId":"4834a83a-0bcb-426e-a064-eec1814323c3"}",
++       "seq": 0,
++       "subscription": "project:46705a4c-33aa-49a5-b804-62fcc564e3be",
++     },
++     {
++       "created_at": 1792701039058,
++       "id": 2,
++       "message": "{"type":"elsewhere_changed","projectId":"46705a4c-33aa-49a5-b804-62fcc564e3be","causeProjectId":"e66651c6-9977-42c9-bdd1-763bcb2cb15c"}",
++       "seq": 1,
++       "subscription": "project:46705a4c-33aa-49a5-b804-62fcc564e3be",
++     },
++   ],
++   [
++     {
++       "next_seq": 2,
++       "subscription": "project:46705a4c-33aa-49a5-b804-62fcc564e3be",
++     },
++   ],
+  ]
+
+- Expected  - 3
++ Received  + 48
+
+      at <anonymous> (/tmp/puni-rank-fanout/apps/wbs/be-01/src/controller/project-rank.controller.db.test.ts:483:96)
+(fail) rolls dependency rank events and rank writes back when the second recipient fails [750.20ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [5.06s]

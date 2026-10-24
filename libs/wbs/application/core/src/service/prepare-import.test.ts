@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 
+import { findImportDependencyDuplicate } from '../module/plan-import/import-values';
 import { prepareImport } from '../module/plan-import/prepare-import';
 import { planDocumentFixture } from '../testing/plan-document-fixture';
 
@@ -860,3 +861,122 @@ for (const [name, fault, expected] of [
     expect(prepareImport(body, supportsAll)).toEqual({ ok: false, ...expected });
   });
 }
+
+function externalRelationship(id: string, projectId = 'remote') {
+  return {
+    id,
+    type: 'FS' as const,
+    predecessor: {
+      kind: 'external' as const,
+      scope: 'whole' as const,
+      projectId,
+      workItemId: 'prerequisite',
+      display: {
+        projectName: 'Remote',
+        abbreviation: 'REM',
+        workItemName: 'Prerequisite',
+        address: 'REM.1',
+      },
+    },
+    successor: { kind: 'internal' as const, scope: 'whole' as const, workItem: 'row-1' },
+  };
+}
+
+for (const external of [false, true]) {
+  test(`refuses empty authored relationship ID in ${external ? 'external' : 'internal'} arm`, () => {
+    const document = planDocumentFixture();
+    document.typedDependencies = [
+      external
+        ? externalRelationship('')
+        : {
+            id: '',
+            type: 'FS',
+            predecessor: { scope: 'whole', workItem: 'row-1' },
+            successor: { scope: 'whole', workItem: 'row-1' },
+          },
+    ];
+    expect(prepareImport(document, supportsAll)).toMatchObject({
+      ok: false,
+      code: 'invalid_typed_dependency',
+      path: 'typedDependencies[0].id',
+    });
+  });
+}
+
+test('refuses repeated authored ID across internal and external arms before splitting', () => {
+  const document = planDocumentFixture();
+  document.typedDependencies = [
+    externalRelationship('same'),
+    {
+      id: 'same',
+      type: 'SS',
+      predecessor: { scope: 'whole', workItem: 'row-1' },
+      successor: { scope: 'whole', workItem: 'row-1' },
+    },
+  ];
+  expect(prepareImport(document, supportsAll)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'typedDependencies[1].id',
+  });
+});
+
+test('refuses semantic duplicates introduced by explicit destination mappings', () => {
+  const document = planDocumentFixture();
+  document.typedDependencies = [
+    externalRelationship('first', 'source-a'),
+    externalRelationship('second', 'source-b'),
+  ];
+  document.externalMappings = ['source-a', 'source-b'].map((projectId) => ({
+    source: { scope: 'whole', projectId, workItemId: 'prerequisite' },
+    destination: { scope: 'whole', projectId: 'destination', workItemId: 'mapped' },
+  }));
+  expect(prepareImport(document, supportsAll)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'typedDependencies[1]',
+    detail: 'duplicate',
+  });
+});
+
+test('preserves distinct mapped scopes and original source identities', () => {
+  const document = planDocumentFixture();
+  document.typedDependencies = [
+    externalRelationship('first', 'source-a'),
+    externalRelationship('second', 'source-b'),
+  ];
+  const prepared = prepareImport(document, supportsAll);
+  expect(prepared.ok).toBe(true);
+  if (!prepared.ok) throw new Error('valid external preparation refused');
+  expect(
+    prepared.value.externalDependencies.map(({ predecessor }) => predecessor.projectId),
+  ).toEqual(['source-a', 'source-b']);
+});
+
+test('final scoped tuple comparison detects collisions across declaration arms', () => {
+  const relationship = {
+    path: 'typedDependencies[0]',
+    type: 'FS' as const,
+    predecessor: { scope: 'whole' as const, projectId: 'destination', workItemId: 'mapped' },
+    successor: { scope: 'whole' as const, projectId: 'new-owner', workItemId: 'new-row' },
+  };
+  expect(
+    findImportDependencyDuplicate([
+      relationship,
+      { ...relationship, path: 'typedDependencies[1]' },
+    ]),
+  ).toBe('typedDependencies[1]');
+  expect(findImportDependencyDuplicate([relationship, { ...relationship, type: 'SS' }])).toBeNull();
+  expect(
+    findImportDependencyDuplicate([
+      relationship,
+      { ...relationship, successor: { ...relationship.successor, projectId: 'other-owner' } },
+    ]),
+  ).toBeNull();
+  expect(
+    findImportDependencyDuplicate([
+      relationship,
+      { ...relationship, predecessor: { ...relationship.predecessor, projectId: 'other-project' } },
+    ]),
+  ).toBeNull();
+});

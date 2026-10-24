@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+../puni-wire-round1-review-probes/artifact.test.ts:
+(pass) existing local solver revalidator loads directly from source [185.83ms]
+
+(pass) existing local solver revalidator loads from Bun release-style bundle [192.67ms]
+
+ 2 pass
+ 0 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [383.00ms]

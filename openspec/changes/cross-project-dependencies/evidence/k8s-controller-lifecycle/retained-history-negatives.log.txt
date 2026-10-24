@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+(pass) mounted retained history refuses active before source capture [1727.33ms]
+(pass) mounted retained history refuses terminating before source capture [1666.61ms]
+(pass) mounted retained history refuses condition before source capture [1632.38ms]
+(pass) mounted retained history refuses deleting-job before source capture [1611.70ms]
+(pass) mounted retained history refuses live-pod before source capture [1416.70ms]
+(pass) mounted retained history refuses deleting-pod before source capture [1440.85ms]
+
+ 6 pass
+ 32 filtered out
+ 0 fail
+ 18 expect() calls
+Ran 6 tests across 1 file. [9.54s]

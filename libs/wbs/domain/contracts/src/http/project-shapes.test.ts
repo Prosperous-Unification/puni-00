@@ -38,12 +38,35 @@ test('preserves seven operation ids and declares both export representations wit
   const document = documentFromShapes(shapes);
   const content = document.paths['/api/projects/{id}/export']?.['get']?.responses['200']?.content;
   expect(Object.keys(content ?? {})).toEqual(['application/json', 'text/markdown; charset=utf-8']);
-  expect(content?.['application/json']?.schema).toMatchObject({
-    type: 'object',
-    properties: { project: { type: 'object' }, workItems: { type: 'array' } },
-  });
-  expect(content?.['application/json']?.schema).not.toHaveProperty('properties.undoable');
-  expect(content?.['application/json']?.schema).not.toHaveProperty('properties.redoable');
+  const schema = content?.['application/json']?.schema;
+  expect(schema).toHaveProperty('anyOf');
+  if (schema === undefined || !('anyOf' in schema))
+    throw new Error('export response must declare versioned document arms');
+  expect(schema.anyOf).toHaveLength(2);
+  const armsByVersion = new Map(
+    schema.anyOf.map((arm) => [
+      (arm as { properties?: { document?: { properties?: { version?: { const?: unknown } } } } })
+        .properties?.document?.properties?.version?.const,
+      arm,
+    ]),
+  );
+  expect(armsByVersion.size).toBe(2);
+  for (const version of [10, 11]) {
+    const arm = armsByVersion.get(version);
+    expect(arm).toMatchObject({
+      type: 'object',
+      properties: {
+        document: {
+          properties: { format: { const: 'wbs-plan' }, version: { const: version } },
+          required: ['exportedAt', 'format', 'version'],
+        },
+        project: { type: 'object' },
+        workItems: { type: 'array' },
+      },
+    });
+    expect(arm).not.toHaveProperty('properties.undoable');
+    expect(arm).not.toHaveProperty('properties.redoable');
+  }
   expect(document.paths['/api/projects/{id}']?.['patch']?.requestBody).toMatchObject({
     required: true,
   });

@@ -1,3 +1,4 @@
+import { type DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts';
 import { type Timers, withinDeadline } from '@wbs/runtime-portable';
 
 /** The fetch surface needed by gateway HTTP adapters. */
@@ -13,6 +14,8 @@ export interface BackendRequestOptions {
 }
 
 export interface RequestIdentity {
+  /** Exact semantics selected for this connection; absent for legacy sockets. */
+  dependencySemantics?: typeof DEPENDENCY_SEMANTICS;
   clientId: string;
   connectionId: string;
   traceId: string;
@@ -50,6 +53,10 @@ export async function requestBackend<T>(
       const response = await opts.fetchImpl(`${opts.beUrl}/internal/${route}`, {
         method: 'POST',
         headers: {
+          // Proof: omitting this header or unconditionally claiming V1 failed capable or legacy forward/resume in dependency-forwarding.test.ts.
+          ...(identity.dependencySemantics === undefined
+            ? {}
+            : { [DEPENDENCY_SEMANTICS_HEADER]: identity.dependencySemantics }),
           'content-type': 'application/json',
           'x-internal-auth': opts.secret,
           'x-client-id': identity.clientId,

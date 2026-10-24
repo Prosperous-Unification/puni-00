@@ -1,0 +1,360 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts:
+(pass) before activation > reads any project deployment-wide, crossing rows and all [360.40ms]
+(pass) after activation > reads a coherent own project, to viewers too [176.25ms]
+(pass) after activation > shows assignees under the organization's own names [143.11ms]
+(pass) after activation > answers 404 alike for a foreign and an absent project [126.44ms]
+(pass) after activation > refuses an unbound session and a removed member before any lookup [145.93ms]
+{"level":"error","time":1792683939529,"service":"be-01","err":{"occurrence_id":"AE_ESYKRQ50WVBKXMSXP775990Y0B","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"bf989944-42ae-4504-a868-e7cdbb4dc0df\" holds references outside its organization: estimate_step","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing estimate_step [148.93ms]
+{"level":"error","time":1792683939661,"service":"be-01","err":{"occurrence_id":"AE_T7A91SSGMWTRF4KE41P88RE0YB","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"a96e3b44-2bc9-4aa9-b3d6-9a1941fcc712\" holds references outside its organization: actual_step","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing actual_step [130.39ms]
+{"level":"error","time":1792683939794,"service":"be-01","err":{"occurrence_id":"AE_4XGJEV6K14BCMC72843P6C4E03","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"f6019dc5-19cf-439a-9a21-d2df16e535c7\" holds references outside its organization: step_progress_step","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing step_progress_step [133.94ms]
+{"level":"error","time":1792683939925,"service":"be-01","err":{"occurrence_id":"AE_J0F34CEE6JFEYATWFVGB0N5PWT","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"bdb4b3ae-41fe-4716-8f6d-d22d0a8e4fbb\" holds references outside its organization: step_measure_step","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing step_measure_step [130.39ms]
+{"level":"error","time":1792683940056,"service":"be-01","err":{"occurrence_id":"AE_RRVM0CKQ83KRFAJT36XGJ537QN","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"0cc861a4-f561-47bb-ac76-ca704751528c\" holds references outside its organization: step_node_attempt_step","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing step_node_attempt_step [130.55ms]
+{"level":"error","time":1792683940188,"service":"be-01","err":{"occurrence_id":"AE_K0WTRA6AG8BWB568XZ14EFVBYQ","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"b2f54fc9-be67-4e9a-aaa3-244d0ed06289\" holds references outside its organization: step_node_attempt_person","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing step_node_attempt_person [132.73ms]
+{"level":"error","time":1792683940316,"service":"be-01","err":{"occurrence_id":"AE_6N9KE8AJZWA7NXA9Z6K2DFN8EV","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"ad1c716e-3af7-4d25-8c9f-87202e232b19\" holds references outside its organization: assignment_step","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing assignment_step [127.72ms]
+{"level":"error","time":1792683940442,"service":"be-01","err":{"occurrence_id":"AE_AE10EK9SCGW69EXXECEV005CVD","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"4b0a99f7-3893-48e6-93de-298959e64884\" holds references outside its organization: assignment_person","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing assignment_person [125.99ms]
+{"level":"error","time":1792683940575,"service":"be-01","err":{"occurrence_id":"AE_S74R03P5K90DMQKMMZVXN82WVG","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"5d8ac3f0-f1ba-45f3-91d0-be8a0e1b869a\" holds references outside its organization: claim_person","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing claim_person [133.47ms]
+{"level":"error","time":1792683940743,"service":"be-01","err":{"occurrence_id":"AE_ZNA5V2XVMS4DSDY6M8K9MZ32ZT","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"bd191c5e-1ede-4a58-b598-fcd024133ae8\" holds references outside its organization: work_item_tag","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing work_item_tag [167.36ms]
+{"level":"error","time":1792683940871,"service":"be-01","err":{"occurrence_id":"AE_BVJ8YFH1KK0EZPJ5AYJG2ZH803","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"1c0db529-e9ec-450a-b108-6a1e4e2a1377\" holds references outside its organization: work_item_team","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing work_item_team [128.20ms]
+{"level":"error","time":1792683940996,"service":"be-01","err":{"occurrence_id":"AE_BHG74BP31WPCPPKQYKH44V1AS1","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"d2f9597b-9982-4ec5-ac1c-151d223c7189\" holds references outside its organization: work_item_type","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing work_item_type [124.69ms]
+{"level":"error","time":1792683941152,"service":"be-01","err":{"occurrence_id":"AE_P53ARJ1T7G7FD6KE5JSMB5V7RY","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"5f6a9b80-4448-42dc-9a9a-ea6c84f196da\" holds references outside its organization: work_item_service_link","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing work_item_service_link [155.85ms]
+{"level":"error","time":1792683941281,"service":"be-01","err":{"occurrence_id":"AE_YH3PZBC9Y3QHYFHZZBWBP4YXNH","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"55273423-ebf4-42a1-8de4-689375ef6450\" holds references outside its organization: work_item_external_ref","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing work_item_external_ref [129.71ms]
+{"level":"error","time":1792683941434,"service":"be-01","err":{"occurrence_id":"AE_QW5456BS6YGAYJPX4R63ZGYJA9","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"d782b7f1-0ee2-4d2b-a4bb-518cbdee97bd\" holds references outside its organization: work_item_service_team","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing work_item_service_team [152.69ms]
+{"level":"error","time":1792683941574,"service":"be-01","err":{"occurrence_id":"AE_CZQYQ8VF0NJC01VWEYE9YSYS1V","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"babd226f-e526-411d-9c6d-02964015ac93\" holds references outside its organization: work_item_service","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing work_item_service [140.03ms]
+{"level":"error","time":1792683941723,"service":"be-01","err":{"occurrence_id":"AE_4B2T6EH00TETEZ32ZM2G011WYB","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"dd45d106-88de-446c-87bf-2a3b7d24f2ea\" holds references outside its organization: work_item_parent","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing work_item_parent [149.43ms]
+{"level":"error","time":1792683941854,"service":"be-01","err":{"occurrence_id":"AE_MYPGW1875H3VJMRTZBD4A5TWXB","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"4bdffc31-1791-4e23-923f-d91482d68770\" holds references outside its organization: dependency_endpoint","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing dependency_endpoint [130.61ms]
+{"level":"error","time":1792683941987,"service":"be-01","err":{"occurrence_id":"AE_93Z2ME350392AQHTZWV6J2RA3Z","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"b6c9fd80-4b1f-47a5-9e52-ae0bd1576a07\" holds references outside its organization: project_team_capacity","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the schedule read closed over a crossing project_team_capacity [133.29ms]
+{"level":"error","time":1792683942118,"service":"be-01","err":{"occurrence_id":"AE_QQDTFQYGD24YKSG8JPZGBYCCKM","fingerprint":"fp1_393ab8510da3599d67843f9148d01b21","stack":["Error: project \"e81a5133-b238-4405-a6ba-3223885237d9\" holds references outside its organization: work_item_tag","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails closed over a catalog entry the organization does not own at all [131.00ms]
+{"level":"error","time":1792683942249,"service":"be-01","err":{"occurrence_id":"AE_QR3GDD2C1FG33HSHPVNVYYSFNY","fingerprint":"fp1_f796839eb9e7a94da7efd3b1bb422bd7","stack":["Error: project \"afa6b102-2f8b-4bf4-843c-adb07f47e614\" holds references outside its organization: estimate_step","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1910:22)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/project.routes.ts:285:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792683942253,"service":"be-01","err":{"occurrence_id":"AE_EPAPX0F9HRRZP6XFCZ533N8ZYW","fingerprint":"fp1_c9870f66dada267223154f1fafe49525","stack":["Error: project \"afa6b102-2f8b-4bf4-843c-adb07f47e614\" holds references outside its organization: estimate_step","    at admits (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2031:19)","    at async scheduleInputWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1556:22)","    at async optimizationInputWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1635:30)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/project.routes.ts:380:42)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) after activation > fails the export and the optimizer retry closed over a crossing row [134.25ms]
+(pass) shared live projection > installed saved capture and current comparison retain their own shared chain [536.47ms]
+(pass) shared live projection > rechecks admitted human authority inside shared save capture [395.35ms]
+(pass) shared live projection > rechecks admitted human authority inside shared compare capture [389.77ms]
+(pass) shared live projection > stores shared S4 pending for target without live admission [399.91ms]
+(pass) shared live projection > stores shared S4 unavailable for upstream without live admission [381.50ms]
+(pass) shared live projection > stores shared S4 infeasible for cycle without live admission [409.49ms]
+(pass) shared live projection > stores shared S4 infeasible for calendar_range without live admission [410.67ms]
+(pass) shared live projection > stores the selected ready optimized schedule without admitting live work [413.41ms]
+(pass) shared live projection > stores selected failed optimization as unavailable through installed capture [413.65ms]
+(pass) shared live projection > stores selected corrupt optimization as unavailable through installed capture [416.86ms]
+(pass) shared live projection > shared tree and export agree [376.86ms]
+(pass) shared holder labels > names whom a slice waits for in the project above [359.93ms]
+(pass) shared transactional consumers > shared command preflight sees staged writes and arrangement [459.99ms]
+(pass) shared detached evidence > keeps live metadata and local names on the scheduling observation [407.85ms]
+(pass) shared detached evidence > keeps isolated live responses without elsewhere and avoids directory materialization [369.60ms]
+(pass) borrowed command evidence > shared calendar preflight independently sees staged estimates [406.82ms]
+(pass) borrowed command evidence > shared arrangement sees staged work-item dates [418.95ms]
+(pass) shared displayed cache evidence > refuses Retry for a required unavailable engine with its readable influencer identity [391.79ms]
+(pass) shared displayed cache evidence > refuses Retry for a target cycle without optimizer writes or launch [376.87ms]
+(pass) shared displayed cache evidence > refuses Retry for a target calendar_range without optimizer writes or launch [365.29ms]
+(pass) shared displayed cache evidence > keeps a schedulable target when an upstream cycle omits its bookings [367.47ms]
+(pass) shared displayed cache evidence > keeps a schedulable target when an upstream calendar_range omits its bookings [389.24ms]
+(pass) shared displayed cache evidence > rechecks human authority in the Retry capture after route write admission [352.71ms]
+(pass) shared displayed cache evidence > closes the human Retry snapshot before a matching-hash launcher handoff [376.67ms]
+(pass) shared displayed cache evidence > Retry rejects an upstream-only old hash and launches the matching holder-bearing input [413.81ms]
+(pass) shared displayed cache evidence > rebuilds a queued shared request from the current upstream booking [425.85ms]
+(pass) shared displayed cache evidence > closes the shared observation before admitting while retaining its display [379.91ms]
+(pass) shared displayed cache evidence > keeps optimizer enablement and upstream input on one observation [944.47ms]
+(pass) shared displayed cache evidence > export and borrowed arrangement do not admit a shared optimizer request [383.02ms]
+(pass) shared displayed cache evidence > uses captured ready optimization for borrowed arrange and freeze (shared=%s) [382.48ms]
+(pass) shared displayed cache evidence > uses captured ready optimization for borrowed arrange and freeze (shared=%s) [403.60ms]
+(pass) shared displayed cache evidence > edit admission hashes the changed upstream booking with its holder [656.36ms]
+(pass) shared displayed cache evidence > admits a holder-bearing shared input after the captured tree closes [369.74ms]
+(pass) shared displayed cache evidence > keeps publication after snapshot outside its captured display without live admission [357.28ms]
+(pass) shared snapshot authority > refuses revocation between route admission and shared snapshot [389.22ms]
+(pass) shared snapshot authorization observation > retains authorization when membership is revoked after the snapshot authority read [365.27ms]
+(pass) shared snapshot authorization observation > refuses activation between legacy admission and snapshot [348.86ms]
+{"level":"error","time":1792683958005,"service":"be-01","err":{"occurrence_id":"AE_JEZ7C4VM443KYJPEP0VAKPN6PF","fingerprint":"fp1_2ab5626bfca1bcfb4cb1a65776c07039","constructor_name":"OrganizationActivationRefused","message":"organization activation marker is absent: organization_activation does not exist","as_json":{"marker":"absent"},"stack":["Error: organization activation marker is absent: organization_activation does not exist","    at readOrganizationActivation (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/organization-activation.ts:61:15)","    at readLivePlanIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:576:9)","    at observe (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:365:32)","    at treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1883:50)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) shared snapshot authorization observation > fails closed for missing marker introduced after admission [344.61ms]
+{"level":"error","time":1792683958368,"service":"be-01","err":{"occurrence_id":"AE_GN0384VCPJW73NQ8BF0KQF4MKV","fingerprint":"fp1_6c144c5476cc1dda586b6e303c341e12","constructor_name":"OrganizationActivationRefused","message":"organization activation marker is unreadable","as_json":{"marker":"unreadable"},"stack":["Error: organization activation marker is unreadable","    at readOrganizationActivation (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/organization-activation.ts:74:15)","    at readLivePlanIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:576:9)","    at observe (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:365:32)","    at treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1883:50)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"DrizzleQueryError","message":"Failed query: SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type\n        FROM organization_activation\nparams: ","as_string":"DrizzleQueryError: Failed query: SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type\n        FROM organization_activation\nparams: ","as_json":{"query":"SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type\n        FROM organization_activation","params":[],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type","        FROM organization_activation","params: ","    at prepareQuery (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:14)","    at all (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:330:33)","    at readOrganizationActivation (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/organization-activation.ts:67:15)","    at readLivePlanIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:576:9)","    at observe (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:365:32)","    at treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1883:50)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"child_ids":["1"],"as_string_format":"derived"},{"id":"1","path":"$.cause.cause","level":2,"constructor_name":"Error","message":"no such column: singleton","as_json":{"code":"SQLITE_ERROR","errno":1,"byteOffset":7},"stack":["SQLiteError: no such column: singleton","    at prepare (unknown)","    at [prepareOwned] (bun:sqlite:330:37)","    at query (bun:sqlite:347:31)","    at prepareQuery (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)","    at all (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:330:33)","    at readOrganizationActivation (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/organization-activation.ts:67:15)","    at readLivePlanIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:576:9)","    at observe (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:365:32)","    at treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1883:50)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) shared snapshot authorization observation > fails closed for unreadable marker introduced after admission [362.79ms]
+{"level":"error","time":1792683958726,"service":"be-01","err":{"occurrence_id":"AE_5XTJEFCGZBD648C696K2R45MKD","fingerprint":"fp1_353965cf8fc1dbc4bc4a83e5fd3313b7","constructor_name":"OrganizationActivationRefused","message":"organization activation marker is malformed: 1 rows, expected one consistent row","as_json":{"marker":"malformed"},"stack":["Error: organization activation marker is malformed: 1 rows, expected one consistent row","    at readOrganizationActivation (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/organization-activation.ts:85:15)","    at readLivePlanIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:576:9)","    at observe (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:365:32)","    at treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1883:50)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) shared snapshot authorization observation > fails closed for malformed marker introduced after admission [358.34ms]
+{"level":"error","time":1792683959057,"service":"be-01","err":{"occurrence_id":"AE_Q4DDH3T307499YHDZPB8KX5H6M","fingerprint":"fp1_cf995e1fd09b0e9706d6ee32d033338e","stack":["Error: membership in organization \"org-a\" has a malformed role","    at validateStoredRole (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/organization-access.ts:328:15)","    at currentMembershipAccess (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/organization-access.ts:216:46)","    at readLivePlanIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:579:22)","    at observe (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:365:32)","    at treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1883:50)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/work-item.routes.ts:536:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) shared snapshot authorization observation > fails closed for malformed membership introduced after admission [330.71ms]
+(pass) shared snapshot authorization observation > fails closed for reset marker introduced after admission [340.38ms]
+(pass) shared export observation > keeps structured export project directory and markers on the captured observation (json) [375.71ms]
+(pass) shared export observation > keeps structured export project directory and markers on the captured observation (markdown) [386.20ms]
+(pass) v9 sparse export uses its shared observation across concurrent change (true) [343.13ms]
+(pass) v9 sparse export uses its shared observation across concurrent change (false) [348.74ms]
+
+apps/wbs/be-01/src/controller/cross-project-export.controller.db.test.ts:
+(pass) mounted JSON exports v11 required evidence and stable incoming UUIDs without durable admission [303.21ms]
+(pass) mounted JSON preserves explicit unavailable outcomes and null dates [279.05ms]
+{"level":"error","time":1792683961708,"service":"be-01","err":{"occurrence_id":"AE_ZEKGX2ZDRY8VJ6JYEYSXGJW48D","fingerprint":"fp1_60fd449a0b6921f23a060c85421b16b2","stack":["Error: Endpoint getApiProjectsByIdExport returned an undeclared success representation","    at renderReply (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/http/elysia/mount.ts:491:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792683961721,"service":"be-01","err":{"occurrence_id":"AE_18RYGYG070P6Q50350JDTTMWH4","fingerprint":"fp1_60fd449a0b6921f23a060c85421b16b2","stack":["Error: Endpoint getApiProjectsByIdExport returned an undeclared success representation","    at renderReply (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/http/elysia/mount.ts:491:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) mounted response rejects absent and malformed required v11 history independently [288.23ms]
+(pass) mounted export serializes captured labels settings and markers after observation closure [292.21ms]
+
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:
+(pass) mounted v11 external import refuses before any SQLite write (seeded storage authority: false) [481.63ms]
+(pass) mounted v11 external import refuses before any SQLite write (seeded storage authority: true) [489.74ms]
+(pass) mounted v1 refuses a disguised external prerequisite without writes or events [456.43ms]
+(pass) mounted v2 refuses a disguised external prerequisite without writes or events [458.63ms]
+(pass) mounted v3 refuses a disguised external prerequisite without writes or events [518.00ms]
+(pass) the JSON export > exports only the organization's own directory, under its local names [523.63ms]
+{"level":"error","time":1792683965476,"service":"be-01","err":{"occurrence_id":"AE_Q9W7H7RWKATA7A604CNRWXHDDB","fingerprint":"fp1_7a8955c4317a88d6da9966bb03b940ae","stack":["Error: a person of organization \"org-a\" belongs to a foreign team","    at listPeopleIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/directory.ts:612:19)","    at async treeWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1922:34)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/project.routes.ts:285:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) the JSON export > fails the JSON export closed over a person in a foreign team [530.33ms]
+(pass) the import > imports into the organization, resolving names among its own entries [522.36ms]
+(pass) the import > keeps a slug only another organization holds [527.64ms]
+(pass) the import > refuses an empty solution slug or url as input, importing nothing [476.13ms]
+(pass) the import > tells only the organization's projects that its directory changed [497.28ms]
+(pass) the import > records the imported earlier project displacing a tied lower project [529.72ms]
+(pass) the import > records a shared-person tail import only for the new recipient [545.83ms]
+(pass) the import > records two real displaced recipients for an earlier tied import [529.75ms]
+{"level":"error","time":1791158400000,"service":"be-01","err":{"occurrence_id":"AE_CRE64AWG0HSVFKN9Y32KNXZ3AB","fingerprint":"fp1_fdc06bb132e9e288b92b2dd3d520020f","constructor_name":"DrizzleQueryError","message":"Failed query: \n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      \nparams: project:f0000000-0000-4000-8000-000000000004,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"f0000000-0000-4000-8000-000000000004\",\"causeProjectId\":\"00000000-0000-4000-8000-000000000001\"},1791158400000","as_string":"DrizzleQueryError: Failed query: \n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      \nparams: project:f0000000-0000-4000-8000-000000000004,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"f0000000-0000-4000-8000-000000000004\",\"causeProjectId\":\"00000000-0000-4000-8000-000000000001\"},1791158400000","as_json":{"query":"\n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      ","params":["project:f0000000-0000-4000-8000-000000000004",0,"{\"type\":\"elsewhere_changed\",\"projectId\":\"f0000000-0000-4000-8000-000000000004\",\"causeProjectId\":\"00000000-0000-4000-8000-000000000001\"}",1791158400000],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: ","        INSERT INTO event_log (subscription, seq, message, created_at)","        VALUES (?, ?, ?, ?)","      ","params: project:f0000000-0000-4000-8000-000000000004,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"f0000000-0000-4000-8000-000000000004\",\"causeProjectId\":\"00000000-0000-4000-8000-000000000001\"},1791158400000","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:77:14)","    at recordEventIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/event-log.ts:68:8)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/event-log.ts:82:17)","    at recordEvent (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/event-log.ts:80:28)","    at recordCommittedFanout (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/service/committed-fanout.ts:61:37)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-import/composition.ts:121:32)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"Error","message":"later recipient insert","as_json":{"code":"SQLITE_CONSTRAINT_TRIGGER","errno":1811,"byteOffset":-1},"stack":["SQLiteError: later recipient insert","    at run (unknown)","    at #run (bun:sqlite:187:20)","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)","    at recordEventIn (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/event-log.ts:68:8)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/event-log.ts:82:17)","    at recordEvent (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/event-log.ts:80:28)","    at recordCommittedFanout (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/service/committed-fanout.ts:61:37)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-import/composition.ts:121:32)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) the import > rolls back the whole import when a later real recipient event insert fails [742.22ms]
+{"level":"error","time":1792683970544,"service":"be-01","err":{"occurrence_id":"AE_VVWKW88M55YKZP9X3FKP2ZC1FC","fingerprint":"fp1_c3a8837144d283c351acd3fee224935c","stack":["Error: injected import capture failure","    at <anonymous> (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:600:36)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/source.ts:129:37)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-import/composition.ts:111:40)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) the import > does not begin import writes or delivery when the borrowed before capture fails [699.06ms]
+{"level":"error","time":1792683971248,"service":"be-01","err":{"occurrence_id":"AE_5AEQRN7Q01ZCKD7Q5DANBPN1PE","fingerprint":"fp1_716aead530535355ce066f797f303231","stack":["Error: injected import after capture failure","    at <anonymous> (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:634:39)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/source.ts:129:37)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-import/composition.ts:118:39)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) the import > rolls back completed import writes when the borrowed after capture fails [704.70ms]
+(pass) the import > returns a typed late source refusal and rolls back the installed scoped import [725.37ms]
+{"level":"warn","time":1792683972718,"service":"be-01","err":{"occurrence_id":"AE_QVX9G6PC4YQ5HJXB2FR641RC0Z","fingerprint":"fp1_f9a264a429a1ff285d0cb97758996325","as_json":{"name":"PushFailed"},"stack":["PushFailed: push failed with 400: injected transport refusal","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/runtime-portable/src/push-client.ts:104:25)","    at async untilAborted (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-v11-export-impl/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:68247723-7a8f-490b-910e-265ef5bab19b","msg":"project event recorded but not pushed"}
+(pass) the import > keeps committed import and event rows when the downstream push refuses delivery [744.26ms]
+(pass) the import > keeps directory reconciliation inside its one borrowed import owner [712.06ms]
+(pass) the import > keeps an unused-person import silent in the durable fan-out log [498.62ms]
+(pass) the import > refuses a queued import after membership becomes viewer before capture [650.58ms]
+(pass) the import > refuses a queued import after membership becomes removed before capture [700.16ms]
+{"level":"error","time":1792683975952,"service":"be-01","err":{"occurrence_id":"AE_2B80H5JBE8Y26BZK9HNKZ59AQS","fingerprint":"fp1_379d30d07233ef21e6da6564f6ba637e","stack":["Error: membership in organization \"org-a\" has a malformed role","    at validateStoredRole (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/organization-access.ts:328:15)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/fanout-capture.ts:93:7)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/source.ts:221:25)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-import/composition.ts:108:43)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) the import > refuses a queued import after membership becomes corrupt before capture [670.67ms]
+(pass) the import > refuses a viewer's import [505.17ms]
+(pass) the import > refuses an unbound session and a removed member before any import [497.88ms]
+{"level":"error","time":1792683977450,"service":"be-01","err":{"occurrence_id":"AE_KHGBW6ED2TYFKEEQJWB70517QW","fingerprint":"fp1_d3c4538f95cd114990b5edfa9aac92d9","stack":["Error: unknown estimate method in the database: broken","    at toProject (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/project.ts:296:15)","    at async readBySolutionSlugWithin (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/project/project.resource.ts:400:36)","    at async <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/http/solution.routes.ts:21:36)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) the solution lookup > answers a foreign solution slug as an absent one, even when its row is unreadable [495.00ms]
+(pass) the solution lookup > answers a foreign solution slug as an absent one [494.87ms]
+(pass) round-trips minute units through the composed import/export and refuses malformed minute documents atomically [497.29ms]
+(pass) v9 direct blockage transfer > refuses disabled nonempty v9 import atomically but permits empty import and export [503.92ms]
+(pass) v9 direct blockage transfer > imports remapped facts and captures them in the mounted export [528.42ms]
+{"level":"error","time":1792683979966,"service":"be-01","err":{"occurrence_id":"AE_5Y4X9PQ80PJQ0C3XZG6HMC0K19","fingerprint":"fp1_cd34bb0a373667b5d853b87aadefed5e","constructor_name":"DrizzleQueryError","message":"Failed query: insert into \"step_blockage\" (\"work_item_id\", \"step_id\", \"blocked_at\", \"created_at\", \"updated_at\", \"created_by\") values (?, ?, ?, ?, ?, ?) on conflict (\"step_blockage\".\"work_item_id\", \"step_blockage\".\"step_id\") do update set \"blocked_at\" = ?, \"updated_at\" = ?\nparams: 37e8a64d-097e-4327-a0cc-49af74228b31,4a3842bb-37b7-43c9-a1d9-b328fb65dae4,31,1792683979963,1792683979963,c1e63a01-32a5-4a3a-8a7a-ecd330f7859f,31,1792683979963","as_string":"DrizzleQueryError: Failed query: insert into \"step_blockage\" (\"work_item_id\", \"step_id\", \"blocked_at\", \"created_at\", \"updated_at\", \"created_by\") values (?, ?, ?, ?, ?, ?) on conflict (\"step_blockage\".\"work_item_id\", \"step_blockage\".\"step_id\") do update set \"blocked_at\" = ?, \"updated_at\" = ?\nparams: 37e8a64d-097e-4327-a0cc-49af74228b31,4a3842bb-37b7-43c9-a1d9-b328fb65dae4,31,1792683979963,1792683979963,c1e63a01-32a5-4a3a-8a7a-ecd330f7859f,31,1792683979963","as_json":{"query":"insert into \"step_blockage\" (\"work_item_id\", \"step_id\", \"blocked_at\", \"created_at\", \"updated_at\", \"created_by\") values (?, ?, ?, ?, ?, ?) on conflict (\"step_blockage\".\"work_item_id\", \"step_blockage\".\"step_id\") do update set \"blocked_at\" = ?, \"updated_at\" = ?","params":["37e8a64d-097e-4327-a0cc-49af74228b31","4a3842bb-37b7-43c9-a1d9-b328fb65dae4",31,1792683979963,1792683979963,"c1e63a01-32a5-4a3a-8a7a-ecd330f7859f",31,1792683979963],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: insert into \"step_blockage\" (\"work_item_id\", \"step_id\", \"blocked_at\", \"created_at\", \"updated_at\", \"created_by\") values (?, ?, ?, ?, ?, ?) on conflict (\"step_blockage\".\"work_item_id\", \"step_blockage\".\"step_id\") do update set \"blocked_at\" = ?, \"updated_at\" = ?","params: 37e8a64d-097e-4327-a0cc-49af74228b31,4a3842bb-37b7-43c9-a1d9-b328fb65dae4,31,1792683979963,1792683979963,c1e63a01-32a5-4a3a-8a7a-ecd330f7859f,31,1792683979963","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:77:14)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:98:14)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:90:17)","    at async writingStep (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/step-reference.ts:30:11)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"Error","message":"second blockage insert","as_json":{"code":"SQLITE_CONSTRAINT_TRIGGER","errno":1811,"byteOffset":-1},"stack":["SQLiteError: second blockage insert","    at run (unknown)","    at #run (bun:sqlite:187:20)","    at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:98:14)","    at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:90:17)","    at async writingStep (/tmp/puni-v11-export-impl/libs/wbs/adapters/store-sqlite/src/step-reference.ts:30:11)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) v9 direct blockage transfer > rolls back the entire scoped import after the first real blockage insert [492.50ms]
+(pass) v9 direct blockage transfer > refuses stepBlockages[0].workItemId before scoped writes [490.03ms]
+(pass) v9 direct blockage transfer > refuses stepBlockages[0].stepId before scoped writes [470.01ms]
+(pass) v9 sparse export fence refuses authored equality without mutation (isolated) [565.25ms]
+(pass) v9 sparse export fence refuses authored equality without mutation (shared) [543.29ms]
+{"level":"error","time":1792683982600,"service":"be-01","err":{"occurrence_id":"AE_P0H4Q10V2RJET5WKPF42BGFXPF","fingerprint":"fp1_8de75515668915ae33c97e6a66b8676c","stack":["Error: sparse authority must not be read","    at <anonymous> (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:1102:11)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) v9 sparse export authorizes before reading sparse facts (isolated) [563.92ms]
+{"level":"error","time":1792683983147,"service":"be-01","err":{"occurrence_id":"AE_B8GCVAESW1RXV14JX8SYM5TKKD","fingerprint":"fp1_8de75515668915ae33c97e6a66b8676c","stack":["Error: sparse authority must not be read","    at <anonymous> (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:1102:11)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) v9 sparse export authorizes before reading sparse facts (shared) [546.74ms]
+{"level":"error","time":1792683983681,"service":"be-01","err":{"occurrence_id":"AE_WK23FK754D4GGSFNRZP393CXYD","fingerprint":"fp1_80632ea512604c12e4d12a794e1a0393","stack":["Error: unreadable sparse evidence","    at <anonymous> (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:1146:9)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) v9 sparse export retains uncoded refusal for valid shared evidence [534.22ms]
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+(pass) actual isolated live route captures remote readiness without a calendar [134.63ms]
+(pass) connected export captures required detached document evidence without a calendar [149.45ms]
+(pass) remote hold changes the connected proxy reading in the next observation [149.46ms]
+(pass) shared aggregate reuses one detached connected read with explicit member identity [146.14ms]
+(pass) a shared person peer selects the same external component from either target [154.12ms]
+(pass) alternating person and external bridges select one component from every rank [240.46ms]
+(pass) remote SS attempt evidence crosses actual SQLite live capture [145.00ms]
+(pass) unconnected isolated routing query count is independent of local edges [206.15ms]
+(pass) execution observation captures FS prerequisites without invoking any scheduler [141.07ms]
+(pass) execution observation rechecks membership and activation before materializing foreign evidence [116.71ms]
+(pass) execution observation refuses foreign and absent targets alike [102.15ms]
+(pass) borrowed service claim sees staged remote completion and collects its normal announcement [141.95ms]
+(pass) foreign holder labels remain captured after closure and subsequent live renames [162.62ms]
+(pass) shared aggregate schedules disconnected external components once each [168.62ms]
+(pass) shared aggregate captures calendars links and metadata in one observation [145.18ms]
+(pass) borrowed shared aggregate sees staged relationships and expires without owning the transaction [147.48ms]
+(pass) shared aggregate unavailable calendar allocates no durable solver or execution work [135.81ms]
+(pass) shared aggregate unavailable optimized allocates no durable solver or execution work [130.13ms]
+(pass) isolated private connected capture returns detached stage without admission [199.32ms]
+(pass) shared private connected capture returns detached stage without admission [214.77ms]
+(pass) owned isolated real selection excludes a rival publication until next observation [174.42ms]
+(pass) borrowed isolated real selection excludes a rival publication until next observation [157.96ms]
+(pass) owned shared real selection excludes a rival publication until next observation [154.90ms]
+(pass) borrowed shared real selection excludes a rival publication until next observation [160.27ms]
+(pass) connected export holds labels settings marker and sparse facts in one SQLite observation [142.61ms]
+
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:
+(pass) the chain snapshot > shared runtime selects mode within its authorized snapshot [223.21ms]
+(pass) the chain snapshot > resolves background reads from actual ownership and activation [197.94ms]
+(pass) the chain snapshot > refuses corrupt mode and broken background ownership [183.35ms]
+(pass) the chain snapshot > borrows staged mode without committing or closing the caller transaction [177.33ms]
+(pass) the chain snapshot > refuses a broken project-owned readable dependency [156.20ms]
+(pass) the chain snapshot > never materializes upstream assignments for isolated or legacy targets [185.56ms]
+(pass) the chain snapshot > never lists organization projects or ranks for isolated or legacy targets [187.96ms]
+(pass) the chain snapshot > reads mode on the authorized connection before a concurrent authority-bound edit [162.82ms]
+(pass) the chain snapshot > keeps background mode assignments and dates coherent and closes on throw [171.35ms]
+(pass) the chain snapshot > refuses writes through the production read-only factory [141.77ms]
+(pass) the chain snapshot > refuses a borrowed capture capability outside its readable project list [145.94ms]
+(pass) the chain snapshot > throws when rank and its trusted readable-list dependency disagree [137.46ms]
+(pass) the chain snapshot > throws when its trusted capture dependency loses a ranked project [141.23ms]
+(pass) the chain snapshot > schedules transitive bookings and closes with no runtime writes [154.81ms]
+(pass) the chain snapshot > keeps concurrent rank, assignment and date edits outside its snapshot [169.83ms]
+(pass) the chain snapshot > selects cache publication from the same snapshot and never calls live admission [193.83ms]
+(pass) the chain snapshot > stores an eligible old shared result only at H1 and never serves it for captured H2 [202.46ms]
+(pass) the chain snapshot > refuses removed membership and foreign targets without naming them [149.57ms]
+(pass) the chain snapshot > keeps pending target optimization absent under the saved S4 policy [153.93ms]
+(pass) the chain snapshot > keeps an unrepresentable shared target infeasible under the saved S4 policy [164.98ms]
+(pass) the chain snapshot > uses ranked ties before the unranked tail [184.09ms]
+(pass) the chain snapshot > rejects a crossing assignee and captures only organization-local directory entries [159.08ms]
+(pass) the chain snapshot > stores detached shared dates that survive upstream edits and deletion [174.94ms]
+(pass) the chain snapshot > closes and preserves a concurrent committed edit when capture throws [139.45ms]
+(pass) detached live snapshot guards > refuses a legacy aggregate read after activation [156.78ms]
+(pass) detached live snapshot guards > reuses captured scheduling across aggregate target closures [151.22ms]
+(pass) detached live snapshot guards > captures persisted blockage facts in the aggregate entry from its snapshot [165.39ms]
+(pass) detached live snapshot guards > keeps the incoming basis and full input identity across rename and unrelated rank changes [203.04ms]
+(pass) detached live snapshot guards > copies sparse adapter rows into private export evidence [161.61ms]
+(pass) detached live snapshot guards > detaches sparse export evidence before closing its owned snapshot [163.63ms]
+(pass) detached live snapshot guards > closes its owned connection after successful detached projection [165.77ms]
+(pass) detached live snapshot guards > closes its owned connection after authorization refusal [149.36ms]
+(pass) detached live snapshot guards > closes its owned connection after dependency failure [140.30ms]
+(pass) detached live snapshot guards > rejects an unreadable ranked live project [151.74ms]
+(pass) detached live snapshot guards > rejects a live target omitted by its rank dependency [141.00ms]
+
+apps/wbs/be-01/src/http/elysia/plan-document-boundary.test.ts:
+(pass) mounted malformed priority names workItems[3].priority [13.49ms]
+(pass) mounted unknown version precedes version-specific validation [6.19ms]
+(pass) mounted preparation refuses duplicate row id without opening a unit of work [7.95ms]
+(pass) mounted preparation refuses duplicate normalized tag name without opening a unit of work [6.81ms]
+(pass) mounted preparation refuses invalid date without opening a unit of work [6.65ms]
+(pass) mounted preparation refuses deadline before project start without opening a unit of work [6.59ms]
+(pass) mounted preparation refuses invalid priority without opening a unit of work [7.23ms]
+(pass) mounted preparation refuses invalid band without opening a unit of work [7.35ms]
+(pass) mounted preparation refuses invalid capacity without opening a unit of work [6.74ms]
+(pass) mounted preparation refuses unknown step without opening a unit of work [6.87ms]
+(pass) mounted preparation refuses invalid leaf value without opening a unit of work [7.16ms]
+(pass) mounted preparation refuses unknown system without opening a unit of work [6.71ms]
+(pass) mounted preparation refuses unknown person without opening a unit of work [6.74ms]
+(pass) mounted preparation refuses unknown dependency without opening a unit of work [7.23ms]
+(pass) mounted preparation refuses hierarchy cycle without opening a unit of work [6.73ms]
+(pass) mounted v5 import refuses missing type before opening a unit of work [8.05ms]
+(pass) mounted v5 import refuses unsupported type before opening a unit of work [6.57ms]
+(pass) mounted v5 import refuses dangling step before opening a unit of work [6.93ms]
+(pass) mounted v5 import refuses duplicate relationship before opening a unit of work [6.75ms]
+(pass) mounted enabled unavailable optimizer creates nothing [7.14ms]
+
+libs/wbs/domain/contracts/src/http/plan-document-connected-shapes.test.ts:
+(pass) connected response requires each provenance and placement field independently [1.40ms]
+(pass) connected response refuses missing positions and nonfinite offsets [0.41ms]
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+(pass) preserves the existing JSON export fields [0.63ms]
+(pass) JSON export is a versioned plan document and settings says what project says [1.64ms]
+(pass) capacity-only team is named and assigned agent keeps memberships and owned services [0.19ms]
+(pass) unreferenced tag is excluded [0.11ms]
+(pass) missing referenced entry throws [0.20ms]
+(pass) malformed priority names workItems[3].priority [1.82ms]
+(pass) unknown version precedes version-specific validation [0.60ms]
+(pass) v11 classifies a stable external predecessor and refuses its v10 disguise [1.63ms]
+(pass) v11 mapping binds only the declared stable source tuple [3.29ms]
+(pass) v11 internal endpoint cannot carry a contradictory external identity [0.83ms]
+(pass) v1–3 retain their historical treatment of file-local typed fields [2.07ms]
+(pass) refuses a version-4 document without its typed dependency list [0.80ms]
+(pass) version 5 classifies SS and FF while version 4 keeps its FS-only conversion [2.09ms]
+(pass) version 5 refuses a missing relationship type [0.72ms]
+(pass) the current export keeps SS and FF types from the trusted tree [0.37ms]
+(pass) archival validation projects derived fields away [0.93ms]
+(pass) exports each step’s allowance and reads it back from a current-format file [0.69ms]
+(pass) refuses a current-format file whose step has no allowance [0.68ms]
+(pass) reads a version-1 file through the legacy conversion, every step at 0% [0.76ms]
+(pass) refuses a version-1 file that names a step allowance [0.66ms]
+(pass) exports each step’s code and reads it back from a version-3 file [0.68ms]
+(pass) refuses to export a project holding an uncoded step, naming it [0.17ms]
+(pass) throws on a step read without a code key [0.20ms]
+(pass) throws when the trusted tree omits typed dependencies [0.22ms]
+(pass) throws when a trusted typed endpoint has no step [0.18ms]
+(pass) throws when a trusted typed relationship has an unknown type [0.16ms]
+(pass) refuses a version-3 file whose step has no string code [2.48ms]
+(pass) reads a version-2 file as before codes existed, leaving each code to suggestion [2.64ms]
+(pass) spells each leaf’s step nodes beside their IDs [1.02ms]
+(pass) version 6 carries each row’s readiness and hold, and earlier versions read as nothing said [2.14ms]
+(pass) refuses a version-6 hold or readiness outside its vocabulary or on a parent, and accepts a hold on done work [3.50ms]
+(pass) exports a Kyiv project’s zone and each leaf’s attempts by step code, executors by name [1.96ms]
+(pass) reads a version-7 file’s zone and attempts back, and a version-6 file as UTC with none [2.24ms]
+(pass) refuses a version-7 zone, outcome, order, running pair or running number it cannot hold [7.40ms]
+(pass) version 8 keeps minute step units and refuses missing or unknown written units [2.60ms]
+(pass) v9 exports detached direct blockage facts and excludes row aliases [0.28ms]
+(pass) v9 requires facts and legacy files refuse facts instead of losing them [3.43ms]
+(pass) v9 excludes derived blockage causes and captured exports retain the same facts [0.40ms]
+(pass) v9 trusted export refuses absent leaf map [0.29ms]
+(pass) v9 trusted export refuses unknown step [0.13ms]
+(pass) v9 trusted export refuses unsafe time [0.10ms]
+(pass) v9 trusted export refuses parent owner [0.10ms]
+(pass) v9 classifies malformed facts null [0.52ms]
+(pass) v9 classifies malformed facts {} [0.47ms]
+(pass) v9 classifies malformed facts "wrong" [0.44ms]
+(pass) v9 classifies malformed facts [null] [0.42ms]
+(pass) v9 classifies malformed facts [{"workItemId":1,"stepId":"step-1","blockedAt":1}] [0.40ms]
+(pass) v9 classifies malformed facts [{"workItemId":"row-1","stepId":1,"blockedAt":1}] [0.42ms]
+(pass) v9 classifies malformed facts [{"workItemId":"row-1","stepId":"step-1","blockedAt":1.5}] [0.41ms]
+(pass) v9 classifies malformed facts [{"workItemId":"row-1","stepId":"step-1","blockedAt":9007199254740992}] [0.45ms]
+(pass) legacy row blockage aliases are refused, while empty aliases normalize to no facts [7.57ms]
+(pass) v9 trusted export refuses a malformed leaf blockage map [0.35ms]
+(pass) plan document excludes derived node resources from isolated and captured exports [0.27ms]
+(pass) v9 refuses authored sparse parallelism on direct and captured JSON exports [0.22ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing collection [0.06ms]
+(pass) v9 refuses corrupt captured sparse evidence: null collection
+(pass) v9 refuses corrupt captured sparse evidence: object collection
+(pass) v9 refuses corrupt captured sparse evidence: array row [0.06ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing maximum
+(pass) v9 refuses corrupt captured sparse evidence: string maximum
+(pass) v9 refuses corrupt captured sparse evidence: null row
+(pass) v9 refuses corrupt captured sparse evidence: numeric owner
+(pass) v9 refuses corrupt captured sparse evidence: numeric step
+(pass) v9 refuses corrupt captured sparse evidence: missing owner [0.01ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing step [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: fraction [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: zero
+(pass) v9 refuses corrupt captured sparse evidence: too large
+(pass) v9 refuses corrupt captured sparse evidence: duplicate [0.01ms]
+(pass) v9 direct export propagates unreadable sparse state [0.14ms]
+(pass) v9 refuses construction without its sparse read capability [0.07ms]
+(pass) v9 refuses sparse ownership corruption: foreign owner [0.16ms]
+(pass) v9 refuses sparse ownership corruption: foreign step [0.08ms]
+(pass) v9 refuses sparse ownership corruption: parent owner [0.07ms]
+(pass) v9 sparse pair identities never alias at colons [0.11ms]
+(pass) v9 zero-fact export retains canonical bytes [0.38ms]
+(pass) uncoded steps retain precedence over unreadable sparse export evidence [0.22ms]
+(pass) exports only the resources its capacities and demands name (wbs-resources) [1.36ms]
+(pass) v10 resources export retains canonical bytes including captured abbreviation [0.18ms]
+(pass) reads a version-10 file’s resources, capacities and demands back [1.32ms]
+(pass) refuses a version-10 file with a malformed resource, capacity or demand [5.16ms]
+(pass) refuses resources in a file older than version 10 [2.28ms]
+(pass) versioned response admits explicit v11 links while v10 remains frozen [29.35ms]
+(pass) v11 step endpoint requires its descriptive step label [1.22ms]
+
+libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:
+(pass) authored connected links belong only to the exported successor and keep stable remote identity [2.35ms]
+(pass) scheduled evidence keeps exact component placement and retained stage boundaries [1.14ms]
+(pass) remote uncoded steps retain own UUID and row address with step label [2.65ms]
+(pass) unavailable evidence preserves exact calendar and engine refusals [0.69ms]
+(pass) export rejects a stored relationship whose owner differs from its successor [0.77ms]
+(pass) positions require complete matching baseline and selected ownership [0.84ms]
+(pass) optimized evidence preserves selected movement, earlier boundary and a baseline decision [2.67ms]
+(pass) terminal boundary certificate stays distinct from authored plan infeasibility [1.48ms]
+(pass) producer refuses missing and nonfinite captured provenance [2.72ms]
+
+libs/wbs/application/core/src/module/plan-document/module.test.ts:
+(pass) the Plan document module > exports a project with its markers over the graph installPlanDocument wires [4.28ms]
+(pass) the Plan document module > exposes only the contract exports from its installer [1.38ms]
+(pass) the Plan document module > keeps its private bindings out of a host graph [0.41ms]
+(pass) the Plan document module > labels its private bindings with the module name [0.74ms]
+(pass) the Plan document module > names itself when a host omits a requirement [0.48ms]
+
+ 295 pass
+ 0 fail
+ 1053 expect() calls
+Ran 295 tests across 10 files. [57.98s]

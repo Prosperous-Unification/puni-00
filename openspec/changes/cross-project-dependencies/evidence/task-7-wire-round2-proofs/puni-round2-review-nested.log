@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+../puni-round2-review-probes/nested.test.ts:
+10 |  request.elsewhere={ana:[[0,480]]};
+11 |  await Bun.write('/tmp/puni-round2-review-nested-request.json',JSON.stringify(request));
+12 |  const cli=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(JSON.stringify(request))});
+13 |  await Bun.write('/tmp/puni-round2-review-nested-cli.json',JSON.stringify({exitCode:cli.exitCode,stdout:cli.stdout.toString(),stderr:cli.stderr.toString()}));
+14 |  expect(cli.exitCode).toBe(0);
+15 |  expect(()=>validateConnectedSolverRequest(request)).not.toThrow();
+                                                              ^
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "connected elsewhere intervals differ from foreign occupancy"
+
+      at <anonymous> (/tmp/puni-round2-review-probes/nested.test.ts:15:58)
+(fail) nested retained calendars match the forward union and installed receiver [366.69ms]
+21 |   candidate.input.rows.push({id,parentId:null,position:candidate.input.rows.length,priority:0,frozenNumber:null});
+22 |   candidate.input.slices.push({workItemId:id,stepId:null,days:finish-start,width:1,personId:'ana',poolIds:[]});
+23 |   candidate.input.graph.nodes.push({kind:'boundary',workItemId:id,at:0});
+24 |   candidate.input.order.projectIdByWorkItem.set(id,'A');candidate.starts.set(id+'\0',start);candidate.finishes.set(id+'\0',finish);
+25 |  }
+26 |  expect(()=>prepare(candidate)).not.toThrow();
+                                         ^
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "elsewhere for ana: bookings overlap or are out of order"
+
+      at <anonymous> (/tmp/puni-round2-review-probes/nested.test.ts:26:37)
+(fail) production preparation accepts retained nested holders and emits their calendar union [0.61ms]
+
+ 0 pass
+ 2 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [557.00ms]

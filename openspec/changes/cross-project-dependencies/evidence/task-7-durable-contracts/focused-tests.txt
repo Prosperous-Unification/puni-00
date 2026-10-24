@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-optimization-reader.test.ts:
+(pass) real captured adapter prepares fixed foreign requests then materializes the selected response [29.83ms]
+(pass) captured misses remain visible and repeated stage identities are stable [5.86ms]
+(pass) disabled captured identity does not access the source [0.87ms]
+(pass) the captured reader obeys the source borrowed lifetime on every read [3.15ms]
+(pass) prepared fractional boundary infeasibility survives the adapter and selection without a candidate [5.44ms]
+
+libs/wbs/adapters/store-sqlite/src/connected-question-identity.test.ts:
+(pass) every retained placement constraint family changes the canonical stage identity [4.24ms]
+(pass) ownership of a retained parent contributes independently of relationship endpoints [0.71ms]
+(pass) nested demand and booking facts contribute independently of collection presence [2.54ms]
+(pass) resolved step identities and authored selector step identities both contribute [1.67ms]
+(pass) existing canonical stage hash stays byte compatible after helper extraction [0.42ms]
+
+libs/wbs/domain/contracts/solver/src/connected-durable.test.ts:
+(pass) stored stage roundtrips explicit maps and complete resolved/authored/placement evidence [3.77ms]
+(pass) connected success retains candidate and canonical movement comparison independently of chosen placement [10.16ms]
+(pass) boundary certificate preserves real feasible stage with exact 10/9 contradiction [6.80ms]
+(pass) every required envelope field refuses omission and unknown additions [14.06ms]
+(pass) each question tuple member refuses forgery independently [42.81ms]
+(pass) forged request candidate publication contributors and truncated bytes refuse [13.98ms]
+(pass) ordinary infeasible unknown and feasible responses cannot certify a boundary [11.80ms]
+(pass) all nested stored stage request response and evidence required fields refuse omission [281.48ms]
+(pass) nested stage request response and evidence refuse unknown fields and duplicate map entries [142.58ms]
+(pass) identity separates every runtime tuple dimension and shares stage input across objectives [0.42ms]
+(pass) coherent forged hash echoes cannot substitute for recomputed full identity [3.36ms]
+(pass) quantisation floor retains rejected candidate and fractional quantized movement comparison [3.73ms]
+(pass) stored stage replay independently refuses a forged finish before an envelope exists [0.83ms]
+(pass) scope project and stored comparison cannot be forged independently [6.62ms]
+(pass) decoded stage and identity detach caller-owned objects after validation [5.19ms]
+(pass) nonfinite forged null request fields are rejected before JSON equality [4.00ms]
+(pass) standalone stage decode detaches caller-owned rows without an enclosing packet [0.46ms]
+(pass) stored stepped selectors require explicit step evidence and optional empty demands remain equivalent [3.05ms]
+
+libs/wbs/domain/contracts/solver/src/connected-solver-outcome.test.ts:
+(pass) connected exit materializes the complete component with exact fixed foreign placement [1.29ms]
+(pass) boundary infeasible exit remains distinct with no candidate and full request evidence [0.71ms]
+(pass) unknown, malformed echo and forged foreign request never become terminal certificates [0.97ms]
+(pass) fractional contradiction survives preparation as boundary evidence without child output [0.44ms]
+(pass) plain infeasible is refused for an effective boundary instead of being materialized [0.61ms]
+(pass) a stage without incident boundaries preserves ordinary deadline infeasibility [0.62ms]
+(pass) trusted broken stage evidence throws before classifying child outcomes [0.38ms]
+(pass) boundary evidence detaches the original mutable maps and request [0.44ms]
+(pass) ordinary infeasibility without a local deadline cannot fabricate a certificate [0.46ms]
+(pass) integer-valid response that reconciles a fixed foreign start is invalid output [1.03ms]
+
+ 38 pass
+ 0 fail
+ 849 expect() calls
+Ran 38 tests across 4 files. [907.00ms]
