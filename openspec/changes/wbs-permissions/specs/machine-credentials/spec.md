@@ -2,8 +2,8 @@
 
 ### Requirement: A machine token acts as its pinned person's account with capped scopes
 
-A request admitted by a machine credential SHALL act as the account the pinned person is
-bound to, with scopes exactly `read` and `write`, bound to the credential's organization,
+A request admitted by a machine credential SHALL act under the membership of the account
+the pinned person is bound to, with scopes exactly `read` and `write`, bound to the credential's organization,
 and with the credential's person as the pin the claim decision reads. In that organization
 it SHALL hold only the access grants naming the credential (`wbs-permissions` P17), never
 the bound account's, its access groups' or the organization members subject's, and its

@@ -286,8 +286,8 @@ that revokes it, deletes its grants in the same transaction with one `access_rev
 each (origin `cascade`). Backfill: at migration time each unrevoked credential whose person
 is bound to a current member receives a copy of that account's backfilled grants capped at
 contributor (`org-super-admin` and `org-admin` become `project-contributor` at organization
-scope, matching A23's "acts as member"; `org-viewer`, `project-contributor` and
-`project-viewer` are copied unchanged; an owner's `package-manager` becomes
+scope, matching A23's "acts as member"; `project-contributor` and `project-viewer`
+are copied unchanged; an owner's `package-manager` becomes
 `package-contributor` at that package), `origin = 'backfill'`, so dev agents and the fleet
 credential keep today's reach across the swap. `revoke-backfill` (P15) deletes the
 organization-scope `project-contributor` and `project-viewer` copies with the members'

@@ -26,8 +26,7 @@ operator removes it (requirement "Today's memberships are backfilled into grants
 
 #### Scenario: A SCIM-provisioned member arrives with no grant
 
-- **WHEN** A's directory provisions a new account through SCIM, where today the membership
-  is written with `role: 'member'`
+- **WHEN** A's directory provisions a new account through SCIM
 - **THEN** the account is a current member of A with no `access_grant` row,
   `GET /api/work-packages` answers `200` with `[]` and a `createWorkItem` batch on any
   package of A answers `404 not_found`
@@ -387,7 +386,7 @@ exercise acts E7 moves to `org-admin` or restriction changes (design.md P5, P7).
   read the restricted one, the super-admin can clear its flag, and `down.sql` succeeds on
   that store and refuses once one grant is written by route
 
-#### Scenario: Backfilled credentials keep today's reach
+#### Scenario: Backfilled credentials act as contributors
 
 - **WHEN** a store where an `org-admin` U and a member M each have an agent with a machine
   credential is migrated
