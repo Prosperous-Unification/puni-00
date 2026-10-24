@@ -793,6 +793,12 @@ async function activateCompleteUnderOwner(
       controllers: 'fenced',
     });
     await evidence.inspect();
+    // Proof: contents-only comparison accepted same-byte replacement in both fenced-only and preparation routes; their return-boundary negatives lost required refusal (exit 1).
+    assertSame(
+      fencedRecord,
+      await captureEdgeRecord(directory, basename(fencedRecord.path), 65536),
+      'original fenced completion publication snapshot',
+    );
     assertDeadline();
     const completion: CompleteDependencyActivationCompletion = {
       state: 'activation-committed-participants-fenced',
@@ -803,16 +809,10 @@ async function activateCompleteUnderOwner(
     };
     if (purpose === 'restoration') {
       if (provisional === undefined) throw new Error('original participant preparation absent');
-      const fencedComplete = await captureEdgeRecord(directory, basename(fencedRecord.path), 65536);
-      assertSame(
-        fencedRecord.contents,
-        fencedComplete.contents,
-        'final participant preparation fence',
-      );
       const key: PreparedDependencyActivation = Object.freeze({
         [preparationIdentity]: true as const,
       });
-      const context = { ...provisional, completion, fencedComplete };
+      const context = { ...provisional, completion, fencedComplete: fencedRecord };
       preparations.set(key, context);
       preparedContexts.set(context, key);
       isRetainedForRestoration = true;

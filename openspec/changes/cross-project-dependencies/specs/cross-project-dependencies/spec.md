@@ -1337,6 +1337,22 @@ exclusion with unresolved participant obligations and SHALL retain evidence.
 - **AND** future handoff requires complete installed writer, ingress, MCP, solver,
   replay/background and restart exclusion through the final exposure readback
 
+#### Scenario: Numbered activation publication retains its original snapshot
+
+- **GIVEN** the live owner published and read back a numbered activation record
+- **WHEN** storage receives its publication snapshot or subsequently monitors that record
+- **THEN** current file and parent identities, private mode and bytes must equal the original publication snapshot
+- **AND** an identical-byte replacement on another inode between publication and caller readback refuses before backup or later storage effects
+- **AND** storage retains its full private-mode check, including special permission bits, while public references remain exactly name and SHA-256
+
+#### Scenario: Fenced completion cannot adopt a replacement publication
+
+- **GIVEN** activation committed and published its fenced-complete record
+- **WHEN** identical bytes on another inode replace that record before the publication returns to its caller
+- **THEN** both fenced-only completion and participant preparation refuse before returning success or granting preparation
+- **AND** already committed receipts remain durable, participants remain stopped and ordinary policy remains unchanged
+- **AND** participant preparation retains the original publication snapshot rather than adopting a later observation
+
 ### Requirement: Guarded supervisor runtime admission
 
 The supervisor executable SHALL hold canonical solver-runtime.lock from before

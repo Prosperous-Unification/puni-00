@@ -1,4 +1,5 @@
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { basename } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
 import { expect, spyOn, test } from 'bun:test';
@@ -34,6 +35,10 @@ test('retains activation evidence under exact live joint owner and refuses copie
         exposure: 'closed',
         controllers: 'fenced',
       });
+      expect(record).toEqual(await captureEdgeRecord(root, basename(record.path), 65536));
+      expect(Object.keys(record).sort()).toEqual(
+        ['path', 'device', 'inode', 'parentDevice', 'parentInode', 'mode', 'contents'].sort(),
+      );
       const retained: unknown = JSON.parse(await readFile(record.path, 'utf8'));
       expect(readFields(retained)['owner']).toBe(
         await readFile(`${root}/edge-owner.pending`, 'utf8'),

@@ -16,6 +16,7 @@ import {
   captureEdgeRecord,
   decodeOrdinaryEdgePolicy,
   type EdgePolicySnapshot,
+  type EdgeRecordSnapshot,
   type RestoringEdgePolicy,
 } from './edge-policy';
 import type { EnvLayout } from './env';
@@ -571,20 +572,19 @@ export async function inspectDependencyOwnerPublication(
   return publication;
 }
 
-/** Retains fixed-label activation evidence exclusively; publication never creates a live activation grant. */
+/** Retains fixed-label evidence exclusively and returns its original successful publication snapshot. Consumers must compare current state to this snapshot without rebasing identity; publication never creates a live activation grant. */
 export async function retainActivationRecord<Label extends ActivationRecordLabel>(
   owner: DependencyOwner,
   layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
   label: Label,
   record: ActivationRecordByLabel[Label],
-): Promise<{ path: string; contents: string }> {
+): Promise<EdgeRecordSnapshot> {
   await assertDependencyOwner(owner, layouts.prod);
   await assertDependencyOwner(owner, layouts.dev);
   const ownership = owners.get(owner);
   if (ownership === undefined) throw new Error('dependency owner is not live');
   const statePath = ownership.directory;
   const name = `edge-owner-${String(++ownership.sequence).padStart(6, '0')}-activation-${label}.json`;
-  const path = join(ownership.directory, name);
   const contents = `${JSON.stringify({ owner: ownership.publication, record })}\n`;
   const directory = await open(
     ownership.directory,
@@ -613,7 +613,7 @@ export async function retainActivationRecord<Label extends ActivationRecordLabel
     await assertDependencyOwner(owner, layouts.prod);
     await assertDependencyOwner(owner, layouts.dev);
     await assertDirectory();
-    return { path, contents };
+    return published;
   } finally {
     await directory.close();
   }

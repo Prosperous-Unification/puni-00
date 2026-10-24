@@ -44,6 +44,7 @@ import {
   type DependencyOwner,
   retainActivationRecord,
 } from './edge-ownership';
+import { captureEdgeRecord, type EdgeRecordSnapshot } from './edge-policy';
 import type { EnvName } from './env';
 import { assertSame, readRecord } from './managed-cohort';
 import { writeNewMigrationCapture } from './migration-capture-file';
@@ -132,6 +133,7 @@ export async function activateDependencyStores(
   const anchors = new Map<EnvName, Awaited<ReturnType<typeof retainActivationDatabase>>>();
   const captures = new Map<EnvName, MigrationSetCapture>();
   const retained: { path: string; contents: string; identity: string }[] = [];
+  const activationRecords: EdgeRecordSnapshot[] = [];
   const evidenceNames = new Set<string>();
   const backups: { path: string; sha256: string; bytes: number; identity: string }[] = [];
   let retainedEvidence = false;
@@ -218,8 +220,20 @@ export async function activateDependencyStores(
     });
     checkDeadline();
   }
+  async function inspectActivationRecord(publication: EdgeRecordSnapshot) {
+    const named = lstatSync(publication.path, { bigint: true });
+    if (!named.isFile() || (named.mode & 0o7777n) !== 0o600n)
+      throw new Error('retained activation publication is not private');
+    // Proof: rebasing the returned capture snapshot accepted a same-byte replacement; the production return-boundary negative lost its required refusal (exit 1).
+    assertSame(
+      publication,
+      await captureEdgeRecord(directory, basename(publication.path), 65536),
+      'original activation publication snapshot',
+    );
+  }
   async function inspectPublications() {
     inspectEvidence();
+    for (const publication of activationRecords) await inspectActivationRecord(publication);
     for (const publication of retained) {
       const named = lstatSync(publication.path, { bigint: true });
       if (!named.isFile() || (named.mode & 0o7777n) !== 0o600n)
@@ -279,10 +293,8 @@ export async function activateDependencyStores(
     record: ActivationRecordByLabel[Label],
   ) {
     const publication = await retainActivationRecord(owner, layouts, label, record);
-    retained.push({
-      ...publication,
-      identity: inode(lstatSync(publication.path, { bigint: true })),
-    });
+    activationRecords.push(publication);
+    await inspectActivationRecord(publication);
     return reference(publication);
   }
   try {
