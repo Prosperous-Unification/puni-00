@@ -27,6 +27,125 @@ const frame = {
   request: { wireVersion: 1, objective: 'pri' },
 } as const;
 
+type ClientTerminal =
+  | { version: 1; kind: 'closed'; phase: 'socket' }
+  | { version: 1; kind: 'reset'; phase: 'connect' | 'socket'; code: 'ECONNRESET' };
+
+/** The child diagnostic channel has one finite transport outcome, never protocol bytes. */
+function parseClientTerminal(stderr: string): ClientTerminal {
+  if (stderr.length > 128 || !stderr.endsWith('\n') || stderr.indexOf('\n') !== stderr.length - 1)
+    throw new Error(`peer client emitted malformed terminal record: ${stderr}`);
+  const parsed: unknown = JSON.parse(stderr.slice(0, -1));
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+    throw new Error('peer client terminal record is not an object');
+  const record = parsed as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (
+    record['version'] === 1 &&
+    record['kind'] === 'closed' &&
+    record['phase'] === 'socket' &&
+    JSON.stringify(keys) === JSON.stringify(['kind', 'phase', 'version'])
+  )
+    return { version: 1, kind: 'closed', phase: 'socket' };
+  if (
+    record['version'] === 1 &&
+    record['kind'] === 'reset' &&
+    (record['phase'] === 'connect' || record['phase'] === 'socket') &&
+    record['code'] === 'ECONNRESET' &&
+    JSON.stringify(keys) === JSON.stringify(['code', 'kind', 'phase', 'version'])
+  )
+    return {
+      version: 1,
+      kind: 'reset',
+      phase: record['phase'],
+      code: 'ECONNRESET',
+    };
+  throw new Error(`peer client emitted unknown terminal record: ${stderr}`);
+}
+
+function requireClientTerminal(
+  exit: number,
+  signalCode: number | string | null,
+  stderr: string,
+  positive: boolean,
+): ClientTerminal {
+  if (exit !== 0 || signalCode !== null)
+    throw new Error(
+      `peer client did not exit normally: exit=${String(exit)} signal=${String(signalCode)} stderr=${stderr}`,
+    );
+  const terminal = parseClientTerminal(stderr);
+  if (positive && terminal.kind !== 'closed')
+    throw new Error('positive peer connection did not close orderly');
+  return terminal;
+}
+
+function requireRejectedPeer(
+  acceptedFd: unknown,
+  runs: number,
+  stdout: string,
+  errors: readonly Error[],
+  expectedError: string,
+): void {
+  if (typeof acceptedFd !== 'number' || !Number.isSafeInteger(acceptedFd) || acceptedFd < 0)
+    throw new Error('negative peer connection was not accepted with a native file descriptor');
+  if (runs !== 0) throw new Error('negative peer connection reached run');
+  if (stdout !== '') throw new Error('negative peer connection emitted protocol bytes');
+  if (errors.length !== 1 || errors[0]?.message !== expectedError)
+    throw new Error(
+      `negative peer refusal differed: ${errors.map((error) => error.message).join(',')}`,
+    );
+}
+
+test('peer client terminal parser refuses unmodeled transport outcomes', () => {
+  expect(parseClientTerminal('{"version":1,"kind":"closed","phase":"socket"}\n')).toEqual({
+    version: 1,
+    kind: 'closed',
+    phase: 'socket',
+  });
+  for (const phase of ['connect', 'socket'])
+    expect(
+      parseClientTerminal(
+        JSON.stringify({ version: 1, kind: 'reset', phase, code: 'ECONNRESET' }) + '\n',
+      ),
+    ).toMatchObject({ kind: 'reset', phase, code: 'ECONNRESET' });
+  for (const malformed of [
+    '',
+    '{"version":1,"kind":"closed","phase":"socket"}',
+    '{"version":1,"kind":"closed","phase":"socket"}\nnoise',
+    '{"version":1,"kind":"closed","phase":"socket"}\n{"version":1,"kind":"closed","phase":"socket"}\n',
+    '{"version":1,"kind":"reset","phase":"connect","code":"EPIPE"}\n',
+    '{"version":1,"kind":"reset","phase":"unknown","code":"ECONNRESET"}\n',
+    '{"version":1,"kind":"reset","phase":"connect","code":"ECONNRESET","extra":true}\n',
+    'x'.repeat(129),
+  ])
+    expect(() => parseClientTerminal(malformed)).toThrow();
+  const closed = '{"version":1,"kind":"closed","phase":"socket"}\n';
+  const reset = '{"version":1,"kind":"reset","phase":"connect","code":"ECONNRESET"}\n';
+  expect(requireClientTerminal(0, null, closed, true).kind).toBe('closed');
+  expect(requireClientTerminal(0, null, reset, false).kind).toBe('reset');
+  for (const [exit, signal, stderr, positive] of [
+    [1, null, closed, false],
+    [0, 9, closed, false],
+    [0, null, reset, true],
+  ] as const)
+    expect(() => requireClientTerminal(exit, signal, stderr, positive)).toThrow();
+  const refused = 'supervisor peer credentials: accepted socket has no file descriptor';
+  const valid = [17, 0, '', [new Error(refused)], refused] as const;
+  requireRejectedPeer(...valid);
+  expect(() => {
+    requireRejectedPeer(undefined, 0, '', valid[3], refused);
+  }).toThrow();
+  expect(() => {
+    requireRejectedPeer(17, 1, '', valid[3], refused);
+  }).toThrow();
+  expect(() => {
+    requireRejectedPeer(17, 0, 'started', valid[3], refused);
+  }).toThrow();
+  expect(() => {
+    requireRejectedPeer(17, 0, '', [new Error('other refusal')], refused);
+  }).toThrow();
+});
+
 for (const bundled of [false, true])
   for (const fault of ['none', 'missing-fd', 'wrong-option'] as const)
     test(`Bun 1.4.4 ${bundled ? 'built' : 'source'} production listener authenticates separate client: ${fault}`, async () => {
@@ -111,9 +230,24 @@ for (const bundled of [false, true])
           '--no-env-file',
           '--eval',
           `
-const socket = await Bun.connect({unix:${JSON.stringify(unix)}, socket:{
-open(s){s.write(${JSON.stringify(`${JSON.stringify(frame)}\n`)});},
-data(s,bytes){process.stdout.write(bytes);},close(){},error(s,e){console.error(e.message);process.exitCode=1;}}});
+let emitted = false;
+const terminal = (record) => {
+  if (emitted) return;
+  emitted = true;
+  process.stderr.write(JSON.stringify(record) + '\\n');
+};
+const reset = (error, phase) => {
+  if (error?.code !== 'ECONNRESET') throw error;
+  terminal({version:1,kind:'reset',phase,code:'ECONNRESET'});
+};
+try {
+  await Bun.connect({unix:${JSON.stringify(unix)}, socket:{
+    open(s){try{s.write(${JSON.stringify(`${JSON.stringify(frame)}\n`)});}catch(error){reset(error,'socket');}},
+    data(s,bytes){process.stdout.write(bytes);},
+    close(){terminal({version:1,kind:'closed',phase:'socket'});},
+    error(s,error){reset(error,'socket');}
+  }});
+} catch (error) { reset(error,'connect'); }
 `,
         ],
         { stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(5000) },
@@ -124,25 +258,26 @@ data(s,bytes){process.stdout.write(bytes);},close(){},error(s,e){console.error(e
           new Response(client.stderr).text(),
           client.exited,
         ]);
-        expect(exit, stderr).toBe(0);
-        expect(stderr).toBe('');
-        expect(Number.isSafeInteger(acceptedFd)).toBe(true);
-        expect(acceptedFd).toBeGreaterThanOrEqual(0);
         if (fault === 'none') {
+          expect(Number.isSafeInteger(acceptedFd)).toBe(true);
+          expect(acceptedFd).toBeGreaterThanOrEqual(0);
           expect(peerPid).toBe(client.pid);
           expect(peerPid).not.toBe(process.pid);
           expect(runs).toBe(1);
           expect(errors).toEqual([]);
           expect(JSON.parse(stdout)).toEqual({ type: 'started', pid: client.pid });
         } else {
-          expect(runs).toBe(0);
-          expect(stdout).toBe('');
-          expect(errors.map((error) => error.message)).toEqual([
+          requireRejectedPeer(
+            acceptedFd,
+            runs,
+            stdout,
+            errors,
             fault === 'missing-fd'
               ? 'supervisor peer credentials: accepted socket has no file descriptor'
               : 'supervisor peer credentials: SO_PEERCRED getsockopt failed',
-          ]);
+          );
         }
+        requireClientTerminal(exit, client.signalCode, stderr, fault === 'none');
       } finally {
         client.kill();
         await client.exited;
