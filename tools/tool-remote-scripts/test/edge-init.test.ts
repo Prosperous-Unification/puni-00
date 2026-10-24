@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { lstat, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,8 @@ import { fingerprint, InitRefusal, parseNativeContainer } from '../src/lib/edge-
 import { EngineTransport, runInitAdoption } from '../src/lib/edge-init-operation';
 import {
   createFixtureVolume,
+  describeFixtureFailure,
+  publishFixtureFailure,
   removeFixtureResource,
   requireUnusedFixtureNamespace,
   verifyFixtureFault,
@@ -27,6 +30,63 @@ test('native fixture ownership rejects foreign names and invocation labels befor
   raw.Name = '/wbs-init-synthetic-registry-fixture';
   Object.assign(raw.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'foreign' });
   expect(() => verifyFixtureOwnership(parseNativeContainer(raw), 'synthetic')).toThrow();
+});
+
+test('native failure diagnostic retains a fixed stage and controlled reason without private error text', () => {
+  const known = describeFixtureFailure(
+    'original-inspection',
+    new InitRefusal('unsupported-native-shape'),
+  );
+  expect(known).toMatchObject({ stage: 'original-inspection', reason: 'unsupported-native-shape' });
+  expect(known.diagnosticSha256).toMatch(/^[a-f0-9]{64}$/);
+  const unknown = describeFixtureFailure(
+    'adoption',
+    new InitRefusal('native-fixture-private-secret'),
+  );
+  const cause = describeFixtureFailure('cleanup', new Error('PRIVATE_FAILURE_SENTINEL'));
+  expect(unknown.reason).toBe('unrecognized-refusal');
+  expect(cause.reason).toBe('unexpected-failure');
+  expect(JSON.stringify([unknown, cause])).not.toContain('native-fixture-private-secret');
+  expect(JSON.stringify([unknown, cause])).not.toContain('PRIVATE_FAILURE_SENTINEL');
+  expect(cause.diagnosticSha256).not.toBe(unknown.diagnosticSha256);
+});
+
+test('private native records preserve proof failure and cleanup failure in separate exclusive files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'edge-init-failure-'));
+  try {
+    const missing = await publishFixtureFailure(root, 'synthetic', null, null).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(missing).toBeInstanceOf(InitRefusal);
+    const proof = describeFixtureFailure(
+      'original-inspection',
+      new InitRefusal('unsupported-native-shape'),
+    );
+    const cleanup = describeFixtureFailure('cleanup', new Error('PRIVATE_CLEANUP_SENTINEL'));
+    const first = await publishFixtureFailure(root, 'synthetic', proof, null);
+    const before = await readFile(join(root, 'failure.json'));
+    const initial: unknown = JSON.parse(before.toString('utf8'));
+    expect(initial).toMatchObject({ proof, cleanup: null });
+    const second = await publishFixtureFailure(root, 'synthetic', proof, cleanup);
+    const after = await readFile(join(root, 'cleanup-failure.json'));
+    expect(await readFile(join(root, 'failure.json'))).toEqual(before);
+    const retained: unknown = JSON.parse(after.toString('utf8'));
+    expect(retained).toMatchObject({ proof, cleanup });
+    expect(first).toBe(createHash('sha256').update(before).digest('hex'));
+    expect(second).toBe(createHash('sha256').update(after).digest('hex'));
+    expect(after.toString('utf8')).not.toContain('PRIVATE_CLEANUP_SENTINEL');
+    expect((await lstat(join(root, 'failure.json'))).mode & 0o777).toBe(0o600);
+    expect((await lstat(join(root, 'cleanup-failure.json'))).mode & 0o777).toBe(0o600);
+    const collision = await publishFixtureFailure(root, 'synthetic', proof, null).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(collision).toBeInstanceOf(Error);
+    expect(await readFile(join(root, 'failure.json'))).toEqual(before);
+  } finally {
+    await rm(root, { recursive: true });
+  }
 });
 
 test.each(['collision', 'foreign-owner', 'wrong-create-name', 'wrong-readback-name', 'none'])(
