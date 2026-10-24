@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { BigIntStats } from 'node:fs';
 import { open, readlink, stat } from 'node:fs/promises';
 import { posix } from 'node:path';
 
@@ -10,7 +11,7 @@ export interface ParticipantProcessObservation {
   readonly argv: readonly string[];
   readonly executablePath: string;
 }
-/** Reads a real host PID without process/cgroup exemptions. Every procfs component is bounded and bracketed by the original start identity. */
+/** Reads a real host PID without process/cgroup exemptions. Procfs reads are bounded and bracketed by the original start identity; executable bytes come from the fstat-joined named object and every opened descriptor closes before return. */
 export async function observeParticipantProcess(
   pid: number,
   deadline: number,
@@ -25,10 +26,24 @@ export async function observeParticipantProcess(
       )
         throw new Error('participant process deadline exceeded');
     }
-    async function read(path: string, maximum: number): Promise<Buffer> {
+    function executableIdentity(stats: BigIntStats): readonly string[] {
+      return [stats.dev, stats.ino, stats.size, stats.mtimeNs, stats.ctimeNs].map(String);
+    }
+    async function read(
+      path: string,
+      maximum: number,
+      expectedExecutable?: BigIntStats,
+    ): Promise<Buffer> {
       checkDeadline();
       const descriptor = await open(path, 'r');
       try {
+        // Proof: omitting the opened-object join admitted a byte-identical executable on a different actual inode; source process FD test reported replacement accepted=true.
+        if (expectedExecutable !== undefined)
+          assertSame(
+            executableIdentity(expectedExecutable),
+            executableIdentity(await descriptor.stat({ bigint: true })),
+            'participant opened executable object',
+          );
         const parts: Buffer[] = [];
         const buffer = Buffer.alloc(Math.min(maximum + 1, 1024 * 1024));
         let length = 0;
@@ -43,6 +58,7 @@ export async function observeParticipantProcess(
         checkDeadline();
         return Buffer.concat(parts);
       } finally {
+        // Proof: skipping only executable close left actual descriptors open on success, object refusal and read failure; the native FD lifecycle test observed closed=0.
         await descriptor.close();
       }
     }
@@ -107,24 +123,12 @@ export async function observeParticipantProcess(
     const executable = await stat(`${root}/exe`, { bigint: true });
     if (!executable.isFile()) throw new Error('participant executable is not regular');
     const sha256 = createHash('sha256')
-      .update(await read(`${root}/exe`, 128 * 1024 * 1024))
+      .update(await read(`${root}/exe`, 128 * 1024 * 1024, executable))
       .digest('hex');
     const finalExecutable = await stat(`${root}/exe`, { bigint: true });
     assertSame(
-      [
-        String(executable.dev),
-        String(executable.ino),
-        String(executable.size),
-        String(executable.mtimeNs),
-        String(executable.ctimeNs),
-      ],
-      [
-        String(finalExecutable.dev),
-        String(finalExecutable.ino),
-        String(finalExecutable.size),
-        String(finalExecutable.mtimeNs),
-        String(finalExecutable.ctimeNs),
-      ],
+      executableIdentity(executable),
+      executableIdentity(finalExecutable),
       'participant executable readback',
     );
     assertSame(startTime, await processStart(), 'participant process start readback');
