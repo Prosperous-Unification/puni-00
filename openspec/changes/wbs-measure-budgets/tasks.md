@@ -55,3 +55,7 @@ Follow-up outside this change (design D63; tracked as WBS item 060.2 in project 
 Twilight Navigator, Burokrat and Dash admit plan document version 11 — each must read a
 version-11 export, with a negative that drops 11 from its admitted versions. They refuse
 version 11 loudly until then.
+
+Follow-up (review of PR #701, S3): the panel's "blocked by estimates" reading (B-3) is over-inclusive
+where be-01 answers no budget for an uncovered row (a step spends without a trio); be-01 does not
+expose `blocked` on the row read. Expose it or narrow the panel rule.

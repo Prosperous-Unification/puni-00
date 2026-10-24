@@ -53,14 +53,15 @@ function directory(username: string, commands: readonly unknown[]) {
 describe('measure definitions in an organization', () => {
   beforeEach(async () => {
     h = OrganizationHarness.openComposed();
-    for (const username of ['ada', 'grace', 'vic']) await h.register(username);
+    for (const username of ['ada', 'grace', 'moe', 'sue', 'vic']) await h.register(username);
     h.organization('org-a');
     h.organization('org-b');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'admin');
+    h.member('org-a', 'moe', 'member');
+    h.member('org-a', 'sue', 'super_admin');
     h.member('org-a', 'vic', 'viewer');
     h.member('org-b', 'grace', 'member');
-    h.bind('ada', 'org-a');
-    h.bind('vic', 'org-a');
+    for (const username of ['ada', 'moe', 'sue', 'vic']) h.bind(username, 'org-a');
     h.bind('grace', 'org-b');
     h.activate();
   });
@@ -167,6 +168,34 @@ describe('measure definitions in an organization', () => {
           body: { at: 0, kind: command.kind, error: 'not_found' },
         });
     expect((await listed('grace')).find((each) => each.key === 'tokens')?.name).toBe('Tokens');
+  });
+
+  // Design D70: defining a measure changes what every project's figures mean.
+  it('refuses a member every definition write, an admin and a super-admin allowed', async () => {
+    const tokens = await idOf('ada', 'tokens');
+    for (const command of [
+      GPU,
+      { kind: 'patchMeasure', measureId: tokens, patch: { name: 'Member tokens' } },
+      { kind: 'deleteMeasure', measureId: tokens },
+    ])
+      expect(await directory('moe', [command]), command.kind).toEqual({
+        status: 403,
+        body: { at: 0, kind: command.kind, error: 'forbidden' },
+      });
+    expect((await listed('moe')).map(({ key }) => key)).toEqual(SEEDED_KEYS);
+    expect((await listed('moe')).find(({ key }) => key === 'tokens')?.name).toBe('Tokens');
+    expect(await directory('sue', [{ ...GPU, ref: 'gpu' }])).toMatchObject({ status: 200 });
+    const gpu = await idOf('sue', 'gpu_minutes');
+    expect(
+      await directory('sue', [{ kind: 'patchMeasure', measureId: gpu, patch: { name: 'GPU' } }]),
+    ).toMatchObject({ status: 200 });
+    expect(await directory('moe', [{ kind: 'deleteMeasure', measureId: gpu }])).toMatchObject({
+      status: 403,
+    });
+    expect(await directory('ada', [{ kind: 'deleteMeasure', measureId: gpu }])).toMatchObject({
+      status: 200,
+    });
+    expect((await listed('ada')).map(({ key }) => key)).toEqual(SEEDED_KEYS);
   });
 
   it('refuses a viewer every write and a malformed command at the boundary', async () => {

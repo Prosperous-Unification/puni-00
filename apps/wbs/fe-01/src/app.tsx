@@ -469,14 +469,16 @@ function AppContent({
       <main className="p-8" role="alert">
         <p>Could not confirm sign-out. Your session was withdrawn; try again or reload.</p>
         {signOutState.kind === 'failure' && session !== null && (
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             type="button"
             onClick={() => {
               beginSignOut(session, owner.current);
             }}
           >
             Try sign-out again
-          </button>
+          </Button>
         )}
       </main>
     );

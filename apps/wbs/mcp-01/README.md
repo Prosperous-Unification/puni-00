@@ -34,7 +34,7 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   project's capacities and demands);
 - the measure definition read (`getApiMeasures`: the organization's measure definitions, the five
   seeded and any it defined, written with the `createMeasure`, `patchMeasure` and `deleteMeasure`
-  directory commands);
+  directory commands, which only an organization admin or super-admin may send);
 - the two person-load reads, the project rank read and move;
 - the organization's capacity-mode read and switch (the switch refuses every delegated caller and
   so answers an MCP client with 403);

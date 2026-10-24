@@ -3,7 +3,7 @@
 What a planner or an operator needs to know about measures, their estimates and facts, and
 budgets. The rules themselves are in the
 [measure-budgets spec](../../openspec/changes/wbs-measure-budgets/specs/measure-budgets/spec.md)
-and the decisions (D1–D67) in its
+and the decisions (D1–D72) in its
 [design](../../openspec/changes/wbs-measure-budgets/design.md); the terms are in
 [CONTEXT.md](../../CONTEXT.md) under **Measure definition** through **Token estimate**.
 
@@ -11,8 +11,11 @@ and the decisions (D1–D67) in its
 
 - **Definitions belong to the organization.** Every organization holds `time`, `tokens`,
   `hours`, `cost` and `agent_minutes`; more are `createMeasure` directory commands
-  (`POST /api/directory/commands`, read with `GET /api/measures`). A key, kind and scale never
-  change. Only `time` schedules work.
+  (`POST /api/directory/commands`, read with `GET /api/measures`). Only an organization admin
+  or super-admin may create, patch or delete a definition, or import a plan that would create
+  one; anyone else is refused `403 forbidden` (design D70). Every member reads them. A key,
+  kind and scale never change, and a definition anything references cannot be deleted
+  (`409 measure_in_use`; there is no cascade). Only `time` schedules work.
 - **Time stays where it was.** Its trio is the step estimate and its fact the recorded days;
   no other measure moves a date.
 - **Every other measure has a trio, a fact and a variance per step node.**
@@ -25,7 +28,9 @@ and the decisions (D1–D67) in its
 - **Budgets are rows.** `setBudget` caps one measure on one work item, strict or advisory, with
   an optional spend hold per running attempt; a parent's budget bounds its subtree. Where none is
   stated and the subtree is estimated, a derived advisory budget is the pessimistic points times
-  the project's budget factor (`PATCH /api/projects/:id`, `budgetFactor`).
+  the project's budget factor (`PATCH /api/projects/:id`, `budgetFactor`). Only three-point
+  trios derive one: a legacy single-point token estimate does not (design D68), and a step node
+  that spends without a trio of its own leaves the subtree with no derived budget.
 - **The coordinator reads headroom.** `GET /api/projects/:id/budget-headroom` answers, per
   startable or claimed step and measure, the tightest strict and advisory budgets with what is
   spent, held and remaining; WBS never refuses a fact past a budget.
@@ -37,7 +42,9 @@ and the decisions (D1–D67) in its
   name, the facts and trios with their basis, the budgets and the factor. Any other plan
   exports version 10, byte for byte as before (design D63).
 - Importing version 11 matches each definition by key and never remaps: a held definition of
-  another shape refuses the import, writing nothing, and a missing one is defined; older
+  another shape refuses the import, writing nothing, and a missing one is defined, which only an
+  admin's import may do (design D70); an unpriced money fact or trio is refused
+  `400 invalid_body` with the commands' refusal code `rate_card_required` as its detail; older
   versions import onto the seeded definitions. The rule and its refusal are
   [design D65](../../openspec/changes/wbs-measure-budgets/design.md).
 - Under legacy access (before activation) the organization an import matches and defines in
@@ -53,4 +60,7 @@ and the decisions (D1–D67) in its
 
 Rollback of measure facts, trios, budgets, version-11 exports and schema-9 saved plans, and
 the rule to ship slices 2–4 in one deploy, are in
-[the prod runbook](../runbook-prod-deploy.md#measure-fact-rollback).
+[the prod runbook](../runbook-prod-deploy.md#measure-fact-rollback). Once a fact in a defined
+measure, a three-point trio, a priced figure or a stated budget exists, `down.sql` refuses and
+the older image answers 500 on those work items: the pre-deploy database backup is the
+rollback (design D72).

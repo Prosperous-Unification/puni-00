@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { readCandidate } from '../inventory/read-candidate';
 import { type CliInvocation, invokeCli } from '../invoke-cli';
 import { buildPackage } from '../packaging/build';
+import { packPackage } from '../packaging/pack';
 import { registeredRules } from '../rules/registry';
 import { loadRulePolicyWithIdentity } from '../rules/rule-policy';
 import { hashBytes, hashCanonical } from './content-manifest';
@@ -836,7 +837,14 @@ describe('complete check Performance evidence', () => {
     const consumer = mkdtempSync(join(tmpdir(), 'burokrat-complete-check-consumer-'));
     roots.push(consumer);
     writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true }));
-    const installation = Bun.spawnSync([process.execPath, 'add', '--ignore-scripts', packageRoot], {
+    // Installs the packed tarball, as a consumer does: since Bun 1.4.4 `bun add <directory>` drops
+    // nested `node_modules` from the copy, which strips the toolkit's trusted closure.
+    // Proof: under Bun 1.4.4 the directory install made the installed `check` exit 1 with
+    // `toolkit runtime closure differs from toolkit.json` and empty stdout; under 1.4.2 it passed.
+    const tarballs = join(packageRoot, 'packed');
+    await packPackage(packageRoot, tarballs);
+    const tarball = join(tarballs, 'twilight-burokrat-0.1.0.tgz');
+    const installation = Bun.spawnSync([process.execPath, 'add', '--ignore-scripts', tarball], {
       cwd: consumer,
       env: { ...process.env, BUN_TMPDIR: consumer, BUN_INSTALL_CACHE_DIR: join(consumer, 'cache') },
       stdout: 'pipe',

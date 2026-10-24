@@ -309,6 +309,19 @@ describe('the measure panel renders each budget by its policy', () => {
     expect(cost).not.toHaveTextContent('$');
   });
 
+  itDom('reads a derived budget mixed trios keep from being read as blocked', () => {
+    drawPanel({
+      ...BASE_ROW,
+      measures: {},
+      mixedRateCards: { cost: { estimates: [CARD_A, CARD_B] } },
+    });
+    const cost = screen.getByRole('region', { name: 'Cost' });
+    expect(cost.querySelector('[data-budget="none"]')).toBeNull();
+    expect(cost.querySelector('[data-budget="blocked"]')).toHaveTextContent(
+      'Budget unknown: its estimates mix rate cards (USD · card sha256:aaaa1… and USD · card sha256:cccc3…)',
+    );
+  });
+
   itDom('says the organization is not activated yet, as a state', () => {
     render(
       <MeasurePanel

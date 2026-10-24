@@ -323,6 +323,45 @@ describe('the priorities section', () => {
     expect(screen.getByLabelText<HTMLInputElement>('Name of band 1').value).toBe('Critical');
     expect(setBands).not.toHaveBeenCalled();
   });
+
+  itDom('Escape while the ladder travels leaves the sent ladder in the boxes (F-110)', async () => {
+    // A box whose write travels is read-only, so it still takes keys. What it
+    // shows is what was sent, which is the ladder be-01 is about to hold: there
+    // is nothing to put back.
+    let land = (): void => {
+      throw new Error('the ladder never left');
+    };
+    function Plan() {
+      const [bands, setLadder] = useState(DEFAULT_PRIORITY_BANDS);
+      return (
+        <PrioritiesPanel
+          bands={bands}
+          setBands={async (ladder) => {
+            await new Promise<void>((resolve) => {
+              land = resolve;
+            });
+            setLadder(ladder);
+          }}
+          onChanged={async () => {
+            await Promise.resolve();
+          }}
+          onDirtyChange={() => undefined}
+        />
+      );
+    }
+    render(<Plan />);
+    fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
+    save();
+    await settle();
+
+    fireEvent.keyDown(screen.getByLabelText('Name of band 1'), { key: 'Escape' });
+    expect(screen.getByLabelText<HTMLInputElement>('Name of band 1').value).toBe('Blocker');
+    land();
+    await settle();
+
+    expect(screen.getByLabelText<HTMLInputElement>('Name of band 1').value).toBe('Blocker');
+    expect(screen.getByText(/The ladder is applied\./)).toBeInTheDocument();
+  });
 });
 
 describe('what the section tells the modal it is holding', () => {

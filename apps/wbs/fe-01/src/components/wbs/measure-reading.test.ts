@@ -221,7 +221,7 @@ describe('a budget reading', () => {
   it('says a budget mixed facts keep from being read is blocked, not absent', () => {
     expect(
       budgetReadingOf({ mixedRateCards: { cost: { facts: [CARD_A, CARD_B] } } }, 'cost'),
-    ).toEqual({ kind: 'blocked', bases: [CARD_A, CARD_B] });
+    ).toEqual({ kind: 'blocked', of: 'facts', bases: [CARD_A, CARD_B] });
     expect(budgetReadingOf({}, 'cost')).toEqual({ kind: 'none' });
   });
 });

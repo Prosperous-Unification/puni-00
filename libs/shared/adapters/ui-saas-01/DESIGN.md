@@ -19,9 +19,10 @@ review. Exact values: `src/theme.css`, pinned by `theme.test.ts`.
   Ink is near-white; the primary inverts to a pale slate with deep slate text on it. Secondary,
   muted and accent share a mid-dark slate fill. Hairlines are white at 10% and 15% opacity.
   Destructive is a lighter, warmer red. The focus ring is a mid-dark slate.
-- **`--control-edge`.** A mid slate in both palettes, set so the edge of an `outline` control
-  clears 3:1 against the page, the card and its own hover fill (WCAG 1.4.11). `--input` stays the
-  text box's hairline; as a button edge it measured 1.2:1.
+- **`--control-edge`.** A mid slate in both palettes, set so the edge of every control box (an
+  `outline` button, a text box, a select) clears 3:1 against the page, the card and its own hover
+  fill (WCAG 1.4.11). `--input` stays in the vocabulary, but no kit control draws it: as a control
+  edge it measured 1.2:1.
 - **Faces.** `--font-body` and `--font-display` are `sans-serif`: the WBS table's column widths
   were measured against the browser's generic face, so a font change is a geometry change.
 - **Layers.** `--layer-modal` < `--layer-card` < `--layer-card-ring` < `--layer-toast`: a

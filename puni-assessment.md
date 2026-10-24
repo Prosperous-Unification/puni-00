@@ -137,7 +137,7 @@ evidence shows it holds under concurrency.
 
 Prior intent to trace: the Twilight agentic workflows change
 (`openspec/changes/twilight-agentic-workflows`, pull request #601, assumptions
-A1 to A11), ADR 0056, and the WBS project "Agentic workflows — WBS, CTT and portable
+A1 to A11), ADR 0057, and the WBS project "Agentic workflows — WBS, CTT and portable
 persistence" (dev WBS, id `eeb8e50a-6ee6-49e4-a533-e10b1e29939d`). That plan answers
 the criteria with code-driven control, WBS as the state of the job, isolated
 per-attempt context, and structural verification. It also records four open items

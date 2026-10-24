@@ -48,7 +48,7 @@ export function LifetimeFault({ fault }: { fault: DisclosedFault }): ReactNode {
       </p>
       <button
         type="button"
-        className="border-border bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center rounded-md border px-3 text-sm"
+        className="border-control-edge bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center rounded-md border px-3 text-sm"
         onClick={() => {
           window.location.reload();
         }}

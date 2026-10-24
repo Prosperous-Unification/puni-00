@@ -197,7 +197,7 @@ export function CompletionPrompt({
               type="date"
               name="started"
               aria-describedby={`${startId}-note`}
-              className="border-input bg-background h-9 rounded-md border px-2 text-sm"
+              className="border-control-edge bg-background h-9 rounded-md border px-2 text-sm"
               value={started}
               onChange={(event) => {
                 setStarted(event.currentTarget.value);
@@ -219,7 +219,7 @@ export function CompletionPrompt({
                 type="date"
                 name="finished"
                 aria-describedby={`${endId}-note`}
-                className="border-input bg-background h-9 rounded-md border px-2 text-sm"
+                className="border-control-edge bg-background h-9 rounded-md border px-2 text-sm"
                 value={finished}
                 onChange={(event) => {
                   setFinished(event.currentTarget.value);

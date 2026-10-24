@@ -43,7 +43,8 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
+  // An admin: definition writes are an admin's (design D70).
+  h.member('org-a', 'ada', 'admin');
   h.member('org-b', 'grace', 'member');
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');

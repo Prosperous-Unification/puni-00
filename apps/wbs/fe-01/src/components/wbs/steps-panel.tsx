@@ -245,6 +245,24 @@ export function StepsPanel({
 
   const nameShown = (step: StepView): string => renamed[step.id] ?? step.name;
 
+  /**
+   * Escape over a draft in one of this panel's boxes forgets that draft, as
+   * Teams' capacity box does, so "Escape in a field puts it back" (D7) holds
+   * here too: since a field's Escape stopped refusing the modal's close, a box
+   * with no revert of its own made it a dead key (ui-review F-162). Not while a
+   * write travels, for the ladder's reason (F-110): the box shows what was sent.
+   *
+   * Proof: on 2026-10-18, without these handlers, `Escape in a Steps box
+   * forgets what was typed there` (steps-panel.test.tsx) failed on `expected
+   * 'Review' to be 'QA'`.
+   */
+  function forgetOnEscape(event: KeyboardEvent<HTMLInputElement>, forget: () => void): boolean {
+    if (event.key !== 'Escape' || section.busy) return false;
+    forget();
+    section.clear();
+    return true;
+  }
+
   const forgetRename = (stepId: string): void => {
     setRenamed((current) =>
       Object.fromEntries(Object.entries(current).filter(([id]) => id !== stepId)),
@@ -491,7 +509,16 @@ export function StepsPanel({
                       onBlur={() => {
                         commitRename(step);
                       }}
-                      onKeyDown={onChord}
+                      onKeyDown={(event) => {
+                        if (
+                          step.id in renamed &&
+                          forgetOnEscape(event, () => {
+                            forgetRename(step.id);
+                          })
+                        )
+                          return;
+                        onChord(event);
+                      }}
                     />
                     <button type="submit" className="sr-only">
                       Rename {step.name}
@@ -561,6 +588,17 @@ export function StepsPanel({
                           commitAllowance(step);
                         }}
                         onKeyDown={(event) => {
+                          if (
+                            step.id in allowances &&
+                            forgetOnEscape(event, () => {
+                              setAllowances((current) =>
+                                Object.fromEntries(
+                                  Object.entries(current).filter(([id]) => id !== step.id),
+                                ),
+                              );
+                            })
+                          )
+                            return;
                           if (event.key === 'Enter') {
                             event.preventDefault();
                             commitAllowance(step);
@@ -605,7 +643,16 @@ export function StepsPanel({
                   onChange={(event) => {
                     setNewName(event.currentTarget.value);
                   }}
-                  onKeyDown={onChord}
+                  onKeyDown={(event) => {
+                    if (
+                      newName !== '' &&
+                      forgetOnEscape(event, () => {
+                        setNewName('');
+                      })
+                    )
+                      return;
+                    onChord(event);
+                  }}
                 />
               </div>
               <fieldset

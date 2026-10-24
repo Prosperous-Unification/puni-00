@@ -319,13 +319,15 @@ export function mixedSentence(bases: MixedBasesView): string {
  * A budget as the panel draws it.
  *
  * `blocked` is a budget be-01 could not read because the subtree's facts mix
- * money bases (design D44): the budget is unknown, not unbounded. `spent` is
+ * money bases, or, with no stated budget, its trios do and so a derived cap
+ * cannot be summed (design D44): the budget is unknown, not unbounded. `of`
+ * names which figures mix; facts win, since they block a stated budget too. `spent` is
  * worked back from the read's own figures (cap less remaining less held),
  * which is exactly the subtree's facts (design D39).
  */
 export type BudgetReading =
   | { kind: 'none' }
-  | { kind: 'blocked'; bases: MixedBasesView }
+  | { kind: 'blocked'; of: 'facts' | 'estimates'; bases: MixedBasesView }
   | {
       kind: 'budget';
       policy: BudgetView['policy'];
@@ -353,8 +355,14 @@ export function budgetReadingOf(
 ): BudgetReading {
   const budget = row.budgets?.[key];
   if (budget === undefined) {
-    const mixed = row.mixedRateCards?.[key]?.facts;
-    return mixed === undefined ? { kind: 'none' } : { kind: 'blocked', bases: mixed };
+    const mixed = row.mixedRateCards?.[key];
+    if (mixed?.facts !== undefined) return { kind: 'blocked', of: 'facts', bases: mixed.facts };
+    // Proof: with this arm removed, `reads a derived budget mixed trios keep
+    // from being read as blocked` (measure-panel.test.tsx) rendered "No
+    // budget."; watched 2026-10-24.
+    if (mixed?.estimates !== undefined)
+      return { kind: 'blocked', of: 'estimates', bases: mixed.estimates };
+    return { kind: 'none' };
   }
   const held = budget.held ?? 0;
   const spent = budget.cap - budget.remaining - held;

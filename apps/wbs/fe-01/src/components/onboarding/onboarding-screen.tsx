@@ -1,3 +1,4 @@
+import { Button } from '@ui/saas-01';
 import {
   type ClientReply,
   createOnboardingOrganization,
@@ -190,9 +191,9 @@ export function OnboardingScreen({
     <main className="bg-background text-foreground mx-auto max-w-xl p-8 font-sans">
       {notice}
       <h1 className="mb-4 text-2xl font-semibold">Join your organization</h1>
-      <button type="button" onClick={onSignOut}>
+      <Button variant="outline" size="sm" type="button" onClick={onSignOut}>
         Sign out
-      </button>
+      </Button>
       {state.state === 'verification_required' && <EmailVerification onVerified={refresh} />}
       {state.state === 'selection_required' && (
         // The memberships read, not discovery's list, says which organization
@@ -209,7 +210,7 @@ export function OnboardingScreen({
           <label htmlFor="organization-name">Organization name</label>
           <input
             id="organization-name"
-            className="border p-2"
+            className="border-control-edge bg-background rounded-md border p-2"
             value={name}
             onChange={(event) => {
               setName(event.target.value);
@@ -217,9 +218,9 @@ export function OnboardingScreen({
             required
             maxLength={120}
           />
-          <button type="submit" disabled={sending}>
+          <Button size="sm" type="submit" disabled={sending}>
             Create organization
-          </button>
+          </Button>
         </form>
       )}
       {state.state === 'join_organization' && (
@@ -228,7 +229,8 @@ export function OnboardingScreen({
           {state.pending ? (
             <p>Your request to join is pending.</p>
           ) : (
-            <button
+            <Button
+              size="sm"
               type="button"
               disabled={sending}
               onClick={() => {
@@ -236,7 +238,7 @@ export function OnboardingScreen({
               }}
             >
               Request to join
-            </button>
+            </Button>
           )}
         </section>
       )}

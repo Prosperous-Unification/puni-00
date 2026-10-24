@@ -314,6 +314,16 @@ docker exec be-01-<colour> bun run src/<cli> restore <file>
 
 ## Measure fact rollback
 
+**The pre-deploy database backup is the rollback** (`wbs-measure-budgets` D72). Once any of
+these exists, `down.sql` refuses: a fact in a defined measure, a three-point trio, a priced fact
+or trio, or a stated budget (or a budget factor other than 1). The older image then fails the whole
+project's plan read with `invalid metric` once one fact sits in a defined measure (its tree read
+lists every measure row), and silently loses three-point trios and
+ignores budgets and bases, as the sections below detail. Clearing those rows by hand to reopen
+`down.sql` discards the figures for good. With no users yet (Dany, 2026-10-24), restore the
+backup taken before the deploy instead; the hand-clearing paths below remain for a rollback
+that must keep every other write made since the deploy.
+
 `20261023150000_key_step_measure` (`wbs-measure-budgets` slice 2) keys `step_measure` rows by
 measure definition. A fact in a defined measure (`cost`, or one an organization defined) has no
 legacy `metric` and no save/remove CLI. Backend swaps stop the old writer before migrating, so
@@ -481,7 +491,7 @@ docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /da
 Build this release's host recovery artifact with `bunx nx run wbs-be-01:build-host-restore`
 (the normal `wbs-be-01:build` also builds it). Copy
 `dist/apps/wbs/be-01-host/shared-people-host-restore.js` to
-`/home/puni1/wbs/bin/shared-people-host-restore.js` on h2puni. It runs with the pinned Bun 1.4.2
+`/home/puni1/wbs/bin/shared-people-host-restore.js` on h2puni. It runs with the pinned Bun 1.4.4
 and Docker; no checkout or node_modules is needed at the recovery location. Stop every container with a writable mount over the production database
 before invoking it. Both `be-01-blue` and `be-01-green` must be stopped, exist and identify the same
 `/home/puni1/wbs/data/wbs.db` through their configured DB_PATH and mounts. The operator needs
@@ -522,8 +532,8 @@ including after process restart or later edits, returns the original receipt/cou
 a changed backup digest or approval set refuses. Never reuse a completed operation for new intent.
 
 Before transporting the artifact, run `bunx nx run wbs-be-01:test:host-restore`. This uncached
-Linux rehearsal requires Docker and the pinned `oven/bun:1.4.2` image digest
-`sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895`; fetch that image
+Linux rehearsal requires Docker and the pinned `oven/bun:1.4.4` image digest
+`sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d`; fetch that image
 explicitly if absent. Missing Docker, Bun or the image fails the target. The rehearsal mounts only
 a disposable scratch fixture at the fixed host paths, runs the unchanged bundle without network,
 checkout, dependencies or Docker socket, and uses a test-owned inventory executable. It proves

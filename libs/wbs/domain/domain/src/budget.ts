@@ -169,10 +169,13 @@ export interface BlockedBudget {
  * the subtree's facts summed over every step and the holds of its running
  * attempts (design D39, D40).
  *
- * A derived budget exists only where every leaf of the subtree holding facts
- * in the key also holds a trio in it: a cap made of some leaves' estimates
- * against every leaf's spend would compare unlike sums (design D38). A row
- * with neither budget is absent. A stated budget whose facts mix bases, or a
+ * A derived budget exists only where every leaf step node of the subtree
+ * holding facts in the key also holds a trio in it: a cap made of some step
+ * nodes' estimates against every step node's spend would compare unlike sums
+ * (design D38). Only a three-point trio seeds or covers one: a single-point
+ * tokens trio is the legacy token estimate (D28), and every plan Navigator
+ * writes holds one, so it derives nothing (design D68). A row with neither
+ * budget is absent. A stated budget whose facts mix bases, or a
  * derived one whose facts or trios do, is not read and is named in `blocked`
  * instead. The scheduling measure has no budget (design D35).
  *
@@ -188,7 +191,11 @@ export interface BlockedBudget {
 export function readBudgets(reads: BudgetReads): BudgetRead {
   const { rows, definitions, budgets, facts, estimates, attempts, factor } = reads;
   const { mixedFacts, mixedEstimates } = reads;
-  const keys = [...new Set([...budgets.map(({ key }) => key), ...estimates.map(({ key }) => key)])];
+  // Proof: with the single-point trios kept here, `derives nothing from a
+  // single-point tokens trio, the legacy token estimate` (budget.test.ts) read
+  // derived tokens budgets on A and P; watched 2026-10-24.
+  const ranged = estimates.filter((each) => !each.singlePoint);
+  const keys = [...new Set([...budgets.map(({ key }) => key), ...ranged.map(({ key }) => key)])];
   const definitionOf = (key: string): MeasureDefinition => {
     const found = definitions.find((each) => each.key === key);
     if (found === undefined)
@@ -215,21 +222,28 @@ export function readBudgets(reads: BudgetReads): BudgetRead {
     // the parent within budget; watched 2026-10-23.
     const spentOf = totalsByRow(rollUpMeasures(rows, facts, metric), (value) => value);
     const pessimisticOf = totalsByRow(
-      rollUpMeasureEstimates(rows, estimates, key, DEFAULT_PERT_WEIGHTS, 'real'),
+      rollUpMeasureEstimates(rows, ranged, key, DEFAULT_PERT_WEIGHTS, 'real'),
       (figure) => figure.pessimistic,
     );
-    // Rows over a leaf that spends in this key and estimates nothing in it:
-    // no derived budget there (D38).
+    // Rows over a leaf step node that spends in this key and estimates
+    // nothing in it: no derived budget there (D38). Spend and pessimistic
+    // points fold per step, so coverage is per step node too.
     const estimating = new Set(
-      estimates.filter((each) => each.key === key).map(({ workItemId }) => workItemId),
+      ranged
+        .filter((each) => each.key === key)
+        .map(({ workItemId, stepId }) => stepNodeOf(workItemId, stepId)),
     );
     const uncovered = new Set<string>();
     for (const fact of facts) {
       if (fact.metric !== metric || hasChildren.has(fact.workItemId)) continue;
       // Proof: with this mark skipped, `derives no budget over a leaf that
       // spends without an estimate` (budget.test.ts) derived P's cap from A
-      // alone; watched 2026-10-23.
-      if (!estimating.has(fact.workItemId)) markUp(uncovered, fact.workItemId);
+      // alone; watched 2026-10-23. With the node keyed by work item alone,
+      // `derives no budget where a step spends without a trio beside another
+      // step's` (budget.test.ts) derived A's cap from dev against dev and qa;
+      // watched 2026-10-24.
+      if (!estimating.has(stepNodeOf(fact.workItemId, fact.stepId)))
+        markUp(uncovered, fact.workItemId);
     }
     // The running attempts whose usage in this key is unknown: no fact on
     // their node recorded at or after their start, or any running attempt
@@ -327,6 +341,11 @@ function statedReading(
     exceeded: spent > cap,
     ...(held === undefined || holdPerAttempt === null ? {} : { held, holdPerAttempt }),
   };
+}
+
+/** One step node's identity as a set member: work item and step. */
+function stepNodeOf(workItemId: string, stepId: string): string {
+  return JSON.stringify([workItemId, stepId]);
 }
 
 /** Each row's figures summed across its steps. */

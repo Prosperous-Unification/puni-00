@@ -24,7 +24,8 @@ measure has a three-point estimate and a fact, the table shows time by default.
 
 - From: caps in prose, a binding file, or nowhere.
 - To: a budget per work item and measure, strict or advisory, stated or derived, bounding
-  subtrees; a read the coordinator refuses on.
+  subtrees; a read the coordinator refuses on. Admission then moves into the WBS claim and
+  attempt-start write itself (design D69).
 
 **Columns follow the definition**
 
@@ -63,7 +64,8 @@ Measure variance, Budget, Budget factor, Spend hold, Headroom, Rate card digest.
 
 ## Decisions Recorded
 
-none; design.md's D1 to D67 await Dany's confirmation by id.
+D68, D70 and D72 are Dany's (2026-10-24); design.md's other decisions await his confirmation
+by id.
 
 ## Impact
 

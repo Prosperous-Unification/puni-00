@@ -296,6 +296,68 @@ describe('readBudgets', () => {
     expect(read.has('P')).toBe(false);
   });
 
+  it("derives no budget where a step spends without a trio beside another step's", () => {
+    const devTrio: StoredMeasureEstimate = {
+      workItemId: 'A',
+      stepId: 'dev',
+      key: 'tokens',
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 300,
+      singlePoint: false,
+    };
+    const qaFact: StoredMeasure = { ...tokens('A', 900), stepId: 'qa' };
+    const read = readingsOf({ estimates: [devTrio], facts: [tokens('A', 10), qaFact] });
+    // dev's pessimistic point against dev and qa's spend would read 300 - 910.
+    expect(read.has('A')).toBe(false);
+    expect(read.has('P')).toBe(false);
+    // A trio on qa too covers the node, and the cap is both steps' points.
+    const qaTrio: StoredMeasureEstimate = { ...devTrio, stepId: 'qa', pessimistic: 1000 };
+    expect(
+      readingsOf({ estimates: [devTrio, qaTrio], facts: [tokens('A', 10), qaFact] })
+        .get('A')
+        ?.get('tokens'),
+    ).toMatchObject({ cap: 1300, spent: 910, source: 'derived' });
+  });
+
+  it('derives nothing from a single-point tokens trio, the legacy token estimate', () => {
+    const legacy: StoredMeasureEstimate = {
+      workItemId: 'A',
+      stepId: 'dev',
+      key: 'tokens',
+      optimistic: 500,
+      realistic: 500,
+      pessimistic: 500,
+      singlePoint: true,
+    };
+    const read = readingsOf({ estimates: [legacy], facts: [tokens('A', 900)] });
+    expect(read.size).toBe(0);
+    // Beside a three-point trio on B, it neither adds to P's cap nor covers A's spend.
+    const ranged: StoredMeasureEstimate = {
+      ...legacy,
+      workItemId: 'B',
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 300,
+      singlePoint: false,
+    };
+    const beside = readingsOf({ estimates: [legacy, ranged], facts: [tokens('A', 900)] });
+    expect(beside.get('B')?.get('tokens')).toMatchObject({ cap: 300, source: 'derived' });
+    expect(beside.has('A')).toBe(false);
+    expect(beside.has('P')).toBe(false);
+    expect(
+      readingsOf({ estimates: [legacy, ranged], facts: [] })
+        .get('P')
+        ?.get('tokens'),
+    ).toMatchObject({ cap: 300 });
+    // A stated budget still reads beside it.
+    expect(
+      readingsOf({ estimates: [legacy], budgets: [budget({ workItemId: 'A' })] })
+        .get('A')
+        ?.get('tokens'),
+    ).toMatchObject({ cap: 1000, source: 'stated' });
+  });
+
   it('reports a derived budget exceeded only once the facts cross its cap', () => {
     const tokensTrio: StoredMeasureEstimate = {
       workItemId: 'A',

@@ -181,6 +181,8 @@ export function readCommand(value: unknown): CompensatingCommand {
     if (!isBudgetRecord(value)) throw new Error('a journal budget replay is malformed');
   }
   if (named === 'clear_budget') {
+    // Proof: with this check removed, `refuses a budget clear that names no
+    // whole budget` (compensating.test.ts) did not throw; watched 2026-10-24.
     if (!isBudgetKey(value)) throw new Error('a journal budget clear is malformed');
   }
   if (named === 'restore_subtree' && 'budgets' in value) {
@@ -198,6 +200,9 @@ export function readCommand(value: unknown): CompensatingCommand {
       throw new Error('a journal measure estimate replay is malformed');
   }
   if (named === 'clear_measure_estimate') {
+    // Proof: with this check removed, `refuses a measure estimate clear that
+    // names no whole step node and key` (compensating.test.ts) did not throw;
+    // watched 2026-10-24.
     if (!isMeasureEstimateKey(value))
       throw new Error('a journal measure estimate clear is malformed');
   }
@@ -213,6 +218,9 @@ export function readCommand(value: unknown): CompensatingCommand {
   }
   if (named === 'restore_subtree' && 'removedMeasureEstimates' in value) {
     const listed: unknown = value.removedMeasureEstimates;
+    // Proof: with this check removed, `refuses a subtree replay whose removed
+    // trios name no whole step node and key` (compensating.test.ts) did not
+    // throw; watched 2026-10-24.
     if (!Array.isArray(listed) || !listed.every(isMeasureEstimateKey))
       throw new Error('a journal subtree replay holds malformed removedMeasureEstimates');
   }

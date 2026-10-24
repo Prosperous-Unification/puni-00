@@ -45,6 +45,9 @@ export class WorkItemBudgetRepository implements BudgetStore {
         .orderBy(workItemBudget.workItemId, workItemBudget.measureKey)
         .all()
         .map((row) => {
+          // Proof: with this check made to pass, `rejects a stored budget
+          // policy outside the two after constraint-bypassing corruption`
+          // (targeted-readers.db.test.ts) read policy `firm`; watched 2026-10-24.
           if (!isBudgetPolicy(row.policy))
             throw new Error(
               `budget ${row.workItemId}/${row.key} holds policy ${String(row.policy)}`,

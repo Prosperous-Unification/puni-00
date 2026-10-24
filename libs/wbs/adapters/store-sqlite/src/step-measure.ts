@@ -74,6 +74,9 @@ export function basisOf(
   rateCardDigest: string | null,
 ): { basis?: MoneyBasis } {
   if (currency === null && rateCardDigest === null) return {};
+  // Proof: with this throw answering no basis, `rejects a stored figure
+  // carrying half a money basis after constraint-bypassing corruption`
+  // (targeted-readers.db.test.ts) read the fact and the trio unpriced; watched 2026-10-24.
   if (currency === null || rateCardDigest === null)
     throw new Error('a stored money figure carries half a basis');
   return { basis: { currency, rateCardDigest } };
@@ -421,6 +424,9 @@ export class StepMeasureRepository implements MeasureStore {
 function metricOrThrow(row: { workItemId: string; stepId: string; metric: string | null }): string {
   // `step_measure_addressed` and the `measure_id` foreign key make a row with
   // neither a name nor a definition unstorable; one here is drifted state.
+  // Proof: with this check made to pass, `rejects a stored fact naming
+  // neither a metric nor a definition after constraint-bypassing corruption`
+  // (targeted-readers.db.test.ts) resolved; watched 2026-10-24.
   if (row.metric === null)
     throw new Error(`measure ${row.workItemId}/${row.stepId} names no metric and no definition`);
   return row.metric;

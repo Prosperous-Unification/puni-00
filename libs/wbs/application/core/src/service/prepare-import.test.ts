@@ -1125,6 +1125,20 @@ const MEASURE_FAULTS = [
     { code: 'invalid_body', path: 'measureFacts[0].basis.rateCardDigest', detail: null },
   ],
   [
+    'an unpriced money fact',
+    (body: PlanFixture) => {
+      at(body.measureFacts).basis = null;
+    },
+    { code: 'invalid_body', path: 'measureFacts[0].basis', detail: 'rate_card_required' },
+  ],
+  [
+    'an unpriced money trio',
+    (body: PlanFixture) => {
+      at(body.measureEstimates, 1).basis = null;
+    },
+    { code: 'invalid_body', path: 'measureEstimates[1].basis', detail: 'rate_card_required' },
+  ],
+  [
     'one fact stated twice',
     (body: PlanFixture) => {
       at(body.measureFacts, 1).measure = 'cost';
