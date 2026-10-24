@@ -17,16 +17,27 @@ interface Identity {
 function observe(page: Page) {
   const frames: Frame[] = [];
   const reads: { seq: number; workItems: { nodeReadings: Record<string, string> }[] }[] = [];
+  const pendingReads = new Set<Promise<void>>();
   page.on('websocket', (socket) => {
     socket.on('framereceived', (event) => {
       frames.push(JSON.parse(String(event.payload)) as Frame);
     });
   });
   page.on('response', async (response) => {
-    if (new URL(response.url()).pathname.endsWith('/work-items') && response.ok())
-      reads.push((await response.json()) as (typeof reads)[number]);
+    if (new URL(response.url()).pathname.endsWith('/work-items') && response.ok()) {
+      const reading = (async () => {
+        const body: unknown = await response.json();
+        reads.push(body as (typeof reads)[number]);
+      })();
+      pendingReads.add(reading);
+      try {
+        await reading;
+      } finally {
+        pendingReads.delete(reading);
+      }
+    }
   });
-  return { frames, reads };
+  return { frames, reads, completeReads: () => Promise.all([...pendingReads]) };
 }
 
 async function authenticate(context: BrowserContext, token: string) {
@@ -1009,6 +1020,19 @@ test('desktop FF edit persists identity and releases only its finish condition o
       `http://localhost:7600/e2e/cross-project-refresh.html?project=${owner.id}&organization=org-a`,
     );
     await expect(page.getByLabel('Name of 010')).toHaveValue('AuthorFF row');
+    // Proof: delaying observer body reads by one second made this FF browser case fail
+    // at reload with Network.getResponseBody unavailable; the installed-sequence
+    // and pending-read barriers passed under the same delay before restoration.
+    const installedReadAfter = async (before: number) => {
+      await expect
+        .poll(async () => {
+          const installedSeq = await page.locator('body').getAttribute('data-installed-seq');
+          return observed.reads.slice(before).some((read) => String(read.seq) === installedSeq);
+        })
+        .toBe(true);
+      await observed.completeReads();
+    };
+    await installedReadAfter(0);
     const picker = page.getByLabel('Add a dependency to 010');
     await picker.fill('axx');
     await expect(page.getByRole('option', { name: 'Project AXX - A', exact: true })).toBeVisible();
@@ -1019,6 +1043,7 @@ test('desktop FF edit persists identity and releases only its finish condition o
         new URL(response.url()).pathname === `/api/projects/${owner.id}/commands` &&
         response.request().method() === 'POST',
     );
+    const beforeCreationReads = observed.reads.length;
     await page.getByRole('option', { name: 'AXX.010 - A row', exact: true }).click();
     const response = await commands;
     expect(response.status()).toBe(200);
@@ -1063,6 +1088,7 @@ test('desktop FF edit persists identity and releases only its finish condition o
       await expect(details).toBeVisible();
       return details;
     };
+    await installedReadAfter(beforeCreationReads);
     await page.reload();
     await expect(page.getByLabel('Name of 010')).toHaveValue('AuthorFF row');
     const details = await openCaptured();
@@ -1077,6 +1103,7 @@ test('desktop FF edit persists identity and releases only its finish condition o
         new URL(answer.url()).pathname === `/api/projects/${owner.id}/commands` &&
         answer.request().method() === 'POST',
     );
+    const beforeUpdateReads = observed.reads.length;
     await details.getByRole('button', { name: 'Save', exact: true }).click({ timeout: 5000 });
     const updated = await update;
     expect(updated.status()).toBe(200);
@@ -1108,6 +1135,7 @@ test('desktop FF edit persists identity and releases only its finish condition o
           frame.type === 'resume_ack' &&
           typeof frame.replayed?.[`project:${owner.id}`] === 'number',
       ).length;
+    await installedReadAfter(beforeUpdateReads);
     const beforeReload = admissions();
     const beforeReloadReads = observed.reads.length;
     await page.reload();
