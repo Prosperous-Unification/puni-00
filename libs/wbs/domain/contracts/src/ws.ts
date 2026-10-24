@@ -27,6 +27,25 @@ export const WsFrame = type({
 export type WsFrame = typeof WsFrame.infer;
 
 /**
+ * A transient announcement (`wbs-claim-display` C21): a subscription's hint
+ * with **no** sequence, never recorded and never replayed. It is its own frame
+ * rather than an optional `seq` on {@link WsFrame}, so every reader that
+ * advances a resume point keeps a `seq` it can trust. A client rereads what the
+ * message names and leaves its resume point alone; it rereads on every resume
+ * too, since a missed one is not replayed. A `seq`, if present, makes the
+ * frame a data frame or nothing.
+ */
+export const WsTransientFrame = type({
+  subscription: 'string',
+  message: 'unknown',
+  // Proof: without this key, `are transient frames the parser accepts, and
+  // only without a sequence` (ws.test.ts) parsed a data frame as transient
+  // (6 pass, 1 fail); watched 2026-10-23.
+  'seq?': 'never',
+});
+export type WsTransientFrame = typeof WsTransientFrame.infer;
+
+/**
  * Resume cursors address durable sequence numbers, including -1 for empty history before event zero.
  * Proof: the old lower bound zero made `replays event zero from the covered
  * empty-history cursor on a real socket` fail waiting for resume_ack; the socket
