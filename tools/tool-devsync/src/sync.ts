@@ -521,9 +521,13 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/wbs/be-01/src/openapi',
   'libs/wbs/domain/validation/src',
   'libs/shared/domain/validation/src',
+  // Proof: omitting either shared-delivery entry made its real Git-reset
+  // MCP document case report "watchers pick it up" without rerunning prepare.
+  'libs/shared/domain/delivery/src',
   'libs/wbs/domain/contracts/tsconfig.json',
   'libs/wbs/domain/validation/tsconfig.json',
   'libs/shared/domain/validation/tsconfig.json',
+  'libs/shared/domain/delivery/tsconfig.json',
   'apps/wbs/be-01/project.json',
   'apps/wbs/gw-01/project.json',
   'apps/wbs/fe-01/project.json',

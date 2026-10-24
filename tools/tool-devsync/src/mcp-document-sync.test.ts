@@ -54,6 +54,10 @@ beforeAll(async () => {
     'libs/wbs/domain/validation/tsconfig.json',
     'libs/shared/domain/validation/src',
     'libs/shared/domain/validation/tsconfig.json',
+    // Proof: removing this source copy reproduced CI's real Nx prepare error:
+    // Cannot find module '@shared/delivery' from delivery-shapes.ts.
+    'libs/shared/domain/delivery/src',
+    'libs/shared/domain/delivery/tsconfig.json',
     'apps/wbs/be-01/src/openapi',
     'apps/wbs/be-01/tsconfig.json',
     'apps/wbs/be-01/project.json',
@@ -130,9 +134,11 @@ const changes = [
   ['OpenAPI emitter', 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts'],
   ['WBS validation', 'libs/wbs/domain/validation/src/index.ts'],
   ['shared validation', 'libs/shared/domain/validation/src/core.ts'],
+  ['shared delivery runtime', 'libs/shared/domain/delivery/src/observation.ts'],
   ['contract aliases', 'libs/wbs/domain/contracts/tsconfig.json'],
   ['WBS validation aliases', 'libs/wbs/domain/validation/tsconfig.json'],
   ['shared validation aliases', 'libs/shared/domain/validation/tsconfig.json'],
+  ['shared delivery aliases', 'libs/shared/domain/delivery/tsconfig.json'],
 ] as const;
 
 test.each(changes)(
