@@ -28,7 +28,7 @@ import type {
   WholeBatchRefusal,
 } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
-import { claimHistoryLimitOf } from '../module/work-item/claim-history';
+import { CLAIM_HISTORY_LIMIT } from '../module/work-item/claim-history';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
 import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
@@ -36,7 +36,7 @@ import type { CapacityReports } from '../ports/compute-providers';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
-import { hasRepeatedKey, pageQueryOf } from '../service/list-query';
+import { hasRepeatedKey, limitOf, pageQueryOf } from '../service/list-query';
 import type { PlanCommand } from '../service/plan-command';
 import { pageWorkItems, slicesByWorkItem, workItemPageQueryOf } from '../service/work-item-page';
 import { BadCapacity } from './capacity-body';
@@ -796,7 +796,7 @@ export function workItemRoutes(
         // answered 200 for `limit=5&limit=6`; watched 2026-10-24.
         if (hasRepeatedKey(request.url))
           return { ok: false, status: 400, body: { error: 'invalid_query' } };
-        const limit = claimHistoryLimitOf(query.limit);
+        const limit = limitOf(query.limit, CLAIM_HISTORY_LIMIT);
         // Proof: with this refusal removed, the same case answered `limit=0`
         // with 200; watched 2026-10-24.
         if (limit === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };

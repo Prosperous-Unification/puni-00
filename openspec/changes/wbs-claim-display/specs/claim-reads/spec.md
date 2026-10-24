@@ -73,10 +73,12 @@ optimization on `claims_changed`.
 ### Requirement: A bounded read lists a project's claims and releases
 
 be-01 SHALL offer `GET /api/projects/:id/claim-history`, derived from the shared HTTP
-descriptor, answering the project's `claim` and `release` plan events newest first, at most
-`limit` of them (1 to 100, default 50). A `limit` outside 1 to 100 SHALL be refused
-`400 invalid_query`. Undo and redo entries SHALL NOT be listed. A caller the tree read refuses
-SHALL be refused alike.
+descriptor, answering the project's claims and releases newest first, at most `limit` of them
+(1 to 100, default 50): its `claim` and `release` plan events, and each claim or release run
+inside a `batch` plan event beside other commands, found before the limit is applied. A
+`limit` outside 1 to 100 SHALL be refused `400 invalid_query`. Undo and redo entries SHALL NOT
+be listed. A caller the tree read refuses SHALL be refused alike at admission; membership is not
+rechecked inside the read, as the plan history read does not.
 
 #### Scenario: The limit bounds the answer
 
@@ -88,9 +90,22 @@ SHALL be refused alike.
 - **WHEN** the caller asks with `limit=0`
 - **THEN** the read is refused `400 invalid_query`
 
+#### Scenario: A claim inside a batch is listed
+
+- **WHEN** `claire` claims `080.25` in one batch with a `setProgress` on another item
+- **THEN** the read lists that claim with reason `claimed`, under the batch's event id
+
+#### Scenario: A batch releasing one claim and claiming another lists two events
+
+- **WHEN** one batch releases `claire`'s claim on `090` and then claims `080.1` for `codex`
+- **THEN** the read lists the claim on `080.1` first and the release of `090` second, both
+  with the batch's event id, told apart by `act`
+
 ### Requirement: A history event names who, what and why
 
-Each claim history event SHALL carry `eventId`, `at`, `kind`, `reason` and `claims`. `reason`
+Each claim history event SHALL carry `eventId`, `act`, `at`, `kind`, `reason` and `claims`;
+`act` is the event's place among its batch's claim and release acts in run order, 0 for an
+event that is not a batch. `reason`
 SHALL be `claimed` for a claim, `released` for a release command, and `lease_expired` or
 `credential_revoked` for a release the sweep wrote. Each claim SHALL carry `claimId`,
 `workItemId`, `stepId`, `runId`, `holder` (`personId`, and `name` or `null` when the person is

@@ -28,7 +28,8 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 - the claims read (`getApiProjectsByIdClaims`: every claim held in a project, with holder, run,
   parent claim, lease expiry and revocation, and the server's read instant);
 - the claim history read (`getApiProjectsByIdClaim-history`: a project's newest claims and
-  releases, each with holder, items and reason, such as a lease that expired);
+  releases, batched ones included, each with holder, items and reason, such as a lease that
+  expired);
 - the agent heartbeat (`postApiClaimsRenew`: renews every claim lease of the calling agent; a
   claim an agent takes for itself is released 15 minutes after its last write unless renewed);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the

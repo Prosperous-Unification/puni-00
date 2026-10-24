@@ -201,6 +201,7 @@ import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 import {
+  CLAIM_HISTORY_COMMANDS,
   CLAIM_HISTORY_KINDS,
   type ClaimHistoryEvent,
   decodeClaimEvents,
@@ -2036,8 +2037,9 @@ export class WorkItemService {
   }
 
   /**
-   * The newest `limit` claim and release events of a project
-   * (`wbs-claim-display` C13, C14), admitted as the tree read is: `null` for a
+   * The newest `limit` claim and release acts of a project
+   * (`wbs-claim-display` C13, C14): its `claim` and `release` plan events and
+   * the acts of the `batch` events that claimed or released, admitted as the tree read is: `null` for a
    * project the caller may not read, refused alike with an absent one. Each
    * stored command is decoded with the journal's decoder
    * ({@link decodeClaimEvents}); holders and work items are named as the plan
@@ -2062,9 +2064,22 @@ export class WorkItemService {
       throw new Error('this work-item service was built without plan events');
     // Proof: with the kinds left out, `lists no undo, redo or other command`
     // (claim-history.test.ts) failed on the `estimate` event; watched 2026-10-24.
-    const decoded = decodeClaimEvents(
-      await planEvents.listFor(projectId, { kinds: CLAIM_HISTORY_KINDS, limit }),
-    );
+    // The batches that claimed or released beside other commands are kept by
+    // the store, before its limit, so non-claim batches never use up a place.
+    // Proof: with batches read as a kind and filtered here after the store's
+    // limit, `finds a claim batch under newer batches that claim nothing`
+    // (claim-history.test.ts) answered nothing; watched 2026-10-24.
+    const events = await planEvents.listFor(projectId, {
+      kinds: CLAIM_HISTORY_KINDS,
+      batchesHolding: CLAIM_HISTORY_COMMANDS,
+      limit,
+    });
+    // Every kept event yields at least one act, so the first `limit` acts are
+    // exactly the newest `limit`.
+    // Proof: with this cut removed, `lists a batch that released one claim and
+    // took another as two acts` (claim-history.test.ts) answered two acts for
+    // `limit` 1; watched 2026-10-24.
+    const decoded = decodeClaimEvents(events).slice(0, limit);
     const rows = await this.opts.workItems.listByProject(projectId);
     const names = await this.personNamesWithin(
       access,

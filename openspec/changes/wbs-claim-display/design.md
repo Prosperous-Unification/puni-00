@@ -123,12 +123,16 @@ same state. The Claims sheet renders the failure in place. Never the Error Bound
 **C13. Release history is a projection, not a history view.** `GET
 /api/projects/:id/claim-history?limit=` (`getApiProjectsByIdClaim-history`) answers the
 project's `claim` and `release` plan events newest first, `limit` 1 to 100, default 50, no
-cursor. The Claims sheet shows it under the claims held now. Rejected: fe-01 reading the raw
+cursor. The Claims sheet shows it under the claims held now. A claim or release run beside other commands in
+one batch is one `batch` plan event; the store keeps such a batch when its stored command holds
+`add_claims` or `remove_claims` at any depth (`PlanEventFilter.batchesHolding`, `json_tree` on
+SQLite, no migration), and each such step is listed as its own entry with the batch's `eventId`
+and an `act` index (review of #706, S1-1). Rejected: fe-01 reading the raw
 history (its `after` is opaque, it has no limit, and a claim's label does not name the holder);
 deferring it (a reaped chip would vanish with no reason anywhere on screen, the gap leases 2.1
 was meant to close).
 
-**C14. A history row's shape.** `{ eventId, at, kind, reason, claims[] }`; `reason` is
+**C14. A history row's shape.** `{ eventId, act, at, kind, reason, claims[] }`; `reason` is
 `claimed` for a claim, `released` for a release command, and the stored `reason`
 (`lease_expired`, `credential_revoked`) for a reap; each claim names `claimId`, `workItemId`,
 `stepId`, `holder { personId, name | null }`, `runId`, and `item { number, numberIsFrozen,

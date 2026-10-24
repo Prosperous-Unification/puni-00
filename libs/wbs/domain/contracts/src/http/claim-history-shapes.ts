@@ -7,8 +7,9 @@ import { requestSchema, responseSchema } from './schema-shape';
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
 
 /**
- * A project's newest **Claim history** events (`wbs-claim-display` C13, C14,
- * spec `claim-reads`): its `claim` and `release` plan events, newest first,
+ * A project's newest **Claim history** acts (`wbs-claim-display` C13, C14,
+ * spec `claim-reads`): its `claim` and `release` plan events and each claim or
+ * release run inside a multi-command batch, newest first,
  * `limit` 1 to 100 (default 50, anything else 400 `invalid_query`), no cursor.
  * A caller the tree read refuses is refused alike. A holder or work item
  * deleted since reads `null`; undo and redo are not listed.
@@ -32,6 +33,7 @@ export const readClaimHistory = defineEndpointShape({
         type({
           events: type({
             eventId: 'string',
+            act: 'number',
             at: 'number',
             kind: "'claim' | 'release'",
             reason: "'claimed' | 'released' | 'lease_expired' | 'credential_revoked'",
@@ -65,6 +67,6 @@ export const readClaimHistory = defineEndpointShape({
   document: {
     summary: 'List the newest claims and releases of a project, each with who, what and why.',
     description:
-      "events: the project's claim and release events, newest first, at most limit of them (a whole number 1 to 100, default 50; anything else is refused 400 invalid_query). Each names eventId, at (epoch milliseconds), kind (claim or release), reason (claimed for a claim, released for a releaseWorkItem command, lease_expired or credential_revoked for a release the lease sweep wrote) and claims: each with claimId, workItemId, stepId (null for a subtree claim), runId, holder (personId, and name or null when the person was deleted since) and item (the work item's number, numberIsFrozen and name as the plan holds it now, or null when it was deleted since). Undo and redo are not listed: read the claims held now with getApiProjectsByIdClaims.",
+      "events: the project's claims and releases, newest first, at most limit of them (a whole number 1 to 100, default 50; anything else is refused 400 invalid_query). A claim or release made in one postApiProjectsByIdCommands batch beside other commands is listed too: the acts of one batch share eventId and are told apart by act (their order in the batch, 0 for the first; the last runs first in this list); a lone act has act 0. Each names eventId, act, at (epoch milliseconds), kind (claim or release), reason (claimed for a claim, released for a releaseWorkItem command, lease_expired or credential_revoked for a release the lease sweep wrote) and claims: each with claimId, workItemId, stepId (null for a subtree claim), runId, holder (personId, and name or null when the person was deleted since) and item (the work item's number, numberIsFrozen and name as the plan holds it now, or null when it was deleted since). Undo and redo are not listed: read the claims held now with getApiProjectsByIdClaims.",
   },
 });

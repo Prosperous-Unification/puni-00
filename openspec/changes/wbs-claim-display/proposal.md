@@ -80,6 +80,10 @@ Claim chip, Releasing claim, Claim history (in `CONTEXT.md`).
 | C18 | Supersedes `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1.                                     |
 | C20 | Claims obligations never hold the stream acknowledgment.                                         |
 
+C13 note (review of #706): the history also lists claims and releases run inside a
+multi-command batch, which the journal records as one `batch` plan event; the store keeps those
+batches by their stored command (`json_tree` on SQLite) before the limit, with no migration.
+
 ## Impact
 
 `@wbs/contracts` (two reads, one event), `@wbs/core` (claims and claim-history features, the

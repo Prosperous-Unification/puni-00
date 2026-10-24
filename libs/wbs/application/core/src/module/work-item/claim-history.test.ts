@@ -7,11 +7,12 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { PlanEvent } from '../../ports/plan-event-values';
 import type { Scope } from '../../ports/unit-of-work';
+import { limitOf } from '../../service/list-query';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from '../plan-commands/composition';
-import { CLAIM_HISTORY_LIMIT, claimHistoryLimitOf } from './claim-history';
+import { CLAIM_HISTORY_LIMIT } from './claim-history';
 
 const F = 'account-f';
 
@@ -178,6 +179,7 @@ describe('the claim history read', () => {
         read?.map(({ eventId: _, claims, ...rest }) => ({ ...rest, claims: byClaim(claims) })),
       ).toEqual([
         {
+          act: 0,
           at: 20_000,
           kind: 'release',
           reason: 'credential_revoked',
@@ -193,6 +195,7 @@ describe('the claim history read', () => {
           ],
         },
         {
+          act: 0,
           at: 10_000,
           kind: 'release',
           reason: 'lease_expired',
@@ -207,8 +210,8 @@ describe('the claim history read', () => {
             },
           ],
         },
-        { at: 3_000, kind: 'release', reason: 'released', claims: byClaim(claire) },
-        { at: 2_000, kind: 'claim', reason: 'claimed', claims: byClaim(claire) },
+        { act: 0, at: 3_000, kind: 'release', reason: 'released', claims: byClaim(claire) },
+        { act: 0, at: 2_000, kind: 'claim', reason: 'claimed', claims: byClaim(claire) },
       ]);
       // Each event is the stored plan event, by id.
       const stored = await source.stores.planEvents.listFor(projectId, {
@@ -304,12 +307,192 @@ describe('the claim history read', () => {
   });
 
   it('reads a limit from 1 to 100, 50 when absent, and refuses anything else', () => {
-    expect(claimHistoryLimitOf(undefined)).toBe(50);
-    expect(claimHistoryLimitOf('1')).toBe(1);
-    expect(claimHistoryLimitOf('100')).toBe(100);
-    expect(claimHistoryLimitOf('007')).toBe(7);
+    expect(limitOf(undefined, CLAIM_HISTORY_LIMIT)).toBe(50);
+    expect(limitOf('1', CLAIM_HISTORY_LIMIT)).toBe(1);
+    expect(limitOf('100', CLAIM_HISTORY_LIMIT)).toBe(100);
+    expect(limitOf('007', CLAIM_HISTORY_LIMIT)).toBe(7);
     for (const raw of ['0', '101', '', '-1', '1.5', 'ten', '1e2', '99999999'])
-      expect({ raw, limit: claimHistoryLimitOf(raw) }).toEqual({ raw, limit: null });
+      expect({ raw, limit: limitOf(raw, CLAIM_HISTORY_LIMIT) }).toEqual({ raw, limit: null });
+  });
+
+  it('lists a claim made beside other commands in one batch', async () => {
+    const { source, projectId, steps, run, history } = await seeded();
+    const [dev] = steps;
+    try {
+      const claimed = await run([
+        { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
+        {
+          kind: 'setEstimate',
+          workItemId: '080.1',
+          stepId: dev,
+          days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+        },
+      ]);
+      const [batch] = await source.stores.planEvents.listFor(projectId, { kinds: ['batch'] });
+      expect(
+        (await history())?.map(({ eventId, act, kind, reason, claims }) => ({
+          eventId,
+          act,
+          kind,
+          reason,
+          claimIds: claims.map(({ claimId }) => claimId),
+        })),
+      ).toEqual([
+        { eventId: batch.id, act: 0, kind: 'claim', reason: 'claimed', claimIds: claimed },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('lists a batch that released one claim and took another as two acts', async () => {
+    const { source, run, history } = await seeded();
+    try {
+      await run([{ kind: 'claimWorkItem', workItemId: '090', personId: 'claire' }]);
+      await run([
+        { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire' },
+        { kind: 'claimWorkItem', workItemId: '080.1', personId: 'codex-fleet' },
+      ]);
+      const acts = (read: Awaited<ReturnType<typeof history>>) =>
+        read?.map(({ act, kind, reason, claims }) => ({
+          act,
+          kind,
+          reason,
+          items: [...new Set(claims.map(({ workItemId }) => workItemId))],
+        }));
+      const [newest, older] = (await history()) ?? [];
+      expect(newest.eventId).toBe(older.eventId);
+      expect(acts(await history())).toEqual([
+        { act: 1, kind: 'claim', reason: 'claimed', items: ['080.1'] },
+        { act: 0, kind: 'release', reason: 'released', items: ['090'] },
+        { act: 0, kind: 'claim', reason: 'claimed', items: ['090'] },
+      ]);
+      expect(acts(await history(1))).toEqual([
+        { act: 1, kind: 'claim', reason: 'claimed', items: ['080.1'] },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('finds a claim batch under newer batches that claim nothing', async () => {
+    const { source, steps, run, history } = await seeded();
+    const [dev, qa] = steps;
+    const estimate = (workItemId: string, stepId: string, realistic: number) => ({
+      kind: 'setEstimate' as const,
+      workItemId,
+      stepId,
+      days: { optimistic: 1, realistic, pessimistic: 9 },
+    });
+    try {
+      await run([
+        { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
+        estimate('080.1', dev, 2),
+      ]);
+      for (const realistic of [3, 4, 5])
+        await run([estimate('080.1', dev, realistic), estimate('080.1', qa, realistic)]);
+      expect((await history(1))?.map(({ kind }) => kind)).toEqual(['claim']);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('lists nothing for a batch that deleted a claimed item', async () => {
+    const { source, projectId, steps, run, history } = await seeded();
+    const [dev] = steps;
+    try {
+      await run([{ kind: 'claimWorkItem', workItemId: '090', personId: 'claire' }]);
+      // A deletion's inverse puts the claims back; its forward claims nothing.
+      await run([
+        { kind: 'deleteWorkItem', workItemId: '090' },
+        {
+          kind: 'setEstimate',
+          workItemId: '080.1',
+          stepId: dev,
+          days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+        },
+      ]);
+      const [deleted] = await source.stores.planEvents.listFor(projectId, { kinds: ['batch'] });
+      expect(JSON.stringify(deleted.before)).toContain('add_claims');
+      expect((await history())?.map(({ kind }) => kind)).toEqual(['claim']);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('fails the read on a batch it cannot split into acts', async () => {
+    const corrupt: [string, unknown][] = [
+      [
+        'e-both-in-one-step',
+        {
+          do: 'batch',
+          steps: [
+            {
+              do: 'batch',
+              steps: [
+                { do: 'add_claims', claims: [storedClaim], stated: [] },
+                { do: 'remove_claims', claims: [storedClaim], cleared: [] },
+              ],
+            },
+            { do: 'set_frozen', updates: [] },
+          ],
+        },
+      ],
+      [
+        'e-no-act',
+        {
+          do: 'batch',
+          steps: [
+            { do: 'set_frozen', updates: [], note: { do: 'add_claims' } },
+            { do: 'set_frozen', updates: [] },
+          ],
+        },
+      ],
+    ];
+    for (const [id, after] of corrupt) {
+      const { source, run, history, appendEvent } = await seeded();
+      try {
+        await run([{ kind: 'claimWorkItem', workItemId: '090', personId: 'claire' }]);
+        await appendEvent({ id, kind: 'batch', createdAt: 900_000, after });
+        expect({ id, read: await history().then(String, (error: unknown) => error) }).toEqual({
+          id,
+          read: expect.objectContaining({
+            message: expect.stringContaining(`claim history event ${id}`) as unknown,
+          }) as unknown,
+        });
+      } finally {
+        await source.close();
+      }
+    }
+  });
+
+  it('fails the read for a row the tree cannot number, never reading it as deleted', async () => {
+    const { source, projectId, history, appendEvent } = await seeded();
+    try {
+      await source.stores.workItems.insert(
+        workItemRow({ id: 'w-orphan', projectId, parentId: 'no-such-parent', position: 1 }),
+        [],
+        { at: 1, by: F },
+      );
+      await appendEvent({
+        id: 'e-orphan',
+        kind: 'claim',
+        createdAt: 900_000,
+        after: {
+          do: 'add_claims',
+          claims: [{ ...storedClaim, workItemId: 'w-orphan' }],
+          stated: [],
+        },
+      });
+      // `deriveNumbers` refuses the orphan before the read could name it `null`.
+      expect(await history().then(String, (error: unknown) => error)).toEqual(
+        expect.objectContaining({
+          message: 'work items unreachable from any root: w-orphan',
+        }),
+      );
+    } finally {
+      await source.close();
+    }
   });
 
   it('fails the read on a stored command it cannot decode, naming the event', async () => {

@@ -1,5 +1,10 @@
-import type { PlanEvent, PlanEventFilter, PlanEventStore } from '@wbs/core';
-import { and, desc, eq, inArray, lt } from 'drizzle-orm';
+import {
+  checkPlanEventLimit,
+  type PlanEvent,
+  type PlanEventFilter,
+  type PlanEventStore,
+} from '@wbs/core';
+import { and, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 
 import { rowsChanged } from './changes';
 import type { Drizzle } from './db';
@@ -44,7 +49,36 @@ export class PlanEventRepository implements PlanEventStore {
    * "the plan has no history". Watched 2026-08-17.
    */
   async listFor(projectId: string, filter: PlanEventFilter): Promise<PlanEvent[]> {
+    // Proof: with this check removed, the SQLite certification failed
+    // `planEvents.listFor:batches-limit` (conformance), whose `limit` 0, -1
+    // and 1.5 must be refused; watched 2026-10-24.
+    checkPlanEventLimit(filter.limit);
     const kinds = filter.kinds ?? [];
+    const holding = filter.batchesHolding ?? [];
+    const ofKinds = inArray(planEvent.kind, [...kinds]);
+    // A `batch` event whose stored command holds a named command at any depth,
+    // decided before LIMIT so the cut counts only events the caller keeps.
+    // `json_tree` visits every node, so a nested batch matches and a string
+    // that merely mentions `add_claims` does not.
+    // Proof, each watched 2026-10-24 on `planEvents.listFor:batches-limit`
+    // (conformance): with the batch clause removed the certification failed
+    // the case, and `lists a claim made beside setProgress in one batch`
+    // (claim-history-batch.controller.db.test.ts) read no claim; with
+    // `LIKE '%add_claims%'` in place of `json_tree` the case kept the batch
+    // whose rename merely mentions the command.
+    const kept =
+      holding.length === 0
+        ? ofKinds
+        : or(
+            ofKinds,
+            and(
+              eq(planEvent.kind, 'batch'),
+              sql`EXISTS (SELECT 1 FROM json_tree(${planEvent.after}) AS node WHERE node.key = 'do' AND node.value IN (${sql.join(
+                holding.map((each) => sql`${each}`),
+                sql`, `,
+              )}))`,
+            ),
+          );
     const ordered = this.db
       .select()
       .from(planEvent)
@@ -52,12 +86,13 @@ export class PlanEventRepository implements PlanEventStore {
         and(
           eq(planEvent.projectId, projectId),
           filter.workItemId === undefined ? undefined : eq(planEvent.workItemId, filter.workItemId),
-          kinds.length === 0 ? undefined : inArray(planEvent.kind, [...kinds]),
+          kinds.length === 0 ? undefined : kept,
         ),
       )
       .orderBy(desc(planEvent.createdAt), desc(planEvent.id));
-    // Proof: with the limit left off, `answers at most the limit, newest first`
-    // (plan-event.test.ts) read every event; watched 2026-10-24.
+    // Proof: with the limit left off, `answers at most the limit, newest first,
+    // after the other filters` (plan-event.db.test.ts) read every event;
+    // watched 2026-10-24.
     const rows = await (filter.limit === undefined ? ordered : ordered.limit(filter.limit));
     return rows.map(asEvent);
   }

@@ -120,6 +120,7 @@ describe('the claim history read', () => {
         events: [
           {
             eventId: 'e-gone',
+            act: 0,
             at: 300,
             kind: 'release',
             reason: 'released',
@@ -134,8 +135,22 @@ describe('the claim history read', () => {
               },
             ],
           },
-          { eventId: 'e-reap', at: 200, kind: 'release', reason: 'lease_expired', claims: [codex] },
-          { eventId: 'e-claim', at: 100, kind: 'claim', reason: 'claimed', claims: [codex] },
+          {
+            eventId: 'e-reap',
+            act: 0,
+            at: 200,
+            kind: 'release',
+            reason: 'lease_expired',
+            claims: [codex],
+          },
+          {
+            eventId: 'e-claim',
+            act: 0,
+            at: 100,
+            kind: 'claim',
+            reason: 'claimed',
+            claims: [codex],
+          },
         ],
       },
     });

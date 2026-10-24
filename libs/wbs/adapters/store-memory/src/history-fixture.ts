@@ -1,4 +1,4 @@
-import type { PlanEvent, PlanEventStore } from '@wbs/core';
+import { checkPlanEventLimit, holdsCommand, type PlanEvent, type PlanEventStore } from '@wbs/core';
 
 /**
  * A {@link PlanEventStore} backed by an array, for service and controller tests
@@ -32,14 +32,24 @@ export function inMemoryPlanEvents(
   return {
     held,
     listFor(projectId, filter) {
+      // Proof: with this check removed, the memory certification failed
+      // `planEvents.listFor:batches-limit` (conformance), whose `limit` 0, -1
+      // and 1.5 must be refused; watched 2026-10-24.
+      checkPlanEventLimit(filter.limit);
       const kinds = filter.kinds ?? [];
+      const holding = filter.batchesHolding ?? [];
+      // Proof: with the batch clause removed, the memory certification failed
+      // `planEvents.listFor:batches-limit` (conformance); watched 2026-10-24.
+      const kept = (each: PlanEvent): boolean =>
+        kinds.includes(each.kind) ||
+        (holding.length > 0 && each.kind === 'batch' && holdsCommand(each.after, holding));
       return Promise.resolve(
         held
           .filter((each) => each.projectId === projectId)
           .filter(
             (each) => filter.workItemId === undefined || each.workItemId === filter.workItemId,
           )
-          .filter((each) => kinds.length === 0 || kinds.includes(each.kind))
+          .filter((each) => kinds.length === 0 || kept(each))
           .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id))
           // Proof: with the limit ignored, `answers the newest events up to the
           // limit` (claim-history.test.ts) read all 120; watched 2026-10-24.
