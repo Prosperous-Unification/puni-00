@@ -377,7 +377,7 @@ export async function observeCommitted<T>(
   const connection = openConnection();
   try {
     const transaction = drizzleReadTransaction(connection.db);
-    // Proof: omitting BEGIN made the claim-observation racing-row read mix a new claim with old rows.
+    // Proof: omitting BEGIN failed the claim-observation path with no active transaction at settlement.
     transaction.begin();
     try {
       const captured = await read(connection.db);
