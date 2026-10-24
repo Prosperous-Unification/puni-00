@@ -71,7 +71,8 @@
         "{workspaceRoot}/libs/wbs/domain/validation/src/*.ts",
         "!{workspaceRoot}/libs/wbs/domain/validation/src/*.test.ts",
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
-        "{workspaceRoot}/docs/runbook-dev-deploy.md"
+        "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
       "options": {
         "command": "bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts test/source-exclusion-transport.test.ts test/source-exclusion-topology.test.ts test/source-exclusion-native.test.ts test/fixture-failure.test.ts --preload ../test/scratch/preload.ts --timeout=10000",

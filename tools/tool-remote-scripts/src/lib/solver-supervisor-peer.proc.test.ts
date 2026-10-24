@@ -124,7 +124,7 @@ data(s,bytes){process.stdout.write(bytes);},close(){},error(s,e){console.error(e
           new Response(client.stderr).text(),
           client.exited,
         ]);
-        expect(exit).toBe(0);
+        expect(exit, stderr).toBe(0);
         expect(stderr).toBe('');
         expect(Number.isSafeInteger(acceptedFd)).toBe(true);
         expect(acceptedFd).toBeGreaterThanOrEqual(0);

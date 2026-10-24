@@ -542,7 +542,11 @@ it('provisions usable bubblewrap before workspace native runtime tests', async (
     'Provision bubblewrap for native runtime tests',
   );
   expect(provision.if).toBeUndefined();
-  expect(provision.run).toContain('apt-get install --yes --no-install-recommends bubblewrap');
+  // Proof: removing BusyBox from workspace provisioning failed this check before native migration subprocess tests.
+  expect(provision.run).toContain(
+    'apt-get install --yes --no-install-recommends bubblewrap busybox',
+  );
+  expect(provision.run).toContain('/bin/busybox sh -c');
   expect(provision.run).toContain('sudo apparmor_parser --replace /etc/apparmor.d/bwrap');
   expect(provision.run).toContain(
     'bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000',

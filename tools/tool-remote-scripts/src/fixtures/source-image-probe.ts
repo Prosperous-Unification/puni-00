@@ -10,6 +10,11 @@ export async function prepareImageProbe(root: string): Promise<void> {
   )
     throw new Error('invalid image probe fixture');
   await writeFile(join(root, 'fixture-owned'), 'source-image-probe-test-only-v1\n');
+  await writeFile(
+    join(root, 'passwd'),
+    `fixture:x:1000:1000:fixture:${root}/passwd-home:/bin/sh\n`,
+    { mode: 0o644 },
+  );
   for (const path of ['passwd-home', 'image-home', 'src'])
     await mkdir(join(root, path), { mode: 0o700 });
   const resolver = `#!/bin/sh\n[ "$#" -eq 2 ] && [ "$1" = passwd ] && [ "$2" = 1000 ] || exit 73\nprintf '%s\\n' 'fixture:x:1000:1000:fixture:${root}/passwd-home:/bin/sh'\n`;
@@ -17,6 +22,51 @@ export async function prepareImageProbe(root: string): Promise<void> {
   await chmod(join(root, 'getent'), 0o700);
   await writeFile(join(root, 'find'), '#!/bin/sh\nexec /usr/bin/find "$@"\n', { mode: 0o700 });
   await chmod(join(root, 'find'), 0o700);
+}
+/** Executes native tools as the image's numeric user with its fixture passwd lookup. */
+export async function runImageIdentity(
+  root: string,
+  command: string[],
+  signal?: AbortSignal,
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  if (
+    !/^\/tmp\/source-image-[A-Za-z0-9]+$/.test(root) ||
+    (await realpath(root)) !== root ||
+    (await readFile(join(root, 'fixture-owned'), 'utf8')) !== 'source-image-probe-test-only-v1\n'
+  )
+    throw new Error('foreign image identity fixture');
+  const child = Bun.spawn(
+    [
+      'bwrap',
+      '--die-with-parent',
+      '--new-session',
+      '--unshare-user',
+      // Proof: injecting UID 1001 under simulated runner UID 1001 made the native image config probe positive refuse before any role CLI.
+      '--uid',
+      '1000',
+      '--gid',
+      '1000',
+      '--ro-bind',
+      '/',
+      '/',
+      '--ro-bind',
+      join(root, 'passwd'),
+      '/etc/passwd',
+      '--dev',
+      '/dev',
+      '--proc',
+      '/proc',
+      '--',
+      ...command,
+    ],
+    { stdout: 'pipe', stderr: 'pipe', signal, killSignal: 'SIGKILL' },
+  );
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  return { stdout, stderr, code };
 }
 /** Runs the production native program after validating its exact image-only context and two fixed translations. */
 export async function runImageProbe(
@@ -77,16 +127,9 @@ export async function runImageProbe(
     .replaceAll('/usr/bin/find', join(root, 'find'))
     .replace('source=/src', `source=${root}/src`);
   const environment = command.slice(command.indexOf('-i') + 1, -3);
-  const child = Bun.spawn(['/usr/bin/env', '-i', ...environment, '/bin/sh', '-c', translated], {
-    stdout: 'pipe',
-    stderr: 'pipe',
+  return runImageIdentity(
+    root,
+    ['/usr/bin/env', '-i', ...environment, '/bin/sh', '-c', translated],
     signal,
-    killSignal: 'SIGKILL',
-  });
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  return { stdout, stderr, code };
+  );
 }

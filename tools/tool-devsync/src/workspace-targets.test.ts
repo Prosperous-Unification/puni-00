@@ -1028,6 +1028,7 @@ describe('every cached target declares what it reads', () => {
     // tool-remote-scripts and observability/src/index.ts plus store-sqlite/src/source.ts.
     // Proof: omitting the backend live-test Browser consumer inputs failed this scan naming
     // wbs-be-01 and fe-01/src/components/wbs/gantt-geometry.ts plus fe-01/tsconfig.app.json.
+    // Proof: omitting the Nx source input from tool-remote-scripts:test failed this scan naming node_modules/nx/dist/src.
     expect(undeclared).toBeEmpty();
   });
 });

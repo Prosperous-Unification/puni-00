@@ -99,6 +99,7 @@ test('startup survives poisoned contracts and core runtime barrels', async () =>
   expect(compilation.success).toBe(true);
 });
 
+// Proof: deleting the document emitter COPY from the MCP Dockerfile made this production-stage fixture fail with "Module not found".
 test('Docker document stage generates using exactly its copied sources', () => {
   for (const [index, dockerfile] of [
     'apps/wbs/mcp-01/Dockerfile',
@@ -110,7 +111,7 @@ test('Docker document stage generates using exactly its copied sources', () => {
     const instructions = readFileSync(join(root, dockerfile), 'utf8')
       .split('FROM deps AS document\n')
       .at(1)
-      ?.split('FROM oven/bun:1.4.2-alpine AS runtime')
+      ?.split(/\nFROM [^\n]+ AS runtime(?:\n|$)/)
       .at(0);
     if (instructions === undefined) throw new Error(`No document stage in ${dockerfile}`);
     for (const instruction of instructions.split('\n').filter((line) => line.startsWith('COPY '))) {

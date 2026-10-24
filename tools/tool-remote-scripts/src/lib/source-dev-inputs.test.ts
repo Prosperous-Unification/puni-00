@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 
 import { sourceFixture } from '../fixtures/source-dev';
-import { prepareImageProbe, runImageProbe } from '../fixtures/source-image-probe';
+import { prepareImageProbe, runImageIdentity, runImageProbe } from '../fixtures/source-image-probe';
 import { artifact, roots } from '../fixtures/source-startup';
 import { type DependencyOwner, withDependencyOwner } from './edge-ownership';
 import { envLayout, sourceDevContract } from './env';
@@ -781,6 +781,9 @@ for (const fault of [
 test('Bun 1.4.4 os.homedir without HOME matches native passwd lookup (not loader evidence)', async () => {
   expect(Bun.version).toBe('1.4.4');
   const f = await fixture();
+  const root = await mkdtemp('/tmp/source-image-');
+  roots.push(root);
+  await prepareImageProbe(root);
   await f.scoped(async (owner, token) => {
     await observeSourceDevInputs(
       owner,
@@ -796,24 +799,16 @@ test('Bun 1.4.4 os.homedir without HOME matches native passwd lookup (not loader
   const program = command?.at(-1);
   if (program === undefined) throw new Error('missing native probe');
   const execute = async (args: string[]) => {
-    const child = Bun.spawn(
-      [
-        '/usr/bin/env',
-        '-i',
-        'PATH=/usr/local/bin:/usr/bin:/bin',
-        'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0',
-        ...args,
-      ],
-      { stdout: 'pipe', stderr: 'pipe' },
-    );
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
+    const observed = await runImageIdentity(root, [
+      '/usr/bin/env',
+      '-i',
+      'PATH=/usr/local/bin:/usr/bin:/bin',
+      'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0',
+      ...args,
     ]);
-    expect(code).toBe(0);
-    expect(stderr).toBe('');
-    return stdout;
+    expect(observed.code, observed.stderr).toBe(0);
+    expect(observed.stderr).toBe('');
+    return observed.stdout;
   };
   expect(await execute(['/bin/sh', '-c', program])).toBe('wbs-source-image-config-absent-v1\n');
   const passwd = (await execute(['/usr/bin/getent', 'passwd', '1000'])).trimEnd().split(':');

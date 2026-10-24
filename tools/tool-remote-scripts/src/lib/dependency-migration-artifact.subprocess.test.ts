@@ -93,6 +93,11 @@ async function invoke(fault: string, guarded = true, program = migrationScannerP
     [
       'bwrap',
       '--unshare-all',
+      // Proof: removing this UID/GID mapping under simulated runner UID 1001 made the actual pinned Bun scanner positive exit 1.
+      '--uid',
+      '1000',
+      '--gid',
+      '1000',
       '--tmpfs',
       '/',
       '--dev',
@@ -176,7 +181,7 @@ async function invoke(fault: string, guarded = true, program = migrationScannerP
 }
 test('actual pinned Bun scanner runs DB-free with scrubbed inherited options and fixed root cwd', async () => {
   const observed = await invoke('none');
-  expect(observed.code).toBe(0);
+  expect(observed.code, observed.stderr).toBe(0);
   expect(observed.stderr).toBe('');
   expect(JSON.parse(observed.stdout)).toEqual(expectedRows);
   expect(observed.files).toEqual([]);
