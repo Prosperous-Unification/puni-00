@@ -10,8 +10,8 @@
 
 ## 3. Recovery
 
-- [ ] 3.1 Establish repeatable off-node registry backup and explicit failure reporting without launching unrelated platform services. Test: scheduled backup produces a verifiable archive and receipt; negative: injected transfer or archive corruption makes the backup/verification command fail.
-- [ ] 3.2 Restore the backup into an isolated registry and verify a known manifest and every blob digest; prove the production registry retains the image across restart. Test: uncached digest pull from original and restored endpoints; negative: altered restored blob is rejected. Preserve all original storage and backups.
+- [x] 3.1 Establish repeatable off-node registry backup and explicit failure reporting without launching unrelated platform services. Test: scheduled backup produces a verifiable archive and receipt; negative: injected transfer or archive corruption makes the backup/verification command fail.
+- [x] 3.2 Restore the backup into an isolated registry and verify a known manifest and every blob digest; prove the production registry retains the image across restart. Test: uncached digest pull from original and restored endpoints; negative: altered restored blob is rejected. Preserve all original storage and backups.
 - [x] 3.3 Verify encrypted recovery materials can be recovered off-node. Record exact custody locations without credentials, and separately identify any human-owned offline/password-manager custody that remains unverified.
 
 ## 4. Review and handoff
