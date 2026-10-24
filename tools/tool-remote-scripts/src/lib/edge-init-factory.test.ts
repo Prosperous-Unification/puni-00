@@ -104,9 +104,58 @@ async function observe(action: string, classification = '', target = '', fault =
   }
 }
 
+/** Keeps unexpected positive failures useful without retaining worker output or arbitrary causes. */
+function failureContext(observation: FactoryObservation): string {
+  const bounded = (entries: readonly string[]) =>
+    entries
+      .slice(-8)
+      .map((entry) =>
+        entry.length <= 160 && !entry.includes('PRIVATE_FACTORY_SECRET') ? entry : '[omitted]',
+      );
+  return JSON.stringify({
+    refusal:
+      observation.refusal === undefined
+        ? 'absent'
+        : /^edge Init adoption refused: (preparation-failed|operation-refused)$/.test(
+              observation.refusal,
+            )
+          ? observation.refusal
+          : 'unrecognized',
+    reads: bounded(observation.reads),
+    receiptStages: bounded(observation.receiptStages),
+  });
+}
+
+test('unexpected positive exit retains bounded parsed refusal and last observations', () => {
+  const observation = {
+    refusal: 'edge Init adoption refused: preparation-failed',
+    reads: ['discarded-earlier-read', ...Array.from({ length: 7 }, () => 'collector'), 'GET /info'],
+    receiptStages: ['create-intended'],
+    transcript: [],
+    stdout: 'PRIVATE_FACTORY_SECRET',
+  };
+  // Proof: removing the positive assertion context made this synthetic failing-exit assertion lose its refusal and boundary evidence.
+  let failure: unknown;
+  try {
+    expect(2, failureContext(observation)).toBe(0);
+  } catch (cause) {
+    failure = cause;
+  }
+  expect(failure).toBeInstanceOf(Error);
+  if (!(failure instanceof Error)) throw new Error('unexpected positive exit did not fail');
+  expect(failure.message).toContain('preparation-failed');
+  expect(failure.message).toContain('GET /info');
+  expect(failure.message).toContain('create-intended');
+  expect(failure.message).not.toContain('discarded-earlier-read');
+  expect(failure.message).not.toContain('PRIVATE_FACTORY_SECRET');
+  expect(failureContext({ ...observation, refusal: 'PRIVATE_FACTORY_SECRET' })).toContain(
+    'unrecognized',
+  );
+});
+
 test('actual production prepare traverses native host, collector, fixed Caddy Exec and authenticated TLS reads without effects or receipts', async () => {
   const { observation, code } = await observe('prepare');
-  expect(code).toBe(0);
+  expect(code, failureContext(observation)).toBe(0);
   expect(observation.summary?.stage).toBe('prepared');
   expect(observation.summary?.receiptSha256).toBeNull();
   expect(observation.receiptDirectoryPresent).toBe(false);
@@ -302,7 +351,7 @@ for (const target of ['registry', 'caddy']) {
       'actual read-only recovery classifies ' + target + ' ' + classification,
       async () => {
         const { observation, code } = await observe('recovery', classification, target);
-        expect(code).toBe(0);
+        expect(code, failureContext(observation)).toBe(0);
         expect(observation.summary?.stage).toBe('recovery-observed');
         expect(observation.summary?.recovery?.scope).toBe('read-only-recovery-observation');
         const targets = observation.summary?.recovery?.targets;
@@ -331,7 +380,7 @@ for (const classification of ['retained', 'registry-removed', 'complete']) {
     'actual read-only recovery observes global prefix ' + classification,
     async () => {
       const { observation, code } = await observe('recovery', classification, 'caddy');
-      expect(code).toBe(0);
+      expect(code, failureContext(observation)).toBe(0);
       expect(observation.summary?.stage).toBe('recovery-observed');
       expect(observation.summary?.recovery?.targets.map((entry) => entry.class)).toEqual([
         classification === 'retained'
@@ -347,7 +396,7 @@ for (const classification of ['retained', 'registry-removed', 'complete']) {
 }
 test('actual recovery accepts expired historical operation under a distinct currently held edge descriptor', async () => {
   const { observation, code } = await observe('recovery', 'complete', 'caddy', 'expired-window');
-  expect(code).toBe(0);
+  expect(code, failureContext(observation)).toBe(0);
   expect(observation.summary?.recovery?.window).toBe('expired');
 }, 120000);
 for (const fault of [
@@ -477,7 +526,7 @@ for (const fault of [
 
 test('actual production execute completes the closed twelve-effect transcript and durable receipt grammar', async () => {
   const { observation, code } = await observe('execute');
-  expect(code).toBe(0);
+  expect(code, failureContext(observation)).toBe(0);
   expect(observation.summary?.stage).toBe('complete');
   const original = ['d'.repeat(64), 'e'.repeat(64)];
   expect(observation.transcript).toEqual([
@@ -532,7 +581,7 @@ for (const fault of ['service-unhealthy', 'manifest-body']) {
     'actual recovery reports complete service-negative ' + fault + ' as unhealthy',
     async () => {
       const { observation, code } = await observe('recovery', 'complete', 'registry', fault);
-      expect(code).toBe(0);
+      expect(code, failureContext(observation)).toBe(0);
       expect(observation.summary?.recovery?.targets[0]?.health).toBe('unhealthy');
       expect(observation.summary?.recovery?.targets[1]?.health).toBe('healthy');
     },
@@ -660,7 +709,7 @@ test('actual recovery snapshots an unrelated created blank endpoint without gran
     'registry',
     'unrelated-created',
   );
-  expect(code).toBe(0);
+  expect(code, failureContext(observation)).toBe(0);
   expect(observation.summary?.stage).toBe('recovery-observed');
   expect(observation.summary?.recovery?.targets.map((entry) => entry.class)).toEqual([
     'candidate-running-original-absent',
