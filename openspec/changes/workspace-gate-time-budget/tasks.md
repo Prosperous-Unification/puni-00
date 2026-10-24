@@ -1,13 +1,21 @@
-## 1. Restore the finite workspace allowance
+## 1. Establish the capacity evidence and scope
 
-- [x] 1.1 Read the hosted cancellation and step timings; record the incomplete verdict.
-- [x] 1.2 Set only the workspace timeout to 90 minutes and link the observed evidence.
-- [x] 1.3 Check formatting and parse the workflow to confirm the timeout and unchanged commands.
-- [ ] 1.4 Commit through normal hooks and observe the hosted run for the new head.
+- [x] 1.1 Record the 60-minute and 90-minute cancellations, their incomplete checks and measured task times without inferring a cold green duration.
+- [x] 1.2 Specify exact whole-project ownership, target/dependency preservation, finite limits and strict aggregate verdict.
 
-## 2. Align the production entrypoint regression test
+## 2. Partition the immutable plan and runtime execution
 
-- [x] 2.1 Reproduce the stale 60-minute expectation against the restored 90-minute workflow.
-- [x] 2.2 Expect 90 minutes for workspace while preserving the 50-minute Twilight assertion.
-- [x] 2.3 Watch the focused test fail after regressing the production workspace value to 60, then restore 90 and pass.
-- [ ] 2.4 Commit through normal hooks and require exact-head hosted CI plus the canonical h2puni gate before release acceptance.
+- [x] 2.1 Test full/affected owner union, individual heavy ownership, future residual projects, empty residual and invalid ownership.
+- [x] 2.2 Implement shared partition selection and preserve target-specific affected execution and independent lint.
+- [x] 2.3 Test full-mode selected projects, targets, immutable checkout and inventory faults; implement full-mode execution with timing.
+
+## 3. Split the workflow without weakening checks
+
+- [x] 3.1 Pin every job's provision, 90/75/30-minute limits, exact step commands, always-on logs and reduction outcomes.
+- [x] 3.2 Move non-Nx checks to the parallel checks job; retain original runtime, docs and Twilight commands.
+- [x] 3.3 Watch representative ownership, identity, provisioning, timeout, status/log and reducer omissions fail the intended tests, then restore.
+
+## 4. Verify and observe
+
+- [x] 4.1 Run focused Bun suites, affected lint/typecheck, format and OpenSpec validation; record normal hooks.
+- [ ] 4.2 Require exact-head cold hosted CI with all jobs and reducers green, then affected/docs controls. Follow a single task approaching 75 minutes with measured file or subsuite evidence.

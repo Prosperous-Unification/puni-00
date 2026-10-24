@@ -1,3 +1,4 @@
+import { partitionRuntimeProjects, type RuntimePartitions } from './ci-runtime-partitions';
 import { selectRuntimeProjects } from './ci-runtime-selection';
 import { selectChanges } from './ci-selection';
 import { selectTestFiles, type TestSelection } from './ci-test-selection';
@@ -11,6 +12,7 @@ export interface GatePlan {
   twilight: 'run' | 'skip';
   projects: string[];
   workspaceProjects: string[];
+  partitions: RuntimePartitions;
   twilightProjects: string[];
   reasons: string[];
   tests: TestSelection[];
@@ -32,6 +34,7 @@ export async function createGatePlan(
       twilight: 'skip',
       projects: [],
       workspaceProjects: [],
+      partitions: partitionRuntimeProjects([]),
       twilightProjects: [],
       reasons: selection.reasons,
       tests: [],
@@ -41,7 +44,7 @@ export async function createGatePlan(
   const projects = [...runtime.projects].sort();
   if (
     new Set(projects).size !== projects.length ||
-    projects.some((project) => !/^[a-zA-Z0-9@_./-]+$/.test(project))
+    projects.some((project) => !/^(?!-)[a-zA-Z0-9@_./-]+$/.test(project))
   ) {
     throw new Error('Runtime selection contains duplicate or unsupported Nx project names');
   }
@@ -57,6 +60,7 @@ export async function createGatePlan(
     twilight: twilightProjects.length > 0 ? 'run' : 'skip',
     projects,
     workspaceProjects,
+    partitions: partitionRuntimeProjects(workspaceProjects),
     twilightProjects,
     reasons: [...selection.reasons, ...runtime.reasons],
     tests: projects.map((project) => selectTestFiles(repository, selection, project)),

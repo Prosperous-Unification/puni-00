@@ -50,11 +50,11 @@ function write(path: string, source: string): void {
 function workflowStep(workflowPath: string, stepName: string): string {
   const workflow = parseYaml(readFileSync(workflowPath, 'utf8')) as {
     jobs?: {
-      gate_workspace?: { steps?: { name?: string; run?: string }[] };
+      gate_checks?: { steps?: { name?: string; run?: string }[] };
       lint?: { steps?: { name?: string; run?: string }[] };
     };
   };
-  const steps = workflow.jobs?.gate_workspace?.steps ?? workflow.jobs?.lint?.steps ?? [];
+  const steps = workflow.jobs?.gate_checks?.steps ?? workflow.jobs?.lint?.steps ?? [];
   const run = steps.find((step) => step.name === stepName)?.run;
   if (typeof run !== 'string') throw new Error(`workflow step is missing: ${stepName}`);
   return run;
@@ -1308,7 +1308,12 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(lefthook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
     expect(hostSteps).toContain('--exclude=twilight-burokrat');
     expect(hostSteps).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
-    expect(ci).toContain('--exclude=twilight-burokrat');
+    const runtime = readFileSync(
+      join(workspace, 'tools/tool-git-hooks/src/hooks/ci-run-runtime.ts'),
+      'utf8',
+    );
+    expect(ci).toContain('ci-run-runtime.ts workspace');
+    expect(runtime).toContain("'--exclude=twilight-burokrat'");
     expect(ci).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
     const consumerTemplate = readFileSync(
       join(
@@ -1397,7 +1402,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     ) as { jobs?: { lint?: { if?: boolean } } };
     const workspaceWorkflow = parseYaml(
       readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8'),
-    ) as { jobs?: { gate_workspace?: { steps?: { name?: string; if?: boolean }[] } } };
+    ) as { jobs?: { gate_checks?: { steps?: { name?: string; if?: boolean }[] } } };
     const hook = readFileSync(join(workspace, 'lefthook.yml'), 'utf8');
     const wikiSteps = [
       'Tool wiki — diagnostic/non-certifying',
@@ -1407,7 +1412,7 @@ await import(${JSON.stringify(productionSnapshotter)});
 
     expect(trustedWorkflow.jobs?.lint?.if).toBe(false);
     for (const name of wikiSteps) {
-      const step = workspaceWorkflow.jobs?.gate_workspace?.steps?.find(
+      const step = workspaceWorkflow.jobs?.gate_checks?.steps?.find(
         (candidate) => candidate.name === name,
       );
       expect(step?.if, `${name} must be paused`).toBe(false);
