@@ -14,12 +14,27 @@ const command=args.join(' ');
 appendFileSync(root+'/commands',JSON.stringify(args)+'\\n');
 function save(){writeFileSync(root+'/state.json',JSON.stringify(state))}
 function fail(){console.error('fixture dependency failed');process.exit(23)}
-if(state.fault==='source' && args.includes('get') && args.includes('kustomization')){console.log('{}');process.exit(0)}
 if(args[0]==='kubectl'){
  if(args.includes('get')){
   const kind=args[args.indexOf('get')+1];const name=args[args.indexOf('get')+2];
   let answer;
-  if(kind==='kustomization') answer={metadata:{name,namespace:'flux-system'},spec:{suspend:state[name],sourceRef:{kind:'GitRepository',name:'puni-platform'},path:name==='puni-cluster'?'./infra/clusters/platform/production':'./infra/platform/registry/production'}};
+  if(kind==='kustomization') {
+   const requested=state.requests[name];
+   if(requested && requested!=='prior-request' && state.acks[name]!==requested){
+    state.polls[name]=(state.polls[name]??0)+1;
+    if(state.fault==='delayed' && state.polls[name]===1){
+     state.acks[name]='stale-'+name;
+     if(name==='puni-cluster')state.platform=false;else state.replicas=1;
+    }else if(state.fault!==name+'-timeout')state.acks[name]=requested;
+    save();
+   }
+   answer={metadata:{name,namespace:'flux-system',annotations:{'reconcile.fluxcd.io/requestedAt':requested}},spec:{suspend:state[name],sourceRef:{kind:'GitRepository',name:'puni-platform'},path:name==='puni-cluster'?'./infra/clusters/platform/production':'./infra/platform/registry/production'},status:{lastHandledReconcileAt:state.acks[name]}};
+   if(state.fault===name+'-request')answer.metadata.annotations['reconcile.fluxcd.io/requestedAt']=42;
+   if(state.fault===name+'-source')answer.spec.sourceRef.name='wrong-source';
+   if(state.fault===name+'-source-kind')answer.spec.sourceRef.kind='OCIRepository';
+   if(state.fault===name+'-path')answer.spec.path='./wrong/path';
+   if(state.fault===name+'-not-suspended' && requested && requested!=='prior-request')answer.spec.suspend=false;
+  }
   else if(kind==='deployment') answer={metadata:{name:'registry',namespace:'puni-registry',labels:{'kustomize.toolkit.fluxcd.io/name':'platform','kustomize.toolkit.fluxcd.io/namespace':'flux-system'}},spec:{replicas:state.fault==='replicas'?2:state.replicas,selector:{matchLabels:{'app.kubernetes.io/name':'registry'}},template:{spec:{volumes:[{name:'storage',persistentVolumeClaim:{claimName:'registry'}}]}}}};
   else if(kind==='pvc') answer={metadata:{name:'registry',namespace:'puni-registry',uid:'pvc-uid'},status:{phase:'Bound'},spec:{volumeName:'registry-pv'}};
   else if(kind==='pv') answer={metadata:{name:'registry-pv'},spec:{claimRef:{name:'registry',namespace:'puni-registry',uid:state.fault==='claim'?'wrong':'pvc-uid'},hostPath:{path:state.fault==='path'?root+'/missing':root+'/volume'},nodeAffinity:{required:{nodeSelectorTerms:[{matchExpressions:[{key:'kubernetes.io/hostname',operator:'In',values:[state.fault==='node'?'wrong-node':'registry-node-alias']}]}]}}}};
@@ -30,14 +45,22 @@ if(args[0]==='kubectl'){
  }else if(args.includes('patch')){
   const name=args[args.indexOf('patch')+2];const patch=JSON.parse(args[args.indexOf('-p')+1]);
   if(state.fault==='cleanup' && patch.spec.suspend===false && name==='platform')fail();
-  state[name]=patch.spec.suspend;save();
+  state[name]=patch.spec.suspend;
+  if(patch.metadata?.annotations){
+   const requested=patch.metadata.annotations['reconcile.fluxcd.io/requestedAt'];
+   if(requested===null)delete state.requests[name];else state.requests[name]=requested;
+   if(name==='platform' && requested && requested!=='prior-request')state.childStartedAfterRootAck=state.acks['puni-cluster']===state.requests['puni-cluster'];
+  }
+  save();
   if(patch.spec.suspend===true && ((state.fault==='suspend-root' && name==='puni-cluster')||(state.fault==='suspend-platform' && name==='platform')))fail();
- }else if(args.includes('scale')){const replicas=Number(args.find(a=>a.startsWith('--replicas=')).split('=')[1]);if(state.fault==='cleanup-scale'&&replicas===1)fail();state.replicas=replicas;save();if(state.fault==='scale-down'&&replicas===0)fail()}
+ }else if(args.includes('scale')){const replicas=Number(args.find(a=>a.startsWith('--replicas=')).split('=')[1]);if(state.fault==='cleanup-scale'&&replicas===1)fail();if(replicas===0)state.scaleBeforeAcknowledgement=state.acks['puni-cluster']!==state.requests['puni-cluster']||state.acks.platform!==state.requests.platform;state.replicas=replicas;save();if(state.fault==='scale-down'&&replicas===0)fail()}
  else if(args.includes('rollout')){if(state.fault==='rollout')fail()}
  else fail();
 }else{
  if(args[0]==='cat'){if(state.fault==='repository')fail();console.log('{}')}
  else if(args[0]==='backup'){
+  if(state.fault==='delayed' && (state.acks['puni-cluster']!==state.requests['puni-cluster'] || state.acks.platform!==state.requests.platform))state.replicas=1;
+  state.captureQuiescent=state.replicas===0 && state['puni-cluster'] && state.platform;save();
   if(state.fault==='backup')fail();
   if(state.fault==='signal'){writeFileSync(root+'/started','yes');await new Promise(r=>setTimeout(r,10000))}
   console.log(JSON.stringify({message_type:'summary',snapshot_id:state.fault==='snapshot'?'':'a'.repeat(64),total_bytes_processed:state.fault==='empty'?0:10}));
@@ -68,7 +91,15 @@ async function fixture(fault = '', suspended = false) {
   await writeFile(join(root, 'last-success.json'), 'prior receipt');
   await writeFile(
     join(root, 'state.json'),
-    JSON.stringify({ fault, 'puni-cluster': suspended, platform: suspended, replicas: 1 }),
+    JSON.stringify({
+      fault,
+      'puni-cluster': suspended,
+      platform: suspended,
+      replicas: 1,
+      requests: { 'puni-cluster': 'prior-request' },
+      acks: {},
+      polls: {},
+    }),
   );
   const env = {
     ...process.env,
@@ -142,7 +173,22 @@ test('captures full resolved volume, checks every archived byte and restores fla
   ).toEqual(['puni-cluster', 'platform', 'platform', 'puni-cluster']);
 });
 
-for (const fault of ['repository', 'claim', 'malformed', 'source', 'replicas', 'node', 'path']) {
+for (const fault of [
+  'repository',
+  'claim',
+  'malformed',
+  'replicas',
+  'node',
+  'path',
+  'puni-cluster-source',
+  'platform-source',
+  'puni-cluster-source-kind',
+  'platform-source-kind',
+  'puni-cluster-path',
+  'platform-path',
+  'puni-cluster-request',
+  'platform-request',
+]) {
   test('preflight refuses ' + fault + ' before changing cluster or prior receipt', async () => {
     const run = await fixture(fault);
     expect((await run.finish()).code).not.toBe(0);
@@ -173,6 +219,52 @@ for (const fault of [
     expect(await readFile(join(run.root, 'last-success.json'), 'utf8')).toBe('prior receipt');
   });
 }
+
+test('drains delayed root reconciliation before suspending child and delayed child before capture', async () => {
+  const run = await fixture('delayed');
+  run.env.PUNI_REGISTRY_BACKUP_WAIT_MS = '250';
+  expect((await run.finish()).code).toBe(0);
+  expect(await run.state()).toMatchObject({
+    captureQuiescent: true,
+    scaleBeforeAcknowledgement: false,
+    polls: { 'puni-cluster': 2, platform: 2 },
+    childStartedAfterRootAck: true,
+    replicas: 1,
+    'puni-cluster': false,
+    platform: false,
+    requests: { 'puni-cluster': 'prior-request' },
+  });
+  expect(((await run.state()) as { requests: object }).requests).toEqual({
+    'puni-cluster': 'prior-request',
+  });
+});
+
+for (const name of ['puni-cluster', 'platform']) {
+  for (const fault of ['timeout', 'not-suspended']) {
+    test(
+      name + ' ' + fault + ' refuses capture and restores flags and request annotations',
+      async () => {
+        const run = await fixture(name + '-' + fault);
+        const outcome = await run.finish();
+        expect(outcome.code).not.toBe(0);
+        expect(outcome.stderr).toContain('Flux suspension was not acknowledged: ' + name);
+        expect(
+          (await run.commands()).some((args) => args[0] === 'backup' || args.includes('scale')),
+        ).toBe(false);
+        expect(await run.state()).toMatchObject({
+          replicas: 1,
+          'puni-cluster': false,
+          platform: false,
+        });
+        expect(((await run.state()) as { requests: object }).requests).toEqual({
+          'puni-cluster': 'prior-request',
+        });
+        expect(await readFile(join(run.root, 'last-success.json'), 'utf8')).toBe('prior receipt');
+      },
+    );
+  }
+}
+
 test('retains original suspended flags', async () => {
   const run = await fixture('', true);
   expect((await run.finish()).code).toBe(0);

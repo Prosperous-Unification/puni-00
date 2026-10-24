@@ -48,11 +48,17 @@ sudo systemctl enable --now puni-registry-backup.timer
 sudo systemctl list-timers puni-registry-backup.timer
 ```
 
-During capture the runner suspends `puni-cluster`, then `platform`, scales only
-`puni-registry/registry` to zero and waits for its pods to disappear. It preserves
+During capture the runner patches `puni-cluster` with `suspend: true` and a fresh
+reconcile request token, then waits for both the suspended flag and matching
+`status.lastHandledReconcileAt`. It repeats this barrier for `platform` before
+scaling `puni-registry/registry` to zero and waiting for its pods to disappear.
+Flux v1.9.5 acknowledges requests even on its suspended early return; serialized
+reconciliation drains older applies before acknowledgement. A patch response alone
+is insufficient. Recheck this controller contract on upgrades; either barrier
+timing out refuses capture and restores prior state. It preserves
 root patches and unrelated workloads. A normal run and every caught failure or
-SIGTERM/SIGINT restore the captured replica and Flux flags. Per-command deadlines
-bound recovery; systemd sends termination only to the parent first (`KillMode=mixed`),
+SIGTERM/SIGINT restore the captured replica, Flux flags and original request
+annotations. Per-command deadlines bound recovery; systemd sends termination only to the parent first (`KillMode=mixed`),
 allowing five minutes for cleanup before forced killing. Power loss or SIGKILL
 cannot execute cleanup: recover manually and inspect the last receipt before
 retrying. Do not kill the entire service control group during cleanup.
@@ -88,4 +94,5 @@ PUNI_TEST_RESTIC_BINARY=/path/to/verified/restic-0.19.1 bun test --timeout 30000
 Tests copy the runner and replace its colocated lock with a fixture consumer pin;
 the real-restic tests separately require the production executable checksum.
 `PUNI_REGISTRY_BACKUP_DIRECTORY` and `PUNI_REGISTRY_BACKUP_WAIT_MS` are fixture/operator
-overrides; the service uses the fixed private directory and a 120-second pod bound.
+overrides; the service uses the fixed private directory and a 120-second bound for
+each Flux acknowledgement and pod drain.

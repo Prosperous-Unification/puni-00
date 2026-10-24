@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { access, lstat, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
@@ -40,7 +40,8 @@ async function requirePrivateFile(path: string) {
 /**
  * Stop only the named registry during a full-volume restic snapshot. An existing,
  * initialized repository is mandatory. Signals and failures restore the replica and
- * both Flux suspend flags before returning; failed recovery prints manual commands.
+ * both Flux suspend flags and request annotations before returning; failed recovery
+ * prints manual commands. Root suspension is acknowledged before suspending its child.
  * A receipt is replaced only after full archive verification and successful recovery.
  */
 async function backupRegistry(directory: string) {
@@ -116,7 +117,8 @@ async function backupRegistry(directory: string) {
       execute(['k3s', 'kubectl', '--request-timeout=45s', ...arguments_]);
     const get = async (namespace: string, kind: string, name: string): Promise<unknown> =>
       JSON.parse(await kubectl('-n', namespace, 'get', kind, name, '-o', 'json'));
-    const patch = (name: string, suspended: boolean) => [
+    const requestAnnotation = 'reconcile.fluxcd.io/requestedAt';
+    const patch = (name: string, suspended: boolean, requestedAt: string | null) => [
       '-n',
       'flux-system',
       'patch',
@@ -124,7 +126,10 @@ async function backupRegistry(directory: string) {
       name,
       '--type=merge',
       '-p',
-      JSON.stringify({ spec: { suspend: suspended } }),
+      JSON.stringify({
+        spec: { suspend: suspended },
+        metadata: { annotations: { [requestAnnotation]: requestedAt } },
+      }),
     ];
     const scale = ['-n', 'puni-registry', 'scale', 'deployment', 'registry', '--replicas=1'];
     const rollout = [
@@ -146,7 +151,8 @@ async function backupRegistry(directory: string) {
       const platform = await get('flux-system', 'kustomization', 'platform');
       function suspendState(resource: unknown, name: string, path: string): boolean {
         const suspended = field(resource, 'spec', 'suspend');
-        // Proof: malformed/source/ownership fixture negatives leave all cluster state unchanged.
+        // Proof: otherwise valid root/platform wrong source name/kind/path cases refuse all mutations;
+        // removing each corresponding comparison makes those preflight negatives fail.
         if (
           field(resource, 'metadata', 'name') !== name ||
           field(resource, 'metadata', 'namespace') !== 'flux-system' ||
@@ -169,6 +175,16 @@ async function backupRegistry(directory: string) {
         'platform',
         './infra/platform/registry/production',
       );
+      function readRequest(resource: unknown): string | null {
+        const requestedAt = field(resource, 'metadata', 'annotations', requestAnnotation);
+        // Kubernetes omits optional annotations; null in a merge patch removes our temporary token.
+        // Proof: numeric root/platform request annotations refuse before mutation; removing validation fails both cases.
+        return requestedAt === undefined
+          ? null
+          : requireText(requestedAt, 'Flux request annotation');
+      }
+      const rootRequest = readRequest(root);
+      const platformRequest = readRequest(platform);
       const deployment = await get('puni-registry', 'deployment', 'registry');
       const volumes = requireArray(field(deployment, 'spec', 'template', 'spec', 'volumes'));
       if (
@@ -231,11 +247,41 @@ async function backupRegistry(directory: string) {
       if (!Number.isSafeInteger(wait) || wait < 1 || wait > 120_000)
         throw new Error('Invalid pod wait bound');
 
-      // Register compensation before each write: an API timeout can follow an applied mutation.
-      recovery.unshift(patch('puni-cluster', rootSuspended));
-      await kubectl(...patch('puni-cluster', true));
-      recovery.unshift(patch('platform', platformSuspended));
-      await kubectl(...patch('platform', true));
+      /**
+       * Flux v1.9.5 Reconcile defers finalizeStatus before its suspend early return;
+       * finalizeStatus copies the request token read at reconciliation start to status.
+       * Per-key serialized reconciliation therefore drains older applies before this ack,
+       * including when already suspended. observedGeneration does not provide this contract.
+       * Recheck this dependency when upgrading kustomize-controller:
+       * https://github.com/fluxcd/kustomize-controller/blob/v1.9.5/internal/controller/kustomization_controller.go
+       */
+      async function suspendReconciliation(
+        name: string,
+        suspended: boolean,
+        previous: string | null,
+      ) {
+        const requestedAt = randomUUID();
+        // Register compensation before each write: an API timeout can follow an applied mutation.
+        recovery.unshift(patch(name, suspended, previous));
+        await kubectl(...patch(name, true, requestedAt));
+        const deadline = Date.now() + wait;
+        for (;;) {
+          const resource = await get('flux-system', 'kustomization', name);
+          // Proof: delayed old reconciles mutate child/replicas with stale tokens; both barriers
+          // precede scale/capture. Missing ack or false suspend times out without capture;
+          // removing either comparison makes its two root/child negatives fail.
+          if (
+            field(resource, 'spec', 'suspend') === true &&
+            field(resource, 'status', 'lastHandledReconcileAt') === requestedAt
+          )
+            return;
+          if (Date.now() >= deadline)
+            throw new Error(`Flux suspension was not acknowledged: ${name}`);
+          await Bun.sleep(Math.min(1_000, wait));
+        }
+      }
+      await suspendReconciliation('puni-cluster', rootSuspended, rootRequest);
+      await suspendReconciliation('platform', platformSuspended, platformRequest);
       recovery.unshift(scale, rollout);
       await kubectl('-n', 'puni-registry', 'scale', 'deployment', 'registry', '--replicas=0');
       const deadline = Date.now() + wait;
