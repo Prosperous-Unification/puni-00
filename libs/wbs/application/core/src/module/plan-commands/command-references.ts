@@ -3,7 +3,7 @@ import type { OrganizationScope } from '@wbs/domain';
 import type { DirectoryCatalog } from '../../ports/directory-values';
 import type { ProjectCrossReferenceKind } from '../../ports/project-values';
 import type { PlanCommand } from '../../service/plan-command';
-import type { DirectoryRefusal } from '../directory/directory.resource';
+import type { DirectoryRefusal, MeasureRefusalReason } from '../directory/directory.resource';
 import type { WorkItemRefusal } from '../work-item/work-item.resource';
 import type { CommandContext } from './command-bindings';
 import type { PlanCommandServices } from './plan-command-graph';
@@ -11,9 +11,13 @@ import type { PlanCommandServices } from './plan-command-graph';
 export type PlainReason =
   | Exclude<
       WorkItemRefusal,
-      'deadline_before_project_start' | 'descendant_step_on_leaf' | 'node_on_parent'
+      | 'deadline_before_project_start'
+      | 'descendant_step_on_leaf'
+      | 'node_on_parent'
+      | 'mixed_rate_cards'
     >
   | DirectoryRefusal
+  | MeasureRefusalReason
   | 'calendar_range'
   | 'too_many_commands'
   | 'project_required'
@@ -189,6 +193,7 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
     case 'actual_step':
     case 'step_progress_step':
     case 'step_measure_step':
+    case 'measure_estimate_step':
     case 'step_node_attempt_step':
     case 'assignment_step':
       return 'unknown_step';

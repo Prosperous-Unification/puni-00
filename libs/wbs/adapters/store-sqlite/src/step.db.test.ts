@@ -14,6 +14,7 @@ import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
+import { MeasureEstimateRepository } from './measure-estimate';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { StepRepository } from './step';
@@ -41,6 +42,7 @@ let estimates: EstimateRepository;
 let actuals: ActualRepository;
 let progress: StepProgressRepository;
 let measures: StepMeasureRepository;
+let measureEstimates: MeasureEstimateRepository;
 let attempts: StepNodeAttemptRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
@@ -100,6 +102,7 @@ beforeEach(async () => {
   actuals = new ActualRepository(db, OPEN);
   progress = new StepProgressRepository(db, OPEN);
   measures = new StepMeasureRepository(db, OPEN);
+  measureEstimates = new MeasureEstimateRepository(db, OPEN);
   attempts = new StepNodeAttemptRepository(db, OPEN);
   directory = new DirectoryRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
@@ -1073,6 +1076,63 @@ describe('StepRepository', () => {
       { workItemId: 'sand', stepId: devId, metric: 'hours_actual', value: 2, recordedAt: 1000 },
     ]);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
+  });
+
+  // Proof: with the trio count left out of the transaction's `measured`,
+  // this case removed the step unconfirmed; watched 2026-10-23.
+  it('refuses removing a step holding only a three-point trio, and takes it with a confirmed cascade', async () => {
+    // A three-point tokens trio has no legacy row (`wbs-measure-budgets`
+    // design D28), so it is counted from `measure_estimate`; a single-point
+    // one is its legacy row and counts once.
+    await measureEstimates.set(
+      { workItemId: 'strip', stepId: qaId, key: 'tokens', ...DAYS, singlePoint: false },
+      wrote(),
+    );
+    const usage = {
+      estimates: 0,
+      actuals: 0,
+      progress: 0,
+      blockages: 0,
+      measures: 1,
+      attempts: 0,
+      claims: 0,
+      assignments: [],
+    };
+    expect(await steps.usageOf(projectId, qaId)).toEqual(usage);
+    expect(await steps.remove(projectId, qaId, false, wrote())).toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage,
+    });
+    await measureEstimates.set(
+      {
+        workItemId: 'sand',
+        stepId: qaId,
+        key: 'tokens',
+        optimistic: 7,
+        realistic: 7,
+        pessimistic: 7,
+        singlePoint: true,
+      },
+      wrote(),
+    );
+    expect((await steps.usageOf(projectId, qaId)).measures).toBe(2);
+    expect(await steps.remove(projectId, qaId, true, wrote())).toEqual({
+      ok: true,
+      removal: {
+        estimates: 0,
+        actuals: 0,
+        progress: 0,
+        blockages: 0,
+        measures: 2,
+        attempts: 0,
+        claims: 0,
+        assignments: 0,
+        workItemIds: ['sand', 'strip'],
+      },
+    });
+    expect(await measureEstimates.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByProject(projectId)).toEqual([]);
   });
 
   it('deletes the recorded days with the step it confirmed, moving the work items that lost one', async () => {

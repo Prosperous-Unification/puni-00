@@ -781,21 +781,95 @@ The sum of a parent's descendants' estimates, per step, computed on read and nev
 _Avoid_: aggregate, total, computed estimate
 
 **Measure**:
-One number somebody typed about one work item, one step and one **metric**, with the moment
-they typed it. Rolls up like an estimate and is absent, never zero, when nobody typed it; days
-are the **estimate** and the **recorded days** instead
-([token-tracking](openspec/changes/archive/2026-08-30-token-tracking/specs/wbs-domain/spec.md)).
+One fact about one step node in one **metric**: a number somebody typed, with the moment they
+typed it, or for `agent_minutes` one derived from its ended **attempts**. Rolls up like an
+estimate and is absent, never zero, when nobody typed it; days are the **estimate** and the
+**recorded days** instead; a money fact carries its **rate card digest**
+([token-tracking](openspec/changes/archive/2026-08-30-token-tracking/specs/wbs-domain/spec.md),
+[measure-budgets](openspec/changes/wbs-measure-budgets/specs/measure-budgets/spec.md)).
 _Avoid_: metric value, figure, datapoint, reading
 
 **Metric**:
-Which unit a measure is in, from a closed set: `token_estimate`, `token_actual`,
-`hours_actual`. A measure is absent per metric — an hours figure says nothing about
-whether a token figure exists.
-_Avoid_: unit, kind (which is the person's), measure type
+The name a measure is addressed by: a **measure definition**'s key (`cost`, `agent_minutes`
+and whatever the organization defines), except that for one release a tokens or hours fact
+keeps its legacy name, `token_actual` or `hours_actual`, and the single-point **token
+estimate** keeps `token_estimate`. A measure is absent per metric — an hours figure says
+nothing about whether a token figure exists.
+_Avoid_: unit, kind (which is the definition's), measure type
+
+**Measure definition**:
+An organization's description of one thing worth estimating and recording: an immutable key,
+a name, a unit, a kind (`duration`, `count`, `money`) and scale fixed at creation, whether it
+takes three points, whether its columns show by default, whether it schedules work, whether
+its facts are derived, its list order, and for money a currency. Five are seeded (`time`,
+`tokens`, `hours`, `cost`, `agent_minutes`); more are a directory command. A **plan
+document** carries the ones its figures name, and an import matches them by key.
+_Avoid_: metric type, measure config, KPI
+
+**Scheduling measure**:
+The one measure definition per organization whose estimates the solver reads — `time`. Its
+trio is the **estimate**, its fact the **recorded days**, and it takes no **budget**. Every
+other measure's figures leave every date unchanged.
+_Avoid_: primary measure, duration measure
+
+**Measure estimate**:
+Three ordered figures in a measure's unit and scale — optimistic, realistic, pessimistic —
+held for one step node and one measure that allows three points; a money trio carries its
+**rate card digest**. The scheduling measure's trio is the **estimate**.
+_Avoid_: budget, projection, target
+
+**Expected measure**:
+A measure estimate folded by the project's **PERT weights** and rounded by the measure's
+scale; compared with the **measure** to give the **measure variance**.
+_Avoid_: forecast, mean, planned value
+
+**Measure variance**:
+Fact minus expected for one measure on one step node, rolled up per subtree; absent when
+either side is.
+_Avoid_: overrun, delta, drift
+
+**Budget**:
+A cap on one measure other than the **scheduling measure** for one work item, strict or
+advisory, stated by a person (with an optional **spend hold** per attempt) or derived from the
+subtree's pessimistic points times the **budget factor**; a parent's budget bounds its
+subtree. Facts are recorded past it and the read says `exceeded`; a strict one refuses the
+next attempt's start (**budget admission**). Only stated budgets are stored and exported.
+_Avoid_: allowance, limit (which is the plan's), quota
+
+**Budget factor**:
+A project's multiplier on the pessimistic point that gives a derived **budget** where nobody
+stated one; 1 unless the project says otherwise, above 0 and at most 1000. Moves no date.
+_Avoid_: margin, buffer, contingency
+
+**Spend hold**:
+The part of a budget set aside for a running attempt whose spend is not yet recorded, released
+when the attempt ends or its usage is recorded; a budget's `held`, unrelated to a leaf's **hold**.
+_Avoid_: hold (alone), reservation, lock, allowance
+
+**Headroom**:
+What remains of the tightest budgets over a startable or claimed step, per measure, holds taken
+off: the tightest strict one apart from the tightest advisory or derived one, and any budget a
+**rate card digest** mix keeps from being read, named with its policy. Read for display and
+ranking; **budget admission** decides the start.
+_Avoid_: slack, float (which is the schedule's), quota
+
+**Budget admission**:
+The decision, inside an attempt start's own write, whether the strict budgets over its work item
+and ancestors have room for it: refused `budget_exhausted` when one has nothing left, when the
+attempt's **spend hold** would take it below zero, or when a **rate card digest** mix keeps it
+from being read. Advisory and derived budgets never refuse.
+_Avoid_: budget check, gate, quota enforcement
+
+**Rate card digest**:
+The identity of the price list a money figure was computed with; with the figure's currency it
+is the figure's money basis, and figures under two bases are never added (one digest in two
+currencies is two bases).
+_Avoid_: price version, tariff id
 
 **Token estimate**:
-The tokens a step's work on one work item is expected to take. One number, not a trio: no
-scheduler folds it, so there is nothing for a range to reduce to.
+The **measure estimate** in `tokens` for one step node: three points since the measure
+budgets change; a legacy single figure (`token_estimate`) reads as a single-point trio flagged
+until a three-point write replaces it, and travels as that legacy figure.
 _Avoid_: token budget, projected spend, cost estimate
 
 **Token fact**:
@@ -1462,8 +1536,10 @@ _Avoid_: report, download, dump, extract
 **Plan document**:
 The one plan export the tool can read back: a JSON file carrying the work package's settings,
 steps, priority ladder, capacity, every work item with everything typed on it, and the names
-behind every directory id it uses, under a format name and version. Derived figures ride
-along for readers and are never restored.
+behind every directory id it uses, under a format name and version. Version 11 adds the
+measure definitions its figures name, measure facts and estimates with their money basis,
+stated budgets and the budget factor, and is written only for a plan holding one of them.
+Derived figures ride along for readers and are never restored.
 _Avoid_: backup, dump, snapshot, JSON export (as a term)
 
 **Working plan**:

@@ -6,8 +6,10 @@ import {
   getWorkItem,
   getWorkItemRows,
   getWorkItems,
+  measureDefinitionRow,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  readBudgetHeadroom,
   readPersonWork,
   readProjectClaims,
   readProjectResources,
@@ -289,7 +291,7 @@ function answerBatch(
     case 'unknown_step':
     case 'unknown_dependency':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
-    case 'unknown_metric':
+    case 'unknown_measure':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_person':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
@@ -313,6 +315,23 @@ function answerBatch(
     // nothing the caller did not send (`compute-providers` P3).
     case 'provider_not_in_organization':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    // The organization's own measure definitions stand in the way, or legacy
+    // access has no legacy organization to own one (`wbs-measure-budgets`).
+    // Proof (compile-time only): with these cases absent, wbs-core's typecheck
+    // failed on TS2366 at this function, the switch no longer exhaustive;
+    // watched 2026-10-23. No runtime observation exists: the code does not
+    // build without them.
+    case 'organization_required':
+    case 'measure_key_taken':
+    case 'measure_key_immutable':
+    case 'measure_shape_immutable':
+    case 'second_scheduling_measure':
+    case 'scheduling_measure_fixed':
+    case 'currency_required':
+    case 'currency_forbidden':
+    case 'unit_required':
+    case 'measure_in_use':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     // The resource's kind refuses the units whatever the plan holds.
     case 'exclusive_demand_is_one':
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
@@ -328,6 +347,22 @@ function answerBatch(
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'rolled_up':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'derived_measure':
+    case 'scheduling_measure_fact':
+    case 'scale_mismatch':
+    case 'scheduling_measure_estimate':
+    case 'three_point_forbidden':
+    case 'scheduling_measure_budget':
+    case 'rate_card_required':
+    case 'rate_card_forbidden':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    // Two rate cards a sum would add (`wbs-measure-budgets` D44), both named.
+    case 'mixed_rate_cards':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'self_node':
@@ -461,9 +496,20 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    // A strict budget stands in the way of the start; the same start is
+    // admitted once a running attempt reports or ends, or the cap is raised
+    // (`wbs-measure-budgets` D69).
+    case 'budget_exhausted':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
   }
 }
 const namedEntity = responseSchema(type({ id: 'string', name: 'string' }));
+/** A measure definition as `createMeasure` and `patchMeasure` answer it, every field required. */
+const measureEntity = responseSchema(measureDefinitionRow);
 // Proof: optional serviceIds admitted a patchTeam without memberships,200 instead of500 in the mounted results case.
 const teamEntity = responseSchema(type({ id: 'string', name: 'string', serviceIds: 'string[]' }));
 // Proof: optional person kind admitted its omission,200 instead of500 in the mounted results case.
@@ -498,6 +544,7 @@ async function appliedWire(applied: AppliedCommand) {
     case 'createTag':
     case 'createService':
     case 'createWorkItemType':
+    case 'createMeasure':
       // Proof: removing this check admitted each missing minted id,200 instead of500 in the mounted minted-id case.
       if (typeof applied.id !== 'string')
         throw new Error('Created command producer requires its minted id');
@@ -520,6 +567,10 @@ async function appliedWire(applied: AppliedCommand) {
     case 'createWorkItemType':
     case 'patchWorkItemType':
       await requireShape(namedEntity, applied.entity);
+      break;
+    case 'createMeasure':
+    case 'patchMeasure':
+      await requireShape(measureEntity, applied.entity);
       break;
   }
   return { ...wire, ...(ref === undefined ? {} : { ref }) };
@@ -752,6 +803,36 @@ export function workItemRoutes(
         if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
         return { ok: true, status: 200, body: startable };
+      },
+    ),
+    bind(
+      readBudgetHeadroom,
+      async ({
+        params,
+        query,
+        request,
+        principal,
+      }): Promise<HttpReply<typeof readBudgetHeadroom>> => {
+        // Proof: with this check removed, `refuses a repeated team and an
+        // undeclared key` (budget-headroom.controller.db.test.ts) failed on
+        // the repeated team; watched 2026-10-23.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        // Proof: with legacy access in place of the resolved one, `refuses a
+        // stranger exactly as the startable read does` and the team case
+        // (budget-headroom.controller.db.test.ts) failed; watched 2026-10-23.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const headroom = await workItems.budgetHeadroomWithin(
+          params.id,
+          resolved.access,
+          query.team ?? null,
+        );
+        if (headroom === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        // Proof: with `not_found` answered here, `narrows to a team, and
+        // refuses one the caller's organization does not hold` failed; watched 2026-10-23.
+        if ('kind' in headroom) return { ok: false, status: 404, body: { error: headroom.kind } };
+        return { ok: true, status: 200, body: headroom };
       },
     ),
     bind(

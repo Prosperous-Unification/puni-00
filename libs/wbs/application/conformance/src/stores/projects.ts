@@ -24,6 +24,7 @@ export function projectRegistrations(open: OpenCase<'projects'>): readonly CaseR
         optimizationEnabled: true,
         scheduleEngine: 'optimized',
         scheduleObjective: 'time',
+        budgetFactor: 1.5,
       } satisfies Project;
       const steps: Step[] = [
         {

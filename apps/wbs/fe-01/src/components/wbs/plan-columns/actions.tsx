@@ -28,8 +28,8 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
         actions={[
           // The status entries first — every settable status the row does not
           // read and whose write would change something, in the menu order
-          // (`statusOffersOf`) — then Add child, Move under… and Duplicate,
-          // then Unfreeze where it applies, and Delete last in the destructive
+          // (`statusOffersOf`) — then Add child, Move under…, Duplicate and
+          // Measures…, then Unfreeze where it applies, and Delete last in the destructive
           // tint (Dany, 2026-09-13: "Set status * … Duplicate … Delete in the
           // end"). `Done` and `In progress` ask for their days through the
           // completion prompt exactly as the cell does. The status word is
@@ -64,6 +64,15 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
             label: 'Duplicate',
             run: () => {
               void live.current.duplicateRow(row.original.id);
+            },
+          },
+          {
+            id: 'measures',
+            // Estimates, facts and budgets per measure: a panel and not a
+            // cell, because one row holds five measures' worth of them.
+            label: 'Measures…',
+            run: () => {
+              live.current.openMeasures(row.original.id);
             },
           },
           ...(row.original.frozenNumber === null

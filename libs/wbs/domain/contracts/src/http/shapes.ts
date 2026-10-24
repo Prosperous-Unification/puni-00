@@ -13,6 +13,7 @@ import {
   readPasswordSession,
   registerPassword,
 } from './auth-password-shapes';
+import { readBudgetHeadroom } from './budget-headroom-shapes';
 import {
   createCalendarMarker,
   listCalendarMarkers,
@@ -76,6 +77,7 @@ import {
   mintMcpConsentCredential,
   readMcpAuthority,
 } from './mcp-delegation-shapes';
+import { listMeasures } from './measure-shapes';
 import {
   confirmEmailChallenge,
   createEmailChallenge,
@@ -252,10 +254,12 @@ export const httpShapes = [
   getWorkItemDelivery,
   getStepReference,
   readStartableWork,
+  readBudgetHeadroom,
   readPersonWork,
   readProjectClaims,
   renewClaimLeases,
   readProjectResources,
+  listMeasures,
   applyProjectCommands,
   applyDirectoryCommands,
   undoProject,

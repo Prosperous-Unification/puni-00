@@ -19,6 +19,7 @@ import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read
 import { endMemoryLeases } from './claim-fixture';
 import { credentialKey } from './directory-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
+import { seedMemoryOrganization } from './measure-definition-fixture';
 import { bindStores, MemoryState, replaceMap } from './memory-stores';
 import {
   checkedOrganizationLimits,
@@ -123,6 +124,12 @@ function coordinatedStores(
     estimates: coordinatedStore(stores.estimates, ['set', 'remove', 'moveAll'], coordinator),
     actuals: coordinatedStore(stores.actuals, ['set', 'remove', 'moveAll'], coordinator),
     measures: coordinatedStore(stores.measures, ['set', 'remove', 'moveAll'], coordinator),
+    measureEstimates: coordinatedStore(
+      stores.measureEstimates,
+      ['set', 'remove', 'moveAll'],
+      coordinator,
+    ),
+    budgets: coordinatedStore(stores.budgets, ['set', 'remove'], coordinator),
     progress: coordinatedStore(stores.progress, ['set', 'remove', 'moveAll'], coordinator),
     attempts: coordinatedStore(
       stores.attempts,
@@ -210,6 +217,14 @@ export interface MemorySourceFixture {
    * SQLite holds, so the limits gauge sums its stated capacity.
    */
   ownResourceInOrganization(resourceId: string, organizationId: string): void;
+  /**
+   * Adds an organization with its five seeded measure definitions, the
+   * `organization` row and the seed its trigger writes on SQLite
+   * (`wbs-measure-budgets`); `legacy` marks the one legacy access reads.
+   *
+   * @throws when the organization exists or a second would be legacy.
+   */
+  addOrganization(organizationId: string, options: { legacy: boolean }): void;
   /**
    * Writes an organization's own caps, the `organization_limits` row the
    * operator CLI writes on SQLite.
@@ -494,6 +509,13 @@ function openMemorySourceWithSeams(
     pinCredential(issuer, subject, personId) {
       committed.tables.directory.credentialPins.set(credentialKey(issuer, subject), personId);
     },
+    addOrganization(organizationId, options) {
+      seedMemoryOrganization(
+        committed.tables.directory.measureDefinitions,
+        organizationId,
+        options.legacy,
+      );
+    },
     endLeasesOf: (personId, at) => endMemoryLeases(committed.tables.claims, personId, at),
     ownProjectInOrganization(projectId, organizationId) {
       committed.tables.organizationLimits.projectOrganization.set(projectId, organizationId);
@@ -728,6 +750,8 @@ async function capturePlanInput(
     stepBlockages,
     stepParallels,
     measures,
+    measureEstimates,
+    budgets,
     dependencies,
     typedDependencies,
     assignmentRows,
@@ -753,6 +777,12 @@ async function capturePlanInput(
     // Proof: snapshot read replaced with empty; detached sparse capture failed (memory-read.txt), 2026-10-17.
     stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
+    // Proof: either read replaced with `[]` made the memory run of the
+    // conformance case `savedPlanCapture.readPlanInput:complete` capture none
+    // (source-conformance.test.ts: 75 pass became 8 fail, verified by the
+    // PR #681 review); watched 2026-10-23.
+    stores.measureEstimates.listByProject(projectId),
+    stores.budgets.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
     stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
@@ -778,6 +808,8 @@ async function capturePlanInput(
     stepBlockages,
     stepParallels,
     measures,
+    measureEstimates,
+    budgets,
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
       id,

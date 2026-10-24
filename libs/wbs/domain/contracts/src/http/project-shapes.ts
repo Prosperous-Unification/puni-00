@@ -222,6 +222,9 @@ export const patchProject = defineEndpointShape({
       // Proof: accepting any engine string made the mounted structural-settings test receive 500, not 422.
       'scheduleEngine?': "'fast' | 'optimized'",
       'scheduleObjective?': "'pri' | 'time'",
+      // What derived budgets multiply the pessimistic point by
+      // (`wbs-measure-budgets` D38); range checked by the service.
+      'budgetFactor?': 'number',
       // An IANA zone; the service checks it against the runtime's list, which
       // `GET /api/timezones` serves (`step-node-attempts` D3).
       'timezone?': 'string',
@@ -238,7 +241,9 @@ export const patchProject = defineEndpointShape({
     {
       status: 422,
       schema: responseSchema(
-        type({ error: "'bad_start_date' | 'bad_pert_weights' | 'invalid_timezone'" }),
+        type({
+          error: "'bad_start_date' | 'bad_pert_weights' | 'bad_budget_factor' | 'invalid_timezone'",
+        }),
       ),
     },
     {
@@ -249,7 +254,11 @@ export const patchProject = defineEndpointShape({
       ),
     },
   ],
-  document: { summary: 'Update the addressed project’s settings.' },
+  document: {
+    summary: 'Update the addressed project’s settings.',
+    description:
+      'Send only the settings to change. budgetFactor (finite, above 0, at most 1000; 1 by default) multiplies the summed pessimistic estimates of a work item’s subtree into its derived budget per measure where no budget is stated; it moves no date. Refused 422 bad_budget_factor otherwise.',
+  },
 });
 
 const retryRefusal = responseSchema(

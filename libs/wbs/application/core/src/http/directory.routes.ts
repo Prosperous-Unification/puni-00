@@ -1,5 +1,6 @@
 import {
   listExternalSystems,
+  listMeasures,
   listPeople,
   listServices,
   listTags,
@@ -85,5 +86,16 @@ export function directoryRoutes(directory: DirectoryService, organizations: Orga
         };
       },
     ),
+    // Proof: listing through legacy access instead of the resolved one made
+    // `lists each organization’s own definitions, seeded at its creation` and
+    // four more cases of measure-organization.controller.db.test.ts answer 409
+    // organization_required to an activated member; watched 2026-10-23.
+    bind(listMeasures, async ({ principal }): Promise<HttpReply<typeof listMeasures>> => {
+      const resolved = await organizations.resolve(principal);
+      if (!resolved.ok) return organizationRefusal(resolved);
+      const listed = await directory.measures.listWithin(resolved.access);
+      if (!listed.ok) return { ok: false, status: 409, body: { error: listed.reason } };
+      return { ok: true, status: 200, body: { measures: listed.value } };
+    }),
   ] as const;
 }

@@ -30,6 +30,9 @@ export function createWorkingPlanDirectory(
       return written;
     };
   const always = (): boolean => true;
+  // A measure definition names no plan row in slice 1 (`wbs-measure-budgets`),
+  // so its writes reload nothing a working plan retains.
+  const never = (): boolean => false;
   const ok = (written: { ok: boolean }): boolean => written.ok;
 
   return {
@@ -96,6 +99,13 @@ export function createWorkingPlanDirectory(
     // A cascaded removal takes demands and moves their rows' revisions, so the
     // retained plan reloads as after every other successful directory write.
     removeResource: afterWrite((...parameters) => source().removeResource(...parameters), ok),
+    legacyOrganizationId: () => source().legacyOrganizationId(),
+    listMeasures: (organizationId) => source().listMeasures(organizationId),
+    addMeasure: afterWrite((...parameters) => source().addMeasure(...parameters), never),
+    patchMeasure: afterWrite((...parameters) => source().patchMeasure(...parameters), never),
+    usageOfMeasure: (organizationId, measureId) =>
+      source().usageOfMeasure(organizationId, measureId),
+    removeMeasure: afterWrite((...parameters) => source().removeMeasure(...parameters), never),
     assignmentsInProject: (projectId) => source().assignmentsInProject(projectId),
     namesOf: (catalog, ids) => source().namesOf(catalog, ids),
     assignmentsFor: (workItemId) => source().assignmentsFor(workItemId),

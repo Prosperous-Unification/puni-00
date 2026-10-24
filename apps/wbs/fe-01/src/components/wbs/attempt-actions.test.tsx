@@ -200,6 +200,7 @@ describe('attempt refusal words', () => {
     for (const code of [
       'node_done',
       'attempt_running',
+      'budget_exhausted',
       'no_running_attempt',
       'attempt_in_future',
       'attempt_ends_before_start',

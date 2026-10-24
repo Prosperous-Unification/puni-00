@@ -1,6 +1,8 @@
 import type { Assignment } from './assignment';
+import type { StoredBudget } from './budget';
 import type { DependencyReach } from './dependency-reach';
 import type { EstimateMethod, EstimateRounding, PertWeights } from './estimate';
+import type { StoredMeasureEstimate } from './measure-estimate';
 import type { PriorityBand } from './priority-band';
 import type { Hold, Readiness } from './progress';
 import type { Demand, Resource, ResourceCapacity } from './resource';
@@ -31,6 +33,8 @@ export interface CapturedProject {
    * D3). Captured as a setting; no engine reads it.
    */
   readonly timezone: string;
+  /** The derived budgets' factor (`wbs-measure-budgets` D38); captured as a setting. */
+  readonly budgetFactor: number;
 }
 
 export interface CapturedStep {
@@ -102,6 +106,10 @@ export interface PlanInputReads {
   readonly stepBlockages: readonly StoredStepBlockage[];
   readonly stepParallels: readonly StoredStepParallel[];
   readonly measures: readonly StoredMeasure[];
+  /** Every trio of the project in measures other than time, read on the snapshot. */
+  readonly measureEstimates: readonly StoredMeasureEstimate[];
+  /** Every stated budget of the project, read on the snapshot. */
+  readonly budgets: readonly StoredBudget[];
   readonly dependencies: readonly CapturedDependency[];
   /** Detached relationship identities and endpoints from the capture snapshot. */
   readonly typedDependencies: readonly TypedDependency[];
