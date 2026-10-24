@@ -316,8 +316,9 @@ docker exec be-01-<colour> bun run src/<cli> restore <file>
 
 **The pre-deploy database backup is the rollback** (`wbs-measure-budgets` D72). Once any of
 these exists, `down.sql` refuses: a fact in a defined measure, a three-point trio, a priced fact
-or trio, or a stated budget (or a budget factor other than 1). The older image then answers 500
-on every work item holding a fact in a defined measure, and silently loses three-point trios and
+or trio, or a stated budget (or a budget factor other than 1). The older image then fails the whole
+project's plan read with `invalid metric` once one fact sits in a defined measure (its tree read
+lists every measure row), and silently loses three-point trios and
 ignores budgets and bases, as the sections below detail. Clearing those rows by hand to reopen
 `down.sql` discards the figures for good. With no users yet (Dany, 2026-10-24), restore the
 backup taken before the deploy instead; the hand-clearing paths below remain for a rollback

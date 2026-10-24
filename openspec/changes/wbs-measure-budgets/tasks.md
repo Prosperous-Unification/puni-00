@@ -61,3 +61,7 @@
       `navigator-records.ts`, Dash `record-progress` through Burokrat's record — test: the v11
       fixture `plan-export.v11.json` read by each; negative: drop 11 from the admitted versions
       and each refuses it; watched.
+
+Follow-up (review of PR #701, S3): the panel's "blocked by estimates" reading (B-3) is over-inclusive
+where be-01 answers no budget for an uncovered row (a step spends without a trio); be-01 does not
+expose `blocked` on the row read. Expose it or narrow the panel rule.
