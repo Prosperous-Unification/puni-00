@@ -93,6 +93,7 @@ class Host:
             while True:
                 self.check();chunk=os.read(descriptor,min(65536,limit+1-count))
                 if not chunk:break
+                # Proof: omitting this incremental guard let a real sparse file grow past 128 MiB and reach only the later metadata refusal.
                 count+=len(chunk);require(count<=limit,'collector read bound exceeded');chunks.append(chunk)
             # Proof: removing only this final descriptor check accepted a real dup2 A-to-B swap after the precheck.
             require(metadata_key(original)==metadata_key(os.fstat(descriptor))==metadata_key(self.metadata(path)),'process executable changed during read')

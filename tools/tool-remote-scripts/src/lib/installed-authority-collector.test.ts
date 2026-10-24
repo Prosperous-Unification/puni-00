@@ -606,7 +606,7 @@ with tempfile.TemporaryDirectory(prefix='authority-exe-fd-') as directory:
                 builtins.open=wrong_builtin;os.open=wrong_os;os.read=observed_read
                 try:yield opened,reads
                 finally:builtins.open=original_open;os.open=original_os_open;os.read=original_read
-            accepted=[]
+            accepted=[];leaked_read_failures=[]
             for route in ['capture','relevant','opener']:
                 kernel.internal_processes={child.pid:baseline} if route=='relevant' else {}
                 with redirect_executable_open(False) as (healthy_opened,healthy_reads):
@@ -621,6 +621,28 @@ with tempfile.TemporaryDirectory(prefix='authority-exe-fd-') as directory:
                 try:os.fstat(healthy_opened[0])
                 except OSError as failure:assert failure.errno==errno.EBADF
                 else:raise AssertionError('healthy executable descriptor leaked in '+route)
+                with redirect_executable_open(False) as (failed_opened,failed_reads):
+                    original_read=os.read;injected=[]
+                    def fail_executable_read(descriptor,count):
+                        if descriptor in failed_opened:
+                            injected.append(descriptor)
+                            raise OSError(errno.EIO,'injected executable read failure')
+                        return original_read(descriptor,count)
+                    os.read=fail_executable_read
+                    try:
+                        try:
+                            if route=='capture':capture_internal_process(kernel,child.pid)
+                            elif route=='relevant':observe_process(kernel,child.pid,[],[executable_a],coordinator)
+                            else:observe_process(kernel,child.pid,[family],[],coordinator)
+                        except OSError as failure:assert failure.errno==errno.EIO
+                        else:raise AssertionError('accepted executable read failure in '+route)
+                    finally:os.read=original_read
+                    assert len(injected)==1 and injected[0]==failed_opened[0],(route,injected)
+                    assert not failed_reads,(route,'read failure bypassed injection')
+                assert len(failed_opened)==1,(route,failed_opened)
+                try:os.fstat(failed_opened[0])
+                except OSError as failure:assert failure.errno==errno.EBADF
+                else:leaked_read_failures.append(route)
                 with redirect_executable_open(True) as (opened,wrong_reads):
                     try:
                         if route=='capture':capture_internal_process(kernel,child.pid)
@@ -634,6 +656,7 @@ with tempfile.TemporaryDirectory(prefix='authority-exe-fd-') as directory:
                 except OSError as failure:assert failure.errno==errno.EBADF
                 else:raise AssertionError('executable descriptor leaked in '+route)
             assert not accepted,'accepted wrong opened executable inode in '+','.join(accepted)
+            assert not leaked_read_failures,'read failure leaked executable descriptor in '+','.join(leaked_read_failures)
             with redirect_executable_open(False) as (swapped_opened,swapped_reads):
                 original_read=os.read;swapped=[]
                 def swap_after_precheck(descriptor,count):
@@ -761,6 +784,38 @@ denied.open_executable=unreadable_open
 try:denied.read_executable(pid,original)
 except PermissionError as failure:assert failure.errno==errno.EACCES
 else:raise AssertionError('accepted unreadable proc executable')
+print('ok')
+`);
+  expect(observed.stderr).toBe('');
+  expect(observed.code).toBe(0);
+  expect(observed.stdout).toBe('ok\n');
+});
+
+test('executable reader refuses an actual stream that grows beyond its admitted size', async () => {
+  const observed = await python(String.raw`
+import tempfile
+with tempfile.TemporaryFile() as executable:
+    executable.write(b'A');executable.flush();executable.seek(0)
+    original=os.fstat(executable.fileno());host=Host(time.monotonic()+10);opened=[];grown=[]
+    def open_owned(path):
+        descriptor=os.dup(executable.fileno());opened.append(descriptor);return descriptor
+    host.open_executable=open_owned
+    original_read=os.read
+    def grow_during_read(descriptor,count):
+        if descriptor in opened and not grown:
+            os.ftruncate(executable.fileno(),128*1024*1024+1)
+            grown.append(True)
+        return original_read(descriptor,count)
+    os.read=grow_during_read
+    try:
+        try:host.read_executable(os.getpid(),original)
+        except Refusal as failure:assert str(failure)=='collector read bound exceeded'
+        else:raise AssertionError('accepted executable stream beyond 128 MiB')
+    finally:os.read=original_read
+    assert grown and len(opened)==1
+    try:os.fstat(opened[0])
+    except OSError as failure:assert failure.errno==errno.EBADF
+    else:raise AssertionError('leaked grown executable descriptor')
 print('ok')
 `);
   expect(observed.stderr).toBe('');
