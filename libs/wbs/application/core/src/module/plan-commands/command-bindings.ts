@@ -651,10 +651,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       return {
         ...context.plain(),
         kind: command.kind,
-        reassignedClaimedSteps: assigned.reassignedClaimedSteps.map((each) => ({
-          ...each,
-          holderPersonIds: [...each.holderPersonIds],
-        })),
+        reassignedClaimedSteps: assigned.reassignedClaimedSteps,
       };
     },
     claimWorkItem: async (command, context) => {

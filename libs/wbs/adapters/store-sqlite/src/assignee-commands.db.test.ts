@@ -174,9 +174,16 @@ async function seeded(store: (typeof STORES)[number]) {
       workItemId: idOf('B'),
       personId: 'claire',
       steps: [review],
+      runId: 'run-b',
     },
   ]);
   if (!prior.ok) throw new Error(`the prior assignments were refused: ${JSON.stringify(prior)}`);
+  const claireClaimId = prior.results
+    .flatMap((each) => (each.kind === 'claimWorkItem' ? each.claimIds : []))
+    .at(0);
+  if (claireClaimId === undefined) throw new Error('claire holds no claim');
+  /** claire's step claim on B's Review, as an entry of reassignedClaimedSteps names it. */
+  const claire = { claimId: claireClaimId, personId: 'claire', runId: 'run-b' };
   /** Every assignment under `P`, as `ref:step:person`, sorted. */
   const assignments = async (): Promise<string[]> => {
     const refOf = new Map([...ids].map(([ref, id]) => [id, ref]));
@@ -197,7 +204,7 @@ async function seeded(store: (typeof STORES)[number]) {
     await source.close();
     dispose();
   };
-  return { graph, runner, projectId, dev, review, idOf, assignments, entries, close };
+  return { graph, runner, projectId, dev, review, idOf, assignments, entries, claire, close };
 }
 
 const BEFORE = ['A:review:ada', 'C:dev:bob', 'D1:review:bob'];
@@ -235,7 +242,8 @@ for (const store of STORES) {
     });
 
     it('lists the claimed step it took from its holder, and undo leaves the claim', async () => {
-      const { graph, runner, projectId, review, idOf, assignments, close } = await seeded(store);
+      const { graph, runner, projectId, review, idOf, assignments, claire, close } =
+        await seeded(store);
       try {
         expect(
           await runner.run(projectId, F, [
@@ -251,7 +259,7 @@ for (const store of STORES) {
                   workItemId: idOf('B'),
                   stepId: review,
                   previousPersonId: null,
-                  holderPersonIds: ['claire'],
+                  holder: claire,
                 },
               ],
             },
@@ -269,7 +277,7 @@ for (const store of STORES) {
     });
 
     it('lists no step assigned to its own holder, nor one whose assignee did not change', async () => {
-      const { runner, projectId, review, idOf, close } = await seeded(store);
+      const { runner, projectId, review, idOf, claire, close } = await seeded(store);
       try {
         expect(
           await runner.run(projectId, F, [
@@ -296,7 +304,7 @@ for (const store of STORES) {
                   workItemId: idOf('B'),
                   stepId: review,
                   previousPersonId: 'claire',
-                  holderPersonIds: ['claire'],
+                  holder: claire,
                 },
               ],
             },
@@ -308,6 +316,35 @@ for (const store of STORES) {
             { kind: 'assignSubtree', workItemId: idOf('B'), stepId: review, personId: null },
           ]),
         ).toMatchObject({ ok: true, results: [{ reassignedClaimedSteps: [] }] });
+      } finally {
+        await close();
+      }
+    });
+
+    it('lists only a claim on the step it assigns: not a subtree claim, not another step', async () => {
+      const { runner, projectId, dev, review, idOf, claire, close } = await seeded(store);
+      try {
+        // claire also holds the subtree D and A's Dev; neither is a claim on a leaf's Review.
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'claimWorkItem', workItemId: idOf('D'), personId: 'claire' },
+            { kind: 'claimWorkItem', workItemId: idOf('A'), personId: 'claire', steps: [dev] },
+          ]),
+        ).toMatchObject({ ok: true });
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'kat' },
+          ]),
+        ).toMatchObject({
+          ok: true,
+          results: [
+            {
+              reassignedClaimedSteps: [
+                { workItemId: idOf('B'), stepId: review, previousPersonId: null, holder: claire },
+              ],
+            },
+          ],
+        });
       } finally {
         await close();
       }
@@ -368,7 +405,7 @@ for (const store of STORES) {
 
   describe(`assignSubtree on the ${store.name} store, beyond the batch`, () => {
     it('answers unknown_step from the service itself, before any write', async () => {
-      const { graph, review, idOf, entries, close } = await seeded(store);
+      const { graph, review, idOf, entries, claire, close } = await seeded(store);
       try {
         const before = await entries();
         expect(await graph.workItems.assignSubtree(idOf('P'), F, 'not-a-step', 'kat')).toEqual({
@@ -383,7 +420,7 @@ for (const store of STORES) {
                 workItemId: idOf('B'),
                 stepId: review,
                 previousPersonId: null,
-                holderPersonIds: ['claire'],
+                holder: claire,
               },
             ],
           },

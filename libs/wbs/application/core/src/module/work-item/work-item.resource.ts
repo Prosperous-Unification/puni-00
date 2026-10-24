@@ -3495,8 +3495,9 @@ export class WorkItemService {
    * assigning, Dany, 2026-08-06) and no claim refuses it, because a claim is
    * beside an assignment (D1). It does report the step claims it reassigns
    * away from their holders, {@link findReassignedClaimedSteps}, so a swarm
-   * coordinator can tell (issue #669 F6). A fixture built without a claim
-   * store holds no claims to report.
+   * coordinator can tell (issue #669 F6), as of this command inside its
+   * batch. A redo reassigns again without listing. Throws when the service was
+   * built without a claim store.
    * `unknown_step` answers before any write; `unknown_person` comes from the
    * first write, inside its transaction, so nothing is written when it fires.
    */
@@ -3564,14 +3565,12 @@ export class WorkItemService {
         before: rows,
       },
     );
-    const claims =
-      this.opts.claims === undefined
-        ? []
-        : await this.opts.claims.listByProject(workItem.projectId);
+    const claims = await this.claiming().claims.listByProject(workItem.projectId);
     return {
       ok: true,
       value: {
         reassignedClaimedSteps: findReassignedClaimedSteps({
+          rows,
           leafIds,
           stepId,
           personId,

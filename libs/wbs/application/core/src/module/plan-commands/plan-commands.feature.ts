@@ -35,7 +35,12 @@ import type {
   RemoveDirectoryOutcome,
   RemoveResourceOutcome,
 } from '../directory/directory.resource';
-import type { NamedClaimHolder, NamedOccupancyHolder, PlainClaimReason } from '../work-item/claims';
+import type {
+  NamedClaimHolder,
+  NamedOccupancyHolder,
+  PlainClaimReason,
+  ReassignedClaimedStep,
+} from '../work-item/claims';
 import type {
   BudgetExhaustedOutcome,
   Collected,
@@ -102,17 +107,12 @@ export type AppliedCommand =
       entity?: never;
       alreadyHeld?: never;
     })
-  /** A subtree assignment names the step claims it took from their holders (issue #669 F6). */
+  /** A subtree assignment names the leaf steps it reassigned while someone else held their claim (issue #669 F6). */
   | (AppliedBase & {
       kind: 'assignSubtree';
       entity?: never;
       alreadyHeld?: never;
-      reassignedClaimedSteps: {
-        workItemId: string;
-        stepId: string;
-        previousPersonId: string | null;
-        holderPersonIds: string[];
-      }[];
+      reassignedClaimedSteps: ReassignedClaimedStep[];
     })
   /** A claim says whether it wrote nothing and which claims hold the steps. */
   | (AppliedBase & {

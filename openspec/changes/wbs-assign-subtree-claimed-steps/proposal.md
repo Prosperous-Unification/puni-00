@@ -4,37 +4,40 @@ INTENT. Hard cap: 400 words excluding these comments.
 
 ## Why
 
-The swarm end-to-end test (PR #666) found that `assignSubtree` takes the assignment of a
-claimed step away from its holder without refusal or notice (issue #669, F6). That is
-what `assignee-management` asks today: the command "SHALL NOT read team labels or
+`assignSubtree` takes the assignment of a claimed step away from its holder without
+notice (issue #669, F6), as `assignee-management` asks: it "SHALL NOT read team labels or
 claims". The holder's by-person read then lists the claim without the assignment, and a
-swarm coordinator that reassigned a subtree cannot tell which running agents it just
-displaced.
+swarm coordinator cannot tell which running agents it displaced.
 
 ## What Changes
 
-- `assignSubtree` still succeeds wherever it succeeded before: no new refusal, and the
-  same writes, journal entry, undo and redo.
-- Its result gains `reassignedClaimedSteps`: one entry for each leaf step whose assignee
-  the command changed while a claim on that step is held by someone other than the new
-  assignee. Each entry names `workItemId`, `stepId`, `previousPersonId` (null where there
-  was none) and `holderPersonIds`, the distinct holders of claims on that step. A step
-  assigned to its own holder, or whose assignee did not change, is not listed. Entries
-  come in leaf order (the tree order the command writes in).
-- The command reads the project's claims once, after its writes; team labels stay unread.
+- No new refusal; the same writes, journal entry and undo.
+- Its result gains `reassignedClaimedSteps`, in tree order: one entry for each leaf step
+  whose assignee the command changed while the claim on that step is held by someone
+  other than the new assignee. Each entry names `workItemId`, `stepId`,
+  `previousPersonId` (null where there was none) and `holder: { claimId, personId,
+runId }`; the `claim_step` unique index allows one step claim per step, so there is one
+  holder. A step assigned to its own holder, or whose assignee did not change, is not
+  listed.
+- The list reflects the claims at the command's position in its batch: a claim or
+  release earlier in the same batch counts, a later one does not.
+- The claims are read once, after the writes; a service built without a claim store throws.
 - The `assignSubtree` description (MCP batch tool and OpenAPI) says so.
 
 ## Decisions (assumed, 2026-10-24)
 
-- Report, not refuse: refusing would break the coordinator's bulk reassignment, which is
-  legitimate; the listing lets it release or notify instead.
-- Only step claims count. A subtree claim on an ancestor holds no step and assigns none
-  (`claimWorkItem` with `assign` writes no step for it), so it is not listed.
-- Holders are named by person id only: the binding carries no organization access to
-  resolve names under, and `getApiPeople` resolves them.
+- Report, not refuse: bulk reassignment is legitimate; the listing lets the coordinator
+  release or notify.
+- Only a claim on that very step counts. A subtree claim holds no step, and a claim on
+  another step of the leaf is not displaced.
+- The holder is named by claim id, person id and run, not by name: the binding carries no
+  organization access to resolve names under, and the run tells a coordinator which
+  agent run was displaced.
 
 ## Non-goals
 
+- A redo reassigns again without listing; any command in between clears the redo stack,
+  so the original apply already reported it.
 - Any change to `setAssignee`, which writes one step the caller names directly.
 - Releasing, notifying or refusing on the holder's behalf.
 - F1, F5 and F7 of issue #669.

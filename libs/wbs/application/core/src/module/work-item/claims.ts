@@ -10,8 +10,10 @@ import type {
   ResourcesExhausted,
   ResourceShortage,
   ResourceUnits,
+  TreePlacement,
   WorkItemStatus,
 } from '@wbs/domain';
+import { byTreeOrder, treeOrder } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { WorkItem } from '../../ports/work-item-store';
@@ -155,24 +157,36 @@ export function lineageOf(
 }
 
 /**
- * One leaf step `assignSubtree` gave a new assignee while a step claim on it is
- * held by someone else (issue #669 F6): reported, never refused.
+ * One leaf step `assignSubtree` gave a new assignee while another person holds
+ * the step's claim (issue #669 F6): reported, never refused.
  */
 export interface ReassignedClaimedStep {
   readonly workItemId: string;
   readonly stepId: string;
   /** The assignee before the command, or null where the step had none. */
   readonly previousPersonId: string | null;
-  /** The distinct holders of claims on the step, sorted. */
-  readonly holderPersonIds: readonly string[];
+  /** The step's one claim (the `claim_step` unique index allows no second). */
+  readonly holder: {
+    readonly claimId: string;
+    readonly personId: string;
+    readonly runId: string | null;
+  };
 }
 
 /**
- * The leaves among `leafIds`, in that order, whose `stepId` assignee changed
- * from `previous` to `personId` while a step claim on it is held by a person
- * other than `personId`. A subtree claim holds no step, so it never counts.
+ * The leaves among `leafIds`, in tree order over `rows`, whose `stepId`
+ * assignee changed from `previous` to `personId` while a person other than
+ * `personId` holds the claim on that very step. A subtree claim (`stepId` null)
+ * or a claim on another step of the leaf never counts.
+ *
+ * Proof: without the tree-order sort, `lists reassigned claimed steps in tree
+ * order…` (reassigned-claimed-steps.test.ts) listed `claim-a` first, and step 9
+ * of swarm-end-to-end.db.test.ts failed in 4 of 8 runs; watched 2026-10-24.
+ *
+ * @throws when a leaf is not among `rows` ({@link byTreeOrder}).
  */
 export function findReassignedClaimedSteps(input: {
+  readonly rows: readonly TreePlacement[];
   readonly leafIds: readonly string[];
   readonly stepId: string;
   readonly personId: string | null;
@@ -180,18 +194,25 @@ export function findReassignedClaimedSteps(input: {
   readonly claims: readonly Claim[];
 }): ReassignedClaimedStep[] {
   const { stepId, personId } = input;
-  return input.leafIds.flatMap((workItemId) => {
+  const leaves = input.leafIds
+    .map((id) => ({ id }))
+    .toSorted(byTreeOrder(treeOrder(input.rows)))
+    .map((leaf) => leaf.id);
+  return leaves.flatMap((workItemId) => {
     const previousPersonId = input.previous.get(workItemId) ?? null;
     if (previousPersonId === personId) return [];
-    const holderPersonIds = [
-      ...new Set(
-        input.claims
-          .filter((each) => each.workItemId === workItemId && each.stepId === stepId)
-          .map((each) => each.personId),
-      ),
-    ].toSorted();
-    if (holderPersonIds.every((holder) => holder === personId)) return [];
-    return [{ workItemId, stepId, previousPersonId, holderPersonIds }];
+    const claim = input.claims.find(
+      (each) => each.workItemId === workItemId && each.stepId === stepId,
+    );
+    if (claim === undefined || claim.personId === personId) return [];
+    return [
+      {
+        workItemId,
+        stepId,
+        previousPersonId,
+        holder: { claimId: claim.id, personId: claim.personId, runId: claim.runId },
+      },
+    ];
   });
 }
 
