@@ -107,6 +107,18 @@ describe('Init-only native preservation', () => {
     expect(() => parseNativeContainer(observed)).toThrow();
   });
 
+  test.each(['constructor', 'toString', 'valueOf', '__proto__'])(
+    'rejects inherited rule names such as %s',
+    (key) => {
+      const observed = container();
+      Object.defineProperty(observed.Config, key, {
+        value: 'PRIVATE_CONFIG_SENTINEL',
+        enumerable: true,
+      });
+      expect(() => parseNativeContainer(observed)).toThrow();
+    },
+  );
+
   for (const env of [['A=x', 'A=y'], ['INVALID-KEY=x'], [12], null, undefined]) {
     test(`rejects malformed or duplicate Env ${JSON.stringify(env)}`, () => {
       expect(() => encodeOrderedEnv(env)).toThrow();
