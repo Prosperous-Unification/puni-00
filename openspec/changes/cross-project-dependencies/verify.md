@@ -7469,3 +7469,22 @@ this checkpoint. Real image/kernel acceptance, the network lifecycle experiment,
 final canonical host gate, final green CI and live activation/deployment remain
 open. The full factory replay above remains a separate checkpoint result; it is
 not counted in these focused totals.
+
+## Reviewed main, product and Init integration checkpoint
+
+Fresh main `2bc19d15` and its claim-chip UI are integrated through reviewed merge
+`b15a29ba`, then combined as `b2265e4b`. The sole conflict was JSDoc; claims
+identity and ordered step id/name/code/allowance semantics were both retained.
+A fixture gained its newly required `claims: null`. Actor verification passed
+568 focused tests and configured FE lint/types; independent Astra verification
+passed 195 focused store/feed/claims/address/API tests. All 29 merge-changed
+blobs match that reviewed merge exactly on the combined root.
+
+The reviewed product observer and Init corrections have now met their exact
+full-model replay conditions. See [product source evidence](verify-product-process-source.md)
+and [Init evidence](verify-init-network-projection.md) for complete counts,
+terminal hashes, limitations and the preserved earlier failed/unverified runs.
+Combined validation passed 373 component tests, the preparation model and both
+repository guards; configured uncached tool lint/types actually executed.
+Final exact-head hosted CI, canonical host gate, native acceptance and complete
+restoration/activation remain open. No live service or store was changed.

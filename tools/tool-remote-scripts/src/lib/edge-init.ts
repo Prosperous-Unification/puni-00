@@ -478,7 +478,7 @@ export interface InvariantProjection {
 export const CREATED_PROFILE = 'engine-29.1.3-api-1.52-cgroup2-created-v3';
 export type InvariantProfile = typeof CREATED_PROFILE;
 
-/** Requires fresh fixed daemon evidence; this identifier is never decoded from an operation packet.
+/** Derives authority from fresh fixed daemon evidence; the packet profile is only a compatibility declaration.
  * Proof: independently omitting each version/API/OS/server/cgroup check failed the daemon-evidence regression.
  */
 export function admitInvariantProfile(version: unknown, information: unknown): InvariantProfile {

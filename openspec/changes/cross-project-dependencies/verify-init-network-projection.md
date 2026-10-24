@@ -13,23 +13,23 @@ under `FORCE_COLOR=1`. No Docker, SSH, native Init or host action ran.
 
 ## Fresh checks
 
-| Check                                                                                                | Outcome                                                                                                           |
-| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `bun test` network, observer, CLI component files                                                    | 117 pass, 0 fail; `/tmp/puni-init-components-a.log`                                                               |
-| `bun test` operation file                                                                            | 129 pass, 0 fail after refreshing its synthetic network shape; `/tmp/puni-init-operation-full.log`                |
-| Actual factory created network faults for configuration, IPAM, missing Status and unsafe raw counter | 4 pass, 0 fail; `/tmp/puni-init-factory-network-faults.log`                                                       |
-| Actual factory extra Status-field fault                                                              | 1 pass, 0 fail after fixture injection; `/tmp/puni-init-status-extra-green.log`                                   |
-| All five actual-entry network faults after synthetic UID correction                                  | 5 pass, 0 fail; `/tmp/puni-init-factory-network-final.log`                                                        |
-| `bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json`                                   | 0 exit after test fixture correction; `/tmp/puni-init-types-final.log`                                            |
-| `bunx nx run tool-remote-scripts:lint --skip-nx-cache`                                               | 0 exit; `/tmp/puni-init-lint.log`                                                                                 |
-| `bunx openspec validate cross-project-dependencies --json`                                           | 0 exit; `/tmp/puni-init-openspec.log`                                                                             |
-| Network, observer, operation, CLI fixture and owner adapter component files after UID model          | 247 pass, 0 fail; `/tmp/puni-init-components-final.log`                                                           |
-| Full Init CLI source and bundled contract tests under `FORCE_COLOR=1`                                | 21 pass, 0 fail; `/tmp/puni-init-cli-final.log`                                                                   |
-| Factory prepare, execute and expired-history recovery positives                                      | 3 pass, 0 fail; `/tmp/puni-init-uid-three-positives.log`                                                          |
-| Factory raw UID1001 modeled prepare positive and early UID negatives                                 | positive and 4 early faults passed; `/tmp/puni-init-uid-1001-final.log`, `/tmp/puni-init-uid-early-negatives.log` |
-| TLS/WSS semantics and closed credential-owner negative                                               | 1 focused test passed; `/tmp/puni-init-uid-tls-owner-negative.log`                                                |
-| Isolated read-only v3 recovery chain plus directory-owner negative                                   | 1 parent test passed, two child paths; `/tmp/puni-init-uid-recovery-negative.log`                                 |
-| Real byte and inode drift after ownership modeling                                                   | 2 pass, 0 fail; `/tmp/puni-init-uid-real-identity-negatives.log`                                                  |
+| Check                                                                                                | Outcome                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` network, observer, CLI component files                                                    | 117 pass, 0 fail; `/tmp/puni-init-components-a.log`                                                                               |
+| `bun test` operation file                                                                            | 129 pass, 0 fail after refreshing its synthetic network shape; `/tmp/puni-init-operation-full.log`                                |
+| Actual factory created network faults for configuration, IPAM, missing Status and unsafe raw counter | 4 pass, 0 fail; `/tmp/puni-init-factory-network-faults.log`                                                                       |
+| Actual factory extra Status-field fault                                                              | 1 pass, 0 fail after fixture injection; `/tmp/puni-init-status-extra-green.log`                                                   |
+| All five actual-entry network faults after synthetic UID correction                                  | 5 pass, 0 fail; `/tmp/puni-init-factory-network-final.log`                                                                        |
+| `bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json`                                   | 0 exit after test fixture correction; `/tmp/puni-init-types-final.log`                                                            |
+| `bunx nx run tool-remote-scripts:lint --skip-nx-cache`                                               | 0 exit; `/tmp/puni-init-projection-review-lint.log` (fresh independent execution; earlier actor socket-only logs are not counted) |
+| `bunx openspec validate cross-project-dependencies --json`                                           | 0 exit; `/tmp/puni-init-openspec.log`                                                                                             |
+| Network, observer, operation, CLI fixture and owner adapter component files after UID model          | 247 pass, 0 fail; `/tmp/puni-init-components-final.log`                                                                           |
+| Full Init CLI source and bundled contract tests under `FORCE_COLOR=1`                                | 21 pass, 0 fail; `/tmp/puni-init-cli-final.log`                                                                                   |
+| Factory prepare, execute and expired-history recovery positives                                      | 3 pass, 0 fail; `/tmp/puni-init-uid-three-positives.log`                                                                          |
+| Factory raw UID1001 modeled prepare positive and early UID negatives                                 | positive and 4 early faults passed; `/tmp/puni-init-uid-1001-final.log`, `/tmp/puni-init-uid-early-negatives.log`                 |
+| TLS/WSS semantics and closed credential-owner negative                                               | 1 focused test passed; `/tmp/puni-init-uid-tls-owner-negative.log`                                                                |
+| Isolated read-only v3 recovery chain plus directory-owner negative                                   | 1 parent test passed, two child paths; `/tmp/puni-init-uid-recovery-negative.log`                                                 |
+| Real byte and inode drift after ownership modeling                                                   | 2 pass, 0 fail; `/tmp/puni-init-uid-real-identity-negatives.log`                                                                  |
 
 ## R5 faults and watched omissions
 
@@ -84,3 +84,26 @@ earlier refused native attempt. This packet has no native acceptance result.
 The complete factory composition remains pending one root-owned replay from a
 frozen SHA. The local synthetic UID1001 injection proves the fixture boundary;
 it does not substitute for a hosted UID1001 CI execution.
+
+## Completed root-owned replay and integration
+
+Astra approved exact `24f7e50d6ee2a9239bc59194107c5126dc848b00` conditional
+on its frozen full matrix. Root observed exit 0, **212 tests / 1,776 assertions**
+in 1,020.16s, without filters, failures or skipped cases; all frozen source
+remained unchanged throughout. The
+[terminal receipt](evidence/init-production-integration-24f7.json) pins the
+actual complete log hash. This satisfies that source-review condition. Native
+Init acceptance and hosted UID1001 execution remain open.
+
+The earlier actor lint files contained only socket/fallback messages and did
+not establish target execution. The reviewer explicitly ran the uncached target
+with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; eslint actually executed and
+passed in 17.9s. Root's combined Init/product lint and typecheck targets also
+actually executed and passed in 18.6s. Existing JSDoc was corrected to v3
+receipt grammar and independent daemon authority versus packet declaration;
+those edits change documentation only.
+
+At combined root `b2265e4b`, 373 component/CLI/product/metadata tests passed
+with 1,674 assertions in 18.96s; the actual production prepare model passed
+with 13 assertions in 3.68s; both repository conformance guards passed with
+three assertions in 2.26s. No full workspace or canonical host gate is claimed.

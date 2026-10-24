@@ -3154,7 +3154,7 @@ function allowedFailure(position: number, target: TargetKind, stage: string): bo
     );
   return false;
 }
-/** Validates the complete private v2 chain; grants no Engine capability. @internal */
+/** Validates the complete private v3 chain; grants no Engine capability. @internal */
 export async function readRecoveryHistory(
   packet: InitPacket,
   packetSha256: string,
