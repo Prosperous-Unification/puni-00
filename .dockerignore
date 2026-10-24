@@ -30,3 +30,8 @@ coverage
 # the production image: `COPY apps/wbs/be-01` takes the whole app, and the boundary
 # is this exclusion rather than the directory name.
 apps/wbs/be-01/src/dev
+
+# Test fixtures, including the organization browser server with the public test
+# JWT key. Nothing the image runs imports them; `production-entrypoint.test.ts`
+# bundles every image entrypoint and fails if one reaches `src/testing`.
+apps/wbs/be-01/src/testing

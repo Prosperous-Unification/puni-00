@@ -1,3 +1,7 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'bun:test';
 
 /**
@@ -106,5 +110,50 @@ describe('the production entrypoint', () => {
         (marker) => graph.includes(marker),
       ),
     ).toEqual([]);
+  });
+
+  /**
+   * `.dockerignore` keeps `src/testing` out of the image, which holds only
+   * while nothing the image runs imports it: `main.ts`, the `src/*-cli.ts`
+   * commands the runbooks `docker exec`, and the solver client
+   * `solver-image-smoke.sh` runs inside the image. Each bundle carries a
+   * `// <path>` comment per module, so a reached fixture is named.
+   *
+   * Proof: importing `testing/auth-fixture` from `main.ts` failed this case,
+   * naming `apps/wbs/be-01/src/main.js`; watched 2026-10-25.
+   */
+  it('runs nothing from src/testing, which the image leaves out', () => {
+    const appRoot = 'apps/wbs/be-01';
+    const entrypoints = [
+      `${appRoot}/src/main.ts`,
+      ...readdirSync(join(REPO_ROOT, appRoot, 'src'))
+        .filter((name) => name.endsWith('-cli.ts'))
+        .map((name) => `${appRoot}/src/${name}`),
+      `${appRoot}/scripts/solver-supervisor-image-client.ts`,
+    ];
+    const outdir = mkdtempSync(join(tmpdir(), 'wbs-production-graph-'));
+    try {
+      const built = Bun.spawnSync({
+        cmd: ['bun', 'build', ...entrypoints, '--target=bun', `--outdir=${outdir}`],
+        cwd: REPO_ROOT,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      if (built.exitCode !== 0) {
+        throw new Error(`bundling the image entrypoints failed: ${built.stderr.toString()}`);
+      }
+      const bundles = readdirSync(outdir, { recursive: true, encoding: 'utf8' }).filter((name) =>
+        name.endsWith('.js'),
+      );
+      // An empty output directory would make the list below pass.
+      expect(bundles).toHaveLength(entrypoints.length);
+      expect(
+        bundles.filter((name) =>
+          readFileSync(join(outdir, name), 'utf8').includes(`// ${appRoot}/src/testing/`),
+        ),
+      ).toEqual([]);
+    } finally {
+      rmSync(outdir, { recursive: true, force: true });
+    }
   });
 });
