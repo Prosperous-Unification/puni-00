@@ -39,6 +39,7 @@ export function packetFixture() {
     nativeSha256: sha256,
     imageSha256: sha256,
     envSha256: sha256,
+    composeFiles: ['/home/puni1/wbs/compose.yml'],
     process: {
       startTime: '123',
       cgroup: '/system.slice/docker-' + id + '.scope',
@@ -84,7 +85,6 @@ export function packetFixture() {
     bootId,
     targets: [target('registry', 'd'.repeat(64)), target('caddy', 'e'.repeat(64))],
     provenance: [pin('/home/puni1/wbs/compose.yml')],
-    resolvedCompose: pin('/home/puni1/wbs/compose.resolved.json'),
     public: {
       routesSha256: fingerprint({ servers: configuration.apps.http.servers, inventory }),
       probes: [

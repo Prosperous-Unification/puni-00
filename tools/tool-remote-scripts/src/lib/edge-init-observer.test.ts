@@ -1,5 +1,6 @@
 import { rejects } from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { renameSync, writeFileSync } from 'node:fs';
 import { chmod, lstat, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
@@ -16,15 +17,23 @@ import {
   checkGraph,
   checkInheritedInitLocks,
   checkInitProcess,
+  checkReceiptSources,
   checkRouteCoverage,
   checkStoppedUnit,
   decodeInitPacket,
+  fingerprintPacketRoster,
   INIT_NATIVE_READER,
+  observeComposeDeclarations,
   operationExpiry,
   probeHttp,
+  publishInitReceipt,
+  readRecoveryStage,
+  readSuspendedCrontab,
+  requireLiteralComposeInit,
   resolveDefaultRoute,
   runProductionInitAdoption,
 } from './edge-init-observer';
+import { PrivateReceipts } from './edge-init-operation';
 import { AUTHORITY_COLLECTOR } from './installed-authority-collector';
 import { withCanonicalLock } from './lock';
 import { SOLVER_UNIT_PROPERTIES } from './solver-unit-observation';
@@ -75,10 +84,392 @@ test('closed packet decodes independent pins and rejects target, probe, graph an
     (packet: ReturnType<typeof packetFixture>['packet']) => {
       packet.quiescence.bootId = '87654321-1234-1234-1234-123456789abc';
     },
+    (packet: ReturnType<typeof packetFixture>['packet']) => {
+      packet.quiescence.operation.mode = 0o644;
+    },
+    (packet: ReturnType<typeof packetFixture>['packet']) => {
+      packet.backends.push(packet.backends[0]);
+    },
   ]) {
     const fault = structuredClone(packet);
     mutate(fault);
     expect(() => decodeInitPacket(fault)).toThrow();
+  }
+});
+
+test('operation roster binds nonce, receipt path, daemon, host and inherited lock descriptors', () => {
+  const packet = decodeInitPacket(packetFixture().packet),
+    expected = fingerprintPacketRoster(packet);
+  for (const mutate of [
+    (packet: ReturnType<typeof decodeInitPacket>) => {
+      packet.nonce = 'another-attempt';
+    },
+    (packet: ReturnType<typeof decodeInitPacket>) => {
+      packet.receiptDirectory = '/tmp/another-private-attempt';
+    },
+    (packet: ReturnType<typeof decodeInitPacket>) => {
+      packet.daemonPid++;
+    },
+    (packet: ReturnType<typeof decodeInitPacket>) => {
+      packet.machineIdSha256 = '0'.repeat(64);
+    },
+    (packet: ReturnType<typeof decodeInitPacket>) => {
+      packet.quiescence.locks[0].descriptor++;
+    },
+  ]) {
+    const changed = structuredClone(packet);
+    mutate(changed);
+    expect(fingerprintPacketRoster(changed)).not.toBe(expected);
+  }
+});
+
+test('recovery refuses an unknown private receipt stage', () => {
+  expect(readRecoveryStage('stop-uncertain')).toBe('stop-uncertain');
+  expect(() => readRecoveryStage('private-secret-marker')).toThrow('recovery-stage-invalid');
+});
+
+test('suspended crontab read distinguishes present empty bytes from absence and diagnostics', () => {
+  expect(readSuspendedCrontab(0, Buffer.from(''), Buffer.from('')).length).toBe(0);
+  expect(() =>
+    readSuspendedCrontab(1, Buffer.from(''), Buffer.from('no crontab for puni1\n')),
+  ).toThrow();
+  expect(() =>
+    readSuspendedCrontab(0, Buffer.from(''), Buffer.from('private-secret-marker')),
+  ).toThrow('suspended-crontab-unavailable');
+});
+
+test('installed Compose source boundary admits checked-in base and separate ordered Caddy/registry recipes', async () => {
+  const root = await mkdtemp('/tmp/edge-init-compose-');
+  const base = join(root, 'base.yml'),
+    others = Array.from({ length: 3 }, (_, index) => join(root, `tier-${String(index)}.yml`));
+  try {
+    const source = await readFile(
+      new URL('../../../../deploy/compose/base.yml', import.meta.url),
+      'utf8',
+    );
+    expect(requireLiteralComposeInit(source, 'registry')).toBe(true);
+    expect(requireLiteralComposeInit(source, 'caddy')).toBe(true);
+    await writeFile(base, source);
+    for (const [index, file] of others.entries())
+      await writeFile(
+        file,
+        `services:\n  tier-${String(index)}:\n    image: 'example:\${TAG}'\n    networks: [wbs-net]\n`,
+      );
+    const files = [base, ...others],
+      pins = await Promise.all(
+        files.map(async (path) => {
+          const native = await lstat(path, { bigint: true });
+          return {
+            path,
+            sha256: digest(await readFile(path, 'utf8')),
+            device: String(native.dev),
+            inode: String(native.ino),
+            mode: Number(native.mode & 0o7777n),
+            uid: Number(native.uid),
+          };
+        }),
+      );
+    const selected = (kind: 'registry' | 'caddy', roster: string[]) => {
+      const raw = syntheticContainer();
+      const original = parseNativeContainer({
+        ...raw,
+        Config: {
+          ...raw.Config,
+          Labels: {
+            ...raw.Config.Labels,
+            'com.docker.compose.project.config_files': roster.join(','),
+          },
+        },
+      });
+      return { kind, original, nativeSha256: fingerprint(original), roster };
+    };
+    const registry = selected('registry', [base]),
+      caddy = selected('caddy', files);
+    const proofs = await observeComposeDeclarations([registry, caddy], pins);
+    expect(proofs).toHaveLength(2);
+    expect(proofs[0].sourceRosterSha256).not.toBe(proofs[1].sourceRosterSha256);
+    await rejects(
+      observeComposeDeclarations([{ ...caddy, roster: [...files].reverse() }], pins),
+      /compose-roster-differs/,
+    );
+    await rejects(
+      observeComposeDeclarations([{ ...registry, roster: files }], pins),
+      /compose-roster-differs/,
+    );
+    await rejects(observeComposeDeclarations([caddy], pins.slice(0, 1)), /compose-source-unpinned/);
+    await rejects(
+      observeComposeDeclarations([selected('registry', [base, base])], pins),
+      /compose-roster-invalid/,
+    );
+    await rejects(
+      observeComposeDeclarations([selected('registry', [base, join(root, 'unpinned.yml')])], pins),
+      /compose-source-unpinned/,
+    );
+    const missingLabel = {
+      ...registry.original,
+      config: { ...registry.original.config, Labels: { 'com.docker.compose.service': 'registry' } },
+    };
+    await rejects(
+      observeComposeDeclarations(
+        [{ ...registry, original: missingLabel, nativeSha256: fingerprint(missingLabel) }],
+        pins,
+      ),
+    );
+    const changedOriginal = {
+      ...registry.original,
+      config: {
+        ...registry.original.config,
+        Labels: { 'com.docker.compose.project.config_files': files.join(',') },
+      },
+    };
+    await rejects(
+      observeComposeDeclarations([{ ...registry, original: changedOriginal, roster: files }], pins),
+      /compose-native-binding-differs/,
+    );
+    for (const declaration of ['init: false', '', 'init: true']) {
+      await writeFile(others[0], `services:\n  caddy:\n    image: fixture\n    ${declaration}\n`);
+      const changedPins = await Promise.all(
+        files.map(async (path) => {
+          const native = await lstat(path, { bigint: true });
+          return {
+            path,
+            sha256: digest(await readFile(path, 'utf8')),
+            device: String(native.dev),
+            inode: String(native.ino),
+            mode: Number(native.mode & 0o7777n),
+            uid: Number(native.uid),
+          };
+        }),
+      );
+      await rejects(observeComposeDeclarations([caddy], changedPins));
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('self-consistently pinned false or missing Init source refuses despite a good historical JSON projection', async () => {
+  const root = await mkdtemp('/tmp/edge-init-compose-false-'),
+    file = join(root, 'base.yml'),
+    projection = join(root, 'historical.json');
+  await writeFile(projection, JSON.stringify({ services: { registry: { init: true } } }));
+  try {
+    for (const declaration of ['init: false', 'image: registry:retained']) {
+      await writeFile(file, `services:\n  registry:\n    ${declaration}\n`);
+      const pins = await Promise.all(
+        [file, projection].map(async (path) => {
+          const native = await lstat(path, { bigint: true });
+          return {
+            path,
+            sha256: digest(await readFile(path, 'utf8')),
+            device: String(native.dev),
+            inode: String(native.ino),
+            mode: Number(native.mode & 0o7777n),
+            uid: Number(native.uid),
+          };
+        }),
+      );
+      const raw = syntheticContainer();
+      const original = parseNativeContainer({
+          ...raw,
+          Config: {
+            ...raw.Config,
+            Labels: { ...raw.Config.Labels, 'com.docker.compose.project.config_files': file },
+          },
+        }),
+        target = {
+          kind: 'registry' as const,
+          original,
+          nativeSha256: fingerprint(original),
+          roster: [file],
+        };
+      await rejects(observeComposeDeclarations([target], pins), /compose-literal-init-required/);
+      await rejects(
+        observeComposeDeclarations([target], pins.slice(0, 1)),
+        /compose-literal-init-required/,
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('literal Compose profile refuses duplicate, shadow, merge, tagged, scalar and multiline authority', () => {
+  const valid =
+    'services:\n  registry:\n    init: true\n    image: "registry:${TAG}" # ordinary comment\n';
+  expect(requireLiteralComposeInit(valid, 'registry')).toBe(true);
+  for (const source of [
+    'name: first\nname: second\n' + valid,
+    'services:\n  other:\n    image: first\n  other:\n    image: second\n  registry:\n    init: true\n',
+    'services:\n  other: {image: fixture}\n  registry:\n    init: true\n',
+    valid + 'services:\n  other:\n    image: fixture\n',
+    valid + '  registry:\n    init: true\n',
+    valid.replace('init: true', 'init: true\n    init: false'),
+    valid.replace('init: true', 'init: true\n    init: true'),
+    valid.replace('init: true', 'init: false\n    init: true'),
+    valid.replace('services:', '"services":'),
+    valid.replace('registry:', '"registry":'),
+    valid.replace('init: true', '"init": true'),
+    'include: other.yml\n' + valid,
+    valid.replace('init: true', 'extends: fixture\n    init: true'),
+    valid.replace('init: true', 'profiles: [fixture]\n    init: true'),
+    valid.replace('init: true', 'init: &enabled true'),
+    valid.replace('init: true', 'init: *enabled'),
+    'x-image: &fixture registry:retained\n' +
+      valid.replace('image: "registry:${TAG}"', 'image: *fixture'),
+    valid.replace('init: true', '<<: {init: true}'),
+    ...[
+      '!reset true',
+      '!override true',
+      '!!bool true',
+      '"true"',
+      'TRUE',
+      'yes',
+      '1',
+      'null',
+      '${INIT}',
+    ].map((value) => valid.replace('init: true', 'init: ' + value)),
+    '---\n' + valid,
+    valid + '---\n' + valid,
+    'services: {registry: {init: true}}\n',
+    'services:\n  registry: [true]\n',
+    'services:\n  ? registry\n  : {init: true}\n',
+    'name: |\n  services:\n    registry:\n      init: true\n',
+    'name: |\n  private: marker\n' + valid,
+    'name: "multiline\nservices:\n  registry:\n    init: true\n"\n',
+    valid.replace('registry:', '${SERVICE}:'),
+    valid.replace('init: true', '${PROPERTY}: true'),
+  ])
+    expect(() => requireLiteralComposeInit(source, 'registry')).toThrow();
+});
+
+test('literal Compose parser errors redact the private native cause', () => {
+  const parse = Bun.YAML.parse;
+  Bun.YAML.parse = () => {
+    throw new Error('private-secret-parser-marker');
+  };
+  try {
+    expect(() =>
+      requireLiteralComposeInit('services:\n  registry:\n    init: true\n', 'registry'),
+    ).toThrow('compose-source-unsupported');
+  } finally {
+    Bun.YAML.parse = parse;
+  }
+});
+
+test('production receipt readback contains both exact source hashes and recovery refuses missing or wrong metadata', async () => {
+  const root = await mkdtemp('/tmp/edge-init-source-receipt-'),
+    directory = join(root, 'attempt');
+  const proof = {
+    target: 'registry' as const,
+    sourceRosterSha256: 'a'.repeat(64),
+    literalInitSha256: 'b'.repeat(64),
+  };
+  try {
+    const receipts = await PrivateReceipts.create(directory, 'fixture');
+    await publishInitReceipt(
+      receipts,
+      { stage: 'create-intended', target: 'registry', original: 'c'.repeat(64), remaining: 270000 },
+      proof,
+    );
+    const persisted = JSON.parse(await readFile(join(directory, '0000.json'), 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    expect(persisted).toMatchObject(proof);
+    checkReceiptSources(persisted, proof);
+    const { sourceRosterSha256: _roster, ...missingRoster } = persisted;
+    const { literalInitSha256: _literal, ...missingLiteral } = persisted;
+    for (const fault of [
+      missingRoster,
+      missingLiteral,
+      { ...persisted, sourceRosterSha256: 'd'.repeat(64) },
+      { ...persisted, literalInitSha256: 'd'.repeat(64) },
+    ])
+      expect(() => {
+        checkReceiptSources(fault, proof);
+      }).toThrow();
+    await writeFile(join(directory, '0001.json'), 'collision', { mode: 0o600 });
+    await rejects(
+      publishInitReceipt(
+        receipts,
+        { stage: 'stop-intended', target: 'registry', original: 'c'.repeat(64), remaining: 200000 },
+        proof,
+      ),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('real Compose source lifetime refuses missing/unreadable bytes, same-path replacements and parser disagreement privately', async () => {
+  const root = await mkdtemp('/tmp/edge-init-compose-lifetime-'),
+    file = join(root, 'private-secret-source.yml');
+  const contents = 'services:\n  registry:\n    init: true\n';
+  const parse = Bun.YAML.parse;
+  async function fixture() {
+    await rm(file, { force: true });
+    await writeFile(file, contents, { mode: 0o600 });
+    const native = await lstat(file, { bigint: true }),
+      pin = {
+        path: file,
+        sha256: digest(contents),
+        device: String(native.dev),
+        inode: String(native.ino),
+        mode: Number(native.mode & 0o7777n),
+        uid: Number(native.uid),
+      };
+    const raw = syntheticContainer(),
+      original = parseNativeContainer({
+        ...raw,
+        Config: {
+          ...raw.Config,
+          Labels: { ...raw.Config.Labels, 'com.docker.compose.project.config_files': file },
+        },
+      });
+    return {
+      target: {
+        kind: 'registry' as const,
+        original,
+        nativeSha256: fingerprint(original),
+        roster: [file],
+      },
+      pin,
+    };
+  }
+  try {
+    for (const fault of ['bytes', 'inode', 'ancestry', 'parser', 'unreadable', 'missing']) {
+      const { target, pin } = await fixture();
+      if (fault === 'unreadable') await chmod(file, 0);
+      else if (fault === 'missing') await rm(file);
+      else
+        Bun.YAML.parse = (source) => {
+          const decoded = parse(source);
+          if (fault === 'bytes') writeFileSync(file, contents + '# changed\n');
+          if (fault === 'inode') {
+            const replacement = join(root, 'replacement');
+            writeFileSync(replacement, contents);
+            renameSync(replacement, file);
+          }
+          if (fault === 'parser') throw new Error('private-secret-parser-marker');
+          if (fault === 'ancestry') {
+            if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded))
+              throw new Error('fixture shape');
+            return { ...decoded, unexpected: 'private-secret-parser-marker' };
+          }
+          return decoded;
+        };
+      await rejects(observeComposeDeclarations([target], [pin]), (cause: unknown) => {
+        expect(cause).toBeInstanceOf(Error);
+        if (!(cause instanceof Error)) return false;
+        expect(cause.message).not.toContain('private-secret');
+        return true;
+      });
+      Bun.YAML.parse = parse;
+    }
+  } finally {
+    Bun.YAML.parse = parse;
+    await rm(root, { recursive: true, force: true });
   }
 });
 
