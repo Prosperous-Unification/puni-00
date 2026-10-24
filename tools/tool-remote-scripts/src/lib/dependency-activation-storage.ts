@@ -59,6 +59,7 @@ export function retainActivationDatabase(binding: DatabaseIdentity) {
   let closed = false;
   const accessPath = `/proc/self/fd/${String(parent)}/${basename(binding.host)}`;
   // Proof: removing parent identity admitted a new parent with the SAME main inode; parent-replacement negative failed.
+  // Proof: post-finalizer prepared-store parent omission admitted the same original main inode in a replacement parent; lifetime negative missed its rejection.
   function inspectParent() {
     if (
       closed ||
@@ -69,6 +70,7 @@ export function retainActivationDatabase(binding: DatabaseIdentity) {
       throw new Error('activation database parent changed');
   }
   // Proof: removing main identity admitted a new SQLite main between boundaries; main-replacement negative failed.
+  // Proof: post-finalizer prepared-store main omission admitted a same-byte replacement; lifetime negative missed its rejection.
   function inspectMain(descriptor: number) {
     inspectParent();
     const retained = fstatSync(descriptor, { bigint: true });
@@ -544,11 +546,13 @@ export async function activateDependencyStores(
                     'restoration exact activation receipt',
                   );
                 } finally {
+                  // Proof: omitting this close exposed real SQLite/main/WAL/SHM descriptors at the next awaited owner boundary; prepared-store lifetime test failed its empty-FD assertion.
                   connection.close();
                 }
               } else {
                 const database = openReadOnlyDatabase(path);
                 try {
+                  // Proof: omitting this post-finalizer check admitted a nonselected ENABLED marker; prepared-store lifetime negative missed its rejection.
                   inspectDormantDependencies(database);
                 } finally {
                   database.close();
@@ -559,6 +563,7 @@ export async function activateDependencyStores(
                 attempt: captured.attempt,
                 candidate: captured.candidate,
               });
+              // Proof: omitting this comparison admitted a deleted valid migration row after finalizers; prepared-store lifetime negative missed its rejection.
               assertSame(captured, current, 'restoration complete migration ledger');
             });
           } finally {
