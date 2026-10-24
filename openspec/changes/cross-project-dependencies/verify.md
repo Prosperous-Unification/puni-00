@@ -7419,3 +7419,26 @@ immutable hash; its exact lifecycle delta still needs controlled evidence and
 reviewed correction. This replay does not complete native acceptance,
 participant restoration, exposure/handoff, compatible ordinary controllers,
 final exact-SHA host gating, final CI, activation or deployment.
+
+## Reviewed CI oracle repairs at combined checkpoint — 2026-10-24
+
+Independent Astra review approved the complete protected-operation inventory
+correction, the retained-directory oracle correction, and the peer terminal
+contract with its actual emitted-child guard proofs. These test-only changes
+are integrated at `d4af8d89c`; production listener and credential code are
+unchanged. The Init production/worker/factory bytes retain their reviewed
+source identities and the factory replay above remains a checkpoint result.
+
+Fresh combined-checkpoint focused commands passed:
+
+- `bun test libs/wbs/domain/contracts/src/dependency-client.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000`: 2 tests / 6 assertions.
+- `bun test tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 -t 'storage evidence fault attempt-parent'`: 1 test / 75 assertions, 35.39 seconds.
+- `bun test tools/tool-remote-scripts/src/lib/solver-supervisor-peer.proc.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000`: 8 tests / 79 assertions, 336 milliseconds.
+
+The peer proof now executes the same child classifier for modeled exact resets
+and unrelated errors; independently removing its actual error guard fails.
+Real source/built kernel identity and refusal assertions remain in place.
+[Peer evidence](verify-ci-peer-terminal.md) preserves the unreproduced historical
+CI scheduling limit. Full workspace CI still has unresolved release-configuration
+and global cleanup timeout observations, and its 90-minute capacity exhaustion
+needs the separately reviewed partition. No final CI/host-gate success is claimed.
