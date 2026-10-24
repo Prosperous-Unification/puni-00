@@ -13,7 +13,8 @@
           "bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js",
           "bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js",
           "bun build tools/tool-remote-scripts/src/activate-dependencies.ts --target=bun --outfile dist/tool-remote-scripts/activate-dependencies.js",
-          "bun build tools/tool-remote-scripts/src/initialize-edge-policy.ts --target=bun --outfile dist/tool-remote-scripts/initialize-edge-policy.js"
+          "bun build tools/tool-remote-scripts/src/initialize-edge-policy.ts --target=bun --outfile dist/tool-remote-scripts/initialize-edge-policy.js",
+          "bun build tools/tool-remote-scripts/src/adopt-edge-init.ts --target=bun --outfile dist/tool-remote-scripts/adopt-edge-init.js"
         ],
         "parallel": false
       },
@@ -164,6 +165,14 @@
       "cache": false,
       "options": {
         "command": "bun run tools/tool-remote-scripts/src/initialize-edge-policy.ts"
+      }
+    },
+    "adopt-edge-init": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build"],
+      "options": {
+        "command": "bun run dist/tool-remote-scripts/adopt-edge-init.js"
       }
     },
     "test:source-exclusion": {
