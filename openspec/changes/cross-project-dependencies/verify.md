@@ -7334,3 +7334,7 @@ Parent 11.1 and activation/delivery remain open. Complete activation, compatible
 The [bounded Init core](verify-edge-init-adoption.md), including both Astra-reviewed schema/redaction fixes, was integrated at `af4e1dc11`. Its [fresh integration receipt](evidence/init-core-integration-af4e1dc11.json) records **40 tests / 71 assertions / zero failures**, all **six configured Nx lint/typecheck/build tasks** uncached with no missing-ProjectGraph warning, and **280 OpenSpec items passing**, using Bun **1.4.4**.
 
 This is the preservation/finite-transition core. The production observer, CLI, native fixture acceptance, complete operation review and deployment remain incomplete. No production service action was performed, and parent activation/delivery tasks remain open.
+
+## Native Bun 1.4.4 coordinator acceptance — 2026-10-24
+
+The [source-exclusion host receipt](verify-source-exclusion-host.md) now includes the exact `f6d5c954d` Bun 1.4.4 rerun: real peer authentication, protected callback completion, 44 finished/reaped scanners and independent cleanup. The unchanged source image, later complete reader audit, full activation and final delivery retain their separately stated limits.

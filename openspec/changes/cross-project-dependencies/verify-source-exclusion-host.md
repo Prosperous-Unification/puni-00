@@ -134,3 +134,13 @@ observers or establish independently prepared real release artifacts, installed
 writer adoption, activation/restoration/handoff, normal controller resumption,
 the final integrated host gate or CI. Parent O4/10.2 and the delivery goal remain
 open.
+
+## Bun 1.4.4 coordinator and real peer rerun — 2026-10-24
+
+Exact reviewed `f6d5c954da670de374c967d17148f5af895d039a` passed the uncached owned source-exclusion target under the canonical h2 heavy lock in **3m55s**. Before it, real source and bundled production listeners passed **six cross-process SO_PEERCRED tests / 69 assertions** using the verified Bun **1.4.4** executable. The [redacted receipt](evidence/source-exclusion-acceptance/host-f6d5-bun144.json) retains the runtime and private evidence hashes.
+
+The protected callback completed, all **44 native scanners** reported DONE and REAPED, the source token expired, and component/outer cleanup reported zero failures. A separate read-only Docker Engine/systemd check established **eight exact containers, two exact networks, both owned label sets, the source tag and unit link absent**; the unit was not-found/inactive/dead with MainPID 0 and no cgroup. The runtime checksum still matched afterward.
+
+The initial immediate refusal and two bounded queue expiries each returned 75 before a test started. R3 began only after the prior holder exited and acquired the lock with zero wait. Those refusals remain preserved as resource contention, not behavioral failures.
+
+This rerun measures the Bun 1.4.4 coordinator/supervisor with the unchanged immutable fixture source image. It does not establish application startup on a new Bun 1.4.4 source image, the subsequently added complete reader audit, atomic activation, the full exact-SHA host gate or production delivery. Production stores and services were not changed.

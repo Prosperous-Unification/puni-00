@@ -1,0 +1,81 @@
+{
+  "format": "source-exclusion-native-host",
+  "version": 1,
+  "date": "2026-10-24",
+  "sha": "f6d5c954da670de374c967d17148f5af895d039a",
+  "coordinatorRuntime": {
+    "bun": "1.4.4",
+    "sha256": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235"
+  },
+  "sourceRuntimeInput": {
+    "referenceSha256": "42aa571214eb6bc781721c61082447f1ea619afde68e359eaae142b6e0d6e963",
+    "profile": "unchanged immutable fixture source image; application startup on Bun 1.4.4 not established"
+  },
+  "peerProof": {
+    "passed": 6,
+    "failed": 0,
+    "assertions": 69,
+    "shape": ["source production listener", "built production listener"],
+    "mechanism": "real Linux cross-process SO_PEERCRED"
+  },
+  "target": {
+    "name": "tool-remote-scripts:test:source-exclusion",
+    "exit": 0,
+    "cache": "skipped",
+    "duration": "3m55s",
+    "heavyLockWaitSeconds": 0
+  },
+  "component": {
+    "completion": {
+      "state": "source-managed-excluded",
+      "activation": "blocked",
+      "value": "protected-interval-completed"
+    },
+    "scannersDoneAndReaped": 44,
+    "callbackFinished": true,
+    "sourceTokenExpired": true,
+    "failure": null,
+    "cleanupFailures": 0
+  },
+  "independentCleanup": {
+    "containersAbsent": 8,
+    "networksAbsent": 2,
+    "ownerLabelSetsEmpty": 2,
+    "sourceTagAbsent": true,
+    "unitLinkAbsent": true,
+    "unitLoadState": "not-found",
+    "unitActiveState": "inactive",
+    "unitMainPid": 0
+  },
+  "priorQueueAttempts": [
+    {
+      "attempt": "initial",
+      "exit": 75,
+      "testsStarted": false
+    },
+    {
+      "attempt": "r1",
+      "exit": 75,
+      "testsStarted": false,
+      "waitSeconds": 1800
+    },
+    {
+      "attempt": "r2",
+      "exit": 75,
+      "testsStarted": false,
+      "waitSeconds": 1800
+    }
+  ],
+  "privateEvidenceSha256": {
+    "receipt.json": "1ea6fbb1b02c9173c65e5a7ee4dd71f480a7a0ee2240edbdc29e4df22f79978b",
+    "host.log": "05dc8549d6920c17acaf4c800136fb6701658057fa37b98f94bd03dcf4051457",
+    "peer.log": "66c8cbd55cccf81fc4e21ab593a2c8ca1ca537e5b89696a52ea73b0c9eec23b2",
+    "cleanup-verification.json": "0bed4e0318c8531939e9b2aad7456cb6efc14a35ede3ccc678621422a3cebda2"
+  },
+  "limits": [
+    "Owned disposable fixture only; no production service change",
+    "Unchanged source runtime image is not a Bun 1.4.4 application startup proof",
+    "New complete reader exclusion and atomic activation are outside this SHA",
+    "Full exact-SHA host gate, final CI and deployment remain open"
+  ]
+}
