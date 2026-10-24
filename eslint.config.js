@@ -352,6 +352,14 @@ export default [
     // Proof: removing this exact type-only alias restriction admitted a runtime receipt parser import; type-only boundary negative failed.
     files: ['tools/tool-remote-scripts/src/lib/dependency-activation-records.ts'],
     rules: {
+      // Proof: removing this exact AST restriction admitted a runtime dynamic receipt import; real type-only boundary negative failed.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportExpression[source.value='@wbs/contracts/dependency-runtime']",
+          message: 'Activation records import receipt types only.',
+        },
+      ],
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {

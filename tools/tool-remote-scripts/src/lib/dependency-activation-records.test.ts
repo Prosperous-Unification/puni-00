@@ -1,7 +1,7 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 
 import {
   inspectDependencyOwnerPublication,
@@ -11,6 +11,7 @@ import {
 import { captureEdgeRecord } from './edge-policy';
 import { envLayout } from './env';
 import { readFields } from './managed-cohort';
+import * as migrationCapture from './migration-capture-file';
 
 test('retains activation evidence under exact live joint owner and refuses copied or expired authority', async () => {
   const root = scratchSync('activation-record-');
@@ -74,3 +75,61 @@ test('activation record readback admits every closed label and rejects sibling p
     expect(captureEdgeRecord(directory, name, 65536)).rejects.toThrow('unsupported edge record');
   }
 });
+
+for (const fault of [
+  'directory-sync',
+  'private-readback',
+  'public-readback',
+  'exclusive-name',
+] as const)
+  test(`actual owner activation publication refuses ${fault}`, async () => {
+    const root = scratchSync('activation-publication-fault-');
+    const layouts = {
+      prod: { ...envLayout('prod'), root: `${root}/prod`, stateDir: `${root}/prod` },
+      dev: { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` },
+    };
+    await mkdir(layouts.prod.root);
+    await mkdir(layouts.dev.root);
+    const write = migrationCapture.writeNewMigrationCapture;
+    let injected = false;
+    const publication = spyOn(migrationCapture, 'writeNewMigrationCapture').mockImplementation(
+      async (path, contents, sync) => {
+        if (!path.includes('-activation-fenced-complete.json')) return write(path, contents, sync);
+        injected = true;
+        if (fault === 'directory-sync')
+          return write(path, contents, () =>
+            Promise.reject(new Error('injected actual publication directory sync failure')),
+          );
+        if (fault === 'exclusive-name')
+          await writeFile(path, 'original evidence\n', { mode: 0o600 });
+        await write(path, contents, sync);
+        if (fault === 'private-readback') await chmod(path, 0o000);
+        if (fault === 'public-readback') await chmod(path, 0o644);
+      },
+    );
+    try {
+      await withDependencyOwner(
+        { sha: 'a'.repeat(40), layouts: [layouts.prod, layouts.dev] },
+        (owner) => {
+          expect(
+            retainActivationRecord(owner, layouts, 'fenced-complete', {
+              format: 'dependency-activation-fenced-complete',
+              version: 1,
+              activated: [],
+              exposure: 'closed',
+              controllers: 'fenced',
+            }),
+          ).rejects.toThrow();
+          return Promise.resolve();
+        },
+        root,
+      );
+    } finally {
+      publication.mockRestore();
+    }
+    expect(injected).toBe(true);
+    if (fault === 'exclusive-name')
+      expect(
+        await readFile(`${root}/edge-owner-000001-activation-fenced-complete.json`, 'utf8'),
+      ).toBe('original evidence\n');
+  });

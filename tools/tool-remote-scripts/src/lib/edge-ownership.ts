@@ -606,6 +606,7 @@ export async function retainActivationRecord<Label extends ActivationRecordLabel
     await assertDirectory();
     await publishRecord(`/proc/self/fd/${String(directory.fd)}/${name}`, contents);
     await assertDirectory();
+    // Proof: replacing private capture with raw readback admitted mode0644 evidence; public-readback publication negative failed.
     const published = await captureEdgeRecord(statePath, name, 65536);
     if (published.contents !== contents)
       throw new Error('activation owner evidence readback differs');

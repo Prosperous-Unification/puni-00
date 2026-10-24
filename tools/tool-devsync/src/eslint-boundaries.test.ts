@@ -867,14 +867,23 @@ describe('source-bundled activation leaves', () => {
     expect(
       await ruleIds(
         path,
-        "import type { DependencyActivationReceipt } from '@wbs/contracts/dependency-runtime'; type Receipt = DependencyActivationReceipt;",
+        "import type { DependencyActivationReceipt } from '@wbs/contracts/dependency-runtime';\n\nexport type Receipt = DependencyActivationReceipt;\n",
       ),
-    ).not.toContain('@typescript-eslint/no-restricted-imports');
+    ).toEqual([]);
     expect(
       await ruleIds(
         path,
         "import { parseDependencyReceipt } from '@wbs/contracts/dependency-runtime'; void parseDependencyReceipt;",
       ),
     ).toContain('@typescript-eslint/no-restricted-imports');
+    expect(await ruleIds(path, "await import('@wbs/contracts/dependency-runtime');")).toContain(
+      'no-restricted-syntax',
+    );
+    const annotation = await ruleIds(
+      path,
+      "type Receipt = import('@wbs/contracts/dependency-runtime').DependencyActivationReceipt;",
+    );
+    expect(annotation).not.toContain('no-restricted-syntax');
+    expect(annotation).not.toContain('@nx/enforce-module-boundaries');
   }, 30000);
 });

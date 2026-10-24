@@ -4,6 +4,7 @@ import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import {
+  captureEdgePolicy,
   decodeOrdinaryEdgePolicy,
   initializeOrdinaryEdgePolicy,
   readOrdinaryEdgePolicy,
@@ -325,5 +326,34 @@ test('restoring policy is closed, bound and readable only by the phase-aware rea
   ]) {
     await writeFile(`${directory}/edge-policy.json`, JSON.stringify(malformed));
     await refuses(module.captureEdgePolicy(directory));
+  }
+});
+
+test('restoring policy refuses every activation record as restoration authority', async () => {
+  const directory = scratchSync('edge-restoring-activation-label-');
+  for (const label of [
+    'participants',
+    'capture',
+    'backup',
+    'intent',
+    'committed',
+    'fenced-complete',
+  ]) {
+    await writeFile(
+      `${directory}/edge-policy.json`,
+      JSON.stringify({
+        format: 'dependency-edge-policy',
+        version: 1,
+        phase: 'restoring',
+        edgeState: directory,
+        ownerPublicationSha256: 'a'.repeat(64),
+        restorationIntent: {
+          name: `edge-owner-000001-activation-${label}.json`,
+          sha256: 'b'.repeat(64),
+        },
+      }),
+      { mode: 0o600 },
+    );
+    expect(captureEdgePolicy(directory)).rejects.toThrow('invalid restoring edge policy');
   }
 });

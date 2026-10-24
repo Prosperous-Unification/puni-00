@@ -502,10 +502,13 @@ export async function activateCompleteDependenciesUnderOwner(
             databaseHostPath,
             image,
             run,
-            _databasePath,
+            databasePath,
             bounds,
-          ) =>
-            verifyContainerReaderExclusion(
+          ) => {
+            // Proof: accepting undefined writer mode invoked the strong native scanner; reader-adapter negative failed with four native calls.
+            if (databasePath !== null)
+              throw new Error('complete reader audit requires unmanaged scope');
+            return verifyContainerReaderExclusion(
               container,
               destinations,
               databaseHostPath,
@@ -514,6 +517,7 @@ export async function activateCompleteDependenciesUnderOwner(
               bounds,
               ownerDockerExec(owner, layouts.prod, ports.execDocker),
             );
+          };
           // Proof: omitting dev admitted a hidden actual RO dev alias into storage evidence; dev-only native coordinator negative failed.
           for (const database of [databases.prod, databases.dev]) {
             await auditUnmanagedMountsUnderOwner(
@@ -651,6 +655,7 @@ export async function activateCompleteDependenciesUnderOwner(
           await assertCompleteDependencyExclusion(owner, token);
           return { receipts: storage.receipts, parked };
         } finally {
+          // Proof: omitting expiry left this complete token usable before the still-live source finalizer; expired-complete boundary negative failed.
           exclusions.delete(token);
         }
       },

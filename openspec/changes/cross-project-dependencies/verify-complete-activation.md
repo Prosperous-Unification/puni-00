@@ -87,14 +87,64 @@ Nx-buildable. Every other import keeps the complete unchanged options and constr
 entries. Real static graph dependencies and dependency-sensitive inputs remain visible. Receipt
 records permit a type-only contracts import and reject a runtime import.
 
-## Outstanding at this checkpoint
+## Review corrections and additional faults
 
-This is a reviewable implementation checkpoint. Final full changed-tool regression, the complete
-frozen storage/finalizer fault matrix, final-code three-selection replay, remaining watched R5
-mutations are still outstanding. The checks above occurred at successive
-implementation stages; the original-source and final private-record readback refinements were
-added after the last bundled smoke; configured build/lint/typecheck and focused tests were rerun.
-Later evidence will record the complete replay.
-No remote full host gate was requested or run; the parent coordinates it later. This evidence
-does not claim P2b-2 complete, serving success, cross-store atomicity, restart compatibility or
-normal controller adoption.
+Checkpoint `adebac5dd2264496f9e3d953189022ad0861ccba` was reviewed before this correction wave.
+The restoring-policy grammar had accidentally been widened alongside the trusted record reader;
+it now again permits solver restoration intent names only. The record reader alone admits the
+six closed activation labels. Every activation label is refused through the actual on-disk
+policy decoder: RED before correction, then **1 pass, 6 assertions**.
+
+The exact records-file type-only rule now rejects runtime `ImportExpression` for the receipt leaf,
+in addition to static runtime imports. The normal `import type` positive has no diagnostics;
+inline `TSImportType` receives no runtime/boundary restriction, preserving global style rules.
+The dynamic-import production lint negative was observed RED before the guard and GREEN after it.
+The complete reader adapter now requires the existing unmanaged `databasePath === null` contract
+before invoking its native strong reader wrapper. The negative observed **4 native calls** before
+the guard and **0** after it.
+
+- `/tmp/puni-complete-additional-faults.log`: **7 pass, 574 assertions, 183.43s**. Copied complete token refusal; expiry before the original still-live source finalizer; real finalizer IO failure after prod commits; pending/unknown/duplicate/edited nonselected dev ledger; actual commit followed by lost response. Uncertain dispatch retains intent and real ENABLED DB but publishes no invented committed/fenced-complete record.
+- `/tmp/puni-complete-changed-helper-regression.log`: **303 pass, 906 assertions, 155.70s** across ingress, ownership, source/solver exclusion, source database producer, ordinary and strong namespace audits. The configured default 10000ms timeout is used.
+- `/tmp/puni-complete-fixwave-fixture.log`: real integrity-valid backup with matching migration names but a changed hash ledger refuses at backup before intent; reader-mode contract fault refuses before any strong native call. The initial positive in this run failed because a newly added test pre-read created SQLite sidecars missing from the native fixture's hardlink projection. Production correctly refused the incomplete mounted family. The oracle was corrected to compare complete ledgers with independently scanned artifact hashes, without altering live preflight state.
+- `/tmp/puni-complete-final-success-prod.log`: corrected actual prod success **1 pass, 133 assertions, 51.21s**. Full original ledger hashes preserved on both stores; all six actual flock competitors succeed after return; ordinary solver startup check exits 78 with pending ownership; participants remain terminal and no start/remove/restart occurs.
+
+The wrong-backup-ledger fixture executes the real existing connection's real `VACUUM INTO`,
+then mutates the actual partial copy before the genuine snapshot verifier computes its response.
+It does not supply a snapshot success or activation success value. Integrity, migration names and
+self-digest remain valid; full artifact hash-ledger validation is necessary to detect it.
+
+Additional publication/backup replay `/tmp/puni-complete-final-publication-backup.log`:
+**3 pass, 222 assertions, 82.08s**. An existing attempt directory retains its original private
+sentinel; actual intent publication directory-sync failure retains barriers and never dispatches;
+the corrected backup hash-ledger corruption is refused before intent. Both stores remain DISABLED.
+
+`/tmp/puni-complete-fixwave-mutations.log` records correction-wave watched edits and restored bytes.
+The first private-readback mutation did not fail with mode000 because the OS itself denied the
+read. A separate readable mode0644 fault isolates the privacy guard and turns its omission RED.
+The first backup mutation also did not fail: the fixture's configured writable connection
+changed snapshot journal mode and generated extra sidecars, independently refused by fixed-child
+validation. The fault now uses a native existing-only SQLite connection without PRAGMA changes,
+so only the full backup hash ledger is wrong. These initial non-failing mutations are excluded
+from breakability claims; their corrected reruns are recorded separately in the same log.
+
+## Final local validation
+
+- Configured actual graph-loaded `nx run-many -t lint,typecheck,build -p tool-remote-scripts,tool-devsync --parallel=1 --output-style=static`: **12 uncached tasks pass, 28.3s**, `/tmp/puni-complete-fixwave-nx.log`.
+- Decoder, activation records, database anchors, existing edge policy and strong native reader tests under the configured 10000ms default: **77 pass, 223 assertions, 1.385s**, `/tmp/puni-complete-fixwave-unit.log`.
+- Exact source-bundled import boundaries plus real static graph: **5 pass, 162 assertions, 18.22s**, `/tmp/puni-complete-fixwave-boundary-graph.log`.
+- Final public bundle imports cleanly with an empty cwd and forbidden DB_PATH; no app boot or DB creation: `/tmp/puni-complete-fixwave-import-smoke.log`.
+- `openspec validate --all --json`: **280 passed, 0 failed**, `/tmp/puni-complete-fixwave-openspec.log`.
+- Corrected watched removals of solver-only restoring grammar, exact runtime dynamic import guard,
+  readable-private owner record observation, complete token expiry, full backup hash-ledger
+  inspection, strong RO symbolic rejection and actual RO directory enumeration each exit 1 with
+  an observed production-path test failure. `/tmp/puni-complete-fixwave-mutations.log` retains
+  exact argv and output, including the two excluded initial non-failing attempts explained above.
+
+Final real bundled BOTH-store replay: **1 pass, 170 assertions, 62.15s**,
+`/tmp/puni-complete-fixwave-bundle-smoke.log` (242 modules bundled in 35ms). This executes
+actual SQLite activation and original native scopes from the final correction source.
+The parent separately ran all three selection successes on checkpoint source and coordinates
+acceptance review and the
+full host/workspace gate; no remote gate or full workspace suite was run by this implementer.
+The intermediate operation continues to require P2b-3, P2b-4 and P3. No statement here claims
+serving success, cross-store atomicity, restart compatibility or normal controller adoption.

@@ -1,15 +1,33 @@
+import { readdirSync } from 'node:fs';
 import { chmod, link, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import * as activationStorage from '@wbs/store-sqlite/cross-project-dependency-activation';
 import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-project-dependency-activation';
-import { openDatabase, openExistingConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import * as storeDatabase from '@wbs/store-sqlite/db';
+import {
+  openDatabase,
+  openExistingConnection,
+  openReadOnlyConnection,
+  openReadOnlyDatabase,
+} from '@wbs/store-sqlite/db';
+import { Database } from 'bun:sqlite';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { completeActivationFixture } from '../fixtures/dependency-complete-activation';
 import { roots } from '../fixtures/source-startup';
-import { activateCompleteDependenciesUnderOwner } from './complete-dependency-exclusion';
-import { withDependencyOwner } from './edge-ownership';
+import * as backendCohort from './backend-cohort';
+import {
+  activateCompleteDependenciesUnderOwner,
+  assertCompleteDependencyExclusion,
+} from './complete-dependency-exclusion';
+import * as completeStorage from './dependency-activation-storage';
+import { scanMigrationArtifact } from './dependency-migration-artifact-scanner';
+import { inspectDependencyOwnerPublication, withDependencyOwner } from './edge-ownership';
+import * as migrationCapture from './migration-capture-file';
+import * as mountAudit from './mount-audit';
+import * as sourceExclusion from './source-dev-exclusion';
 
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
@@ -19,6 +37,13 @@ for (const selected of [['prod'], ['dev'], ['prod', 'dev']] as const)
   test(`real joint owner activation ${selected.join('+')} preserves nonselected authority and leaves all participants fenced after finalizers`, async () => {
     const fixture = await completeActivationFixture(selected);
     process.env['WBS_EDGE_STATE'] = fixture.root;
+    const artifact = await scanMigrationArtifact(
+      join(fixture.sourceRoot, 'apps/wbs/be-01/drizzle'),
+      performance.now() + 300000,
+    );
+    const expectedLedger = artifact.migrations
+      .map((migration) => ({ name: migration.name, hash: migration.migration.sha256 }))
+      .sort((left, right) => left.name.localeCompare(right.name));
     const completion = await withDependencyOwner(
       fixture.request.owner,
       (owner) =>
@@ -42,10 +67,42 @@ for (const selected of [['prod'], ['dev'], ['prod', 'dev']] as const)
         expect(inspectDependencyActivation(connection.db).state).toBe(
           selected.some((candidate) => candidate === environment) ? 'ENABLED' : 'DISABLED',
         );
+        const ledger = openReadOnlyDatabase(path);
+        try {
+          expect(
+            ledger
+              .query<{ name: string; hash: string }, []>(
+                'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
+              )
+              .all(),
+          ).toEqual(expectedLedger);
+        } finally {
+          ledger.close();
+        }
       } finally {
         connection.close();
       }
     }
+    for (const path of [
+      join(fixture.root, 'edge.lock'),
+      join(fixture.root, 'solver-runtime.lock'),
+      join(fixture.layouts.dev.stateDir, 'poll.lock'),
+      join(fixture.layouts.dev.stateDir, 'devsync.lock'),
+      join(fixture.layouts.prod.stateDir, 'deploy.lock'),
+      join(fixture.layouts.dev.stateDir, 'deploy.lock'),
+    ]) {
+      expect(Bun.spawnSync(['flock', '-n', path, 'true']).exitCode).toBe(0);
+    }
+    const admission = Bun.spawnSync(
+      [
+        process.execPath,
+        fileURLToPath(new URL('../solver-supervisor.ts', import.meta.url)),
+        '--check-edge-policy',
+      ],
+      { env: { ...process.env, WBS_EDGE_STATE: fixture.root } },
+    );
+    expect(admission.exitCode).toBe(78);
+    expect(admission.stdout.toString()).not.toContain('ordinary edge policy ok');
     expect(fixture.backend.State.Running).toBe(false);
     expect(fixture.source.State.Running).toBe(false);
     expect(fixture.gateway.State.Running).toBe(false);
@@ -601,3 +658,444 @@ test('original installed source identity survives ingress and source fencing bef
     }
   }
 }, 300000);
+
+for (const fault of ['expired-complete', 'physical-finalizer'] as const)
+  test(`actual completed stores preserve fences through ${fault} boundary`, async () => {
+    const fixture = await completeActivationFixture(['prod']);
+    process.env['WBS_EDGE_STATE'] = fixture.root;
+    const activate = completeStorage.activateDependencyStores;
+    const excludeSource = sourceExclusion.withSourceDevExcluded;
+    let retained: Parameters<typeof activate> | undefined;
+    let afterInner = false;
+    let checkedLiveSource = false;
+    const storage = spyOn(completeStorage, 'activateDependencyStores').mockImplementation(
+      async (owner, token) => {
+        retained = [owner, token];
+        expect(assertCompleteDependencyExclusion(owner, { ...token })).rejects.toThrow('not live');
+        return activate(owner, token);
+      },
+    );
+    const source = spyOn(sourceExclusion, 'withSourceDevExcluded').mockImplementation(
+      async (owner, layouts, sha, docker, deadline, action) =>
+        excludeSource(owner, layouts, sha, docker, deadline, async (token) => {
+          const completion = await action(token);
+          afterInner = true;
+          sourceExclusion.assertSourceDevExclusionDeadline(owner, token, deadline);
+          expect(
+            Bun.spawnSync(['flock', '-n', join(fixture.root, 'solver-runtime.lock'), 'true'])
+              .exitCode,
+          ).toBe(1);
+          checkedLiveSource = true;
+          if (retained === undefined) throw new Error('actual complete token not observed');
+          // This assertion runs before the original physical source finalizer, while its original token remains live.
+          expect(assertCompleteDependencyExclusion(...retained)).rejects.toThrow('not live');
+          return completion;
+        }),
+    );
+    const docker: typeof fixture.ports.docker = (args, signal) => {
+      if (fault === 'physical-finalizer' && afterInner && args[0] === 'inspect')
+        throw new Error('PRIVATE_FINALIZER_SENTINEL');
+      return fixture.ports.docker(args, signal);
+    };
+    let refusal: unknown;
+    try {
+      await withDependencyOwner(
+        fixture.request.owner,
+        (owner) =>
+          activateCompleteDependenciesUnderOwner(
+            owner,
+            fixture.request,
+            fixture.layouts,
+            performance.now() + 300000,
+            fixture.root,
+            { ...fixture.ports, docker },
+          ),
+        fixture.root,
+      );
+    } catch (cause) {
+      refusal = cause;
+    } finally {
+      storage.mockRestore();
+      source.mockRestore();
+    }
+    expect(checkedLiveSource).toBe(true);
+    if (fault === 'physical-finalizer') {
+      expect(refusal).toBeInstanceOf(Error);
+      if (!(refusal instanceof Error)) throw new Error('actual finalizer refusal absent');
+      expect(refusal.message).toContain('committed=[{"environment":"prod","receiptSha256":');
+      expect(refusal.message).not.toContain('PRIVATE_FINALIZER_SENTINEL');
+      expect(refusal.cause).toBeUndefined();
+    } else expect(refusal).toBeUndefined();
+    const names = await readdir(fixture.root);
+    expect(names.filter((name) => name.endsWith('-activation-committed.json'))).toHaveLength(1);
+    expect(names.some((name) => name.endsWith('-activation-fenced-complete.json'))).toBe(
+      fault !== 'physical-finalizer',
+    );
+    for (const [path, authority] of [
+      [fixture.prodPath, 'ENABLED'],
+      [fixture.devPath, 'DISABLED'],
+    ] as const) {
+      const connection = openReadOnlyConnection(path);
+      try {
+        expect(inspectDependencyActivation(connection.db).state).toBe(authority);
+      } finally {
+        connection.close();
+      }
+    }
+    expect(fixture.source.State.Running).toBe(false);
+    expect(fixture.backend.State.Running).toBe(false);
+    expect(fixture.gateway.State.Running).toBe(false);
+    expect(names).toContain('edge-owner.pending');
+    expect(fixture.commands.some((args) => ['start', 'rm', 'restart'].includes(args[0]))).toBe(
+      false,
+    );
+  }, 300000);
+
+for (const fault of ['pending', 'unknown', 'duplicate', 'edited'] as const)
+  test(`nonselected dev ${fault} full ledger refuses before any capture or activation`, async () => {
+    const fixture = await completeActivationFixture(['prod']);
+    process.env['WBS_EDGE_STATE'] = fixture.root;
+    const database = openDatabase(fixture.devPath);
+    try {
+      if (fault === 'pending')
+        database
+          .query(
+            'DELETE FROM __drizzle_migrations WHERE id=(SELECT MAX(id) FROM __drizzle_migrations)',
+          )
+          .run();
+      else if (fault === 'unknown')
+        database
+          .query(
+            'UPDATE __drizzle_migrations SET name=? WHERE id=(SELECT MAX(id) FROM __drizzle_migrations)',
+          )
+          .run('20990101000000_unknown');
+      else if (fault === 'duplicate')
+        database
+          .query(
+            'INSERT INTO __drizzle_migrations (hash,created_at,name) SELECT hash,created_at,name FROM __drizzle_migrations LIMIT 1',
+          )
+          .run();
+      else
+        database
+          .query(
+            'UPDATE __drizzle_migrations SET hash=? WHERE id=(SELECT MAX(id) FROM __drizzle_migrations)',
+          )
+          .run('f'.repeat(64));
+    } finally {
+      database.close();
+    }
+    let refusal: unknown;
+    try {
+      await withDependencyOwner(
+        fixture.request.owner,
+        (owner) =>
+          activateCompleteDependenciesUnderOwner(
+            owner,
+            fixture.request,
+            fixture.layouts,
+            performance.now() + 300000,
+            fixture.root,
+            fixture.ports,
+          ),
+        fixture.root,
+      );
+    } catch (cause) {
+      refusal = cause;
+    }
+    expect(refusal).toBeInstanceOf(Error);
+    const names = await readdir(fixture.root);
+    expect(names.some((name) => name.startsWith('dependency-activation-'))).toBe(false);
+    expect(names.some((name) => name.endsWith('-activation-intent.json'))).toBe(false);
+    for (const path of [fixture.prodPath, fixture.devPath]) {
+      const connection = openReadOnlyConnection(path);
+      try {
+        expect(inspectDependencyActivation(connection.db).state).toBe('DISABLED');
+      } finally {
+        connection.close();
+      }
+    }
+    expect(fixture.source.State.Running).toBe(false);
+    expect(fixture.commands.some((args) => ['start', 'rm', 'restart'].includes(args[0]))).toBe(
+      false,
+    );
+  }, 300000);
+
+test('lost actual SQLite activation response leaves an uncertain real commit fenced without invented committed evidence', async () => {
+  const fixture = await completeActivationFixture(['prod']);
+  process.env['WBS_EDGE_STATE'] = fixture.root;
+  const activate = activationStorage.activateDependencies;
+  let calls = 0;
+  const dispatch = spyOn(activationStorage, 'activateDependencies').mockImplementation(
+    (path, folder, receipt) => {
+      activate(path, folder, receipt);
+      calls++;
+      throw new Error('PRIVATE_LOST_RESPONSE_SENTINEL');
+    },
+  );
+  let refusal: unknown;
+  try {
+    await withDependencyOwner(
+      fixture.request.owner,
+      (owner) =>
+        activateCompleteDependenciesUnderOwner(
+          owner,
+          fixture.request,
+          fixture.layouts,
+          performance.now() + 300000,
+          fixture.root,
+          fixture.ports,
+        ),
+      fixture.root,
+    );
+  } catch (cause) {
+    refusal = cause;
+  } finally {
+    dispatch.mockRestore();
+  }
+  expect(calls).toBe(1);
+  expect(refusal).toBeInstanceOf(Error);
+  if (!(refusal instanceof Error)) throw new Error('uncertain-response refusal missing');
+  expect(refusal.message).toContain('stage=dispatch-uncertain');
+  expect(refusal.message).toContain('committed=[]');
+  expect(refusal.message).not.toContain('PRIVATE_LOST_RESPONSE_SENTINEL');
+  expect(refusal.cause).toBeUndefined();
+  const names = await readdir(fixture.root);
+  expect(names.filter((name) => name.endsWith('-activation-intent.json'))).toHaveLength(1);
+  expect(
+    names.some(
+      (name) =>
+        name.endsWith('-activation-committed.json') ||
+        name.endsWith('-activation-fenced-complete.json'),
+    ),
+  ).toBe(false);
+  for (const [path, authority] of [
+    [fixture.prodPath, 'ENABLED'],
+    [fixture.devPath, 'DISABLED'],
+  ] as const) {
+    const connection = openReadOnlyConnection(path);
+    try {
+      expect(inspectDependencyActivation(connection.db).state).toBe(authority);
+    } finally {
+      connection.close();
+    }
+  }
+  expect(fixture.source.State.Running).toBe(false);
+  expect(fixture.backend.State.Running).toBe(false);
+  expect(fixture.gateway.State.Running).toBe(false);
+  expect(names).toContain('edge-owner.pending');
+  expect(fixture.commands.some((args) => ['start', 'rm', 'restart'].includes(args[0]))).toBe(false);
+}, 300000);
+
+test('actual integrity-valid backup with matching migration names but changed full hash ledger refuses before intent', async () => {
+  const fixture = await completeActivationFixture(['prod']);
+  process.env['WBS_EDGE_STATE'] = fixture.root;
+  const open = storeDatabase.openExistingConnection;
+  let injected = false;
+  const source = spyOn(storeDatabase, 'openExistingConnection').mockImplementation((path) => {
+    const connection = open(path);
+    const execute = connection.db.run.bind(connection.db);
+    connection.db.run = (query) => {
+      const changes = execute(query);
+      if (!injected) {
+        const attempt = readdirSync(fixture.root).find((name) =>
+          name.startsWith('dependency-activation-'),
+        );
+        if (attempt === undefined) throw new Error('actual backup attempt missing');
+        const backup = new Database(join(fixture.root, attempt, '.prod.before.sqlite.partial'), {
+          create: false,
+        });
+        try {
+          backup
+            .query(
+              'UPDATE __drizzle_migrations SET hash=? WHERE id=(SELECT MAX(id) FROM __drizzle_migrations)',
+            )
+            .run('f'.repeat(64));
+        } finally {
+          backup.close();
+        }
+        injected = true;
+      }
+      return changes;
+    };
+    return connection;
+  });
+  let refusal: unknown;
+  try {
+    await withDependencyOwner(
+      fixture.request.owner,
+      (owner) =>
+        activateCompleteDependenciesUnderOwner(
+          owner,
+          fixture.request,
+          fixture.layouts,
+          performance.now() + 300000,
+          fixture.root,
+          fixture.ports,
+        ),
+      fixture.root,
+    );
+  } catch (cause) {
+    refusal = cause;
+  } finally {
+    source.mockRestore();
+  }
+  expect(injected).toBe(true);
+  expect(refusal).toBeInstanceOf(Error);
+  if (!(refusal instanceof Error)) throw new Error('full backup ledger refusal absent');
+  expect(refusal.message).toContain('stage=backup');
+  const names = await readdir(fixture.root);
+  expect(names.some((name) => name.endsWith('-activation-intent.json'))).toBe(false);
+  for (const path of [fixture.prodPath, fixture.devPath]) {
+    const connection = openReadOnlyConnection(path);
+    try {
+      expect(inspectDependencyActivation(connection.db).state).toBe('DISABLED');
+    } finally {
+      connection.close();
+    }
+  }
+  expect(fixture.commands.some((args) => ['start', 'rm', 'restart'].includes(args[0]))).toBe(false);
+}, 300000);
+
+test('complete reader adapter rejects a non-null writer-mode argument before any strong native call', async () => {
+  const fixture = await completeActivationFixture(['prod']);
+  process.env['WBS_EDGE_STATE'] = fixture.root;
+  const audit = backendCohort.auditUnmanagedMountsUnderOwner;
+  const verify = mountAudit.verifyContainerReaderExclusion;
+  let injected = false;
+  let nativeCalls = 0;
+  const reader = spyOn(mountAudit, 'verifyContainerReaderExclusion').mockImplementation(
+    (...args) => {
+      nativeCalls++;
+      return verify(...args);
+    },
+  );
+  const unmanaged = spyOn(backendCohort, 'auditUnmanagedMountsUnderOwner').mockImplementation(
+    (...args) => {
+      const namespace = args[9];
+      if (namespace !== undefined && namespace !== mountAudit.verifyContainerNamespace) {
+        args[9] = (...proof) => {
+          injected = true;
+          proof[5] = undefined;
+          return namespace(...proof);
+        };
+      }
+      return audit(...args);
+    },
+  );
+  const docker: typeof fixture.ports.docker = async (args, signal) => {
+    if (
+      args[0] === 'ps' &&
+      (await readdir(fixture.root)).some((name) => name.startsWith('dependency-activation-'))
+    )
+      throw new Error('invalid audit mode reached storage');
+    return fixture.ports.docker(args, signal);
+  };
+  let refusal: unknown;
+  try {
+    await withDependencyOwner(
+      fixture.request.owner,
+      (owner) =>
+        activateCompleteDependenciesUnderOwner(
+          owner,
+          fixture.request,
+          fixture.layouts,
+          performance.now() + 300000,
+          fixture.root,
+          { ...fixture.ports, docker },
+        ),
+      fixture.root,
+    );
+  } catch (cause) {
+    refusal = cause;
+  } finally {
+    unmanaged.mockRestore();
+    reader.mockRestore();
+  }
+  expect(injected).toBe(true);
+  expect(refusal).toBeInstanceOf(Error);
+  expect(nativeCalls).toBe(0);
+  expect(
+    (await readdir(fixture.root)).some((name) => name.startsWith('dependency-activation-')),
+  ).toBe(false);
+}, 300000);
+
+for (const fault of ['attempt-collision', 'intent-directory-sync'] as const)
+  test(`actual storage ${fault} preserves private evidence and never dispatches activation`, async () => {
+    const fixture = await completeActivationFixture(['prod']);
+    process.env['WBS_EDGE_STATE'] = fixture.root;
+    const write = migrationCapture.writeNewMigrationCapture;
+    let injected = false;
+    let collision: string | undefined;
+    const publication = spyOn(migrationCapture, 'writeNewMigrationCapture').mockImplementation(
+      (path, contents, sync) => {
+        if (fault !== 'intent-directory-sync' || !path.includes('-activation-intent.json'))
+          return write(path, contents, sync);
+        injected = true;
+        return write(path, contents, () =>
+          Promise.reject(new Error('PRIVATE_INTENT_SYNC_SENTINEL')),
+        );
+      },
+    );
+    let refusal: unknown;
+    try {
+      await withDependencyOwner(
+        fixture.request.owner,
+        async (owner) => {
+          if (fault === 'attempt-collision') {
+            const pending = await inspectDependencyOwnerPublication(owner, fixture.layouts);
+            const directory = join(fixture.root, `dependency-activation-${pending.attempt}`);
+            await mkdir(directory, { mode: 0o700 });
+            collision = join(directory, 'prior-private-evidence');
+            await writeFile(collision, 'prior evidence must survive\n', { mode: 0o600 });
+            injected = true;
+          }
+          return activateCompleteDependenciesUnderOwner(
+            owner,
+            fixture.request,
+            fixture.layouts,
+            performance.now() + 300000,
+            fixture.root,
+            fixture.ports,
+          );
+        },
+        fixture.root,
+      );
+    } catch (cause) {
+      refusal = cause;
+    } finally {
+      publication.mockRestore();
+    }
+    expect(injected).toBe(true);
+    expect(refusal).toBeInstanceOf(Error);
+    if (!(refusal instanceof Error)) throw new Error('publication refusal missing');
+    expect(refusal.message).toContain(
+      fault === 'attempt-collision' ? 'stage=allocate-evidence' : 'stage=intent',
+    );
+    expect(refusal.message).not.toContain('PRIVATE_INTENT_SYNC_SENTINEL');
+    expect(refusal.cause).toBeUndefined();
+    if (collision !== undefined)
+      expect(await readFile(collision, 'utf8')).toBe('prior evidence must survive\n');
+    const names = await readdir(fixture.root);
+    expect(
+      names.some(
+        (name) =>
+          name.endsWith('-activation-committed.json') ||
+          name.endsWith('-activation-fenced-complete.json'),
+      ),
+    ).toBe(false);
+    for (const path of [fixture.prodPath, fixture.devPath]) {
+      const connection = openReadOnlyConnection(path);
+      try {
+        expect(inspectDependencyActivation(connection.db).state).toBe('DISABLED');
+      } finally {
+        connection.close();
+      }
+    }
+    expect(fixture.source.State.Running).toBe(false);
+    expect(fixture.backend.State.Running).toBe(false);
+    expect(fixture.gateway.State.Running).toBe(false);
+    expect(names).toContain('edge-owner.pending');
+    expect(fixture.commands.some((args) => ['start', 'rm', 'restart'].includes(args[0]))).toBe(
+      false,
+    );
+  }, 300000);

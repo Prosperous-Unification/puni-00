@@ -391,6 +391,7 @@ export async function activateDependencyStores(
       const verified = verifySnapshot(backupAccess);
       checkDeadline();
       assertSame(snapshot, verified, 'activation verified backup');
+      // Proof: removing this full capture admitted an integrity-valid backup with unchanged names and a changed hash; real backup-ledger negative failed.
       const backupCapture = captureAppliedMigrationSet(backupAccess, artifactDirectory, {
         target: capture.target,
         attempt: capture.attempt,
