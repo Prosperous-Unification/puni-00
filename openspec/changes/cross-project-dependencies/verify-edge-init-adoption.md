@@ -35,3 +35,15 @@ The runner includes preservation, inert candidate refusal, three-network/default
 Only the local ownership unit test has run here: 1 passed. Separate watched name and label omissions made that production fixture guard test fail, then were restored. The actual native target remains **unperformed**, pending root review and suitable host prerequisites. No native success receipt exists from this worktree.
 
 Configured lint now has an actual Nx ProjectGraph. `nx run tool-remote-scripts:lint --skip-nx-cache` passed (12.5 seconds); Nx fell back to its main-process plugin mode because this sandbox denies plugin sockets, without skipping module-boundary validation. A deliberate `@wbs/domain/workday` import in the owned native runner made the configured target fail; direct ESLint with that same graph reported `@nx/enforce-module-boundaries`. The fault was removed. Nested `Bun.spawn(['bun','x','nx',...])` attempts produced no task output and were rejected as proof; only the directly invoked commands count.
+
+## Independent native-runner review correction
+
+The review found three false proof or unsafe fixture boundaries: idempotent volume creation did not prove permission to seed; any stop refusal could count as a deadline; and an unrelated Caddy refusal could count as the selected native fault. Cleanup also used abbreviated network IDs.
+
+The runner now refuses retained nonce resources before entering teardown scope, freshly checks exact volume absence before create, and verifies create acknowledgement plus exact native name/nonce ownership before seeding. Cleanup resolves each network to its full 64-character ID and checks its exact nonce-derived name and label before deletion.
+
+TERM proof requires `engine-deadline-uncertain`, elapsed client wait from 250 through 1250 ms, and unchanged full container ID, PID, StartedAt, kernel start ticks and cgroup. A real local Unix-socket Engine fixture exercised the literal `stop?t=-1` request and bounded timeout; a separate immediate HTTP 500 was refused rather than counted as success. This is local transport proof, not Docker acceptance.
+
+Every native fault must now record that its injection fired, match its exact failure phase and full-ID mutation transcript, and independently match expected original/candidate names, process states and applicable alias/route/restart evidence. A real `runInitAdoption` regression omitted the stop acknowledgement fault, completed the registry rename/start sequence, then reached an unrelated Caddy-create refusal. The oracle refused that false proof with either an absent or falsely asserted injection marker.
+
+The runner's local regression file passes 46 tests. Thirty watched omission experiments each caused a selected assertion to fail, covering namespace/volume admission, resource kind/count/name/label/full-ID, bounded deadline and process identity, injection/phase/transcript/native state, and alias/route/restart evidence. All source faults were restored. The actual Docker native target remains **unperformed**.
