@@ -1,3 +1,5 @@
+import type { DeliveryReader } from '@shared/delivery';
+import { createGitHubDeliveryReader } from '@shared/delivery-github';
 import type { SessionFeatures } from '@wbs/contracts';
 import type { StepParallelStore } from '@wbs/core';
 import type {
@@ -43,6 +45,7 @@ import {
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
 import { claimLeaseRoutes } from '@wbs/core/http/claim-lease.routes';
 import { computeProviderRoutes } from '@wbs/core/http/compute-provider.routes';
+import { deliveryRoutes } from '@wbs/core/http/delivery.routes';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
@@ -74,6 +77,11 @@ import type { BeforeProjectUpdate, BeforeStepRemoval } from '@wbs/core/ports/fan
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
+import {
+  DELIVERY_GATE_LIMITS,
+  DeliveryGate,
+  type DeliveryGateLimits,
+} from '@wbs/core/service/delivery-gate';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { ScimService } from '@wbs/core/service/scim.feature';
@@ -81,6 +89,7 @@ import { ScimAdmission } from '@wbs/core/service/scim-admission';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { type CapacityMode, SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
+import { systemTimers } from '@wbs/runtime-portable';
 import { Elysia } from 'elysia';
 
 import {
@@ -155,6 +164,10 @@ const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
 };
 
 export interface AppOptions {
+  /** Overrides the anonymous public GitHub reader for a trusted composition. */
+  delivery?: DeliveryReader;
+  /** Overrides the delivery cache, per-organization and in-flight limits; production uses the defaults. */
+  deliveryLimits?: DeliveryGateLimits;
   clock: Pick<Clock, 'now'>;
   /** Trusted browser origin, resolved from operator configuration before boot. */
   appOrigin: string;
@@ -679,6 +692,16 @@ export function mountedEndpoints(
       reports: (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
       clock: opts.clock,
     }),
+    ...deliveryRoutes(
+      opts.workItems,
+      opts.organizations,
+      new DeliveryGate(
+        opts.delivery ?? createGitHubDeliveryReader({ clock: () => opts.clock.now() }),
+        () => opts.clock.now(),
+        (ms, fire) => systemTimers.schedule(ms, fire),
+        opts.deliveryLimits ?? DELIVERY_GATE_LIMITS,
+      ),
+    ),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(
       new SpaceResource({

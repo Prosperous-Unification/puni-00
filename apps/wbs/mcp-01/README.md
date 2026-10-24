@@ -18,9 +18,10 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-88 tools in all:
+90 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
+- the saved-reference delivery read, which observes public GitHub delivery without changing planning progress;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
   claimed);
 - the budget headroom read (`getApiProjectsByIdBudget-headroom`: per startable and claimed step,
@@ -28,6 +29,8 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   and `clearBudget` batch kinds);
 - the by-person read (`getApiProjectsByIdPeopleByPersonIdWork`: one person's assignments and
   claims in a project, each claim with its lease expiry);
+- the claims read (`getApiProjectsByIdClaims`: every claim held in a project, with holder, run,
+  parent claim, lease expiry and revocation, and the server's read instant);
 - the agent heartbeat (`postApiClaimsRenew`: renews every claim lease of the calling agent; a
   claim an agent takes for itself is released 15 minutes after its last write unless renewed);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the

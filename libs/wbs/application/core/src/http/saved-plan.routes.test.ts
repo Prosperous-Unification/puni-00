@@ -27,6 +27,7 @@ const direct = {
     method: 'POST',
     url: new URL('http://localhost/api/projects/p/saved-plans'),
     headers: new Headers(),
+    signal: new AbortController().signal,
   },
 };
 

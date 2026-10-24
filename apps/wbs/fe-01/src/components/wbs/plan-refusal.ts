@@ -140,6 +140,25 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
   }
 }
 
+function claimsReadCode(refusal: RefusalOf<'getApiProjectsByIdClaims'>): string {
+  switch (refusal.error) {
+    case 'invalid_params':
+    case 'invalid_query':
+    case 'invalid_body':
+    case 'invalid_json':
+    case 'unauthenticated':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+    case 'not_found':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
 function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
   switch (refusal.error) {
     case 'invalid_params':
@@ -678,6 +697,8 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return historyCode(problem.refusal);
     case 'getApiProjectsByIdCalendar-markers':
       return markerListCode(problem.refusal);
+    case 'getApiProjectsByIdClaims':
+      return claimsReadCode(problem.refusal);
     case 'postApiProjectsByIdCalendar-markers':
     case 'patchApiProjectsByIdCalendar-markersByMarkerId':
       return markerWriteCode(problem.refusal);

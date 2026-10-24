@@ -586,3 +586,29 @@ _Avoid_: Task list, plan copy
 **Native estimate unit**:
 The minutes or workdays in which a plan step's three-point estimates are authored.
 _Avoid_: Duration unit, converted days
+
+### Delivery observation
+
+**Change request**:
+A proposed integration of an identified source revision into a target repository revision or branch.
+_Avoid_: Pull request as the universal term
+
+**Delivery observation**:
+A source-attributed reading of a change request and its delivery checks at a particular time, including the limits of what was observed.
+_Avoid_: Acceptance, progress receipt
+
+**Delivery run**:
+A provider-observed invocation of a delivery pipeline for an identified revision.
+_Avoid_: Workflow run (the factory work-request lifecycle)
+
+**Delivery attempt**:
+One initial or repeated invocation within a delivery run.
+_Avoid_: A new change request
+
+**Delivery execution**:
+One execution of a check or job within a delivery attempt, with its observed timing and execution resource attribution. It is a provider observation, not an `agent_minutes` measure, which the budgets change derives from attempt spans.
+_Avoid_: Runner as the identity of work
+
+**Carried execution**:
+A previously performed execution whose outcome is reused by a later delivery attempt without repeating its work.
+_Avoid_: Retry execution

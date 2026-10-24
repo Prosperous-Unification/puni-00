@@ -44,7 +44,8 @@ export function planFeedForReader({
   refusals,
 }: PlanFeedForReader): PlanFeed {
   return createPlanFeed({
-    openOwner: () => createPlanRefresh({ projectId, routes }),
+    openOwner: () =>
+      createPlanRefresh({ projectId, routes, monotonicNow: () => performance.now() }),
     openStream:
       subscribe === undefined
         ? null

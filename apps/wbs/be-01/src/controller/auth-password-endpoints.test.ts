@@ -18,6 +18,7 @@ const request = (path: string, method = 'POST') => ({
   method,
   url: new URL(`https://backend.example${path}`),
   headers: new Headers({ origin: 'https://app.example', 'x-forwarded-for': '192.0.2.1' }),
+  signal: new AbortController().signal,
 });
 
 const sessionHeaders = [
@@ -89,6 +90,7 @@ test('direct me binding distinguishes signed out, invalid credentials and store 
     request: {
       ...request('/api/auth/me', 'GET'),
       headers: new Headers({ authorization: `Bearer ${registered.value.token}` }),
+      signal: new AbortController().signal,
     },
   };
   expect(await endpoints[2].handle(input)).toEqual({

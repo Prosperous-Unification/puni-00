@@ -979,3 +979,53 @@ parent refuses the second start (D69).
 
 Not run: the full be-01, fe-01 and Twilight suites, the fe-01 e2e spec whose sentence changed
 (`measure-columns.spec.ts`), and the host gate (CI carries them).
+
+## Main sync 2 2026-10-24
+
+`origin/main` at `6a9a50abfbb0693de99394b4c72e0b0e185f69f0` merged into the plan branch at
+`3b77052ba` (#690 claim display slices 1 and 2, #692 delivery tracking, #703 flake budgets,
+#698 and #699 plan docs). Mechanical only: no behavior or decision changed. Main gained no
+migration after `20261023100000_add_claim_lease`, so the four measure migrations keep their
+stamps and no ledger list changed.
+
+Conflicts, each resolved keeping both sides:
+
+- `apps/wbs/be-01/src/testing/organization-harness.ts`: main's `openReadOnlyConnection` import
+  beside the plan's `MeasureEstimateRepository` import.
+- `libs/wbs/adapters/store-memory/src/in-memory-source.ts`: the plan's measure and measure
+  estimate tables beside main's `memoryWorkItemTables` (the claims read takes the work-item
+  tables).
+- `libs/wbs/adapters/store-memory/src/source.ts`: the plan's `addOrganization` seam beside main's
+  `endLeasesOf`.
+- `libs/wbs/application/core/src/module/work-item/README.md`: the module index is the sorted
+  union (the plan's budget and measure estimate reads, main's `project-claims.ts` and its test).
+- `apps/wbs/mcp-01/README.md`: 90 tools. The arithmetic from the READMEs (86 at the merge base,
+  plan 88, main 87) gave 89; `openapi-tools.test.ts` failed `Expected: 90 / Received: 89`, since
+  main added two reads (claims and delivery) while its README count rose by one. 90 passes.
+
+One auto-merge fix: fe-01 `throwReply` in `wbs-api.ts` drops the plan's `as WbsProblem` cast.
+Main's `WbsProblem` failure arm takes the whole operation id union, so the 26-member
+discriminant workaround became unnecessary and the pre-commit lint failed it
+(`no-unnecessary-type-assertion`).
+
+Checks (`env -u CLAUDECODE` throughout; local Bun 1.4.4):
+
+| Command                                                                                     | Result                                       |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `bun test libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts`                 | 2 pass, 0 fail; peak RSS 403 MB (bound 500)  |
+| `bunx nx run wbs-store-memory:test --skip-nx-cache`                                         | 195 pass, 0 fail across 13 files             |
+| `bunx nx run wbs-store-sqlite:test --skip-nx-cache`                                         | 1897 pass, 0 fail of 1898 across 145 files   |
+| be-01 `claim-lease`, `project-claims-organization` (new from main) controller db tests      | 3 and 8 pass, 0 fail                         |
+| be-01 `budget-admission`, `budget-headroom`, `measure-export` controller db tests           | 4, 7 and 9 pass, 0 fail                      |
+| be-01 `swarm-end-to-end`, `boot`, `migration-cli` db tests, one at a time                   | 7, 38 and 52 pass, 0 fail                    |
+| mcp-01 `generated-document.test.ts` and `openapi-tools.test.ts`                             | 44 pass, 0 fail                              |
+| `bunx nx run wbs-conformance:test --skip-nx-cache`                                          | 35 pass, 0 fail                              |
+| `bunx nx run-many -t typecheck,typecheck:module` over the 13 wbs projects                   | succeeded                                    |
+| `bunx nx run tool-devsync:test --skip-nx-cache`, `tool-devsync:typecheck`                   | 921 pass, 0 fail; succeeded                  |
+| `bunx nx run wbs-fe-01:test:unit --skip-nx-cache`                                           | 1034 pass across 83 files (`test-tiers` too) |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0                                       |
+| `pilot-policy.test.ts` with `TOOL_WIKI_TRUSTED_NODE_MODULES` as the nx target sets it       | 24 pass, 0 fail                              |
+| `bunx nx format:check --all`                                                                | exit 0                                       |
+| `bunx openspec validate --all --json`                                                       | 283 of 283 passed                            |
+
+Not run: the host gate, the browser tiers and the full be-01 db suite.

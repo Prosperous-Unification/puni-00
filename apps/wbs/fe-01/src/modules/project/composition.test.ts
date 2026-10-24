@@ -11,7 +11,7 @@ import { recordCalls } from '@/testing/record-calls';
 
 import { browserSavedPlanRoutes, projectServicesOver } from './composition';
 
-/** The nine routes a refresh owner reads, as the client records them. */
+/** The ten routes a refresh owner reads, as the client records them. */
 const READ_ROUTES = [
   'tree',
   'steps',
@@ -22,6 +22,7 @@ const READ_ROUTES = [
   'listExternalSystems',
   'listPeople',
   'listCalendarMarkers',
+  'readClaims',
 ] as const;
 
 /** A reader of `projectId` that is always on screen, with its own stores. */
@@ -178,6 +179,60 @@ describe('the saved plans’ own stream', () => {
     // this failed on `expected +0 to be 1`.
     expect(savedPlans.livePlanRevision.snapshot()).toBe(1);
     expect(reads).toBe(2);
+    close();
+  });
+
+  it('rereads nothing for five claims announcements', async () => {
+    // C21: a claims announcement is per heartbeat per agent; the shelf has not
+    // opted into it, so it must not reread its capability or its list for one.
+    const sockets: SocketHandlers[] = [];
+    const streamDeps: ProjectStreamDeps = {
+      openSocket: (handlers) => {
+        sockets.push(handlers);
+        return { send: () => undefined, close: () => undefined };
+      },
+      schedule: () => 0,
+      cancel: () => undefined,
+      random: () => 0.5,
+    };
+    const stream = browserSavedPlanRoutes(streamDeps);
+    let reads = 0;
+    let capabilityReads = 0;
+    const { savedPlans, close } = openSavedPlans({
+      projectId: 'p1',
+      isCurrent: () => true,
+      routes: {
+        ...stream,
+        available: () => {
+          capabilityReads += 1;
+          return Promise.resolve(true);
+        },
+        list: () => {
+          reads += 1;
+          return Promise.resolve({
+            kind: 'success',
+            representation: 'json',
+            status: 200,
+            headers: new Headers(),
+            body: { savedPlans: [] },
+          });
+        },
+      },
+    });
+    const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+    await settled();
+    sockets[0].onOpen();
+    await settled();
+    const before = { reads, capabilityReads };
+
+    for (const seq of [undefined, undefined, 3, undefined, 4])
+      sockets[0].onMessage(
+        JSON.stringify({ subscription: 'project:p1', seq, message: { type: 'claims_changed' } }),
+      );
+    await settled();
+
+    expect({ reads, capabilityReads }).toEqual(before);
+    expect(savedPlans.livePlanRevision.snapshot()).toBe(0);
     close();
   });
 });
