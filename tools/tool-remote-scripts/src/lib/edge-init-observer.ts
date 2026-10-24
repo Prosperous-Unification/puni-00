@@ -15,6 +15,7 @@ import {
   type HostObserver,
   PrivateReceipts,
   readPrivateFile,
+  type Receipt,
   runInitAdoption,
   type SelectedTarget,
   type TargetKind,
@@ -161,6 +162,7 @@ interface TargetPin {
   nativeSha256: string;
   imageSha256: string;
   envSha256: string;
+  composeFiles: string[];
   process: ProcessPin;
   defaultRouteNetwork: string;
   resources: ResourcePin[];
@@ -190,7 +192,6 @@ interface InitPacket {
   bootId: string;
   targets: [TargetPin, TargetPin];
   provenance: Pin[];
-  resolvedCompose: Pin;
   public: { routesSha256: string; probes: (HttpProbe | WebSocketProbe)[] };
   registry: RegistryProbe;
   caddy: CaddyGraph;
@@ -389,7 +390,6 @@ export function decodeInitPacket(value: unknown): InitPacket {
     'bootId',
     'targets',
     'provenance',
-    'resolvedCompose',
     'public',
     'registry',
     'caddy',
@@ -445,6 +445,7 @@ export function decodeInitPacket(value: unknown): InitPacket {
     refuse();
   for (const target of targets) {
     if (
+      new Set(target.composeFiles).size !== target.composeFiles.length ||
       new Set(target.resources.map((entry) => entry.path)).size !== target.resources.length ||
       new Set(target.networks.map((entry) => entry.id)).size !== target.networks.length ||
       new Set(target.networks.map((entry) => entry.name)).size !== target.networks.length ||
@@ -453,7 +454,10 @@ export function decodeInitPacket(value: unknown): InitPacket {
       refuse();
   }
   const quiescence = decodeQuiescence(fields['quiescence']);
+  // Proof: omitting mode admission accepted the public operation record in the closed packet negative.
   if (
+    quiescence.operation.mode !== 0o600 ||
+    quiescence.operation.uid !== 1000 ||
     quiescence.bootId !== bootId ||
     quiescence.hostMachineIdSha256 !== fields['machineIdSha256'] ||
     quiescence.authorityPins.sourceSha !== sourceSha
@@ -477,7 +481,6 @@ export function decodeInitPacket(value: unknown): InitPacket {
     bootId,
     targets: [registryTarget, caddyTarget],
     provenance: values(fields['provenance'], pin, 64, 1),
-    resolvedCompose: pin(fields['resolvedCompose']),
     public: { routesSha256: hash(publicFields['routesSha256']), probes },
     registry: {
       address: address(registryFields['address']),
@@ -491,6 +494,12 @@ export function decodeInitPacket(value: unknown): InitPacket {
     quiescence,
     backends: values(fields['backends'], decodeBackend, 128, 1),
   };
+  // Proof: omitting uniqueness admitted duplicate backend pins in the closed packet negative.
+  if (
+    new Set(packet.backends.map((entry) => entry.id)).size !== packet.backends.length ||
+    packet.backends.some((entry) => packet.targets.some((target) => target.id === entry.id))
+  )
+    refuse();
   if (
     packet.bun.path !== process.execPath ||
     packet.bundle.path !== process.argv[1] ||
@@ -515,6 +524,7 @@ function decodeTarget(value: unknown): TargetPin {
     'nativeSha256',
     'imageSha256',
     'envSha256',
+    'composeFiles',
     'process',
     'defaultRouteNetwork',
     'resources',
@@ -538,6 +548,7 @@ function decodeTarget(value: unknown): TargetPin {
     nativeSha256: hash(fields['nativeSha256']),
     imageSha256: hash(fields['imageSha256']),
     envSha256: hash(fields['envSha256']),
+    composeFiles: values(fields['composeFiles'], (value) => path(value), 16, 1),
     process: {
       startTime: identity(processFields['startTime']),
       cgroup: path(processFields['cgroup']),
@@ -925,7 +936,6 @@ async function runPreparedPacket(
     packet.init,
     packet.daemon,
     ...packet.provenance,
-    packet.resolvedCompose,
     packet.quiescence.operation,
     packet.quiescence.writerManifest,
     ...packet.caddy.files,
@@ -988,12 +998,17 @@ async function runPreparedPacket(
               { kind: 'caddy' as const, original: caddy },
             ] as const,
           };
-          const observer = new ProductionObserver(packet, engine, async () => {
-            if (sha(await readPrivateFile(packetPath)) !== packetSha256)
-              refuse('packet-bytes-differ');
-            await recheck();
-            await recheckWriters();
-          });
+          const observer = new ProductionObserver(
+            packet,
+            engine,
+            async () => {
+              if (sha(await readPrivateFile(packetPath)) !== packetSha256)
+                refuse('packet-bytes-differ');
+              await recheck();
+              await recheckWriters();
+            },
+            selection.targets,
+          );
           await observer.admit(deadline);
           for (const target of selection.targets) {
             await observer.original(target, target.original, deadline);
@@ -1013,7 +1028,11 @@ async function runPreparedPacket(
           try {
             await runInitAdoption(selection, engine, observer, {
               publish: async (receipt) => {
-                receiptSha256 = await receipts.publish(receipt);
+                receiptSha256 = await publishInitReceipt(
+                  receipts,
+                  receipt,
+                  observer.sourceProof(receipt.target),
+                );
                 return receiptSha256;
               },
             });
@@ -1252,10 +1271,12 @@ class ProductionObserver implements HostObserver {
   >();
   private readonly active = new Map<TargetKind, string>();
   private readonly allocatedAddresses = new Set<string>();
+  private readonly sourceProofs = new Map<TargetKind, ComposeProof>();
   constructor(
     private readonly packet: InitPacket,
     private readonly engine: EngineTransport,
     private readonly recheck: () => Promise<void>,
+    private readonly originals: readonly SelectedTarget[],
   ) {
     this.expires = operationExpiry(
       packet.quiescence.issuedAt,
@@ -1278,18 +1299,15 @@ class ProductionObserver implements HostObserver {
     await this.recheck();
     const source = (await readPrivateOrPinned(this.packet.source)).trim();
     if (source !== this.packet.sourceSha) refuse('source-build-differs');
-    const declarations = record(
-      record(parseJson(await readPrivateOrPinned(this.packet.resolvedCompose)))['services'],
+    const proofs = await observeComposeDeclarations(
+      this.originals.map((selected) => ({
+        ...selected,
+        nativeSha256: this.expected(selected.kind).nativeSha256,
+        roster: this.expected(selected.kind).composeFiles,
+      })),
+      this.packet.provenance,
     );
-    for (const kind of ['registry', 'caddy'] as const) {
-      const declaration = record(declarations[kind]);
-      if (
-        declaration['init'] !== true ||
-        declaration['container_name'] !== `wbs-${kind}-1` ||
-        typeof declaration['image'] !== 'string'
-      )
-        refuse('persistent-init-declaration-differs');
-    }
+    for (const proof of proofs) this.sourceProofs.set(proof.target, proof);
     if (
       sha(await readFile('/etc/machine-id')) !== this.packet.machineIdSha256 ||
       (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() !== this.packet.bootId
@@ -1316,19 +1334,7 @@ class ProductionObserver implements HostObserver {
       operation['buildSha'] !== this.packet.sourceSha ||
       operation['issuedAt'] !== this.packet.quiescence.issuedAt ||
       operation['expiresAt'] !== this.packet.quiescence.expiresAt ||
-      operation['packetRosterSha256'] !==
-        fingerprint({
-          sourceSha: this.packet.sourceSha,
-          bundle: this.packet.bundle,
-          bun: this.packet.bun,
-          targets: this.packet.targets,
-          public: this.packet.public,
-          registry: this.packet.registry,
-          caddy: this.packet.caddy,
-          provenance: this.packet.provenance,
-          resolvedCompose: this.packet.resolvedCompose,
-          backends: this.packet.backends,
-        })
+      operation['packetRosterSha256'] !== fingerprintPacketRoster(this.packet)
     )
       refuse('operation-binding-differs');
     for (const key of [
@@ -1387,6 +1393,11 @@ class ProductionObserver implements HostObserver {
       }
     }
     await this.recheck();
+  }
+  sourceProof(kind: TargetKind): ComposeProof {
+    const proof = this.sourceProofs.get(kind);
+    if (proof === undefined) refuse('compose-proof-unavailable');
+    return proof;
   }
   private expected(kind: TargetKind): TargetPin {
     return this.packet.targets[kind === 'registry' ? 0 : 1];
@@ -1837,6 +1848,15 @@ export function checkStoppedUnit(stdout: string, expectedSha256: string): void {
     refuse('solver-not-drained');
 }
 
+/** Binds every invocation pin while excluding the operation file's self-referential byte hash.
+ * @internal
+ */
+export function fingerprintPacketRoster(packet: InitPacket): string {
+  const { operation: _operation, ...quiescence } = packet.quiescence;
+  // Proof: omitting nonce from this projection admitted another attempt in operation roster admission.
+  return fingerprint({ ...packet, quiescence });
+}
+
 /** Requires each supplied descriptor to name the pinned inode and share its existing kernel lock.
  * @internal
  */
@@ -1923,15 +1943,8 @@ async function readCrontab(timeout: number): Promise<Buffer> {
       read(child.stderr, stderr),
       exited,
     ]);
-    if (
-      state.expired ||
-      state.overflow ||
-      code !== 0 ||
-      Buffer.concat(stderr).length !== 0 ||
-      Buffer.concat(stdout).length === 0
-    )
-      refuse('suspended-crontab-unavailable');
-    return Buffer.concat(stdout);
+    if (state.expired || state.overflow) refuse('suspended-crontab-unavailable');
+    return readSuspendedCrontab(code, Buffer.concat(stdout), Buffer.concat(stderr));
   } catch {
     child.kill('SIGKILL');
     await exited.catch(() => null);
@@ -1939,6 +1952,15 @@ async function readCrontab(timeout: number): Promise<Buffer> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Distinguishes a present empty suspended crontab from absence or a failed native read.
+ * @internal
+ */
+export function readSuspendedCrontab(code: number | null, stdout: Buffer, stderr: Buffer): Buffer {
+  // Proof: omitting native status/diagnostic admission accepted absent crontab as present empty bytes.
+  if (code !== 0 || stderr.length !== 0) refuse('suspended-crontab-unavailable');
+  return stdout;
 }
 
 /** @internal */
@@ -2316,6 +2338,12 @@ async function inspectRecovery(
   let previous: string | null = null;
   const selected = new Set(packet.targets.map((target) => target.id));
   const candidates = new Set<string>();
+  const sourceProofs = new Map<TargetKind, ComposeProof>();
+  for (const target of packet.targets)
+    sourceProofs.set(
+      target.kind,
+      await readComposeRoster(target.kind, target.composeFiles, packet.provenance),
+    );
   for (let index = 0; index < names.length; index++) {
     const name = names[index];
     if (name !== String(index).padStart(4, '0') + '.json') refuse('recovery-roster-invalid');
@@ -2328,18 +2356,22 @@ async function inspectRecovery(
       'target',
       'original',
       'remaining',
+      'sourceRosterSha256',
+      'literalInitSha256',
       ...(hasCandidate ? ['candidate'] : []),
     ]);
     const kind = receipt['target'];
     if (kind !== 'registry' && kind !== 'caddy') refuse('recovery-target-invalid');
+    const proof = sourceProofs.get(kind);
+    if (proof === undefined) refuse('recovery-source-proof-missing');
+    checkReceiptSources(receipt, proof);
     if (
       receipt['attempt'] !== packet.nonce ||
       receipt['previous'] !== previous ||
       receipt['original'] !== packet.targets[kind === 'registry' ? 0 : 1].id
     )
       refuse('recovery-chain-invalid');
-    const stage = text(receipt['stage'], 64);
-    if (!/^[a-z]+(?:-[a-z]+)*$/.test(stage)) refuse('recovery-stage-invalid');
+    readRecoveryStage(receipt['stage']);
     integer(receipt['remaining'], 0, 300000);
     if (hasCandidate) {
       const id = hash(receipt['candidate']);
@@ -2375,4 +2407,308 @@ async function inspectRecovery(
     receiptDirectory: packet.receiptDirectory,
     receiptSha256: previous,
   };
+}
+
+/** Rejects unknown trusted receipt stages before read-only recovery inspection.
+ * @internal
+ */
+export function readRecoveryStage(value: unknown): string {
+  const stage = text(value, 64);
+  // Proof: omitting the finite roster admitted the unknown private receipt stage in recovery refusal.
+  if (
+    ![
+      'before-create',
+      'create-intended',
+      'created',
+      'candidate-inert',
+      'candidate-verified',
+      'stop-intended',
+      'stop-uncertain',
+      'original-stopped',
+      'rename-original-intended',
+      'rename-candidate-intended',
+      'rename-uncertain',
+      'start-intended',
+      'start-uncertain',
+      'candidate-running-unhealthy',
+      'healthy',
+      'healthy-original-retained',
+      'retention-point',
+      'remove-intended',
+      'removal-uncertain',
+      'original-absent',
+      'complete',
+    ].includes(stage)
+  )
+    refuse('recovery-stage-invalid');
+  return stage;
+}
+
+interface ComposeStructure {
+  roots: Set<string>;
+  services: Set<string>;
+  properties: Set<string>;
+  defines: boolean;
+}
+interface ComposeProof {
+  target: TargetKind;
+  sourceRosterSha256: string;
+  literalInitSha256: string;
+}
+/** Production publications carry required proofs of the freshly pinned installed declaration. */
+interface ProductionInitReceipt extends Receipt {
+  sourceRosterSha256: string;
+  literalInitSha256: string;
+}
+
+/** Publishes actual source-proof hashes without widening the core fixture's receipt contract.
+ * @internal
+ */
+export async function publishInitReceipt(
+  writer: Pick<PrivateReceipts, 'publish'>,
+  receipt: Receipt,
+  proof: ComposeProof,
+): Promise<string> {
+  if (proof.target !== receipt.target) refuse('receipt-source-target-differs');
+  // Proof: omitting literal proof publication failed exact private receipt readback.
+  const publication: ProductionInitReceipt = {
+    ...receipt,
+    sourceRosterSha256: hash(proof.sourceRosterSha256),
+    literalInitSha256: hash(proof.literalInitSha256),
+  };
+  return writer.publish(publication);
+}
+
+/** Requires both persisted source hashes to equal the separately recomputed ordered roster proof.
+ * @internal
+ */
+export function checkReceiptSources(receipt: Record<string, unknown>, proof: ComposeProof): void {
+  if (
+    // Proof: independently omitting either comparison admitted wrong source metadata in production receipt recovery.
+    hash(receipt['sourceRosterSha256']) !== proof.sourceRosterSha256 ||
+    hash(receipt['literalInitSha256']) !== proof.literalInitSha256 ||
+    receipt['target'] !== proof.target
+  )
+    refuse('recovery-source-proof-differs');
+}
+
+function maskComposeLine(line: string): string {
+  let quote: "'" | '"' | null = null,
+    masked = '';
+  for (let index = 0; index < line.length; index++) {
+    const character = line.charAt(index);
+    if (quote !== null) {
+      masked += ' ';
+      if (quote === '"' && character === '\\') {
+        index++;
+        if (index >= line.length) refuse('compose-source-unsupported');
+        masked += ' ';
+      } else if (character === quote) {
+        if (quote === "'" && line.charAt(index + 1) === "'") {
+          index++;
+          masked += ' ';
+        } else quote = null;
+      }
+    } else if (character === '#' && (index === 0 || /\s/.test(line.charAt(index - 1)))) {
+      return masked + ' '.repeat(line.length - index);
+    } else if (character === '"' || character === "'") {
+      quote = character;
+      masked += ' ';
+    } else masked += character;
+  }
+  if (quote !== null) refuse('compose-source-unsupported');
+  return masked;
+}
+
+function scanComposeSource(contents: string, kind: TargetKind): ComposeStructure {
+  if (
+    Buffer.byteLength(contents) > 1048576 ||
+    Array.from(contents).some((character) => {
+      const code = character.charCodeAt(0);
+      return (
+        (code < 32 && code !== 10) ||
+        (code >= 127 && code <= 159) ||
+        [0xfeff, 0x2028, 0x2029].includes(code)
+      );
+    })
+  )
+    refuse('compose-source-unsupported');
+  const structure: ComposeStructure = {
+    roots: new Set(),
+    services: new Set(),
+    properties: new Set(),
+    defines: false,
+  };
+  let root = '',
+    service = '',
+    sawInit = false;
+  for (const line of contents.split('\n')) {
+    const outside = maskComposeLine(line),
+      code = outside.trim();
+    if (code === '') continue;
+    // Proof: omitting forbidden-token admission accepted an unrelated anchor/alias in the literal Compose profile.
+    if (
+      code.startsWith('%') ||
+      code === '---' ||
+      code === '...' ||
+      /[&*!|>]/.test(code) ||
+      code.includes('<<') ||
+      code.startsWith('? ') ||
+      code === '?' ||
+      code.startsWith(':')
+    )
+      refuse('compose-source-unsupported');
+    const flow: string[] = [];
+    for (const token of outside) {
+      if (token === '[' || token === '{') flow.push(token);
+      else if (token === ']' || token === '}') {
+        if (flow.pop() !== (token === ']' ? '[' : '{')) refuse('compose-source-unsupported');
+      }
+    }
+    if (flow.length !== 0) refuse('compose-source-unsupported');
+    const indentation = line.length - line.trimStart().length;
+    if (line.slice(0, indentation) !== ' '.repeat(indentation))
+      refuse('compose-source-unsupported');
+    const key = /^([A-Za-z_][A-Za-z0-9_.-]*):(?:\s|$)/.exec(line.slice(indentation));
+    const name = key?.[1];
+    const value =
+      name === undefined
+        ? ''
+        : line.slice(indentation + name.length + 1, outside.trimEnd().length).trim();
+    if (indentation === 0) {
+      // Proof: omitting root uniqueness admitted duplicate name keys in the literal Compose profile.
+      if (
+        name === undefined ||
+        structure.roots.has(name) ||
+        (!['name', 'version', 'services', 'networks', 'volumes', 'configs', 'secrets'].includes(
+          name,
+        ) &&
+          !/^x-[A-Za-z0-9_-]+$/.test(name))
+      )
+        refuse('compose-source-unsupported');
+      structure.roots.add(name);
+      root = name;
+      service = '';
+      if (name === 'services' && value !== '') refuse('compose-source-unsupported');
+    } else if (root === 'services' && indentation === 2) {
+      // Proof: omitting service uniqueness admitted repeated unrelated service names in the literal Compose profile.
+      if (name === undefined || value !== '' || structure.services.has(name))
+        refuse('compose-source-unsupported');
+      structure.services.add(name);
+      service = name;
+      if (name === kind) structure.defines = true;
+    } else if (root === 'services' && service === kind && indentation === 4) {
+      // Proof: omitting property uniqueness admitted repeated true Init properties in the literal Compose profile.
+      if (
+        name === undefined ||
+        structure.properties.has(name) ||
+        ['extends', 'profiles'].includes(name)
+      )
+        refuse('compose-source-unsupported');
+      structure.properties.add(name);
+      if (name === 'init') {
+        if (value !== 'true') refuse('compose-literal-init-required');
+        sawInit = true;
+      }
+    } else if (
+      (root === 'services' && indentation < 4) ||
+      (root === 'services' && service === kind && indentation < 6)
+    )
+      refuse('compose-source-unsupported');
+    else if (!code.startsWith('-') && !/:\s|:$/.test(code)) refuse('compose-source-unsupported');
+  }
+  if (structure.defines && !sawInit) refuse('compose-literal-init-required');
+  return structure;
+}
+
+/** Admits a narrow literal declaration profile before Bun can discard duplicate keys or resolve YAML constructs.
+ * @internal
+ */
+export function requireLiteralComposeInit(contents: string, kind: TargetKind): boolean {
+  try {
+    const scanned = scanComposeSource(contents, kind),
+      root = record(Bun.YAML.parse(contents));
+    const equalKeys = (keys: readonly string[], expected: Set<string>) =>
+      fingerprint([...keys].sort()) === fingerprint([...expected].sort());
+    // Proof: omitting ancestry agreement accepted the injected parser-only root key in the real source lifetime fixture.
+    if (!equalKeys(Object.keys(root), scanned.roots)) refuse('compose-ancestry-differs');
+    if (!scanned.roots.has('services')) return false;
+    const services = record(root['services']);
+    if (!equalKeys(Object.keys(services), scanned.services)) refuse('compose-ancestry-differs');
+    if (!scanned.defines) return false;
+    const selected = record(services[kind]);
+    if (!equalKeys(Object.keys(selected), scanned.properties) || selected['init'] !== true)
+      refuse('compose-ancestry-differs');
+    return true;
+  } catch (cause) {
+    if (cause instanceof InitRefusal) throw cause;
+    // Proof: rethrowing the parser cause exposed the synthetic private marker in literal Compose parser errors.
+    throw new InitRefusal('compose-source-unsupported');
+  }
+}
+
+/** Reads only the ordered native-label roster after binding it to independent original fingerprints and file pins.
+ * @internal
+ */
+export async function observeComposeDeclarations(
+  targets: readonly (SelectedTarget & { nativeSha256: string; roster: readonly string[] })[],
+  provenance: readonly Pin[],
+): Promise<readonly ComposeProof[]> {
+  try {
+    const proofs: ComposeProof[] = [];
+    for (const target of targets) {
+      // Proof: omitting native binding accepted changed label bytes with the old independent native fingerprint.
+      if (fingerprint(target.original) !== target.nativeSha256)
+        refuse('compose-native-binding-differs');
+      const labels = record(target.original.config['Labels']);
+      const roster = text(labels['com.docker.compose.project.config_files'])
+        .split(',')
+        .map((entry) => path(entry));
+      if (roster.length > 16 || new Set(roster).size !== roster.length)
+        refuse('compose-roster-invalid');
+      // Proof: omitting roster equality accepted reordered and swapped expected source recipes.
+      if (fingerprint(roster) !== fingerprint(target.roster)) refuse('compose-roster-differs');
+      proofs.push(await readComposeRoster(target.kind, roster, provenance));
+    }
+    return proofs;
+  } catch (cause) {
+    if (cause instanceof InitRefusal) throw cause;
+    // Proof: rethrowing unreadable source errors exposed the private fixture pathname in real source lifetime.
+    throw new InitRefusal('compose-source-unavailable');
+  }
+}
+
+async function readComposeRoster(
+  kind: TargetKind,
+  roster: readonly string[],
+  provenance: readonly Pin[],
+): Promise<ComposeProof> {
+  const pins = roster.map((path) => {
+    const matches = provenance.filter((entry) => entry.path === path);
+    if (matches.length !== 1) refuse('compose-source-unpinned');
+    const expected = matches.at(0);
+    if (expected === undefined) return refuse('compose-source-unpinned');
+    return expected;
+  });
+  const proof = await withAuthorityFiles(roster, async (files, recheck) => {
+    await compareFiles(pins, files);
+    const definitions: string[] = [];
+    for (const expected of pins) {
+      const bytes = await readWriterBytes(expected.path);
+      if (sha(bytes) !== expected.sha256) refuse('compose-source-bytes-differ');
+      const contents = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+      // Proof: bypassing this gate admitted self-consistently pinned false/missing source despite good historical JSON.
+      if (requireLiteralComposeInit(contents, kind)) definitions.push(expected.sha256);
+    }
+    // Proof: omitting cardinality accepted a later second true declaration in the installed source recipe fixture.
+    if (definitions.length !== 1) refuse('compose-definition-ambiguous');
+    await recheck();
+    const sourceRosterSha256 = fingerprint(pins);
+    return {
+      target: kind,
+      sourceRosterSha256,
+      literalInitSha256: fingerprint({ target: kind, sourceRosterSha256, definitions }),
+    };
+  });
+  return proof;
 }
