@@ -55,5 +55,6 @@
 
 ## 2. fe-01 display (slice 2)
 
-- [ ] 2.1 The claim chip shows a leased claim's remaining time and an expired one as
-      "releasing"; the history row reads "released (lease expired)".
+- [x] 2.1 Superseded 2026-10-24 by `wbs-claim-display` (C18, slices 6 and 9): the claim chip
+      shows a leased claim's remaining time and an expired one as "releasing"; the history row
+      reads "released (lease expired)".

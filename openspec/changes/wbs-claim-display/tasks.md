@@ -141,7 +141,8 @@ reached `main` and deployed (C5), and gw-01 with the optional `seq` deploys no l
 
 - [ ] 10.1 Dev by eye (UI work acceptance): a swarm of at least two agents and a human claim on
       dev; chips, a countdown after the agent stops heartbeating, releasing, the sweep's
-      release, the history row; screenshots recorded in verify.md.
-- [ ] 10.2 `CONTEXT.md` terms (already added), module indexes for the new reads, the fe-01
+      release, the history row; screenshots recorded in verify.md. Dev by-eye owed (dev is
+      Dany's); a local rehearsal on this branch is recorded under "Local swarm rehearsal".
+- [x] 10.2 `CONTEXT.md` terms (already added), module indexes for the new reads, the fe-01
       claims resource JSDoc; `verify.md` with commands, results and proofs; mark
       `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1 superseded by this change.

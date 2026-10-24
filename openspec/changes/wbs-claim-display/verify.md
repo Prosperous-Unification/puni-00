@@ -984,3 +984,99 @@ files, 3564 pass (`claims-sheet.test.tsx` 14); `openspec validate --all --json` 
 
 Screenshots re-shot: every sheet shot (desktop and phone, light and dark, history failed) and the
 two toolbar shots, in the session scratchpad's `claim-sheet-shots`.
+
+### 10.2: record, 2026-10-24
+
+- `CONTEXT.md` holds **Claim chip**, **Releasing claim** and **Claim history** (lines 584–595),
+  added by slice 1's change; checked, not duplicated.
+- Module indexes: the be-01 reads live in `module.application.work-item`
+  (`libs/wbs/application/core/src/module/work-item/README.md`), whose index lists
+  `project-claims.ts`, `claim-history.ts` and their tests and whose prose names the claim history
+  read; fe-01's claims resource is `module.frontend.plan-feed`, whose README now names claims as
+  the fifth resource (C3, C12, C20, C21) and "the five resources" in its generation ledger. The
+  Claims sheet is in `components/wbs`, which carries no module index. Burokrat
+  `check-indexes working . HEAD`: exit 0.
+- fe-01 claims resource JSDoc: `PlanRefreshSnapshot.claims` in `lib/plan-refresh.ts` (beside
+  `InstalledClaims`, `resourcesFor` and the owner's claims read, which already carried theirs).
+- `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1 are ticked with "Superseded 2026-10-24 by
+  `wbs-claim-display`", the convention `puni-website-funnel` 5.0 uses.
+
+### Local swarm rehearsal (10.1 rehearsed locally; dev by-eye owed), 2026-10-24
+
+Dev is Dany's, so 10.1 stays open. This ran the branch's own be-01, gw-01 and fe-01 on the
+laptop, with a real swarm driven over HTTP.
+
+**Stack.** be-01: a scratch entry (not committed) beside
+`apps/wbs/be-01/src/testing/organization-browser-server.ts`, booting `bootBe01`'s production
+composition over a fresh migrated SQLite file. It used that fixture's dev-only constants
+(`TEST_JWT_KEY`, a 32-character `x` internal secret, `TEST_ORGANIZATION_DEFAULT_LIMITS`,
+password sessions `enabled`), but pushed to a real gw-01 on 7301 rather than `gw.invalid`. It
+registered `dany` (password `correct-horse`, the fixture's), inserted organization `org-swarm`
+with dany as `super_admin`, and committed the activation marker. gw-01: `bun src/main.ts` with
+`AUTH_MODE=oidc` and the same JWT key and internal secret. Its OIDC discovery is lazy, so a
+dummy discovery URL is never fetched: native session tokens verify on the JWT key. fe-01: Vite
+on 7400 (`VITE_BE_URL`/`VITE_GW_URL`), as `playwright.organization.config.ts` runs it. The
+browser (Playwright Chromium) logged in through `/api/auth/login` and carried the token in
+`__Host-wbs_access`, as `organization-context.real.spec.ts` does. It chose `org-swarm` on
+`/organization`; the header read **Live**. `AUTH_MODE=local` could not serve this: every
+request is `local-dev` there, so API keys never authenticate.
+
+**Lease timing.** No knob exists: `CLAIM_LEASE_MS` (15 min) and the 30 s sweep interval are
+constants (`@wbs/domain` `claim-lease.ts`, core `claim-lease-sweep.ts`). The rehearsal waited
+the real 15 minutes.
+
+**Swarm (scratch driver over be-01's routes; keys kept in a scratch file, never printed).**
+
+1. `POST /api/directory/commands`: team, persons `claire`, `codex`, `ada`; then `patchPerson
+kind: agent` binds `claire` and `codex` to dany's account → 200.
+2. `POST /api/organization/machine-credentials` `{ source: 'api_key' }` per agent → 201 each.
+3. Resources `h4claw RAM` (divisible, GiB) and `staging slot` (exclusive); project `Swarm
+rehearsal`; capacities RAM 16, staging 1. Tree `010 Hotfix the winch`, `020 Release 2.4`
+   with `Prime the mast`, `Sand the deck`, `Paint the hull`; estimates. Demands: Paint 6 GiB +
+   staging, Sand 6 GiB, Prime 8 GiB + staging.
+4. Claims, each with the agent's own key:
+   - claire claims the `Release 2.4` subtree → 200.
+   - claire claims Sand under it with `assign: true` → 200: acquired 6 GiB, both steps assigned.
+   - codex claims Paint Dev under claire's subtree claim with `assign: true` → 200: acquired
+     6 GiB + staging, Dev assigned.
+   - codex claims Prime → **409 `resources_exhausted`**: staging asked 1 free 0 held by codex;
+     RAM asked 8 free 4 held by codex and claire.
+   - dany claims Hotfix QA for `ada` (human, no lease) → 200.
+5. claire heartbeats `POST /api/claims/renew` every minute → 200 `{ leases: 3 }`. codex stops.
+6. After codex's lease and the sweep: `DELETE /api/organization/machine-credentials/:claire` → 204. Then `releaseWorkItem` of ada's Hotfix by dany → 200.
+
+**What fe-01 showed** (one page left open throughout; times from the page's open). Screenshots
+are in the session scratchpad's `swarm-rehearsal-shots`:
+
+| Time  | Shot                                                                 | Seen                                                                                                                                                              |
+| ----- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 s   | `01-phone-cards`, `02-phone-claims-sheet`                            | phone chips and the sheet from `Plan actions`                                                                                                                     |
+| 0 s   | `03-desktop-dark-claims-sheet`                                       | the sheet in dark mode                                                                                                                                            |
+| 0 s   | `04-desktop-chips-folded`, `05-desktop-dev-unfolded`                 | chips per holder: `CL 14m` on the subtree, `CL` on both Sand steps with claire assigned, `CO` beside codex on Paint Dev, `AD` (no lease) on Hotfix QA; `Claims 5` |
+| 0 s   | `06-desktop-claims-sheet-start`                                      | held list grouped ada / claire / codex with runs; history rows, a batch as "claimed 2 items"                                                                      |
+| 383 s | `07-desktop-countdown-codex-stopped`                                 | codex `CO 8m`, claire still `CL 14m` (renewed)                                                                                                                    |
+| 911 s | `08-desktop-codex-releasing`                                         | codex reads `CO releasing`, dashed                                                                                                                                |
+| 926 s | `09-desktop-after-sweep`                                             | the sweep released codex's claim: chip gone, claire's stay                                                                                                        |
+| 927 s | `10-desktop-sheet-lease-expired-row`                                 | history: "codex released 020.3 Paint the hull · Dev, lease expired"                                                                                               |
+| 931 s | `11-desktop-sheet-credential-revoked-row`                            | claire's key revoked: within 3 s her three claims went; "claire released 3 items … credential revoked"                                                            |
+| 935 s | `12-desktop-latch-button-no-count`, `13-desktop-latch-sheet-history` | ada released; no claim held, the button stays as `Claims` with no number; the sheet says "No claims are held." over the whole history                             |
+
+Claire's own **releasing** state did not show: a revocation is not announced (C4), and the sweep
+released her claims about 3 s after the revoke, before any claims read.
+
+**Found, outside this change's scope (reported, not fixed).**
+
+- `POST /api/claims/renew` with any JSON body (even `{}`) answers **500**. be-01 logs `Endpoint
+postApiClaimsRenew has no declared validation refusal` (`apps/wbs/be-01/src/http/elysia/mount.ts`
+  `refuse`). The shape `renewClaimLeases` in
+  `libs/wbs/domain/contracts/src/http/claim-lease-shapes.ts` declares no body and no 400. Repro:
+  `curl -X POST localhost:7300/api/claims/renew -H 'authorization: Bearer <agent key>' -H
+'content-type: application/json' -d '{}'`. mcp-01 sends no body for it
+  (`wbs-client.ts buildRequest` sends one only when the tool declares body inputs), so MCP agents
+  are unaffected; a raw HTTP agent sending `{}` loses its heartbeat and its claims are reaped at
+  15 min. The first rehearsal run hit this: every claim, claire's included, expired with codex's.
+  It belongs to `wbs-claim-leases`, or to a general rule that a bodiless endpoint refuses a body
+  with 400.
+- Seen and left: a released claim's `assign: true` assignees stay (claire on Sand, codex on Paint
+  Dev). The `claimWorkItem` description says assignments are "undone with the claim", which this
+  run reads as undo of the claim command, not release.
