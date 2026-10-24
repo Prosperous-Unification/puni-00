@@ -1508,3 +1508,21 @@ test('raw recovery stability accepts unrelated created blank endpoints without g
   observed.networks['edge'] = { ...raw.NetworkSettings.Networks.edge, Aliases: ['changed'] };
   expect(recoverySnapshot([observed])).not.toBe(before);
 });
+
+for (const [wall, monotonic] of [
+  [Number.NaN, 123],
+  [Number.POSITIVE_INFINITY, 123],
+  [0, Number.NaN],
+  [0, Number.POSITIVE_INFINITY],
+  [0, Number.NEGATIVE_INFINITY],
+])
+  test(`operation expiry refuses nonfinite clock ${String(wall)} ${String(monotonic)}`, () => {
+    expect(() =>
+      operationExpiry(
+        new Date(-1000).toISOString(),
+        new Date(600000).toISOString(),
+        wall,
+        monotonic,
+      ),
+    ).toThrow();
+  });
