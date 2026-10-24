@@ -235,3 +235,81 @@ The separately owned initial metadata files fail formatting check and remain
 subject to that worker's formatted final delta. This wiring checkpoint does not
 claim their complete native matrix, observer source acceptance, actual Docker,
 root namespace rehearsal or live-image compatibility. Those are still outstanding.
+
+## Independent native HTTP and full inventory observations
+
+The raw numeric HTTP transport and inventory comparison are independent helpers;
+they are not yet wired into the restart/readiness orchestrator. No helper returns
+a live activation/startup/readiness grant. Full selected endpoint/listener/address
+bracketing and post-helper collector joins remain required.
+
+On Bun1.4.4 an actual owned proxy test showed `fetch(proxy: '')` still used ambient
+HTTP_PROXY. The separate control in `/tmp/puni-http-proxy-characterization.log`
+reached the proxy while node:http.request reached the owned numeric endpoint.
+The reader now uses node:http with agent disabled, exact numeric address/port,
+fixed GET paths and Connection:close. It rejects unspecified/scoped/mapped targets,
+non200 status, unsupported metadata/encoding, oversized bodies and malformed
+UTF-8; deadline abort uses the original remaining budget. Both actual request and
+response close events are joined before success or ordinary refusal returns.
+Raw HTTP observations still require exact role decoding and actual process joins.
+
+Native source socket, HTTP and inventory selection passes 17 tests, 35 assertions,
+1.490s, `/tmp/puni-participant-http-inventory-final-green.log`. HTTP covers actual
+proxy routing, redirect refusal, body bound, invalid bytes, stalled response,
+healthy-looking truncated Content-Length and actual close at return. The truncated
+fixture initially timed out because its server-side half-close was not drained;
+`/tmp/puni-http-close-diagnostic.log` showed the client request/response both closed.
+Explicit owned server socket drain/destroy fixed the fixture without weakening the
+reader. A plain builtin export monkeypatch did not instrument Bun named imports;
+the isolated child instead wraps the actual native constructor via the module
+loader and returns real clients/streams. Dispatched/close counters verify that
+this instrumentation actually ran.
+
+Watched HTTP omissions, with source restored each time:
+
+- Drop incremental body cap, strict UTF-8, exact status: their actual response
+  negatives fail with Missing expected rejection in
+  `/tmp/puni-participant-http-watch-{body-cap,utf8,status}.log`.
+- Drop deadline abort: independent fixture EOF arrives at1.5s, and the100ms budget
+  assertion fails at1502ms, `/tmp/puni-participant-http-watch-deadline.log`.
+- Drop final close join: success returns with actual requestClosed0 instead of1,
+  and second refusal with1 instead of2,
+  `/tmp/puni-participant-http-close-watch.log`. No polling grace was used.
+- Unspecified and mapped addresses reached the owned IPv4 endpoint before their
+  checks; native RED outputs are `/tmp/puni-participant-http-{wildcard,mapped}-red.log`.
+
+The inventory helper preserves every native State, Config and NetworkSettings
+field, normalizing only mount ordering. Selected bindings are restricted to the
+three supplied selected IDs; the future coordinator derives them from its genuine context, and only decoded terminal managed solver rows may be
+removed. Its Docker-shaped unit projections are not native process/startup proof.
+Separately dropping State, Config or NetworkSettings admits that parked-peer drift;
+dropping membership/duplicate/selection/managed-removal checks admits its dedicated
+fault. Each observed negative failed in
+`/tmp/puni-participant-inventory-watch-*.log`. Whole transition-monitor integration
+and actual running participant proofs remain outstanding.
+
+Configured graph checks initially found optional Bun TCP port types; those now
+throw on absence instead of asserting/defaulting. The first successful configured
+replay is `/tmp/puni-participant-http-inventory-static2.log` (7targets,5cachehits,
+18.7s). Independent HTTP/inventory leaf bundles build and import successfully;
+`/tmp/puni-participant-http-inventory-bundle-smoke.log`. The final uncached configured
+checkpoint is recorded below after execution. Actual four-role source startup,
+source process/output roster, production observer namespace/image acceptance,
+full orchestrator/public wrapper and collector-opener joins remain UNVERIFIED.
+
+Final bounded freeze evidence: actual raw TCP supplies absent headers without
+Bun.serve's automatic application/octet-stream default. Missing/long Content-Type
+and unsupported encoding cases now pass. Final native selection:20 pass,
+35 assertions,1.359s, `/tmp/puni-participant-http-inventory-frozen-green.log`.
+Configured uncached lint/typecheck/build all7 targets pass in20.1s,
+`/tmp/puni-participant-http-inventory-uncached.log`; final test-fixture corrections
+then pass scoped ESLint/Prettier and uncached configured typecheck in4.8s,
+`/tmp/puni-participant-http-inventory-final-types.log`. Leaf bundle import smoke
+passes in `/tmp/puni-participant-http-inventory-bundle-smoke.log`.
+
+No product observer was integrated beyond the earlier raw metadata interface
+checkpoint. The source four-role measurement artifact and actual measurement,
+full restart/public wrapper, exact role HTTP/process/collector joins and full
+P2b3 acceptance are separate OPEN milestones. Privileged/native image rehearsals
+remain unrun after the retained automatic-review rejection. No remote/host gate
+or live activation action was performed by this worker.

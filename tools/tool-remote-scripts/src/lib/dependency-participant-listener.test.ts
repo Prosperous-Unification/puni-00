@@ -4,6 +4,15 @@ import { expect, test } from 'bun:test';
 
 import { observeSourceParticipantListener } from './dependency-participant-listener';
 
+async function drain(stream: ReadableStream<Uint8Array>): Promise<void> {
+  const reader = stream.getReader();
+  try {
+    for (;;) if ((await reader.read()).done) break;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 test('source listener must belong to the actual application FD, not merely its shared network namespace', async () => {
   const child = Bun.spawn(
     [
@@ -17,6 +26,8 @@ test('source listener must belong to the actual application FD, not merely its s
     [process.execPath, '-e', 'await new Response(Bun.stdin.stream()).text();'],
     { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
   );
+  let primaryFailure: Error | undefined;
+  const cleanupFailures: unknown[] = [];
   try {
     const reader = child.stdout.getReader();
     const first = await reader.read();
@@ -37,12 +48,29 @@ test('source listener must belong to the actual application FD, not merely its s
     await rejects(observeSourceParticipantListener(foreign.pid, port, performance.now() + 10000));
     await rejects(observeSourceParticipantListener(child.pid, port, performance.now() - 1));
     await rejects(observeSourceParticipantListener(child.pid, 0, performance.now() + 10000));
+  } catch (cause) {
+    primaryFailure =
+      cause instanceof Error ? cause : new Error('native listener assertion failed', { cause });
   } finally {
     foreign.kill('SIGKILL');
-    await foreign.exited;
-    await new Response(foreign.stderr).text();
     child.kill('SIGKILL');
-    await child.exited;
-    await new Response(child.stderr).text();
+    const settled = await Promise.allSettled([
+      foreign.exited,
+      drain(foreign.stdout),
+      drain(foreign.stderr),
+      child.exited,
+      drain(child.stdout),
+      drain(child.stderr),
+    ]);
+    for (const entry of settled)
+      if (entry.status === 'rejected') {
+        const cause: unknown = entry.reason;
+        cleanupFailures.push(cause);
+      }
   }
+  if (cleanupFailures.length !== 0) {
+    if (primaryFailure !== undefined) cleanupFailures.unshift(primaryFailure);
+    throw new AggregateError(cleanupFailures, 'native source listener fixture cleanup failed');
+  }
+  if (primaryFailure !== undefined) throw primaryFailure;
 }, 20000);
