@@ -92,6 +92,41 @@ test('failure projection exposes only validated private attempt metadata and fix
   });
 });
 
+test('recovery projection retains ordered closed detail without nested private fields', () => {
+  const target = {
+    target: 'registry' as const,
+    class: 'candidate-running-original-absent' as const,
+    original: 'absent' as const,
+    candidate: 'present' as const,
+    health: 'healthy' as const,
+    probeApplicability: 'applicable' as const,
+  };
+  const summary = {
+    attempt: 'synthetic',
+    stage: 'recovery-observed',
+    packetSha256: 'a'.repeat(64),
+    receiptDirectory: '/private/synthetic',
+    receiptSha256: 'b'.repeat(64),
+    recovery: {
+      scope: 'read-only-recovery-observation' as const,
+      window: 'expired' as const,
+      targets: [target],
+    },
+  };
+  expect(
+    describeInitRefusal(
+      new InitObservationRefusal({
+        ...summary,
+        recovery: {
+          ...summary.recovery,
+          ...{ privateHost: 'PRIVATE_RECOVERY_SENTINEL' },
+          targets: [{ ...target, ...{ rawConfig: 'PRIVATE_RECOVERY_SENTINEL' } }],
+        },
+      }),
+    ),
+  ).toEqual(summary);
+});
+
 for (const bundled of [false, true]) {
   test(`real ${bundled ? 'bundled' : 'source'} CLI composes the production factory under the actual inherited lock`, async () => {
     const root = await mkdtemp(join(tmpdir(), 'edge-init-cli-'));
