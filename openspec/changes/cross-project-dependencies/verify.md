@@ -7354,3 +7354,20 @@ Configured uncached lint/typecheck/build for `tool-remote-scripts` and
 These are local integration checks. Participant restoration, policy handoff,
 normal-controller adoption, final exact-SHA host gate, green CI and deployment
 remain open. No production activation or service action was performed.
+
+## Reviewed main and CI repair integration — 2026-10-24
+
+Fresh main `e763aa1a3` is integrated through `488b23235`, preserving claims
+observation/refresh and project addressing. The [CI repair](verify-ci-bun144.md)
+and [main integration receipt](verify-main-e763.md) received independent Astra
+review. The required claims-helper lifecycle proof was corrected in `99e35340b`;
+watched commit, rollback and close omissions fail their actual claims-path
+oracles. The final BEGIN proof wording correction is `6667d5363`.
+
+The [combined replay receipt](evidence/main-e763-integration-6667.json) records
+**130 tests, 575 assertions, zero failures**, all **12 configured infrastructure
+lint/typecheck/build tasks** uncached, and **283 OpenSpec items passing**, with
+Bun 1.4.4. The actual CI peer-client failure and full-suite cleanup timeout
+remain unreproduced. The canonical exact-SHA host gate, green CI, complete
+participant restoration/handoff, compatible controllers and deployment remain
+open. This replay performed no production activation or service action.
