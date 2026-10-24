@@ -14,10 +14,10 @@ import { inMemoryEstimates, memoryEstimateTable } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
 import { inMemoryMeasureEstimates, memoryMeasureEstimateTable } from './measure-estimate-fixture';
 import { inMemoryMeasures, memoryMeasureTable } from './measure-fixture';
-import { inMemoryWorkItems } from './memory-work-item-fixture';
+import { inMemoryWorkItems, memoryWorkItemTables } from './memory-work-item-fixture';
 import { inMemoryPriorityBands } from './priority-band-fixture';
 import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
-import { inMemoryProjects } from './project-fixture';
+import { inMemoryProjects, memoryProjectTables } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
 import { inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
 import { inMemoryStepBlockages } from './step-blockage-fixture';
@@ -42,7 +42,8 @@ export function inMemoryStores(): TransactionalStores {
     (projectId): Promise<readonly { id: string }[]> => workItems.listByProject(projectId),
     directoryTables,
   );
-  const workItems = inMemoryWorkItems(directory);
+  const workItemTables = memoryWorkItemTables();
+  const workItems = inMemoryWorkItems(directory, workItemTables);
   const estimateTable = memoryEstimateTable();
   const parallelTable = memoryStepParallelTable();
   // Proof: a separate parallel table let legacy fixture removal erase the step; both cascade tests failed, 2026-10-17.
@@ -67,7 +68,8 @@ export function inMemoryStores(): TransactionalStores {
   const progressTable = memoryProgressTable();
   const progress = inMemoryProgress(workItems, progressTable, steps);
   const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
-  const projects = inMemoryProjects(users);
+  const projectTables = memoryProjectTables();
+  const projects = inMemoryProjects(users, projectTables);
   const dependencies = inMemoryDependencies([], undefined, workItems);
   const demands = inMemoryDemands(directoryTables.resources, workItems);
   return {
@@ -89,6 +91,7 @@ export function inMemoryStores(): TransactionalStores {
       memoryClaimTable(),
       claimIdentityOf(directory),
       (resourceId) => directoryTables.resources.resources.has(resourceId),
+      { projects: projectTables, workItems: workItemTables, people: directoryTables.people },
     ),
     blockages: inMemoryStepBlockages(workItems, {
       async findById(stepId) {

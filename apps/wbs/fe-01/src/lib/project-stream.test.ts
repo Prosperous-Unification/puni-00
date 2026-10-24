@@ -830,3 +830,58 @@ it('does not report connected when its recovery callback unsubscribes', () => {
   );
   expect(connections).toEqual([]);
 });
+
+describe('subscribeToProject — transient claims announcements (C21)', () => {
+  function delivering(listensForClaims = true) {
+    const h = harness();
+    const delivered: unknown[][] = [];
+    let claims = 0;
+    subscribeToProject(
+      {
+        projectId: PROJECT,
+        sinceSeq: -1,
+        onChange: (...args) => delivered.push(args),
+        ...(listensForClaims
+          ? {
+              onClaims: () => {
+                claims += 1;
+              },
+            }
+          : {}),
+      },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+    const send = (frame: Record<string, unknown>) => {
+      h.latest().handlers.onMessage(JSON.stringify({ subscription: SUBSCRIPTION, ...frame }));
+    };
+    const sendRaw = (raw: string) => {
+      h.latest().handlers.onMessage(raw);
+    };
+    return { delivered, send, sendRaw, claims: () => claims };
+  }
+
+  it('hands a claims announcement to onClaims alone, whatever its sequence', () => {
+    const { delivered, send, claims } = delivering();
+    send({ message: { type: 'claims_changed', projectId: PROJECT } });
+    send({ seq: 40, message: { type: 'claims_changed', projectId: PROJECT } });
+    expect(claims()).toBe(2);
+    expect(delivered).toEqual([]);
+  });
+
+  it('tells a subscriber that did not opt in nothing of a claims announcement', () => {
+    const { delivered, send } = delivering(false);
+    send({ message: { type: 'claims_changed', projectId: PROJECT } });
+    send({ seq: 40, message: { type: 'claims_changed', projectId: PROJECT } });
+    expect(delivered).toEqual([]);
+  });
+
+  it('drops a change whose sequence is not a whole number', () => {
+    const { delivered, send, sendRaw } = delivering();
+    // `1e400` parses to Infinity; neither it nor a fraction may reach `Math.max`.
+    sendRaw(`{"subscription":"${SUBSCRIPTION}","seq":1e400,"message":{"type":"tree_replaced"}}`);
+    send({ seq: 1.5, message: { type: 'tree_replaced' } });
+    send({ message: { type: 'tree_replaced' } });
+    expect(delivered).toEqual([]);
+  });
+});

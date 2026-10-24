@@ -16,6 +16,7 @@ import type {
 import type { OrganizationLimitValues } from '@wbs/domain';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
+import { endMemoryLeases } from './claim-fixture';
 import { credentialKey } from './directory-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import { seedMemoryOrganization } from './measure-definition-fixture';
@@ -199,6 +200,13 @@ export interface MemorySourceFixture {
    * `link-credential-cli.ts` writes on SQLite; no memory port writes it.
    */
   pinCredential(issuer: string, subject: string, personId: string): void;
+  /**
+   * Ends every lease of a person at `at`, as revoking its last machine
+   * credential does on SQLite (`endLeasesOfUncredentialed`); the memory
+   * source holds no machine credentials, so no memory port revokes one.
+   * Answers how many leases it ended.
+   */
+  endLeasesOf(personId: string, at: number): number;
   /**
    * Gives a project an owning organization, the `project_organization` row
    * SQLite holds and no memory port writes, so the limits gauge counts its claims.
@@ -508,6 +516,7 @@ function openMemorySourceWithSeams(
         options.legacy,
       );
     },
+    endLeasesOf: (personId, at) => endMemoryLeases(committed.tables.claims, personId, at),
     ownProjectInOrganization(projectId, organizationId) {
       committed.tables.organizationLimits.projectOrganization.set(projectId, organizationId);
     },

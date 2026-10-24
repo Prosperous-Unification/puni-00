@@ -128,6 +128,15 @@ export type ScenarioControl =
       readonly expectedRival: 'quota-refused' | 'snapshot_busy';
     }
   | {
+      readonly kind: 'lease-revocation';
+      /**
+       * Ends every lease of `personId` at `at` as revoking the person's last
+       * live credential does (`wbs-claim-leases` L8), through the source's own
+       * revocation path; answers how many leases it ended.
+       */
+      endLeasesOf(personId: string, at: number): Promise<number>;
+    }
+  | {
       readonly kind: 'batch-settlement';
       begin(): Promise<void>;
       readonly entered: Promise<void>;

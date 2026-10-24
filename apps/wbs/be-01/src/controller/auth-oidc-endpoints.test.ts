@@ -65,6 +65,7 @@ test('direct OIDC login binds the exact transaction to the provider and emits an
       method: 'GET',
       url: new URL('https://app.test/api/auth/login'),
       headers: new Headers(),
+      signal: new AbortController().signal,
     },
   });
   expect(reply).toEqual({

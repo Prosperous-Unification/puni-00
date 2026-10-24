@@ -28,6 +28,7 @@ import {
   patchProject,
   preflightRequest,
   readProject,
+  readProjectClaims,
   readTimezones,
   recordProjectOpen,
   redoProject,
@@ -191,6 +192,7 @@ const PROJECT_API_OPERATIONS = {
   setTimezone: 'patchApiProjectsById',
   listTimezones: 'getApiTimezones',
   listCalendarMarkers: 'getApiProjectsByIdCalendar-markers',
+  readClaims: 'getApiProjectsByIdClaims',
   createCalendarMarker: 'postApiProjectsByIdCalendar-markers',
   renameCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
   recolorCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
@@ -952,6 +954,21 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return reply.body.markers.map(markerView);
+    };
+  }
+
+  const readClaimsAnswer = answers.readClaims;
+  if (readClaimsAnswer !== undefined) {
+    checked.readClaims = async (projectId) => {
+      const client = clientFromShapes([readProjectClaims], async () => ({
+        kind: 'json',
+        status: 200,
+        body: await readClaimsAnswer(projectId),
+      }));
+      const reply = await client.getApiProjectsByIdClaims({ params: { id: projectId } });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body;
     };
   }
 

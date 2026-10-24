@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { DeliveryReader } from '@shared/delivery';
 import {
   buildOidcVerifier,
   type IssuerFetch,
@@ -30,6 +31,7 @@ import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
+import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
@@ -66,7 +68,7 @@ import {
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
-import type { Connection } from '@wbs/store-sqlite/db';
+import { type Connection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -448,7 +450,14 @@ export class OrganizationHarness {
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),
-        claims: new ClaimRepository(db, OPEN),
+        // The claims read observes committed state on a read-only connection
+        // of its own, as openSqliteSource's public catalogs do. This copy of the
+        // binding has no negative of its own: no harness test opens a batch
+        // beside a read. The source's binding is proven in
+        // claim-observation.db.test.ts.
+        claims: new ClaimRepository(db, OPEN, {
+          openConnection: () => openReadOnlyConnection(path),
+        }),
         demands: new DemandRepository(db, OPEN),
         resourceCapacity: new ResourceCapacityRepository(db, OPEN),
         stepParallels: new StepParallelRepository(db, OPEN),
@@ -595,6 +604,8 @@ export class OrganizationHarness {
    */
   static openComposedWith({
     withOptimizer = false,
+    delivery,
+    deliveryLimits,
     afterResolve,
     spawn = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
@@ -690,6 +701,8 @@ export class OrganizationHarness {
       () => services.clock.now(),
     );
     const app = buildApp({
+      ...(delivery === undefined ? {} : { delivery }),
+      ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
       appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,
@@ -997,6 +1010,10 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  /** Trusted external delivery reader; absent exercises production composition. */
+  readonly delivery?: DeliveryReader;
+  /** Delivery gate limits; absent uses the production defaults. */
+  readonly deliveryLimits?: DeliveryGateLimits;
   readonly sessionBinding?: boolean;
   /** The services clock's time source; real time unless a test fixes it. */
   readonly now?: () => number;

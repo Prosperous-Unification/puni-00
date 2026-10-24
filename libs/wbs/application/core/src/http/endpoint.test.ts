@@ -189,6 +189,7 @@ describe('a typed endpoint without an HTTP adapter', () => {
           url: new URL('http://probe/probe/echo'),
           method: 'POST',
           headers: new Headers(),
+          signal: new AbortController().signal,
         },
       }),
     ).toEqual({ ok: true, status: 200, body: { echoed: 'hello' } });
@@ -200,7 +201,12 @@ describe('a typed endpoint without an HTTP adapter', () => {
       params: {},
       query: undefined,
       body: undefined,
-      request: { url: new URL('http://probe/'), method: 'POST', headers: new Headers() },
+      request: {
+        url: new URL('http://probe/'),
+        method: 'POST',
+        headers: new Headers(),
+        signal: new AbortController().signal,
+      },
     };
     expect((await opened.handle(input)).body).toBe(EMPTY);
     expect((await opened.handle(input)).body).not.toBeNull();
