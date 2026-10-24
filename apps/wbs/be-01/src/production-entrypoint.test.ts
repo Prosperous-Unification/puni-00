@@ -92,8 +92,9 @@ describe('the production entrypoint', () => {
 
   /**
    * The development server that activates an organization with fixture
-   * secrets (`testing/activated-organization-server.ts`) is a separate file
-   * for the same reason the local solver is.
+   * secrets (`dev/activated-organization-server.ts`) is a separate file for
+   * the same reason the local solver is; `.dockerignore` keeps `src/dev` out
+   * of the image as well.
    *
    * Proof: importing that file from `main.ts` failed this case, listing both
    * markers; watched 2026-10-24.

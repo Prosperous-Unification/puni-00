@@ -12,6 +12,8 @@ import { expect, test } from 'bun:test';
 for (const [label, issuer, refusal] of [
   ['a non-HTTPS', 'http://fixture-issuer.test/', 'AUTH_ISSUER_DISCOVERY_URL must be an https: URL'],
   ['an unparsable', 'fixture-issuer.test', 'AUTH_ISSUER_DISCOVERY_URL is not a URL'],
+  // Parses with the host as its "scheme", which must not be echoed.
+  ['a scheme-less', 'fixture-issuer.test:443', 'AUTH_ISSUER_DISCOVERY_URL must be an https: URL'],
 ] as const) {
   test(`main.ts refuses ${label} OIDC issuer before process boot`, () => {
     const directory = mkdtempSync(join(tmpdir(), 'wbs-oidc-issuer-startup-'));

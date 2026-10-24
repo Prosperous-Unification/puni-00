@@ -76,18 +76,21 @@ Expected:
 
 `bun run dev` cannot serve one: `AUTH_MODE=local` makes every request the fixed `local-dev`
 identity, so an API key never authenticates, and nothing creates or activates an organization.
-`apps/wbs/be-01/src/testing/activated-organization-server.ts` boots be-01's production composition
-over a fresh migrated SQLite file in the temp directory, registers `owner` (password
-`correct-horse`), makes it `super_admin` of `org-local` and activates isolation. It uses test
-fixture secrets and is development only: `main.ts` cannot reach it
-(`production-entrypoint.test.ts`). Stopping it deletes the database.
+`apps/wbs/be-01/src/dev/activated-organization-server.ts` boots be-01's production composition
+over a fresh migrated SQLite file in the temp directory, listening on `127.0.0.1` only, registers
+`owner` (password `correct-horse`), makes it `super_admin` of `org-local` and activates isolation.
+It uses public test fixture secrets, which is why it stays on loopback. It is development
+only: `.dockerignore` keeps `src/dev` out of the image and `main.ts` cannot reach it
+(`production-entrypoint.test.ts`). Stopping it, or a failed start, deletes the database.
 
 ```bash
-bun apps/wbs/be-01/src/testing/activated-organization-server.ts \
+bun apps/wbs/be-01/src/dev/activated-organization-server.ts \
   --port 7300 --gw-url http://localhost:7301 --app-origin http://localhost:7400
 
-# gw-01: the fixture's JWT key and internal secret; the issuer is never fetched for a
-# native session, but it must be an https: URL or gw-01 refuses to start.
+# gw-01: the fixture's JWT key and internal secret. It verifies native sessions on that
+# key, so the issuer is never fetched, but it must be an https: URL or gw-01 refuses to
+# start. gw-01 has no bind option and listens on every interface: anyone who can reach
+# it can forge a session with the public fixture key, so run it only on a trusted network.
 cd apps/wbs/gw-01 && PORT=7301 LOG_LEVEL=info BE_URL=http://localhost:7300 \
   INTERNAL_AUTH_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
   JWT_SIGNING_KEY_CURRENT=test-jwt-signing-key-at-least-32-chars \

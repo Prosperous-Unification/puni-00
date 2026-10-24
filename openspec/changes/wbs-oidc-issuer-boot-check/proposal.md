@@ -20,13 +20,16 @@ entry to get past both.
   value. Both read it through one `@wbs/auth` function, so the browser client
   and the token verifier cannot disagree.
 - A native password session verifies on the JWT key before the OIDC verifier is
-  read, when password sessions are admitted. The OIDC verifier accepts RS256
-  only, so no token changes outcome; only the order of reads does.
-- `apps/wbs/be-01/src/testing/activated-organization-server.ts` boots the
-  production composition over a fresh database with one activated organization
-  and its `super_admin`, for local agents with API keys;
-  `docs/local-dev.md` documents it with gw-01 and fe-01. The production
-  entrypoint cannot reach it.
+  read, when password sessions are admitted, and be-01's per-route credential
+  evidence skips the verifier for a native principal. The OIDC verifier
+  accepts RS256 only, so no token changes outcome; only the order of reads does.
+- A failed discovery is retried after the browser client's cooldown instead of
+  being held until restart.
+- `apps/wbs/be-01/src/dev/activated-organization-server.ts` boots the
+  production composition on loopback over a fresh database with one activated
+  organization and its `super_admin`, for local agents with API keys;
+  `docs/local-dev.md` documents it with gw-01 and fe-01. `src/dev` is kept out
+  of the image and the production entrypoint cannot reach it.
 
 ## Non-goals
 
@@ -37,6 +40,8 @@ entry to get past both.
 - Probing discovery at boot: a provider outage stays a per-request failure and
   must not stop a deploy.
 - F6 of issue #669.
+- Moving `testing/organization-browser-server.ts` (same pattern, ships in the
+  image, binds all interfaces): a follow-up.
 
 ## Constraints
 

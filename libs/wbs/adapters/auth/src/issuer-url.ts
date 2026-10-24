@@ -1,3 +1,6 @@
+/** Schemes a refusal may name without echoing any part of the configured value. */
+const NAMEABLE_SCHEMES = new Set(['http:', 'ws:', 'wss:', 'file:', 'ftp:', 'data:']);
+
 /**
  * `AUTH_ISSUER_DISCOVERY_URL` as the URL discovery will fetch, refused at
  * composition when discovery could never succeed.
@@ -11,7 +14,7 @@
  * still cannot reach discovery.
  *
  * @throws naming the key when it is missing, unparsable, or not `https:`. The
- *   message carries the scheme only, never the configured value.
+ *   message names a well-known scheme at most, never any part of the value.
  */
 export function issuerUrlFromEnv(env: Readonly<Record<string, string | undefined>>): URL {
   const key = 'AUTH_ISSUER_DISCOVERY_URL';
@@ -29,9 +32,16 @@ export function issuerUrlFromEnv(env: Readonly<Record<string, string | undefined
   // composition and failed on the unmigrated database instead, and gw-01's
   // `refuses an issuer discovery could never reach at boot` (config.test.ts)
   // saw loadConfig return; both watched 2026-10-24.
-  if (issuer.protocol !== 'https:')
+  if (issuer.protocol !== 'https:') {
+    // A scheme-less `host:port` parses with the host as its scheme, so only a
+    // known scheme is named.
+    // Proof: naming `issuer.protocol` unconditionally made `main.ts refuses a
+    // scheme-less OIDC issuer` (oidc-issuer-startup.test.ts) find the host in
+    // the output; watched 2026-10-24.
+    const named = NAMEABLE_SCHEMES.has(issuer.protocol) ? `, not ${issuer.protocol}` : '';
     throw new Error(
-      `${key} must be an https: URL, not ${issuer.protocol}; OIDC discovery refuses any other scheme`,
+      `${key} must be an https: URL${named}; OIDC discovery refuses any other scheme`,
     );
+  }
   return issuer;
 }
