@@ -108,6 +108,14 @@ const appliedResults = type({
     'assignedStepIds?': 'string[]',
     // The units its claim newly acquired (`wbs-resources` R3, R4): past a leaf's first claim, what its ask adds.
     'acquired?': type({ resourceId: 'string', units: 'number' }).array(),
+    // An `assignSubtree` result: each leaf step it reassigned while another person held a
+    // step claim on it (issue #669 F6), with the assignee before and the distinct holders.
+    'reassignedClaimedSteps?': type({
+      workItemId: 'string',
+      stepId: 'string',
+      previousPersonId: 'string | null',
+      holderPersonIds: 'string[]',
+    }).array(),
   }).array(),
 });
 const claimHolder = type({

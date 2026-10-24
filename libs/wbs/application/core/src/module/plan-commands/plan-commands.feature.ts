@@ -98,9 +98,21 @@ export type MintedBase = AppliedBase & { id: string };
 /** Internal kind identifies the producer's exact entity contract; controllers erase it from the unchanged wire. */
 export type AppliedCommand =
   | (AppliedBase & {
-      kind: Exclude<PlainKind, MintedKind | 'claimWorkItem'>;
+      kind: Exclude<PlainKind, MintedKind | 'claimWorkItem' | 'assignSubtree'>;
       entity?: never;
       alreadyHeld?: never;
+    })
+  /** A subtree assignment names the step claims it took from their holders (issue #669 F6). */
+  | (AppliedBase & {
+      kind: 'assignSubtree';
+      entity?: never;
+      alreadyHeld?: never;
+      reassignedClaimedSteps: {
+        workItemId: string;
+        stepId: string;
+        previousPersonId: string | null;
+        holderPersonIds: string[];
+      }[];
     })
   /** A claim says whether it wrote nothing and which claims hold the steps. */
   | (AppliedBase & {

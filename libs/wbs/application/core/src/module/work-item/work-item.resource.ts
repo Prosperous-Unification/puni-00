@@ -245,9 +245,11 @@ import {
   type ClaimInput,
   type ClaimRefusalOutcome,
   claimsAround,
+  findReassignedClaimedSteps,
   isClaimAdmin,
   lineageOf,
   type NamedClaimHolder,
+  type ReassignedClaimedStep,
   refusalOf,
   type ReleaseInput,
 } from './claims';
@@ -3489,8 +3491,12 @@ export class WorkItemService {
    * is a leaf — journalled as one entry whose undo puts back exactly the
    * assignee each leaf had, `null` where it had none (`wbs-resources` R7).
    *
-   * Like {@link assign} it reads neither team labels nor claims: labelling is
-   * not assigning (Dany, 2026-08-06), and a claim is beside an assignment (D1).
+   * Like {@link assign} it never reads team labels (labelling is not
+   * assigning, Dany, 2026-08-06) and no claim refuses it, because a claim is
+   * beside an assignment (D1). It does report the step claims it reassigns
+   * away from their holders, {@link findReassignedClaimedSteps}, so a swarm
+   * coordinator can tell (issue #669 F6). A fixture built without a claim
+   * store holds no claims to report.
    * `unknown_step` answers before any write; `unknown_person` comes from the
    * first write, inside its transaction, so nothing is written when it fires.
    */
@@ -3499,7 +3505,7 @@ export class WorkItemService {
     actorId: string,
     stepId: string,
     personId: string | null,
-  ): Promise<WorkItemOutcome<null>> {
+  ): Promise<WorkItemOutcome<{ reassignedClaimedSteps: ReassignedClaimedStep[] }>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3558,7 +3564,22 @@ export class WorkItemService {
         before: rows,
       },
     );
-    return { ok: true, value: null };
+    const claims =
+      this.opts.claims === undefined
+        ? []
+        : await this.opts.claims.listByProject(workItem.projectId);
+    return {
+      ok: true,
+      value: {
+        reassignedClaimedSteps: findReassignedClaimedSteps({
+          leafIds,
+          stepId,
+          personId,
+          previous,
+          claims,
+        }),
+      },
+    };
   }
 
   /**

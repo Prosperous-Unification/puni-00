@@ -56,8 +56,8 @@ const STORES: readonly {
 /**
  * Root `P` over leaves `A`, `B`, `C` and non-leaf `D` over leaves `D1`, `D2`:
  * five leaves, the spec's "parent with five leaves". `P` is labelled with a
- * team none of the people belong to, and `B`'s Review is claimed by `claire`,
- * so a command that read either would show it.
+ * team none of the people belong to, so a command that read it would show it,
+ * and `B`'s Review, unassigned, is claimed by `claire`.
  */
 async function seeded(store: (typeof STORES)[number]) {
   const { source, isMemory, dispose } = store.open();
@@ -215,8 +215,8 @@ for (const store of STORES) {
           ]),
         ).toMatchObject({ ok: true, results: [{ index: 0, kind: 'assignSubtree' }] });
         expect(await entries()).toBe(before + 1);
-        // The team label on P and claire's claim on B's Review change nothing:
-        // neither is read. Parents P and D get no assignment of their own.
+        // Neither the team label on P nor claire's claim on B's Review refuses or
+        // skips a leaf. Parents P and D get no assignment of their own.
         expect(await assignments()).toEqual([
           'A:review:kat',
           'B:review:kat',
@@ -229,6 +229,85 @@ for (const store of STORES) {
         expect(await assignments()).toEqual(BEFORE);
         expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
         expect(await assignments()).toHaveLength(6);
+      } finally {
+        await close();
+      }
+    });
+
+    it('lists the claimed step it took from its holder, and undo leaves the claim', async () => {
+      const { graph, runner, projectId, review, idOf, assignments, close } = await seeded(store);
+      try {
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'kat' },
+          ]),
+        ).toMatchObject({
+          ok: true,
+          results: [
+            {
+              kind: 'assignSubtree',
+              reassignedClaimedSteps: [
+                {
+                  workItemId: idOf('B'),
+                  stepId: review,
+                  previousPersonId: null,
+                  holderPersonIds: ['claire'],
+                },
+              ],
+            },
+          ],
+        });
+        expect(await assignments()).toContain('B:review:kat');
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await assignments()).toEqual(BEFORE);
+        expect(
+          await graph.workItems.personWorkWithin(projectId, { kind: 'legacy' }, 'claire'),
+        ).toMatchObject({ assignments: [], claims: [{ workItemId: idOf('B'), stepId: review }] });
+      } finally {
+        await close();
+      }
+    });
+
+    it('lists no step assigned to its own holder, nor one whose assignee did not change', async () => {
+      const { runner, projectId, review, idOf, close } = await seeded(store);
+      try {
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'claire' },
+          ]),
+        ).toMatchObject({ ok: true, results: [{ reassignedClaimedSteps: [] }] });
+        // claire is now B's assignee and holder; giving B to her again changes nothing.
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'assignSubtree', workItemId: idOf('B'), stepId: review, personId: 'claire' },
+          ]),
+        ).toMatchObject({ ok: true, results: [{ reassignedClaimedSteps: [] }] });
+        // Taken from her, the entry names her as the assignee before.
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'assignSubtree', workItemId: idOf('B'), stepId: review, personId: null },
+          ]),
+        ).toMatchObject({
+          ok: true,
+          results: [
+            {
+              reassignedClaimedSteps: [
+                {
+                  workItemId: idOf('B'),
+                  stepId: review,
+                  previousPersonId: 'claire',
+                  holderPersonIds: ['claire'],
+                },
+              ],
+            },
+          ],
+        });
+        // Cleared again, the step held by claire has the same assignee as before: not listed.
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'assignSubtree', workItemId: idOf('B'), stepId: review, personId: null },
+          ]),
+        ).toMatchObject({ ok: true, results: [{ reassignedClaimedSteps: [] }] });
       } finally {
         await close();
       }
@@ -298,7 +377,16 @@ for (const store of STORES) {
         });
         expect(await graph.workItems.assignSubtree(idOf('P'), F, review, 'kat')).toEqual({
           ok: true,
-          value: null,
+          value: {
+            reassignedClaimedSteps: [
+              {
+                workItemId: idOf('B'),
+                stepId: review,
+                previousPersonId: null,
+                holderPersonIds: ['claire'],
+              },
+            ],
+          },
         });
         expect(await entries()).toBe(before + 1);
       } finally {

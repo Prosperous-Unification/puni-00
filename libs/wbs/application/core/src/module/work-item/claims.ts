@@ -154,6 +154,47 @@ export function lineageOf(
   };
 }
 
+/**
+ * One leaf step `assignSubtree` gave a new assignee while a step claim on it is
+ * held by someone else (issue #669 F6): reported, never refused.
+ */
+export interface ReassignedClaimedStep {
+  readonly workItemId: string;
+  readonly stepId: string;
+  /** The assignee before the command, or null where the step had none. */
+  readonly previousPersonId: string | null;
+  /** The distinct holders of claims on the step, sorted. */
+  readonly holderPersonIds: readonly string[];
+}
+
+/**
+ * The leaves among `leafIds`, in that order, whose `stepId` assignee changed
+ * from `previous` to `personId` while a step claim on it is held by a person
+ * other than `personId`. A subtree claim holds no step, so it never counts.
+ */
+export function findReassignedClaimedSteps(input: {
+  readonly leafIds: readonly string[];
+  readonly stepId: string;
+  readonly personId: string | null;
+  readonly previous: ReadonlyMap<string, string>;
+  readonly claims: readonly Claim[];
+}): ReassignedClaimedStep[] {
+  const { stepId, personId } = input;
+  return input.leafIds.flatMap((workItemId) => {
+    const previousPersonId = input.previous.get(workItemId) ?? null;
+    if (previousPersonId === personId) return [];
+    const holderPersonIds = [
+      ...new Set(
+        input.claims
+          .filter((each) => each.workItemId === workItemId && each.stepId === stepId)
+          .map((each) => each.personId),
+      ),
+    ].toSorted();
+    if (holderPersonIds.every((holder) => holder === personId)) return [];
+    return [{ workItemId, stepId, previousPersonId, holderPersonIds }];
+  });
+}
+
 /** The claims a decision reads: on the item, its ancestors and its descendants. */
 export function claimsAround(
   claims: readonly Claim[],

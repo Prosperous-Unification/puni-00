@@ -281,7 +281,7 @@ export const commandDefinitions = {
     }),
     scope: 'project',
     description:
-      'Name who does one step on every leaf under a work item (the item itself when it is a leaf), or null to unassign them all. One undo restores each leaf’s previous assignee. Team labels and claims are not read. Refused unknown_step and unknown_person as for setAssignee.',
+      'Name who does one step on every leaf under a work item (the item itself when it is a leaf), or null to unassign them all. One undo restores each leaf’s previous assignee. Team labels are not read and no claim refuses it; the result lists reassignedClaimedSteps, each leaf step whose assignee changed while another person holds a claim on it: workItemId, stepId, previousPersonId (null when unassigned) and holderPersonIds. A step given to its own holder is not listed. Refused unknown_step and unknown_person as for setAssignee.',
   }),
   claimWorkItem: defineCommand('claimWorkItem', {
     schema: type({

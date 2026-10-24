@@ -20,6 +20,31 @@ test('command replies reserve every known entity field across untagged variants'
   ).toBeUndefined();
 });
 
+test('assignSubtree replies declare each claimed step they reassigned', async () => {
+  const reassigned = {
+    workItemId: 'b',
+    stepId: 'review',
+    previousPersonId: null,
+    holderPersonIds: ['claire'],
+  };
+  expect(
+    (
+      await validateSchema(commandResults, {
+        results: [{ index: 0, reassignedClaimedSteps: [reassigned] }],
+      })
+    ).issues,
+  ).toBeUndefined();
+  const { holderPersonIds: _dropped, ...withoutHolders } = reassigned;
+  for (const malformed of [withoutHolders, { ...reassigned, previousPersonId: 1 }])
+    expect(
+      (
+        await validateSchema(commandResults, {
+          results: [{ index: 0, reassignedClaimedSteps: [malformed] }],
+        })
+      ).issues,
+    ).toBeDefined();
+});
+
 test('parser vocabulary is closed and preserves recognized command context', async () => {
   expect(
     (
