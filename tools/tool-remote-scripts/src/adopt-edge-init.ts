@@ -23,7 +23,40 @@ export function describeInitRefusal(cause: unknown): SafeInitSummary | { stage: 
   if (cause instanceof InitObservationRefusal) {
     // Proof: returning the whole summary exposed an extra private cause in the CLI projection negative.
     const { attempt, stage, packetSha256, receiptDirectory, receiptSha256 } = cause.summary;
-    return { attempt, stage, packetSha256, receiptDirectory, receiptSha256 };
+    const recovery = cause.summary.recovery;
+    // Proof: returning the nested recovery object exposed its private extra fields in the CLI recovery projection negative.
+    return {
+      attempt,
+      stage,
+      packetSha256,
+      receiptDirectory,
+      receiptSha256,
+      ...(recovery === undefined
+        ? {}
+        : {
+            recovery: {
+              scope: recovery.scope,
+              window: recovery.window,
+              targets: recovery.targets.map(
+                ({
+                  target,
+                  class: classification,
+                  original,
+                  candidate,
+                  health,
+                  probeApplicability,
+                }) => ({
+                  target,
+                  class: classification,
+                  original,
+                  candidate,
+                  health,
+                  probeApplicability,
+                }),
+              ),
+            },
+          }),
+    };
   }
   const stage =
     cause instanceof InitRefusal
