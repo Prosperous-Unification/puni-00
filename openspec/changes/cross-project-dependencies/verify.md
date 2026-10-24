@@ -7391,3 +7391,31 @@ Hosted browser acceptance of this repair, earlier CI peer/cleanup incidents,
 the final exact-SHA host gate, participant restoration/handoff, compatible
 controllers and deployment remain open. No production activation or service
 action occurred in this replay.
+
+## Reviewed Init observer and factory integration — 2026-10-24
+
+[The exact checkpoint receipt](evidence/init-production-integration-42df.json)
+records the approved core/observer/private diagnostic source, independent factory
+harness, and bounded assertion diagnostics integrated at `42df3e874`.
+The complete unprivileged factory replay passed **189 tests, 1,595 assertions**
+in 918.97 seconds with the scratch preload and unchanged deadlines. The earlier
+`cae04f788` run remains recorded as 187 passed / 1 failed: its first prepare
+returned code 2, and the old assertion lost the parsed refusal. Twenty-five
+bounded targeted observations passed during investigation; no source cause was
+established or admission/deadline change made to waive that failure.
+
+Integrated component coverage at `469578524` passed 365 tests / 1,612 assertions
+across five actual files in two invocations (286 + 79 tests). Uncached configured
+lint, typecheck and build passed all 13 tasks. OpenSpec validation passed all
+285 artifacts at `42df3e874`. The final replay adds the independently reviewed
+bounded failure-context test; production and factory worker sources retain their
+approved bytes.
+
+The separately executed owned native fixture still refused before its intended
+route-loss injection: the private diagnostic identified `network-pin-differs`
+after only candidate creation. Independent cleanup checks found zero owned
+containers, networks and volumes. Runtime network Status currently enters the
+immutable hash; its exact lifecycle delta still needs controlled evidence and
+reviewed correction. This replay does not complete native acceptance,
+participant restoration, exposure/handoff, compatible ordinary controllers,
+final exact-SHA host gating, final CI, activation or deployment.

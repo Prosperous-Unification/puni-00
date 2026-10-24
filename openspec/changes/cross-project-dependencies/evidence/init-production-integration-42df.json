@@ -1,0 +1,98 @@
+{
+  "checkpoint": "42df3e8740564e7b921e449cb337b4dd2053427d",
+  "reviewedSources": {
+    "initCoreObserverAndPrivateDiagnostic": "7ffd96d7a1d906551f47f3feb51e92ca646eb273",
+    "factoryHarness": "362da3f71b5e4656110d2bf73e12232f23a662fd",
+    "boundedFactoryFailureContext": "06510bd0e6ca063266fba9717bedb9b3d9983199"
+  },
+  "runtime": {
+    "bun": "1.4.4",
+    "sha256": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235"
+  },
+  "files": {
+    "tools/tool-remote-scripts/src/lib/edge-init.ts": "db846775ef0057c429345e618caf3d2a8acbef0e3de80b47441dcfbcc3ff2e40",
+    "tools/tool-remote-scripts/src/lib/edge-init-operation.ts": "27931d8d548f60a40bef60cf8b9e598853ff7d593bac301f2b66cfa3775363dc",
+    "tools/tool-remote-scripts/src/lib/edge-init-observer.ts": "c01cc8a300ce632b4fdbd13a22d754047bc71623a88076f6c6cf971ae8134352",
+    "tools/tool-remote-scripts/src/fixtures/edge-init-factory.ts": "fde62e1535886e401a5b70677fad44adf7ec814312cac2f63858ef4f680d560a",
+    "tools/tool-remote-scripts/src/lib/edge-init-factory.test.ts": "5e6275b1adcc79227ba1377da22922b97c550c6fc10503bca6cace4a8aaf94b8",
+    "tools/tool-remote-scripts/test/edge-init.ts": "63ccb7b152e1226f4029688cda4fd520dbffe1f1d9fba67d86888a992a85b820"
+  },
+  "checks": [
+    {
+      "name": "integrated Init component tests",
+      "checkpoint": "469578524ccf801630cde2b5d59c706f9a67c3a5",
+      "passed": 365,
+      "failed": 0,
+      "assertions": 1612,
+      "files": 5,
+      "runs": [
+        {
+          "passed": 286,
+          "assertions": 1412,
+          "files": 4,
+          "seconds": 6.77
+        },
+        {
+          "passed": 79,
+          "assertions": 200,
+          "files": 1,
+          "seconds": 0.344
+        }
+      ]
+    },
+    {
+      "name": "configured uncached lint typecheck build",
+      "checkpoint": "469578524ccf801630cde2b5d59c706f9a67c3a5",
+      "tasks": 13,
+      "seconds": 19,
+      "status": "passed"
+    },
+    {
+      "name": "OpenSpec all",
+      "passed": 285,
+      "failed": 0
+    },
+    {
+      "name": "initial integrated full factory",
+      "checkpoint": "cae04f7886f36e7d011795db4520180994bbc275",
+      "passed": 187,
+      "failed": 1,
+      "assertions": 1578,
+      "seconds": 908.09,
+      "failure": "first ordinary prepare returned code2; parsed refusal was lost by the old assertion",
+      "rootCause": "unresolved"
+    },
+    {
+      "name": "bounded first-prepare investigation",
+      "passed": 25,
+      "failed": 0,
+      "scope": "targeted observations across idle/direct/parent/preload/concurrent build arrangements; no full-suite verdict or demonstrated source cause"
+    },
+    {
+      "name": "full factory replay with bounded failure context",
+      "status": "passed",
+      "expectedCases": 189,
+      "passed": 189,
+      "failed": 0,
+      "assertions": 1595,
+      "seconds": 918.97
+    }
+  ],
+  "limits": [
+    "Earlier failed factory run is retained; targeted passes do not waive it.",
+    "This checkpoint does not include the unfinished participant restoration observer/orchestrator, exposure handoff or compatible ordinary controllers.",
+    "Native fixture acceptance, final exact-SHA host gate, final all-green CI and live activation/deployment remain outstanding."
+  ],
+  "nativeFixture": {
+    "status": "failed",
+    "observedReason": "network-pin-differs",
+    "faultInjected": false,
+    "effects": ["create:registry"],
+    "cleanup": {
+      "containers": 0,
+      "networks": 0,
+      "volumes": 0
+    },
+    "limits": "The fixed diagnostic identified an observation boundary; no intended route-loss injection or native acceptance is established."
+  }
+}
