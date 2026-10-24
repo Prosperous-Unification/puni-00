@@ -78,6 +78,26 @@ class Host:
         with open(path,'rb',buffering=0) as stream: content=stream.read(limit+1)
         require(len(content)<=limit,'collector read bound exceeded')
         return content
+    def open_executable(self,path):
+        self.check(); return os.open(path,os.O_RDONLY|os.O_NONBLOCK)
+    def read_executable(self,pid,original):
+        # Proof: an invalid PID cannot select an arbitrary path before the fixed proc-executable open.
+        require(type(pid)==int and pid>0,'process identity malformed')
+        path='/proc/'+str(pid)+'/exe';limit=128*1024*1024
+        descriptor=self.open_executable(path)
+        try:
+            opened=os.fstat(descriptor)
+            # Proof: isolated precheck, regular-mode and size omissions each read a refused real FD before the final check.
+            require(stat.S_ISREG(opened.st_mode) and opened.st_size<=limit and metadata_key(opened)==metadata_key(original),'process executable opened identity changed')
+            chunks=[];count=0
+            while True:
+                self.check();chunk=os.read(descriptor,min(65536,limit+1-count))
+                if not chunk:break
+                count+=len(chunk);require(count<=limit,'collector read bound exceeded');chunks.append(chunk)
+            # Proof: removing only this final descriptor check accepted a real dup2 A-to-B swap after the precheck.
+            require(metadata_key(original)==metadata_key(os.fstat(descriptor))==metadata_key(self.metadata(path)),'process executable changed during read')
+            return b''.join(chunks)
+        finally:os.close(descriptor)
     def metadata(self,path,follow=True):
         self.check(); return os.stat(path,follow_symlinks=follow)
     def link(self,path):
@@ -351,7 +371,8 @@ def capture_internal_process(host,pid):
     status=host.read(base+'/status',1024*1024).decode();uids=[line.split()[1:] for line in status.splitlines() if line.startswith('Uid:')]
     require(len(uids)==1 and len(uids[0])==4,'internal uid malformed')
     metadata=host.metadata(base+'/exe');path=host.link(base+'/exe');cwd=host.link(base+'/cwd')
-    executable={'device':str(metadata.st_dev),'inode':str(metadata.st_ino),'sha256':digest(host.read(base+'/exe',128*1024*1024))}
+    # Proof: replacing this call with the prior unchecked read accepted B in internal capture.
+    executable={'device':str(metadata.st_dev),'inode':str(metadata.st_ino),'sha256':digest(host.read_executable(pid,metadata))}
     with open(base+'/stat','rb') as stream:content=stream.read(1024*1024)
     fields=content[content.rfind(b') ')+2:].split();require(len(fields)>=20,'internal parent malformed')
     require(process_start(host,pid)[0]==start and parse_cgroup(host.read(base+'/cgroup',1024*1024))==group and host.read(base+'/cmdline',1024*1024)==command and identity(host.metadata(base+'/exe'))==identity(metadata),'internal process changed during capture')
@@ -384,13 +405,14 @@ def observe_process(host,pid,families,known_paths,coordinator):
             else:
                 executable_path=host.link(base+'/exe'); cwd=host.link(base+'/cwd')
                 require(cwd.startswith('/'),'process cwd malformed')
-                metadata=host.metadata(base+'/exe')
-                executable={'device':str(metadata.st_dev),'inode':str(metadata.st_ino),'sha256':None}
+                executable_metadata=host.metadata(base+'/exe')
+                executable={'device':str(executable_metadata.st_dev),'inode':str(executable_metadata.st_ino),'sha256':None}
             relevant=relevant_executor(argv,cwd,executable_path,known_paths)
             exact=pid==coordinator['pid'] and start==coordinator['startTime'] and cgroup==coordinator['cgroup']
             if relevant or pid in getattr(host,'internal_processes',{}):
                 require(executable is not None,'relevant executor missing executable')
-                executable['sha256']=digest(host.read(base+'/exe',128*1024*1024))
+                # Proof: replacing this call with the prior unchecked read accepted B in relevant observation.
+                executable['sha256']=digest(host.read_executable(pid,executable_metadata))
             current={'pid':pid,'startTime':start,'uid':uid,'cgroup':cgroup,'executable':executable,'argvSha256':digest(command),'cwd':cwd}
             # Proof: internal-full-identity weakening admitted native transport argv identity drift.
             internal=getattr(host,'internal_processes',{}).get(pid)==current
@@ -432,7 +454,8 @@ def observe_process(host,pid,families,known_paths,coordinator):
                 else: raise Refusal('process descriptor census did not converge')
             require(not special or not descriptors,'special process retains descriptors')
             if openers and executable is not None and executable['sha256'] is None:
-                executable['sha256']=digest(host.read(base+'/exe',128*1024*1024))
+                # Proof: replacing this call with the prior unchecked read accepted B in late opener observation.
+                executable['sha256']=digest(host.read_executable(pid,executable_metadata))
             again=process_start(host,pid)
             if again[0]!=start:
                 continue

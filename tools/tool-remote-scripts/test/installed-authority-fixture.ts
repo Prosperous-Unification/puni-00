@@ -1,7 +1,29 @@
 import { AUTHORITY_COLLECTOR } from '../src/lib/installed-authority-collector';
 import { readAuthorityCollector } from '../src/lib/installed-authority-transport';
 
-export const AUTHORITY_FIXTURE_PROGRAM = String.raw`
+export const VIRTUAL_EXECUTABLE_FIXTURE = String.raw`
+class VirtualExecutable:
+    def fixture_executable(self,path):
+        pid=int(path.split('/')[2])
+        descriptors=self.__dict__.setdefault('fixture_executable_descriptors',{})
+        if pid not in descriptors:
+            solver_path=globals().get('FIXTURE_SOLVER_PATH') if pid==42 else None
+            if solver_path is not None:descriptor=os.open(solver_path,os.O_RDONLY)
+            else:
+                descriptor=os.memfd_create('fixture-executable')
+                content=b'fixture bun' if pid==42 else b'executable'
+                os.write(descriptor,content)
+            descriptors[pid]=descriptor
+        return descriptors[pid]
+    def open_executable(self,path):
+        return os.open('/proc/self/fd/'+str(self.fixture_executable(path)),os.O_RDONLY)
+    def read_executable(self,pid,original):
+        return Host.read_executable(self,pid,original)
+`;
+
+export const AUTHORITY_FIXTURE_PROGRAM =
+  VIRTUAL_EXECUTABLE_FIXTURE +
+  String.raw`
 from types import SimpleNamespace
 class Launch:
     def __init__(self): self.fault=''; self.reads=[]; self.calls=[]; self.listings=0
@@ -35,7 +57,7 @@ class Launch:
             if self.fault in ['duplicate','transient'] and argv[-1]=='ExecStart': entries=[['/bin/sh',['/bin/sh','-c','/home/puni1/wbs/bin/swap.js'],False,0,0,0,0,0,0,0]]
             return 0,encode({'type':'a(sasbttttuii)','data':entries}),b''
         raise AssertionError(argv)
-class Complete(Launch):
+class Complete(VirtualExecutable,Launch):
     def __init__(self): super().__init__(); self.fd_count=0; self.children=[]; self.internal_processes={}
     def check(self): pass
     def resolve(self,path): return path
@@ -56,7 +78,7 @@ class Complete(Launch):
         raise AssertionError(path)
     def metadata(self,path,follow=True):
         solver=REQUEST.get('solver')
-        if solver is not None and path=='/proc/'+str(solver['pid'])+'/exe':return SimpleNamespace(st_dev=int(solver['executable']['device']),st_ino=int(solver['executable']['inode']))
+        if path.startswith('/proc/') and path.endswith('/exe'):return os.fstat(self.fixture_executable(path))
         if path.endswith(('-wal','-shm','-journal')): raise FileNotFoundError()
         inode=20 if '/wbs-dev/' in path else 10
         return SimpleNamespace(st_mode=stat.S_IFDIR if path.endswith('/data') else stat.S_IFREG,st_dev=7,st_ino=inode,st_size=3,st_mtime_ns=4,st_ctime_ns=5)
@@ -76,14 +98,20 @@ os.geteuid=lambda:0
 pwd.getpwnam=lambda name:SimpleNamespace(pw_uid=1000)
 `;
 
-export async function collectFixture(request: unknown, deadline: number): Promise<string> {
+export async function collectFixture(
+  request: unknown,
+  deadline: number,
+  solverExecutablePath?: string,
+): Promise<string> {
   const program =
     AUTHORITY_COLLECTOR +
     '\n' +
     AUTHORITY_FIXTURE_PROGRAM +
     '\nREQUEST=json.loads(' +
     JSON.stringify(JSON.stringify(request)) +
-    ')\nprint(encode(collect(REQUEST,Complete())).decode())\n';
+    ')\nFIXTURE_SOLVER_PATH=' +
+    (solverExecutablePath === undefined ? 'None' : JSON.stringify(solverExecutablePath)) +
+    '\nprint(encode(collect(REQUEST,Complete())).decode())\n';
   const child = Bun.spawn(['/usr/bin/python3', '-I', '-'], {
     stdin: new TextEncoder().encode(program),
     stdout: 'pipe',
