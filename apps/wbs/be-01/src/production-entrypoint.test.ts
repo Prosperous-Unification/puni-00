@@ -113,23 +113,35 @@ describe('the production entrypoint', () => {
   });
 
   /**
-   * `.dockerignore` keeps `src/testing` out of the image, which holds only
-   * while nothing the image runs imports it: `main.ts`, the `src/*-cli.ts`
-   * commands the runbooks `docker exec`, and the solver client
-   * `solver-image-smoke.sh` runs inside the image. Each bundle carries a
-   * `// <path>` comment per module, so a reached fixture is named.
+   * `.dockerignore` keeps `src/testing` and `src/dev` out of the image, which
+   * holds only while nothing the image runs imports them: `main.ts`, the
+   * `src/*-cli.ts` commands the runbooks `docker exec`, and the
+   * `scripts/solver-supervisor-*-client.ts` clients that `solver-image-smoke.sh`
+   * and `optimization-orphan.proc.db.test.ts` run inside the image. Each bundle
+   * carries a `// <path>` comment per module, so a reached module is named.
    *
    * Proof: importing `testing/auth-fixture` from `main.ts` failed this case,
    * naming `apps/wbs/be-01/src/main.js`; watched 2026-10-25.
+   * Proof: importing `../src/testing/auth-fixture` from
+   * `solver-supervisor-orphan-client.ts`, which the earlier fixed list missed,
+   * failed it naming that client; watched 2026-10-25.
+   * Proof: importing `./dev/local-solver-spawner` from `main.ts` failed it
+   * naming `apps/wbs/be-01/src/main.js`; watched 2026-10-25.
    */
-  it('runs nothing from src/testing, which the image leaves out', () => {
+  it('runs nothing from src/testing or src/dev, which the image leaves out', () => {
     const appRoot = 'apps/wbs/be-01';
+    const solverClients = readdirSync(join(REPO_ROOT, appRoot, 'scripts'))
+      .filter((name) => /^solver-supervisor-.+-client\.ts$/.test(name))
+      .map((name) => `${appRoot}/scripts/${name}`);
+    // The image and orphan clients both run in the image; a renamed pattern
+    // that matched neither would quietly drop them from the guard.
+    expect(solverClients.length).toBeGreaterThanOrEqual(2);
     const entrypoints = [
       `${appRoot}/src/main.ts`,
       ...readdirSync(join(REPO_ROOT, appRoot, 'src'))
         .filter((name) => name.endsWith('-cli.ts'))
         .map((name) => `${appRoot}/src/${name}`),
-      `${appRoot}/scripts/solver-supervisor-image-client.ts`,
+      ...solverClients,
     ];
     const outdir = mkdtempSync(join(tmpdir(), 'wbs-production-graph-'));
     try {
@@ -147,10 +159,12 @@ describe('the production entrypoint', () => {
       );
       // An empty output directory would make the list below pass.
       expect(bundles).toHaveLength(entrypoints.length);
+      const excluded = [`// ${appRoot}/src/testing/`, `// ${appRoot}/src/dev/`];
       expect(
-        bundles.filter((name) =>
-          readFileSync(join(outdir, name), 'utf8').includes(`// ${appRoot}/src/testing/`),
-        ),
+        bundles.filter((name) => {
+          const bundle = readFileSync(join(outdir, name), 'utf8');
+          return excluded.some((marker) => bundle.includes(marker));
+        }),
       ).toEqual([]);
     } finally {
       rmSync(outdir, { recursive: true, force: true });

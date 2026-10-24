@@ -55,7 +55,7 @@ const server = Bun.serve({
   },
 });
 console.log(
-  `organization fixture: enabled authority; activated disposable SQLite; http://${HOSTNAME}:${String(server.port)}`,
+  `organization fixture: enabled authority; activated disposable SQLite; http://${String(server.hostname)}:${String(server.port)}`,
 );
 async function stop() {
   await server.stop(true);

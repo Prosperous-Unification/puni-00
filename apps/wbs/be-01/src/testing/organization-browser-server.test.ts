@@ -45,19 +45,21 @@ it('serves the organization fixture on loopback only', async () => {
   });
   try {
     const origin = await bannerOrigin(child.stdout);
+    // Proof: with `hostname: HOSTNAME` removed from the fixture's `Bun.serve`,
+    // the banner printed Bun's bound host `localhost` and this failed;
+    // watched 2026-10-25.
     expect(new URL(origin).hostname).toBe('127.0.0.1');
     expect((await fetch(`${origin}/health`)).status).toBe(200);
-    // Proof: with `hostname: HOSTNAME` removed from the fixture's `Bun.serve`,
-    // this fetch answered on the host's LAN address and the case failed;
-    // watched 2026-10-25.
+    // Proof: with `hostname: HOSTNAME` removed and the banner assertion above
+    // commented out, this fetch answered on the host's LAN address and the
+    // case failed; watched 2026-10-25. Only a refused connection counts: an
+    // unroutable address or any other error would prove nothing.
     const external = `http://${externalAddress()}:${new URL(origin).port}/health`;
-    let reachedExternally = true;
-    try {
-      await fetch(external);
-    } catch {
-      reachedExternally = false;
-    }
-    expect(reachedExternally).toBe(false);
+    const refusal = await fetch(external).then(
+      () => 'answered',
+      (error: unknown) => (error as { code?: unknown }).code,
+    );
+    expect(refusal).toBe('ECONNREFUSED');
   } finally {
     child.kill('SIGTERM');
   }
