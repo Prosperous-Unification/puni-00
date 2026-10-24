@@ -35,7 +35,12 @@ import type {
   RemoveDirectoryOutcome,
   RemoveResourceOutcome,
 } from '../directory/directory.resource';
-import type { NamedClaimHolder, NamedOccupancyHolder, PlainClaimReason } from '../work-item/claims';
+import type {
+  NamedClaimHolder,
+  NamedOccupancyHolder,
+  PlainClaimReason,
+  ReassignedClaimedStep,
+} from '../work-item/claims';
 import type {
   BudgetExhaustedOutcome,
   Collected,
@@ -98,9 +103,16 @@ export type MintedBase = AppliedBase & { id: string };
 /** Internal kind identifies the producer's exact entity contract; controllers erase it from the unchanged wire. */
 export type AppliedCommand =
   | (AppliedBase & {
-      kind: Exclude<PlainKind, MintedKind | 'claimWorkItem'>;
+      kind: Exclude<PlainKind, MintedKind | 'claimWorkItem' | 'assignSubtree'>;
       entity?: never;
       alreadyHeld?: never;
+    })
+  /** A subtree assignment names the leaf steps it reassigned while someone else held their claim (issue #669 F6). */
+  | (AppliedBase & {
+      kind: 'assignSubtree';
+      entity?: never;
+      alreadyHeld?: never;
+      reassignedClaimedSteps: ReassignedClaimedStep[];
     })
   /** A claim says whether it wrote nothing and which claims hold the steps. */
   | (AppliedBase & {
