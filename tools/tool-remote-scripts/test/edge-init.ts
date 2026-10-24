@@ -10,15 +10,19 @@ import {
   checkProfileSource,
   compareCandidate,
   constructCandidate,
-  CREATED_OOM_PROFILE,
+  CREATED_PROFILE,
   fingerprint,
   InitRefusal,
+  type InvariantContext,
   type NativeContainer,
+  type NetworkPin,
   parseNativeContainer,
+  projectInvariant,
 } from '../src/lib/edge-init';
 import {
   EngineTransport,
   type HostObserver,
+  observeNetworks,
   PrivateReceipts,
   runInitAdoption,
   type SelectedTarget,
@@ -606,6 +610,24 @@ async function ready(port: string, kind: TargetKind): Promise<void> {
   }
 }
 
+/** Cleanup deletes only the exact listed full ID after fresh native ownership and identity readback.
+ * Proof: removing ID equality or ownership admission let its blank-network native cleanup negative delete the listed container.
+ */
+export async function removeFixtureContainer(
+  id: string,
+  nonce: string,
+  run: FixtureDocker = docker,
+): Promise<void> {
+  readIdentity(id);
+  const inspection: unknown = JSON.parse(await run(['inspect', id]));
+  if (!Array.isArray(inspection) || inspection.length !== 1)
+    throw new InitRefusal('native-fixture-cleanup-inspection-invalid');
+  const container = parseNativeContainer(inspection[0]);
+  if (container.id !== id) throw new InitRefusal('native-fixture-cleanup-id-mismatch');
+  verifyFixtureOwnership(container, nonce);
+  await run(['rm', '--force', '--volumes', id]);
+}
+
 async function cleanup(nonce: string): Promise<void> {
   const ids = (
     await docker(['ps', '--all', '--quiet', '--no-trunc', '--filter', `label=${LABEL}=${nonce}`])
@@ -613,9 +635,7 @@ async function cleanup(nonce: string): Promise<void> {
     .split('\n')
     .filter((id) => id !== '');
   for (const id of ids) {
-    const container = await inspected(readIdentity(id));
-    verifyFixtureOwnership(container, nonce);
-    await docker(['rm', '--force', '--volumes', id]);
+    await removeFixtureContainer(readIdentity(id), nonce);
   }
   for (const kind of ['network', 'volume']) {
     const names = (await docker([kind, 'ls', '--quiet', '--filter', `label=${LABEL}=${nonce}`]))
@@ -670,12 +690,24 @@ export async function runNativeInitAcceptance(): Promise<void> {
   const volumes = ['registry', 'caddy-data', 'caddy-config'].map((name) => `${prefix}-${name}`);
   let summary: { stage: string; receiptDirectory: string; sha256: string } | undefined;
   let failureCode: 'native-fixture-proof-failed' | 'native-fixture-receipt-failed' | undefined;
+  const pinnedNetworks: NetworkPin[] = [];
   let stage: FixtureFailureStage = 'networks';
   let proofFailure: FixtureFailure | null = null;
   await requireUnusedFixtureNamespace(nonce);
   try {
-    for (const network of networks)
-      await docker(['network', 'create', '--label', `${LABEL}=${nonce}`, network]);
+    for (const network of networks) {
+      const id = readIdentity(
+        await docker(['network', 'create', '--label', `${LABEL}=${nonce}`, network]),
+      );
+      const raw: unknown = JSON.parse(await docker(['network', 'inspect', id]));
+      const owner = fixtureResourceIdentity('network', raw, nonce);
+      if (owner !== id || !Array.isArray(raw) || raw.length !== 1)
+        throw new InitRefusal('native-fixture-network-pin-invalid');
+      const { Containers: _members, ...configuration } = readFields(raw[0]);
+      if (configuration['Name'] !== network)
+        throw new InitRefusal('native-fixture-network-pin-invalid');
+      pinnedNetworks.push({ name: network, id, sha256: fingerprint(configuration) });
+    }
     stage = 'volumes';
     for (const volume of volumes) {
       await createFixtureVolume(volume, nonce, caddyImage);
@@ -777,15 +809,41 @@ export async function runNativeInitAcceptance(): Promise<void> {
     );
     stage = 'original-inspection';
     const targets: [SelectedTarget, SelectedTarget] = [
-      { kind: 'registry', original: await engine.inspect(registry, 10000) },
-      { kind: 'caddy', original: await engine.inspect(caddy, 10000) },
+      {
+        kind: 'registry',
+        original: await engine.inspect(registry, 10000),
+        networks: pinnedNetworks.slice(0, 1),
+      },
+      { kind: 'caddy', original: await engine.inspect(caddy, 10000), networks: pinnedNetworks },
     ];
     if (
       targets[1].original.config['Entrypoint'] !== null ||
       Object.keys(targets[1].original.networks).length !== 3
     )
       throw new InitRefusal('native-fixture-required-shape-absent');
-    for (const target of targets) checkProfileSource(target.original, profile);
+    const contextFor = (
+      target: SelectedTarget,
+      observed: NativeContainer,
+      phase: 'never-started' | 'running' | 'stopped',
+    ): InvariantContext => {
+      if (target.networks === undefined) throw new InitRefusal('network-pins-missing');
+      return {
+        profile,
+        networks: target.networks,
+        owner:
+          observed.id === target.original.id
+            ? {
+                role: 'original',
+                id: target.original.id,
+                phase: phase === 'running' ? 'running' : 'stopped',
+              }
+            : { role: 'replacement', id: observed.id, originalId: target.original.id, phase },
+      };
+    };
+    for (const target of targets) {
+      checkProfileSource(target.original, profile);
+      projectInvariant(target.original, contextFor(target, target.original, 'running'));
+    }
     stage = 'baseline';
     const processes = new Map<string, SolverProcess>();
     const ports = new Map<TargetKind, string>();
@@ -813,6 +871,28 @@ export async function runNativeInitAcceptance(): Promise<void> {
       caddyHash = hash;
     };
     await checkCaddy(caddy);
+    const networkPhases: {
+      target: TargetKind;
+      phase: 'never-started' | 'running';
+      emptyIds: number;
+      fullIds: number;
+      sha256: string;
+    }[] = [];
+    const recordNetworkPhase = (
+      target: TargetKind,
+      phase: 'never-started' | 'running',
+      observed: NativeContainer,
+    ) => {
+      const endpoints = Object.values(observed.networks).map(readFields);
+      const emptyIds = endpoints.filter((endpoint) => endpoint['NetworkID'] === '').length;
+      networkPhases.push({
+        target,
+        phase,
+        emptyIds,
+        fullIds: endpoints.length - emptyIds,
+        sha256: fingerprint(observed.networks),
+      });
+    };
     const oomCreated = new Set<TargetKind>(),
       oomRunning = new Set<TargetKind>();
     const observer: HostObserver = {
@@ -837,21 +917,25 @@ export async function runNativeInitAcceptance(): Promise<void> {
         )
           throw new InitRefusal('native-fixture-original-process-changed');
       },
-      inert: async (target, container) => {
+      inert: async (target, container, deadline) => {
         verifyFixtureOom(container, 'created');
         oomCreated.add(target.kind);
+        await observeNetworks(
+          engine,
+          container,
+          contextFor(target, container, 'never-started'),
+          deadline,
+        );
+        recordNetworkPhase(target.kind, 'never-started', container);
         verifyFixtureOwnership(container, nonce);
-        for (const network of Object.values(container.networks).map(readFields)) {
-          const members = readFields(
-            readFields(await engine.network(readIdentity(network['NetworkID']), 10000))[
-              'Containers'
-            ],
-          );
-          if (Object.hasOwn(members, container.id))
-            throw new InitRefusal('native-fixture-created-network-active');
-        }
       },
-      stopped: async (target, container) => {
+      stopped: async (target, container, deadline) => {
+        await observeNetworks(
+          engine,
+          container,
+          contextFor(target, container, 'stopped'),
+          deadline,
+        );
         verifyFixtureOwnership(container, nonce);
         if (container.state['Pid'] !== 0 || container.state['Running'] !== false)
           throw new InitRefusal('native-fixture-original-not-stopped');
@@ -870,9 +954,16 @@ export async function runNativeInitAcceptance(): Promise<void> {
             throw new InitRefusal('native-fixture-original-network-membership-retained');
         }
       },
-      running: async (target, container) => {
+      running: async (target, container, deadline) => {
         verifyFixtureOom(container, 'running');
         oomRunning.add(target.kind);
+        await observeNetworks(
+          engine,
+          container,
+          contextFor(target, container, 'running'),
+          deadline,
+        );
+        recordNetworkPhase(target.kind, 'running', container);
         verifyFixtureOwnership(container, nonce);
         if (
           (await docker(['exec', container.id, 'cat', '/proc/1/comm'])) !== 'docker-init' ||
@@ -900,7 +991,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
             throw new InitRefusal('native-fixture-final-target-absent');
           const container = parseNativeContainer(raw[0]);
           verifyFixtureOwnership(container, nonce);
-          compareCandidate(target.original, container, profile);
+          compareCandidate(target.original, container, contextFor(target, container, 'running'));
           await observer.running(target, container, deadline);
           await observer.health(target.kind, container.id, deadline);
         }
@@ -917,7 +1008,16 @@ export async function runNativeInitAcceptance(): Promise<void> {
     const mismatched = await engine.create('registry', mismatch, 20000);
     let refused = false;
     try {
-      compareCandidate(targets[0].original, await engine.inspect(mismatched, 10000), profile);
+      compareCandidate(targets[0].original, await engine.inspect(mismatched, 10000), {
+        profile,
+        networks: pinnedNetworks.slice(0, 1),
+        owner: {
+          role: 'replacement',
+          id: mismatched,
+          originalId: targets[0].original.id,
+          phase: 'never-started',
+        },
+      });
     } catch (cause) {
       if (!(cause instanceof InitRefusal)) throw cause;
       refused = true;
@@ -949,6 +1049,8 @@ export async function runNativeInitAcceptance(): Promise<void> {
       const injection = { fired: false };
       let beforeRestart: string | undefined;
       const effects = {
+        network: (id: string, timeout: number) => engine.network(id, timeout),
+        networkByName: (name: string, timeout: number) => engine.networkByName(name, timeout),
         inspect: (id: string, timeout: number) => engine.inspect(id, timeout),
         create: async (
           kind: TargetKind,
@@ -1112,10 +1214,11 @@ export async function runNativeInitAcceptance(): Promise<void> {
     const report = {
       version: 1,
       status: 'passed',
-      invariantProfile: CREATED_OOM_PROFILE,
+      invariantProfile: CREATED_PROFILE,
       images: { registry: registryImage, caddy: caddyImage },
       daemonVersionSha256: fingerprint(nativeVersion),
       daemonInfoSha256: fingerprint(nativeInfo),
+      networkPhases,
       oomRepresentations: targets.map(({ kind }) => ({
         target: kind,
         original: null,
