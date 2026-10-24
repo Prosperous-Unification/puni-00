@@ -1442,6 +1442,51 @@ describe('the calendar-marker client', () => {
   });
 });
 
+describe('the claims client', () => {
+  const claim = (claimId: string, stepId: string | null, parentClaimId: string | null = null) => ({
+    claimId,
+    workItemId: 'w1',
+    number: '010',
+    numberIsFrozen: false,
+    name: 'Strip',
+    stepId,
+    holder: { personId: 'p-codex', name: 'codex' },
+    runId: 'r-7',
+    parentClaimId,
+    claimedAt: 0,
+    leaseExpiresAt: null,
+    leaseRevokedAt: null,
+  });
+  const answering = (claims: unknown[]) =>
+    stub(() => response(200, JSON.stringify({ readAt: 5, claims })));
+
+  it('reads a coherent claims read whole', async () => {
+    const fetched = answering([claim('c-sub', null), claim('c-dev', 's-dev', 'c-sub')]);
+
+    await expect(httpProjectApi('t').readClaims('p1')).resolves.toEqual({
+      readAt: 5,
+      claims: [claim('c-sub', null), claim('c-dev', 's-dev', 'c-sub')],
+    });
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/claims');
+  });
+
+  it('refuses a claims read with two claims on one step', async () => {
+    answering([claim('c-1', 's-dev'), claim('c-2', 's-dev')]);
+
+    await expect(httpProjectApi('t').readClaims('p1')).rejects.toThrow(
+      'claims read holds two claims on w1/s-dev',
+    );
+  });
+
+  it('refuses a claims read whose delegated claim names an unlisted parent', async () => {
+    answering([claim('c-dev', 's-dev', 'c-gone')]);
+
+    await expect(httpProjectApi('t').readClaims('p1')).rejects.toThrow(
+      'claim c-dev names parent c-gone, not in its read',
+    );
+  });
+});
+
 describe('read ownership across API lifetimes', () => {
   it('rejects a malformed optimization variant before the tree reaches its screen', async () => {
     const tree = JSON.parse(TREE('p1', [])) as { optimization?: unknown };
