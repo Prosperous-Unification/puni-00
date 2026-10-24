@@ -170,6 +170,17 @@ All three commands share one budget so the target reads as one.
 the loaded `test:unit` run (2.3 s in the idle UTC half). By the rule above it is now 20 s, and its
 case budget 30 s so the probe still reports first.
 
+On 2026-10-24, the hosted frontend CI run at `c3be` exhausted that probe's 20 s child deadline
+(`spawnSync bun ETIMEDOUT`, null status, SIGTERM, empty output) while 1036 other tests passed.
+The unchanged focused probe passed locally in about 4.8 s; that observation does not identify
+which import or request step consumed the hosted time. The policy minimum is
+max(3 × 4.8 s, 2 × 20 s) = 40 s, rounded to the listed 45 s step. This probe alone now has
+a 45 s child deadline and 60 s owning case; the child reports first. Its same execution wrapper
+uses SIGKILL on timeout, and a short owned-child test proves timeout, termination, join, and no
+accepted late 401. A focused 2026-10-24 local replay measured 4502 ms inside the child call
+and 4762 ms for the case, below the earlier 4.8 s value used above. The configured node-tier
+worker count remains four.
+
 ## Found under load, outside this budget
 
 These tests failed on the loaded run, but not at a time budget. They need their own work items:
