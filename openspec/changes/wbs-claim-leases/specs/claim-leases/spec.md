@@ -59,6 +59,11 @@ renewing nothing.
 - **THEN** it is refused `400 invalid_body`, no lease moves, and a body-less heartbeat after it
   renews
 
+#### Scenario: A heartbeat carrying a query string is refused
+
+- **WHEN** `codex` posts to `/api/claims/renew?wait=1`
+- **THEN** it is refused `400 invalid_query` and no lease moves
+
 ### Requirement: The coordinator releases claims nobody renewed
 
 be-01 SHALL, at boot and every 30 seconds, release every claim whose lease has expired, each

@@ -75,31 +75,50 @@ No new environment variable (L2): nothing to seed on dev or in any spawn fixture
 | heartbeat decides at the turn's instant     | instant read before the turn kept        | `does not renew a lease that ran out while the heartbeat waited for the turn` 10 pass, 1 fail  |
 | revocation in the model                     | revoke's lease ending removed            | model counterexample: claim, claim, revoke, claim                                              |
 
-### Heartbeat with a body (`fix/wbs-claims-renew-body`, 2026-10-24)
+### Heartbeat with a body (`fix/wbs-claims-renew-body`, PR #711, 2026-10-24)
 
 A raw HTTP agent posting `-d '{}'` to `/api/claims/renew` was answered 500: the shape declared
 no body, so the mount refused the stray body `invalid_body` through `refuse`, which throws when
 the shape declares no refusal accepting `{ error: code }`. Every heartbeat failed and the
 agent's claims were reaped at 15 minutes. The shape now declares `400 invalid_body |
-invalid_query`, the convention of the other body-less writes (`recordProjectOpen`).
+invalid_query`, the convention of the other body-less writes (`recordProjectOpen`). Accepting
+and ignoring `{}` was rejected: no endpoint does it, and a typed 400 on every heartbeat is loud
+where the 500 looked like a server fault. The renew summary, which the MCP tool description and
+the generated document carry, tells a raw agent to send no body and no query string; no doc in
+`docs/` describes a raw HTTP heartbeat.
 
-Two audits in `apps/wbs/be-01/src/app.routes.test.ts` keep the class closed: every mounted
-endpoint without its own request-failure classifier declares a refusal for `invalid_query`,
-`invalid_body`, `invalid_params` (when it has params) and `invalid_json` (with JSON media); and
-the production-app reachability test sends each shape a stray query parameter and, to each
-body-less write, `{}`, expecting no 5xx. They found ten more endpoints answering 500, fixed
-here: `getHealth`, `getMetrics`, `postApiOrganizationDomainsChallenges`,
-`postInternalGatewayProjectAccess`, `postInternalGatewayProjectBrowserAccess` (stray query);
+Two checks in `apps/wbs/be-01/src/app.routes.test.ts` keep the class closed
+(`http-endpoint-port` delta in this change):
+
+- an audit over the local and OIDC endpoint tables (asserted equal outside the OIDC routes):
+  each boundary code the mount can raise (`invalid_query`, `invalid_body`, `invalid_params`
+  with params, `invalid_json` with JSON media) is answered with a declared 4xx, through
+  `refuse` (its first matching refusal) or, for classified endpoints, the classifier fed a
+  synthetic failure and checked as `renderReply` would;
+- stray-input probes through the production app in both auth modes: a stray query on every
+  shape and `{}` on every body-less write must answer `400 invalid_<part>`, or one of six
+  listed modeled exceptions (the import classifier, the gateway delegation refused 401 before
+  input, the two OIDC callbacks, saved-plan compare's 422).
+
+They found eleven more endpoints answering 500, fixed here: `getHealth`, `getMetrics`,
+`postApiOrganizationDomainsChallenges`, `postInternalGatewayProjectAccess`,
+`postInternalGatewayProjectBrowserAccess` (stray query);
 `postApiOrganizationDomainsByIdVerify`, `postApiOrganizationDomainsByIdRotate`,
 `deleteApiOrganizationDomainsById`, `postApiOrganizationProvisioningTokensByIdRotate`,
 `deleteApiOrganizationProvisioningTokensById`, `deleteApiOrganizationMembersByUserId` (stray
 body).
 
-| Guard                                  | Fault                               | Observed                                                                                                                           |
-| -------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| renew declares `400`                   | refusal removed                     | `refuses a heartbeat carrying a body or a query as a typed 400` 500 instead of 400; the audit listed `postApiClaimsRenew` twice    |
-| stray-input probe                      | same                                | both reachability tests: `postApiClaimsRenew` `serverError: 500`                                                                   |
-| declaration audit, ten other endpoints | the five other shape files reverted | audit listed all eleven pairs; the probe printed 500 for each except `postInternalGatewayProjectAccess` (refused 401 before input) |
+| Guard                            | Fault                                                | Observed                                                                                                                                                                                                   |
+| -------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| renew declares `400`             | refusal removed                                      | route test 500 `Internal Server Error`; audit listed `postApiClaimsRenew invalid_query: null` and `invalid_body: null`; both probe modes failed on `postApiClaimsRenew query` status 500 (15 pass, 4 fail) |
+| refused heartbeat renews nothing | the `{}` request replaced by a body-less heartbeat   | lease read gave `T + 120,000 + lease` twice instead of `T + lease` (0 pass, 1 fail)                                                                                                                        |
+| renew summary reaches MCP        | sentence removed from the summary                    | `tells a raw HTTP agent to heartbeat with no body and no query string` (openapi-tools.test.ts) 32 pass, 1 fail                                                                                             |
+| eleven other declarations        | the five shape files reverted to main                | audit listed all eleven endpoint/code pairs as null; both probe modes failed on `getHealth query` status 500 (4 pass, 3 fail)                                                                              |
+| classifiers audited              | `classifyCommand` fallback answers an undeclared 422 | audit listed `postApiProjectsByIdCommands` and `postApiDirectoryCommands` `invalid_query`, `invalid_json` (and params) as null                                                                             |
+| first match must be 4xx          | `503 { error: string }` placed before renew's 400    | audit listed `postApiClaimsRenew invalid_query: 503` and `invalid_body: 503`                                                                                                                               |
+
+The local/OIDC table equality is an assertion over today's composition; no fault was injected
+for it.
 
 ### Fresh results
 

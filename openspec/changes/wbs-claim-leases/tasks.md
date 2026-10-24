@@ -57,3 +57,16 @@
 
 - [ ] 2.1 The claim chip shows a leased claim's remaining time and an expired one as
       "releasing"; the history row reads "released (lease expired)".
+
+## 3. Heartbeat request boundary (`fix/wbs-claims-renew-body`, PR #711)
+
+- [x] 3.1 Red: a be-01 route test posts `{}` and `?wait=1` to `/api/claims/renew` as an agent,
+      expects `400 invalid_body` / `invalid_query` and both leases still at their old expiry;
+      watched answering 500.
+- [x] 3.2 The renew shape declares `400 invalid_body | invalid_query`; its summary tells a raw
+      HTTP agent to send no body and no query string (pinned in mcp-01 `openapi-tools.test.ts`).
+- [x] 3.3 Audit: every mounted endpoint, local and OIDC tables, answers each boundary failure
+      code with a declared 4xx, classifiers included; stray query and body probes through the
+      production app expect `400 invalid_<part>` or a listed modeled exception.
+- [x] 3.4 The eleven other endpoints the audit found declare their stray-input codes; verify.md
+      rows record each fault and the observed failure.

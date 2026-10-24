@@ -7,6 +7,9 @@ import { responseSchema } from './schema-shape';
 // "text/plain; version=0.0.4" and receive "text/plain".
 export const PROMETHEUS_CONTENT_TYPE = 'text/plain; version=0.0.4';
 
+// Proof: with this file's stray-input codes undeclared, be-01's audit `answers every
+// request-boundary failure the mount can raise with a declared 4xx` listed
+// `getHealth invalid_query` and `getMetrics invalid_query` (watched 2026-10-24); it guards each widened 400 here.
 /** A probe or scrape carrying a body or a query string; neither route reads input. */
 const inputRefusal = {
   status: 400,

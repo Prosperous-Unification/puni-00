@@ -75,6 +75,9 @@ export const removeMember = defineEndpointShape({
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     ...refusals,
+    // Proof: with this file's stray-input codes undeclared, be-01's audit `answers every
+    // request-boundary failure the mount can raise with a declared 4xx` listed
+    // `deleteApiOrganizationMembersByUserId invalid_body` (watched 2026-10-24); it guards each widened 400 here.
     { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
   ],
   document: { summary: 'Remove a member from the active organization.' },

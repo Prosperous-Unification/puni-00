@@ -249,6 +249,14 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(tools.map((tool) => tool.name).sort()).toEqual([...expected].sort());
   });
 
+  it('tells a raw HTTP agent to heartbeat with no body and no query string', () => {
+    // Proof: dropping the sentence from the renewClaimLeases summary made this
+    // production-generated description miss it (watched 2026-10-24).
+    expect(byName(tools, 'postApiClaimsRenew').description).toContain(
+      'Send no request body (not even {}) and no query string',
+    );
+  });
+
   it('exposes the import document tool', () => {
     // Proof: removing importProject from httpShapes made this production-generated
     // lookup throw `no tool named postApiProjectsImport was derived`.

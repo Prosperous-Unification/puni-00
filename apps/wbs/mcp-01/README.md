@@ -29,7 +29,8 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 - the claims read (`getApiProjectsByIdClaims`: every claim held in a project, with holder, run,
   parent claim, lease expiry and revocation, and the server's read instant);
 - the agent heartbeat (`postApiClaimsRenew`: renews every claim lease of the calling agent; a
-  claim an agent takes for itself is released 15 minutes after its last write unless renewed);
+  claim an agent takes for itself is released 15 minutes after its last write unless renewed; a
+  raw HTTP caller sends no body and no query string, either is refused `400` and renews nothing);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the
   project's capacities and demands);
 - the two person-load reads, the project rank read and move;

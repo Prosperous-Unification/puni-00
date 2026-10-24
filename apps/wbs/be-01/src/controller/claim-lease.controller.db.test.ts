@@ -146,6 +146,15 @@ describe('a claim lease over HTTP', () => {
       status: 400,
       body: { error: 'invalid_query' },
     });
+    // Proof: routing the `{}` request to a body-less (successful) heartbeat made
+    // this read the renewed expiry, T + 120,000 + lease, instead of T + lease
+    // (watched 2026-10-24).
+    expect(
+      h.sqlite
+        .query<{ at: number }, []>('SELECT lease_expires_at AS at FROM claim ORDER BY at')
+        .all()
+        .map(({ at }) => at),
+    ).toEqual([T + CLAIM_LEASE_MS, T + CLAIM_LEASE_MS]);
     expect(await asAgent('POST', '/api/claims/renew')).toMatchObject({
       status: 200,
       body: { leases: 2, leaseExpiresAt: now + CLAIM_LEASE_MS },
