@@ -7559,3 +7559,22 @@ source/scratch verification passed 36 tests and 104 assertions; all four
 configured static targets passed. The actual hosted timeout cause remains
 unproven, and no test or global budget was increased. The next hosted run and
 complete activation prerequisites remain open.
+
+## Private product readiness integration
+
+The independently reviewed readiness packet and its eight caller-barrier
+proofs are integrated with the existing reporter correction. Fresh full old
+sixteen-case replay and the three HTTP cases passed under inherited CI flags;
+exact registrations, source hashes and limitations are recorded in
+[readiness barrier evidence](verify-participant-readiness-barriers.md) and its
+[integration receipt](evidence/product-readiness-integration-f72.json).
+This leaf verifies selected product observations under the genuine retained
+context. It grants no full restoration, source admission or exposure policy.
+
+Published checkpoint `b2d87d48` completed with all ordinary remote cases passing
+(3,334 pass, two existing optional Docker skips). Its sole remote failure is now
+identified: the actual global scratch cleanup returned after 10,400ms against
+the inherited 10,000ms hook allowance. All other CI jobs passed. The scoped
+cleanup correction and complete remote execution split have independent
+architecture approval and remain in their separately reviewed CI checkpoint;
+no full green CI or final host-gate success is claimed here.

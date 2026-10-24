@@ -1,0 +1,84 @@
+{
+  "reviewedSources": [
+    "25aed24030dcd868cf70f51f8f30461736799f56",
+    "f72ae76be4b3a27908446e5359ea41a028367994"
+  ],
+  "base": "b2d87d4875aa654a8df3b26c98075a84ab30a69a",
+  "reporterPreservedFrom": "df8a49ba2b6e99ebf269fc1294e3b0d8a20d3566",
+  "sourceFiles": [
+    {
+      "path": "openspec/changes/cross-project-dependencies/verify-participant-product-readiness.md",
+      "sha256": "112a4be2bacb908bb3a6cf0c74e23d454118ede5ff3b3081f286058190195700"
+    },
+    {
+      "path": "openspec/changes/cross-project-dependencies/verify-participant-readiness-barriers.md",
+      "sha256": "33ddb0ae0e7c4824099864d943ec55048063c72e0778e48e208fa066a22fdae9"
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/fixtures/product-readiness-byte-transport.ts",
+      "sha256": "89bdca4cc5bd6ece7c12df9625c14b1c52d603fd77d2d0954fcd029585fdd747"
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/lib/dependency-participant-readiness.ts",
+      "sha256": "59dd1566db6275f2c59f8be524654c3aeacb219c2820dd0705fa4da91a2bb107"
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/lib/dependency-product-process-model.model.ts",
+      "sha256": "7f721d741d36824ff9ef805e35714316c11163ebb18f95261e7d587c6e5c5887"
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/lib/dependency-product-process-model.test.ts",
+      "sha256": "af6df85c01aff0eb28809ca7149d7151688be0ad63f635dec6f061a3f25c545a"
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/lib/dependency-product-readiness.test.ts",
+      "sha256": "97da9b93a7807d86ec7e93ae341b4c9544da9ff750cd290db88bd31376ccee7e"
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/lib/product-readiness-byte-transport.test.ts",
+      "sha256": "b44ccde25dd6bfbb3340fd263d68fcd49555f699eb6fb7d477344622db5738f1"
+    }
+  ],
+  "registeredModelChildren": 27,
+  "oldModelChildren": 16,
+  "filteredForOldModel": 11,
+  "registeredParentCases": 21,
+  "integratedChecks": [
+    {
+      "commandScope": "original sixteen process cases",
+      "elapsedSeconds": 1049.9996626377106,
+      "exit": 0,
+      "logSha256": "3e4d65c794e4cc6dc326dc98063ffdb2b32ed7902a1b0a508d914bd4095feb19",
+      "terminalSha256": "d2e4b1afa75106671a3702b653d988604dd029a37891af5ad11fe9b345c46933"
+    },
+    {
+      "commandScope": "three HTTP readiness cases",
+      "elapsedSeconds": 212.3216073513031,
+      "exit": 0,
+      "logSha256": "a9f01822253f11af5597455bf8f09fd199fbc6d2d3c00d3b7a4966f7c1ad681b",
+      "terminalSha256": "8ab7e6847ca484f60b65680a7738aaa93cdd08977b0217778f7e4ea70e7e84d2"
+    }
+  ],
+  "shortControls": {
+    "cases": 9,
+    "assertions": 33,
+    "milliseconds": 140
+  },
+  "configuredStatic": {
+    "targets": ["tool-remote-scripts:lint", "tool-remote-scripts:typecheck"],
+    "seconds": 18.6,
+    "cache": "skipped"
+  },
+  "physicalBarrierProofs": {
+    "baselineSeconds": 526.678626537323,
+    "omissionSeconds": 551.3754599094391,
+    "restoredSeconds": 538.9777548313141,
+    "cases": 8,
+    "parentAssertions": 72,
+    "childAssertions": 1246,
+    "allOmissionsAssertedRed": true
+  },
+  "scope": "genuine preparation, real HTTP/local byte transport; raw Docker and product process records modeled",
+  "nativeAcceptance": "unexecuted",
+  "fullRestoration": "not implemented by this leaf"
+}

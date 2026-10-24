@@ -1,12 +1,13 @@
 import { rejects } from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { afterEach, expect, mock, test } from 'bun:test';
 
 import { productProcessFixture } from '../fixtures/dependency-product-process';
 import { assertProductByteTransportFixture } from '../fixtures/product-byte-transport';
+import { assertReadinessByteTransportFixture } from '../fixtures/product-readiness-byte-transport';
 import { roots } from '../fixtures/source-startup';
 import {
   consumePreparedDependencyActivation,
@@ -16,6 +17,7 @@ import {
 import type { FinalizedParticipantRestorationContext } from './dependency-participant-preparation';
 import { runDockerExec } from './docker-exec';
 import { withDependencyOwner } from './edge-ownership';
+import { readFields } from './managed-cohort';
 import { GROUP_PROGRAM } from './mount-exec-program';
 
 interface Audit {
@@ -83,7 +85,7 @@ type Fault =
   | 'oversized-receipt'
   | 'private-stderr'
   | 'cleanup-failure';
-const current = { fault: 'none' as Fault, wrapper: false, execs: 0 };
+const current = { fault: 'none' as Fault, wrapper: false, execs: 0, readinessTransport: false };
 const clock = '2026-10-24 08:00:00.000000000 +0000';
 const metadata = (inode: string) => `2049:${inode}:123456|${clock}|${clock}`;
 const digest = (label: string) => createHash('sha256').update(label).digest('hex');
@@ -137,6 +139,7 @@ await mock.module('./product-host-proc', () => ({
 }));
 
 const { observeSelectedProductRole } = await import('./dependency-product-process');
+const { observeProductParticipantReadiness } = await import('./dependency-participant-readiness');
 
 function feed(consume: (token: string) => boolean, ...tokens: string[]): boolean {
   let acknowledged = false;
@@ -227,6 +230,7 @@ afterEach(async () => {
   current.fault = 'none';
   current.wrapper = false;
   current.execs = 0;
+  current.readinessTransport = false;
 });
 
 async function withModelContext(
@@ -235,8 +239,10 @@ async function withModelContext(
     fixture: Awaited<ReturnType<typeof productProcessFixture>>,
     audits: readonly Audit[],
   ) => Promise<void>,
+  prepare?: (fixture: Awaited<ReturnType<typeof productProcessFixture>>) => void,
 ): Promise<void> {
   const fixture = await productProcessFixture();
+  prepare?.(fixture);
   const audits: Audit[] = [];
   process.env['WBS_EDGE_STATE'] = fixture.root;
   await withDependencyOwner(
@@ -302,10 +308,11 @@ async function withModelContext(
               return receive(token);
             };
             if (
+              current.readinessTransport ||
               (!cleanup && current.fault === 'private-stderr') ||
               (cleanup && current.fault === 'cleanup-failure')
             ) {
-              const directory = join(fixture.root, 'local-byte-transport');
+              const directory = join(fixture.root, `local-byte-transport-${nonce}`);
               await mkdir(directory);
               const pidPath = join(directory, 'pid');
               const role: Role = args.includes(fixture.backend.Id) ? 'backend' : 'gateway';
@@ -327,10 +334,13 @@ async function withModelContext(
                   '2',
                 ].join('\0') + '\0',
               );
-              await assertProductByteTransportFixture();
+              if (current.readinessTransport) await assertReadinessByteTransportFixture();
+              else await assertProductByteTransportFixture();
               try {
                 await runDockerExec(
-                  ['--', nonce, receiptPath, pidPath, cleanup ? 'eof' : 'stderr'],
+                  current.readinessTransport
+                    ? ['--', nonce, receiptPath, pidPath]
+                    : ['--', nonce, receiptPath, pidPath, cleanup ? 'eof' : 'stderr'],
                   nonce,
                   consume,
                   signal,
@@ -342,6 +352,7 @@ async function withModelContext(
               } finally {
                 await captureLocalTransportReturn(audit, pidPath);
               }
+              if (current.readinessTransport) return;
               throw new Error('incomplete local byte transport accepted');
             }
             feed(consume, 'SESSION', nonce, '70001', '70001', '70001', '80001');
@@ -575,3 +586,270 @@ for (const fault of [
     });
   }, 300000);
 }
+
+for (const fault of ['none', 'after-health', 'after-capability'] as const)
+  test(`readiness actual HTTP and full observer brackets: ${fault}`, async () => {
+    current.readinessTransport = true;
+    let healthRequests = 0;
+    let capabilityRequests = 0;
+    const backend = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 3100,
+      fetch(request) {
+        const path = new URL(request.url).pathname;
+        if (path === '/health') {
+          healthRequests++;
+          if (fault === 'after-health') current.fault = 'init-object';
+          return Response.json({ status: 'ok', commit: null });
+        }
+        if (path === '/api/runtime/dependency-capability') {
+          capabilityRequests++;
+          if (fault === 'after-capability') current.fault = 'init-object';
+          return Response.json({
+            protocol: 'wbs-dependency-runtime',
+            version: 1,
+            role: 'backend',
+            semantics: ['cross-project-dependencies-v1'],
+          });
+        }
+        return new Response('fixture path absent', { status: 404 });
+      },
+    });
+    const gateway = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 3200,
+      fetch: () => Response.json({ status: 'ok' }),
+    });
+    try {
+      await withModelContext(
+        async (context, fixture, audits) => {
+          if (fault === 'none') {
+            const backendReady = await observeProductParticipantReadiness(context, 'backend');
+            expect(backendReady.role).toBe('backend');
+            expect(backendReady.observation.process.pid).toBe(40002);
+            expect(backendReady.healthSha256).toMatch(/^[a-f0-9]{64}$/);
+            expect(backendReady.capabilitySha256).toMatch(/^[a-f0-9]{64}$/);
+            expect(Object.isFrozen(backendReady)).toBe(true);
+            const gatewayReady = await observeProductParticipantReadiness(context, 'gateway');
+            expect(gatewayReady.role).toBe('gateway');
+            expect(gatewayReady.observation.process.pid).toBe(50002);
+            expect(gatewayReady.capabilitySha256).toBeNull();
+            expect(current.execs).toBe(10);
+            expect(healthRequests).toBe(1);
+            expect(capabilityRequests).toBe(1);
+            for (const audit of audits) {
+              assertLocalTransportSettled(audit);
+              await assertAuditContent(audit);
+            }
+          } else {
+            await rejects(observeProductParticipantReadiness(context, 'backend'), {
+              message: 'product participant readiness refused',
+            });
+            expect(healthRequests).toBe(1);
+            expect(capabilityRequests).toBe(fault === 'after-health' ? 0 : 1);
+            expect(
+              fixture.commands.some((args) => ['start', 'restart', 'rm'].includes(args[0])),
+            ).toBe(false);
+            for (const audit of audits) assertLocalTransportSettled(audit);
+          }
+        },
+        (fixture) => {
+          for (const member of [fixture.backend, fixture.gateway]) {
+            const network = readFields(
+              readFields(readFields(member)['NetworkSettings'])['Networks'],
+            );
+            Object.assign(readFields(network[fixture.layouts.prod.network]), {
+              IPAddress: '127.0.0.1',
+              GlobalIPv6Address: '',
+            });
+          }
+        },
+      );
+    } finally {
+      await backend.stop(true);
+      await gateway.stop(true);
+    }
+  }, 300000);
+
+type ReadinessBarrierFault =
+  | 'pre-evidence'
+  | 'pre-artifact'
+  | 'pre-stores'
+  | 'post-evidence'
+  | 'post-artifact'
+  | 'post-stores'
+  | 'post-ingress'
+  | 'post-context';
+
+async function replaceReadinessFile(path: string, held: string): Promise<void> {
+  const original = await lstat(path, { bigint: true });
+  const contents = await readFile(path);
+  await rename(path, held);
+  await writeFile(path, contents, { flag: 'wx', mode: Number(original.mode & 0o7777n) });
+  const replacement = await lstat(path, { bigint: true });
+  const retained = await lstat(held, { bigint: true });
+  expect(`${String(replacement.dev)}:${String(replacement.ino)}`).not.toBe(
+    `${String(original.dev)}:${String(original.ino)}`,
+  );
+  expect(`${String(retained.dev)}:${String(retained.ino)}`).toBe(
+    `${String(original.dev)}:${String(original.ino)}`,
+  );
+  expect(await readFile(path)).toEqual(contents);
+  expect(replacement.mode & 0o7777n).toBe(original.mode & 0o7777n);
+}
+
+async function injectReadinessBarrierFault(
+  fault: ReadinessBarrierFault,
+  context: FinalizedParticipantRestorationContext,
+  fixture: Awaited<ReturnType<typeof productProcessFixture>>,
+): Promise<void> {
+  if (fault === 'pre-evidence' || fault === 'post-evidence') {
+    await replaceReadinessFile(
+      join(context.directory, `dependency-activation-${context.attempt}`, 'prod.before.sqlite'),
+      join(context.directory, 'PRIVATE-held-backup.sqlite'),
+    );
+  } else if (fault === 'pre-artifact' || fault === 'post-artifact') {
+    const path = join(
+      context.directory,
+      'dependency-artifacts',
+      context.request.migrations.manifestSha256,
+      'drizzle',
+    );
+    const original = await lstat(path, { bigint: true });
+    const mode = Number(original.mode & 0o7777n);
+    if (mode !== 0o700 && mode !== 0o755) throw new Error('original artifact mode unavailable');
+    const changed = mode === 0o700 ? 0o755 : 0o700;
+    await chmod(path, changed);
+    const observed = await lstat(path, { bigint: true });
+    expect(observed.dev).toBe(original.dev);
+    expect(observed.ino).toBe(original.ino);
+    expect(Number(observed.mode & 0o7777n)).toBe(changed);
+    expect(changed).not.toBe(mode);
+  } else if (fault === 'pre-stores' || fault === 'post-stores') {
+    await replaceReadinessFile(
+      fixture.prodPath,
+      join(context.directory, 'PRIVATE-held-main.sqlite'),
+    );
+  } else if (fault === 'post-ingress') {
+    const path = context.layouts.prod.siteCaddyPath;
+    const original = await readFile(path, 'utf8');
+    await writeFile(path, original + '\n# PRIVATE_RETAINED_SITE_DRIFT\n');
+    expect(await readFile(path, 'utf8')).not.toBe(original);
+  } else {
+    await replaceReadinessFile(
+      context.fencedComplete.path,
+      join(context.directory, 'PRIVATE-held-fenced-complete.json'),
+    );
+  }
+}
+
+for (const fault of [
+  'pre-evidence',
+  'pre-artifact',
+  'pre-stores',
+  'post-evidence',
+  'post-artifact',
+  'post-stores',
+  'post-ingress',
+  'post-context',
+] as const)
+  test(`readiness retained state barrier: ${fault}`, async () => {
+    current.readinessTransport = true;
+    let healthRequests = 0;
+    let capabilityRequests = 0;
+    let adminReads = 0;
+    let injected = false;
+    let afterFinalHttp = false;
+    let inject: (() => Promise<void>) | undefined;
+    const backend = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 3100,
+      async fetch(request) {
+        const path = new URL(request.url).pathname;
+        if (path === '/health') {
+          healthRequests++;
+          return Response.json({ status: 'ok', commit: null });
+        }
+        if (path === '/api/runtime/dependency-capability') {
+          capabilityRequests++;
+          if (!fault.startsWith('pre-')) {
+            afterFinalHttp = true;
+            if (fault !== 'post-context') {
+              if (inject === undefined) throw new Error('actual readiness fault injector absent');
+              await inject();
+            }
+          }
+          return Response.json({
+            protocol: 'wbs-dependency-runtime',
+            version: 1,
+            role: 'backend',
+            semantics: ['cross-project-dependencies-v1'],
+          });
+        }
+        return new Response('fixture path absent', { status: 404 });
+      },
+    });
+    try {
+      await withModelContext(
+        async (context, fixture, audits) => {
+          inject = async () => {
+            if (injected) throw new Error('readiness fault injected twice');
+            await injectReadinessBarrierFault(fault, context, fixture);
+            injected = true;
+          };
+          const originalDocker = fixture.ports.docker;
+          Object.assign(fixture.ports, {
+            docker: async (...args: Parameters<typeof originalDocker>) => {
+              const response = await originalDocker(...args);
+              if (afterFinalHttp && args[0][0] === 'exec' && args[0].includes('wget')) {
+                adminReads++;
+                if (fault === 'post-context') {
+                  if (inject === undefined) throw new Error('actual context fault injector absent');
+                  await inject();
+                }
+              }
+              return response;
+            },
+          });
+          if (fault.startsWith('pre-')) await inject();
+          let refusal: unknown;
+          try {
+            await observeProductParticipantReadiness(context, 'backend');
+          } catch (cause) {
+            refusal = cause;
+          }
+          expect(injected).toBe(true);
+          if (fault.startsWith('pre-')) {
+            expect(healthRequests).toBe(0);
+            expect(capabilityRequests).toBe(0);
+          } else {
+            expect(healthRequests).toBe(1);
+            expect(capabilityRequests).toBe(1);
+          }
+          expect(refusal).toBeInstanceOf(Error);
+          if (!(refusal instanceof Error)) throw new Error('actual retained-state refusal absent');
+          expect(refusal.message).toBe('product participant readiness refused');
+          expect(refusal.cause).toBeUndefined();
+          expect(String(refusal)).not.toContain('PRIVATE_');
+          if (fault === 'post-context') expect(adminReads).toBe(1);
+          expect(
+            fixture.commands.some((args) => ['start', 'restart', 'rm'].includes(args[0])),
+          ).toBe(false);
+          for (const audit of audits) assertLocalTransportSettled(audit);
+        },
+        (fixture) => {
+          for (const member of [fixture.backend, fixture.gateway]) {
+            const networks = readFields(
+              readFields(readFields(member)['NetworkSettings'])['Networks'],
+            );
+            Object.assign(readFields(networks[fixture.layouts.prod.network]), {
+              IPAddress: '127.0.0.1',
+              GlobalIPv6Address: '',
+            });
+          }
+        },
+      );
+    } finally {
+      await backend.stop(true);
+    }
+  }, 300000);

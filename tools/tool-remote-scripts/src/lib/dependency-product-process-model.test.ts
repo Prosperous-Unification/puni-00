@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 import { createProductByteTransportFixture } from '../fixtures/product-byte-transport';
+import { createReadinessByteTransportFixture } from '../fixtures/product-readiness-byte-transport';
 import { readProductHostProc } from './product-host-proc';
 
 async function assertRealHostReader(): Promise<void> {
@@ -97,6 +98,7 @@ const MODEL_CASES = [
 function assertCompleteModelSummary(output: string): void {
   expect(output).toMatch(/\b16 pass\b/);
   expect(output).toMatch(/\b0 fail\b/);
+  expect(output).toMatch(/\b11 filtered out\b/);
   expect(output).not.toMatch(/^\s*\d+ (?:skip|todo)\b|^\((?:skip|todo)\)/m);
   const passed = [...output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map((match) => match[1]);
   // Proof: replacing one named case with an impostor while retaining a 16/0 footer
@@ -130,6 +132,8 @@ test(
           process.execPath,
           'test',
           'test/dependency-product-process-model-child.test.ts',
+          '-t',
+          '^modeled ',
           '--preload',
           '../test/scratch/preload.ts',
           '--timeout=300000',
@@ -153,7 +157,7 @@ test('modeled summary refuses an impostor case despite a valid-looking 16/0 foot
   const lines = MODEL_CASES.map((name) => `(pass) ${name} [1ms]`);
   lines[0] = '(pass) modeled impostor [1ms]';
   expect(() => {
-    assertCompleteModelSummary(`${lines.join('\n')}\n 16 pass\n 0 fail\n`);
+    assertCompleteModelSummary(`${lines.join('\n')}\n 16 pass\n 11 filtered out\n 0 fail\n`);
   }).toThrow();
 });
 
@@ -176,7 +180,8 @@ test('modeled child watchdog kills and joins owned work before a late valid-look
 for (const mode of ['nonzero', 'signal'] as const)
   test(`model child refuses ${mode} despite complete-looking cases`, async () => {
     const output =
-      MODEL_CASES.map((name) => `(pass) ${name} [1ms]`).join('\n') + '\n16 pass\n0 fail\n';
+      MODEL_CASES.map((name) => `(pass) ${name} [1ms]`).join('\n') +
+      '\n16 pass\n11 filtered out\n0 fail\n';
     const source = `process.stderr.write(${JSON.stringify(output)}); ${mode === 'nonzero' ? 'process.exit(9)' : "process.kill(process.pid, 'SIGTERM')"};`;
     const child = await runModelChild(
       [process.execPath, '-e', source],
@@ -208,6 +213,110 @@ test('model child output refusal joins exact owned child before returning', asyn
     await rm(directory, { recursive: true });
   }
 });
+
+for (const fault of ['none', 'after-health', 'after-capability'] as const)
+  test(`isolated readiness actual HTTP and full observer brackets: ${fault}`, async () => {
+    const deadline = performance.now() + 310000;
+    await assertRealHostReader();
+    const project = new URL('../..', import.meta.url).pathname;
+    const fixture = await createReadinessByteTransportFixture();
+    try {
+      const name = `readiness actual HTTP and full observer brackets: ${fault}`;
+      const childWork = Math.min(300000, deadline - performance.now() - 10000);
+      if (childWork <= 0) throw new Error('readiness child cleanup reserve unavailable');
+      const child = await runModelChild(
+        [
+          process.execPath,
+          'test',
+          'test/dependency-product-process-model-child.test.ts',
+          '-t',
+          `^${name}$`,
+          '--preload',
+          '../test/scratch/preload.ts',
+          '--timeout=300000',
+        ],
+        childWork,
+        project,
+        fixture.environment,
+      );
+      process.stderr.write(child.output);
+      expect(child.expired).toBe(false);
+      expect(child.signal).toBeNull();
+      expect(child.exit).toBe(0);
+      expect(child.output).toMatch(/\b1 pass\b/);
+      expect(child.output).toMatch(/\b0 fail\b/);
+      // Sixteen observer cases, eight barrier cases and the other two readiness cases remain registered.
+      expect(child.output).toMatch(/\b26 filtered out\b/);
+      const passed = [...child.output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
+        (match) => match[1],
+      );
+      expect(passed).toEqual([name]);
+    } finally {
+      await rm(fixture.directory, { recursive: true });
+    }
+    await assertRealHostReader();
+  }, 310000);
+
+for (const filtered of [10, 12])
+  test(`model summary refuses ${String(filtered)} filtered registrations`, () => {
+    const lines = MODEL_CASES.map((name) => `(pass) ${name} [1ms]`);
+    expect(() => {
+      assertCompleteModelSummary(
+        `${lines.join('\n')}\n16 pass\n${String(filtered)} filtered out\n0 fail\n`,
+      );
+    }).toThrow();
+  });
+
+for (const fault of [
+  'pre-evidence',
+  'pre-artifact',
+  'pre-stores',
+  'post-evidence',
+  'post-artifact',
+  'post-stores',
+  'post-ingress',
+  'post-context',
+] as const)
+  test(`isolated readiness retained state barrier: ${fault}`, async () => {
+    const deadline = performance.now() + 310000;
+    await assertRealHostReader();
+    const project = new URL('../..', import.meta.url).pathname;
+    const fixture = await createReadinessByteTransportFixture();
+    try {
+      const name = `readiness retained state barrier: ${fault}`;
+      const childWork = Math.min(300000, deadline - performance.now() - 10000);
+      if (childWork <= 0) throw new Error('readiness barrier cleanup reserve unavailable');
+      const child = await runModelChild(
+        [
+          process.execPath,
+          'test',
+          'test/dependency-product-process-model-child.test.ts',
+          '-t',
+          `^${name}$`,
+          '--preload',
+          '../test/scratch/preload.ts',
+          '--timeout=300000',
+        ],
+        childWork,
+        project,
+        fixture.environment,
+      );
+      process.stderr.write(child.output);
+      expect(child.expired).toBe(false);
+      expect(child.signal).toBeNull();
+      expect(child.exit).toBe(0);
+      expect(child.output).toMatch(/\b1 pass\b/);
+      expect(child.output).toMatch(/\b0 fail\b/);
+      expect(child.output).toMatch(/\b26 filtered out\b/);
+      const passed = [...child.output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
+        (match) => match[1],
+      );
+      expect(passed).toEqual([name]);
+    } finally {
+      await rm(fixture.directory, { recursive: true });
+    }
+    await assertRealHostReader();
+  }, 310000);
 
 test('model child retains exact plain case names under inherited CI colors', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'product-model-reporter-'));
