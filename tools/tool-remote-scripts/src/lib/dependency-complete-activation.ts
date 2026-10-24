@@ -7,6 +7,7 @@ import {
 import { assertDigestPinnedRef } from './docker';
 import { runDockerCli } from './docker-deadline';
 import { runDockerExec } from './docker-exec';
+import { spawnProductMetadata } from './docker-product-metadata';
 import { inspectDependencyOwnerPublication } from './edge-ownership';
 import { type DependencyOwnerPlan } from './edge-ownership';
 import { withDependencyOwner } from './edge-ownership';
@@ -186,6 +187,7 @@ export async function activateExcludedDependencies(
               solver,
               docker: runDockerCli,
               execDocker: runDockerExec,
+              spawnProductMetadata,
               authorities: { withFiles: withAuthorityFiles, solver, collect: collectAuthorityHost },
             },
           );

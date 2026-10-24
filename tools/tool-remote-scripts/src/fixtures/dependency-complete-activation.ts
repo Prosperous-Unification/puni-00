@@ -382,6 +382,10 @@ print(encode(collect(REQUEST,ActivationHost())).decode())
       args[0] === 'run' ? docker(args, signal) : base.ports.runDocker(args, signal),
   };
   const ports: CompleteActivationTransports = {
+    // Proof: missing explicit fixture mapping failed all three closed-request composition negatives; no native Docker fallback is provided.
+    spawnProductMetadata: () => {
+      throw new Error('fixture product metadata mapping unavailable');
+    },
     solver,
     docker,
     execDocker: (args, nonce, consume, signal) =>

@@ -210,3 +210,28 @@ specifically to participant-start-intent failed at the eighth decoder assertion,
 `/tmp/puni-participant-record-restoring-new-label-watch.log`; source restored.
 Configured graph lint/typecheck/build: 7 targets pass, 4 dependency cache hits,
 27.9s, `/tmp/puni-participant-records-static2.log`.
+
+## Closed product metadata composition seam
+
+Imported the separately owned initial metadata module checkpoint `590f4f4b7` as
+local `25e2d9756`; that worker retains all implementation/proof ownership. The
+internal complete-activation transport now requires `spawnProductMetadata` and
+the public production factory constructs its fixed adapter. Public request fields
+and generic Docker transports remain unchanged. The base fixture explicitly
+refuses all three raw metadata request kinds; dedicated native fixtures must
+supply controlled actual children. There is no optional mapping or native fallback.
+The original prepared context retains this same required internal composition.
+
+All three explicit fixture-refusal tests first failed with the absent field,
+then pass: 3 tests, 3 assertions, 2.34s,
+`/tmp/puni-product-transport-composition-green2.log`. A mistaken initial fixture
+insertion under request instead of ports was caught by the same tests and
+corrected before commit; no request field was retained. Configured graph checks:
+7 targets lint/typecheck/build pass, 4 dependency cache hits, 18.3s,
+`/tmp/puni-product-transport-composition-static2.log`. Actual generated bundle
+imports successfully, `/tmp/puni-product-transport-composition-bundle.log`.
+
+The separately owned initial metadata files fail formatting check and remain
+subject to that worker's formatted final delta. This wiring checkpoint does not
+claim their complete native matrix, observer source acceptance, actual Docker,
+root namespace rehearsal or live-image compatibility. Those are still outstanding.

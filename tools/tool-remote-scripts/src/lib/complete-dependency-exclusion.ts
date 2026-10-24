@@ -24,6 +24,7 @@ import { type RunDocker, runDockerBefore } from './docker-deadline';
 import type { DockerExec } from './docker-exec';
 import { parseDockerInspection } from './docker-inspection-json';
 import { identifyInventory, orderMounts } from './docker-inventory';
+import type { SpawnProductMetadata } from './docker-product-metadata';
 import {
   assertDependencyOwner,
   assertDependencyOwnerDirectory,
@@ -106,6 +107,7 @@ export interface CompleteActivationTransports {
   readonly solver: SolverPorts;
   readonly docker: RunDocker;
   readonly execDocker: DockerExec;
+  readonly spawnProductMetadata: SpawnProductMetadata;
   readonly authorities: InstalledAuthorityPorts;
 }
 interface SelectedParticipant {
