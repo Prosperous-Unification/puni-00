@@ -209,6 +209,10 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       priorityBands: stores.priorityBands,
       subtrees: stores.subtrees,
       journal: stores.journal,
+      // Proof: with this line removed, every service case of
+      // claim-history.test.ts threw `built without plan events` (1 pass,
+      // 7 fail); watched 2026-10-24.
+      planEvents: stores.planEvents,
       broadcast,
       admission,
       scheduler,
