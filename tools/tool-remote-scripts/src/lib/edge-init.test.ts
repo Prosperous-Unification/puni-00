@@ -6,11 +6,36 @@ import {
   candidateInvariant,
   compareCandidate,
   constructCandidate,
-  CREATED_OOM_PROFILE,
+  CREATED_PROFILE,
   encodeOrderedEnv,
+  type InvariantContext,
+  type NativeContainer,
   parseNativeContainer,
   projectInvariant,
 } from './edge-init';
+
+function profileContext(observed: NativeContainer): InvariantContext {
+  return {
+    profile: CREATED_PROFILE,
+    owner: {
+      role: 'replacement',
+      id: observed.id,
+      originalId: 'a'.repeat(64),
+      phase:
+        observed.state['Status'] === 'created'
+          ? 'never-started'
+          : observed.state['Status'] === 'running'
+            ? 'running'
+            : 'stopped',
+    },
+    networks: [{ name: 'edge', id: 'c'.repeat(64), sha256: '0'.repeat(64) }],
+  };
+}
+const projectProfile = (observed: NativeContainer) =>
+  projectInvariant(observed, profileContext(observed));
+const compareProfile = (original: NativeContainer, observed: NativeContainer) => {
+  compareCandidate(original, observed, profileContext(observed));
+};
 
 const image = `sha256:${'b'.repeat(64)}`;
 
@@ -239,18 +264,18 @@ describe('measured inert OOM representation', () => {
     expect(() => {
       compareCandidate(original, observed);
     }).toThrow();
-    expect(projectInvariant(observed, CREATED_OOM_PROFILE)).toEqual(expected);
+    expect(projectProfile(observed)).toEqual(expected);
     expect(() => {
-      compareCandidate(original, observed, CREATED_OOM_PROFILE);
+      compareProfile(original, observed);
     }).not.toThrow();
     expect(raw.HostConfig).toMatchObject({ OomKillDisable: false });
     expect(observed.host['OomKillDisable']).toBe(false);
     const running = candidate();
     Object.assign(running.HostConfig, { OomKillDisable: null });
-    expect(projectInvariant(parseNativeContainer(running), CREATED_OOM_PROFILE)).toEqual(expected);
-    expect(candidateInvariant(original, CREATED_OOM_PROFILE)).toEqual(expected);
+    expect(projectProfile(parseNativeContainer(running))).toEqual(expected);
+    expect(candidateInvariant(original, CREATED_PROFILE)).toEqual(expected);
     expect(() => {
-      compareCandidate(original, parseNativeContainer(running), CREATED_OOM_PROFILE);
+      compareProfile(original, parseNativeContainer(running));
     }).not.toThrow();
   });
   for (const [name, change] of [
@@ -333,14 +358,14 @@ describe('measured inert OOM representation', () => {
       const raw = inertOom();
       change(raw);
       expect(() => {
-        compareCandidate(oomSource(), parseNativeContainer(raw), CREATED_OOM_PROFILE);
+        compareProfile(oomSource(), parseNativeContainer(raw));
       }).toThrow();
     });
   for (const value of [true, false, undefined])
     test(`profile refuses source ${String(value)}`, () => {
       const raw = container();
       if (value !== undefined) Object.assign(raw.HostConfig, { OomKillDisable: value });
-      expect(() => candidateInvariant(parseNativeContainer(raw), CREATED_OOM_PROFILE)).toThrow();
+      expect(() => candidateInvariant(parseNativeContainer(raw), CREATED_PROFILE)).toThrow();
     });
   for (const value of ['false', 0, []])
     test(`parser refuses OOM type ${JSON.stringify(value)}`, () => {
@@ -356,7 +381,7 @@ describe('measured inert OOM representation', () => {
       CgroupVersion: '2',
       CgroupDriver: 'systemd',
     };
-    expect(admitInvariantProfile(version, info)).toBe(CREATED_OOM_PROFILE);
+    expect(admitInvariantProfile(version, info)).toBe(CREATED_PROFILE);
     for (const key of Object.keys(version)) {
       expect(() => admitInvariantProfile({ ...version, [key]: 'wrong' }, info)).toThrow();
       const missing = { ...version };
@@ -387,13 +412,11 @@ test('profile preserves one expected hash through inert, running and synthetic s
   });
   const stopped = parseNativeContainer(raw);
   for (const observed of [created, running, stopped])
-    expect(projectInvariant(observed, CREATED_OOM_PROFILE)).toEqual(expected);
-  expect(() =>
-    projectInvariant(parseNativeContainer(inertOom(true)), CREATED_OOM_PROFILE),
-  ).toThrow();
+    expect(projectProfile(observed)).toEqual(expected);
+  expect(() => projectProfile(parseNativeContainer(inertOom(true)))).toThrow();
   const absent = inertOom();
   Reflect.deleteProperty(absent.HostConfig, 'OomKillDisable');
-  expect(() => projectInvariant(parseNativeContainer(absent), CREATED_OOM_PROFILE)).toThrow();
+  expect(() => projectProfile(parseNativeContainer(absent))).toThrow();
   // Strict default still preserves a separately requested false without granting the observed profile.
   const requestedFalse = oomSource(false),
     actualFalse = candidate();
@@ -401,4 +424,213 @@ test('profile preserves one expected hash through inert, running and synthetic s
   expect(() => {
     compareCandidate(requestedFalse, parseNativeContainer(actualFalse));
   }).not.toThrow();
+});
+
+test('parses a native never-started empty NetworkID losslessly without granting original construction', () => {
+  const raw = inertOom();
+  raw.NetworkSettings.Networks.edge.NetworkID = '';
+  const parsed = parseNativeContainer(raw);
+  expect(parsed.networks['edge']).toMatchObject({ NetworkID: '' });
+  expect(() => constructCandidate(parsed)).toThrow();
+  expect(() => projectInvariant(parsed)).toThrow();
+  raw.State.Running = true;
+  raw.State.Status = 'running';
+  raw.State.Pid = 123;
+  expect(parseNativeContainer(raw).networks['edge']).toMatchObject({ NetworkID: '' });
+  expect(() => projectInvariant(parseNativeContainer(raw))).toThrow();
+});
+for (const value of [null, undefined, 'a'.repeat(12), 'g'.repeat(64), ' ', '/network']) {
+  test(`endpoint parser refuses invalid NetworkID ${String(value)}`, () => {
+    const raw = inertOom();
+    if (value === undefined) Reflect.deleteProperty(raw.NetworkSettings.Networks.edge, 'NetworkID');
+    else Object.assign(raw.NetworkSettings.Networks.edge, { NetworkID: value });
+    expect(() => parseNativeContainer(raw)).toThrow();
+  });
+}
+
+test('owned never-started blank endpoints share independent expected full-ID settings without mutating observations', () => {
+  const original = oomSource(),
+    raw = inertOom();
+  raw.NetworkSettings.Networks.edge.NetworkID = '';
+  const observed = parseNativeContainer(raw),
+    context = profileContext(observed),
+    expected = candidateInvariant(original, CREATED_PROFILE);
+  expect(projectInvariant(observed, context)).toEqual(expected);
+  expect(() => {
+    compareCandidate(original, observed, context);
+  }).not.toThrow();
+  expect(observed.networks['edge']).toMatchObject({ NetworkID: '' });
+  expect(constructCandidate(original).NetworkingConfig.EndpointsConfig).toEqual(expected.endpoints);
+  const running = candidate();
+  Object.assign(running.HostConfig, { OomKillDisable: null });
+  expect(projectProfile(parseNativeContainer(running))).toEqual(expected);
+  const full = inertOom();
+  expect(projectProfile(parseNativeContainer(full))).toEqual(expected);
+});
+for (const fault of [
+  'profile',
+  'old-profile',
+  'owner',
+  'original',
+  'role',
+  'phase',
+  'running-blank',
+  'stopped-blank',
+  'name',
+  'extra-name',
+  'missing-name',
+  'duplicate-name',
+  'duplicate-id',
+  'wrong-id',
+  'mode',
+  'ipam',
+  'links',
+  'aliases',
+  'alias-order',
+  'driver',
+  'priority',
+  'gateway',
+  'v6-gateway',
+  'mac',
+  'v4-prefix',
+  'v6-prefix',
+  'dns',
+] as const) {
+  test(`owned endpoint context refuses ${fault}`, () => {
+    const raw = inertOom();
+    raw.NetworkSettings.Networks.edge.NetworkID = '';
+    const original = oomSource();
+    let observed = parseNativeContainer(raw);
+    const context = structuredClone(profileContext(observed));
+    if (fault === 'profile') Object.assign(context, { profile: 'unknown' });
+    if (fault === 'old-profile')
+      Object.assign(context, { profile: 'engine-29.1.3-api-1.52-cgroup2-created-oom-v1' });
+    if (fault === 'owner') Object.assign(context.owner, { id: 'f'.repeat(64) });
+    if (fault === 'original') Object.assign(context.owner, { originalId: 'f'.repeat(64) });
+    if (fault === 'role') Object.assign(context.owner, { role: 'original' });
+    if (fault === 'phase') Object.assign(context.owner, { phase: 'running' });
+    if (fault === 'name')
+      Object.assign(context, {
+        networks: [{ name: 'other', id: 'c'.repeat(64), sha256: '0'.repeat(64) }],
+      });
+    if (fault === 'extra-name')
+      Object.assign(raw.NetworkSettings.Networks, {
+        other: structuredClone(raw.NetworkSettings.Networks.edge),
+      });
+    if (fault === 'missing-name') Reflect.deleteProperty(raw.NetworkSettings.Networks, 'edge');
+    if (fault === 'duplicate-name')
+      Object.assign(context, { networks: [...context.networks, ...context.networks] });
+    if (fault === 'duplicate-id') {
+      Object.assign(raw.NetworkSettings.Networks, {
+        other: structuredClone(raw.NetworkSettings.Networks.edge),
+      });
+      Object.assign(context, {
+        networks: [...context.networks, { ...context.networks[0], name: 'other' }],
+      });
+    }
+    if (fault === 'wrong-id') raw.NetworkSettings.Networks.edge.NetworkID = 'f'.repeat(64);
+    if (fault === 'mode') raw.HostConfig.NetworkMode = 'other';
+    if (fault === 'ipam')
+      Object.assign(raw.NetworkSettings.Networks.edge, {
+        IPAMConfig: { IPv4Address: '172.18.0.2' },
+      });
+    if (fault === 'links') Object.assign(raw.NetworkSettings.Networks.edge, { Links: ['backend'] });
+    if (fault === 'aliases') raw.NetworkSettings.Networks.edge.Aliases.push('other');
+    if (fault === 'alias-order') raw.NetworkSettings.Networks.edge.Aliases = ['other', 'registry'];
+    if (fault === 'driver')
+      Object.assign(raw.NetworkSettings.Networks.edge, { DriverOpts: { option: 'changed' } });
+    if (fault === 'priority') raw.NetworkSettings.Networks.edge.GwPriority = 1;
+    if (fault === 'gateway') raw.NetworkSettings.Networks.edge.Gateway = '172.18.0.1';
+    if (fault === 'v6-gateway') raw.NetworkSettings.Networks.edge.IPv6Gateway = '::1';
+    if (fault === 'mac') raw.NetworkSettings.Networks.edge.MacAddress = '00:11:22:33:44:55';
+    if (fault === 'v4-prefix') raw.NetworkSettings.Networks.edge.IPPrefixLen = 24;
+    if (fault === 'v6-prefix') raw.NetworkSettings.Networks.edge.GlobalIPv6PrefixLen = 64;
+    if (fault === 'dns') Object.assign(raw.NetworkSettings.Networks.edge, { DNSNames: [] });
+    if (fault === 'running-blank' || fault === 'stopped-blank') {
+      Object.assign(raw.State, {
+        Status: fault === 'running-blank' ? 'running' : 'exited',
+        Running: fault === 'running-blank',
+        Pid: fault === 'running-blank' ? 123 : 0,
+        StartedAt: '2026-01-01T00:00:00Z',
+      });
+      Object.assign(raw.HostConfig, { OomKillDisable: null });
+      Object.assign(context.owner, { phase: fault === 'running-blank' ? 'running' : 'stopped' });
+    }
+    observed = parseNativeContainer(raw);
+    expect(() => {
+      compareCandidate(original, observed, context);
+    }).toThrow();
+  });
+}
+test('original construction rejects duplicate endpoint identities before request keys collapse', () => {
+  const raw = container();
+  Object.assign(raw.NetworkSettings.Networks, {
+    other: structuredClone(raw.NetworkSettings.Networks.edge),
+  });
+  expect(() => constructCandidate(parseNativeContainer(raw))).toThrow();
+});
+
+for (const key of [
+  'Gateway',
+  'IPv6Gateway',
+  'MacAddress',
+  'IPPrefixLen',
+  'GlobalIPv6PrefixLen',
+  'DNSNames',
+])
+  test('never-started context refuses absent ' + key, () => {
+    const raw = inertOom();
+    raw.NetworkSettings.Networks.edge.NetworkID = '';
+    Reflect.deleteProperty(raw.NetworkSettings.Networks.edge, key);
+    const observed = parseNativeContainer(raw);
+    expect(() => projectInvariant(observed, profileContext(observed))).toThrow();
+  });
+
+test('direct context admission requires a closed profile, owner and network roster before projecting settings', () => {
+  const raw = inertOom();
+  raw.NetworkSettings.Networks.edge.NetworkID = '';
+  const observed = parseNativeContainer(raw);
+  for (const mutate of [
+    (context: InvariantContext) => Reflect.deleteProperty(context, 'profile'),
+    (context: InvariantContext) => Object.assign(context, { extra: true }),
+    (context: InvariantContext) => Object.assign(context.owner, { extra: true }),
+    (context: InvariantContext) =>
+      Object.assign(context.owner, { id: observed.id, originalId: observed.id }),
+    (context: InvariantContext) => Object.assign(context.networks[0], { extra: true }),
+    (context: InvariantContext) => Object.assign(context.networks[0], { sha256: 'wrong' }),
+    (context: InvariantContext) => Object.assign(context, { networks: [] }),
+  ]) {
+    const context = structuredClone(profileContext(observed));
+    mutate(context);
+    expect(() => projectInvariant(observed, context)).toThrow();
+  }
+  const mode = inertOom();
+  mode.NetworkSettings.Networks.edge.NetworkID = '';
+  mode.HostConfig.NetworkMode = 'foreign';
+  const changed = parseNativeContainer(mode);
+  expect(() => projectInvariant(changed, profileContext(changed))).toThrow();
+});
+
+test('context network roster enforces its finite bound and Docker name syntax', () => {
+  for (const count of [17, 1]) {
+    const raw = inertOom();
+    const template = raw.NetworkSettings.Networks.edge;
+    const names = Array.from({ length: count }, (_, index) =>
+      count === 1 ? '/invalid' : `net${String(index)}`,
+    );
+    Object.assign(raw.NetworkSettings, {
+      Networks: Object.fromEntries(names.map((name) => [name, { ...template, NetworkID: '' }])),
+    });
+    raw.HostConfig.NetworkMode = names[0];
+    const observed = parseNativeContainer(raw),
+      context = profileContext(observed);
+    Object.assign(context, {
+      networks: names.map((name, index) => ({
+        name,
+        id: (index + 1).toString(16).padStart(64, '0'),
+        sha256: '0'.repeat(64),
+      })),
+    });
+    expect(() => projectInvariant(observed, context)).toThrow();
+  }
 });

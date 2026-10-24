@@ -14,7 +14,7 @@ import { syntheticContainer } from '../../test/edge-init-fixture';
 import { packetFixture } from '../../test/edge-init-observer-fixture';
 import {
   candidateInvariant,
-  CREATED_OOM_PROFILE,
+  CREATED_PROFILE,
   fingerprint,
   parseNativeContainer,
   projectInvariant,
@@ -37,6 +37,7 @@ import {
   readRecoveryHistory,
   readRecoveryStage,
   readSuspendedCrontab,
+  recoverySnapshot,
   requireLiteralComposeInit,
   resolveDefaultRoute,
   runProductionInitAdoption,
@@ -411,7 +412,7 @@ test('production receipt readback contains both exact source hashes and recovery
       ...evidence,
       format: 'edge-init-receipt',
       version: 2,
-      invariantProfile: CREATED_OOM_PROFILE,
+      invariantProfile: CREATED_PROFILE,
     });
     expect(persisted['packetSha256']).toBe('e'.repeat(64));
     checkReceiptSources(persisted, proof, 'e'.repeat(64));
@@ -425,6 +426,7 @@ test('production receipt readback contains both exact source hashes and recovery
       missingPacket,
       { ...persisted, invariantProfile: undefined },
       { ...persisted, invariantProfile: 'unknown' },
+      { ...persisted, invariantProfile: 'engine-29.1.3-api-1.52-cgroup2-created-oom-v1' },
       { ...persisted, packetSha256: 'f'.repeat(64) },
       missingRoster,
       missingLiteral,
@@ -1252,7 +1254,7 @@ test('private recovery reader accepts only legal v2 prefixes with immutable two-
       chain.push({
         format: 'edge-init-receipt',
         version: 2,
-        invariantProfile: CREATED_OOM_PROFILE,
+        invariantProfile: CREATED_PROFILE,
         packetSha256,
         ...proof,
         stage,
@@ -1419,7 +1421,20 @@ test('recovery shares the admitted profile hash for inert and running candidates
     expect(classifyRecoveryTarget(kind, 'fixture', original, candidate, intents, true)).toBe(
       'candidate-inert',
     );
-    expect(fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE))).toBe(expected);
+    expect(
+      fingerprint(
+        projectInvariant(candidate, {
+          profile: CREATED_PROFILE,
+          owner: {
+            role: 'replacement',
+            id: candidate.id,
+            originalId: original.id,
+            phase: candidate.state['Status'] === 'created' ? 'never-started' : 'running',
+          },
+          networks: [{ name: 'edge', id: 'c'.repeat(64), sha256: '0'.repeat(64) }],
+        }),
+      ),
+    ).toBe(expected);
     candidate.name = `/wbs-${kind}-1`;
     candidate.state = { ...original.state };
     candidate.host = { ...candidate.host, OomKillDisable: null };
@@ -1427,11 +1442,69 @@ test('recovery shares the admitted profile hash for inert and running candidates
     expect(classifyRecoveryTarget(kind, 'fixture', undefined, candidate, intents, true)).toBe(
       'candidate-running-original-absent',
     );
-    expect(fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE))).toBe(expected);
+    expect(
+      fingerprint(
+        projectInvariant(candidate, {
+          profile: CREATED_PROFILE,
+          owner: {
+            role: 'replacement',
+            id: candidate.id,
+            originalId: original.id,
+            phase: 'running',
+          },
+          networks: [{ name: 'edge', id: 'c'.repeat(64), sha256: '0'.repeat(64) }],
+        }),
+      ),
+    ).toBe(expected);
     candidate.host = { ...candidate.host, Init: false };
-    expect(fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE))).not.toBe(expected);
+    expect(
+      fingerprint(
+        projectInvariant(candidate, {
+          profile: CREATED_PROFILE,
+          owner: {
+            role: 'replacement',
+            id: candidate.id,
+            originalId: original.id,
+            phase: 'running',
+          },
+          networks: [{ name: 'edge', id: 'c'.repeat(64), sha256: '0'.repeat(64) }],
+        }),
+      ),
+    ).not.toBe(expected);
     candidate.host = { ...candidate.host, Init: true };
     candidate.config = { ...candidate.config, Image: 'wrong:spelling' };
-    expect(fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE))).not.toBe(expected);
+    expect(
+      fingerprint(
+        projectInvariant(candidate, {
+          profile: CREATED_PROFILE,
+          owner: {
+            role: 'replacement',
+            id: candidate.id,
+            originalId: original.id,
+            phase: 'running',
+          },
+          networks: [{ name: 'edge', id: 'c'.repeat(64), sha256: '0'.repeat(64) }],
+        }),
+      ),
+    ).not.toBe(expected);
   }
+});
+
+test('raw recovery stability accepts unrelated created blank endpoints without granting immutable admission', () => {
+  const raw = syntheticContainer();
+  raw.Id = 'f'.repeat(64);
+  raw.Name = '/unrelated';
+  raw.NetworkSettings.Networks.edge.NetworkID = '';
+  Object.assign(raw.State, {
+    Status: 'created',
+    Running: false,
+    Pid: 0,
+    StartedAt: '0001-01-01T00:00:00Z',
+  });
+  const observed = parseNativeContainer(raw);
+  const before = recoverySnapshot([observed]);
+  expect(before).toMatch(/^[a-f0-9]{64}$/);
+  expect(() => projectInvariant(observed)).toThrow();
+  observed.networks['edge'] = { ...raw.NetworkSettings.Networks.edge, Aliases: ['changed'] };
+  expect(recoverySnapshot([observed])).not.toBe(before);
 });

@@ -11,8 +11,10 @@ import {
   constructCandidate,
   fingerprint,
   InitRefusal,
+  type InvariantContext,
   type InvariantProfile,
   type NativeContainer,
+  type NetworkPin,
   parseNativeContainer,
   projectInvariant,
 } from './edge-init';
@@ -127,7 +129,7 @@ export class PrivateReceipts {
 }
 
 export interface CaddyReadBinding {
-  invariantProfile?: InvariantProfile;
+  invariantContext?: InvariantContext;
   id: string;
   originalId: string;
   candidateId: string | null;
@@ -256,6 +258,14 @@ export class EngineTransport {
   async network(id: string, timeout: number): Promise<unknown> {
     return this.call('GET', `/networks/${readIdentity(id)}`, timeout, 200);
   }
+  /** Resolves one independently pinned Docker name through the local daemon without expanding mutation membership.
+   * Proof: syntax omission dispatched invalid names and failed the zero-dispatch name regression.
+   */
+  async networkByName(name: string, timeout: number): Promise<unknown> {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(name))
+      throw new InitRefusal('network-name-invalid');
+    return this.call('GET', '/networks/' + encodeURIComponent(name), timeout, 200);
+  }
   async volume(name: string, timeout: number): Promise<unknown> {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(name))
       throw new InitRefusal('volume-name-invalid');
@@ -375,7 +385,7 @@ export class EngineTransport {
     const keys = Object.keys(fields);
     // Proof: closed-binding omission admitted the extra-field Unix-socket negative.
     if (
-      keys.length !== (Object.hasOwn(fields, 'invariantProfile') ? 7 : 6) ||
+      keys.length !== (Object.hasOwn(fields, 'invariantContext') ? 7 : 6) ||
       keys.some(
         (key) =>
           ![
@@ -385,9 +395,20 @@ export class EngineTransport {
             'nonce',
             'name',
             'invariantSha256',
-            'invariantProfile',
+            'invariantContext',
           ].includes(key),
       )
+    )
+      throw new InitRefusal('caddy-read-binding-invalid');
+    const context = binding.invariantContext;
+    if (
+      context !== undefined &&
+      (context.owner.id !== binding.id ||
+        context.owner.phase !== 'running' ||
+        (binding.id === binding.originalId
+          ? context.owner.role !== 'original'
+          : context.owner.role !== 'replacement' ||
+            context.owner.originalId !== binding.originalId))
     )
       throw new InitRefusal('caddy-read-binding-invalid');
     readIdentity(binding.id);
@@ -456,7 +477,7 @@ export class EngineTransport {
       observed.name !== binding.name ||
       readFields(observed.config['Labels'])['com.docker.compose.service'] !== 'caddy' ||
       // Proof: omitting the declared profile admitted an unknown-profile read through the actual Unix-socket boundary.
-      fingerprint(projectInvariant(observed, binding.invariantProfile)) !== binding.invariantSha256
+      fingerprint(projectInvariant(observed, binding.invariantContext)) !== binding.invariantSha256
     )
       throw new InitRefusal('caddy-read-invariant-differs');
     // Proof: replacing the running-state check with an unchecked identity admitted the paused-container negative.
@@ -524,6 +545,7 @@ export async function createLocalEngine(
 export interface SelectedTarget {
   kind: TargetKind;
   original: NativeContainer;
+  networks?: readonly NetworkPin[];
 }
 export interface AdoptionSelection {
   nonce: string;
@@ -541,11 +563,72 @@ export interface HostObserver {
   combined(deadline: Deadline): Promise<void>;
   absent(id: string, deadline: Deadline): Promise<void>;
 }
-type Effects = Pick<EngineTransport, 'inspect' | 'create' | 'stop' | 'rename' | 'start' | 'remove'>;
+type Effects = Pick<
+  EngineTransport,
+  'inspect' | 'create' | 'stop' | 'rename' | 'start' | 'remove' | 'network' | 'networkByName'
+>;
 type ReceiptWriter = Pick<PrivateReceipts, 'publish'>;
 interface MonotonicClock {
   now: () => number;
   sleep: (milliseconds: number) => Promise<void>;
+}
+
+/** Fresh ID and exact-name network reads bind pinned configuration and inactive candidate membership to a stable native observation.
+ * Proof: omitting either read admitted its wrong-owner/config response; ID/Name omissions admitted independently hash-consistent wrong owners.
+ * Configuration, either membership check, fresh readback and stable snapshot omissions each failed their real Unix-socket regressions.
+ */
+export async function observeNetworks(
+  engine: Pick<EngineTransport, 'inspect' | 'network' | 'networkByName'>,
+  observed: NativeContainer,
+  context: InvariantContext,
+  deadline: Deadline,
+): Promise<void> {
+  projectInvariant(observed, context);
+  const before = snapshot(observed);
+  for (const pin of context.networks) {
+    const byId = await engine.network(pin.id, deadline.allocate(10000));
+    const byName = await engine.networkByName(pin.name, deadline.allocate(10000));
+    for (const response of [byId, byName]) {
+      const fields = readFields(response),
+        { Containers, ...configuration } = fields;
+      if (
+        fields['Id'] !== pin.id ||
+        fields['Name'] !== pin.name ||
+        fingerprint(configuration) !== pin.sha256
+      )
+        throw new InitRefusal('network-pin-differs');
+      const members = readFields(Containers);
+      if (
+        context.owner.role === 'replacement' &&
+        context.owner.phase === 'never-started' &&
+        Object.hasOwn(members, context.owner.id)
+      )
+        throw new InitRefusal('candidate-network-active');
+    }
+  }
+  const after = await engine.inspect(context.owner.id, deadline.allocate(10000));
+  projectInvariant(after, context);
+  function snapshot(container: NativeContainer): string {
+    return fingerprint({
+      id: container.id,
+      name: container.name,
+      image: container.image,
+      config: container.config,
+      host: container.host,
+      mounts: container.mounts,
+      networks: container.networks,
+      sandboxId: container.sandboxId,
+      sandboxKey: container.sandboxKey,
+      ports: container.ports,
+      restartCount: container.restartCount,
+      state: Object.fromEntries(
+        ['Status', 'Running', 'Paused', 'Restarting', 'Dead', 'Pid', 'StartedAt', 'FinishedAt'].map(
+          (key) => [key, container.state[key]],
+        ),
+      ),
+    });
+  }
+  if (before !== snapshot(after)) throw new InitRefusal('network-observation-unstable');
 }
 
 function checkStopped(observed: NativeContainer): void {
@@ -593,8 +676,30 @@ export async function runInitAdoption(
 ): Promise<void> {
   const [registry, caddy] = selection.targets;
   const fixture = selection.namespace === 'owned-fixture';
-  for (const target of selection.targets)
+  for (const target of selection.targets) {
     checkProfileSource(target.original, selection.invariantProfile);
+    if (selection.invariantProfile !== undefined) {
+      if (target.networks === undefined) throw new InitRefusal('network-pins-missing');
+      projectInvariant(target.original, {
+        profile: selection.invariantProfile,
+        owner: { role: 'original', id: target.original.id, phase: 'running' },
+        networks: target.networks,
+      });
+    }
+  }
+  const contextFor = (
+    target: SelectedTarget,
+    id: string,
+    phase: 'never-started' | 'running',
+  ): InvariantContext | undefined => {
+    if (selection.invariantProfile === undefined) return undefined;
+    if (target.networks === undefined) throw new InitRefusal('network-pins-missing');
+    return {
+      profile: selection.invariantProfile,
+      owner: { role: 'replacement', id, originalId: target.original.id, phase },
+      networks: target.networks,
+    };
+  };
   if (
     registry.kind !== 'registry' ||
     caddy.kind !== 'caddy' ||
@@ -659,11 +764,15 @@ export async function runInitAdoption(
       phase = 'candidate-inert';
       await publish('created');
       const replacement = await engine.inspect(candidate, deadline.allocate(10000));
-      // Proof: dropping profile propagation refused the native false-to-null finite-sequence positive.
-      compareCandidate(before, replacement, selection.invariantProfile);
-      checkInert(replacement);
+      // Proof: omitting owner-context propagation failed the blank-endpoint finite-sequence positive.
       if (replacement.name !== `/wbs-init-${selection.nonce}-${target.kind}`)
         throw new InitRefusal('candidate-name-mismatch');
+      const createdContext = contextFor(target, candidate, 'never-started');
+      compareCandidate(before, replacement, createdContext);
+      checkInert(replacement);
+      // Proof: omitting this fresh observation let the native-shaped modeled operation stop with active candidate membership.
+      if (createdContext !== undefined)
+        await observeNetworks(engine, replacement, createdContext, deadline);
       await observer.inert(target, replacement, deadline);
       const original = await engine.inspect(before.id, deadline.allocate(10000));
       checkOriginal(target, original);
@@ -691,8 +800,11 @@ export async function runInitAdoption(
       );
       const renamed = await engine.inspect(candidateId, deadline.allocate(10000));
       checkInert(renamed);
-      compareCandidate(before, renamed, selection.invariantProfile);
+      const renamedContext = contextFor(target, candidateId, 'never-started');
+      compareCandidate(before, renamed, renamedContext);
       if (renamed.name !== before.name) throw new InitRefusal('candidate-rename-unverified');
+      if (renamedContext !== undefined)
+        await observeNetworks(engine, renamed, renamedContext, deadline);
       phase = 'start-uncertain';
       await effect('start-intended', 20000, (timeout) => engine.start(candidateId, timeout));
       phase = 'candidate-running-unhealthy';
@@ -700,7 +812,10 @@ export async function runInitAdoption(
       const firstRound = clock.now();
       for (let round = 0; round < 3; round++) {
         const running = await engine.inspect(candidateId, deadline.allocate(10000));
-        compareCandidate(before, running, selection.invariantProfile);
+        const runningContext = contextFor(target, candidateId, 'running');
+        compareCandidate(before, running, runningContext);
+        if (runningContext !== undefined)
+          await observeNetworks(engine, running, runningContext, deadline);
         const current = checkRunning(running);
         if (identity !== undefined && identity !== current)
           throw new InitRefusal('candidate-process-changed');
