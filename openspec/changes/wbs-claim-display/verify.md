@@ -398,3 +398,78 @@ Results (fresh, 2026-10-23):
 - `openspec validate --all --json`: 275 of 275.
 
 The C21 section above described `onChange('claims_changed')`; the second review round replaced that with the opt-in `onClaims`.
+
+### Slice 8: claim history read (be-01), 2026-10-24
+
+Branch `feat/wbs-claim-history` on `origin/main` at `e763aa1a3` (slices 1 and 2 merged as
+`76575e668`; slices 3 to 7 are open PRs and not in this branch). Commands ran with
+`env -u CLAUDECODE` from the worktree.
+
+**8.1** `claim-history.ts` in the work-item module: `decodeClaimEvents` decodes each stored
+`after` with the journal's `readCommand` (batches walked, so a claim that also assigned lists its
+`add_claims`), `nameClaimHistory` names holders and items as the plan holds them now, and
+`claimHistoryLimitOf` reads the `limit` query. `WorkItemService.claimHistoryWithin` admits as the
+tree read does, reads `listFor(projectId, { kinds: ['claim', 'release'], limit })`, then the rows
+and the holders' names through the caller's access. `PlanEventFilter` gains `limit`: SQLite adds
+`LIMIT`, the memory twin slices. Eight cases in `claim-history.test.ts` over the memory source and
+the real batch runner: claim, release, lease reap and credential reap newest first with their
+reasons and the stored event ids; a release of an item named `x (lease expired)` reads
+`released`; a deleted holder and item read `null`; a claim's undo and redo and a `setEstimate`
+add nothing; 120 events answer the newest 50 and 100; the limit grammar; four corrupt events
+(unknown command, no command, a `claim` whose command claims nothing, an unknown reap reason) each
+fail the read naming the event; an absent project reads `null`. Red: the seven service cases
+failed (`claimHistoryWithin` is not a function) before the green; the limit grammar case passed
+with the helper alone. SQLite `plan-event.db.test.ts` gains `answers at most the limit, newest
+first, after the other filters`.
+
+| R5 fault (watched)                                                 | Observed                                                    |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| undecodable event skipped (`flatMap` with an empty catch)          | corrupt-history case fails (7/1)                            |
+| reason read off the label before the stored reason                 | `reads a release named like a reap …` fails (7/1)           |
+| unknown reap reason read as `released`                             | corrupt-history case fails (7/1)                            |
+| "names no claim" check removed                                     | corrupt-history case fails (7/1)                            |
+| `limit` maximum check removed                                      | limit grammar case fails (7/1)                              |
+| memory store ignores `limit`                                       | `answers the newest events up to the limit` fails (7/1)     |
+| SQLite store ignores `limit`                                       | SQLite `answers at most the limit …` fails (7/1)            |
+| `kinds` filter dropped from the service's read                     | `lists no undo, redo or other command` fails (7/1)          |
+| deleted holder named by its id instead of `null`                   | `names a holder and an item deleted since as null` (7/1)    |
+| `planEvents` dropped from `servicesOver` / from the module mapping | every service case throws `built without plan events` (1/7) |
+
+**8.2** `readClaimHistory` (`GET /api/projects/:id/claim-history`,
+`getApiProjectsByIdClaim-history`) in `claim-history-shapes.ts`, bound beside the claims read
+in `work-item.routes.ts`: a repeated key or a `limit` outside 1 to 100 is `400 invalid_query`
+before access is resolved; then `organizations.resolve`, then the service (`404 not_found` for a
+foreign or absent project). Inventory entry, `app.routes.test.ts` operation lists, the MCP pin
+list and README (87 to 88 tools; `counts them the same way the document does` failed 87 against
+88 until the README moved). `claim-history-organization.controller.db.test.ts` (6 cases): a
+member and a viewer read the same newest-first list with `lease_expired`, `released` and
+`claimed`, a deleted holder and item `null`, and no foreign event; 60 events answer 50, 2 and 60;
+`limit=0`, `101`, `ten`, empty and repeated are refused; a stranger, a foreign or absent project
+and an unbound session are refused exactly as the tree read; a removed member is refused as the
+tree read refuses them; an undecodable stored command answers 500. The organization harness's
+work-item service now gets `PlanEventRepository`.
+
+| R5 fault (watched)                                    | Observed                                                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `organization-resource` policy dropped from the shape | `covers every mounted organization mutation` and `refuses a stale expected organization …` fail |
+| repeated-key check removed                            | limit refusal case fails (5/1)                                                                  |
+| `limit === null` refusal removed                      | limit refusal case fails (5/1)                                                                  |
+| read with legacy access, access unresolved            | listing, stranger and removed-member cases fail (3/3)                                           |
+| service admission removed                             | stranger case fails (5/1)                                                                       |
+
+Deviations and limits:
+
+- Placement: the read lives in the work-item resource, not in `plan-history`. It needs the
+  admission, rows and access-scoped names that `WorkItemService` already owns
+  (`admits`, `personNamesWithin`), and `plan-history` is a closed feature module under
+  `module-boundaries.test.ts`. The resource gains an optional `planEvents` option (read-only
+  `listFor`), throwing when absent, as `claims` does; `servicesOver` passes the scope's store.
+- The admission is the tree read's `admits` after `organizations.resolve`; unlike the claims read
+  it rechecks nothing inside one observation, so a member removed between admission and the event
+  read is answered. History rows are append-only and the plan history read takes the same stance.
+- **Gap (not built): a claim or release inside a multi-command batch is recorded as one `batch`
+  plan event, which this read does not list** (`recordCollected`). `claim-command.test.ts` already
+  runs `claimWorkItem` with `setProgress` in one batch. Listing `batch` events would break the
+  store-side `limit` (non-claim batches would use up slots). Needs a decision: record claim acts
+  as their own events, or tag claim-bearing batches.
+- An undone claim stays listed as claimed (design Risks); the held claims are the truth.

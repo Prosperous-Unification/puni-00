@@ -51,6 +51,12 @@ export interface PlanEventFilter {
    * to refuse a name against.
    */
   kinds?: readonly string[];
+  /**
+   * At most this many of the newest events that pass the other filters, a
+   * whole number of at least 1. Omitted is every event: the plan history read
+   * has no limit, the claim history read always passes one.
+   */
+  limit?: number;
 }
 
 /**

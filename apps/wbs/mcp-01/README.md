@@ -18,7 +18,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-87 tools in all:
+88 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
@@ -27,6 +27,8 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   claims in a project, each claim with its lease expiry);
 - the claims read (`getApiProjectsByIdClaims`: every claim held in a project, with holder, run,
   parent claim, lease expiry and revocation, and the server's read instant);
+- the claim history read (`getApiProjectsByIdClaim-history`: a project's newest claims and
+  releases, each with holder, items and reason, such as a lease that expired);
 - the agent heartbeat (`postApiClaimsRenew`: renews every claim lease of the calling agent; a
   claim an agent takes for itself is released 15 minutes after its last write unless renewed);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the

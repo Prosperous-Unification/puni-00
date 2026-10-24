@@ -45,7 +45,7 @@ export class PlanEventRepository implements PlanEventStore {
    */
   async listFor(projectId: string, filter: PlanEventFilter): Promise<PlanEvent[]> {
     const kinds = filter.kinds ?? [];
-    const rows = await this.db
+    const ordered = this.db
       .select()
       .from(planEvent)
       .where(
@@ -56,6 +56,9 @@ export class PlanEventRepository implements PlanEventStore {
         ),
       )
       .orderBy(desc(planEvent.createdAt), desc(planEvent.id));
+    // Proof: with the limit left off, `answers at most the limit, newest first`
+    // (plan-event.test.ts) read every event; watched 2026-10-24.
+    const rows = await (filter.limit === undefined ? ordered : ordered.limit(filter.limit));
     return rows.map(asEvent);
   }
 

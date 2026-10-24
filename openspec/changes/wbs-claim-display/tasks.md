@@ -82,13 +82,13 @@
 
 ## 8. Claim history read (be-01)
 
-- [ ] 8.1 Red: `claim-history.test.ts` in core: claim, release and reap events newest first,
+- [x] 8.1 Red: `claim-history.test.ts` in core: claim, release and reap events newest first,
       reasons `claimed`, `released`, `lease_expired`, `credential_revoked`, deleted holder
       and item read `null`, undo and redo entries absent, `limit` default 50 and bound 100,
       an undecodable stored command fails the read. Green: decode with the journal's own
       decoder. R5 faults: skip an undecodable event (the corrupt case reddens); read the reason
       from the label; watched.
-- [ ] 8.2 Contract `readClaimHistory`, route, policy as the tree read, `limit` refused outside
+- [x] 8.2 Contract `readClaimHistory`, route, policy as the tree read, `limit` refused outside
       1 to 100 as `400 invalid_query`, MCP tool `getApiProjectsByIdClaim-history` by
       derivation — test: route tests and the tool count moving by one.
 

@@ -80,6 +80,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       journalStore: DiBag.createProvider(() => requirements.journal, {
         factoryReturnKind: 'sync-value',
       }),
+      planEventStore: DiBag.createProvider(() => requirements.planEvents, {
+        factoryReturnKind: 'sync-value',
+      }),
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
         factoryReturnKind: 'sync-value',
       }),

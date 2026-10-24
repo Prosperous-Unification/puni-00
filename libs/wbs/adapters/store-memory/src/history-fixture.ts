@@ -40,7 +40,10 @@ export function inMemoryPlanEvents(
             (each) => filter.workItemId === undefined || each.workItemId === filter.workItemId,
           )
           .filter((each) => kinds.length === 0 || kinds.includes(each.kind))
-          .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)),
+          .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id))
+          // Proof: with the limit ignored, `answers the newest events up to the
+          // limit` (claim-history.test.ts) read all 120; watched 2026-10-24.
+          .slice(0, filter.limit),
       );
     },
     pruneOlderThan(cutoff) {

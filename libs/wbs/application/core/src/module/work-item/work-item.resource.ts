@@ -131,6 +131,7 @@ import {
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
+import type { PlanEventStore } from '../../ports/plan-event-store';
 import type {
   IdentifiedSlice,
   PlanOptimization,
@@ -199,6 +200,12 @@ import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/depe
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
+import {
+  CLAIM_HISTORY_KINDS,
+  type ClaimHistoryEvent,
+  decodeClaimEvents,
+  nameClaimHistory,
+} from './claim-history';
 import {
   type Claimed,
   type ClaimInput,
@@ -1160,6 +1167,12 @@ export interface WorkItemServiceOptions {
    * exists to keep out of this repo.
    */
   journal: CommandJournalStore;
+  /**
+   * The project's plan events, read by {@link WorkItemService.claimHistoryWithin}
+   * (`wbs-claim-display` C13). Optional only for fixtures that predate the
+   * claim history: without it that read throws rather than answering.
+   */
+  planEvents?: Pick<PlanEventStore, 'listFor'>;
   broadcast: Broadcaster;
   /**
    * Who may write a project through this service: `CREATOR_ADMISSION`
@@ -2020,6 +2033,44 @@ export class WorkItemService {
     if (observed.kind === 'not_found') return null;
     if (observed.kind === 'access_refused') return observed;
     return findProjectClaims({ ...observed, readAt: this.clock.now() });
+  }
+
+  /**
+   * The newest `limit` claim and release events of a project
+   * (`wbs-claim-display` C13, C14), admitted as the tree read is: `null` for a
+   * project the caller may not read, refused alike with an absent one. Each
+   * stored command is decoded with the journal's decoder
+   * ({@link decodeClaimEvents}); holders and work items are named as the plan
+   * holds them now, `null` once deleted ({@link nameClaimHistory}). Undo and
+   * redo write no plan event, so neither is listed.
+   *
+   * @throws when this service was built without plan events, or a stored
+   * event does not decode: corrupt history fails the read whole.
+   */
+  async claimHistoryWithin(
+    projectId: string,
+    access: ResourceAccess,
+    limit: number,
+  ): Promise<ClaimHistoryEvent[] | null> {
+    // Proof: with this admission removed, `refuses a stranger exactly as the
+    // tree read does` (claim-history-organization.controller.db.test.ts)
+    // failed: the foreign and absent projects were read (5 pass, 1 fail);
+    // watched 2026-10-24.
+    if (!(await this.admits(projectId, access))) return null;
+    const { planEvents } = this.opts;
+    if (planEvents === undefined)
+      throw new Error('this work-item service was built without plan events');
+    // Proof: with the kinds left out, `lists no undo, redo or other command`
+    // (claim-history.test.ts) failed on the `estimate` event; watched 2026-10-24.
+    const decoded = decodeClaimEvents(
+      await planEvents.listFor(projectId, { kinds: CLAIM_HISTORY_KINDS, limit }),
+    );
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const names = await this.personNamesWithin(
+      access,
+      decoded.flatMap(({ claims }) => claims.map(({ personId }) => personId)),
+    );
+    return nameClaimHistory(decoded, rows, names);
   }
 
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
