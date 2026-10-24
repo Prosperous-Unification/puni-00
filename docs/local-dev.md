@@ -72,6 +72,42 @@ Expected:
 - `/metrics/snapshot` on gw-01 returns the in-memory counters JSON (useful for
   manual inspection without scraping).
 
+## An activated organization with API-key agents
+
+`bun run dev` cannot serve one: `AUTH_MODE=local` makes every request the fixed `local-dev`
+identity, so an API key never authenticates, and nothing creates or activates an organization.
+`apps/wbs/be-01/src/testing/activated-organization-server.ts` boots be-01's production composition
+over a fresh migrated SQLite file in the temp directory, registers `owner` (password
+`correct-horse`), makes it `super_admin` of `org-local` and activates isolation. It uses test
+fixture secrets and is development only: `main.ts` cannot reach it
+(`production-entrypoint.test.ts`). Stopping it deletes the database.
+
+```bash
+bun apps/wbs/be-01/src/testing/activated-organization-server.ts \
+  --port 7300 --gw-url http://localhost:7301 --app-origin http://localhost:7400
+
+# gw-01: the fixture's JWT key and internal secret; the issuer is never fetched for a
+# native session, but it must be an https: URL or gw-01 refuses to start.
+cd apps/wbs/gw-01 && PORT=7301 LOG_LEVEL=info BE_URL=http://localhost:7300 \
+  INTERNAL_AUTH_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+  JWT_SIGNING_KEY_CURRENT=test-jwt-signing-key-at-least-32-chars \
+  AUTH_MODE=oidc AUTH_ISSUER_DISCOVERY_URL=https://issuer.invalid AUTH_CLIENT_ID=local \
+  AUTH_CLIENT_SECRET=local AUTH_AUDIENCE=local \
+  AUTH_REDIRECT_URI=http://localhost:7400/api/auth/okta/callback bun src/main.ts
+
+cd apps/wbs/fe-01 && VITE_BE_URL=http://localhost:7300 VITE_GW_URL=http://localhost:7301 \
+  bunx vite --host localhost --port 7400 --strictPort
+```
+
+Sign in at <http://localhost:7400> and choose `org-local` on `/organization`. An agent needs a
+person of kind `agent` bound to `owner`'s account, then a key. Over HTTP, as `owner` with the
+session token in `__Host-wbs_access`, the `__Host-wbs_organization` cookie that
+`POST /api/organization/active` sets, and `X-WBS-Expected-Organization: org-local` on writes:
+`POST /api/directory/commands` with `createPerson` (`personKind: agent`) then `patchPerson`
+(`patch.accountId`), then `POST /api/organization/machine-credentials`
+`{ source: 'api_key', name, personId }`. The answer carries the key once; the agent sends it as
+`Authorization: Bearer`. Lease timing has no knob: claims hold for the real 15 minutes.
+
 ## Tests / lint / typecheck
 
 ```bash

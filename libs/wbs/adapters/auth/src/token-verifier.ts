@@ -1,6 +1,8 @@
 import { createRemoteJWKSet, errors, jwtVerify } from 'jose';
 import { discovery } from 'openid-client';
 
+import { issuerUrlFromEnv } from './issuer-url';
+
 export interface JwtClaims {
   sub: string;
   [claim: string]: unknown;
@@ -62,17 +64,22 @@ export interface ConfiguredTokenVerifier extends TokenVerifier {
   issuer(): Promise<string>;
 }
 
-/** Builds a lazy verifier from the same discovery contract as the browser flow. */
+/**
+ * Builds a lazy verifier from the same discovery contract as the browser flow.
+ *
+ * @throws at composition, through {@link issuerUrlFromEnv}, when the issuer
+ *   URL could never be discovered, and when a required key is missing.
+ */
 export function oidcTokenVerifierFromEnv(
   env: Readonly<Record<string, string | undefined>>,
 ): ConfiguredTokenVerifier {
-  const issuerUrl = required(env, 'AUTH_ISSUER_DISCOVERY_URL');
+  const issuerUrl = issuerUrlFromEnv(env);
   const audience = required(env, 'AUTH_AUDIENCE');
   const clientId = required(env, 'AUTH_CLIENT_ID');
   const clientSecret = required(env, 'AUTH_CLIENT_SECRET');
   let verifier: Promise<{ issuer: string; verifier: JwksTokenVerifier }> | undefined;
   const discovered = () => {
-    verifier ??= discovery(new URL(issuerUrl), clientId, clientSecret).then((configuration) => {
+    verifier ??= discovery(issuerUrl, clientId, clientSecret).then((configuration) => {
       const metadata = configuration.serverMetadata();
       if (metadata.jwks_uri === undefined) throw new Error('OIDC discovery has no jwks_uri');
       return {

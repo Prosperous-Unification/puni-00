@@ -1593,8 +1593,14 @@ describe('OIDC boot wiring', () => {
   });
 });
 
-for (const passwordLoginEnabled of [false, true]) {
-  it(`keeps boot verifier outages as 500 with password login ${String(passwordLoginEnabled)}`, async () => {
+// With password login on, a native session verifies on the JWT key and never
+// waits on the verifier (issue #669 F5); with it off, the token reaches the
+// verifier and its outage stays a 500.
+for (const [passwordLoginEnabled, status] of [
+  [false, 500],
+  [true, 200],
+] as const) {
+  it(`answers a native session ${String(status)} under a verifier outage with password login ${String(passwordLoginEnabled)}`, async () => {
     const oidc = oidcOptions(passwordLoginEnabled);
     oidc.verifier = { verify: () => Promise.reject(new Error('discovery unavailable')) };
     const be = await boot(undefined, oidc);
@@ -1603,7 +1609,7 @@ for (const passwordLoginEnabled of [false, true]) {
     const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
       headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
     });
-    expect(me.status).toBe(500);
+    expect(me.status).toBe(status);
   });
 }
 
