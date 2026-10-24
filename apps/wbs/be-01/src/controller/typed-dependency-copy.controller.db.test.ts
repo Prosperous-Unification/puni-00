@@ -13,11 +13,13 @@ import { readPreconditions } from '@wbs/core/service/compensating';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -132,6 +134,8 @@ beforeEach(() => {
       estimates,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
+      budgets: new WorkItemBudgetRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
@@ -199,6 +203,8 @@ beforeEach(() => {
           estimates: scope.stores.estimates,
           actuals: scope.stores.actuals,
           measures: scope.stores.measures,
+          measureEstimates: scope.stores.measureEstimates,
+          budgets: scope.stores.budgets,
           progress: scope.stores.progress,
           attempts: scope.stores.attempts,
           blockages: scope.stores.blockages,

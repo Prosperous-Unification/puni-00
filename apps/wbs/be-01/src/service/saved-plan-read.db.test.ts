@@ -178,7 +178,7 @@ describe('reading a saved plan back', () => {
         createdBy: 'Ada',
         createdById: null,
         createdAt: OPENED_AT,
-        input: { schemaVersion: 9, bytes: inputBytes, sha256: inputHash },
+        input: { schemaVersion: 10, bytes: inputBytes, sha256: inputHash },
         schedule: {
           present: true,
           body: { schemaVersion: 2, bytes: scheduleBytes, sha256: scheduleHash },

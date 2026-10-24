@@ -28,12 +28,12 @@ function runCommand(command: string[], cwd: string) {
 
 /**
  * Exercises the actual pre-v11 reader with its own contracts and path aliases.
- * Proof: admitting v11 through the archived reader's version fence failed both
+ * Proof: admitting v12 through the archived reader's version fence failed both
  * cases: invalid_typed_dependency for connected content and invalid_body for
  * malformed workItems replaced the required unsupported_version refusal.
  */
 test.each([false, true])(
-  'pinned pre-v11 reader refuses downloaded v11 (malformed: %s) without writes',
+  'pinned pre-v11 reader refuses downloaded v12 (malformed: %s) without writes',
   async (malformed) => {
     harness = OrganizationHarness.openComposedWith({});
     const { source } = await connectedTransferFixture(harness);
@@ -44,7 +44,7 @@ test.each([false, true])(
     );
     expect(downloaded.status).toBe(200);
     expect(downloaded.body).toMatchObject({
-      document: { version: 11 },
+      document: { version: 12 },
       connected: { kind: 'connected' },
     });
 
@@ -60,7 +60,7 @@ test.each([false, true])(
       await Bun.file(join(REPOSITORY, 'bun.lock')).text(),
     );
     symlinkSync(join(REPOSITORY, 'node_modules'), join(archiveDirectory, 'node_modules'));
-    const artifactPath = join(archiveDirectory, 'downloaded-v11.json');
+    const artifactPath = join(archiveDirectory, 'downloaded-v12.json');
     await Bun.write(artifactPath, JSON.stringify(downloaded.body));
     const workerPath = 'apps/wbs/be-01/src/testing/historical-plan-reader.worker.ts';
     copyFileSync(join(REPOSITORY, workerPath), join(archiveDirectory, workerPath));
@@ -86,7 +86,7 @@ test.each([false, true])(
     ]);
     expect({ status, stderr }).toEqual({ status: 0, stderr: '' });
     expect(stdout).toContain(
-      'historical reader: v10 imported; v11 refused without writes or pushes',
+      'historical reader: v10 imported; v12 refused without writes or pushes',
     );
   },
   60_000,

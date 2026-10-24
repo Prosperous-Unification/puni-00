@@ -1524,3 +1524,38 @@ SQLite execution and watched boundary omissions substantiate this limited
 exception in [the complete activation receipt](verify-complete-activation.md).
 The restoring-policy grammar remains solver-intent-only; only the closed
 activation record reader accepts the six activation labels.
+
+## Reconcile the published measures contract (2026-10-24)
+
+Main published ordinary document11 and saved input9 while this branch's
+unpublished drafts used those numbers for dependency history. Preserve main's
+meanings: ordinary exports remain document11 with required measure lists and
+budget factor; connected exports are document12, the complete ordinary11
+content plus external endpoints and required captured response evidence. Keep
+an explicit historical resource-only document10 declaration. Navigator reads
+ordinary7–11 strictly and refuses12.
+
+Keep the ordinary canonical input9 writer and normalization from1–8 unchanged.
+Dependency-aware captures use input10, including all input9 measure fields and
+required local/connected history. Historical1–9 inputs become local input10 only
+in memory; stored bytes, hashes and schema headers stay unchanged. Ordinary
+schedule1 and connected schedule2 retain their meanings and cross-body checks.
+
+Archival import deliberately differs from response/history validation: discard
+absent, valid or arbitrary read-only history, then validate the writable
+versioned endpoints, measures, mappings and current admission. Historical
+response evidence grants no import authority.
+
+Connected display folds only captured facts, trios, budgets and definitions,
+project PERT weights/factor and attempts from one snapshot. Capture definitions
+explicitly, including the modeled unowned-project null. Each newly awaited
+capture read retains the one-way lifetime check before the next query. Strict
+budget admission remains inside the actual attempt command transaction;
+displayed headroom never authorizes a start. Undo restores both external
+relationships and the measures' bases, estimates and budgets.
+
+Compile the production document response union once. Standalone historical and
+connected response validators have only test consumers and are instantiated
+there; compiling them eagerly at application import pushed the existing shape
+load check above its unchanged500MB bound. Typed versioned declarations remain
+available. See [reconciliation verification](verify-main-measures.md).

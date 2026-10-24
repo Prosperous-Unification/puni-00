@@ -37,6 +37,8 @@ async function seeded() {
       estimates: stores.estimates,
       actuals: stores.actuals,
       measures: stores.measures,
+      measureEstimates: stores.measureEstimates,
+      budgets: stores.budgets,
       progress: stores.progress,
       attempts: stores.attempts,
       blockages: stores.blockages,
@@ -78,6 +80,10 @@ const hostRequirements = () => {
     }),
     actualStore: DiBag.createProvider(() => stores.actuals, { factoryReturnKind: 'sync-value' }),
     measureStore: DiBag.createProvider(() => stores.measures, { factoryReturnKind: 'sync-value' }),
+    measureEstimateStore: DiBag.createProvider(() => stores.measureEstimates, {
+      factoryReturnKind: 'sync-value',
+    }),
+    budgetStore: DiBag.createProvider(() => stores.budgets, { factoryReturnKind: 'sync-value' }),
     progressStore: DiBag.createProvider(() => stores.progress, { factoryReturnKind: 'sync-value' }),
     attemptStore: DiBag.createProvider(() => stores.attempts, { factoryReturnKind: 'sync-value' }),
     blockageStore: DiBag.createProvider(() => stores.blockages, {

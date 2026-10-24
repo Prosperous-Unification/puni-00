@@ -1,5 +1,5 @@
 import type { CanonicalPlanInput } from './canonical-plan-input';
-import type { CanonicalPlanInputV9 } from './versioned-plan-input';
+import type { CanonicalPlanInputV10 } from './versioned-plan-input';
 
 /**
  * One side of a comparison: a canonical plan input, **its** schedule, and the
@@ -19,7 +19,7 @@ import type { CanonicalPlanInputV9 } from './versioned-plan-input';
  */
 export interface PlanSide {
   /** Legacy normalization stays v8; new records retain their explicit v9 captured context. */
-  readonly input: CanonicalPlanInput | CanonicalPlanInputV9;
+  readonly input: CanonicalPlanInput | CanonicalPlanInputV10;
   readonly schedule: PlanSideSchedule;
 }
 
@@ -129,6 +129,8 @@ const ROW_KEYS: Readonly<Record<string, readonly string[] | undefined>> = {
   stepBlockages: ['workItemId', 'stepId'],
   stepParallels: ['workItemId', 'stepId'],
   measures: ['workItemId', 'stepId', 'metric'],
+  measureEstimates: ['workItemId', 'stepId', 'key'],
+  budgets: ['workItemId', 'key'],
   dependencies: ['predecessorId', 'successorId'],
   typedDependencies: ['id'],
   assignments: ['workItemId', 'stepId', 'personId'],
@@ -199,6 +201,10 @@ const FIELD_CATEGORIES: Readonly<
 const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefined>> = {
   project: 'settings',
   measures: 'measures',
+  // A trio or a budget in any measure other than time reads as a measure
+  // change (`wbs-measure-budgets` design D66); the factor is a setting.
+  measureEstimates: 'measures',
+  budgets: 'measures',
   stepBlockages: 'progress',
   stepParallels: 'capacity',
   dependencies: 'dependencies',

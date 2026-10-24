@@ -16,12 +16,12 @@ import {
 import { detachHistory, requireHistory, SavedHistoryError } from './history-json';
 import { normalisePlanInputForward, PlanInputVersionError } from './normalise-plan-input';
 
-/** Reserved reader version; the existing writer remains v8 until connected capture is integrated. */
-export const SAVED_PLAN_INPUT_READER_VERSION = 9 as const;
+/** Dependency-aware reader version; ordinary local captures retain published schema 9. */
+export const SAVED_PLAN_INPUT_READER_VERSION = 10 as const;
 
-/** Input9 requires explicit captured dependency meaning, including known-local plans. */
-export type CanonicalPlanInputV9 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
-  readonly schemaVersion: 9;
+/** Input10 requires explicit captured dependency meaning, including known-local plans. */
+export type CanonicalPlanInputV10 = Omit<CanonicalPlanInput, 'schemaVersion'> & {
+  readonly schemaVersion: 10;
   readonly dependencyHistory: SavedDependencyHistory;
 };
 
@@ -51,6 +51,7 @@ const fields = {
     pertWeightRealistic: 'number',
     pertWeightPessimistic: 'number',
     timezone: 'string',
+    budgetFactor: 'number',
   }),
   workItems: type({
     '+': 'reject',
@@ -115,6 +116,27 @@ const fields = {
     stepId: 'string',
     metric: 'string',
     value: nullableNumber,
+    currency: nullableString,
+    rateCardDigest: nullableString,
+  }).array(),
+  measureEstimates: type({
+    '+': 'reject',
+    workItemId: 'string',
+    stepId: 'string',
+    key: 'string',
+    optimistic: 'number',
+    realistic: 'number',
+    pessimistic: 'number',
+    currency: nullableString,
+    rateCardDigest: nullableString,
+  }).array(),
+  budgets: type({
+    '+': 'reject',
+    workItemId: 'string',
+    key: 'string',
+    cap: 'number',
+    policy: "'strict' | 'advisory'",
+    holdPerAttempt: nullableNumber,
   }).array(),
   dependencies: type({ '+': 'reject', predecessorId: 'string', successorId: 'string' }).array(),
   typedDependencies: type({
@@ -148,7 +170,12 @@ const fields = {
   workItemTypes: named.array(),
   externalSystems: named.array(),
 } as const;
-const input9 = type({ '+': 'reject', schemaVersion: '9', ...fields, dependencyHistory: 'unknown' });
+const input10 = type({
+  '+': 'reject',
+  schemaVersion: '10',
+  ...fields,
+  dependencyHistory: 'unknown',
+});
 
 /** Reject claims on the original legacy body before historical upgrades may remove obsolete fields. */
 function assertLegacyLocalClaims(body: object): void {
@@ -178,10 +205,72 @@ function assertLegacyLocalClaims(body: object): void {
 }
 
 /** Upgrade only the historical local format; explicit external claims must never be discarded. */
-export function upgradeLocalPlanInputV8(body: Record<string, unknown>): Record<string, unknown> {
+export function upgradeLocalPlanInputV9(body: Record<string, unknown>): Record<string, unknown> {
   assertLegacyLocalClaims(body);
   requireHistory(Array.isArray(body['typedDependencies']), 'shape', '$.typedDependencies');
-  return { ...body, schemaVersion: 9, dependencyHistory: { kind: 'local' } };
+  return { ...body, schemaVersion: 10, dependencyHistory: { kind: 'local' } };
+}
+
+/**
+ * Checks input10 figures independently of live definitions and future write policy.
+ * Its published factor range is (0, 1000]; priced figures carry both basis fields.
+ * @throws SavedHistoryError for invalid factors, values, trio order or paired bases.
+ */
+function assertMeasureFields(input: Omit<CanonicalPlanInputV10, 'dependencyHistory'>): void {
+  // Proof: omission admitted both invalid-factor integrity cases (2026-10-24).
+  requireHistory(
+    Number.isFinite(input.project.budgetFactor) &&
+      input.project.budgetFactor > 0 &&
+      input.project.budgetFactor <= 1000,
+    'budget_factor',
+    '$.project.budgetFactor',
+  );
+  // Proof: omission admitted the negative-fact integrity case (2026-10-24).
+  requireHistory(
+    input.measures.every(({ value }) => value === null || (Number.isFinite(value) && value >= 0)),
+    'measure_values',
+    '$.measures',
+  );
+  // Proof: omission admitted negative and reversed-trio integrity cases (2026-10-24).
+  requireHistory(
+    input.measureEstimates.every(
+      ({ optimistic, realistic, pessimistic }) =>
+        [optimistic, realistic, pessimistic].every(Number.isFinite) &&
+        optimistic >= 0 &&
+        optimistic <= realistic &&
+        realistic <= pessimistic,
+    ),
+    'measure_values',
+    '$.measureEstimates',
+  );
+  // Proof: omission admitted both half-basis integrity cases (2026-10-24).
+  for (const [field, figures] of [
+    ['measures', input.measures],
+    ['measureEstimates', input.measureEstimates],
+  ] as const)
+    requireHistory(
+      figures.every(
+        ({ currency, rateCardDigest }) =>
+          (currency === null && rateCardDigest === null) ||
+          (currency !== null &&
+            currency.length > 0 &&
+            rateCardDigest !== null &&
+            rateCardDigest.length > 0),
+      ),
+      'measure_basis',
+      `$.${field}`,
+    );
+  // Proof: omission admitted negative-cap and negative-hold integrity cases (2026-10-24).
+  requireHistory(
+    input.budgets.every(
+      ({ cap, holdPerAttempt }) =>
+        Number.isFinite(cap) &&
+        cap >= 0 &&
+        (holdPerAttempt === null || (Number.isFinite(holdPerAttempt) && holdPerAttempt >= 0)),
+    ),
+    'budget_values',
+    '$.budgets',
+  );
 }
 
 /**
@@ -191,7 +280,7 @@ export function upgradeLocalPlanInputV8(body: Record<string, unknown>): Record<s
  * The history decoder has already verified component ownership and target presence.
  */
 function assertConnectedTargetInput(
-  input: Omit<CanonicalPlanInputV9, 'dependencyHistory'>,
+  input: Omit<CanonicalPlanInputV10, 'dependencyHistory'>,
   history: SavedConnectedDependencyHistory,
 ): void {
   const projects = history.projects.filter(
@@ -248,6 +337,8 @@ function assertConnectedTargetInput(
   for (const [name, facts] of [
     ['stepValues', input.stepValues],
     ['measures', input.measures],
+    // Proof: omission accepted the foreign component trio in saved-body integrity (2026-10-24).
+    ['measureEstimates', input.measureEstimates],
     ['assignments', input.assignments],
   ] as const)
     requireHistory(
@@ -258,6 +349,8 @@ function assertConnectedTargetInput(
   // Proof: omission accepted mounted foreign team/service row owners
   // (omit-row-fact-owners.log.txt).
   for (const [name, facts] of [
+    // Proof: omission accepted the foreign component budget in saved-body integrity (2026-10-24).
+    ['budgets', input.budgets],
     ['workItemTeams', input.workItemTeams],
     ['workItemServices', input.workItemServices],
   ] as const)
@@ -296,10 +389,10 @@ function assertConnectedTargetInput(
  * Connected inputs require exact target row/step membership, matching metadata/parents and
  * target-owned facts; captured context cannot stand in for unrelated local rows.
  */
-export function readSavedPlanInput(body: unknown, version: number): CanonicalPlanInputV9 {
+export function readSavedPlanInput(body: unknown, version: number): CanonicalPlanInputV10 {
   if (!Number.isInteger(version) || version < 1)
-    throw new PlanInputVersionError('not-a-version', version, 9);
-  if (version > 9) throw new PlanInputVersionError('from-the-future', version, 9);
+    throw new PlanInputVersionError('not-a-version', version, 10);
+  if (version > 10) throw new PlanInputVersionError('from-the-future', version, 10);
   requireHistory(
     typeof body === 'object' &&
       body !== null &&
@@ -309,10 +402,10 @@ export function readSavedPlanInput(body: unknown, version: number): CanonicalPla
     '$.schemaVersion',
   );
   let current: unknown = body;
-  if (version < 9) {
+  if (version < 10) {
     assertLegacyLocalClaims(body);
-    // Boundary: legacy normalizer returns its validated v8 field set; this upgrade accepts only that local shape.
-    current = upgradeLocalPlanInputV8(
+    // Boundary: legacy normalizer returns its validated v9 field set; this upgrade accepts only that local shape.
+    current = upgradeLocalPlanInputV9(
       normalisePlanInputForward(body, version) as unknown as Record<string, unknown>,
     );
   }
@@ -321,8 +414,9 @@ export function readSavedPlanInput(body: unknown, version: number): CanonicalPla
     'shape',
     '$.dependencyHistory',
   );
-  const parsed = input9(current);
+  const parsed = input10(current);
   if (parsed instanceof type.errors) throw new SavedHistoryError('shape', '$', { cause: parsed });
+  assertMeasureFields(parsed);
   try {
     assertStepBlockages(parsed);
     readStepParallels(parsed);
@@ -338,19 +432,19 @@ export function readSavedPlanInput(body: unknown, version: number): CanonicalPla
     );
     assertConnectedTargetInput(parsed, dependencyHistory);
   }
-  // Boundary: the complete input9 schema checks every legacy field; dependency history has its own frozen decoder.
+  // Boundary: the complete input10 schema checks every legacy field; dependency history has its own frozen decoder.
   return detachHistory({ ...parsed, dependencyHistory });
 }
 
-/** Explicit v9 builder; callers provide converted captured context, never an optional fallback. */
-export function canonicalisePlanInputV9(
+/** Explicit v10 builder; callers provide converted captured context, never an optional fallback. */
+export function canonicalisePlanInputV10(
   rows: PlanInputRows,
   history: SavedDependencyHistory,
-): CanonicalPlanInputV9 {
+): CanonicalPlanInputV10 {
   // Reader-only fault: retaining caller order failed the unordered-history test; production writer proof is pending.
   const dependencyHistory: unknown = JSON.parse(serializeSavedDependencyHistory(history));
   return readSavedPlanInput(
-    { ...canonicalisePlanInput(rows), schemaVersion: 9, dependencyHistory },
-    9,
+    { ...canonicalisePlanInput(rows), schemaVersion: 10, dependencyHistory },
+    10,
   );
 }

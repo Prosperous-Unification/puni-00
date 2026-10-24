@@ -12,11 +12,13 @@ import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-depende
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -197,6 +199,8 @@ beforeEach(async () => {
       estimates,
       actuals,
       measures,
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
+      budgets: new WorkItemBudgetRepository(db, OPEN),
       progress: progressStore,
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),

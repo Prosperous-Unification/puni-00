@@ -299,12 +299,12 @@ it('creation excludes its own temporary code and older writers preserve their pe
   });
 });
 
-it('keeps historical version ten documents independent of required live abbreviations', async () => {
+it('keeps ordinary version eleven documents independent of required live abbreviations', async () => {
   const project = await create();
   const exported = await h.call('ada', 'GET', `/api/projects/${project.id}/export?format=json`);
   expect(exported.status).toBe(200);
   const historical = structuredClone(exported.body) as PlanDocument;
-  expect(historical.document.version).toBe(10);
+  expect(historical.document.version).toBe(11);
   delete historical.project.abbreviation;
   expect((await validateSchema(planDocumentResponse, historical)).issues).toBeUndefined();
   expect(

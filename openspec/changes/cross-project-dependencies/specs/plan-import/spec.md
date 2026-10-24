@@ -94,11 +94,11 @@ An imported project's abbreviation SHALL use the destination organization's allo
 
 ### Requirement: Connected exports preserve one detached read observation
 
-A connected JSON export SHALL write version 11 with required read-only `connected` evidence. It SHALL retain every captured member's stable identity, name, abbreviation, rank, calendar, revision and sequence, and every component relationship's original scoped selectors and successor ownership. Authored `typedDependencies` SHALL contain exactly relationships owned by the exported successor project, using file-local internal endpoints and original stable external predecessor identities. External display addresses SHALL identify the qualified row; step scope and name SHALL remain separate, including uncoded remote steps. Outgoing and unrelated component links SHALL remain historical evidence only.
+A connected JSON export SHALL write version 12 with required read-only `connected` evidence. It SHALL retain every captured member's stable identity, name, abbreviation, rank, calendar, revision and sequence, and every component relationship's original scoped selectors and successor ownership. Authored `typedDependencies` SHALL contain exactly relationships owned by the exported successor project, using file-local internal endpoints and original stable external predecessor identities. External display addresses SHALL identify the qualified row; step scope and name SHALL remain separate, including uncoded remote steps. Outgoing and unrelated component links SHALL remain historical evidence only.
 
 Scheduled evidence SHALL preserve complete baseline and selected component positions with explicit ownership and finite real workday offsets, idle members, and each retained optimization stage. A stage SHALL preserve the versioned exact canonical boundary, captured questions and candidate starts, variant states, stage-scoped comparisons and actual chosen outcome. Boundary infeasibility SHALL remain distinct from plan infeasibility. Calendar and engine absence and known placement failures SHALL remain explicit unavailable evidence with null row dates.
 
-Export authorization, capture, document facts and cache selection SHALL share one observation. Serialization SHALL perform no live lookup, scheduling or optimization admission after closure. Version 10 local/shared output and uncoded/sparse export refusals SHALL retain existing behavior. Import SHALL discard connected history and revalidate writable identities through current import admission; an archival success or certificate SHALL confer no authority.
+Export authorization, capture, document facts and cache selection SHALL share one observation. Serialization SHALL perform no live lookup, scheduling or optimization admission after closure. Version 11 local/shared output and uncoded/sparse export refusals SHALL retain existing behavior. Import SHALL discard connected history and revalidate writable identities through current import admission; an archival success or certificate SHALL confer no authority.
 
 #### Scenario: Export an incoming prerequisite and inspect outgoing history
 
@@ -119,7 +119,7 @@ Export authorization, capture, document facts and cache selection SHALL share on
 
 - **WHEN** a backend response omits or corrupts required connected history
 - **THEN** response validation refuses it
-- **AND** import of an authored v11 archival document may omit history or contain arbitrary read-only history because its writable projection discards it
+- **AND** import of an authored v12 archival document may omit history or contain arbitrary read-only history because its writable projection discards it
 
 #### Scenario: Facts change after capture
 
@@ -130,26 +130,26 @@ Export authorization, capture, document facts and cache selection SHALL share on
 
 ### Requirement: Whole-project archival transfer separates authorship from history
 
-The downloaded version-11 JSON SHALL preserve exactly successor-owned authored typed relationships and legacy links through generated-client validation, Blob download, archival projection and classification. The archival request SHALL discard connected history and derived scheduling evidence, whether history is absent, valid or arbitrary. Historical evidence SHALL confer no current endpoint, graph or write authority.
+The downloaded version-12 JSON SHALL preserve exactly successor-owned authored typed relationships and legacy links through generated-client validation, Blob download, archival projection and classification. The archival request SHALL discard connected history and derived scheduling evidence, whether history is absent, valid or arbitrary. Historical evidence SHALL confer no current endpoint, graph or write authority.
 
 #### Scenario: Downloaded successor content is imported into fresh identities
 
-- **GIVEN** a mounted v11 export contains internal typed and legacy links, incoming same-organization prerequisites, outgoing links and other component links
+- **GIVEN** a mounted v12 export contains internal typed and legacy links, incoming same-organization prerequisites, outgoing links and other component links
 - **WHEN** its JSON is projected, classified and imported through an admitted same-source transactional importer
 - **THEN** new project, row, step and relationship identities are allocated and internal endpoints are remapped
 - **AND** external predecessor UUID tuples and authored scopes/types/multiplicity are preserved
 - **AND** outgoing and unrelated relationships retain their original owners and identities and no undo or saved-plan history is imported
 
-#### Scenario: An outgoing-only v11 artifact uses the ordinary production importer
+#### Scenario: An outgoing-only v12 artifact uses the ordinary production importer
 
-- **GIVEN** a v11 export contains outgoing component history and internal authored typed and legacy links, with no external authored prerequisite
+- **GIVEN** a v12 export contains outgoing component history and internal authored typed and legacy links, with no external authored prerequisite
 - **WHEN** the mounted production importer imports that downloaded artifact
 - **THEN** it creates the internal authored content without cloning outgoing relationships
 - **AND** an incoming external authored artifact still receives the inactive-authoring conflict without effects, even when a separate synthetic test importer exists
 
 #### Scenario: An inactive import keeps the selected frontend project
 
-- **WHEN** the page submits the downloaded v11 archival projection and receives `external_dependencies_inactive`
+- **WHEN** the page submits the downloaded v12 archival projection and receives `external_dependencies_inactive`
 - **THEN** it renders the refusal and retains the selected project without navigating to a fabricated imported project or reporting success
 
 #### Scenario: An explicit mapping wins over a still-existing source endpoint

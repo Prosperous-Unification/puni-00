@@ -699,6 +699,10 @@ describe('readMigrationFolders', () => {
       '20261022212000_add_cross_project_dependency_activation',
       '20261022213000_add_optimization_boundary_certificates',
       '20261023100000_add_claim_lease',
+      '20261023140000_add_measure',
+      '20261023150000_key_step_measure',
+      '20261023160000_add_measure_estimate',
+      '20261023170000_add_work_item_budget',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -774,7 +778,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261023100000_add_claim_lease');
+      expect(originalNames.at(-1)).toBe('20261023170000_add_work_item_budget');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -900,11 +904,19 @@ describe('rollbackTo, against a real database', () => {
         '20261022212000_add_cross_project_dependency_activation',
         '20261022213000_add_optimization_boundary_certificates',
         '20261023100000_add_claim_lease',
+        '20261023140000_add_measure',
+        '20261023150000_key_step_measure',
+        '20261023160000_add_measure_estimate',
+        '20261023170000_add_work_item_budget',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261023170000_add_work_item_budget',
+        '20261023160000_add_measure_estimate',
+        '20261023150000_key_step_measure',
+        '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',
@@ -1113,6 +1125,10 @@ describe('rollbackTo, against a real database', () => {
         '20261022212000_add_cross_project_dependency_activation',
         '20261022213000_add_optimization_boundary_certificates',
         '20261023100000_add_claim_lease',
+        '20261023140000_add_measure',
+        '20261023150000_key_step_measure',
+        '20261023160000_add_measure_estimate',
+        '20261023170000_add_work_item_budget',
       ]);
     } finally {
       db.cleanup();
@@ -1184,6 +1200,10 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261023170000_add_work_item_budget',
+        '20261023160000_add_measure_estimate',
+        '20261023150000_key_step_measure',
+        '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',
@@ -1322,6 +1342,10 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261023170000_add_work_item_budget',
+        '20261023160000_add_measure_estimate',
+        '20261023150000_key_step_measure',
+        '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',
@@ -1445,6 +1469,10 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261023170000_add_work_item_budget',
+        '20261023160000_add_measure_estimate',
+        '20261023150000_key_step_measure',
+        '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
         '20261022212000_add_cross_project_dependency_activation',

@@ -33,6 +33,7 @@
     "../../components/wbs/live-editing.ts",
     // Test support its suite records calls on.
     "../../testing/fake-project-api.ts",
+    "../../testing/measure-fixtures.ts",
     "../../testing/record-calls.ts",
     "../../testing/refusing-api.ts",
     "../../testing/no-saved-plans.ts"

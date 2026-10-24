@@ -1,4 +1,12 @@
-import type { Demand, Resource, ResourceCapacity } from '@wbs/domain';
+import type {
+  Demand,
+  MeasureDefinition,
+  Resource,
+  ResourceCapacity,
+  StoredBudget,
+  StoredMeasure,
+  StoredMeasureEstimate,
+} from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { ConnectedPlanProjection } from '../service/connected-plan-projection';
@@ -130,6 +138,21 @@ export interface PlanDocumentReads {
     readonly capacities: readonly ResourceCapacity[];
     readonly demands: readonly Demand[];
   };
+  /**
+   * The project's measures as stored (`wbs-measure-budgets` design D63): the
+   * definitions of its organization (null when none owns it), every stored
+   * fact with its basis, every trio and every stated budget. Version 11
+   * writes them, every list empty when the plan holds none (design D71).
+   */
+  readonly measures: MeasureReads;
+}
+
+/** The stored measures an export reads; see {@link PlanDocumentReads.measures}. */
+export interface MeasureReads {
+  readonly definitions: readonly MeasureDefinition[] | null;
+  readonly facts: readonly StoredMeasure[];
+  readonly estimates: readonly StoredMeasureEstimate[];
+  readonly budgets: readonly StoredBudget[];
 }
 
 /** Export-purpose evidence is private to core callers, never part of the public tree payload. */

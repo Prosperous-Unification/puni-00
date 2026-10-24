@@ -68,8 +68,8 @@ const live = (
 test('retains complete detached connected history and selected target timing', () => {
   const captured = live();
   const history = captureConnectedHistory(captured, 'B');
-  expect(history.input.schemaVersion).toBe(9);
-  expect(readSavedPlanInput(history.input, 9)).toEqual(history.input);
+  expect(history.input.schemaVersion).toBe(10);
+  expect(readSavedPlanInput(history.input, 10)).toEqual(history.input);
   expect(history.input.dependencyHistory.kind).toBe('connected');
   if (history.input.dependencyHistory.kind !== 'connected') throw new Error('connected expected');
   expect(history.input.dependencyHistory.projects.map((project) => project.projectId)).toEqual([

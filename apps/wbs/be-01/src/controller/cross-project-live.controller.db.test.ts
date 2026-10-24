@@ -1,7 +1,13 @@
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import * as connectedTree from '@wbs/core/service/connected-tree';
 import { formatStepNodeId, sliceKey } from '@wbs/domain';
+import {
+  ProjectRepository,
+  StepMeasureRepository,
+  StepNodeAttemptRepository,
+} from '@wbs/store-sqlite';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
@@ -1147,4 +1153,237 @@ test('shared aggregate load and selected Space refresh foreign-only facts with t
   expect((await harness.call('ada', 'GET', rollPath)).body).toMatchObject({
     rollUps: { [target.projectId]: { dates: { startsOn: '2026-10-20' }, displayed: 'fast' } },
   });
+});
+
+test.each([false, true])(
+  'mounted connected measures retain their closed snapshot with missing calendar %s',
+  async (unavailable) => {
+    const { target } = await open();
+    const written = await harness.call(
+      'ada',
+      'POST',
+      `/api/projects/${target.projectId}/commands`,
+      {
+        commands: [
+          {
+            kind: 'setMeasureEstimate',
+            workItemId: target.workItemId,
+            stepId: target.stepId,
+            measure: 'tokens',
+            estimate: { optimistic: 100, realistic: 200, pessimistic: 600 },
+          },
+          {
+            kind: 'setMeasure',
+            workItemId: target.workItemId,
+            stepId: target.stepId,
+            metric: 'token_actual',
+            value: 50,
+          },
+          {
+            kind: 'setMeasure',
+            workItemId: target.workItemId,
+            stepId: target.stepId,
+            metric: 'cost',
+            value: 30,
+            rateCardDigest: 'captured-card',
+          },
+          {
+            kind: 'setBudget',
+            workItemId: target.workItemId,
+            measure: 'cost',
+            cap: 500,
+            policy: 'strict',
+            holdPerAttempt: 100,
+          },
+        ],
+      },
+    );
+    expect(written.status).toBe(200);
+    const otherStep = harness.sqlite
+      .query<{ id: string }, [string, string]>(
+        'SELECT id FROM step WHERE project_id=? AND id<>? ORDER BY position LIMIT 1',
+      )
+      .get(target.projectId, target.stepId);
+    if (otherStep === null) throw new Error('fixture needs an unrecorded step');
+    harness.sqlite
+      .query(
+        'INSERT INTO step_node_attempt(work_item_id,step_id,attempt_number,started_at) VALUES (?,?,1,1)',
+      )
+      .run(target.workItemId, otherStep.id);
+    harness.sqlite.query('UPDATE project SET budget_factor=1.5 WHERE id=?').run(target.projectId);
+    if (unavailable)
+      harness.sqlite.query('UPDATE project SET start_date=NULL WHERE id=?').run(target.projectId);
+    const project = connectedTree.projectConnectedTree;
+    const afterCapture: { mockRestore(): void }[] = [];
+    const refused = () => {
+      throw new Error('postcapture live measure query');
+    };
+    const projection = spyOn(connectedTree, 'projectConnectedTree').mockImplementation(
+      (captured, projectId) => {
+        harness.sqlite.query('UPDATE project SET budget_factor=9 WHERE id=?').run(target.projectId);
+        harness.sqlite
+          .query(
+            'UPDATE measure_estimate SET optimistic=1,realistic=1,pessimistic=1 WHERE work_item_id=?',
+          )
+          .run(target.workItemId);
+        harness.sqlite
+          .query('UPDATE step_measure SET value=999 WHERE work_item_id=?')
+          .run(target.workItemId);
+        harness.sqlite
+          .query('UPDATE work_item_budget SET cap=9000 WHERE work_item_id=?')
+          .run(target.workItemId);
+        harness.sqlite
+          .query("UPDATE step_node_attempt SET ended_at=2,outcome='succeeded' WHERE work_item_id=?")
+          .run(target.workItemId);
+        afterCapture.push(
+          spyOn(StepMeasureRepository.prototype, 'listByProject').mockImplementation(refused),
+          spyOn(StepMeasureRepository.prototype, 'definitionsFor').mockImplementation(refused),
+          spyOn(ProjectRepository.prototype, 'findById').mockImplementation(refused),
+          spyOn(StepNodeAttemptRepository.prototype, 'listByProject').mockImplementation(refused),
+        );
+        return project(captured, projectId);
+      },
+    );
+    try {
+      const response = await harness.call(
+        'ada',
+        'GET',
+        `/api/projects/${target.projectId}/work-items?full=true`,
+      );
+      expect(response).toMatchObject({
+        status: 200,
+        body: {
+          workItems: [
+            {
+              measureEstimates: { tokens: { [target.stepId]: { expected: 250, variance: -200 } } },
+              budgets: { tokens: { cap: 900, remaining: 850 }, cost: { cap: 500, remaining: 370 } },
+              moneyBases: { cost: { facts: { rateCardDigest: 'captured-card' } } },
+            },
+          ],
+        },
+      });
+    } finally {
+      projection.mockRestore();
+      for (const call of afterCapture) call.mockRestore();
+    }
+  },
+);
+
+test('connected delete and undo restore external meaning alongside priced figures trios and budgets', async () => {
+  const { target } = await open({ syntheticExternalCommands: true });
+  activateTestStepBlockages(harness.databasePath());
+  const commands = (commands: readonly unknown[]) =>
+    harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, { commands });
+  expect(
+    (
+      await commands([
+        {
+          kind: 'setMeasure',
+          workItemId: target.workItemId,
+          stepId: target.stepId,
+          metric: 'cost',
+          value: 30,
+          rateCardDigest: 'restored-card',
+        },
+        {
+          kind: 'setMeasureEstimate',
+          workItemId: target.workItemId,
+          stepId: target.stepId,
+          measure: 'cost',
+          estimate: { optimistic: 10, realistic: 20, pessimistic: 30 },
+          rateCardDigest: 'restored-card',
+        },
+        {
+          kind: 'setBudget',
+          workItemId: target.workItemId,
+          measure: 'cost',
+          cap: 500,
+          policy: 'strict',
+          holdPerAttempt: 100,
+        },
+      ])
+    ).status,
+  ).toBe(200);
+  const saved = () => ({
+    links: harness.sqlite
+      .query(
+        'SELECT id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type FROM external_dependency ORDER BY id',
+      )
+      .all(),
+    facts: harness.sqlite
+      .query(
+        'SELECT work_item_id,step_id,metric,measure_id,value,currency,rate_card_digest FROM step_measure ORDER BY work_item_id,step_id,metric',
+      )
+      .all(),
+    trios: harness.sqlite
+      .query(
+        'SELECT work_item_id,step_id,measure_key,measure_id,optimistic,realistic,pessimistic,currency,rate_card_digest FROM measure_estimate ORDER BY work_item_id,step_id,measure_key',
+      )
+      .all(),
+    budgets: harness.sqlite
+      .query(
+        'SELECT work_item_id,measure_key,measure_id,cap,policy,hold_per_attempt FROM work_item_budget ORDER BY work_item_id,measure_key',
+      )
+      .all(),
+  });
+  const before = saved();
+  expect(
+    (
+      await commands([
+        { kind: 'deleteWorkItem', workItemId: target.workItemId, strategy: 'cascade' },
+      ])
+    ).status,
+  ).toBe(200);
+  expect(saved()).toEqual({ links: [], facts: [], trios: [], budgets: [] });
+  expect(await harness.call('ada', 'POST', `/api/projects/${target.projectId}/undo`)).toMatchObject(
+    { status: 200 },
+  );
+  expect(saved()).toEqual(before);
+});
+
+test('connected attempt admission refuses an exhausted strict budget inside its command transaction', async () => {
+  const { remote, target } = await open();
+  harness.sqlite
+    .query(
+      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) SELECT ?,id,'done',1 FROM step WHERE project_id=?",
+    )
+    .run(remote.workItemId, remote.projectId);
+  const command = (commands: readonly unknown[]) =>
+    harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, { commands });
+  expect(
+    (
+      await command([
+        {
+          kind: 'setBudget',
+          workItemId: target.workItemId,
+          measure: 'tokens',
+          cap: 0,
+          policy: 'strict',
+        },
+      ])
+    ).status,
+  ).toBe(200);
+  expect(
+    await command([
+      {
+        kind: 'setMeasure',
+        workItemId: target.workItemId,
+        stepId: target.stepId,
+        metric: 'token_actual',
+        value: 50,
+      },
+      { kind: 'startAttempt', workItemId: target.workItemId, stepId: target.stepId },
+    ]),
+  ).toMatchObject({
+    status: 409,
+    body: { error: 'budget_exhausted', at: 1, workItemId: target.workItemId, measure: 'tokens' },
+  });
+  expect(
+    harness.sqlite
+      .query('SELECT * FROM step_node_attempt WHERE work_item_id=?')
+      .all(target.workItemId),
+  ).toEqual([]);
+  expect(
+    harness.sqlite.query('SELECT * FROM step_measure WHERE work_item_id=?').all(target.workItemId),
+  ).toEqual([]);
 });

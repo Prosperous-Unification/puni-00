@@ -83,7 +83,7 @@ function persistentState() {
     harness.sqlite.query(`SELECT * FROM "${name.replaceAll('"', '""')}" ORDER BY rowid`).all(),
   ]);
 }
-test('mounted JSON exports v11 required evidence and stable incoming UUIDs without durable admission', async () => {
+test('mounted JSON exports v12 required evidence and stable incoming UUIDs without durable admission', async () => {
   const { remote, target } = await open();
   const before = persistentState();
   const response = await harness.call(
@@ -93,7 +93,7 @@ test('mounted JSON exports v11 required evidence and stable incoming UUIDs witho
   );
   expect(response.status).toBe(200);
   expect(response.body).toMatchObject({
-    document: { version: 11 },
+    document: { version: 12 },
     workItems: [{ id: target.workItemId, schedule: { earliestStart: 1.5, earliestFinish: 4 } }],
     typedDependencies: [
       {
@@ -158,7 +158,7 @@ test('mounted JSON exports v11 required evidence and stable incoming UUIDs witho
   );
   expect(outgoing.status).toBe(200);
   expect(outgoing.body).toMatchObject({
-    document: { version: 11 },
+    document: { version: 12 },
     typedDependencies: [],
     connected: { relationships: [{ id: 'remote-fs' }] },
   });
@@ -181,7 +181,7 @@ test('mounted JSON preserves explicit unavailable outcomes and null dates', asyn
   );
   expect(calendar.status).toBe(200);
   expect(calendar.body).toMatchObject({
-    document: { version: 11 },
+    document: { version: 12 },
     workItems: [{ dates: null, schedule: null }],
     connected: {
       placement: {
@@ -202,7 +202,7 @@ test('mounted JSON preserves explicit unavailable outcomes and null dates', asyn
   );
   expect(optimizer.status).toBe(200);
   expect(optimizer.body).toMatchObject({
-    document: { version: 11 },
+    document: { version: 12 },
     workItems: [{ dates: null }],
     connected: {
       placement: {
@@ -215,7 +215,7 @@ test('mounted JSON preserves explicit unavailable outcomes and null dates', asyn
   });
 });
 
-test('mounted response rejects absent and malformed required v11 history independently', async () => {
+test('mounted response rejects absent and malformed required v12 history independently', async () => {
   const { target } = await open();
   const serialize = Reflect.get(PlanDocumentService.prototype, 'exportConnectedCaptured');
   for (const fault of ['missing', 'malformed'] as const) {
@@ -352,7 +352,7 @@ test('mounted transfer fixture authors exactly successor-owned links and archive
   const authored: unknown = Reflect.get(Object(response.body), 'typedDependencies');
   expect(authored).toHaveLength(6);
   expect(response.body).toMatchObject({
-    document: { version: 11 },
+    document: { version: 12 },
     typedDependencies: contains([
       expect.objectContaining({ id: 'internal-node' }),
       expect.objectContaining({ id: 'incoming-node-a' }),
@@ -367,4 +367,67 @@ test('mounted transfer fixture authors exactly successor-owned links and archive
     },
   });
   expect(persistentState()).toEqual(before);
+});
+
+test('connected version12 retains the published measure lists factor and priced figures', async () => {
+  const { target } = await open();
+  const written = await harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, {
+    commands: [
+      {
+        kind: 'setMeasure',
+        workItemId: target.workItemId,
+        stepId: target.stepId,
+        metric: 'cost',
+        value: 30,
+        rateCardDigest: 'exported-card',
+      },
+      {
+        kind: 'setMeasureEstimate',
+        workItemId: target.workItemId,
+        stepId: target.stepId,
+        measure: 'tokens',
+        estimate: { optimistic: 100, realistic: 200, pessimistic: 600 },
+      },
+      {
+        kind: 'setBudget',
+        workItemId: target.workItemId,
+        measure: 'tokens',
+        cap: 500,
+        policy: 'strict',
+        holdPerAttempt: 100,
+      },
+    ],
+  });
+  expect(written.status).toBe(200);
+  harness.sqlite.query('UPDATE project SET budget_factor=1.5 WHERE id=?').run(target.projectId);
+  expect(
+    await harness.call('ada', 'GET', `/api/projects/${target.projectId}/export?format=json`),
+  ).toMatchObject({
+    status: 200,
+    body: {
+      document: { version: 12 },
+      settings: { budgetFactor: 1.5 },
+      connected: { kind: 'connected' },
+      measureDefinitions: contains([
+        expect.objectContaining({ key: 'cost' }),
+        expect.objectContaining({ key: 'tokens' }),
+      ]),
+      measureFacts: [
+        expect.objectContaining({
+          measure: 'cost',
+          value: 30,
+          basis: { currency: 'USD', rateCardDigest: 'exported-card' },
+        }),
+      ],
+      measureEstimates: [
+        expect.objectContaining({
+          measure: 'tokens',
+          optimistic: 100,
+          realistic: 200,
+          pessimistic: 600,
+        }),
+      ],
+      budgets: [expect.objectContaining({ measure: 'tokens', cap: 500, holdPerAttempt: 100 })],
+    },
+  });
 });

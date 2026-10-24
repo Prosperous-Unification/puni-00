@@ -27,6 +27,7 @@ import type {
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 
+import { SEEDED_MEASURES } from './measure-fixtures';
 import { EstimateUnitConflict, refusingApi } from './refusing-api';
 
 /**
@@ -43,6 +44,14 @@ import { EstimateUnitConflict, refusingApi } from './refusing-api';
  * be-01 refuses. That is the point. A fake that answered whatever the caller
  * asked for would let a broken table pass every one of these suites.
  */
+
+/**
+ * Where be-01 files a fact by definition key (design D18): tokens and hours
+ * under their legacy names. A copy of `factKeyOf`, because this fake is
+ * type-checked inside module projects that may not reach a component.
+ */
+const factKeyOf = (key: string): string =>
+  key === 'tokens' ? 'token_actual' : key === 'hours' ? 'hours_actual' : key;
 
 /** The first step every fixture starts with. */
 export const DEV: StepView = {
@@ -541,11 +550,11 @@ export function fakeProjectApi(): ProjectApi & {
           serviceIds: [...(r.serviceIds ?? [])],
           typeIds: [...(r.typeIds ?? [])],
           externalRefs: (r.externalRefs ?? []).map((ref) => ({ ...ref })),
-          actuals: {},
+          actuals: r.actuals ?? {},
           // The row's own, written by this fake's `setStatus` — the fold be-01
           // derives, stored here because a fake has no steps to fold.
           status: r.status,
-          measures: {},
+          measures: r.measures ?? {},
           dependsOn: edges.filter((e) => e.successorId === r.id).map((e) => e.predecessorId),
           schedule: scheduleOf(r),
           // A parent carries the sum of its descendants' trios, per step and
@@ -1146,6 +1155,101 @@ export function fakeProjectApi(): ProjectApi & {
       const index = rows.findIndex((r) => r.id === id);
       if (index >= 0) rows.splice(index, 1);
       renumber();
+      return Promise.resolve();
+    },
+    /**
+     * The five seeded definitions, as an activated organization answers. A
+     * suite that needs the pre-activation answer replaces this method.
+     */
+    listMeasures: () => Promise.resolve({ kind: 'ready', measures: [...SEEDED_MEASURES] }),
+    /**
+     * A leaf's trio, folded as be-01 folds it (design D29): the project's PERT
+     * weights, rounded half up on an integer measure, and the variance beside
+     * a fact on the same step. No roll-up: the suites that drive this write
+     * one leaf.
+     */
+    setMeasureEstimate(id, stepId, measure, estimate) {
+      const row = rows.find((r) => r.id === id);
+      if (row === undefined) return Promise.reject(new Error('not_found'));
+      const definition = SEEDED_MEASURES.find((each) => each.key === measure);
+      if (definition === undefined) return Promise.reject(new Error('unknown_measure'));
+      const weights = DEFAULT_PERT_WEIGHTS_VIEW;
+      const raw =
+        (estimate.optimistic * weights.optimistic +
+          estimate.realistic * weights.realistic +
+          estimate.pessimistic * weights.pessimistic) /
+        (weights.optimistic + weights.realistic + weights.pessimistic);
+      const expected = definition.scale === 'integer' ? Math.round(raw) : raw;
+      const fact = row.measures?.[factKeyOf(measure)]?.[stepId];
+      row.measureEstimates = {
+        ...row.measureEstimates,
+        [measure]: {
+          ...row.measureEstimates?.[measure],
+          [stepId]: {
+            ...estimate,
+            singlePoint: false,
+            expected,
+            ...(fact === undefined ? {} : { variance: fact - expected }),
+          },
+        },
+      };
+      return Promise.resolve();
+    },
+    clearMeasureEstimate(id, stepId, measure) {
+      const row = rows.find((r) => r.id === id);
+      const kept = Object.entries(row?.measureEstimates?.[measure] ?? {}).filter(
+        ([key]) => key !== stepId,
+      );
+      if (row !== undefined)
+        row.measureEstimates = { ...row.measureEstimates, [measure]: Object.fromEntries(kept) };
+      return Promise.resolve();
+    },
+    setMeasure(id, stepId, metric, value) {
+      const row = rows.find((r) => r.id === id);
+      if (row === undefined) return Promise.reject(new Error('not_found'));
+      const key = factKeyOf(metric);
+      row.measures = { ...row.measures, [key]: { ...row.measures?.[key], [stepId]: value } };
+      const trio = row.measureEstimates?.[metric]?.[stepId];
+      if (trio !== undefined) trio.variance = value - trio.expected;
+      return Promise.resolve();
+    },
+    clearMeasure(id, stepId, metric) {
+      const row = rows.find((r) => r.id === id);
+      const key = factKeyOf(metric);
+      if (row !== undefined)
+        row.measures = {
+          ...row.measures,
+          [key]: Object.fromEntries(
+            Object.entries(row.measures?.[key] ?? {}).filter(([step]) => step !== stepId),
+          ),
+        };
+      return Promise.resolve();
+    },
+    setBudget(id, measure, budget) {
+      const row = rows.find((r) => r.id === id);
+      if (row === undefined) return Promise.reject(new Error('not_found'));
+      const spent = Object.values(row.measures?.[factKeyOf(measure)] ?? {}).reduce(
+        (total, value) => total + value,
+        0,
+      );
+      row.budgets = {
+        ...row.budgets,
+        [measure]: {
+          cap: budget.cap,
+          policy: budget.policy,
+          source: 'stated',
+          remaining: budget.cap - spent,
+          exceeded: spent > budget.cap,
+        },
+      };
+      return Promise.resolve();
+    },
+    clearBudget(id, measure) {
+      const row = rows.find((r) => r.id === id);
+      if (row !== undefined)
+        row.budgets = Object.fromEntries(
+          Object.entries(row.budgets ?? {}).filter(([key]) => key !== measure),
+        );
       return Promise.resolve();
     },
     setEstimate(id, stepId, days: Days) {

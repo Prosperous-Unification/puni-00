@@ -251,6 +251,15 @@ export class CommandContext {
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
+    if (outcome.reason === 'mixed_rate_cards') {
+      // Proof: with this guard bypassed (the plain refusal below), `refuses a
+      // last-child delete whose hand-up would add two rate cards, naming both`
+      // (budget-command.test.ts) named no digests; watched 2026-10-23.
+      if (!('bases' in outcome) || outcome.bases === undefined)
+        throw new Error('A rate card refusal requires both bases');
+      const [first, second] = outcome.bases;
+      return this.refuse({ reason: outcome.reason, detail: { bases: [first, second] } });
+    }
     if (outcome.reason === 'agent_person_limit') {
       return this.refuse({
         reason: outcome.reason,
@@ -269,6 +278,21 @@ export class CommandContext {
           cap: outcome.cap,
           declared: outcome.declared,
           asked: outcome.asked,
+        },
+      });
+    }
+    if (outcome.reason === 'budget_exhausted') {
+      // Proof: with `remaining` replaced by 0 here, `refuses the second start
+      // of a strict 500 holding 300, naming the budget`
+      // (budget-admission.controller.db.test.ts) named remaining 0; watched 2026-10-24.
+      return this.refuse({
+        reason: outcome.reason,
+        detail: {
+          workItemId: outcome.workItemId,
+          measure: outcome.measure,
+          remaining: outcome.remaining,
+          hold: outcome.hold,
+          blocked: outcome.blocked,
         },
       });
     }
@@ -558,6 +582,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           command.stepId,
           command.metric,
           command.value,
+          command.rateCardDigest,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -569,6 +594,51 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.actorId,
           command.stepId,
           command.metric,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setMeasureEstimate: async (command, context) => {
+      context.value(
+        await workItems.setMeasureEstimate(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          command.measure,
+          command.estimate,
+          command.rateCardDigest,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setBudget: async (command, context) => {
+      context.value(
+        await workItems.setBudget(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.measure,
+          { cap: command.cap, policy: command.policy, holdPerAttempt: command.holdPerAttempt },
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    clearBudget: async (command, context) => {
+      context.value(
+        await workItems.clearBudget(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.measure,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    clearMeasureEstimate: async (command, context) => {
+      context.value(
+        await workItems.clearMeasureEstimate(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          command.measure,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -917,6 +987,53 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         ),
       );
       return { ...context.plain(), kind: command.kind, entity: resource };
+    },
+    createMeasure: async (command, context) => {
+      context.assertRefAvailable(command.ref);
+      const measure = context.value(
+        await directory.measures.addWithin(
+          context.actorId,
+          {
+            key: command.key,
+            name: command.name,
+            unit: command.unit,
+            kind: command.measureKind,
+            scale: command.scale,
+            ...(command.threePoint === undefined ? {} : { threePoint: command.threePoint }),
+            ...(command.showByDefault === undefined
+              ? {}
+              : { showByDefault: command.showByDefault }),
+            ...(command.schedulesWork === undefined
+              ? {}
+              : { schedulesWork: command.schedulesWork }),
+            ...(command.order === undefined ? {} : { order: command.order }),
+            ...(command.currency === undefined ? {} : { currency: command.currency }),
+          },
+          context.access,
+        ),
+      );
+      return { ...context.mint(command.ref, measure.id), kind: command.kind, entity: measure };
+    },
+    patchMeasure: async (command, context) => {
+      const measure = context.value(
+        await directory.measures.patchWithin(
+          context.required(command.measureId, command.measureRef),
+          context.actorId,
+          command.patch,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind, entity: measure };
+    },
+    deleteMeasure: async (command, context) => {
+      context.value(
+        await directory.measures.removeWithin(
+          context.required(command.measureId, command.measureRef),
+          context.actorId,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
     },
     deleteResource: async (command, context) => {
       context.accept(

@@ -625,7 +625,7 @@ describe('sharing the plan', () => {
     const exported = {
       document: {
         format: 'wbs-plan',
-        version: 11,
+        version: 12,
         exportedAt: '2026-09-14T08:30:00.000Z',
       },
       settings: { name: 'Rewire the shed' },
@@ -711,7 +711,7 @@ describe('sharing the plan', () => {
       name: 'Filtered root exact',
     });
     expect(downloaded).toMatchObject({
-      document: { version: 11 },
+      document: { version: 12 },
       typedDependencies: [
         { predecessor: { projectId: 'remote-project', workItemId: 'remote-row' } },
       ],

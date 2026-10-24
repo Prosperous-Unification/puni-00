@@ -749,6 +749,10 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261023170000_add_work_item_budget',
+      '20261023160000_add_measure_estimate',
+      '20261023150000_key_step_measure',
+      '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
       '20261022212000_add_cross_project_dependency_activation',
@@ -826,6 +830,9 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'machine_credential' &&
           name !== 'machine_credential_secret' &&
           name !== 'organization_limits' &&
+          name !== 'measure' &&
+          name !== 'measure_estimate' &&
+          name !== 'work_item_budget' &&
           name !== 'compute_provider' &&
           name !== 'resource_capacity_report' &&
           name !== 'shared_people_restore_operation' &&

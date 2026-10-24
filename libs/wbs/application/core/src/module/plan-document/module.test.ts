@@ -68,6 +68,12 @@ async function seeded() {
         resourceCapacitiesOf: (id: string) => source.stores.resourceCapacity.listFor(id),
         demandsOf: (id: string) => source.stores.demands.listByProject(id),
       },
+      measureFacts: {
+        measureDefinitionsOf: (id: string) => source.stores.measures.definitionsFor(id),
+        measuresOf: (id: string) => source.stores.measures.listByProject(id),
+        measureEstimatesOf: (id: string) => source.stores.measureEstimates.listByProject(id),
+        budgetsOf: (id: string) => source.stores.budgets.listByProject(id),
+      },
     },
   };
 }
@@ -82,6 +88,15 @@ const hostRequirements = () => {
       () => ({
         resourceCapacitiesOf: (id: string) => source.stores.resourceCapacity.listFor(id),
         demandsOf: (id: string) => source.stores.demands.listByProject(id),
+      }),
+      { factoryReturnKind: 'sync-value' },
+    ),
+    measureFacts: DiBag.createProvider(
+      () => ({
+        measureDefinitionsOf: (id: string) => source.stores.measures.definitionsFor(id),
+        measuresOf: (id: string) => source.stores.measures.listByProject(id),
+        measureEstimatesOf: (id: string) => source.stores.measureEstimates.listByProject(id),
+        budgetsOf: (id: string) => source.stores.budgets.listByProject(id),
       }),
       { factoryReturnKind: 'sync-value' },
     ),
@@ -128,7 +143,7 @@ describe('the Plan document module', () => {
     if (!exported.ok) throw new Error('export refused');
     expect(exported.value.document).toEqual({
       format: 'wbs-plan',
-      version: 10,
+      version: 11,
       exportedAt: '2026-09-24T09:00:00.000Z',
     });
     expect(exported.value.calendarMarkers).toEqual([

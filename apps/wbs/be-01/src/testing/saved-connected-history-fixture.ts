@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import {
-  canonicalisePlanInputV9,
+  canonicalisePlanInputV10,
   readSavedConnectedScheduleEvidence,
   readSavedDependencyHistory,
 } from '@wbs/domain';
@@ -40,7 +40,7 @@ export function savedConnectedHistoryFixture(projectId: string) {
   const evidence = readSavedConnectedScheduleEvidence(captured.evidence);
   const designKey = 'a\u0000design';
   const testKey = 'a\u0000test';
-  const input = canonicalisePlanInputV9(connectedPlanFixtureRows(history), history);
+  const input = canonicalisePlanInputV10(connectedPlanFixtureRows(history), history);
   const schedule = {
     version: 2,
     algorithmId: 'connected-selection-v1:retired',

@@ -45,6 +45,7 @@ export const connectedReads = (
     optimizationEnabled: false,
     solutionRef: null,
     timezone: 'UTC',
+    budgetFactor: 1,
   },
   steps: [
     {
@@ -65,6 +66,9 @@ export const connectedReads = (
   stepBlockages: [],
   stepParallels: [],
   measures: [],
+  measureDefinitions: null,
+  measureEstimates: [],
+  budgets: [],
   dependencies: [],
   typedDependencies: [],
   assignments: [],

@@ -3,14 +3,24 @@ import {
   type AllowancePercent,
   allowancePercentOf,
   type AttemptOutcome,
+  type BudgetPolicy,
   isAttemptOutcome,
+  isBudgetPolicy,
+  isCurrencyCode,
   isDependencyEndpointScope,
   isIsoDate,
+  isMeasureKey,
+  isMeasureKind,
+  isMeasureScale,
   type IsoDate,
   isResourceKind,
   isSettableStatus,
   isStepState,
   LONGEST_NOT_BEFORE_REASON,
+  LONGEST_RATE_CARD_DIGEST,
+  type MeasureKind,
+  type MeasureScale,
+  MOST_MEASURE_ORDER,
   MOST_PEOPLE_AT_ONCE,
   MOST_RESOURCE_UNITS,
   parseStepNodeId,
@@ -799,6 +809,38 @@ export function resourceUnitsOf(raw: object, floor: 0 | 1): number | null {
 }
 
 /** A unit label, trimmed, of at most {@link MOST_CHARACTERS_IN_A_UNIT_LABEL} characters; empty is allowed. */
+/**
+ * A `setBudget`'s figures (`wbs-measure-budgets` design D36): a cap and an
+ * optional hold that are numbers at or above zero, finite, and one of the two
+ * policies; `invalid_budget` otherwise, for `parseMeasure`'s reason. The
+ * domain checks the same again (`decideBudget`) for every other caller.
+ */
+export function parseBudget(raw: CommandInput<'setBudget'>): {
+  cap: number;
+  policy: BudgetPolicy;
+  holdPerAttempt: number | null;
+} {
+  const figure = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  const hold: unknown = raw.holdPerAttempt ?? null;
+  // Proof: with the cap test made true, `refuses a negative cap or hold, or
+  // an unknown policy, before anything runs` (budget-command.test.ts) reached
+  // the service; watched 2026-10-23.
+  if (!figure(raw.cap) || !(hold === null || figure(hold)) || !isBudgetPolicy(raw.policy))
+    throw new CommandNormalizationError('invalid_budget');
+  return { cap: raw.cap, policy: raw.policy, holdPerAttempt: hold };
+}
+
+/** A rate card digest: absent, or text of 1 to {@link LONGEST_RATE_CARD_DIGEST} characters. */
+export function asRateCardDigest(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  // Proof: with the length test removed, `refuses an empty rate card digest`
+  // (budget-command.test.ts) stored one; watched 2026-10-23.
+  if (typeof value !== 'string' || value.length === 0 || value.length > LONGEST_RATE_CARD_DIGEST)
+    throw new CommandNormalizationError('rateCardDigest_must_be_1_to_128_characters');
+  return value;
+}
+
 export function asUnitLabel(value: unknown): string {
   const label = asText(value, 'unitLabel').trim();
   if (label.length > MOST_CHARACTERS_IN_A_UNIT_LABEL) {
@@ -815,5 +857,67 @@ export function asUnitLabel(value: unknown): string {
 export function asResourceKind(value: unknown): ResourceKind {
   if (!isResourceKind(value))
     throw new CommandNormalizationError('resourceKind_must_be_exclusive_or_divisible');
+  return value;
+}
+
+/** A measure key ({@link isMeasureKey}), or `key_must_be_a_measure_key`. */
+export function asMeasureKey(value: unknown): string {
+  if (!isMeasureKey(value)) throw new CommandNormalizationError('key_must_be_a_measure_key');
+  return value;
+}
+
+/**
+ * A measure's unit label, trimmed, of at most
+ * {@link MOST_CHARACTERS_IN_A_UNIT_LABEL} characters. An empty label passes
+ * here and is refused by the domain's `unit_required`, a 409 like the
+ * definition's other refusals.
+ */
+export function asMeasureUnit(value: unknown): string {
+  const unit = asText(value, 'unit').trim();
+  if (unit.length > MOST_CHARACTERS_IN_A_UNIT_LABEL) {
+    throw new CommandNormalizationError('unit_must_be_at_most_40_characters');
+  }
+  return unit;
+}
+
+/**
+ * A measure kind, checked here although the create's structural schema names
+ * the three literals, for {@link asResourceKind}'s reason; a patch's schema
+ * admits any text so a kind change reaches the domain's refusal.
+ */
+export function asMeasureKind(value: unknown): MeasureKind {
+  if (!isMeasureKind(value))
+    throw new CommandNormalizationError('measureKind_must_be_duration_count_or_money');
+  return value;
+}
+
+/** A measure scale; see {@link asMeasureKind}. */
+export function asMeasureScale(value: unknown): MeasureScale {
+  if (!isMeasureScale(value)) throw new CommandNormalizationError('scale_must_be_integer_or_real');
+  return value;
+}
+
+/** A definition's list position: a whole number from 0 to {@link MOST_MEASURE_ORDER}, or absent. */
+export function asOptionalMeasureOrder(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    value < 0 ||
+    value > MOST_MEASURE_ORDER
+  )
+    throw new CommandNormalizationError('order_must_be_a_whole_number_from_0_to_1000000');
+  return value;
+}
+
+/**
+ * A currency code ({@link isCurrencyCode}), `null` for none, or absent.
+ * Whether the kind needs one is the domain's `currency_required` and
+ * `currency_forbidden`, decided against the definition, not the request.
+ */
+export function asOptionalCurrency(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (!isCurrencyCode(value))
+    throw new CommandNormalizationError('currency_must_be_three_capital_letters');
   return value;
 }

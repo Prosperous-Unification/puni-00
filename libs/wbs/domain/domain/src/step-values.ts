@@ -1,5 +1,5 @@
+import type { MoneyBasis } from './money-basis';
 import type { StepState } from './progress';
-import type { MeasureMetric } from './stored-vocabularies';
 
 export interface StoredEstimate {
   readonly workItemId: string;
@@ -31,15 +31,26 @@ export interface StoredActual {
  * holding a token estimate, a token fact and an hours fact is three of these,
  * and each is absent on its own. See {@link stepMeasure} in `schema.ts` and
  * `openspec/changes/token-tracking/design.md` D1.
+ *
+ * `metric` is a legacy {@link MeasureMetric} or a measure definition key
+ * (`wbs-measure-budgets` D4): facts in `tokens` and `hours` keep their legacy
+ * names `token_actual` and `hours_actual` for one release, every other
+ * definition is addressed by its key ({@link factMetricOf}, design D18).
  */
 export interface StoredMeasure {
   readonly workItemId: string;
   readonly stepId: string;
-  readonly metric: MeasureMetric;
-  /** The figure itself — tokens or hours, in whatever `metric` says. */
+  readonly metric: string;
+  /** The figure itself, in the unit of the definition `metric` names. */
   readonly value: number;
   /** When the number was typed, in epoch milliseconds. */
   readonly recordedAt: number;
+  /**
+   * The currency and rate card a money fact was priced with (`wbs-measure-budgets`
+   * D6, design D43); absent on every other measure, and on a money fact written
+   * before bases were recorded.
+   */
+  readonly basis?: MoneyBasis;
 }
 
 /**

@@ -72,7 +72,7 @@ test.each([
           throw new Error('saved schedule expected');
         const stored = saved.record;
         if (!stored.schedule.present) throw new Error('saved schedule expected');
-        expect(stored.input.schemaVersion).toBe(9);
+        expect(stored.input.schemaVersion).toBe(10);
         expect(stored.schedule.body.schemaVersion).toBe(2);
         expect(stored.input.sha256).toBe(await nodeDigest.sha256(stored.input.bytes));
         expect(stored.schedule.body.sha256).toBe(

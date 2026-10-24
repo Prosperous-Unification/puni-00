@@ -3304,6 +3304,136 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     ]);
   });
 
+  // Proof: with the `derived_measure`/`scale_mismatch` arm removed from
+  // work-item.routes.ts, this case answered 500; watched 2026-10-23.
+  // Proof: with the scheduling test removed from decideMeasureFact, this case
+  // answered 500 for `time` (the store threw on a key no organization
+  // defines) instead of 409; watched 2026-10-23.
+  it('answers 409 for a derived measure, the scheduling measure and a fraction of an integer one, storing nothing', async () => {
+    const { token, send, measures, projectId, devId } = await setup();
+    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+
+    const derived = await command(send, token, projectId, {
+      kind: 'setMeasure',
+      workItemId: strip,
+      stepId: devId,
+      metric: 'agent_minutes',
+      value: 30,
+    });
+    const fraction = await command(send, token, projectId, {
+      kind: 'setMeasure',
+      workItemId: strip,
+      stepId: devId,
+      metric: 'tokens',
+      value: 1.5,
+    });
+
+    const scheduling = await command(send, token, projectId, {
+      kind: 'setMeasure',
+      workItemId: strip,
+      stepId: devId,
+      metric: 'time',
+      value: 2,
+    });
+
+    expect([derived.status, fraction.status, scheduling.status]).toEqual([409, 409, 409]);
+    expect(await scheduling.json()).toEqual({
+      error: 'scheduling_measure_fact',
+      at: 0,
+      kind: 'setMeasure',
+    });
+    expect(await derived.json()).toEqual({ error: 'derived_measure', at: 0, kind: 'setMeasure' });
+    expect(await fraction.json()).toEqual({ error: 'scale_mismatch', at: 0, kind: 'setMeasure' });
+    expect(await measures.listByProject(projectId)).toEqual([]);
+  });
+
+  // Proof: with the `scheduling_measure_estimate`/`three_point_forbidden`
+  // arm removed from work-item.routes.ts, this case answered 500 for both;
+  // watched 2026-10-23.
+  it('answers 409 for a trio in time or hours and 400 for an unordered one, and reads a stored trio back with its expected measure', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const trio = (measure: string, estimate: Record<string, number>) =>
+      command(send, token, projectId, {
+        kind: 'setMeasureEstimate',
+        workItemId: strip,
+        stepId: devId,
+        measure,
+        estimate,
+      });
+    const TRIO = { optimistic: 100, realistic: 200, pessimistic: 600 };
+
+    const scheduling = await trio('time', TRIO);
+    const twoPoint = await trio('hours', TRIO);
+    const unordered = await trio('tokens', { optimistic: 5, realistic: 2, pessimistic: 9 });
+    expect([scheduling.status, twoPoint.status, unordered.status]).toEqual([409, 409, 400]);
+    expect(await scheduling.json()).toEqual({
+      error: 'scheduling_measure_estimate',
+      at: 0,
+      kind: 'setMeasureEstimate',
+    });
+    expect(await twoPoint.json()).toEqual({
+      error: 'three_point_forbidden',
+      at: 0,
+      kind: 'setMeasureEstimate',
+    });
+    expect(await unordered.json()).toEqual({
+      error: 'invalid_estimate',
+      at: 0,
+      kind: 'setMeasureEstimate',
+    });
+
+    expect((await trio('tokens', TRIO)).status).toBe(200);
+    const read = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      workItems: { id: string; measureEstimates?: unknown }[];
+    };
+    expect(read.workItems.find((row) => row.id === strip)?.measureEstimates).toEqual({
+      tokens: { [devId]: { ...TRIO, singlePoint: false, expected: 250 } },
+    });
+  });
+
+  // Proof: with the `scheduling_measure_budget`/`rate_card_forbidden` arms
+  // removed from work-item-shapes.ts, this case answered 500 for both;
+  // watched 2026-10-23.
+  it('answers 409 for a budget in time and a rate card on tokens, 400 for a negative cap, and reads a budget back', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const run = (body: Record<string, unknown>) => command(send, token, projectId, body);
+    const budget = (measure: string, cap: number) =>
+      run({ kind: 'setBudget', workItemId: parent, measure, cap, policy: 'strict' });
+
+    const scheduling = await budget('time', 5);
+    const forbidden = await run({
+      kind: 'setMeasure',
+      workItemId: parent,
+      stepId: devId,
+      metric: 'tokens',
+      value: 10,
+      rateCardDigest: 'card-a',
+    });
+    const negative = await budget('tokens', -1);
+    expect([scheduling.status, forbidden.status, negative.status]).toEqual([409, 409, 400]);
+    expect(await scheduling.json()).toEqual({
+      error: 'scheduling_measure_budget',
+      at: 0,
+      kind: 'setBudget',
+    });
+    expect(await forbidden.json()).toEqual({
+      error: 'rate_card_forbidden',
+      at: 0,
+      kind: 'setMeasure',
+    });
+    expect(await negative.json()).toEqual({ error: 'invalid_budget', at: 0, kind: 'setBudget' });
+
+    expect((await budget('tokens', 1000)).status).toBe(200);
+    const read = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      workItems: { id: string; budgets?: unknown }[];
+    };
+    expect(read.workItems.find((row) => row.id === parent)?.budgets).toEqual({
+      tokens: { cap: 1000, policy: 'strict', source: 'stated', remaining: 1000, exceeded: false },
+    });
+  });
+
   it('answers 404 for a unit it does not keep, on both verbs, and stores nothing', async () => {
     // The refusal this command pair has and the actuals' does not. 404 rather
     // than 400 — the step names a unit, and this release keeps no such unit;
@@ -3329,8 +3459,8 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     });
 
     expect([written.status, cleared.status]).toEqual([404, 404]);
-    expect(await written.json()).toEqual({ error: 'unknown_metric', at: 0, kind: 'setMeasure' });
-    expect(await cleared.json()).toEqual({ error: 'unknown_metric', at: 0, kind: 'clearMeasure' });
+    expect(await written.json()).toEqual({ error: 'unknown_measure', at: 0, kind: 'setMeasure' });
+    expect(await cleared.json()).toEqual({ error: 'unknown_measure', at: 0, kind: 'clearMeasure' });
     expect(await measures.listByProject(projectId)).toEqual([]);
   });
 

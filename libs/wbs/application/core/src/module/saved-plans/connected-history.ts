@@ -2,8 +2,8 @@ import {
   buildConnectedScheduleBody,
   CalendarRangeError,
   canonicalConnectedStageInput,
-  canonicalisePlanInputV9,
-  type CanonicalPlanInputV9,
+  canonicalisePlanInputV10,
+  type CanonicalPlanInputV10,
   type ConnectedPublicationDecision,
   deriveNumbers,
   encodeSavedPlacement,
@@ -29,7 +29,7 @@ type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 
 /** Prepared historical bodies; callers serialize and hash only after their live snapshot closes. */
 export interface ConnectedHistoryCapture {
-  readonly input: CanonicalPlanInputV9;
+  readonly input: CanonicalPlanInputV10;
   readonly schedule:
     | { readonly present: true; readonly body: SavedConnectedScheduleBody }
     | { readonly present: false; readonly absentReason: 'unavailable' | 'infeasible' };
@@ -233,7 +233,7 @@ export function captureConnectedHistory(
   if (target.kind !== 'scheduled') {
     const history = historyOf(target);
     return {
-      input: canonicalisePlanInputV9(planInputRowsOf(member.reads), history),
+      input: canonicalisePlanInputV10(planInputRowsOf(member.reads), history),
       schedule: {
         present: false,
         absentReason: target.kind === 'unavailable' ? 'infeasible' : 'unavailable',
@@ -260,14 +260,14 @@ export function captureConnectedHistory(
       },
     );
     return {
-      input: canonicalisePlanInputV9(planInputRowsOf(member.reads), history),
+      input: canonicalisePlanInputV10(planInputRowsOf(member.reads), history),
       schedule: { present: true, body },
     };
   } catch (cause) {
     // Proof: rethrowing CalendarRangeError failed the coherent input-state/schedule-absence converter case.
     if (!(cause instanceof CalendarRangeError)) throw cause;
     return {
-      input: canonicalisePlanInputV9(
+      input: canonicalisePlanInputV10(
         planInputRowsOf(member.reads),
         historyOf({ kind: 'unavailable', reason: 'calendar_range' }),
       ),

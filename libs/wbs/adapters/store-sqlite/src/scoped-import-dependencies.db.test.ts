@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { DocumentV11TypedDependency, PlanDocumentImport } from '@wbs/contracts';
+import type { DocumentV12TypedDependency, PlanDocumentImport } from '@wbs/contracts';
 import { type Broadcaster, type Scope, servicesOver } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
 import * as importedPlans from '@wbs/core/module/plan-import/imported-plan.resource';
@@ -111,7 +111,7 @@ function externalRelationship(
     projectId: 'remote',
     workItemId: 'remote-leaf',
   },
-): DocumentV11TypedDependency {
+): DocumentV12TypedDependency {
   const display = {
     projectName: 'Old project name',
     abbreviation: 'OLD',

@@ -1,7 +1,7 @@
 import {
   type DocumentConnected,
   documentConnected,
-  type DocumentV11TypedDependency,
+  type DocumentV12TypedDependency,
 } from '@wbs/contracts';
 import {
   canonicalConnectedStageInput,
@@ -19,7 +19,7 @@ const compare = (left: string, right: string): number => (left < right ? -1 : le
 
 function internalEndpoint(
   endpoint: ConnectedTreeEndpoint,
-): DocumentV11TypedDependency['successor'] {
+): DocumentV12TypedDependency['successor'] {
   const identity = endpoint.endpoint;
   return identity.scope === 'whole'
     ? { kind: 'internal', scope: 'whole', workItem: identity.workItemId }
@@ -34,7 +34,7 @@ function predecessorEndpoint(
   captured: ConnectedRead,
   endpoint: ConnectedTreeEndpoint,
   projectId: string,
-): DocumentV11TypedDependency['predecessor'] {
+): DocumentV12TypedDependency['predecessor'] {
   if (endpoint.endpoint.projectId === projectId) return internalEndpoint(endpoint);
   const owner = captured.metadataByProject.get(endpoint.endpoint.projectId);
   if (owner === undefined) throw new Error('missing connected document endpoint owner');
@@ -90,7 +90,7 @@ export function projectConnectedDocument(
   captured: ConnectedRead,
   projectId: string,
 ): {
-  typedDependencies: DocumentV11TypedDependency[];
+  typedDependencies: DocumentV12TypedDependency[];
   connected: DocumentConnected;
 } {
   const target = projectConnectedTree(captured, projectId);

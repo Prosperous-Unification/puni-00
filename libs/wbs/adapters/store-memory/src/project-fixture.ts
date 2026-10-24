@@ -41,6 +41,7 @@ export function projectRow(overrides: Partial<Project> = {}): Project {
     optimizationEnabled: false,
     scheduleEngine: 'fast',
     scheduleObjective: 'pri',
+    budgetFactor: 1,
     ...overrides,
   };
 }
@@ -124,6 +125,7 @@ export function inMemoryProjects(
       optimizationEnabled: project.optimizationEnabled ?? false,
       scheduleEngine: project.scheduleEngine ?? 'fast',
       scheduleObjective: project.scheduleObjective ?? 'pri',
+      budgetFactor: project.budgetFactor ?? 1,
     } satisfies Project;
     projects.set(written.id, written);
     steps.set(written.id, [...starting]);
@@ -255,6 +257,7 @@ export function inMemoryProjects(
         optimizationEnabled: patch.optimizationEnabled ?? existing.optimizationEnabled,
         scheduleEngine: patch.scheduleEngine ?? existing.scheduleEngine,
         scheduleObjective: patch.scheduleObjective ?? existing.scheduleObjective,
+        budgetFactor: patch.budgetFactor ?? existing.budgetFactor,
       };
       if (patch.timezone !== undefined) {
         timezones.set(id, patch.timezone);

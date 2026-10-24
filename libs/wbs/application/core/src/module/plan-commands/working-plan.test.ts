@@ -713,6 +713,70 @@ describe('targeted working-plan refreshes', () => {
     }
   });
 
+  it('refreshes the retained measures when a tokens trio writes or retires the legacy token estimate', async () => {
+    const source = openMemorySource();
+    const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
+      admission: CREATOR_ADMISSION,
+      clock: testClock,
+      broadcast: silentBroadcaster(),
+      scheduler: fastScheduler,
+    });
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const created = expectCreated(await publicGraph.projects.create('Token estimates', OWNER));
+      const projectId = created.project.id;
+      const stepId = created.steps.at(0)?.id;
+      if (stepId === undefined) throw new Error('the project has no step');
+      for (const step of created.steps) {
+        await source.stores.steps.add(
+          {
+            id: step.id,
+            projectId,
+            name: step.name,
+            allowancePercent: 0,
+            estimateUnit: 'workdays',
+          },
+          { at: 1, by: OWNER },
+        );
+      }
+      await source.stores.workItems.insert(workItemRow({ id: 'leaf', projectId }), [], {
+        at: 2,
+        by: OWNER,
+      });
+      await source.stores.measures.set(
+        { workItemId: 'leaf', stepId, metric: 'token_estimate', value: 40, recordedAt: 2 },
+        { at: 2, by: OWNER },
+      );
+      const workingPlan = createWorkingPlan({ stores: source.stores }, projectId);
+      expect(await workingPlan.stores.measures.listByProject(projectId)).toHaveLength(1);
+      const trio = { workItemId: 'leaf', stepId, key: 'tokens', ...DAYS, singlePoint: false };
+      expect(await workingPlan.stores.measureEstimates.set(trio, { at: 3, by: OWNER })).toBe(
+        'written',
+      );
+      // The three-point write retired the legacy row underneath the retained read.
+      expect(await workingPlan.stores.measures.listByProject(projectId)).toEqual([]);
+      await workingPlan.stores.measureEstimates.set(
+        { ...trio, optimistic: 5, realistic: 5, pessimistic: 5, singlePoint: true },
+        { at: 4, by: OWNER },
+      );
+      expect(await workingPlan.stores.measures.listByProject(projectId)).toEqual(
+        await source.stores.measures.listByProject(projectId),
+      );
+      await workingPlan.stores.measureEstimates.remove('leaf', stepId, 'tokens', {
+        at: 5,
+        by: OWNER,
+      });
+      expect(await workingPlan.stores.measures.listByProject(projectId)).toEqual([]);
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
   it('preserves unrelated dependency interleaving when incident edges refresh', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();

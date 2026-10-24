@@ -1,6 +1,6 @@
 import type {
   DocumentExternalMapping,
-  DocumentV11TypedDependency,
+  DocumentV12TypedDependency,
   PlanDocumentImport,
 } from '@wbs/contracts';
 import type {
@@ -162,7 +162,7 @@ export interface PreparedImport {
   typedDependencyPaths: ReadonlyMap<string, string>;
   externalDependencies: {
     path: string;
-    predecessor: Extract<DocumentV11TypedDependency['predecessor'], { kind: 'external' }>;
+    predecessor: Extract<DocumentV12TypedDependency['predecessor'], { kind: 'external' }>;
     destination: DocumentExternalMapping['destination'];
     successor: TypedDependency['successor'];
     type: TypedDependency['type'];
@@ -177,6 +177,16 @@ export interface PreparedImport {
   resourceByFileId: ReadonlyMap<string, PreparedResource>;
   resourceCapacities: { resourceFileId: string; units: number }[];
   demands: { workItemFileId: string; resourceFileId: string; units: number }[];
+  /**
+   * The measures a version-11 file states (`wbs-measure-budgets` design D63),
+   * checked against the file's own definitions and still by file ids; none
+   * before version 11. The definitions are matched or created by key at
+   * admission, where the organization's own are read.
+   */
+  measureDefinitions: PlanDocumentImport['measureDefinitions'];
+  measureFacts: PlanDocumentImport['measureFacts'];
+  measureEstimates: PlanDocumentImport['measureEstimates'];
+  budgets: PlanDocumentImport['budgets'];
 }
 
 export type ImportRefusalCode =

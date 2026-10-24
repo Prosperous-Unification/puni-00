@@ -18,7 +18,7 @@ describe('saved direct step blockage', () => {
     expect(hash(capture)).not.toBe(
       hash(canonicalisePlanInput({ ...planFixtureRows, stepBlockages: [] })),
     );
-    expect(capture.schemaVersion).toBe(8);
+    expect(capture.schemaVersion).toBe(9);
     expect(capture.stepBlockages).toEqual(facts);
     expect(
       canonicalisePlanInput({ ...planFixtureRows, stepBlockages: [...facts].reverse() }),

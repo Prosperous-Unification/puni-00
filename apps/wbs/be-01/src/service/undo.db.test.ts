@@ -8,12 +8,14 @@ import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource'
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { expectCreated } from '@wbs/core/testing/expect-created';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { JournalEntry, LabelledWorkItem, Step, WorkItem, WriteStamp } from '../repository';
@@ -147,6 +149,8 @@ beforeEach(async () => {
     estimates: estimateStore,
     actuals: actualStore,
     measures: measureStore,
+    measureEstimates: new MeasureEstimateRepository(db, OPEN),
+    budgets: new WorkItemBudgetRepository(db, OPEN),
     progress: progressStore,
     attempts: new StepNodeAttemptRepository(db, OPEN),
     blockages: new StepBlockageRepository(db, OPEN),

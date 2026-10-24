@@ -9,7 +9,7 @@ import { resolveImportDependencies } from './resolve-import-dependencies';
 
 function preparedFixture() {
   const document = planDocumentFixture();
-  document.document.version = 11;
+  document.document.version = 12;
   const row = document.workItems.at(0);
   if (row === undefined) throw new Error('fixture lost its row');
   document.workItems.push({ ...structuredClone(row), id: 'row-2', position: 20, externalRefs: [] });

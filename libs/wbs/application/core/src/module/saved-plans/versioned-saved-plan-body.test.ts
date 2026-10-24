@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import {
-  canonicalisePlanInputV9,
+  canonicalisePlanInputV10,
   readSavedConnectedScheduleBody,
   readSavedConnectedScheduleEvidence,
   readSavedDependencyHistory,
@@ -40,7 +40,7 @@ const evidence = readSavedConnectedScheduleEvidence(captured.evidence);
 const designKey = 'a\u0000design';
 const testKey = 'a\u0000test';
 const buildKey = 'b\u0000build';
-const input = canonicalisePlanInputV9(connectedPlanFixtureRows(history), history);
+const input = canonicalisePlanInputV10(connectedPlanFixtureRows(history), history);
 const schedule = {
   version: 2,
   algorithmId: 'connected-selection-v1:retired',
@@ -67,7 +67,7 @@ const read = (inputBytes: string, scheduleBytes: string | null, projectId = 'A')
   verifySavedPlanBodies(
     'saved',
     projectId,
-    { version: 9, bytes: inputBytes },
+    { version: 10, bytes: inputBytes },
     scheduleBytes === null
       ? { present: false, absentReason: 'unavailable' }
       : { present: true, version: 2, bytes: scheduleBytes, algorithmId: schedule.algorithmId },
@@ -178,7 +178,7 @@ describe('new saved body integrity', () => {
   });
   it('validates the captured target anchor rather than using another project calendar', () => {
     const betaHistory = { ...history, targetProjectId: 'B' };
-    const betaInput = canonicalisePlanInputV9(connectedPlanFixtureRows(betaHistory), betaHistory);
+    const betaInput = canonicalisePlanInputV10(connectedPlanFixtureRows(betaHistory), betaHistory);
     const projected = {
       ...evidence.composite.slices[buildKey],
       earliestStart: 0,
@@ -270,7 +270,7 @@ describe('new saved body integrity', () => {
       graph: { nodes: [], edges: [] },
     });
     if (emptyHistory.kind !== 'connected') throw new Error('fixture must be connected');
-    const emptyInput = canonicalisePlanInputV9(
+    const emptyInput = canonicalisePlanInputV10(
       connectedPlanFixtureRows(emptyHistory),
       emptyHistory,
     );
@@ -337,7 +337,7 @@ describe('new saved body integrity', () => {
     expect(
       read(JSON.stringify(input), JSON.stringify({ ...schedule, connection: undefined })),
     ).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
-    const local = canonicalisePlanInputV9(planFixtureRows, { kind: 'local' });
+    const local = canonicalisePlanInputV10(planFixtureRows, { kind: 'local' });
     expect(read(JSON.stringify(local), JSON.stringify(schedule), 'p1')).toMatchObject({
       reason: 'body_invalid',
       body: 'schedule',
@@ -355,16 +355,16 @@ describe('new saved body integrity', () => {
       verifySavedPlanBodies(
         'saved',
         'A',
-        { version: 9, bytes: JSON.stringify(unavailable) },
+        { version: 10, bytes: JSON.stringify(unavailable) },
         { present: true, version: 1, bytes: '{}', algorithmId: 'legacy' },
       ),
     ).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
-    const local = canonicalisePlanInputV9(planFixtureRows, { kind: 'local' });
+    const local = canonicalisePlanInputV10(planFixtureRows, { kind: 'local' });
     expect(
       verifySavedPlanBodies(
         'saved',
         'p1',
-        { version: 9, bytes: JSON.stringify(local) },
+        { version: 10, bytes: JSON.stringify(local) },
         { present: true, version: 1, bytes: 'legacy bytes stay opaque', algorithmId: 'legacy' },
       ),
     ).toBeNull();
@@ -378,5 +378,88 @@ describe('new saved body integrity', () => {
     expect(
       read(JSON.stringify(input), JSON.stringify({ ...schedule, waitingForPerson: '0' })),
     ).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
+  });
+});
+
+it.each(['measureEstimates', 'budgets'] as const)(
+  'refuses captured %s owned by another component member',
+  (field) => {
+    const invalid = {
+      ...input,
+      [field]:
+        field === 'measureEstimates'
+          ? [
+              {
+                workItemId: 'b',
+                stepId: 'build',
+                key: 'tokens',
+                optimistic: 1,
+                realistic: 2,
+                pessimistic: 3,
+                currency: null,
+                rateCardDigest: null,
+              },
+            ]
+          : [{ workItemId: 'b', key: 'tokens', cap: 5, policy: 'strict', holdPerAttempt: null }],
+    };
+    expect(read(JSON.stringify(invalid), JSON.stringify(schedule))).toMatchObject({
+      reason: 'body_invalid',
+      body: 'input',
+      code: 'target_facts',
+      path: `$.${field}`,
+    });
+  },
+);
+
+it.each([
+  'factor-zero',
+  'factor-above-max',
+  'negative-fact',
+  'half-fact-basis',
+  'negative-trio',
+  'reversed-trio',
+  'half-trio-basis',
+  'negative-cap',
+  'negative-hold',
+] as const)('refuses input10 measure invariant %s through saved-body integrity', (fault) => {
+  const invalid = structuredClone({
+    ...input,
+    measures: [
+      {
+        workItemId: 'a',
+        stepId: 'design',
+        metric: 'cost',
+        value: 5,
+        currency: null,
+        rateCardDigest: null,
+      },
+    ],
+    measureEstimates: [
+      {
+        workItemId: 'a',
+        stepId: 'design',
+        key: 'cost',
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+        currency: null,
+        rateCardDigest: null,
+      },
+    ],
+    budgets: [{ workItemId: 'a', key: 'cost', cap: 5, policy: 'strict', holdPerAttempt: null }],
+  });
+  if (fault === 'factor-zero') Reflect.set(invalid.project, 'budgetFactor', 0);
+  if (fault === 'factor-above-max') Reflect.set(invalid.project, 'budgetFactor', 1001);
+  if (fault === 'negative-fact') Reflect.set(invalid.measures[0], 'value', -1);
+  if (fault === 'half-fact-basis') Reflect.set(invalid.measures[0], 'currency', 'USD');
+  if (fault === 'negative-trio') Reflect.set(invalid.measureEstimates[0], 'optimistic', -1);
+  if (fault === 'reversed-trio') Reflect.set(invalid.measureEstimates[0], 'realistic', 4);
+  if (fault === 'half-trio-basis')
+    Reflect.set(invalid.measureEstimates[0], 'rateCardDigest', 'card');
+  if (fault === 'negative-cap') Reflect.set(invalid.budgets[0], 'cap', -1);
+  if (fault === 'negative-hold') Reflect.set(invalid.budgets[0], 'holdPerAttempt', -1);
+  expect(read(JSON.stringify(invalid), JSON.stringify(schedule))).toMatchObject({
+    reason: 'body_invalid',
+    body: 'input',
   });
 });

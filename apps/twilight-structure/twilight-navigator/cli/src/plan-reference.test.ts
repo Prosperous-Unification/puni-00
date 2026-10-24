@@ -198,7 +198,7 @@ describe('twin plan-reference', () => {
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 6; twin reads versions 7 and 8 and 9 and 10 only/,
+      /has version 6; twin reads versions 7 and 8 and 9 and 10 and 11 only/,
     );
   });
 
@@ -268,6 +268,59 @@ describe('twin plan-reference', () => {
     },
   );
 
+  test.each([7, 10])(
+    'refuses v%s embedded project budgetFactor before writing',
+    async (version) => {
+      const document = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, 'fixtures', `plan-export.v${String(version)}.json`),
+          'utf8',
+        ),
+      ) as PlanDocument;
+      Reflect.set(document.project, 'budgetFactor', 2);
+      const path = join(scratch.path, `factor-v${String(version)}.json`);
+      writeFileSync(path, JSON.stringify(document));
+      expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
+    },
+  );
+
+  // The v10 fixture with version 11's budget factor and measure lists added
+  // (`wbs-measure-budgets` D63, D71); every v10 field is byte for byte the v10 fixture's.
+  // Proof: with 11 dropped from the version guard, this case exited 1 with
+  // "has version 11; twin reads versions 7 and 8 and 9 and 10 only" (38 pass, 6 fail);
+  // watched 2026-10-24.
+  test('reads a v11 export carrying measures, deriving the same tasks as v10', async () => {
+    const v10Path = join(scratch.path, 'v10.json');
+    writeFileSync(v10Path, readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v10.json')));
+    expect((await planReference({ '--export': v10Path })).exitCode).toBe(0);
+    const v10Tasks = readJson(join(output, 'tasks.json'));
+    const path = join(scratch.path, 'v11.json');
+    const bytes = readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v11.json'));
+    writeFileSync(path, bytes);
+    const run = await planReference({ '--export': path, '--output': scratch.path });
+    expect(run.exitCode, run.stderr).toBe(0);
+    const record = PlanReferenceRecord.assert(readJson(join(scratch.path, 'plan-reference.json')));
+    expect(record.planDocumentVersion).toBe(11);
+    expect(record.exportDigest).toBe(createHash('sha256').update(bytes).digest('hex'));
+    expect(readJson(join(scratch.path, 'tasks.json'))).toEqual(v10Tasks);
+  });
+
+  test.each(['unknown nested key', 'missing budgets', 'missing factor', 'v10 carrying measures'])(
+    'refuses v11 %s before writing',
+    async (fault) => {
+      const document = JSON.parse(
+        readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v11.json'), 'utf8'),
+      ) as PlanDocument;
+      if (fault === 'unknown nested key') Reflect.set(document.budgets[0] ?? {}, 'extra', true);
+      if (fault === 'missing budgets') Reflect.deleteProperty(document, 'budgets');
+      if (fault === 'missing factor') Reflect.deleteProperty(document.settings, 'budgetFactor');
+      if (fault === 'v10 carrying measures') Reflect.set(document.document, 'version', 10);
+      const path = join(scratch.path, 'v11.json');
+      writeFileSync(path, JSON.stringify(document));
+      expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
+    },
+  );
+
   test('a blockedAt-only change preserves tasks but changes export and reference digests', async () => {
     const path = join(scratch.path, 'v9.json');
     const document = JSON.parse(
@@ -310,13 +363,13 @@ describe('twin plan-reference', () => {
     if (fault === 'fractional time') fact.blockedAt = 1.5;
     if (fault === 'missing facts') Reflect.deleteProperty(document, 'stepBlockages');
     if (fault === 'unknown nested key') Reflect.set(fact, 'extra', true);
-    if (fault === 'future version') Reflect.set(document.document, 'version', 11);
+    if (fault === 'future version') Reflect.set(document.document, 'version', 12);
     const path = join(scratch.path, 'v9.json');
     writeFileSync(path, JSON.stringify(document));
     expectRefusal(
       await planReference({ '--export': path }),
       fault === 'future version'
-        ? /has version 11; twin reads versions 7 and 8 and 9 and 10 only/
+        ? /has version 12; twin reads versions 7 and 8 and 9 and 10 and 11 only/
         : /plan export is malformed/,
     );
   });

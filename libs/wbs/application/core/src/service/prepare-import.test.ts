@@ -980,3 +980,392 @@ test('final scoped tuple comparison detects collisions across declaration arms',
     ]),
   ).toBeNull();
 });
+
+/**
+ * The fixture at version 11: a priced `cost` fact and trio, a `gpu_minutes`
+ * definition with a fact, a three-point tokens trio and a tokens budget.
+ */
+function withMeasures(): PlanFixture {
+  const body = planDocumentFixture();
+  body.document.version = 11;
+  body.settings.budgetFactor = 1.5;
+  const base = {
+    showByDefault: false,
+    schedulesWork: false,
+    derived: false,
+  };
+  body.measureDefinitions = [
+    {
+      ...base,
+      key: 'tokens',
+      name: 'Tokens',
+      unit: 'tokens',
+      kind: 'count',
+      scale: 'integer',
+      threePoint: true,
+      order: 2,
+      currency: null,
+    },
+    {
+      ...base,
+      key: 'cost',
+      name: 'Cost',
+      unit: 'micro-USD',
+      kind: 'money',
+      scale: 'integer',
+      threePoint: true,
+      order: 4,
+      currency: 'USD',
+    },
+    {
+      ...base,
+      key: 'gpu_minutes',
+      name: ' GPU minutes ',
+      unit: 'minutes',
+      kind: 'duration',
+      scale: 'integer',
+      threePoint: false,
+      order: 6,
+      currency: null,
+    },
+  ];
+  const card = { currency: 'USD', rateCardDigest: 'sha256:a' };
+  body.measureFacts = [
+    { workItemId: 'row-1', stepId: 'step-1', measure: 'cost', value: 5, basis: card },
+    { workItemId: 'row-1', stepId: 'step-1', measure: 'gpu_minutes', value: 9, basis: null },
+  ];
+  body.measureEstimates = [
+    {
+      workItemId: 'row-1',
+      stepId: 'step-1',
+      measure: 'tokens',
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+      basis: null,
+    },
+    {
+      workItemId: 'row-1',
+      stepId: 'step-2',
+      measure: 'cost',
+      optimistic: 4,
+      realistic: 5,
+      pessimistic: 6,
+      basis: card,
+    },
+  ];
+  body.budgets = [
+    { workItemId: 'row-1', measure: 'tokens', cap: 100, policy: 'strict', holdPerAttempt: 10 },
+  ];
+  return body;
+}
+
+test('prepares a version-11 file’s measures, its definitions’ names and units cleaned', () => {
+  const body = withMeasures();
+  const prepared = prepareImport(body, supportsAll);
+  if (!prepared.ok) throw new Error(`refused at ${prepared.path}`);
+  expect({
+    factor: prepared.value.settings.budgetFactor,
+    names: prepared.value.measureDefinitions.map(({ name }) => name),
+    facts: prepared.value.measureFacts,
+    estimates: prepared.value.measureEstimates,
+    budgets: prepared.value.budgets,
+  }).toEqual({
+    factor: 1.5,
+    names: ['Tokens', 'Cost', 'GPU minutes'],
+    facts: body.measureFacts,
+    estimates: body.measureEstimates,
+    budgets: body.budgets,
+  });
+});
+
+const MEASURE_FAULTS = [
+  [
+    'a malformed key',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).key = 'GPU';
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].key', detail: 'GPU' },
+  ],
+  [
+    'a legacy metric name as a key',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).key = 'token_actual';
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].key', detail: 'token_actual' },
+  ],
+  [
+    'a key stated twice',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).key = 'cost';
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].key', detail: 'cost' },
+  ],
+  [
+    'a blank name',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).name = '  ';
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].name', detail: null },
+  ],
+  [
+    'a blank unit',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).unit = ' ';
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].unit', detail: null },
+  ],
+  [
+    'a fractional order',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).order = 6.5;
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].order', detail: null },
+  ],
+  [
+    'money without a currency',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 1).currency = null;
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[1].currency', detail: null },
+  ],
+  [
+    'a currency off money',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).currency = 'USD';
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].currency', detail: null },
+  ],
+  [
+    'a second scheduling measure',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).schedulesWork = true;
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].schedulesWork', detail: null },
+  ],
+  [
+    'a derived measure other than agent minutes',
+    (body: PlanFixture) => {
+      at(body.measureDefinitions, 2).derived = true;
+    },
+    { code: 'invalid_body', path: 'measureDefinitions[2].derived', detail: null },
+  ],
+  [
+    'a fact in a measure the file does not define',
+    (body: PlanFixture) => {
+      at(body.measureFacts, 1).measure = 'story_points';
+    },
+    { code: 'unknown_ref', path: 'measureFacts[1].measure', detail: 'story_points' },
+  ],
+  [
+    'a fact on a row the file does not hold',
+    (body: PlanFixture) => {
+      at(body.measureFacts).workItemId = 'row-missing';
+    },
+    { code: 'unknown_ref', path: 'measureFacts[0].workItemId', detail: 'row-missing' },
+  ],
+  [
+    'a fact on a parent',
+    (body: PlanFixture) => {
+      body.workItems.push({
+        ...structuredClone(at(body.workItems)),
+        id: 'row-child',
+        parentId: 'row-1',
+        externalRefs: [],
+        estimates: {},
+        actuals: {},
+        progress: {},
+        measures: {},
+        assignees: {},
+      });
+    },
+    { code: 'invalid_body', path: 'measureFacts[0].workItemId', detail: 'row-1' },
+  ],
+  [
+    'a fact at a step the file does not hold',
+    (body: PlanFixture) => {
+      at(body.measureFacts).stepId = 'step-missing';
+    },
+    { code: 'unknown_ref', path: 'measureFacts[0].stepId', detail: 'step-missing' },
+  ],
+  [
+    'a tokens fact outside the legacy row measures',
+    (body: PlanFixture) => {
+      at(body.measureFacts, 1).measure = 'tokens';
+    },
+    { code: 'invalid_body', path: 'measureFacts[1].measure', detail: 'tokens' },
+  ],
+  [
+    'a negative fact',
+    (body: PlanFixture) => {
+      at(body.measureFacts, 1).value = -1;
+    },
+    { code: 'invalid_body', path: 'measureFacts[1].value', detail: null },
+  ],
+  [
+    'a fractional fact in an integer measure',
+    (body: PlanFixture) => {
+      at(body.measureFacts, 1).value = 1.5;
+    },
+    { code: 'invalid_body', path: 'measureFacts[1].value', detail: null },
+  ],
+  [
+    'a basis off money',
+    (body: PlanFixture) => {
+      at(body.measureFacts, 1).basis = { currency: 'USD', rateCardDigest: 'sha256:a' };
+    },
+    { code: 'invalid_body', path: 'measureFacts[1].basis', detail: null },
+  ],
+  [
+    'a basis in no currency',
+    (body: PlanFixture) => {
+      at(body.measureFacts).basis = { currency: 'usd', rateCardDigest: 'sha256:a' };
+    },
+    { code: 'invalid_body', path: 'measureFacts[0].basis.currency', detail: null },
+  ],
+  [
+    'a fact basis in another currency than its definition',
+    (body: PlanFixture) => {
+      at(body.measureFacts).basis = { currency: 'EUR', rateCardDigest: 'sha256:a' };
+    },
+    { code: 'invalid_body', path: 'measureFacts[0].basis.currency', detail: null },
+  ],
+  [
+    'a trio basis in another currency than its definition',
+    (body: PlanFixture) => {
+      at(body.measureEstimates, 1).basis = { currency: 'EUR', rateCardDigest: 'sha256:a' };
+    },
+    { code: 'invalid_body', path: 'measureEstimates[1].basis.currency', detail: null },
+  ],
+  [
+    'an empty rate card digest',
+    (body: PlanFixture) => {
+      at(body.measureFacts).basis = { currency: 'USD', rateCardDigest: '' };
+    },
+    { code: 'invalid_body', path: 'measureFacts[0].basis.rateCardDigest', detail: null },
+  ],
+  [
+    'an unpriced money fact',
+    (body: PlanFixture) => {
+      at(body.measureFacts).basis = null;
+    },
+    { code: 'invalid_body', path: 'measureFacts[0].basis', detail: 'rate_card_required' },
+  ],
+  [
+    'an unpriced money trio',
+    (body: PlanFixture) => {
+      at(body.measureEstimates, 1).basis = null;
+    },
+    { code: 'invalid_body', path: 'measureEstimates[1].basis', detail: 'rate_card_required' },
+  ],
+  [
+    'one fact stated twice',
+    (body: PlanFixture) => {
+      at(body.measureFacts, 1).measure = 'cost';
+      at(body.measureFacts, 1).basis = at(body.measureFacts).basis;
+    },
+    { code: 'invalid_body', path: 'measureFacts[1]', detail: null },
+  ],
+  [
+    'a trio at a step the file does not hold',
+    (body: PlanFixture) => {
+      at(body.measureEstimates, 1).stepId = 'step-missing';
+    },
+    { code: 'unknown_ref', path: 'measureEstimates[1].stepId', detail: 'step-missing' },
+  ],
+  [
+    'a trio where three points are forbidden',
+    (body: PlanFixture) => {
+      at(body.measureEstimates).measure = 'gpu_minutes';
+    },
+    { code: 'invalid_body', path: 'measureEstimates[0].measure', detail: 'gpu_minutes' },
+  ],
+  [
+    'an unordered trio',
+    (body: PlanFixture) => {
+      at(body.measureEstimates).optimistic = 3;
+    },
+    { code: 'invalid_body', path: 'measureEstimates[0]', detail: null },
+  ],
+  [
+    'a fractional point in an integer measure',
+    (body: PlanFixture) => {
+      at(body.measureEstimates).realistic = 2.5;
+    },
+    { code: 'invalid_body', path: 'measureEstimates[0]', detail: null },
+  ],
+  [
+    'a three-point tokens trio beside the legacy token estimate',
+    (body: PlanFixture) => {
+      at(body.workItems).measures = { token_estimate: { 'step-1': 2 } };
+    },
+    { code: 'invalid_body', path: 'measureEstimates[0].measure', detail: 'tokens' },
+  ],
+  [
+    'one trio stated twice',
+    (body: PlanFixture) => {
+      at(body.measureEstimates, 1).measure = 'tokens';
+      at(body.measureEstimates, 1).stepId = 'step-1';
+      at(body.measureEstimates, 1).basis = null;
+    },
+    { code: 'invalid_body', path: 'measureEstimates[1]', detail: null },
+  ],
+  [
+    'a budget in a measure the file does not define',
+    (body: PlanFixture) => {
+      at(body.budgets).measure = 'story_points';
+    },
+    { code: 'unknown_ref', path: 'budgets[0].measure', detail: 'story_points' },
+  ],
+  [
+    'a budget on a row the file does not hold',
+    (body: PlanFixture) => {
+      at(body.budgets).workItemId = 'row-missing';
+    },
+    { code: 'unknown_ref', path: 'budgets[0].workItemId', detail: 'row-missing' },
+  ],
+  [
+    'a budget in the scheduling measure',
+    (body: PlanFixture) => {
+      body.measureDefinitions.push({
+        key: 'time',
+        name: 'Time',
+        unit: 'days',
+        kind: 'duration',
+        scale: 'real',
+        threePoint: true,
+        showByDefault: true,
+        schedulesWork: true,
+        derived: false,
+        order: 1,
+        currency: null,
+      });
+      at(body.budgets).measure = 'time';
+    },
+    { code: 'invalid_body', path: 'budgets[0].measure', detail: 'time' },
+  ],
+  [
+    'a fractional hold in an integer measure',
+    (body: PlanFixture) => {
+      at(body.budgets).holdPerAttempt = 0.5;
+    },
+    { code: 'invalid_body', path: 'budgets[0]', detail: null },
+  ],
+  [
+    'one budget stated twice',
+    (body: PlanFixture) => {
+      body.budgets.push({ ...at(body.budgets) });
+    },
+    { code: 'invalid_body', path: 'budgets[1]', detail: null },
+  ],
+] as const satisfies readonly (readonly [string, Fault, object])[];
+
+for (const [name, fault, expected] of MEASURE_FAULTS) {
+  // Proof: with each refusal in `prepareMeasures` bypassed alone, at least one
+  // case here answered ok or another path; watched 2026-10-23 (verify.md, slice 7).
+  test(`refuses a version-11 file whose measures do not hold together: ${name}`, () => {
+    const body = withMeasures();
+    fault(body);
+    expect(prepareImport(body, supportsAll)).toEqual({ ok: false, ...expected });
+  });
+}

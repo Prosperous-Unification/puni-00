@@ -11,7 +11,7 @@ import { readSavedDependencyHistory, serializeSavedDependencyHistory } from './d
 import manifest from './fixtures/manifest.json';
 import { normalisePlanInputForward } from './normalise-plan-input';
 import { planFixtureRows } from './plan-fixture';
-import { canonicalisePlanInputV9, readSavedPlanInput } from './versioned-plan-input';
+import { canonicalisePlanInputV10, readSavedPlanInput } from './versioned-plan-input';
 
 const hash = (bytes: string) => createHash('sha256').update(bytes).digest('hex');
 const frozen = Array.from({ length: 8 }, (_, index) => ({
@@ -30,11 +30,11 @@ describe('versioned saved input readers', () => {
       const parsed: unknown = JSON.parse(fixture.bytes);
       const source = JSON.stringify(parsed);
       const input = readSavedPlanInput(parsed, fixture.version);
-      expect(input.schemaVersion).toBe(9);
+      expect(input.schemaVersion).toBe(10);
       expect(input.dependencyHistory).toEqual({ kind: 'local' });
       expect(input.project.id).toBe('p1');
       expect(input).toEqual(
-        canonicalisePlanInputV9(normalisePlanInputForward(parsed, fixture.version), {
+        canonicalisePlanInputV10(normalisePlanInputForward(parsed, fixture.version), {
           kind: 'local',
         }),
       );
@@ -43,10 +43,13 @@ describe('versioned saved input readers', () => {
     });
   }
 
-  it('keeps the dormant v8 writer byte-identical to the frozen v8 builder', () => {
-    expect(serialiseCanonicalPlanInput(canonicalisePlanInput(planFixtureRows))).toBe(
-      frozen[7].bytes,
-    );
+  it('keeps the published schema9 writer and reads its measures without rewriting bytes', () => {
+    const input = canonicalisePlanInput(planFixtureRows);
+    const bytes = serialiseCanonicalPlanInput(input);
+    expect(input.schemaVersion).toBe(9);
+    const decoded = readSavedPlanInput(JSON.parse(bytes), 9);
+    expect(decoded).toEqual({ ...input, schemaVersion: 10, dependencyHistory: { kind: 'local' } });
+    expect(serialiseCanonicalPlanInput(input)).toBe(bytes);
   });
 
   it('preserves the frozen legacy schedule1 byte contract and retired algorithm identity', () => {
@@ -56,21 +59,21 @@ describe('versioned saved input readers', () => {
     ).toBe(bytes);
   });
 
-  it('requires explicit dependency history on input9', () => {
-    const local = canonicalisePlanInputV9(planFixtureRows, { kind: 'local' });
-    expect(readSavedPlanInput(local, 9)).toEqual(local);
+  it('requires explicit dependency history on input10', () => {
+    const local = canonicalisePlanInputV10(planFixtureRows, { kind: 'local' });
+    expect(readSavedPlanInput(local, 10)).toEqual(local);
     const { dependencyHistory: ignored, ...incomplete } = local;
-    expect(() => readSavedPlanInput(incomplete, 9)).toThrow('dependencyHistory');
+    expect(() => readSavedPlanInput(incomplete, 10)).toThrow('dependencyHistory');
   });
 
   it('refuses header/body version mismatch and malformed new fields', () => {
-    const local = canonicalisePlanInputV9(planFixtureRows, { kind: 'local' });
-    expect(() => readSavedPlanInput({ ...local, schemaVersion: 8 }, 9)).toThrow('version');
-    expect(() => readSavedPlanInput({ ...local, assignments: null }, 9)).toThrow();
+    const local = canonicalisePlanInputV10(planFixtureRows, { kind: 'local' });
+    expect(() => readSavedPlanInput({ ...local, schemaVersion: 8 }, 10)).toThrow('version');
+    expect(() => readSavedPlanInput({ ...local, assignments: null }, 10)).toThrow();
     expect(() =>
-      readSavedPlanInput({ ...local, project: { ...local.project, name: null } }, 9),
+      readSavedPlanInput({ ...local, project: { ...local.project, name: null } }, 10),
     ).toThrow();
-    expect(() => readSavedPlanInput(local, 10)).toThrow('from-the-future');
+    expect(() => readSavedPlanInput(local, 11)).toThrow('from-the-future');
   });
 
   it('refuses external claims before a legacy local upgrade can erase them', () => {
@@ -120,8 +123,8 @@ describe('versioned saved input readers', () => {
     const history = readSavedDependencyHistory(captured.history);
     if (history.kind !== 'connected') throw new Error('fixture must be connected');
     const rows = connectedPlanFixtureRows(history);
-    const left = canonicalisePlanInputV9(rows, history);
-    const right = canonicalisePlanInputV9(rows, {
+    const left = canonicalisePlanInputV10(rows, history);
+    const right = canonicalisePlanInputV10(rows, {
       ...history,
       projects: [...history.projects].reverse(),
       ownership: [...history.ownership].reverse(),
@@ -132,7 +135,7 @@ describe('versioned saved input readers', () => {
   });
 
   it('retains direct-fact ownership and duplicate refusal in new bodies', () => {
-    const local = canonicalisePlanInputV9(planFixtureRows, { kind: 'local' });
+    const local = canonicalisePlanInputV10(planFixtureRows, { kind: 'local' });
     for (const invalid of [
       { ...local, stepParallels: [{ workItemId: 'missing', stepId: 's1', maxParallel: 2 }] },
       { ...local, stepBlockages: [{ workItemId: 'missing', stepId: 's1', blockedAt: 1 }] },
@@ -144,7 +147,7 @@ describe('versioned saved input readers', () => {
         ],
       },
     ])
-      expect(() => readSavedPlanInput(invalid, 9)).toThrow();
+      expect(() => readSavedPlanInput(invalid, 10)).toThrow();
   });
 
   it('retains connected target-owned values, measures, assignments and row facts', () => {
@@ -164,13 +167,22 @@ describe('versioned saved input readers', () => {
           progress: null,
         },
       ],
-      measures: [{ workItemId: 'a', stepId: 'design', metric: 'cost', value: 1 }],
+      measures: [
+        {
+          workItemId: 'a',
+          stepId: 'design',
+          metric: 'cost',
+          value: 1,
+          currency: 'USD',
+          rateCardDigest: 'card',
+        },
+      ],
       assignments: [{ workItemId: 'a', stepId: 'design', personId: 'p-1' }],
       workItemTeams: [{ workItemId: 'a', teamId: 'team-1' }],
       workItemServices: [{ workItemId: 'a', serviceId: 'svc-1' }],
     };
-    const input = canonicalisePlanInputV9(rows, history);
-    expect(readSavedPlanInput(input, 9)).toMatchObject({
+    const input = canonicalisePlanInputV10(rows, history);
+    expect(readSavedPlanInput(input, 10)).toMatchObject({
       stepValues: rows.stepValues,
       measures: rows.measures,
       assignments: rows.assignments,
@@ -183,11 +195,27 @@ describe('versioned saved input readers', () => {
     const captured = connectedHistoryFixture();
     const history = readSavedDependencyHistory(captured.history);
     if (history.kind !== 'connected') throw new Error('fixture must be connected');
-    const input = canonicalisePlanInputV9(connectedPlanFixtureRows(history), history);
+    const input = canonicalisePlanInputV10(connectedPlanFixtureRows(history), history);
     expect(input.dependencyHistory).toEqual(
       readSavedDependencyHistory(JSON.parse(serializeSavedDependencyHistory(history))),
     );
-    expect(readSavedPlanInput(input, 9)).toEqual(input);
-    expect(() => canonicalisePlanInputV9(planFixtureRows, history)).toThrow('target');
+    expect(readSavedPlanInput(input, 10)).toEqual(input);
+    expect(() => canonicalisePlanInputV10(planFixtureRows, history)).toThrow('target');
   });
+});
+
+it('requires complete measure fields on dependency-aware input10', () => {
+  const input = canonicalisePlanInputV10(planFixtureRows, { kind: 'local' });
+  for (const key of ['measureEstimates', 'budgets'] as const) {
+    const invalid = structuredClone(input);
+    Reflect.deleteProperty(invalid, key);
+    expect(() => readSavedPlanInput(invalid, 10)).toThrow('shape');
+  }
+  const missingFactor = structuredClone(input);
+  Reflect.deleteProperty(missingFactor.project, 'budgetFactor');
+  expect(() => readSavedPlanInput(missingFactor, 10)).toThrow('shape');
+  const historical = canonicalisePlanInput(planFixtureRows);
+  expect(() =>
+    readSavedPlanInput({ ...historical, dependencyHistory: { kind: 'local' } }, 9),
+  ).toThrow('legacy_external');
 });

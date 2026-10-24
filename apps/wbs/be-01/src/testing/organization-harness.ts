@@ -83,6 +83,7 @@ import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import type { Connection } from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection as openAddressConnection } from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -90,6 +91,7 @@ import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 
 import { type AppOptions, buildApp } from '../app';
 import type { ReservedSpawner } from '../module/optimization/contract';
@@ -523,6 +525,8 @@ export class OrganizationHarness {
         estimates: new EstimateRepository(db, OPEN),
         actuals: new ActualRepository(db, OPEN),
         measures: new StepMeasureRepository(db, OPEN),
+        measureEstimates: new MeasureEstimateRepository(db, OPEN),
+        budgets: new WorkItemBudgetRepository(db, OPEN),
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),

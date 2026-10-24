@@ -4007,7 +4007,7 @@ test('mounted production imports resolve fresh writer authority before external 
     INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
   );
   const document = planDocumentFixture();
-  document.document.version = 11;
+  document.document.version = 12;
   document.typedDependencies = [
     {
       id: 'external-import',

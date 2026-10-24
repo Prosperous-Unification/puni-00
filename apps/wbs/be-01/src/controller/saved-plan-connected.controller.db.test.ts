@@ -109,7 +109,7 @@ test('mounted connected save persists input9 schedule2 and equals one current ob
     mounted.sqlite
       .query('SELECT input_schema_version,schedule_schema_version FROM saved_plan WHERE id=?')
       .get(savedPlan.id),
-  ).toEqual({ input_schema_version: 9, schedule_schema_version: 2 });
+  ).toEqual({ input_schema_version: 10, schedule_schema_version: 2 });
   const compared = await mounted.call(
     'ada',
     'GET',

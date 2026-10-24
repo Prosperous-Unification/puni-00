@@ -30,6 +30,9 @@ export function installPlanDocument(requirements: PlanDocumentRequirements): Pla
       resourceFacts: DiBag.createProvider(() => requirements.resourceFacts, {
         factoryReturnKind: 'sync-value',
       }),
+      measureFacts: DiBag.createProvider(() => requirements.measureFacts, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
     .buildContainer();
   // Proof (2026-09-23): returning a structurally assignable `exposed` object with `bag` left the

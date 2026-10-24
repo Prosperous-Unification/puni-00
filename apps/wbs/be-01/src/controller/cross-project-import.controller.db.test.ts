@@ -58,14 +58,14 @@ async function exported(projectId: string) {
   return { document, classified: classified.value };
 }
 
-test('downloaded successor-owned v11 content round trips through same-store synthetic transaction', async () => {
+test('downloaded successor-owned v12 content round trips through same-store synthetic transaction', async () => {
   harness = OrganizationHarness.openComposedWith({ syntheticTransferImports: true });
   const { source, remote } = await connectedTransferFixture(harness);
   const remoteStep = remote.stepIds.at(0);
   if (remoteStep === undefined) throw new Error('fixture remote step missing');
   harness.sqlite.query('UPDATE step SET code=NULL WHERE id=?').run(remoteStep);
   const { document, classified } = await exported(source.projectId);
-  expect(document).toMatchObject({ document: { version: 11 }, connected: { kind: 'connected' } });
+  expect(document).toMatchObject({ document: { version: 12 }, connected: { kind: 'connected' } });
   expect(classified).not.toHaveProperty('connected');
   expect(classified).not.toHaveProperty('connectedDependencies');
   for (const row of classified.workItems) {
@@ -207,7 +207,7 @@ for (const synthetic of [false, true])
     expect(pushes).toBe(0);
   });
 
-test('mounted outgoing-only v11 imports authored content while ignoring outgoing history', async () => {
+test('mounted outgoing-only v12 imports authored content while ignoring outgoing history', async () => {
   harness = OrganizationHarness.openComposedWith({ syntheticTransferImports: true });
   const { remote } = await connectedTransferFixture(harness);
   const { document, classified } = await exported(remote.projectId);

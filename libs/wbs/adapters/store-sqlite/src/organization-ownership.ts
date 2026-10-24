@@ -75,6 +75,7 @@ export const OWNERSHIP_CONFLICT_KINDS = [
   'actual_step',
   'step_progress_step',
   'step_measure_step',
+  'measure_estimate_step',
   'person_team',
   'team_service',
   'project_team_capacity',
@@ -126,10 +127,10 @@ function buildWorkItemStepConflictSql(table: string, id: string): string {
  * Every conflict query, keyed so a kind added to {@link OWNERSHIP_CONFLICT_KINDS} without a
  * query here is a type error. Each selects the conflicting rows' `id`.
  *
- * Proof: each of the twenty-one queries replaced alone by one selecting nothing failed its own
- * `reports a <kind> conflict` case in `organization-reconciliation.db.test.ts`. Observed
- * 2026-09-27; the same for `project_resource_capacity` and `work_item_resource_demand`,
- * observed 2026-10-20.
+ * Proof: each of the twenty-four queries replaced alone by one selecting nothing failed its own
+ * `reports a <kind> conflict` case in `organization-reconciliation.db.test.ts`: the first
+ * twenty-one observed 2026-09-27, `project_resource_capacity` and `work_item_resource_demand`
+ * 2026-10-20, `measure_estimate_step` 2026-10-23.
  */
 const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
   saved_plan_project: `SELECT sp.id AS id FROM saved_plan AS sp
@@ -192,7 +193,13 @@ const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
   ),
   step_measure_step: buildWorkItemStepConflictSql(
     'step_measure',
-    "l.work_item_id || '/' || l.step_id || '/' || l.metric",
+    "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
+  ),
+  // Proof: with this query answering no row, `reports a measure_estimate_step
+  // conflict` (organization-reconciliation.db.test.ts) failed; watched 2026-10-23.
+  measure_estimate_step: buildWorkItemStepConflictSql(
+    'measure_estimate',
+    "l.work_item_id || '/' || l.step_id || '/' || l.measure_key",
   ),
   person_team: `SELECT pt.person_id || '/' || pt.service_team_id AS id FROM person_team AS pt
     WHERE ${buildCatalogOwnerSql('person', 'pt.person_id')} != ${buildCatalogOwnerSql('service_team', 'pt.service_team_id')}`,

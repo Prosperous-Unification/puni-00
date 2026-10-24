@@ -2,9 +2,11 @@ import * as domain from '@wbs/domain';
 import { scheduleResolved, sliceKey } from '@wbs/domain';
 import { describe, expect, it, spyOn } from 'bun:test';
 
+import { presentConnectedTree } from '../module/work-item/work-item.resource';
 import type { LivePlanRead } from '../ports/shared-people-values';
 import { createConnectedBlockageRead } from '../testing/connected-blockage.fixture';
 import { connectedCapture, connectedReads } from '../testing/connected-plan-fixture';
+import { inMemoryServices } from '../testing/harness';
 import { deriveConnectedPlan } from './connected-plan';
 import type { ConnectedPlanCapture } from './connected-plan-values';
 import { deriveConnectedReadiness } from './connected-readiness';
@@ -915,3 +917,92 @@ it('refuses malformed transitive root metadata outside incident links', () => {
     'missing connected tree endpoint step name build',
   );
 });
+
+it.each([false, true])(
+  'presents captured measures and derived budgets when calendar missing is %s',
+  (missingCalendar) => {
+    const target = connectedReads('B', missingCalendar ? null : '2026-10-05');
+    const packet = live(
+      connectedCapture(connectedReads('A'), {
+        ...target,
+        project: { ...target.project, budgetFactor: 1.5 },
+        measureEstimates: [
+          {
+            workItemId: 'b',
+            stepId: 'build',
+            key: 'tokens',
+            optimistic: 100,
+            realistic: 200,
+            pessimistic: 600,
+            singlePoint: false,
+          },
+        ],
+        budgets: [],
+        measures: [
+          { workItemId: 'b', stepId: 'build', metric: 'token_actual', value: 50, recordedAt: 0 },
+        ],
+      }),
+    );
+    const tree = presentConnectedTree(projectConnectedTree(packet, 'B'));
+    expect(tree.workItems[0].measureEstimates?.['tokens']?.['build']).toMatchObject({
+      expected: 250,
+      variance: -200,
+    });
+    expect(tree.workItems[0].budgets?.['tokens']).toMatchObject({ cap: 900, remaining: 850 });
+  },
+);
+
+it.each(['tree', 'treeWithin'] as const)(
+  'keeps %s connected measure presentation detached from live stores',
+  async (method) => {
+    const target = connectedReads('B');
+    const packet = live(
+      connectedCapture(connectedReads('A'), {
+        ...target,
+        project: { ...target.project, budgetFactor: 1.5 },
+        measureEstimates: [
+          {
+            workItemId: 'b',
+            stepId: 'build',
+            key: 'tokens',
+            optimistic: 100,
+            realistic: 200,
+            pessimistic: 600,
+            singlePoint: false,
+          },
+        ],
+      }),
+    );
+    const unused = () => {
+      throw new Error('unused observation capability');
+    };
+    const fixture = inMemoryServices({
+      livePlans: {
+        read: () => Promise.resolve(packet),
+        readProject: () => Promise.resolve(packet),
+        readExport: unused,
+        readExecution: unused,
+        readAggregate: unused,
+      },
+    });
+    const calls = [
+      spyOn(fixture.stores.measureEstimates, 'listByProject').mockImplementation(unused),
+      spyOn(fixture.stores.budgets, 'listByProject').mockImplementation(unused),
+      spyOn(fixture.stores.measures, 'listByProject').mockImplementation(unused),
+      spyOn(fixture.stores.measures, 'definitionsFor').mockImplementation(unused),
+      spyOn(fixture.stores.projects, 'findById').mockImplementation(unused),
+      spyOn(fixture.stores.attempts, 'listByProject').mockImplementation(unused),
+    ];
+    try {
+      const tree =
+        method === 'tree'
+          ? await fixture.service.tree('B')
+          : await fixture.service.treeWithin('B', { kind: 'legacy' });
+      if (tree === null || 'kind' in tree) throw new Error('connected fixture tree missing');
+      expect(tree.workItems[0].measureEstimates?.['tokens']?.['build']?.expected).toBe(250);
+      expect(tree.workItems[0].budgets?.['tokens']?.cap).toBe(900);
+    } finally {
+      for (const call of calls) call.mockRestore();
+    }
+  },
+);

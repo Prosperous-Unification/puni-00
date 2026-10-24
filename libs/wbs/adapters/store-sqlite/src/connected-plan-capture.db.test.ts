@@ -10,16 +10,21 @@ import { sql } from 'drizzle-orm';
 import { ChainSnapshotRepository, createChainSnapshotStore } from './chain-snapshot';
 import { captureConnectedPlanIn } from './connected-plan-capture';
 import { drizzleReadTransaction, openConnection, openDatabase, openReadOnlyConnection } from './db';
+import { DependencyRepository } from './dependency';
+import { MeasureEstimateRepository } from './measure-estimate';
 import { allocateGeneration } from './optimization-generation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
+import { readConnectedPlanInputIn } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
+import { StepMeasureRepository } from './step-measure';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { openSpaceDatabase } from './testing/space-database';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 let folder: string;
 let path: string;
@@ -524,3 +529,43 @@ test('concurrent component requests read every full project input once', async (
     reads.mockRestore();
   }
 });
+
+test.each(['definitions', 'estimates', 'budgets'] as const)(
+  'connected capture refuses continuation after its %s read expires',
+  async (fault) => {
+    const connection = openConnection(path);
+    const lifetime = createReadSnapshotLifetime();
+    const expire = () => {
+      lifetime.expire();
+      return Promise.resolve([]);
+    };
+    const interrupted =
+      fault === 'definitions'
+        ? spyOn(StepMeasureRepository.prototype, 'definitionsFor').mockImplementation(expire)
+        : fault === 'estimates'
+          ? spyOn(MeasureEstimateRepository.prototype, 'listByProject').mockImplementation(expire)
+          : spyOn(WorkItemBudgetRepository.prototype, 'listByProject').mockImplementation(expire);
+    const following =
+      fault === 'definitions'
+        ? spyOn(MeasureEstimateRepository.prototype, 'listByProject')
+        : fault === 'estimates'
+          ? spyOn(WorkItemBudgetRepository.prototype, 'listByProject')
+          : spyOn(DependencyRepository.prototype, 'listByProject');
+    try {
+      const failure = await failureOf(
+        readConnectedPlanInputIn(
+          connection.db,
+          'a1',
+          { kind: 'scoped', scope: { organizationId: 'org-a' } },
+          lifetime,
+        ),
+      );
+      expect(failure.message).toContain('closed');
+      expect(following).not.toHaveBeenCalled();
+    } finally {
+      interrupted.mockRestore();
+      following.mockRestore();
+      connection.close();
+    }
+  },
+);

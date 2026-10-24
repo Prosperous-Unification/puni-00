@@ -262,6 +262,12 @@
     },
     {
       "file": "src/components/wbs/organization-limit-words.test.ts"
+    },
+    {
+      "file": "src/components/wbs/measure-reading.test.ts"
+    },
+    {
+      "file": "src/components/wbs/plan-refusal-measures.test.ts"
     }
   ]
 }

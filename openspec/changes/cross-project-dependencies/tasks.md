@@ -929,3 +929,10 @@ acceptance remains open; these corrections add no P2b/P3 activation or exposure 
 - [x] Mechanically extract deterministic validation and receipt hashing; retain genuine private observer authority and deadlines. Verify fast negatives, watched independent omissions and genuine call-site/audit/terminal relationships. [Source evidence](verify-product-process-source.md).
 - [x] Complete frozen ordinary model composition and independent whole-observer source review: 97 outer tests and 16 ordered child cases; exact frozen hashes unchanged.
 - [ ] Complete native StageB, HTTP/collector coordination and full P2b/P3 acceptance; source/model success does not establish these.
+
+### Published measures reconciliation
+
+- [x] Preserve ordinary document11/input9 and normalize historical bodies without rewriting bytes; move unpublished connected contracts to document12/input10.
+- [x] Reconcile strict response validation with tolerant archival import, Navigator's ordinary7–11 reader and connected schedule2 integrity.
+- [x] Capture definitions with measures/budgets on one snapshot and present connected figures without live rereads; retain transactional attempt admission and combined undo payloads.
+- [x] Complete combined source verification and independent finite source review; evidence in [verify-main-measures.md](verify-main-measures.md).

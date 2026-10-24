@@ -10,6 +10,7 @@ import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
+import { MeasureEstimateRepository } from './measure-estimate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
@@ -20,6 +21,7 @@ import { StepParallelRepository } from './step-parallel';
 import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 /**
  * Every row one capture read, as the stores returned it.
@@ -219,7 +221,25 @@ async function readPlanInputValuesIn(
   const stepParallels = await new StepParallelRepository(db, OPEN).listByProject(projectId);
   lifetime.assertOpen();
   const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
+  // On the snapshot with the facts, so a saved plan pairs each budget with
+  // the figures it bounds (`wbs-measure-budgets` design D66).
+  // Proof: with either read replaced by `[]`, the SQLite run of the
+  // conformance case `savedPlanCapture.readPlanInput:complete` captured none
+  // (source-conformance.db.test.ts: 75 pass became 68 pass, 7 fail, for each
+  // read alone); watched 2026-10-23.
   lifetime.assertOpen();
+  const measureDefinitions = await new StepMeasureRepository(db, OPEN).definitionsFor(projectId);
+  lifetime.assertOpen();
+  // Proof: omitting this guard issued the next query after the definitions
+  // read expired in connected-plan-capture.db.test.ts (2026-10-24).
+  const measureEstimates = await new MeasureEstimateRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
+  // Proof: omitting the preceding guard queried budgets after the estimates
+  // read expired in connected-plan-capture.db.test.ts (2026-10-24).
+  const budgets = await new WorkItemBudgetRepository(db, OPEN).listByProject(projectId);
+  lifetime.assertOpen();
+  // Proof: omitting the preceding guard queried dependencies after the budgets
+  // read expired in connected-plan-capture.db.test.ts (2026-10-24).
   const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
   lifetime.assertOpen();
   const typedDependencies = (
@@ -296,6 +316,9 @@ async function readPlanInputValuesIn(
     stepBlockages,
     stepParallels,
     measures,
+    measureDefinitions,
+    measureEstimates,
+    budgets,
     dependencies,
     // Proof: omitting this snapshot read made `keeps captured node endpoints after step reorder and live relationship removal` receive undefined (2026-09-27).
     typedDependencies,

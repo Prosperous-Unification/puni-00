@@ -1,9 +1,17 @@
 import {
   type DocumentAttempt,
   documentAttempt,
+  type DocumentBudget,
+  documentBudget,
   type DocumentDemand,
   documentDemand,
   documentExternalMappingRequest,
+  type DocumentMeasureDefinition,
+  documentMeasureDefinition,
+  type DocumentMeasureEstimate,
+  documentMeasureEstimate,
+  type DocumentMeasureFact,
+  documentMeasureFact,
   type DocumentResource,
   documentResource,
   type DocumentResourceCapacity,
@@ -11,7 +19,7 @@ import {
   type DocumentTypedDependency,
   documentV4TypedDependencyRequest,
   documentV10TypedDependencyRequest,
-  documentV11TypedDependencyRequest,
+  documentV12TypedDependencyRequest,
   type ImportedAttempt,
   PLAN_DOCUMENT_EXTERNAL_VERSION,
   PLAN_DOCUMENT_VERSION,
@@ -19,16 +27,18 @@ import {
   type PlanDocumentImport,
   type PlanDocumentRequest,
   planDocumentRequest,
-  type PlanDocumentV10 as PlanDocument,
+  type PlanDocumentV11 as PlanDocument,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
 import {
   assertStepParallel,
+  definitionsOrUnowned,
   formatStepNodeId,
   formatStepReference,
   isEstimateUnit,
   isHold,
+  isLegacyMetric,
   isReadiness,
   isTimezone,
   MOST_RESOURCE_UNITS,
@@ -46,7 +56,12 @@ import type {
 } from '../../ports/directory-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
-import type { LivePlanExportRead, PlanDocumentReads } from '../../ports/shared-people-values';
+import { isBudgetFactor } from '../../ports/project-values';
+import type {
+  LivePlanExportRead,
+  MeasureReads,
+  PlanDocumentReads,
+} from '../../ports/shared-people-values';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
 import { projectConnectedDocument } from './connected-document';
 import type {
@@ -203,11 +218,23 @@ export class PlanDocumentService {
       this.options.resourceFacts.resourceCapacitiesOf(project.id),
       this.options.resourceFacts.demandsOf(project.id),
     ]);
+    const measureFacts = this.options.measureFacts;
+    // Proof: with the facts, trios and budgets read as empty, the isolated
+    // `round-trips a version-11 plan byte for byte into an organization lacking
+    // a measure` and four more cases of measure-export.controller.db.test.ts
+    // exported empty lists (4 pass, 5 fail); watched 2026-10-24.
+    const [definitions, facts, estimates, budgets] = await Promise.all([
+      measureFacts.measureDefinitionsOf(project.id),
+      measureFacts.measuresOf(project.id),
+      measureFacts.measureEstimatesOf(project.id),
+      measureFacts.budgetsOf(project.id),
+    ]);
     return {
       directory: { teams, people, tags, services, types, externalSystems },
       markers: markerRead.value,
       stepParallels,
       resources: { resources, capacities, demands },
+      measures: { definitions, facts, estimates, budgets },
     };
   }
 }
@@ -297,8 +324,31 @@ function buildDocument(
   // test receive a TypeError from .map instead of the named trusted-state error.
   if (tree.typedDependencies === undefined)
     throw new Error(`project "${project.id}" tree was read without typed dependencies`);
+  // The factor travels in `settings` (design D63, D71); the embedded project
+  // never carries it, so it is written once.
+  // Proof: with the factor left in the project, `preserves the existing JSON
+  // export fields` and the four canonical-bytes cases
+  // (plan-document.resource.test.ts) failed (84 pass, 5 fail); watched 2026-10-24.
+  const { budgetFactor, ...exported } = project;
+  const measures = documentMeasures(tree, reads.measures);
+  const settings = {
+    name: project.name,
+    restricted: project.restricted,
+    estimateMethod: project.estimateMethod,
+    depReach: project.depReach,
+    pertWeights: project.pertWeights,
+    // Proof: dropping estimateRounding made the mounted JSON export return
+    // 500 instead of 200 before its unchanged project/workItems controls.
+    estimateRounding: project.estimateRounding,
+    startDate: project.startDate,
+    solutionRef: project.solutionRef,
+    optimizationEnabled: project.optimizationEnabled,
+    scheduleEngine: project.scheduleEngine,
+    scheduleObjective: project.scheduleObjective,
+    timezone: project.timezone,
+  };
   return {
-    project,
+    project: exported,
     ...tree,
     workItems: documentWorkItems(tree, closure.people),
     // Proof: omitting this collection failed `v9 exports detached direct blockage facts` (2026-10-14).
@@ -320,25 +370,16 @@ function buildDocument(
     stepNodes: spellStepNodes(tree),
     document: {
       format: 'wbs-plan',
+      // Every plan, measures or none (design D71).
+      // Proof: with D63's `measures !== null || budgetFactor !== 1 ? 11 : 10`
+      // back here, `a plan whose measures are all legacy exports version 11 with
+      // empty lists (design D71)` and eight more cases of
+      // plan-document.resource.test.ts read version 10 (80 pass, 9 fail);
+      // watched 2026-10-24.
       version: PLAN_DOCUMENT_VERSION,
       exportedAt: new Date(exportedAt).toISOString(),
     },
-    settings: {
-      name: project.name,
-      restricted: project.restricted,
-      estimateMethod: project.estimateMethod,
-      depReach: project.depReach,
-      pertWeights: project.pertWeights,
-      // Proof: dropping estimateRounding made the mounted JSON export return
-      // 500 instead of 200 before its unchanged project/workItems controls.
-      estimateRounding: project.estimateRounding,
-      startDate: project.startDate,
-      solutionRef: project.solutionRef,
-      optimizationEnabled: project.optimizationEnabled,
-      scheduleEngine: project.scheduleEngine,
-      scheduleObjective: project.scheduleObjective,
-      timezone: project.timezone,
-    },
+    settings: { ...settings, budgetFactor },
     capacity: tree.teamCapacities.map(({ serviceTeamId, size }) => ({
       teamId: serviceTeamId,
       size,
@@ -365,6 +406,102 @@ function buildDocument(
       people: closure.people.map(exportedPerson),
       resources: referencedResources(reads.resources),
     },
+    // Every list is written, empty when the plan holds none (design D71).
+    measureDefinitions: measures?.definitions ?? [],
+    measureFacts: measures?.facts ?? [],
+    measureEstimates: measures?.estimates ?? [],
+    budgets: measures?.budgets ?? [],
+  };
+}
+
+/** What version 11 adds beyond the factor; see {@link documentMeasures}. */
+interface DocumentMeasures {
+  definitions: DocumentMeasureDefinition[];
+  facts: DocumentMeasureFact[];
+  estimates: DocumentMeasureEstimate[];
+  budgets: DocumentBudget[];
+}
+
+/**
+ * The measures version 11 carries (`wbs-measure-budgets` design D63), or null
+ * when the plan holds none: every stored fact in a defined measure (the legacy
+ * `token_actual`, `hours_actual` and `token_estimate` stay in the row's
+ * `measures`, D18), every trio but the single-point tokens trios (each is its
+ * row's legacy `token_estimate`, D28), every stated budget, and the
+ * definitions those name, in list order. Entries follow the tree's row order,
+ * then step order, then key, so a re-import's fresh ids leave the order alone.
+ *
+ * @throws when a figure names a definition, row or step the trusted reads do
+ * not hold: reads that disagree.
+ */
+function documentMeasures(
+  tree: WorkItemTree & { steps: PlanDocument['steps'] },
+  reads: MeasureReads,
+): DocumentMeasures | null {
+  const definitions = new Map(
+    definitionsOrUnowned(reads.definitions).map((each) => [each.key, each] as const),
+  );
+  const rowAt = new Map(tree.workItems.map(({ id }, at) => [id, at] as const));
+  const stepAt = new Map(orderSteps(tree.steps).map(({ id }, at) => [id, at] as const));
+  const named = new Set<string>();
+  const place = (workItemId: string, stepId: string | null, key: string): void => {
+    if (!definitions.has(key)) throw new Error(`a stored figure names undefined measure "${key}"`);
+    if (!rowAt.has(workItemId))
+      throw new Error(`a stored figure names work item "${workItemId}" the tree does not hold`);
+    if (stepId !== null && !stepAt.has(stepId))
+      throw new Error(`a stored figure names step "${stepId}" the tree does not hold`);
+    named.add(key);
+  };
+  const byPlace = <T extends { workItemId: string; measure: string; stepId?: string }>(
+    left: T,
+    right: T,
+  ): number =>
+    (rowAt.get(left.workItemId) ?? 0) - (rowAt.get(right.workItemId) ?? 0) ||
+    (left.stepId === undefined ? 0 : (stepAt.get(left.stepId) ?? 0)) -
+      (right.stepId === undefined ? 0 : (stepAt.get(right.stepId) ?? 0)) ||
+    left.measure.localeCompare(right.measure);
+  // Proof: with the legacy names kept here, `exports version 11 with every
+  // measure the plan holds` (plan-document.resource.test.ts) carried
+  // `hours_actual` twice, in the row and in `measureFacts`; watched 2026-10-23.
+  const facts = reads.facts
+    .filter(({ metric }) => !isLegacyMetric(metric))
+    .map(({ workItemId, stepId, metric, value, basis }) => {
+      place(workItemId, stepId, metric);
+      return { workItemId, stepId, measure: metric, value, basis: basis ?? null };
+    })
+    .sort(byPlace);
+  // Proof: with single-point trios kept, the same case carried the legacy
+  // token estimate twice; watched 2026-10-23.
+  const estimates = reads.estimates
+    .filter(({ singlePoint }) => !singlePoint)
+    .map(({ workItemId, stepId, key, optimistic, realistic, pessimistic, basis }) => {
+      place(workItemId, stepId, key);
+      return {
+        workItemId,
+        stepId,
+        measure: key,
+        optimistic,
+        realistic,
+        pessimistic,
+        basis: basis ?? null,
+      };
+    })
+    .sort(byPlace);
+  const budgets = reads.budgets
+    .map(({ workItemId, key, cap, policy, holdPerAttempt }) => {
+      place(workItemId, null, key);
+      return { workItemId, measure: key, cap, policy, holdPerAttempt };
+    })
+    .sort(byPlace);
+  if (named.size === 0) return null;
+  return {
+    definitions: [...definitions.values()]
+      .filter(({ key }) => named.has(key))
+      .sort((left, right) => left.order - right.order || left.key.localeCompare(right.key))
+      .map(({ id: _id, ...fields }) => fields),
+    facts,
+    estimates,
+    budgets,
   };
 }
 
@@ -455,8 +592,32 @@ function documentWorkItems(
       // Proof: retaining this field leaked derived resources in both mounted
       // mode exports; their omission assertions failed, watched 2026-10-15.
       nodeResources: _nodeResources,
-      ...row
+      // Readings, not records (`wbs-measure-budgets` design D64): expected
+      // measures, remaining budgets and bases are computed again from what
+      // version 11 carries in its own lists.
+      // Proof: with these four kept, `leaves the row's measure readings out of
+      // the document` (plan-document.resource.test.ts) exported `budgets` and
+      // `measureEstimates` on the row; watched 2026-10-23.
+      measureEstimates: _measureEstimates,
+      budgets: _budgets,
+      mixedRateCards: _mixedRateCards,
+      moneyBases: _moneyBases,
+      ...held
     }) => {
+      // The row keeps the legacy metrics only (`wbs-measure-budgets` D18,
+      // design D63): a fact in a defined measure travels in `measureFacts`
+      // with its basis, and the derived `agent_minutes` comes back from the
+      // attempts the row carries.
+      // Proof: with every metric kept, `exports legacy metrics only, leaving
+      // defined and derived measures out` (plan-document.resource.test.ts)
+      // exported `cost` and `agent_minutes` (78 pass, 1 fail); watched 2026-10-23.
+      // Spread first so `measures` keeps its place in the canonical bytes.
+      const row = {
+        ...held,
+        measures: Object.fromEntries(
+          Object.entries(held.measures).filter(([metric]) => isLegacyMetric(metric)),
+        ),
+      };
       if (attempts === undefined) return row;
       const byCode: Record<string, DocumentAttempt[]> = {};
       for (const [stepId, held] of Object.entries(attempts)) {
@@ -582,6 +743,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 7 &&
     version !== 8 &&
     version !== 9 &&
+    version !== 10 &&
     version !== PLAN_DOCUMENT_VERSION &&
     version !== PLAN_DOCUMENT_EXTERNAL_VERSION
   ) {
@@ -647,6 +809,8 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   }
   const resourceFacts = resourceFactsOf(version, checked.value);
   if (!resourceFacts.ok) return resourceFacts;
+  const measured = measuresOf(version, checked.value);
+  if (!measured.ok) return measured;
   for (const [at, row] of checked.value.workItems.entries()) {
     // Proof: bypassing row alias refusal failed `legacy row blockage aliases are refused` (2026-10-14).
     if (
@@ -687,9 +851,9 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       const parsed =
         version === 4
           ? await validateSchema(documentV4TypedDependencyRequest, entry)
-          : version < 11
+          : version < PLAN_DOCUMENT_EXTERNAL_VERSION
             ? await validateSchema(documentV10TypedDependencyRequest, entry)
-            : await validateSchema(documentV11TypedDependencyRequest, entry);
+            : await validateSchema(documentV12TypedDependencyRequest, entry);
       // Proof (2026-09-28): bypassing schema refusal made the unknown-type
       // memory import throw on an undefined relationship in preparation.
       if (parsed.issues !== undefined)
@@ -704,12 +868,12 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   const externalMappings: PlanDocumentImport['externalMappings'] = [];
   const rawMappings = checked.value.externalMappings;
   if (
-    version < 11 &&
+    version < PLAN_DOCUMENT_EXTERNAL_VERSION &&
     rawMappings !== undefined &&
     (!Array.isArray(rawMappings) || rawMappings.length > 0)
   )
     return { ok: false, code: 'invalid_typed_dependency', path: 'externalMappings' };
-  if (version === 11 && rawMappings !== undefined) {
+  if (version === PLAN_DOCUMENT_EXTERNAL_VERSION && rawMappings !== undefined) {
     if (!Array.isArray(rawMappings))
       return { ok: false, code: 'invalid_typed_dependency', path: 'externalMappings' };
     const declared = new Set(
@@ -781,7 +945,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
     steps.push({ ...step, estimateUnit, allowancePercent: step.allowancePercent, code });
   }
-  const { timezone: written, ...settings } = checked.value.settings;
+  const { timezone: written, budgetFactor: _factor, ...settings } = checked.value.settings;
   let timezone = 'UTC';
   if (version >= 7) {
     // Proof: this refusal removed made the unknown-zone case of `refuses an
@@ -804,7 +968,11 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       directory: { ...checked.value.directory, resources: resourceFacts.resources },
       resourceCapacities: resourceFacts.resourceCapacities,
       demands: resourceFacts.demands,
-      settings: { ...settings, timezone },
+      measureDefinitions: measured.definitions,
+      measureFacts: measured.facts,
+      measureEstimates: measured.estimates,
+      budgets: measured.budgets,
+      settings: { ...settings, timezone, budgetFactor: measured.budgetFactor },
       steps,
       typedDependencies,
       externalMappings,
@@ -903,6 +1071,89 @@ function resourceFactsOf(
     );
   if (refused !== null) return refused;
   return { ok: true, resources, resourceCapacities, demands };
+}
+
+/**
+ * The measures a file states (`wbs-measure-budgets` design D63): from version
+ * 11 the four lists are required, every entry well formed and every figure a
+ * finite number, and the budget factor one a project may hold; before version
+ * 11 a file states none of them and reads with a factor of 1, and one that
+ * names any (or a factor other than 1) is refused rather than half-read. What the entries name, and
+ * whether the measures they name allow them, is `prepareImport`'s to check.
+ *
+ * Proof: with the version-11 shape checks bypassed, `refuses a version-11 file
+ * with a malformed measure entry or factor` (plan-document.resource.test.ts)
+ * classified a factor of 0 ok; with the legacy refusal bypassed, `refuses
+ * measures in a file older than version 11` classified a v10 file naming a
+ * budget ok; both watched 2026-10-23.
+ */
+function measuresOf(
+  version: number,
+  document: PlanDocumentRequest,
+):
+  | (DocumentMeasures & { ok: true; budgetFactor: number })
+  | Extract<PlanDocumentClassification, { ok: false }> {
+  const listed = {
+    measureDefinitions: document.measureDefinitions,
+    measureFacts: document.measureFacts,
+    measureEstimates: document.measureEstimates,
+    budgets: document.budgets,
+  };
+  const factor = document.settings.budgetFactor;
+  if (version < PLAN_DOCUMENT_VERSION) {
+    for (const [path, held] of Object.entries(listed))
+      if (held !== undefined && (!Array.isArray(held) || held.length > 0))
+        return { ok: false, code: 'invalid_body', path };
+    // A factor of 1 is what an earlier version reads as, so naming it loses nothing.
+    if (factor !== undefined && factor !== 1)
+      return { ok: false, code: 'invalid_body', path: 'settings.budgetFactor' };
+    return { ok: true, definitions: [], facts: [], estimates: [], budgets: [], budgetFactor: 1 };
+  }
+  if (typeof factor !== 'number' || !isBudgetFactor(factor))
+    return { ok: false, code: 'invalid_body', path: 'settings.budgetFactor' };
+  const finite = (...values: unknown[]): boolean =>
+    values.every((value) => typeof value === 'number' && Number.isFinite(value));
+  const parse = <T>(
+    path: string,
+    held: unknown,
+    check: (entry: unknown) => T | null,
+  ): T[] | Extract<PlanDocumentClassification, { ok: false }> => {
+    if (!Array.isArray(held)) return { ok: false, code: 'invalid_body', path };
+    const parsed: T[] = [];
+    for (const [at, entry] of held.entries()) {
+      const one = check(entry);
+      if (one === null) return { ok: false, code: 'invalid_body', path: `${path}[${String(at)}]` };
+      parsed.push(one);
+    }
+    return parsed;
+  };
+  const definitions = parse('measureDefinitions', listed.measureDefinitions, (entry) => {
+    const parsed = documentMeasureDefinition(entry);
+    return parsed instanceof type.errors || !finite(parsed.order) ? null : parsed;
+  });
+  if (!Array.isArray(definitions)) return definitions;
+  const facts = parse('measureFacts', listed.measureFacts, (entry) => {
+    const parsed = documentMeasureFact(entry);
+    return parsed instanceof type.errors || !finite(parsed.value) ? null : parsed;
+  });
+  if (!Array.isArray(facts)) return facts;
+  const estimates = parse('measureEstimates', listed.measureEstimates, (entry) => {
+    const parsed = documentMeasureEstimate(entry);
+    return parsed instanceof type.errors ||
+      !finite(parsed.optimistic, parsed.realistic, parsed.pessimistic)
+      ? null
+      : parsed;
+  });
+  if (!Array.isArray(estimates)) return estimates;
+  const budgets = parse('budgets', listed.budgets, (entry) => {
+    const parsed = documentBudget(entry);
+    return parsed instanceof type.errors ||
+      !finite(parsed.cap, ...(parsed.holdPerAttempt === null ? [] : [parsed.holdPerAttempt]))
+      ? null
+      : parsed;
+  });
+  if (!Array.isArray(budgets)) return budgets;
+  return { ok: true, definitions, facts, estimates, budgets, budgetFactor: factor };
 }
 
 type ClassifiedRow = Omit<PlanDocumentImport['workItems'][number], 'attempts'> & {

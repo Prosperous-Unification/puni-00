@@ -20,6 +20,7 @@ export function planDocumentFixture(): PlanDocumentImport {
       scheduleEngine: 'fast',
       scheduleObjective: 'pri',
       timezone: 'UTC',
+      budgetFactor: 1,
     },
     capacity: [{ teamId: 'team-1', size: 2 }],
     priorityBands: [
@@ -41,6 +42,10 @@ export function planDocumentFixture(): PlanDocumentImport {
     },
     resourceCapacities: [],
     demands: [],
+    measureDefinitions: [],
+    measureFacts: [],
+    measureEstimates: [],
+    budgets: [],
     workItems: [
       {
         id: 'row-1',

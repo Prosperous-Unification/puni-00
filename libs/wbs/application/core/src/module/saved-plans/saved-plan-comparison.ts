@@ -90,7 +90,7 @@ export interface SavedComparisonSide {
 /**
  * Project an already resolved, integrity-verified side using frozen historical decoders only.
  * No capture, shelf, directory, settings or scheduler capability is accepted. The existing legacy resolver
- * retains its normalized v8 shape, so only explicitly captured input9 establishes local provenance. Throws for missing captured labels.
+ * retains its normalized v9 shape, so only explicitly captured input10 establishes local provenance. Throws for missing captured labels.
  * Comparison HTTP responses require this summary on each side, including empty diffs.
  */
 export function summarizeSavedComparisonSide(
@@ -105,7 +105,7 @@ function projectComparisonSide(side: PlanSide, source: SavedPlanSideRef): SavedC
     ? { present: true as const, algorithmId: side.schedule.algorithmId }
     : { present: false as const, absentReason: side.schedule.absentReason };
   const base = { source: { ...source }, schedule };
-  if (side.input.schemaVersion !== 9) return { ...base, provenance: { kind: 'legacy-unknown' } };
+  if (side.input.schemaVersion !== 10) return { ...base, provenance: { kind: 'legacy-unknown' } };
   const history = side.input.dependencyHistory;
   if (history.kind === 'local') return { ...base, provenance: { kind: 'local' } };
   const evidence = side.schedule.present

@@ -1,5 +1,5 @@
 import {
-  canonicalisePlanInputV9,
+  canonicalisePlanInputV10,
   diffPlans,
   planDiffIsEmpty,
   type PlanScheduleValue,
@@ -27,7 +27,7 @@ function readBody(side: PlanSide): Mutable<SavedConnectedScheduleBody> {
   return clone(readSavedConnectedScheduleBody(side.schedule.body));
 }
 function readInput(side: PlanSide) {
-  if (side.input.schemaVersion !== 9 || side.input.dependencyHistory.kind !== 'connected')
+  if (side.input.schemaVersion !== 10 || side.input.dependencyHistory.kind !== 'connected')
     throw new Error('connected fixture required');
   return { ...clone(side.input), dependencyHistory: clone(side.input.dependencyHistory) };
 }
@@ -84,7 +84,7 @@ function connectedSide(): PlanSide {
   const connection = readSavedConnectedScheduleEvidence(evidence);
   validateSavedConnectedHistory(history, connection);
   return {
-    input: canonicalisePlanInputV9(connectedPlanFixtureRows(history), history),
+    input: canonicalisePlanInputV10(connectedPlanFixtureRows(history), history),
     schedule: {
       present: true,
       algorithmId: 'retired-connected-algorithm',
@@ -190,11 +190,11 @@ describe('historical comparison side projection', () => {
     const side = connectedSide();
     const { dependencyHistory: omitted, ...local } = side.input as Extract<
       PlanSide['input'],
-      { schemaVersion: 9 }
+      { schemaVersion: 10 }
     >;
     expect(omitted.kind).toBe('connected');
     const legacy: PlanSide = {
-      input: { ...local, schemaVersion: 8 },
+      input: { ...local, schemaVersion: 9 },
       schedule: { present: false, absentReason: 'pending' },
     };
     expect(summarizeSavedComparisonSide(legacy, { kind: 'current' })).toEqual({
@@ -204,7 +204,7 @@ describe('historical comparison side projection', () => {
     });
     expect(
       summarizeSavedComparisonSide(
-        { ...legacy, input: { ...local, schemaVersion: 9, dependencyHistory: { kind: 'local' } } },
+        { ...legacy, input: { ...local, schemaVersion: 10, dependencyHistory: { kind: 'local' } } },
         { kind: 'saved', savedPlanId: 'local' },
       ).provenance,
     ).toEqual({ kind: 'local' });
@@ -212,7 +212,7 @@ describe('historical comparison side projection', () => {
 
   it('retains unavailable scope and absence without manufacturing stages', () => {
     const side = connectedSide();
-    if (side.input.schemaVersion !== 9 || side.input.dependencyHistory.kind !== 'connected')
+    if (side.input.schemaVersion !== 10 || side.input.dependencyHistory.kind !== 'connected')
       throw new Error('connected fixture required');
     const unavailable: PlanSide = {
       input: {

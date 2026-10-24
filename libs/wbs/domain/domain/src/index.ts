@@ -180,6 +180,13 @@ export * from './occupancy';
 export * from './connected-step-node';
 export * from './execution-eligibility';
 export * from './resource';
+// Measure definitions, one scheduling measure per organization (wbs-measure-budgets D1, D2).
+export * from './budget';
+export * from './budget-admission';
+export * from './measure-definition';
+export * from './measure-estimate';
+export * from './measure-fact';
+export * from './money-basis';
 // Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
 export * from './machine-credential';
 export type * from './schedule-error';

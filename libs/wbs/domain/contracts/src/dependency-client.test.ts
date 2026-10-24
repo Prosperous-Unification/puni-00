@@ -46,6 +46,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'deleteApiSpacesById',
       'deleteApiSpacesByIdProjectsByProjectId',
       'getApiExternal-systems',
+      'getApiMeasures',
       'getApiOnboarding',
       'getApiOrganization',
       'getApiOrganizationActive',
@@ -70,6 +71,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiProjectsById',
       'getApiProjectsByIdAddressCandidates',
       'getApiProjectsByIdAddressReferences',
+      'getApiProjectsByIdBudget-headroom',
       'getApiProjectsByIdCalendar-markers',
       // Proof: temporarily exempting this exact claim operation moved it out of
       // the protected matrix and failed this test (2026-10-24 CI repair).

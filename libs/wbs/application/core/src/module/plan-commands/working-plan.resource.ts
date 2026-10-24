@@ -1,6 +1,8 @@
 import type { ActualStore } from '../../ports/actual-store';
+import type { BudgetStore } from '../../ports/budget-store';
 import type { DependencyStore } from '../../ports/dependency-store';
 import type { EstimateStore } from '../../ports/estimate-store';
+import type { MeasureEstimateStore } from '../../ports/measure-estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { StepProgressStore } from '../../ports/progress-store';
 import type { StepBlockageStore } from '../../ports/step-blockage-store';
@@ -224,25 +226,78 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen,
     refreshRows,
   );
-  const retainedMeasures: MeasureStore = createWorkingPlanValues(
-    () => scope.stores.measures,
-    {
-      all: async (requestedProjectId) => {
-        assertProject(requestedProjectId);
-        return measures.all();
+  const retainedMeasures: MeasureStore = {
+    ...createWorkingPlanValues(
+      () => scope.stores.measures,
+      {
+        all: async (requestedProjectId) => {
+          assertProject(requestedProjectId);
+          return measures.all();
+        },
+        byWorkItems: async (requestedProjectId, ids) => {
+          assertProject(requestedProjectId);
+          return byWorkItem(await measures.all(), ids);
+        },
+        placements: async (requestedProjectId, ids) => {
+          assertProject(requestedProjectId);
+          return placementsOfGroups(await measures.all(), ids, ({ workItemId }) => workItemId);
+        },
       },
-      byWorkItems: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
-        return byWorkItem(await measures.all(), ids);
-      },
-      placements: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
-        return placementsOfGroups(await measures.all(), ids, ({ workItemId }) => workItemId);
-      },
+      assertOpen,
+      refreshRows,
+    ),
+    // Definitions are directory state, not plan values: read through, never retained.
+    definitionsFor: async (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      return await scope.stores.measures.definitionsFor(requestedProjectId);
     },
-    assertOpen,
-    refreshRows,
-  );
+  };
+  // Read through, never retained: a tokens write here also writes or removes
+  // the legacy `token_estimate` row (design D28), so every write refreshes the
+  // row's retained groups, measures among them.
+  // Proof: with the set and remove refreshes skipped, `refreshes the retained
+  // measures when a tokens trio writes or retires the legacy token estimate`
+  // (working-plan.test.ts) read the stale legacy figure; watched 2026-10-23.
+  const retainedMeasureEstimates: MeasureEstimateStore = {
+    listByProject: async (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      return await scope.stores.measureEstimates.listByProject(requestedProjectId);
+    },
+    set: async (estimate, stamp) => {
+      assertOpen();
+      const written = await scope.stores.measureEstimates.set(estimate, stamp);
+      await refreshRows([estimate.workItemId]);
+      return written;
+    },
+    remove: async (workItemId, stepId, key, stamp) => {
+      assertOpen();
+      await scope.stores.measureEstimates.remove(workItemId, stepId, key, stamp);
+      await refreshRows([workItemId]);
+    },
+    moveAll: async (fromWorkItemId, toWorkItemId, stamp) => {
+      assertOpen();
+      await scope.stores.measureEstimates.moveAll(fromWorkItemId, toWorkItemId, stamp);
+      await refreshRows([fromWorkItemId, toWorkItemId]);
+    },
+  };
+  // Read through, never retained: a budget write moves its work item's
+  // revision (as every satellite write does), so the row is refreshed.
+  const retainedBudgets: BudgetStore = {
+    listByProject: async (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      return await scope.stores.budgets.listByProject(requestedProjectId);
+    },
+    set: async (budget, stamp) => {
+      assertOpen();
+      await scope.stores.budgets.set(budget, stamp);
+      await refreshRows([budget.workItemId]);
+    },
+    remove: async (workItemId, key, stamp) => {
+      assertOpen();
+      await scope.stores.budgets.remove(workItemId, key, stamp);
+      await refreshRows([workItemId]);
+    },
+  };
   const retainedProgress: StepProgressStore = createWorkingPlanValues(
     () => scope.stores.progress,
     {
@@ -563,6 +618,8 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     estimates: retainedEstimates,
     actuals: retainedActuals,
     measures: retainedMeasures,
+    measureEstimates: retainedMeasureEstimates,
+    budgets: retainedBudgets,
     progress: retainedProgress,
     attempts,
     blockages,

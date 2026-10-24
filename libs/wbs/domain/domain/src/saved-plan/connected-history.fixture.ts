@@ -375,6 +375,8 @@ export function connectedPlanFixtureRows(history: SavedConnectedDependencyHistor
     stepBlockages: [],
     stepParallels: [],
     measures: [],
+    measureEstimates: [],
+    budgets: [],
     dependencies: [],
     typedDependencies: [],
     assignments: [],

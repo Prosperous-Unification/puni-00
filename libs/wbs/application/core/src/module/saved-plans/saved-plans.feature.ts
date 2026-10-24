@@ -4,7 +4,7 @@ import {
   CalendarRangeError,
   canonicalisePlanInput,
   type CanonicalPlanInput,
-  type CanonicalPlanInputV9,
+  type CanonicalPlanInputV10,
   DEFAULT_SAVED_PLAN_QUOTA,
   defaultSavedPlanName,
   diffPlans,
@@ -206,7 +206,7 @@ interface ScheduleAttempt {
 }
 
 interface SerializedSchedulePlan {
-  readonly input: CanonicalPlanInput | CanonicalPlanInputV9;
+  readonly input: CanonicalPlanInput | CanonicalPlanInputV10;
   readonly inputBytes: string;
   readonly schedule:
     | { readonly present: false; readonly absentReason: SavedPlanScheduleAbsentReason }
@@ -734,7 +734,7 @@ export class SavedPlanService {
  * A verified read, as a comparison side (task 7.3b).
  *
  * The resource verifies new-format semantics without rewriting stored bytes.
- * This projection decodes input9 with its captured context and retains the legacy
+ * This projection decodes input10 with its captured context and retains the legacy
  * forward normalizer for older bodies. Neither path consults live foreign facts.
  */
 function planSideOfRead(plan: SavedPlanRead): PlanSide {
@@ -742,8 +742,9 @@ function planSideOfRead(plan: SavedPlanRead): PlanSide {
     // Proof: always using the legacy decoder returned 422 for the mounted complete
     // connected self-comparison (use-legacy-comparison-reader.log.txt).
     input:
-      plan.input.schemaVersion === 9
-        ? readSavedPlanInput(JSON.parse(plan.input.bytes), 9)
+      // Proof: dispatching input10 through the legacy normalizer failed mounted connected save/read (2026-10-24).
+      plan.input.schemaVersion === 10
+        ? readSavedPlanInput(JSON.parse(plan.input.bytes), 10)
         : normalisePlanInputForward(JSON.parse(plan.input.bytes), plan.input.schemaVersion),
     schedule: plan.schedule.present
       ? {

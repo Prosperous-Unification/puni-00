@@ -32,6 +32,7 @@ function plan(
       optimizationEnabled: false,
       solutionRef: null,
       timezone: 'UTC',
+      budgetFactor: 1,
     },
     steps: people.map((_, index) => ({
       estimateUnit: 'workdays' as const,
@@ -84,6 +85,9 @@ function plan(
     actuals: [],
     progress: [],
     measures: [],
+    measureDefinitions: null,
+    measureEstimates: [],
+    budgets: [],
     stepBlockages: [],
     stepParallels: [],
     capacity: new Map(),

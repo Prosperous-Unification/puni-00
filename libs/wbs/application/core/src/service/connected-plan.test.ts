@@ -49,6 +49,7 @@ const reads = (id: string, startDate: IsoDate | null = '2026-10-05'): PlanInputR
     optimizationEnabled: false,
     solutionRef: null,
     timezone: 'UTC',
+    budgetFactor: 1,
   },
   steps: [
     {
@@ -69,6 +70,9 @@ const reads = (id: string, startDate: IsoDate | null = '2026-10-05'): PlanInputR
   stepBlockages: [],
   stepParallels: [],
   measures: [],
+  measureDefinitions: null,
+  measureEstimates: [],
+  budgets: [],
   dependencies: [],
   typedDependencies: [],
   assignments: [],

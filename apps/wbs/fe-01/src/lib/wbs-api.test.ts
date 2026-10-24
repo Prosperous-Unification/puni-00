@@ -162,7 +162,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 10, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 11, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     stepBlockages: [],
     settings: {
@@ -178,6 +178,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
       scheduleEngine: PROJECT.scheduleEngine,
       scheduleObjective: PROJECT.scheduleObjective,
       timezone: 'Europe/Kyiv',
+      budgetFactor: 1,
     },
     capacity: [],
     resourceCapacities: [],
@@ -192,6 +193,10 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
       externalSystems: [],
       resources: [],
     },
+    measureDefinitions: [],
+    measureFacts: [],
+    measureEstimates: [],
+    budgets: [],
   };
 };
 
@@ -226,6 +231,57 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('the measure list (wbs-measure-budgets D17, review S3-6)', () => {
+  const definition = {
+    id: 'm1',
+    key: 'tokens',
+    name: 'Tokens',
+    unit: 'tokens',
+    kind: 'count',
+    scale: 'integer',
+    threePoint: true,
+    showByDefault: false,
+    schedulesWork: false,
+    derived: false,
+    order: 2,
+    currency: null,
+  };
+
+  it('reads the definitions through the generated client', async () => {
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(response(200, JSON.stringify({ measures: [definition] }))),
+    );
+    vi.stubGlobal('fetch', fetched);
+    await expect(httpProjectApi('token').listMeasures()).resolves.toEqual({
+      kind: 'ready',
+      measures: [definition],
+    });
+    expect(fetched.mock.calls.at(0)?.[0]).toBe('/api/measures');
+  });
+
+  it('answers organization_required as a modeled state', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(response(409, JSON.stringify({ error: 'organization_required' }))),
+    );
+    await expect(httpProjectApi('token').listMeasures()).resolves.toEqual({
+      kind: 'organization_required',
+    });
+  });
+
+  it('throws any other refusal, and a definition be-01 could not send', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(response(401, JSON.stringify({ error: 'unauthenticated' }))),
+    );
+    await expect(httpProjectApi('token').listMeasures()).rejects.toThrow('unauthenticated');
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(
+        response(200, JSON.stringify({ measures: [{ ...definition, kind: 'volume' }] })),
+      ),
+    );
+    await expect(httpProjectApi('token').listMeasures()).rejects.toThrow('invalid_response');
+  });
+});
+
 describe('plan JSON transfer', () => {
   it('downloads the validated JSON representation through the generated project client', async () => {
     const document = PLAN_DOCUMENT(['kept-row']);
@@ -257,11 +313,11 @@ describe('plan JSON transfer', () => {
     await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
   });
 
-  it('accepts complete v11 history and strips it only at the JSON import boundary', async () => {
+  it('accepts complete v12 history and strips it only at the JSON import boundary', async () => {
     const document = PLAN_DOCUMENT(['kept-row']);
     document['document'] = {
       format: 'wbs-plan',
-      version: 11,
+      version: 12,
       exportedAt: '2026-10-22T00:00:00.000Z',
     };
     document['typedDependencies'] = [
@@ -1189,6 +1245,12 @@ describe('the browser writes through command batches (plan-commands)', () => {
       [() => api.removeWorkItem('w1', { strategy: 'cascade' }), 'deleteWorkItem'],
       [() => api.setEstimate('w1', 'r1', days), 'setEstimate'],
       [() => api.clearEstimate('w1', 'r1'), 'clearEstimate'],
+      [() => api.setMeasureEstimate('w1', 'r1', 'cost', days, 'card-a'), 'setMeasureEstimate'],
+      [() => api.clearMeasureEstimate('w1', 'r1', 'tokens'), 'clearMeasureEstimate'],
+      [() => api.setMeasure('w1', 'r1', 'tokens', 300), 'setMeasure'],
+      [() => api.clearMeasure('w1', 'r1', 'tokens'), 'clearMeasure'],
+      [() => api.setBudget('w1', 'tokens', { cap: 1000, policy: 'strict' }), 'setBudget'],
+      [() => api.clearBudget('w1', 'tokens'), 'clearBudget'],
       [() => api.assignPerson('w1', 'r1', 'k'), 'setAssignee'],
       [() => api.addDependency('w2', 'w1'), 'addDependency'],
       [

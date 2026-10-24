@@ -961,7 +961,7 @@ it('round-trips minute units through the composed import/export and refuses malf
   const exported = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
   expect(exported.status).toBe(200);
   expect(exported.body).toMatchObject({
-    document: { version: 10 },
+    document: { version: 11 },
     steps: [{ estimateUnit: 'minutes' }, { estimateUnit: 'minutes' }],
   });
   const stepId = await firstStep('ada', projectId);
@@ -1008,7 +1008,7 @@ describe('v9 direct blockage transfer', () => {
       workItems: { id: string; name: string; blockages?: unknown; blockageCauses?: unknown }[];
       steps: { id: string; name: string }[];
     };
-    expect(body.document.version).toBe(10);
+    expect(body.document.version).toBe(11);
     const owner = body.workItems.find(({ name }) => name === 'Ship');
     const step = body.steps.find(({ name }) => name === 'Build');
     if (owner === undefined || step === undefined)

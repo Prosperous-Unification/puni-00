@@ -83,7 +83,7 @@ try {
     assert.deepEqual(snapshotStore(), before);
     assert.deepEqual(pushes, beforePushes);
   }
-  console.log('historical reader: v10 imported; v11 refused without writes or pushes');
+  console.log('historical reader: v10 imported; v12 refused without writes or pushes');
 } finally {
   await harness.closeComposed();
 }

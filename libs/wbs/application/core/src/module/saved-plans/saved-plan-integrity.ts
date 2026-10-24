@@ -177,7 +177,11 @@ export function verifyScheduleLink(
  * forward only").
  */
 // Proof: omitting schema8 refused the real save/read module regression (regression-first.txt), 2026-10-17.
-export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+// Proof: omitting schema 9 made `saved plan compare names a change in a trio, a
+// budget, a basis and the factor` (measure-export.controller.db.test.ts) answer
+// 501 unsupported_body_version; watched 2026-10-23.
+// Proof: omitting input10 made the mounted connected save/read return unsupported_body_version (2026-10-24).
+export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1, 2];
 
 /**
@@ -258,7 +262,7 @@ export function verifySavedPlanBodies(
       schedule.version,
       SUPPORTED_SCHEDULE_BODY_VERSIONS,
     );
-  if (input.version < 9 && (!schedule.present || schedule.version === 1)) return null;
+  if (input.version < 10 && (!schedule.present || schedule.version === 1)) return null;
   let body: SavedPlanBodyKind = 'input';
   try {
     const parsed = readSavedPlanInput(JSON.parse(input.bytes), input.version);

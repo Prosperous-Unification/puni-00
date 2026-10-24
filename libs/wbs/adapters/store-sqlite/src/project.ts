@@ -442,6 +442,9 @@ export class ProjectRepository implements ProjectStore {
         optimizationEnabled: toCreate.optimizationEnabled ?? DEFAULT_PROJECT_SETTINGS.enabled,
         scheduleEngine: toCreate.scheduleEngine ?? DEFAULT_PROJECT_SETTINGS.engine,
         scheduleObjective: toCreate.scheduleObjective ?? DEFAULT_PROJECT_SETTINGS.objective,
+        // The column's default (`wbs-measure-budgets` D38), stated for the
+        // same reason as the three above.
+        budgetFactor: toCreate.budgetFactor ?? 1,
       };
       const written = { ...toCreate, ...settings };
       try {
@@ -605,7 +608,17 @@ export class ProjectRepository implements ProjectStore {
       stepRow(
         'step_measure',
         'step_measure_step',
-        "l.work_item_id || '/' || l.step_id || '/' || l.metric",
+        "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
+      ),
+      // A trio names a step as a fact does (`wbs-measure-budgets` D48): the
+      // row read shows it and step removal cascades it.
+      // Proof: with this arm removed, `fails the schedule read closed over a
+      // crossing measure_estimate_step` (schedule-organization.controller.db.test.ts)
+      // answered 200 where 500 was owed; watched 2026-10-23.
+      stepRow(
+        'measure_estimate',
+        'measure_estimate_step',
+        "l.work_item_id || '/' || l.step_id || '/' || l.measure_key",
       ),
       stepRow(
         'step_node_attempt',
@@ -717,7 +730,15 @@ export class ProjectRepository implements ProjectStore {
           ['estimate', "l.work_item_id || '/' || l.step_id"],
           ['actual', "l.work_item_id || '/' || l.step_id"],
           ['step_progress', "l.work_item_id || '/' || l.step_id"],
-          ['step_measure', "l.work_item_id || '/' || l.step_id || '/' || l.metric"],
+          [
+            'step_measure',
+            "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
+          ],
+          // Proof: with this entry removed, `fails closed on a project another
+          // project reaches into, changing neither`
+          // (command-organization.controller.db.test.ts) answered 200 for the
+          // trio; watched 2026-10-23.
+          ['measure_estimate', "l.work_item_id || '/' || l.step_id || '/' || l.measure_key"],
           ['step_node_attempt', "l.work_item_id || '/' || l.step_id || '/' || l.attempt_number"],
           ['assignment', "l.work_item_id || '/' || l.step_id || '/' || l.person_id"],
         ] as const
@@ -885,6 +906,7 @@ export class ProjectRepository implements ProjectStore {
         optimizationEnabled: project.optimizationEnabled,
         scheduleEngine: project.scheduleEngine,
         scheduleObjective: project.scheduleObjective,
+        budgetFactor: project.budgetFactor,
         revision: project.revision,
         createdAt: project.createdAt,
         lastOpenedAt: projectAccess.lastOpenedAt,

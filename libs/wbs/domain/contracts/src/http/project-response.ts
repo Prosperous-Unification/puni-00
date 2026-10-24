@@ -21,6 +21,12 @@ const storedProject = type({
   scheduleEngine: "'fast' | 'optimized'",
   scheduleObjective: "'pri' | 'time'",
   /**
+   * What derived budgets multiply the pessimistic point by
+   * (`wbs-measure-budgets` D38). Optional on the wire only so a newer client
+   * can read an older be-01 mid-swap.
+   */
+  'budgetFactor?': 'number',
+  /**
    * The IANA zone every day derived from an instant is read in
    * (`step-node-attempts` D3). Optional on the wire only so a newer client can
    * read an older be-01 mid-swap; every be-01 that knows it sends it.

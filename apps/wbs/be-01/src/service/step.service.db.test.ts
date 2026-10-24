@@ -15,12 +15,14 @@ import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-depende
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { systemTimers } from '@wbs/runtime-portable';
 import { PushClient } from '@wbs/runtime-portable';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -665,6 +667,8 @@ describe('a step removed between the check and the write', () => {
       estimates: vanishing,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
+      budgets: new WorkItemBudgetRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
@@ -724,6 +728,8 @@ describe('a step removed between the check and the write', () => {
       estimates,
       actuals,
       measures,
+      measureEstimates: new MeasureEstimateRepository(db, OPEN),
+      budgets: new WorkItemBudgetRepository(db, OPEN),
       progress: progressStore,
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),

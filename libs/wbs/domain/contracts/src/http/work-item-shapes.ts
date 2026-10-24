@@ -1,5 +1,6 @@
-import { type } from 'arktype';
+import { type Type, type } from 'arktype';
 
+import type { PlanCommandKind } from '../commands/definitions';
 import { commandKindsType, commandParserRefusal } from './command-parser-refusal';
 import { defineEndpointShape } from './endpoint-shape';
 import {
@@ -14,11 +15,32 @@ import { requestSchema, responseSchema } from './schema-shape';
 import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
 import { treeResponseSchema } from './tree-response-schema';
 import { WORK_ITEM_OUTLINE } from './work-item-fields';
-import { numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
+import { mixedBases, numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
 
 export { commandParserRefusal } from './command-parser-refusal';
 
 const context = { at: 'number', kind: commandKindsType } as const;
+/**
+ * The batch refusals that carry nothing beside their code and command context,
+ * as one object over the enumerated codes rather than one arm per code: each
+ * arm repeated the whole command-kind enumeration, and arktype's compile of
+ * the 78 arms held about 60 MB more at load (design D47, the mcp-01 pod limit).
+ * `.as` restates the per-code union the arms declared: the runtime shape is
+ * that union, and TypeScript expands an object with a union property into its
+ * variants only up to 25 members.
+ *
+ * Measured, not guarded on its own: restoring these arms alone loads the
+ * shapes in 430 MB against 370 MB, inside the 500 MB bound of
+ * `contracts-boot-memory.test.ts`, which the parser collapse is what holds.
+ */
+function plainRefusals<const C extends readonly string[]>(
+  ...codes: C
+): Type<{ [K in C[number]]: { at: number; kind: PlanCommandKind; error: K } }[C[number]]> {
+  // Safe for the reason above: the same object, typed as the union it validates.
+  return type({ ...context, error: type.enumerated(...codes) }) as unknown as Type<
+    { [K in C[number]]: { at: number; kind: PlanCommandKind; error: K } }[C[number]]
+  >;
+}
 const named = type({ id: 'string', name: 'string' });
 const effect = type({ kind: "'assignment_dropped'", step: named })
   .or({ kind: "'claim_released'", step: named.or('null') })
@@ -63,11 +85,22 @@ const appliedResults = type({
     'entity?': {
       id: 'string',
       name: 'string',
-      // A person's kind, or a resource's (`createResource`, `patchResource`).
-      'kind?': "'person' | 'agent' | 'exclusive' | 'divisible'",
+      // A person's kind, a resource's (`createResource`, `patchResource`), or a
+      // measure definition's (`createMeasure`, `patchMeasure`).
+      'kind?': "'person' | 'agent' | 'exclusive' | 'divisible' | 'duration' | 'count' | 'money'",
       'serviceIds?': 'string[]',
       'teamIds?': 'string[]',
       'unitLabel?': 'string',
+      // A measure definition's other fields (`wbs-measure-budgets` D1).
+      'key?': 'string',
+      'unit?': 'string',
+      'scale?': "'integer' | 'real'",
+      'threePoint?': 'boolean',
+      'showByDefault?': 'boolean',
+      'schedulesWork?': 'boolean',
+      'derived?': 'boolean',
+      'order?': 'number',
+      'currency?': 'string | null',
     },
     // A `claimWorkItem` result: whether it wrote nothing, the claims holding the steps, and
     // the steps `assign: true` assigned (empty for a subtree claim, alreadyHeld or no assign).
@@ -141,18 +174,20 @@ const batchRefusals = [
     status: 400,
     schema: responseSchema(
       type.or(
-        type({ ...context, error: "'too_many_commands'" }),
-        type({ ...context, error: "'project_required'" }),
-        type({ ...context, error: "'unknown_ref'" }),
-        type({ ...context, error: "'missing_id'" }),
-        type({ ...context, error: "'duplicate_ref'" }),
-        type({ ...context, error: "'name_required'" }),
-        type({ ...context, error: "'strategy_required'" }),
-        type({ ...context, error: "'has_children'" }),
-        type({ ...context, error: "'not_before_reason_needs_a_date'" }),
-        type({ ...context, error: "'work_item_takes_one_type'" }),
-        type({ ...context, error: "'invalid_kind'" }),
-        type({ ...context, error: "'nothing_to_change'" }),
+        plainRefusals(
+          'too_many_commands',
+          'project_required',
+          'unknown_ref',
+          'missing_id',
+          'duplicate_ref',
+          'name_required',
+          'strategy_required',
+          'has_children',
+          'not_before_reason_needs_a_date',
+          'work_item_takes_one_type',
+          'invalid_kind',
+          'nothing_to_change',
+        ),
       ),
     ),
   },
@@ -160,11 +195,13 @@ const batchRefusals = [
     status: 403,
     schema: responseSchema(
       type.or(
-        type({ ...context, error: "'forbidden'" }),
-        // `claimWorkItem`/`releaseWorkItem`: the caller may not act as the person named.
-        type({ ...context, error: "'person_not_bound'" }),
-        type({ ...context, error: "'credential_not_for_person'" }),
-        type({ ...context, error: "'parent_claim_foreign'" }),
+        plainRefusals(
+          'forbidden',
+          // `claimWorkItem`/`releaseWorkItem`: the caller may not act as the person named.
+          'person_not_bound',
+          'credential_not_for_person',
+          'parent_claim_foreign',
+        ),
       ),
     ),
   },
@@ -172,23 +209,28 @@ const batchRefusals = [
     status: 404,
     schema: responseSchema(
       type.or(
-        type({ ...context, error: "'not_found'" }),
-        type({ ...context, error: "'parent_claim_unknown'" }),
-        type({ ...context, error: "'unknown_step'" }),
-        type({ ...context, error: "'unknown_dependency'" }),
-        type({ ...context, error: "'unknown_metric'" }),
-        type({ ...context, error: "'unknown_person'" }),
-        type({ ...context, error: "'unknown_team'" }),
-        type({ ...context, error: "'unknown_tag'" }),
-        type({ ...context, error: "'unknown_service'" }),
-        type({ ...context, error: "'unknown_type'" }),
-        type({ ...context, error: "'unknown_system'" }),
-        type({ ...context, error: "'unknown_resource'" }),
-        // `patchResource.providerId` naming no provider instance.
-        type({ ...context, error: "'unknown_provider'" }),
-        type({ ...context, error: "'unknown_attempt'" }),
-        // `patchPerson.accountId` naming no member of the person's organization.
-        type({ ...context, error: "'unknown_account'" }),
+        plainRefusals(
+          'not_found',
+          'parent_claim_unknown',
+          'unknown_step',
+          'unknown_dependency',
+          // Retired by `wbs-measure-budgets` slice 2 and kept for the swap, like
+          // `frozen` below: an outgoing be-01 still answers it.
+          'unknown_metric',
+          'unknown_measure',
+          'unknown_person',
+          'unknown_team',
+          'unknown_tag',
+          'unknown_service',
+          'unknown_type',
+          'unknown_system',
+          'unknown_resource',
+          // `patchResource.providerId` naming no provider instance.
+          'unknown_provider',
+          'unknown_attempt',
+          // `patchPerson.accountId` naming no member of the person's organization.
+          'unknown_account',
+        ),
       ),
     ),
   },
@@ -196,44 +238,87 @@ const batchRefusals = [
     status: 409,
     schema: responseSchema(
       type.or(
-        type({ ...context, error: "'cycle'" }),
-        // `patchResource.providerId` naming another organization's instance.
-        type({ ...context, error: "'provider_not_in_organization'" }),
-        // Retired at ADR 0023 and deliberately kept: no release since refuses a
-        // move for a frozen number, but an outgoing be-01 can answer a browser
-        // holding the incoming fe-01 for the length of a swap, and an arm this
-        // union lacks is a 409 the client cannot parse at all.
-        type({ ...context, error: "'frozen'" }),
-        // `arrangeBySchedule` while the project's selected optimized variant is
-        // still solving, and on a deployment with no optimizer installed.
-        type({ ...context, error: "'arrangement_positions_unavailable'" }),
-        type({ ...context, error: "'dependency_calendar_missing'" }),
-        type({ ...context, error: "'schedule_not_ready'" }),
-        type({ ...context, error: "'engine_unavailable'" }),
-        type({ ...context, error: "'rolled_up'" }),
-        type({ ...context, error: "'ancestor'" }),
-        // A typed dependency whose endpoints resolve a step node onto itself.
-        type({ ...context, error: "'self_node'" }),
-        type({ ...context, error: "'not_a_parent'" }),
-        type({ ...context, error: "'external_dependencies_inactive'" }),
-        // Proof: removing this arm made mounted pending-endpoint add/update return HTTP500 (2026-10-22).
-        type({ ...context, error: "'project_deleting'" }),
-        type({ ...context, error: "'duplicate_dependency'" }),
-        type({ ...context, error: "'too_large'" }),
-        // `setStatus` refusals (`add-work-item-statuses`).
-        type({ ...context, error: "'readiness_after_progress'" }),
-        type({ ...context, error: "'cannot_hold_done'" }),
-        type({ ...context, error: "'no_steps'" }),
-        // Attempt refusals (`step-node-attempts` D2).
-        type({ ...context, error: "'node_done'" }),
-        type({ ...context, error: "'attempt_running'" }),
-        type({ ...context, error: "'no_running_attempt'" }),
-        // Claim refusals that carry nothing beside their reason (`wbs-team-claims`).
-        type({ ...context, error: "'parent_claim_not_ancestor'" }),
-        type({ ...context, error: "'item_done'" }),
-        type({ ...context, error: "'steps_on_subtree'" }),
-        type({ ...context, error: "'resources_on_subtree'" }),
-        type({ ...context, error: "'not_claimed_by'" }),
+        plainRefusals(
+          'cycle',
+          // `patchResource.providerId` naming another organization's instance.
+          'provider_not_in_organization',
+          // Retired at ADR 0023 and deliberately kept: no release since refuses a
+          // move for a frozen number, but an outgoing be-01 can answer a browser
+          // holding the incoming fe-01 for the length of a swap, and an arm this
+          // union lacks is a 409 the client cannot parse at all.
+          'frozen',
+          // `arrangeBySchedule` while the project's selected optimized variant is
+          // still solving, and on a deployment with no optimizer installed.
+          'arrangement_positions_unavailable',
+          'dependency_calendar_missing',
+          'external_dependencies_inactive',
+          'project_deleting',
+          'schedule_not_ready',
+          'engine_unavailable',
+          'rolled_up',
+          // `setMeasure` on a derived measure, or a fraction on an integer one.
+          'derived_measure',
+          'scheduling_measure_fact',
+          'scale_mismatch',
+          // `setMeasureEstimate` in `time`, or on a definition without three points.
+          // Proof: with these two arms removed, `answers 409 for a trio in time
+          // or hours …` (be-01 work-item.controller.test.ts) answered 500; watched 2026-10-23.
+          'scheduling_measure_estimate',
+          'three_point_forbidden',
+          // `setBudget`/`clearBudget` in `time`; a rate card missing on money or
+          // sent on another measure (`wbs-measure-budgets` D35, D43).
+          // Proof: with these three arms removed, `answers 409 for a budget in
+          // time and a cost fact without a rate card, 422 for a negative cap`
+          // (be-01 work-item.controller.test.ts) answered 500; watched 2026-10-23.
+          'scheduling_measure_budget',
+          'rate_card_required',
+          'rate_card_forbidden',
+          'ancestor',
+          // A typed dependency whose endpoints resolve a step node onto itself.
+          'self_node',
+          'not_a_parent',
+          'duplicate_dependency',
+          'too_large',
+          // `setStatus` refusals (`add-work-item-statuses`).
+          'readiness_after_progress',
+          'cannot_hold_done',
+          'no_steps',
+          // Attempt refusals (`step-node-attempts` D2).
+          'node_done',
+          'attempt_running',
+          'no_running_attempt',
+          // Claim refusals that carry nothing beside their reason (`wbs-team-claims`).
+          'parent_claim_not_ancestor',
+          'item_done',
+          'steps_on_subtree',
+          'resources_on_subtree',
+          'not_claimed_by',
+        ),
+      ),
+    ),
+  },
+  // Measure definition refusals (`wbs-measure-budgets` D1, D2): the
+  // organization's own definitions stand in the way, or legacy access has no
+  // legacy organization to own one.
+  // Proof: with this arm removed, three cases of
+  // measure-organization.controller.db.test.ts answered 500 "returned an
+  // undeclared refusal" (4 pass, 3 fail); watched 2026-10-23.
+  {
+    status: 409,
+    schema: responseSchema(
+      type.or(
+        plainRefusals(
+          'organization_required',
+          'measure_key_taken',
+          'measure_key_immutable',
+          'measure_shape_immutable',
+          'second_scheduling_measure',
+          'scheduling_measure_fixed',
+          'currency_required',
+          'currency_forbidden',
+          'unit_required',
+          'measure_in_use',
+        ),
       ),
     ),
   },
@@ -296,10 +381,34 @@ const batchRefusals = [
         // capacity-limit.controller.db.test.ts answered 500 "returned an
         // undeclared refusal" (6 pass, 6 fail); watched 2026-10-22.
         type({ ...context, error: "'capacity_limit'", ...capacityLimitCrossed }),
+        // A strict budget refusing a start (`wbs-measure-budgets` D69).
+        // Proof: with this arm removed, `refuses the second start of a strict
+        // 500 holding 300, naming the budget` (budget-admission.controller.db.test.ts)
+        // answered 500 "returned an undeclared refusal"; watched 2026-10-24.
+        type({
+          ...context,
+          error: "'budget_exhausted'",
+          workItemId: 'string',
+          measure: 'string',
+          remaining: 'number | null',
+          hold: 'number',
+          blocked: 'boolean',
+        }),
       ),
     ),
   },
   { status: 409, schema: responseSchema(type({ ...context, error: "'taken'", name: 'string' })) },
+  // A sum across two rate cards (`wbs-measure-budgets` D44); null is unpriced.
+  {
+    status: 409,
+    schema: responseSchema(
+      type({
+        ...context,
+        error: "'mixed_rate_cards'",
+        bases: mixedBases,
+      }),
+    ),
+  },
   {
     status: 409,
     schema: responseSchema(
@@ -342,14 +451,16 @@ const batchRefusals = [
     status: 422,
     schema: responseSchema(
       type.or(
-        type({ ...context, error: "'minutes_not_integer'" }),
-        type({ ...context, error: "'minutes_above_max'" }),
-        type({ ...context, error: "'invalid_estimate'" }),
-        type({ ...context, error: "'calendar_range'" }),
-        type({ ...context, error: "'unsupported_relationship_type'" }),
-        type({ ...context, error: "'attempt_in_future'" }),
-        type({ ...context, error: "'attempt_ends_before_start'" }),
-        type({ ...context, error: "'exclusive_demand_is_one'" }),
+        plainRefusals(
+          'minutes_not_integer',
+          'minutes_above_max',
+          'invalid_estimate',
+          'calendar_range',
+          'unsupported_relationship_type',
+          'attempt_in_future',
+          'attempt_ends_before_start',
+          'exclusive_demand_is_one',
+        ),
         type({
           ...context,
           error: "'deadline_before_project_start'",

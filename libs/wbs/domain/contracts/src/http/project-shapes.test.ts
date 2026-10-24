@@ -51,7 +51,7 @@ test('preserves seven operation ids and declares both export representations wit
     ]),
   );
   expect(armsByVersion.size).toBe(2);
-  for (const version of [10, 11]) {
+  for (const version of [11, 12]) {
     const arm = armsByVersion.get(version);
     expect(arm).toMatchObject({
       type: 'object',

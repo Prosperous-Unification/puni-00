@@ -548,7 +548,7 @@ describe('the saved-plan routes', () => {
     expect(Array.isArray(diff.schedule)).toBe(true);
   });
 
-  /** Injects intact v9/v2 bytes through SQL because current writers deliberately remain v8/v1. */
+  /** Injects intact dependency-aware v10/v2 bytes through SQL for historical corruption proofs. */
   const replaceSavedBodies = async (
     id: string,
     inputBytes: string,
@@ -562,7 +562,7 @@ describe('the saved-plan routes', () => {
       text === null ? 'NULL' : `'${text.replaceAll("'", "''")}'`;
     const historical = openConnection(path);
     try {
-      historical.db.run(`UPDATE saved_plan SET input_schema_version = 9,
+      historical.db.run(`UPDATE saved_plan SET input_schema_version = 10,
         input_sha256 = ${quote(inputHash)}, input_bytes = ${String(new TextEncoder().encode(inputBytes).length)},
         schedule_schema_version = ${scheduleBytes === null ? 'NULL' : '2'},
         schedule_sha256 = ${quote(scheduleHash)}, schedule_input_sha256 = ${quote(scheduleBytes === null ? null : inputHash)},

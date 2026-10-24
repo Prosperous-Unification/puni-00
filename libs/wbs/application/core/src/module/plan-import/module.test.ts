@@ -126,7 +126,7 @@ describe('the Plan import module', () => {
     const held = requirements();
     const { imports } = installPlanImport({ ...held, uow: source.uow });
     const document = planDocumentFixture();
-    document.document.version = 11;
+    document.document.version = 12;
     document.typedDependencies = [
       {
         id: 'cross',
@@ -157,7 +157,7 @@ describe('the Plan import module', () => {
   it('refuses duplicate stable external declarations before dormancy', async () => {
     const { imports } = installPlanImport(requirements());
     const document = planDocumentFixture();
-    document.document.version = 11;
+    document.document.version = 12;
     const relationship = {
       id: 'cross',
       type: 'FS' as const,
