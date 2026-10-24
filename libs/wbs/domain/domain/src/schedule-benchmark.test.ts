@@ -106,11 +106,17 @@ describe('the leveled pass, at the size of a real plan', () => {
   it('measures CPU work without charging a descheduled interval', () => {
     // Proof: with Bun.nanoseconds the 30 ms sleep measured 30.118 ms and
     // failed this case; process CPU measured the sleeping interval below 20 ms.
-    expect(
+    // `process.cpuUsage` is process-wide, so a GC or JIT thread busy during one
+    // sample can charge a sleeping interval: on 2026-10-24 single samples read
+    // above 20 ms on three CI runs (Bun 1.4.4 runners under load) while every
+    // local sample read below 1 ms. The least of three samples keeps the claim:
+    // a sleep that were charged would read about 30 ms on all three.
+    const samples = [0, 1, 2].map(() =>
       cpuMillisecondsFor(() => {
         Bun.sleepSync(30);
       }),
-    ).toBeLessThan(20);
+    );
+    expect(Math.min(...samples)).toBeLessThan(20);
   });
 
   it('also measures elapsed time spent blocked inside a schedule call', () => {
