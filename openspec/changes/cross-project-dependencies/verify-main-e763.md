@@ -27,3 +27,15 @@ The integration merges `e763aa1a3d03c9d87a33fafcfb1224e10094d723` into the isola
 ## Limits
 
 These are focused integration checks. The canonical h2puni gate, full Nx suite, deployment, and CI run are parent-lane work. The CI repair packet records its own remaining bundled peer and cleanup timeout limits in `verify-ci-bun144.md`.
+
+## Claim observer lifecycle proof correction
+
+An independent review found that `db.observeCommitted` still cited LivePlan's owned close tests, while the merge deliberately kept LivePlan on its separate lifetime-aware observer. The helper itself already settled and closed correctly; the missing evidence was an actual claim-path lifecycle oracle. `claim-observation.db.test.ts` now drives `ClaimRepository.observeProject` through a tracked real read-only factory and checks one acquired handle, transaction settlement before exactly one close, and native rejection of a new query after close. It covers success, not-found, modeled access refusal, trusted-state read failure, and a failed BEGIN after the factory yielded its handle. The helper's adjacent Proof comments now cite these claim observations. LivePlan's local observer and helper behavior are unchanged.
+
+Watched mutations against the actual helper, each restored before the next:
+
+- Omit `transaction.commit()`: the successful claim-path case failed because `inTransaction` was true at close.
+- Omit `transaction.rollback()`: the trusted-state failure case failed because `inTransaction` was true at close.
+- Omit `connection.close()`: the successful claim-path case failed with zero closes; the test also checks native handle closure.
+
+After restoration, `bun test` on claim observation, read snapshot lifetime, and chain snapshot passed 58 tests (296 assertions). Mounted connected services passed 31 tests (447 assertions). Store-sqlite typecheck and scoped ESLint passed. The Docker config test prose now states its actual 45-second case and 30-second subprocess budgets.

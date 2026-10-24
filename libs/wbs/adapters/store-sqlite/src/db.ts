@@ -377,21 +377,21 @@ export async function observeCommitted<T>(
   const connection = openConnection();
   try {
     const transaction = drizzleReadTransaction(connection.db);
-    // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
+    // Proof: omitting BEGIN made the claim-observation racing-row read mix a new claim with old rows.
     transaction.begin();
     try {
       const captured = await read(connection.db);
-      // Proof: omitting commit failed owned success/refusal close-time BEGIN assertions (transaction still active).
+      // Proof: omitting commit failed the successful owned claim observation: its close saw an active transaction.
       transaction.commit();
       return captured;
     } catch (failure) {
-      // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
+      // Proof: omitting rollback failed the owned claim trusted-state read failure: its close saw an active transaction.
       transaction.rollback();
       throw failure;
     }
   } finally {
-    // Proof: omitting close failed all four owned lifecycle cases and the
-    // mounted admission check saw one open snapshot at both launch handoffs.
+    // Proof: omitting close failed the owned claim success case (zero closes); the
+    // claim lifecycle tests also require a closed native handle on refusal, throw, and BEGIN failure.
     connection.close();
   }
 }

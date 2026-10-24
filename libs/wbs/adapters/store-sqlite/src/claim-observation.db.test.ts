@@ -87,6 +87,46 @@ afterEach(() => {
   rmSync(folder, { recursive: true, force: true });
 });
 
+/** Tracks the actual read-only handle handed to the public claim observer. */
+function createTrackedClaimObserver(failBegin = false) {
+  const opened: Database[] = [];
+  const settledAtClose: boolean[] = [];
+  const observed = new ClaimRepository(db, OPEN, {
+    openConnection: () => {
+      const client = openReadOnlyDatabase(path);
+      opened.push(client);
+      const reader = drizzle({ client });
+      return {
+        db: failBegin
+          ? new Proxy(reader, {
+              get(target, key, receiver): unknown {
+                if (key === 'run')
+                  return () => {
+                    throw new Error('injected BEGIN failure');
+                  };
+                return Reflect.get(target, key, receiver);
+              },
+            })
+          : reader,
+        close: () => {
+          settledAtClose.push(!client.inTransaction);
+          client.close();
+        },
+      };
+    },
+  });
+  function assertSettledClose(): void {
+    expect(opened).toHaveLength(1);
+    expect(settledAtClose).toEqual([true]);
+    const client = opened[0];
+    expect(() => client.query('SELECT 1')).toThrow('Cannot use a closed database');
+  }
+  function closeLeakedHandles(): void {
+    for (const client of opened) client.close();
+  }
+  return { observed, assertSettledClose, closeLeakedHandles };
+}
+
 /** Inserts a row and claims its step, as a concurrent batch would, after `delay` turns. */
 async function claimNewRow(id: string, delay: number): Promise<void> {
   for (let turn = 0; turn < delay; turn += 1) await Promise.resolve();
@@ -111,6 +151,70 @@ async function claimNewRow(id: string, delay: number): Promise<void> {
 }
 
 describe('the claims observation', () => {
+  it('settles and closes its one owned connection after a successful claim read', async () => {
+    const tracked = createTrackedClaimObserver();
+    try {
+      expect((await tracked.observed.observeProject('project', LEGACY)).kind).toBe('observed');
+      tracked.assertSettledClose();
+    } finally {
+      tracked.closeLeakedHandles();
+    }
+  });
+
+  it('settles and closes its one owned connection after not-found and modeled refusal', async () => {
+    const absent = createTrackedClaimObserver();
+    try {
+      expect(await absent.observed.observeProject('nowhere', LEGACY)).toEqual({
+        kind: 'not_found',
+      });
+      absent.assertSettledClose();
+    } finally {
+      absent.closeLeakedHandles();
+    }
+    db.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+    const refused = createTrackedClaimObserver();
+    try {
+      expect(await refused.observed.observeProject('project', LEGACY)).toEqual({
+        kind: 'access_refused',
+        refusal: 'no_active_organization',
+      });
+      refused.assertSettledClose();
+    } finally {
+      refused.closeLeakedHandles();
+    }
+  });
+
+  it('rolls back and closes its one owned connection after a trusted-state read failure', async () => {
+    db.run('DROP TABLE organization_activation');
+    const tracked = createTrackedClaimObserver();
+    try {
+      const failure = await tracked.observed.observeProject('project', LEGACY).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      expect(String(failure)).toContain('organization activation marker is absent');
+      tracked.assertSettledClose();
+    } finally {
+      tracked.closeLeakedHandles();
+    }
+  });
+
+  it('closes an acquired owned connection when BEGIN fails before the read', async () => {
+    const tracked = createTrackedClaimObserver(true);
+    try {
+      const failure = await tracked.observed.observeProject('project', LEGACY).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      expect(String(failure)).toContain('injected BEGIN failure');
+      tracked.assertSettledClose();
+    } finally {
+      tracked.closeLeakedHandles();
+    }
+  });
+
   it('answers whatever a racing claim on a new row lands before or after', async () => {
     for (let delay = 0; delay < 40; delay += 1) {
       const reading = service.claimsWithin('project', LEGACY).then(
