@@ -529,6 +529,179 @@ Slice 3 gate fix, 2026-10-24: the h4claw gate on 9bb246710 failed `wbs-core:test
 port re-exports it. After the move the audit file passes 15 of 15; typecheck wbs-domain, wbs-core,
 wbs-store-sqlite, wbs-store-memory, wbs-be-01 and lint wbs-domain, wbs-core pass.
 
+### Slices 4–7: claim chips, lease display, phone cards (fe-01), 2026-10-24
+
+Branch `feat/wbs-claim-display-chips` on `origin/main` at `76575e668` (slices 1 and 2 merged).
+Commands ran with `env -u CLAUDECODE` and `TZ=UTC` from `apps/wbs/fe-01`. Slice 3 (be-01
+heartbeat announcement, #693) is separate; nothing here touches be-01, gw-01 or contracts.
+
+**Plumbing.** The claims resource installed in slice 2 never reached the screen: the plan feed's
+delivery carried tree, steps, directory and markers only. `AppliedGenerations`,
+`PlanFeedDelivery` and `DeliveredPlan` gain `claims`; `nextDelivery` carries each claims
+generation once, as it does the others; `usePlanRead` returns the installed claims.
+
+| R5 fault (watched)                        | Observed                                                                                        |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| claims generation comparison dropped      | `carries each generation exactly once`: `expected { readAt: 1, … } to be null`                  |
+| delivered store ignores a claims delivery | model run fails after 1 run: `a new snapshot exactly when something changed`, teardown `claims` |
+
+**Boundary.** `httpProjectApi.readClaims` now refuses a read with two claims on one work item and
+step, or a delegated claim whose parent it does not list (`checkClaimsRead`): either is a
+malformed answer (a claims read is one observation and a release cascades to delegated claims),
+and refused there it shows as the claims notice (C12) instead of a chip naming nobody.
+
+| R5 fault (watched)      | Observed                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| duplicate check removed | `refuses a claims read with two claims on one step` resolved                    |
+| parent check removed    | `refuses a claims read whose delegated claim names an unlisted parent` resolved |
+
+**4.1** `claim-chip.tsx` (`ClaimChip`, `ClaimLine`, `claimSentence`, `CLAIM_SLOT_PX`),
+`use-plan-claims.ts` (`indexClaims`, `usePlanClaims`), the folded cell's claim slot after the
+assignee's, the unfolded `by` chip after the picker, the folded step card's claim line. The chip is
+`role="img"` named by the whole sentence ("Claimed by codex since 24 Oct 10:42, run r-7, under
+claire's claim on 010; lease 14 min left"), not focusable, no action; bordered with a 3px hold
+edge in a new `--claim-ink` violet (light and dark tokens), so it differs from the assignee by
+shape. The instant prints in the project's zone (`zonedMoment`) and is left out on a read
+without a zone. Six cases in `plan-claims.test.tsx` over `testing/claims-fixture.ts`.
+
+| R5 fault (watched)                     | Observed                                                                                                                   |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| slot reserved whatever `anyClaim` says | `reserves no claim slot …` and `leaves an unclaimed plan exactly as it was` fail: `expected <span …(3)></span> to be null` |
+| chip's `aria-label` dropped            | `names the claim in full …` and the 5.1 delegated case: `Unable to find role="img" and name "Claimed by codex …"`          |
+
+**4.2** A claim whose row or step the installed tree lacks is skipped in `indexClaims` (C11) and
+starts no ticker; the case draws dana's chip and nothing for three absent claims.
+
+| R5 fault (watched)                       | Observed                                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| throwing row lookup (`no row w-not-yet`) | `draws nothing for a claim on a row or step the tree lacks …`: no rows, the table replaced by its fault |
+| row skip removed                         | same case: `expected 1 to be +0` (the absent claim's lease ran the ticker)                              |
+| step skip removed                        | same case: `expected 1 to be +0`                                                                        |
+
+**5.1** The subtree chip sits absolutely after the name, before the notes marker; the Name
+cell's box keeps 82px (103px beside the notes marker) on its right only while the row holds one
+(`[data-subtree-claim]` in `styles.css`), so unclaimed names wrap as before.
+
+| R5 fault (watched)                      | Observed                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| leaf inherits its parent's subtree chip | `sits in its own row’s Name cell …`: `expected [ 'CL14m' ] to deeply equal []`; collapsed case: `[ 'CL14m', 'CO' ]` |
+
+**6.1** `claim-lease-view.ts` (`leaseViewOf`, `leaseChipText`, `leaseCardWords`), nine cases in
+`claim-lease-view.test.ts` (node tier, listed in `vitest.node-suites.json`) including a
+fast-check property (seed 20261024, 200 runs) that the faked wall clock never changes the answer.
+
+| R5 fault (watched)                  | Observed                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| `Date.now()` for the server instant | 7 of 9 fail; the clock-ahead case on `expected 'releasing' to be '14m'`         |
+| `<` for `<=` at the lease end       | `reads releasing at exactly the lease end`: `{ kind: 'in_force', minutes: +0 }` |
+
+**6.2** `lease-clock.ts`: one `LeaseClock` store per table (`useLeaseClock`), ticked by
+`useLeaseTicker` every 15 s only while a drawn lease is in force and the page is visible; chips
+read it through `useSyncExternalStore`, carried in each `DrawnClaim`, so a tick re-renders the
+chips and no row. Three cases with fake `setInterval`, `clearInterval` and `performance`
+(`Date` stays real: faking it kept the plan from drawing).
+
+| R5 fault (watched)               | Observed                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| a timer per chip                 | the three ticker cases: `expected 6 to be 1`, `expected 3 to be 1`, `expected 2 to be +0` |
+| `running` gate removed           | `runs no timer while no drawn claim holds a lease in force`: `expected 1 to be +0`        |
+| revoked lease counted as running | same case: `expected 1 to be +0`                                                          |
+| visibility ignored               | `stops the ticker while the page is hidden …`: `expected 1 to be +0`                      |
+| tick reads no clock              | `… counts down on it`: `expected '✕CO14m' to contain '12m'`                               |
+
+**7.1** Phone cards draw the step chip right after the step's assignee and the subtree chip in
+the header, at a tap size (12px) beside the cards' 14px words; two cases in `plan-cards.test.tsx`.
+
+| R5 fault (watched)   | Observed                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| step chip not read   | `draws a step’s chip beside its assignee …`: `expected [] to deeply equal [ 'CO14m' ]`           |
+| header chip not read | `draws a subtree claim’s chip in its card’s header …`: `expected [] to deeply equal [ 'CL14m' ]` |
+
+Deviations:
+
+- The green for each slice was written before its test file, as in slice 2; the weight of each
+  case rests on the watched faults above, not on a red before the green.
+- The ticker is a store carried in `DrawnClaim`, not a React context: a provider around the
+  viewport re-indented about a thousand lines of `wbs-table.tsx`.
+- `CLAIM_SLOT_PX` is 30, not the narrower slot the design imagined: `WW` is a 27px chip at 10px
+  bold (Chromium, 2026-10-24). In a claimed column the folded trio box shrinks to about 18px. A
+  trio beside a drawn result is dropped whole to the card (`watchTrioFit`), but a box with no
+  result has no such yield, and its `o/r/p` placeholder read `o.`; the review round below drops
+  that placeholder in claimed columns. Pixel budget per design Risks.
+- By-eye review used a scratch Vite page (not committed) that draws the real table over
+  `testing/claims-fixture.ts`, not the dev stack.
+
+By eye (2026-10-24, Chromium 1440×900 and 390×844 at 2x, light and dark; screenshots kept outside
+the repo): folded chips line up on the figures' baseline with the figures still in one column;
+the subtree chip sits on the name's first line left of the notes marker; the unfolded `CO 14m`
+counted down to `13m` and `EV <1m` turned to a dashed, muted `EV releasing` 31 s later; the card
+and the instant fact card read the full sentence; phone chips sit right after the assignee and in
+the header. Seen and left: on a phone a long assignee name truncates beside the chip. (The
+unfolded `by` cell squeezed an assumed name to `(…` beside a releasing chip; the review round
+below fixed it.)
+
+Results (fresh, 2026-10-24):
+
+- `nx run wbs-fe-01:typecheck` (with `typecheck:module`, `--skip-nx-cache`) succeeded.
+- eslint on the 26 changed TypeScript files: exit 0; Prettier check on every changed file: clean.
+- vitest over `src/components/wbs`, `src/components/board`, `src/modules`, `src/lib`,
+  `src/testing` and `src/runtime`, serial: 173 files, 3684 pass.
+- `apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`: exit
+  0 (the published `bunx twilight-burokrat` refuses under Bun 1.4.4: `toolkit was built with
+another Bun: 1.4.2 != 1.4.4`).
+- `openspec validate --all --json`: 278 of 278.
+
+Not run locally: the full fe-01 suite, the Auckland zoned run, e2e and pixels (CI carries them;
+laptop RAM). No e2e spec names claims or counts claim marks, and an unclaimed plan adds no
+element, so no pixels baseline is expected to move.
+
+**Review round (Fable, PR #704 at `91ab8593f`, no S1).**
+
+- S2-1 **Merge order: #704 lands after #693.** Until be-01 publishes `claims_changed` on a
+  heartbeat (#693), nothing rereads claims when a lease is renewed, so a healthy heartbeating
+  agent's chip counts down to a false `releasing` until some tree change rereads them. New case
+  for the scenario "A renewal moves the display": a chip at `lease 3 min left` reads `lease 14
+min left` after the stream's claims announcement and its covering claims read.
+- S2-2 The unfolded `by` cell's chip moved out of the picker's flex row onto a line of its own
+  under it, so the row above is exactly the unclaimed cell's. Chromium, 1440×900, after 31 s:
+  `search (Vad…` on the first line (the same ellipsis an unclaimed long assumed name has, 43 of
+  121px shown) and `EV releasing` under it, no `(…`; `CO 13m` under `ada ×`. A claimed row is
+  one chip-line taller while the step is unfolded.
+- S2-3 A folded column that keeps the claim slot draws no `o/r/p` placeholder (Chromium: the
+  `030` boxes of claimed Dev and QA read `null`); an unclaimed column keeps it.
+- S3:
+  - A read `checkClaimsRead` refuses, driven through the table: the claims notice, no plan
+    stale alert, no chip, no fault.
+  - `parentOf`'s throw names the boundary that makes it unreachable, with a unit negative on
+    `indexClaims`.
+  - The `columnWidths()` assertion, which could not fail (no claim reaches `<col>`), is gone;
+    the unclaimed case now also asserts no claimed `by` line and the `o/r/p` placeholder.
+  - The ticker now runs until the latest lease end among claims drawn on screen: rows the
+    collapse and filter leave (`shownRows`), step columns not hidden. The tick that reaches it is
+    the last, so the last chip turns to releasing and no timer remains.
+  - No timer remains after the table unmounts.
+  - The phone header's subtree chip clips (`overflow-hidden`) rather than pushing past a long
+    priority.
+- Left as notes, unchanged: tick granularity, the per-read row rebuild, the `subtree` key.
+
+| R5 fault (watched)                           | Observed                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| plan feed `onClaims` invalidates nothing     | `moves the chip to the renewed minutes …`: aria-label still `lease 3 min left`             |
+| by-cell chip back inside the picker's row    | `puts a claimed by cell’s chip on its own line …`: `expected 'flex' not to be 'flex'`      |
+| `o/r/p` placeholder kept in a claimed column | `drops the o/r/p placeholder in a claimed column`: `expected 'o/r/p' to be null`           |
+| `checkClaimsRead` duplicate check removed    | `shows a read its boundary refuses as the claims notice …`: `expected null not to be null` |
+| `parentOf` throw never taken                 | `refuses to index a delegated claim …`: `expected [Function] to throw an error`            |
+| lease deadline counts rows off screen        | `runs no timer for a lease drawn on no row on screen`: `expected 1 to be +0`               |
+| ticker never stops at the deadline           | `stops ticking once the last drawn lease has ended`: `expected 1 to be +0`                 |
+| ticker cleanup does not clear its timer      | `leaves no timer behind once the plan unmounts`: `expected 1 to be +0`                     |
+
+Screenshots re-shot: `desktop-light.png`, `desktop-light-right.png`,
+`desktop-{light,dark}-unfolded-after-31s.png`.
+
+Results after the round (fresh, 2026-10-24): `nx run wbs-fe-01:typecheck --skip-nx-cache`
+succeeded; eslint on the changed files exit 0; vitest over the same six trees, serial: 173 files,
+3692 pass (`plan-claims.test.tsx` 21).
+
 ### Slice 8: claim history read (be-01), 2026-10-24
 
 Branch `feat/wbs-claim-history` on `origin/main` at `e763aa1a3` (slices 1 and 2 merged as

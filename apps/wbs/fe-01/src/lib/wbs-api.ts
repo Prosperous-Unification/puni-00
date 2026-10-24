@@ -1587,6 +1587,37 @@ export interface ClaimsRead {
 }
 
 /**
+ * Refuses a claims read that does not hold together: two claims on one step or
+ * one subtree, or a delegated claim whose parent the read does not list. A
+ * claims read is one observation and be-01 releases a delegated claim with its
+ * parent (`wbs-team-claims` D8), so either is a malformed answer. Thrown here,
+ * at the read's boundary, it fails the claims resource and shows as its notice
+ * (C12) rather than as a chip that names nobody.
+ *
+ * @throws when two claims share a work item and step, or a parent is missing.
+ */
+export function checkClaimsRead(read: ClaimsRead): ClaimsRead {
+  const ids = new Set(read.claims.map((claim) => claim.claimId));
+  const places = new Set<string>();
+  for (const claim of read.claims) {
+    const place = `${claim.workItemId}/${claim.stepId ?? 'subtree'}`;
+    // Proof: this check removed, `refuses a claims read with two claims on one
+    // step` resolved instead of rejecting, and the table's `shows a read its
+    // boundary refuses as the claims notice` drew no notice; watched 2026-10-24.
+    if (places.has(place)) throw new Error(`claims read holds two claims on ${place}`);
+    places.add(place);
+    // Proof: this check removed, `refuses a claims read whose delegated claim
+    // names an unlisted parent` resolved instead of rejecting; watched 2026-10-24.
+    if (claim.parentClaimId !== null && !ids.has(claim.parentClaimId)) {
+      throw new Error(
+        `claim ${claim.claimId} names parent ${claim.parentClaimId}, not in its read`,
+      );
+    }
+  }
+  return read;
+}
+
+/**
  * A marker as a client asks for it, which is not the same shape as one that
  * exists.
  *
@@ -2889,12 +2920,14 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
       ).markers;
     },
     async readClaims(projectId) {
-      return jsonBody(
-        readProjectClaimsShape,
-        await client.getApiProjectsByIdClaims({
-          params: { id: projectId },
-          headers: auth(token),
-        }),
+      return checkClaimsRead(
+        jsonBody(
+          readProjectClaimsShape,
+          await client.getApiProjectsByIdClaims({
+            params: { id: projectId },
+            headers: auth(token),
+          }),
+        ),
       );
     },
     async createCalendarMarker(projectId, marker) {

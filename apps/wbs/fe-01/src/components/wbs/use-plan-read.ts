@@ -440,9 +440,16 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
    * array until a new one arrives, so `GanttPanel`'s memo on it holds.
    */
   const markers = delivered.markers;
+  /**
+   * The newest installed claims read, or null before one installs (C12): the
+   * chips' source, its own resource beside the tree, so a claim and its row can
+   * disagree for one read (C11).
+   */
+  const claims = delivered.claims;
   return {
     plan: project.plan,
     markers,
+    claims,
     activeProject,
     workItems,
     stepNodes,
