@@ -7442,3 +7442,30 @@ Real source/built kernel identity and refusal assertions remain in place.
 CI scheduling limit. Full workspace CI still has unresolved release-configuration
 and global cleanup timeout observations, and its 90-minute capacity exhaustion
 needs the separately reviewed partition. No final CI/host-gate success is claimed.
+
+## Combined main and participant checkpoint f860
+
+Checkpoint `f860fada630653ac9de4c46f76bcd334c5453be8` contains independently
+reviewed main `c94b2ce`, the participant groundwork through original `617cae4`,
+and the reviewed CI partition, release-configuration test and MCP fixture fixes.
+The groundwork changed blobs match their reviewed source after the main merge.
+
+Fresh combined checks passed: 85 main/claim/import/realtime tests with 3,328
+assertions in 20.28s; 50 participant metadata/process-descriptor/HTTP/inventory/
+listener/record tests with 110 assertions in 13.17s; and the genuine prepared
+store lifetime test with 225 assertions in 81.38s. The total is 136 tests and
+3,663 assertions. Configured uncached typechecks completed all 12 tasks
+(10 requested projects and two dependencies) in 69s. The
+[checkpoint receipt](evidence/integration-f860.json) pins the private log hashes.
+
+The CI partition and bounded release-configuration/MCP repairs have independent
+source review and focused evidence in the workspace-gate-time-budget change and
+`verify-ci-bun144.md`. Their hosted execution remains unverified. The historical
+unnamed hook timeout is not attributed to a particular callback; Bun reports
+only beforeEach/afterEach, and local scratch cleanup did not reproduce it.
+
+The product process observer and complete restart coordinator remain outside
+this checkpoint. Real image/kernel acceptance, the network lifecycle experiment,
+final canonical host gate, final green CI and live activation/deployment remain
+open. The full factory replay above remains a separate checkpoint result; it is
+not counted in these focused totals.
