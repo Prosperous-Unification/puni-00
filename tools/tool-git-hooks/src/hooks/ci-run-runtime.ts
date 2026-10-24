@@ -40,6 +40,39 @@ async function runNx(repository: string, args: string[]): Promise<void> {
   if (status !== 0) throw new CommandFailure(status);
 }
 
+/** Schedules only the reviewed remote execution exception after logical owner validation. */
+async function runRemoteLeaf(
+  repository: string,
+  head: string,
+  leaf: 'model' | 'rest',
+  mode: string,
+): Promise<void> {
+  if (leaf === 'rest')
+    await runNx(repository, [
+      'run-many',
+      '-t',
+      ...(mode === 'full' ? ['lint'] : []),
+      'typecheck',
+      'build',
+      '-p',
+      'tool-remote-scripts',
+      '--parallel=2',
+      '--output-style=stream',
+    ]);
+  // Proof: omitting or duplicating this dispatch failed the exact-one-leaf production CLI test.
+  // Leaf targets are noncached and retain explicit canonical inputs/env and dependency builds.
+  // Only rest owns test:caddy; neither leaf depends on the canonical unsplit test target.
+  await runNx(repository, [
+    'run',
+    `tool-remote-scripts:test:ci:${leaf}`,
+    `--head=${head}`,
+    '--skip-nx-cache',
+    // Proof: dropping this bound failed actual model/rest dispatch; nx.json otherwise allows four.
+    '--parallel=2',
+    '--output-style=stream',
+  ]);
+}
+
 /**
  * Recomputes the immutable plan in the execution checkout before narrowing work. Runtime target
  * selection and independent lint use their respective inputs; the canonical full targets remain
@@ -53,10 +86,23 @@ export async function runRuntime(
   mode = 'affected',
 ): Promise<void> {
   // Proof: removing this guard accepted an unknown partition in the production CLI regression.
-  if (!['workspace', 'backend', 'remote', 'frontend', 'twilight'].includes(partition))
+  if (
+    ![
+      'workspace',
+      'backend',
+      'remote',
+      'remote-rest',
+      'remote-model',
+      'frontend',
+      'twilight',
+    ].includes(partition)
+  )
     throw new Error('Unknown runtime partition');
   // Proof: removing this refusal made the unknown-mode CLI case execute affected work and fail.
   if (mode !== 'affected' && mode !== 'full') throw new Error('Unknown runtime mode');
+  const remoteLeaf =
+    partition === 'remote-model' ? 'model' : partition === 'remote-rest' ? 'rest' : undefined;
+  const owner = remoteLeaf === undefined ? partition : 'remote';
   if (mode === 'full') {
     if (partition === 'twilight') throw new Error('Twilight retains its existing full runner');
     const checkedOut = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
@@ -89,7 +135,7 @@ export async function runRuntime(
       names.filter((name) => name !== 'twilight-burokrat' && name !== 'twilight-dash'),
     );
     // Boundary: the initial partition allowlist and full-mode Twilight refusal restrict this key.
-    const projects = owned[partition as RuntimePartition];
+    const projects = owned[owner as RuntimePartition];
     process.stdout.write(
       `${JSON.stringify({ mode, head, partition, projects, targets: ['test', 'lint', 'typecheck', 'build'] })}\n`,
     );
@@ -100,6 +146,10 @@ export async function runRuntime(
       process.stdout.write(
         `${JSON.stringify({ partition, omitted: ['test', 'lint', 'typecheck', 'build'], reason: 'Full inventory has no residual projects' })}\n`,
       );
+      return;
+    }
+    if (remoteLeaf !== undefined) {
+      await runRemoteLeaf(repository, head, remoteLeaf, mode);
       return;
     }
     await runNx(repository, [
@@ -123,11 +173,15 @@ export async function runRuntime(
     partition === 'twilight'
       ? plan.twilightProjects
       : // Boundary: the initial partition allowlist restricts every remaining key.
-        plan.partitions[partition as RuntimePartition];
+        plan.partitions[owner as RuntimePartition];
   // Proof: removing this guard made the unexplained Twilight invocation regression falsely succeed.
   if (partition !== 'workspace' && projects.length === 0)
     throw new Error('Selected runtime partition has no projects');
   process.stdout.write(`${JSON.stringify({ selection: plan, partition })}\n`);
+  if (remoteLeaf !== undefined) {
+    await runRemoteLeaf(repository, head, remoteLeaf, mode);
+    return;
+  }
   const selected = plan.tests.filter(
     (test) => test.mode === 'files' && projects.includes(test.project),
   );
@@ -207,7 +261,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {

@@ -1,0 +1,243 @@
+import { accessSync, constants, lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util';
+
+const PROJECT = 'tools/tool-remote-scripts';
+const MODEL = 'src/lib/dependency-product-process-model.test.ts';
+const DISCOVERY = [
+  'src',
+  'test/edge-init.test.ts',
+  'test/solver-drain-transport.test.ts',
+  'test/solver-drain-fixture.test.ts',
+  'test/source-exclusion-transport.test.ts',
+  'test/source-exclusion-topology.test.ts',
+  'test/source-exclusion-native.test.ts',
+  'test/fixture-failure.test.ts',
+];
+const OPTIONS = ['--preload', '../test/scratch/preload.ts', '--timeout=10000'];
+
+type Leaf = 'model' | 'rest';
+
+class TestFailure extends Error {
+  constructor(readonly status: number) {
+    super(`Remote test leaf exited ${String(status)}`);
+  }
+}
+
+function requireRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error('Remote execution requires object configuration');
+  return value as Record<string, unknown>; // Boundary: the object/null/array guard establishes this JSON record.
+}
+
+function readConfiguration(repository: string, path: string): Record<string, unknown> {
+  const value: unknown = JSON.parse(readFileSync(join(repository, path), 'utf8'));
+  return requireRecord(value);
+}
+
+/** Refuses missing, unreadable, nonregular or aliased required files before Bun filter fallback. */
+function requireFile(path: string): void {
+  // Proof: bypassing presence/alias/readability guards made each-leaf file refusal tests fail.
+  const status = lstatSync(path);
+  if (!status.isFile() || realpathSync(path) !== path)
+    throw new Error('Remote execution requires canonical regular files');
+  accessSync(path, constants.R_OK);
+}
+
+/** Absence is the only supported optional discovery configuration; permission failures propagate. */
+function refuseConfiguration(path: string): void {
+  // Proof: omitting configuration refusal let the real Bun bunfig override negative succeed.
+  try {
+    lstatSync(path);
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return;
+    throw cause;
+  }
+  throw new Error('Remote execution does not support Bun discovery configuration overrides');
+}
+
+/**
+ * Validates the reviewed canonical contract before changing only its fixed whole-file ownership.
+ * Positional `src` remains Bun's substring filter; the literal no-dot ignore is root-relative.
+ * Nx executes these noncached leaf targets with explicit canonical inputs/env and its ordinary
+ * executor environment (including PATH, FORCE_COLOR, dotenv and task metadata).
+ */
+function executionArguments(repository: string, leaf: Leaf): string[] {
+  const project = readConfiguration(repository, `${PROJECT}/project.json`);
+  const targets = requireRecord(project['targets']);
+  const canonical = requireRecord(targets['test']);
+  const options = requireRecord(canonical['options']);
+  const expectedCommand = ['bun', 'test', ...DISCOVERY, ...OPTIONS].join(' ');
+  // Proof: omitting command/dependency/target-shape refusals admitted their actual-runner negatives.
+  if (
+    !isDeepStrictEqual(Object.keys(canonical).sort(), [
+      'dependsOn',
+      'executor',
+      'inputs',
+      'options',
+    ]) ||
+    canonical['executor'] !== 'nx:run-commands' ||
+    !isDeepStrictEqual(options, { command: expectedCommand, cwd: PROJECT }) ||
+    !isDeepStrictEqual(canonical['dependsOn'], ['test:caddy']) ||
+    !Array.isArray(canonical['inputs']) ||
+    canonical['inputs'].length < 2 ||
+    !canonical['inputs'].every((input: unknown) => typeof input === 'string') ||
+    !canonical['inputs'].includes('default') ||
+    !canonical['inputs'].includes('^production')
+  )
+    throw new Error('Unsupported canonical remote test contract');
+  const nx = readConfiguration(repository, 'nx.json');
+  const targetDefaults = requireRecord(nx['targetDefaults']);
+  // Proof: dropping this guard admitted a wildcard leaf default in the actual-runner override test.
+  if (
+    Object.keys(targetDefaults).some(
+      (name) => name === 'nx:run-commands' || name.startsWith('test:ci:') || name.includes('*'),
+    )
+  )
+    throw new Error('Unsupported remote leaf target defaults');
+  const defaults = requireRecord(targetDefaults['test']);
+  const environment = { CLAUDECODE: '0', AGENT: '0' };
+  // Proof: omitting default-env validation admitted changed test defaults in the real child test.
+  if (
+    !isDeepStrictEqual(defaults, {
+      cache: true,
+      inputs: ['default', '^production'],
+      outputs: ['{projectRoot}/coverage'],
+      options: { env: environment },
+    })
+  )
+    throw new Error('Unsupported canonical remote test environment');
+  for (const name of ['model', 'rest'] as const) {
+    const target = requireRecord(targets[`test:ci:${name}`]);
+    // Proof: removing this check admitted missing inputs and a changed leaf env in actual-runner tests.
+    if (
+      !isDeepStrictEqual(target, {
+        executor: 'nx:run-commands',
+        cache: false,
+        inputs: canonical['inputs'],
+        options: {
+          command: `bun run tools/tool-remote-scripts/test/ci-leaf.ts . ${name}`,
+          cwd: '.',
+          env: environment,
+        },
+        dependsOn: ['^build', ...(name === 'rest' ? ['test:caddy'] : [])],
+      })
+    )
+      throw new Error('Unsupported remote leaf inputs, environment or dependencies');
+  }
+  // Proof: omitting this check let a hostile ambient env execute tiny tests before refusal.
+  if (process.env['CLAUDECODE'] !== '0' || process.env['AGENT'] !== '0')
+    throw new Error('Remote leaf did not receive the canonical test environment');
+  // Proof: omitting this boundary admitted BUN_TEST_TIMEOUT in the actual selection-env negative.
+  for (const name of Object.keys(process.env))
+    if (name === 'BUN_OPTIONS' || name.startsWith('BUN_TEST_'))
+      throw new Error('Unsupported Bun test selection environment');
+  for (const path of [
+    join(repository, 'bunfig.toml'),
+    join(repository, PROJECT, 'bunfig.toml'),
+    join(homedir(), '.bunfig.toml'),
+  ])
+    refuseConfiguration(path);
+  // Proof: removing the pin check ran actual tiny tests against a substituted 0.0.0 pin.
+  if (readFileSync(join(repository, '.bun-version'), 'utf8').trim() !== Bun.version)
+    throw new Error('Remote leaf requires the pinned Bun version');
+  for (const path of [MODEL, ...DISCOVERY.slice(1)]) requireFile(join(repository, PROJECT, path));
+  requireFile(join(repository, 'tools/test/scratch/preload.ts'));
+  // Proof: dotted/widened ignores and a dropped discovery token broke real canonical union/disjointness.
+  return leaf === 'model'
+    ? ['test', `./${MODEL}`, ...OPTIONS]
+    : ['test', ...DISCOVERY, ...OPTIONS, `--path-ignore-patterns=${MODEL}`];
+}
+
+/**
+ * Executes one fresh CI leaf, preserving child status and streaming logs with only a bounded
+ * summary tail retained in memory. A successful child must have actually run nonempty tests.
+ */
+export async function runRemoteTests(
+  repositoryPath: string,
+  leafName: string,
+  head: string,
+): Promise<void> {
+  const repository = resolve(repositoryPath);
+  // Proof: omitting the leaf allowlist admitted unknown as the complementary actual Bun execution.
+  if (leafName !== 'model' && leafName !== 'rest') throw new Error('Unknown remote test leaf');
+  const checkedOut = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
+    cwd: repository,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  // Proof: dropping HEAD equality executed real tiny tests for the wrong immutable head.
+  if (
+    !/^[a-f0-9]{40}$/.test(head) ||
+    checkedOut.exitCode !== 0 ||
+    checkedOut.stdout.toString().trim() !== head
+  )
+    throw new Error('Remote leaf checkout does not match the immutable head');
+  const args = executionArguments(repository, leafName);
+  const started = performance.now();
+  const child = Bun.spawn([process.execPath, ...args], {
+    cwd: join(repository, PROJECT),
+    env: process.env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  let tail = '';
+  async function stream(
+    source: ReadableStream<Uint8Array>,
+    destination: NodeJS.WriteStream,
+  ): Promise<void> {
+    const decoder = new TextDecoder();
+    for await (const frame of source) {
+      const chunk = decoder.decode(frame, { stream: true });
+      destination.write(chunk);
+      if (destination === process.stderr) tail = (tail + chunk).slice(-16384);
+    }
+    const final = decoder.decode();
+    destination.write(final);
+    if (destination === process.stderr) tail = (tail + final).slice(-16384);
+  }
+  const [status] = await Promise.all([
+    child.exited,
+    stream(child.stdout, process.stdout),
+    stream(child.stderr, process.stderr),
+  ]);
+  // Proof: omitting status propagation changed the actual child's exit 23 to 1.
+  if (status !== 0) throw new TestFailure(status);
+  const summary = stripVTControlCharacters(tail);
+  const passes = /^\s*(\d+) pass\b/m.exec(summary);
+  const count = /Ran (\d+) tests? across (\d+) files?\./.exec(summary);
+  // Proof: dropping the positive-pass check accepted an actual empty Bun file as fresh success.
+  if (
+    passes === null ||
+    Number(passes[1]) === 0 ||
+    !/^\s*0 fail\b/m.test(summary) ||
+    count === null ||
+    (leafName === 'model' && Number(count[2]) !== 1)
+  )
+    throw new Error('Remote leaf produced no successful nonempty execution receipt');
+  process.stdout.write(
+    `${JSON.stringify({ head, leaf: leafName, fresh: true, tests: Number(count[1]), files: Number(count[2]), elapsedMs: Math.round(performance.now() - started), exitCode: status })}\n`,
+  );
+}
+
+if (import.meta.main) {
+  const args = process.argv.slice(2);
+  const repository = args.at(0);
+  const leaf = args.at(1);
+  const headFlag = args.at(2);
+  if (
+    process.argv.length !== 5 ||
+    repository === undefined ||
+    leaf === undefined ||
+    headFlag?.startsWith('--head=') !== true
+  )
+    throw new Error('Usage: ci-leaf.ts <repository> <model|rest> --head=<sha>');
+  try {
+    await runRemoteTests(repository, leaf, headFlag.slice('--head='.length));
+  } catch (cause) {
+    if (!(cause instanceof TestFailure)) throw cause;
+    process.stderr.write(`${cause.message}\n`);
+    process.exitCode = cause.status;
+  }
+}

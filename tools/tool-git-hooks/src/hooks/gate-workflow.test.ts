@@ -20,7 +20,7 @@ interface Workflow {
   jobs?: Record<string, WorkflowJob>;
 }
 
-type JobResult = 'success' | 'failure' | 'cancelled' | 'skipped';
+type JobResult = 'success' | 'failure' | 'cancelled' | 'skipped' | 'unknown';
 
 interface GateNeeds {
   modeResult: JobResult | '';
@@ -34,6 +34,7 @@ interface GateNeeds {
   frontend: string;
   backendResult: JobResult | '';
   remoteResult: JobResult | '';
+  remoteModelResult: JobResult | '';
   frontendResult: JobResult | '';
   twilightResult: JobResult | '';
 }
@@ -80,6 +81,7 @@ const reduceGate = (needs: GateNeeds): number => {
       FRONTEND: needs.frontend,
       BACKEND_RESULT: needs.backendResult,
       REMOTE_RESULT: needs.remoteResult,
+      REMOTE_MODEL_RESULT: needs.remoteModelResult,
       FRONTEND_RESULT: needs.frontendResult,
       TWILIGHT_RESULT: needs.twilightResult,
     },
@@ -100,6 +102,7 @@ const green: GateNeeds = {
   frontend: 'run',
   backendResult: 'success',
   remoteResult: 'success',
+  remoteModelResult: 'success',
   frontendResult: 'success',
   twilightResult: 'success',
 };
@@ -120,6 +123,7 @@ describe('the CI gate check', () => {
       'gate_workspace',
       'gate_backend',
       'gate_remote',
+      'gate_remote_model',
       'gate_frontend',
       'gate_checks',
       'gate_twilight',
@@ -137,6 +141,7 @@ describe('the CI gate check', () => {
       FRONTEND: '${{ needs.gate_mode.outputs.frontend }}',
       BACKEND_RESULT: '${{ needs.gate_backend.result }}',
       REMOTE_RESULT: '${{ needs.gate_remote.result }}',
+      REMOTE_MODEL_RESULT: '${{ needs.gate_remote_model.result }}',
       FRONTEND_RESULT: '${{ needs.gate_frontend.result }}',
       TWILIGHT_RESULT: '${{ needs.gate_twilight.result }}',
     });
@@ -158,6 +163,7 @@ describe('the CI gate check', () => {
         frontend: 'skip',
         backendResult: 'skipped',
         remoteResult: 'skipped',
+        remoteModelResult: 'skipped',
         frontendResult: 'skipped',
         twilightResult: 'skipped',
       }),
@@ -185,6 +191,7 @@ describe('the CI gate check', () => {
       frontend: 'skip',
       backendResult: 'skipped',
       remoteResult: 'skipped',
+      remoteModelResult: 'skipped',
       frontendResult: 'skipped',
       twilightResult: 'skipped',
     };
@@ -195,6 +202,7 @@ describe('the CI gate check', () => {
       'checksResult',
       'backendResult',
       'remoteResult',
+      'remoteModelResult',
       'frontendResult',
       'twilightResult',
     ] as const) {
@@ -218,6 +226,7 @@ describe('the CI gate check', () => {
     for (const field of [
       'backendResult',
       'remoteResult',
+      'remoteModelResult',
       'frontendResult',
       'checksResult',
     ] as const)
@@ -228,7 +237,14 @@ describe('the CI gate check', () => {
       ['remote', 'remoteResult'],
       ['frontend', 'frontendResult'],
     ] as const) {
-      expect(reduceGate({ ...green, [selected]: 'skip', [outcome]: 'skipped' })).toBe(0);
+      expect(
+        reduceGate({
+          ...green,
+          [selected]: 'skip',
+          [outcome]: 'skipped',
+          ...(selected === 'remote' ? { remoteModelResult: 'skipped' as const } : {}),
+        }),
+      ).toBe(0);
       expect(reduceGate({ ...green, [selected]: 'skip', [outcome]: 'success' })).not.toBe(0);
       expect(reduceGate({ ...green, [selected]: 'run', [outcome]: 'skipped' })).not.toBe(0);
       expect(reduceGate({ ...green, [selected]: '' })).not.toBe(0);
@@ -509,4 +525,18 @@ describe('the validated CI selection step', () => {
       /nx (?:affected|run-many)|e2e|test:package|integration|tool-wiki-lint/,
     );
   });
+});
+
+test('remote aggregate refuses each failed, cancelled, missing, unknown or omitted execution leaf', () => {
+  for (const field of ['remoteResult', 'remoteModelResult'] as const) {
+    for (const outcome of ['failure', 'cancelled', 'skipped', '', 'unknown'] as const) {
+      expect(reduceGate({ ...green, [field]: outcome }), `${field}/${outcome}`).not.toBe(0);
+      expect(reduceGate({ ...green, mode: 'full', [field]: outcome })).not.toBe(0);
+    }
+  }
+  expect(
+    reduceGate({ ...green, remote: 'skip', remoteResult: 'skipped', remoteModelResult: 'skipped' }),
+  ).toBe(0);
+  expect(reduceGate({ ...green, remote: 'skip', remoteResult: 'skipped' })).not.toBe(0);
+  expect(reduceGate({ ...green, remote: 'skip', remoteModelResult: 'skipped' })).not.toBe(0);
 });

@@ -6,11 +6,11 @@ PR #535 run `38858776285` exhausted the former 60-minute workspace allowance aft
 
 ## Outcome
 
-Partition the cold workspace Nx gate by whole project: backend, remote scripts, frontend and the complement. Give each runtime job a 90-minute whole-job ceiling and a 75-minute Nx phase ceiling. Run every former non-Nx workspace check in a separate required 30-minute job, concurrently. Keep one validated source plan and a strict `gate` reducer so a skipped, failed, cancelled or absent required job cannot pass.
+Partition the cold workspace Nx gate by whole logical project: backend, remote scripts, frontend and the complement. The fixed remote execution exception in `ci-remote-capacity` runs its entire model wrapper and exact canonical complement in two independent jobs after validation, retaining one remote project owner. Give each runtime job a 90-minute whole-job ceiling and a 75-minute Nx phase ceiling. Run every former non-Nx workspace check in a separate required 30-minute job, concurrently. Keep one validated source plan and a strict `gate` reducer so a skipped, failed, cancelled or absent required job cannot pass.
 
 ## Non-goals
 
-No target, test file, dependency, native provision, assertion, retry, cache policy or parallelism change. The Twilight, docs, browser and canonical host gates keep their contracts. A configured budget is not proof of hosted capacity or a complete green verdict.
+Outside the explicit fixed remote execution exception, no target, test file, dependency, native provision, assertion, retry, cache policy or parallelism change. The exception retains complete test coverage and uses noncached CI-only leaves while canonical local/host targets remain unchanged. The Twilight, docs, browser and canonical host gates keep their contracts. A configured budget is not proof of hosted capacity or a complete green verdict.
 
 ## Constraints
 

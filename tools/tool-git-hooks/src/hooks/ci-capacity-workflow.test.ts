@@ -38,7 +38,6 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
   for (const [partition, title] of [
     ['workspace', 'Gate'],
     ['backend', 'Backend'],
-    ['remote', 'Remote'],
     ['frontend', 'Frontend'],
   ]) {
     const runtime = job(`gate_${partition}`);
@@ -71,7 +70,13 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
 });
 
 test('every runtime keeps exact checkout and native provisioning before Nx', () => {
-  const names = ['gate_workspace', 'gate_backend', 'gate_remote', 'gate_frontend'];
+  const names = [
+    'gate_workspace',
+    'gate_backend',
+    'gate_remote',
+    'gate_remote_model',
+    'gate_frontend',
+  ];
   const prefix = job(names[0]).steps?.slice(0, 7);
   expect(prefix).toHaveLength(7);
   for (const name of names) {
@@ -125,4 +130,32 @@ test('non-Nx checks retain their own finite budget and each required original co
   expect(step(checks, 'Compose files').run).toContain(
     '.services.caddy.networks | has("aivn-dev-net")',
   );
+});
+
+test('remote has exactly two independently required finite execution leaves under one selection bit', () => {
+  for (const [name, partition, title] of [
+    ['gate_remote', 'remote-rest', 'Remote'],
+    ['gate_remote_model', 'remote-model', 'Remote model'],
+  ]) {
+    const runtime = job(name);
+    expect(runtime.needs).toBe('gate_mode');
+    expect(runtime['timeout-minutes']).toBe(90);
+    expect(runtime.if).toBe(
+      "${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.remote == 'run' }}",
+    );
+    const execution = step(runtime, `${title} — test, lint, typecheck, build`);
+    expect(execution.run).toContain('timeout --signal=TERM --kill-after=30s 75m \\');
+    expect(execution.run).toContain(
+      `ci-run-runtime.ts ${partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
+    );
+    expect(execution.run).toContain('if [ "$GATE_BASE" != "$base" ]; then');
+    expect(execution.run).toContain('gate_status=$?');
+    expect(execution.run).toContain(`runtime phase start partition=${partition} head=%s utc=%s`);
+    expect(execution.run).toContain('exit "$gate_status"');
+    expect(execution.run).toContain('exit "$annotation_status"');
+    const upload = step(runtime, 'Upload gate log');
+    expect(upload.if).toBe("${{ always() && steps.nx_gate.outcome != 'skipped' }}");
+    expect(upload.with?.['name']).toBe(`nx-gate-log-${partition}-\${{ github.run_attempt }}`);
+    expect(upload.with?.['if-no-files-found']).toBe('error');
+  }
 });

@@ -135,6 +135,22 @@ On the loaded run these timed out at their own budget. They were raised by the r
   shim exiting 73 proved that the install hook must assert the removal exit code:
   the old hook passed with leftovers, while the asserted hook failed visibly.
 
+- Shared scratch preload global cleanup: inherited target allowance to explicit 30 s
+  (2026-10-24). Exact-head hosted run `40090762480` at `b2d87d487` passed 3334
+  remote tests before its start/return markers attributed the sole failure to
+  synchronous cleanup at 10400 ms under the inherited 10000 ms hook budget.
+  Thirty seconds follows the standard family, exceeds twice the failed allowance
+  and gives margin over the loaded observation; 15 s is below 1.5 times 10.4 s.
+  `tools/test/scratch/cleanup-budget.test.ts` copies the actual preload/remover,
+  injects 100 ms at its real removal boundary, proves physical cleanup across two
+  files under a 20 ms ordinary budget, and reproduces the hook failure with only
+  the allowance removed. Ordinary test deadlines and later-file hangs remain
+  enforced. A scaled explicit hook overrun still fails. These tiny controls are
+  not representative whole-tree idle measurements. Bun reports synchronous
+  hook overruns after return; the allowance cannot interrupt an OS syscall.
+  Removal's existing best-effort error policy and the 75/90-minute CI phase/job
+  limits remain unchanged. Evidence: `openspec/changes/ci-remote-capacity/verify.md`.
+
 ## Vitest (fe-01), WBS 080.16
 
 Vitest also ends a test at 5 seconds, and a hook at 10. The gate reached that on fe-01: a keyboard

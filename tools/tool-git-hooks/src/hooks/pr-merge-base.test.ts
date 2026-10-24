@@ -178,8 +178,15 @@ const runtimeSteps = [
   ['gate_workspace', 'Gate — test, lint, typecheck, build'],
   ['gate_backend', 'Backend — test, lint, typecheck, build'],
   ['gate_remote', 'Remote — test, lint, typecheck, build'],
+  ['gate_remote_model', 'Remote model — test, lint, typecheck, build'],
   ['gate_frontend', 'Frontend — test, lint, typecheck, build'],
 ] as const;
+function runtimePartition(job: string): string {
+  if (job === 'gate_remote') return 'remote-rest';
+  if (job === 'gate_remote_model') return 'remote-model';
+  return job.slice(5);
+}
+
 const workflow = Bun.YAML.parse(
   await Bun.file(join(ROOT, '.github/workflows/ci.yml')).text(),
 ) as Workflow;
@@ -333,7 +340,7 @@ describe('production workflow PR consumers', () => {
         if (valid) {
           expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
           expect(await execution.calls.text()).toContain(
-            `ci-run-runtime.ts ${job.startsWith('gate_') && job !== 'gate_twilight' ? job.slice(5) : 'twilight'} ${h.base} ${h.merge} .`,
+            `ci-run-runtime.ts ${runtimePartition(job)} ${h.base} ${h.merge} .`,
           );
         } else {
           expect(execution.invocation.exitCode).not.toBe(0);
@@ -357,8 +364,10 @@ describe('production workflow PR consumers', () => {
           const log = Bun.file(join(h.root, 'nx-gate.log'));
           expect(log.size).toBeGreaterThan(0);
           const phase = await log.text();
-          expect(phase).toContain(`runtime phase start partition=${job.slice(5)} head=${h.merge}`);
-          expect(phase).toContain(`runtime phase end partition=${job.slice(5)}`);
+          expect(phase).toContain(
+            `runtime phase start partition=${runtimePartition(job)} head=${h.merge}`,
+          );
+          expect(phase).toContain(`runtime phase end partition=${runtimePartition(job)}`);
           expect(phase).toContain(`exit=${fault.RUNTIME_STATUS === '7' ? '7' : '0'}`);
         }
       }

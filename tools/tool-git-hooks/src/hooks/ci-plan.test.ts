@@ -346,6 +346,46 @@ describe('production CI plan and execution', () => {
     );
   }, 20000);
 
+  test('fixed remote leaves retain one logical owner and explicit static/dependency execution', () => {
+    const candidate = history('modules/tool-remote-scripts/source.ts');
+    for (const mode of ['affected', 'full']) {
+      for (const part of ['remote-rest', 'remote-model']) {
+        const { invocation, calls } = invokeRuntime(candidate, part, '0', mode);
+        expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+        const commands = readFileSync(calls, 'utf8');
+        expect(
+          commands
+            .trim()
+            .split('\n')
+            .filter((line) => line.includes(':test:ci:')),
+        ).toHaveLength(1);
+        expect(commands).toContain(
+          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : 'model'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
+        );
+        expect(commands).not.toContain('-t test ');
+        if (part === 'remote-rest')
+          expect(commands).toContain(
+            `run-many -t ${mode === 'full' ? 'lint ' : ''}typecheck build -p tool-remote-scripts --parallel=2`,
+          );
+        else expect(commands).not.toContain('run-many');
+      }
+    }
+  }, 20000);
+
+  test('each fixed remote leaf rejects wrong head, unknown mode and an excluded plan', () => {
+    const candidate = history('modules/tool-remote-scripts/source.ts');
+    for (const part of ['remote-rest', 'remote-model']) {
+      expect(
+        invokeRuntime({ ...candidate, head: candidate.base }, part, '0', 'full').invocation
+          .exitCode,
+      ).not.toBe(0);
+      expect(invokeRuntime(candidate, part, '0', 'unknown').invocation.exitCode).not.toBe(0);
+      expect(invokeRuntime(history('modules/core/source.ts'), part).invocation.exitCode).not.toBe(
+        0,
+      );
+    }
+  }, 20000);
+
   test('full residual stays explicit when all configured projects are dedicated or Twilight', () => {
     const candidate = history('modules/core/source.ts');
     const selected = ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', 'twilight-burokrat'];
