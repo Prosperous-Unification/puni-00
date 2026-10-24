@@ -24,6 +24,7 @@ import {
   type HostObserver,
   observeNetworks,
   PrivateReceipts,
+  readInitDiagnostic,
   runInitAdoption,
   type SelectedTarget,
   type TargetKind,
@@ -53,6 +54,8 @@ interface FixtureFailure {
 }
 /**
  * Native fixture errors retain a finite stage and whitelisted code; arbitrary diagnostic bytes are represented only by SHA256.
+ * Public summaries retain the sanitized phase; {@link publishFixtureFault} alone reads the inner operation diagnostic.
+ * Proof: adding the inner lookup here changed public summaries and failed the private-record/public-summary regression.
  * Proof: accepting arbitrary refusal reasons or retaining raw diagnostics made the failure diagnostic regression fail.
  */
 export function describeFixtureFailure(stage: FixtureFailureStage, cause: unknown): FixtureFailure {
@@ -84,6 +87,20 @@ export function describeFixtureFailure(stage: FixtureFailureStage, cause: unknow
     'invariant-profile-source-invalid',
     'invariant-profile-value-invalid',
     'invariant-profile-invalid',
+    'invariant-context-invalid',
+    'invariant-phase-differs',
+    'network-roster-invalid',
+    'network-roster-differs',
+    'network-mode-differs',
+    'network-identity-differs',
+    'network-pins-missing',
+    'network-pin-differs',
+    'network-observation-unstable',
+    'candidate-network-active',
+    'candidate-not-inert',
+    'native-fixture-network-pin-invalid',
+    'native-fixture-fault-record-invalid',
+    'native-fixture-fault-record-publication-failed',
     'native-fixture-original-process-changed',
     'native-fixture-process-retained',
     'native-fixture-cgroup-retained',
@@ -178,15 +195,17 @@ export function requireFixtureOomRoster(
 }
 
 type FixtureDocker = (arguments_: readonly string[], timeout?: number) => Promise<string>;
-type FixtureFault =
-  | 'alias-drift'
-  | 'route-loss'
-  | 'public-probe-failed'
-  | 'restart-after-health'
-  | 'create-ack-lost'
-  | 'stop-ack-lost'
-  | 'rename-ack-lost'
-  | 'start-ack-lost';
+const FIXTURE_FAULTS = [
+  'alias-drift',
+  'route-loss',
+  'public-probe-failed',
+  'restart-after-health',
+  'create-ack-lost',
+  'stop-ack-lost',
+  'rename-ack-lost',
+  'start-ack-lost',
+] as const;
+type FixtureFault = (typeof FIXTURE_FAULTS)[number];
 interface FaultEvidence {
   injected: boolean;
   failure: unknown;
@@ -425,6 +444,80 @@ export function verifyFixtureFault(fault: FixtureFault, evidence: FaultEvidence)
         fingerprint({ pid: candidate.state['Pid'], startedAt: candidate.state['StartedAt'] }))
   )
     throw new InitRefusal('native-fixture-restart-fault-unproved');
+}
+
+type EffectObservation = string | { unrecognizedSha256: string };
+// Proof: unknown-effect passthrough exposed the private argv sentinel in the record-redaction regression.
+function describeFixtureEffect(effect: string, nonce: string): EffectObservation {
+  const parts = effect.split(':');
+  const id = (value: string | undefined) => value !== undefined && /^[a-f0-9]{64}$/.test(value);
+  const names = ['registry', 'caddy'].flatMap((kind) =>
+    ['', '-fixture', '-original'].map((suffix) => `wbs-init-${nonce}-${kind}${suffix}`),
+  );
+  const known =
+    (parts.length === 2 && parts[0] === 'create' && ['registry', 'caddy'].includes(parts[1])) ||
+    (parts.length === 2 &&
+      ['stop', 'start', 'pause', 'restart', 'remove'].includes(parts[0]) &&
+      id(parts[1])) ||
+    (parts.length === 3 && parts[0] === 'rename' && id(parts[1]) && names.includes(parts[2])) ||
+    (parts.length === 3 &&
+      parts[0] === 'disconnect' &&
+      [0, 1, 2].some((index) => parts[1] === `wbs-init-${nonce}-net-${String(index)}`) &&
+      id(parts[2]));
+  return known ? effect : { unrecognizedSha256: createHash('sha256').update(effect).digest('hex') };
+}
+/** Publishes a bounded private observation before the unchanged oracle can replace its failure.
+ * Only fixed effect syntax and controlled refusal codes are retained; unknown strings and causes become hashes.
+ * Proof: omission, overwrite, public mode, inner-read removal and each record-boundary guard failed selected private-file/native-oracle regressions.
+ * Publication failure is a fixed refusal and leaves cleanup to the surrounding owned fixture scope.
+ */
+export async function publishFixtureFault(
+  root: string,
+  fault: FixtureFault,
+  evidence: Pick<FaultEvidence, 'injected' | 'failure' | 'effects' | 'nonce'> & {
+    outcome: 'returned' | 'refused';
+  },
+): Promise<void> {
+  const sequence: unknown = evidence.effects;
+  if (
+    !FIXTURE_FAULTS.some((expected) => expected === fault) ||
+    !/^[a-z0-9-]{1,64}$/.test(evidence.nonce) ||
+    !Array.isArray(sequence) ||
+    evidence.effects.length > 64 ||
+    evidence.effects.some((effect) => typeof effect !== 'string') ||
+    typeof evidence.injected !== 'boolean' ||
+    !['returned', 'refused'].includes(evidence.outcome)
+  )
+    throw new InitRefusal('native-fixture-fault-record-invalid');
+  const effects = evidence.effects.map((effect) => describeFixtureEffect(effect, evidence.nonce));
+  const inner = readInitDiagnostic(evidence.failure);
+  const publication = {
+    format: 'edge-init-native-fault-observation',
+    version: 1,
+    nonce: evidence.nonce,
+    stage: 'before-fault-oracle',
+    fault,
+    outcome: evidence.outcome,
+    injected: evidence.injected,
+    failure:
+      evidence.outcome === 'refused'
+        ? inner === undefined
+          ? describeFixtureFailure(`fault-${fault}`, evidence.failure)
+          : { stage: `fault-${fault}`, ...inner }
+        : null,
+    effects,
+    effectCount: effects.length,
+    lastEffect: effects.at(-1) ?? null,
+    effectsSha256: fingerprint(evidence.effects),
+  };
+  try {
+    await writeFile(join(root, `fault-${fault}.json`), JSON.stringify(publication), {
+      mode: 0o600,
+      flag: 'wx',
+    });
+  } catch {
+    throw new InitRefusal('native-fixture-fault-record-publication-failed');
+  }
 }
 
 /** Fixture effects and cleanup require both an invocation-owned name and its independent nonce label. */
@@ -1031,16 +1124,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
     await probe(publishedPort(targets[0].original, 'registry'), 'registry');
     verifyFixtureOwnership(await engine.inspect(mismatched, 10000), nonce);
     await engine.remove(mismatched, 10000);
-    const faults = [
-      'alias-drift',
-      'route-loss',
-      'public-probe-failed',
-      'restart-after-health',
-      'create-ack-lost',
-      'stop-ack-lost',
-      'rename-ack-lost',
-      'start-ack-lost',
-    ] as const;
+    const faults = FIXTURE_FAULTS;
     for (const fault of faults) {
       stage = `fault-${fault}`;
       const candidates: string[] = [];
@@ -1138,6 +1222,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       };
       const faultReceipts = await PrivateReceipts.create(join(root, `receipts-${fault}`), nonce);
       let failure: unknown;
+      let outcome: 'returned' | 'refused' = 'returned';
       try {
         await runInitAdoption(
           { nonce, targets, namespace: 'owned-fixture', invariantProfile: profile },
@@ -1147,7 +1232,17 @@ export async function runNativeInitAcceptance(): Promise<void> {
         );
       } catch (cause) {
         failure = cause;
+        outcome = 'refused';
       }
+      // The original refusal remains the oracle input; private evidence is written before candidate readback or oracle replacement.
+      // Proof: modeled pre-injection evidence survived the later oracle and cleanup records without granting a fault proof.
+      await publishFixtureFault(root, fault, {
+        outcome,
+        injected: injection.fired,
+        failure,
+        effects: transcript,
+        nonce,
+      });
       const candidate = candidates.at(0);
       if (candidate === undefined) throw new InitRefusal('native-fixture-fault-candidate-absent');
       verifyFixtureFault(fault, {

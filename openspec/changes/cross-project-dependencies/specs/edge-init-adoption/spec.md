@@ -122,3 +122,27 @@ Preparation and execution SHALL capture the checked wall-to-monotonic expiry onc
 
 - **WHEN** the initial wall or monotonic sample is NaN or infinite
 - **THEN** preparation and execution refuse without constructing an unbounded effect limit
+
+### Requirement: Preserve public refusals while retaining bounded private diagnostics
+
+The finite operation SHALL keep its existing sanitized public phase error and receipt grammar. After successful required failure-receipt publication, it SHALL associate an immutable two-field diagnostic containing only an explicit finite reason and a SHA256 identifier with that exact error object through a module-private WeakMap. Its sole reader SHALL use object identity without inspecting the supplied value. Projection SHALL use getter-free own data descriptors, a maximum of 8192 UTF-16 message code units and explicit type/length/truncation framing, without retaining raw causes, messages, configuration, Env, stacks, serializers or callbacks. Inspection loss SHALL be explicit and SHALL never change the refusal or authorize another effect.
+
+#### Scenario: Two candidate-inert failures have different inner reasons
+
+- **WHEN** distinct actual network or context guards fail at the candidate-inert stage
+- **THEN** public phase error properties remain unchanged while each exact error identity exposes its own frozen finite reason/hash and neither operation proceeds to stop, start or removal
+
+#### Scenario: A failure value has hostile getters or inspection behavior
+
+- **WHEN** private projection encounters accessor-backed fields, proxies or an unsupported prototype depth
+- **THEN** it invokes no application getter or serializer, uses fixed inspection markers where needed, and preserves the original sanitized phase
+
+#### Scenario: Required failure publication fails
+
+- **WHEN** the existing failure-receipt publication refuses
+- **THEN** its existing fixed publication-failure error takes precedence without attached cause or private diagnostic metadata
+
+#### Scenario: A native fixture refuses before its fault is injected
+
+- **WHEN** a modeled native attempt fails before route or other deliberate fault injection
+- **THEN** the invocation-owned exclusive mode600 evidence file retains the private inner reason/hash and bounded safe effect transcript before the unchanged oracle rejects the missing injection

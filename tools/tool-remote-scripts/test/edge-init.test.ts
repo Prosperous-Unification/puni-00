@@ -7,11 +7,16 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 import { fingerprint, InitRefusal, parseNativeContainer } from '../src/lib/edge-init';
-import { EngineTransport, runInitAdoption } from '../src/lib/edge-init-operation';
+import {
+  EngineTransport,
+  readInitDiagnostic,
+  runInitAdoption,
+} from '../src/lib/edge-init-operation';
 import {
   createFixtureVolume,
   describeFixtureFailure,
   publishFixtureFailure,
+  publishFixtureFault,
   removeFixtureContainer,
   removeFixtureResource,
   requireFixtureOomRoster,
@@ -780,3 +785,341 @@ for (const fault of ['none', 'id', 'label', 'name', 'inspection'] as const)
       expect(calls).toEqual([['inspect', listed]]);
     }
   });
+
+function preInjectionFailure(failure: unknown = new InitRefusal('candidate-inert')) {
+  const original = syntheticContainer();
+  original.Name = '/wbs-init-synthetic-registry-fixture';
+  Object.assign(original.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'synthetic' });
+  original.Config.Env.push('PRIVATE_ENV_SENTINEL=owned');
+  const candidate = structuredClone(original);
+  candidate.Id = 'd'.repeat(64);
+  candidate.Name = '/wbs-init-synthetic-registry';
+  Object.assign(candidate.State, {
+    Status: 'created',
+    Running: false,
+    Pid: 0,
+    StartedAt: '0001-01-01T00:00:00Z',
+  });
+  return {
+    outcome: 'refused' as const,
+    injected: false,
+    failure,
+    effects: ['create:registry'],
+    original: parseNativeContainer(original),
+    candidate: parseNativeContainer(candidate),
+    originalId: original.Id,
+    candidateId: candidate.Id,
+    nonce: 'synthetic',
+    network: 'wbs-init-synthetic-net-0',
+  };
+}
+
+test('native pre-oracle record survives a pre-injection refusal without granting a fault proof', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'edge-init-native-pre-oracle-'));
+  try {
+    const { evidence, receipts } = await caughtPreInjectionFailure();
+    expect(readInitDiagnostic(evidence.failure)?.reason).toBe('network-mode-differs');
+    expect(describeFixtureFailure('fault-route-loss', evidence.failure).reason).toBe(
+      'candidate-inert',
+    );
+    expect(receipts.join('\n')).not.toContain('PRIVATE_ENV_SENTINEL');
+    await publishFixtureFault(root, 'route-loss', evidence);
+    let failure: unknown;
+    try {
+      verifyFixtureFault('route-loss', evidence);
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(failure).toMatchObject({ reason: 'native-fixture-fault-not-injected' });
+    expect(() => {
+      verifyFixtureFault('route-loss', { ...evidence, injected: true });
+    }).toThrow('native-fixture-fault-stage-unproved');
+    const path = join(root, 'fault-route-loss.json');
+    const bytes = await readFile(path);
+    expect(JSON.parse(bytes.toString('utf8'))).toMatchObject({
+      format: 'edge-init-native-fault-observation',
+      version: 1,
+      nonce: 'synthetic',
+      stage: 'before-fault-oracle',
+      fault: 'route-loss',
+      outcome: 'refused',
+      injected: false,
+      failure: { stage: 'fault-route-loss', ...readInitDiagnostic(evidence.failure) },
+      effects: ['create:registry'],
+      effectCount: 1,
+      lastEffect: 'create:registry',
+      effectsSha256: fingerprint(evidence.effects),
+    });
+    expect((await lstat(path)).mode & 0o777).toBe(0o600);
+    expect(bytes.length).toBeLessThan(16384);
+    expect(bytes.toString('utf8')).not.toContain('PRIVATE_ENV_SENTINEL');
+    const collision = await publishFixtureFault(
+      root,
+      'route-loss',
+      preInjectionFailure(new Error('PRIVATE_FAILURE_SENTINEL')),
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(collision).toMatchObject({ reason: 'native-fixture-fault-record-publication-failed' });
+    expect(await readFile(path)).toEqual(bytes);
+    await publishFixtureFailure(
+      root,
+      'synthetic',
+      describeFixtureFailure('fault-route-loss', failure),
+      describeFixtureFailure('cleanup', new Error('PRIVATE_CLEANUP_SENTINEL')),
+    );
+    expect(await readFile(path)).toEqual(bytes);
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+test('native fault records hash unknown errors and effect strings while retaining exact finite transcript', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'edge-init-native-redaction-'));
+  try {
+    const evidence = preInjectionFailure(new Error('PRIVATE_FAILURE_SENTINEL'));
+    const old = `wbs-init-synthetic-registry-original`,
+      next = `wbs-init-synthetic-registry-fixture`;
+    evidence.effects = [
+      'create:registry',
+      `stop:${evidence.originalId}`,
+      `rename:${evidence.originalId}:${old}`,
+      `rename:${evidence.candidateId}:${next}`,
+      `start:${evidence.candidateId}`,
+      `disconnect:${evidence.network}:${evidence.candidateId}`,
+      `pause:${evidence.candidateId}`,
+      `restart:${evidence.candidateId}`,
+      'create:caddy',
+      'PRIVATE_ARGV_SENTINEL',
+    ];
+    await publishFixtureFault(root, 'route-loss', evidence);
+    const bytes = await readFile(join(root, 'fault-route-loss.json'), 'utf8');
+    const record = JSON.parse(bytes) as {
+      effects: unknown[];
+      failure: { reason: string; diagnosticSha256: string };
+    };
+    expect(record.effects.slice(0, -1)).toEqual(evidence.effects.slice(0, -1));
+    expect(record.effects.at(-1)).toEqual({
+      unrecognizedSha256: createHash('sha256').update('PRIVATE_ARGV_SENTINEL').digest('hex'),
+    });
+    expect(record.failure.reason).toBe('unexpected-failure');
+    expect(record.failure.diagnosticSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(bytes).not.toContain('PRIVATE_FAILURE_SENTINEL');
+    expect(bytes).not.toContain('PRIVATE_ARGV_SENTINEL');
+    expect(bytes).not.toContain('PRIVATE_ENV_SENTINEL');
+    expect(() => {
+      verifyFixtureFault('route-loss', evidence);
+    }).toThrow('native-fixture-fault-not-injected');
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+for (const reason of [
+  'invariant-context-invalid',
+  'invariant-phase-differs',
+  'network-roster-invalid',
+  'network-roster-differs',
+  'network-mode-differs',
+  'network-identity-differs',
+  'network-pins-missing',
+  'network-pin-differs',
+  'network-observation-unstable',
+  'candidate-network-active',
+  'candidate-not-inert',
+])
+  test(`native diagnostics retain controlled ${reason}`, () => {
+    expect(describeFixtureFailure('fault-route-loss', new InitRefusal(reason))).toMatchObject({
+      stage: 'fault-route-loss',
+      reason,
+    });
+  });
+
+test('native diagnostics do not extend controlled network reasons to arbitrary prefixes', () => {
+  const described = describeFixtureFailure(
+    'fault-route-loss',
+    new InitRefusal('network-PRIVATE_REFUSAL_SENTINEL'),
+  );
+  expect(described.reason).toBe('unrecognized-refusal');
+  expect(JSON.stringify(described)).not.toContain('PRIVATE_REFUSAL_SENTINEL');
+});
+
+for (const fault of [
+  'fault',
+  'nonce',
+  'bound',
+  'injected',
+  'outcome',
+  'effects',
+  'sequence',
+] as const)
+  test(`native fault record refuses invalid ${fault} before publication`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'edge-init-native-invalid-record-'));
+    try {
+      const evidence = preInjectionFailure();
+      if (fault === 'nonce') evidence.nonce = 'PRIVATE_UNSAFE_NONCE';
+      if (fault === 'bound') evidence.effects = Array.from({ length: 65 }, () => 'create:registry');
+      if (fault === 'injected') Object.assign(evidence, { injected: 'PRIVATE_VALUE' });
+      if (fault === 'outcome') Object.assign(evidence, { outcome: 'PRIVATE_VALUE' });
+      if (fault === 'effects') Object.assign(evidence, { effects: [{ private: 'PRIVATE_VALUE' }] });
+      if (fault === 'sequence') Object.assign(evidence, { effects: {} });
+      const failure = await publishFixtureFault(
+        root,
+        fault === 'fault' ? ('unknown' as never) : 'route-loss',
+        evidence,
+      ).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toMatchObject({ reason: 'native-fixture-fault-record-invalid' });
+      const absent = await readFile(
+        join(root, fault === 'fault' ? 'fault-unknown.json' : 'fault-route-loss.json'),
+      ).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(absent).toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(root, { recursive: true });
+    }
+  });
+
+test('native fault record distinguishes an unexpected returned operation and an empty transcript', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'edge-init-native-returned-'));
+  try {
+    const evidence = {
+      ...preInjectionFailure(),
+      outcome: 'returned' as const,
+      failure: undefined,
+      effects: [],
+    };
+    await publishFixtureFault(root, 'route-loss', evidence);
+    expect(JSON.parse(await readFile(join(root, 'fault-route-loss.json'), 'utf8'))).toMatchObject({
+      outcome: 'returned',
+      failure: null,
+      effects: [],
+      effectCount: 0,
+      lastEffect: null,
+    });
+    expect(() => {
+      verifyFixtureFault('route-loss', { ...evidence, injected: true });
+    }).toThrow('native-fixture-fault-stage-unproved');
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+async function caughtPreInjectionFailure(caught?: { cause: unknown }) {
+  const evidence = preInjectionFailure();
+  evidence.candidate.config = { ...evidence.candidate.config, Image: evidence.candidate.image };
+  evidence.candidate.host = {
+    ...evidence.candidate.host,
+    Init: true,
+    NetworkMode: caught === undefined ? 'foreign' : 'edge',
+  };
+  const caddy = {
+    ...evidence.original,
+    id: 'e'.repeat(64),
+    name: '/wbs-init-synthetic-caddy-fixture',
+  };
+  const verify = () => Promise.resolve();
+  const receipts: string[] = [],
+    effects: string[] = [];
+  const failure = await runInitAdoption(
+    {
+      nonce: 'synthetic',
+      namespace: 'owned-fixture',
+      targets: [
+        { kind: 'registry', original: evidence.original },
+        { kind: 'caddy', original: caddy },
+      ],
+    },
+    {
+      inspect: (id) =>
+        Promise.resolve(
+          id === evidence.originalId
+            ? evidence.original
+            : id === caddy.id
+              ? caddy
+              : evidence.candidate,
+        ),
+      create: () => {
+        effects.push('create:registry');
+        return Promise.resolve(evidence.candidateId);
+      },
+      network: verify,
+      networkByName: verify,
+      stop: (id) => {
+        effects.push(`stop:${id}`);
+        return verify();
+      },
+      rename: (id, name) => {
+        effects.push(`rename:${id}:${name}`);
+        return verify();
+      },
+      start: (id) => {
+        effects.push(`start:${id}`);
+        return verify();
+      },
+      remove: (id) => {
+        effects.push(`remove:${id}`);
+        return verify();
+      },
+    },
+    {
+      admit: verify,
+      original: verify,
+      inert: () => (caught === undefined ? verify() : Promise.reject(caught.cause as Error)),
+      stopped: verify,
+      running: verify,
+      health: verify,
+      combined: verify,
+      absent: verify,
+    },
+    {
+      publish: (receipt) => {
+        receipts.push(JSON.stringify(receipt));
+        return Promise.resolve('0'.repeat(64));
+      },
+    },
+  ).then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  expect(failure).toMatchObject({ reason: 'candidate-inert' });
+  evidence.failure = failure;
+  expect(effects).toEqual(['create:registry']);
+  evidence.effects = effects;
+  return { evidence, receipts };
+}
+
+test('native private records retain core hashes without disclosing raw arbitrary causes or changing public summaries', async () => {
+  for (const cause of [
+    new Error('PRIVATE_INNER_SENTINEL'),
+    new InitRefusal('network-PRIVATE_INNER_SENTINEL'),
+  ]) {
+    const root = await mkdtemp(join(tmpdir(), 'edge-init-native-inner-'));
+    try {
+      const { evidence } = await caughtPreInjectionFailure({ cause });
+      expect(evidence.failure).toMatchObject({ reason: 'candidate-inert' });
+      const inner = readInitDiagnostic(evidence.failure);
+      expect(inner?.reason).toBe(
+        cause instanceof InitRefusal ? 'unrecognized-refusal' : 'unexpected-failure',
+      );
+      await publishFixtureFault(root, 'route-loss', evidence);
+      const bytes = await readFile(join(root, 'fault-route-loss.json'), 'utf8');
+      expect(JSON.parse(bytes)).toMatchObject({ failure: { stage: 'fault-route-loss', ...inner } });
+      expect(bytes).not.toContain('PRIVATE_INNER_SENTINEL');
+      expect(bytes).not.toContain('PRIVATE_ENV_SENTINEL');
+      const publicSummary = describeFixtureFailure('fault-route-loss', evidence.failure);
+      expect(publicSummary.reason).toBe('candidate-inert');
+      expect(publicSummary.diagnosticSha256).not.toBe(inner?.diagnosticSha256);
+      expect(() => {
+        verifyFixtureFault('route-loss', evidence);
+      }).toThrow('native-fixture-fault-not-injected');
+    } finally {
+      await rm(root, { recursive: true });
+    }
+  }
+});
