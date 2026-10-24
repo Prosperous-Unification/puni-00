@@ -272,7 +272,11 @@ test.each([
           throw new Error('fixture rejected changed production DB fragment');
         database.host = '/home/puni1/' + (index === 0 ? 'wbs' : 'wbs-dev') + '/data/main';
       });
-      const stdout = await collectFixture(copied, deadline);
+      const stdout = await collectFixture(
+        copied,
+        deadline,
+        running ? join(directory, 'solver-0') : undefined,
+      );
       collections++;
       if (fault === 'owner-final')
         await writeFile(join(directory, 'edge-owner.pending'), 'changed owner');

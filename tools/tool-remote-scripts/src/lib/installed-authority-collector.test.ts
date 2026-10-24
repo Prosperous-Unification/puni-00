@@ -1,11 +1,16 @@
 import { expect, test } from 'bun:test';
 
-import { AUTHORITY_FIXTURE_PROGRAM } from '../../test/installed-authority-fixture';
+import {
+  AUTHORITY_FIXTURE_PROGRAM,
+  VIRTUAL_EXECUTABLE_FIXTURE,
+} from '../../test/installed-authority-fixture';
 import { AUTHORITY_COLLECTOR } from './installed-authority-collector';
 
 async function python(program: string) {
   const child = Bun.spawn(['/usr/bin/python3', '-I', '-'], {
-    stdin: new TextEncoder().encode(`${AUTHORITY_COLLECTOR}\n${program}`),
+    stdin: new TextEncoder().encode(
+      `${AUTHORITY_COLLECTOR}\n${VIRTUAL_EXECUTABLE_FIXTURE}\n${program}`,
+    ),
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -76,7 +81,7 @@ print('ok')
 test('real proc collector reports all database openers by inode and refuses unreadable or old interpreters', async () => {
   const observed = await python(`
 from types import SimpleNamespace
-class Kernel:
+class Kernel(VirtualExecutable):
     def __init__(self): self.fd_count=0; self.children=[]; self.denied=False; self.old=False
     def check(self): pass
     def read(self,path,limit):
@@ -95,7 +100,9 @@ class Kernel:
         if path.endswith('/exe'): return '/usr/bin/bun'
         if path.endswith('/cwd'): return '/src'
         return '/unrelated-spelling'
-    def metadata(self,path,follow=True): return SimpleNamespace(st_dev=7,st_ino=9)
+    def metadata(self,path,follow=True):
+        if path.endswith('/exe'):return os.fstat(self.fixture_executable(path))
+        return SimpleNamespace(st_dev=7,st_ino=9)
 kernel=Kernel()
 families=[{'environment':'prod','suffix':'-wal','path':'/home/puni1/wbs/data/main-wal','identity':'7:9'}]
 coordinator={'pid':77,'startTime':'456','cgroup':'/host'}
@@ -198,7 +205,7 @@ test('real collector completes a fresh kernel/query fixture and keeps private la
   const observed = await python(
     launchFixture +
       String.raw`
-class Complete(Launch):
+class Complete(VirtualExecutable,Launch):
     def __init__(self): super().__init__(); self.fd_count=0; self.children=[]; self.internal_processes={}
     def check(self): pass
     def resolve(self,path): return path
@@ -212,6 +219,7 @@ class Complete(Launch):
         if path.endswith('/exe'): return b'executable'
         raise AssertionError(path)
     def metadata(self,path,follow=True):
+        if path.startswith('/proc/') and path.endswith('/exe'):return os.fstat(self.fixture_executable(path))
         if path.endswith(('-wal','-shm','-journal')): raise FileNotFoundError()
         inode=20 if '/wbs-dev/' in path else 10
         return SimpleNamespace(st_mode=stat.S_IFDIR if path.endswith('/data') else stat.S_IFREG,st_dev=7,st_ino=inode,st_size=3,st_mtime_ns=4,st_ctime_ns=5)
@@ -243,7 +251,7 @@ print('ok')
 test('real proc collector distinguishes exit, unreadability, FD-close retry, deleted aliases and changed identities', async () => {
   const observed = await python(String.raw`
 from types import SimpleNamespace
-class RaceKernel:
+class RaceKernel(VirtualExecutable):
     def __init__(self,fault): self.fault=fault; self.fd_count=0; self.children=[]; self.stats=0; self.links=0; self.rounds=0
     def check(self): pass
     def read(self,path,limit):
@@ -272,7 +280,9 @@ class RaceKernel:
         if self.fault in ['closed','unknown-fd']: raise FileNotFoundError()
         if self.fault=='deleted': return '/home/puni1/wbs/data/main (deleted)'
         return '/unrelated-spelling'
-    def metadata(self,path,follow=True): return SimpleNamespace(st_dev=7,st_ino=9)
+    def metadata(self,path,follow=True):
+        if path.endswith('/exe'):return os.fstat(self.fixture_executable(path))
+        return SimpleNamespace(st_dev=7,st_ino=9)
 families=[{'environment':'prod','suffix':'','path':'/home/puni1/wbs/data/main','identity':'7:9'}]
 coordinator={'pid':77,'startTime':'456','cgroup':'/host'}
 for fault in ['partial','denied','reuse','unknown-fd','deleted']:
@@ -550,6 +560,210 @@ with tempfile.NamedTemporaryFile() as selected:
     assert len(openers)==1 and openers[0]['fd']==selected.fileno()
 print('ok')
 `);
+  expect(observed.code).toBe(0);
+  expect(observed.stdout).toBe('ok\n');
+});
+
+test('executable digests bind the opened inode in internal, relevant and late opener paths', async () => {
+  const observed = await python(String.raw`
+import builtins,tempfile,shutil
+with tempfile.TemporaryDirectory(prefix='authority-exe-fd-') as directory:
+    executable_a=directory+'/sleep-a';executable_b=directory+'/sleep-b';database=directory+'/database'
+    shutil.copyfile('/bin/sleep',executable_a);shutil.copyfile('/bin/sleep',executable_b)
+    os.chmod(executable_a,0o755);os.chmod(executable_b,0o755)
+    assert os.stat(executable_a).st_ino!=os.stat(executable_b).st_ino
+    with open(executable_a,'rb') as source_a,open(executable_b,'rb') as source_b:
+        assert digest(source_a.read())==digest(source_b.read())
+    with open(database,'wb+') as selected:
+        child=subprocess.Popen([executable_a,'20'],pass_fds=(selected.fileno(),),stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        try:
+            base='/proc/'+str(child.pid);exe=base+'/exe'
+            for attempt in range(100):
+                if os.readlink(exe)==executable_a:break
+                time.sleep(0.005)
+            else:raise AssertionError('owned child did not start')
+            assert identity(os.stat(exe))==identity(os.stat(executable_a))
+            print('named='+identity(os.stat(exe))+' opened='+identity(os.stat(executable_b)))
+            kernel=Host(time.monotonic()+10);kernel.fd_count=0
+            baseline=capture_internal_process(kernel,child.pid)['identity']
+            coordinator={key:baseline[key] for key in ['pid','startTime','cgroup']}
+            family={'environment':'prod','suffix':'','path':database,'identity':identity(os.fstat(selected.fileno()))}
+            import contextlib
+            @contextlib.contextmanager
+            def redirect_executable_open(wrong):
+                original_open=builtins.open;original_os_open=os.open;original_read=os.read;opened=[];reads=[]
+                def wrong_builtin(path,*args,**kwargs):
+                    stream=original_open(executable_b if wrong and path==exe else path,*args,**kwargs)
+                    if path==exe:opened.append(stream.fileno())
+                    return stream
+                def wrong_os(path,*args,**kwargs):
+                    descriptor=original_os_open(executable_b if wrong and path==exe else path,*args,**kwargs)
+                    if path==exe:opened.append(descriptor)
+                    return descriptor
+                def observed_read(descriptor,count):
+                    if descriptor in opened:reads.append(descriptor)
+                    return original_read(descriptor,count)
+                builtins.open=wrong_builtin;os.open=wrong_os;os.read=observed_read
+                try:yield opened,reads
+                finally:builtins.open=original_open;os.open=original_os_open;os.read=original_read
+            accepted=[]
+            for route in ['capture','relevant','opener']:
+                kernel.internal_processes={child.pid:baseline} if route=='relevant' else {}
+                with redirect_executable_open(False) as (healthy_opened,healthy_reads):
+                    if route=='capture':healthy=capture_internal_process(kernel,child.pid)['identity']
+                    elif route=='relevant':healthy=observe_process(kernel,child.pid,[],[executable_a],coordinator)[0]
+                    else:
+                        healthy,openers,_=observe_process(kernel,child.pid,[family],[],coordinator)
+                        assert len(openers)==1 and openers[0]['fd']==selected.fileno()
+                    assert healthy['executable']==baseline['executable']
+                assert len(healthy_opened)==1,(route,healthy_opened)
+                assert healthy_reads,(route,'healthy executable was not read')
+                try:os.fstat(healthy_opened[0])
+                except OSError as failure:assert failure.errno==errno.EBADF
+                else:raise AssertionError('healthy executable descriptor leaked in '+route)
+                with redirect_executable_open(True) as (opened,wrong_reads):
+                    try:
+                        if route=='capture':capture_internal_process(kernel,child.pid)
+                        elif route=='relevant':observe_process(kernel,child.pid,[],[executable_a],coordinator)
+                        else:observe_process(kernel,child.pid,[family],[],coordinator)
+                    except Refusal:pass
+                    else:accepted.append(route)
+                assert len(opened)==1,(route,opened)
+                assert not wrong_reads,(route,'wrong executable bytes were read before refusal')
+                try:os.fstat(opened[0])
+                except OSError as failure:assert failure.errno==errno.EBADF
+                else:raise AssertionError('executable descriptor leaked in '+route)
+            assert not accepted,'accepted wrong opened executable inode in '+','.join(accepted)
+            with redirect_executable_open(False) as (swapped_opened,swapped_reads):
+                original_read=os.read;swapped=[]
+                def swap_after_precheck(descriptor,count):
+                    if descriptor in swapped_opened and not swapped:
+                        donor=os.open(executable_b,os.O_RDONLY)
+                        try:os.dup2(donor,descriptor)
+                        finally:os.close(donor)
+                        swapped.append(descriptor)
+                    return original_read(descriptor,count)
+                os.read=swap_after_precheck
+                try:
+                    try:capture_internal_process(kernel,child.pid)
+                    except Refusal as failure:assert str(failure)=='process executable changed during read'
+                    else:raise AssertionError('accepted descriptor switched after precheck')
+                finally:os.read=original_read
+                assert swapped and swapped_reads
+            try:os.fstat(swapped_opened[0])
+            except OSError as failure:assert failure.errno==errno.EBADF
+            else:raise AssertionError('swapped executable descriptor leaked')
+        finally:child.kill();child.wait(timeout=3)
+print('ok')
+`);
+  expect(observed.stderr).toBe('');
+  expect(observed.code).toBe(0);
+  expect(observed.stdout).toMatch(/^named=\d+:\d+ opened=\d+:\d+\nok\n$/);
+});
+
+test('executable reader closes its raw descriptor on read, stat, deadline and bound refusal', async () => {
+  const observed = await python(String.raw`
+import tempfile
+class TrackedHost(Host):
+    def __init__(self):super().__init__(time.monotonic()+3);self.opened=[];self.change=False
+    def open_executable(self,path):
+        descriptor=super().open_executable(path);self.opened.append(descriptor);return descriptor
+    def metadata(self,path,follow=True):
+        observed=super().metadata(path,follow)
+        if self.change and path=='/proc/'+str(os.getpid())+'/exe':
+            from types import SimpleNamespace
+            return SimpleNamespace(st_dev=observed.st_dev,st_ino=observed.st_ino+1,st_mode=observed.st_mode,st_size=observed.st_size,st_mtime_ns=observed.st_mtime_ns,st_ctime_ns=observed.st_ctime_ns)
+        return observed
+pid=os.getpid();path='/proc/'+str(pid)+'/exe';original=os.stat(path)
+for fault in ['read','stat','named','deadline']:
+    host=TrackedHost();host.change=fault=='named'
+    if fault=='deadline':
+        original_open=host.open_executable
+        def expired_open(path):
+            descriptor=original_open(path);host.deadline=time.monotonic()-1;return descriptor
+        host.open_executable=expired_open
+    original_read=os.read;original_fstat=os.fstat
+    if fault=='read':
+        def failed_read(descriptor,count):
+            if descriptor in host.opened:raise OSError(errno.EIO,'injected executable read failure')
+            return original_read(descriptor,count)
+        os.read=failed_read
+    if fault=='stat':
+        def failed_stat(descriptor):
+            if descriptor in host.opened:raise OSError(errno.EIO,'injected executable stat failure')
+            return original_fstat(descriptor)
+        os.fstat=failed_stat
+    try:
+        try:host.read_executable(pid,original)
+        except OSError as failure:
+            assert fault in ['read','stat'] and failure.errno==errno.EIO
+        except Refusal as failure:
+            assert (fault=='named' and str(failure)=='process executable changed during read') or (fault=='deadline' and str(failure)=='collector deadline exceeded')
+        else:raise AssertionError('accepted '+fault)
+    finally:os.read=original_read;os.fstat=original_fstat
+    assert len(host.opened)==1
+    try:os.fstat(host.opened[0])
+    except OSError as failure:assert failure.errno==errno.EBADF
+    else:raise AssertionError('leaked executable descriptor on '+fault)
+with tempfile.TemporaryFile() as large:
+    large.truncate(128*1024*1024+1);host=TrackedHost()
+    host.open_executable=lambda path:(host.opened.append(os.dup(large.fileno())) or host.opened[-1])
+    original_read=os.read;large_reads=[]
+    def observed_large_read(descriptor,count):
+        if descriptor in host.opened:large_reads.append(descriptor)
+        return original_read(descriptor,count)
+    os.read=observed_large_read
+    try:
+        try:host.read_executable(pid,os.fstat(large.fileno()))
+        except Refusal:pass
+        else:raise AssertionError('accepted oversized executable')
+    finally:os.read=original_read
+    assert not large_reads,'read oversized executable descriptor'
+    try:os.fstat(host.opened[0])
+    except OSError as failure:assert failure.errno==errno.EBADF
+    else:raise AssertionError('leaked oversized executable descriptor')
+reader,writer=os.pipe()
+try:
+    os.write(writer,b'fixture');os.close(writer);writer=None
+    host=TrackedHost()
+    host.open_executable=lambda path:(host.opened.append(os.dup(reader)) or host.opened[-1])
+    original_read=os.read;pipe_reads=[]
+    def observed_pipe_read(descriptor,count):
+        if descriptor in host.opened:pipe_reads.append(descriptor)
+        return original_read(descriptor,count)
+    os.read=observed_pipe_read
+    try:
+        try:host.read_executable(pid,os.fstat(reader))
+        except Refusal:pass
+        else:raise AssertionError('accepted nonregular executable descriptor')
+    finally:os.read=original_read
+    assert not pipe_reads,'read nonregular executable descriptor'
+    try:os.fstat(host.opened[0])
+    except OSError as failure:assert failure.errno==errno.EBADF
+    else:raise AssertionError('leaked nonregular executable descriptor')
+finally:
+    os.close(reader)
+    if writer is not None:os.close(writer)
+invalid=TrackedHost();invalid_paths=[]
+def invalid_open(path):
+    invalid_paths.append(path);raise AssertionError('invalid PID reached executable open')
+invalid.open_executable=invalid_open
+try:invalid.read_executable('../',original)
+except Refusal as failure:assert str(failure)=='process identity malformed'
+else:raise AssertionError('accepted invalid executable PID')
+assert not invalid_paths
+try:TrackedHost().read_executable(2147483647,original)
+except FileNotFoundError:pass
+else:raise AssertionError('accepted absent proc executable')
+denied=TrackedHost()
+def unreadable_open(path):raise PermissionError(errno.EACCES,'injected proc executable denial')
+denied.open_executable=unreadable_open
+try:denied.read_executable(pid,original)
+except PermissionError as failure:assert failure.errno==errno.EACCES
+else:raise AssertionError('accepted unreadable proc executable')
+print('ok')
+`);
+  expect(observed.stderr).toBe('');
   expect(observed.code).toBe(0);
   expect(observed.stdout).toBe('ok\n');
 });
