@@ -20,6 +20,7 @@ import {
   checkReceiptSources,
   checkRouteCoverage,
   checkStoppedUnit,
+  classifyRecoveryTarget,
   decodeInitPacket,
   fingerprintPacketRoster,
   INIT_NATIVE_READER,
@@ -27,6 +28,7 @@ import {
   operationExpiry,
   probeHttp,
   publishInitReceipt,
+  readRecoveryHistory,
   readRecoveryStage,
   readSuspendedCrontab,
   requireLiteralComposeInit,
@@ -365,29 +367,63 @@ test('production receipt readback contains both exact source hashes and recovery
     sourceRosterSha256: 'a'.repeat(64),
     literalInitSha256: 'b'.repeat(64),
   };
+  const evidence = {
+    invariants: packetFixture().packet.targets.map((target) => ({
+      target: target.kind,
+      original: target.id,
+      originalInvariantSha256: 'c'.repeat(64),
+      candidateInvariantSha256: 'd'.repeat(64),
+      originalProcess: {
+        pid: 123,
+        startTime: target.process.startTime,
+        cgroup: target.process.cgroup,
+        cgroupDevice: '1',
+        cgroupInode: '2',
+      },
+    })),
+    candidateProcesses: (['registry', 'caddy'] as const).map((target) => ({
+      target,
+      candidate: null,
+      processSha256: null,
+    })),
+  };
   try {
     const receipts = await PrivateReceipts.create(directory, 'fixture');
     await publishInitReceipt(
       receipts,
       { stage: 'create-intended', target: 'registry', original: 'c'.repeat(64), remaining: 270000 },
       proof,
+      'e'.repeat(64),
+      evidence,
     );
     const persisted = JSON.parse(await readFile(join(directory, '0000.json'), 'utf8')) as Record<
       string,
       unknown
     >;
-    expect(persisted).toMatchObject(proof);
-    checkReceiptSources(persisted, proof);
+    expect(persisted).toMatchObject({
+      ...proof,
+      ...evidence,
+      format: 'edge-init-receipt',
+      version: 2,
+    });
+    expect(persisted['packetSha256']).toBe('e'.repeat(64));
+    checkReceiptSources(persisted, proof, 'e'.repeat(64));
     const { sourceRosterSha256: _roster, ...missingRoster } = persisted;
     const { literalInitSha256: _literal, ...missingLiteral } = persisted;
+    const { packetSha256: _packet, ...missingPacket } = persisted;
+    expect(() => {
+      checkReceiptSources(persisted, proof, 'f'.repeat(64));
+    }).toThrow();
     for (const fault of [
+      missingPacket,
+      { ...persisted, packetSha256: 'f'.repeat(64) },
       missingRoster,
       missingLiteral,
       { ...persisted, sourceRosterSha256: 'd'.repeat(64) },
       { ...persisted, literalInitSha256: 'd'.repeat(64) },
     ])
       expect(() => {
-        checkReceiptSources(fault, proof);
+        checkReceiptSources(fault, proof, 'e'.repeat(64));
       }).toThrow();
     await writeFile(join(directory, '0001.json'), 'collision', { mode: 0o600 });
     await rejects(
@@ -395,6 +431,8 @@ test('production receipt readback contains both exact source hashes and recovery
         receipts,
         { stage: 'stop-intended', target: 'registry', original: 'c'.repeat(64), remaining: 200000 },
         proof,
+        'e'.repeat(64),
+        evidence,
       ),
     );
   } finally {
@@ -607,21 +645,74 @@ test('route coverage refuses omitted server/route, wrong host, cross-route probe
   }).toThrow('route-coverage-incomplete');
 });
 
-test('kernel route admission refuses an absent or ambiguous native endpoint', () => {
+test('kernel route admission binds every default to one connected interface and address', () => {
   const container = syntheticContainer();
   container.NetworkSettings.Networks.edge.Gateway = '172.18.0.1';
   container.NetworkSettings.Networks.edge.IPAddress = '172.18.0.2';
   container.NetworkSettings.Networks.edge.IPPrefixLen = 16;
   const native = {
     route:
-      'Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\neth0 00000000 010012AC 0003 0 0 0 00000000 0 0 0\n',
+      'Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n' +
+      'eth0 00000000 010012AC 0003 0 0 100 00000000 0 0 0\n' +
+      'eth0 000012AC 00000000 0001 0 0 0 0000FFFF 0 0 0\n',
     ipv6Route: '',
+    fibTrie: ' |-- 172.18.0.2\n    /32 host LOCAL\n',
+    ifInet6: '',
   };
   expect(resolveDefaultRoute(native, parseNativeContainer(container))).toBe('c'.repeat(64));
+  for (const route of [
+    native.route + 'eth9 00000000 010013AC 0003 0 0 0 00000000 0 0 0\n',
+    native.route + 'eth0 00000000 010012AC 0003 0 0 0 00000000 0 0 0\n',
+    native.route.replace('eth0 000012AC', 'eth9 000012AC'),
+    native.route.replace('000012AC 00000000', '000013AC 00000000'),
+    native.route.replace('0 0 100', '0 0 unknown'),
+    native.route.split('\n')[0] + '\n',
+  ])
+    expect(() =>
+      resolveDefaultRoute({ ...native, route }, parseNativeContainer(container)),
+    ).toThrow();
   expect(() =>
     resolveDefaultRoute(
-      { ...native, route: native.route.split('\n')[0] + '\n' },
+      { ...native, fibTrie: native.fibTrie.replace('172.18.0.2', '172.18.0.3') },
       parseNativeContainer(container),
+    ),
+  ).toThrow();
+  const wrongGateway = parseNativeContainer(container);
+  wrongGateway.networks['edge'] = {
+    ...(wrongGateway.networks['edge'] as object),
+    Gateway: '172.18.0.3',
+  };
+  expect(() => resolveDefaultRoute(native, wrongGateway)).toThrow();
+  const endpoint = parseNativeContainer(container);
+  endpoint.networks['edge'] = {
+    ...(endpoint.networks['edge'] as object),
+    IPv6Gateway: 'fd00::1',
+    GlobalIPv6Address: 'fd00::2',
+    GlobalIPv6PrefixLen: 64,
+  };
+  const zero6 = '0'.repeat(32),
+    prefix6 = 'fd00' + '0'.repeat(28),
+    gateway6 = 'fd00' + '0'.repeat(27) + '1',
+    address6 = 'fd00' + '0'.repeat(27) + '2';
+  const native6 = {
+    route: native.route.split('\n')[0] + '\n',
+    fibTrie: '',
+    ipv6Route: `${zero6} 00 ${zero6} 00 ${gateway6} 00000064 00000000 00000000 00000003 eth0\n${prefix6} 40 ${zero6} 00 ${zero6} 00000000 00000000 00000000 00000001 eth0\n`,
+    ifInet6: `${address6} 02 40 00 80 eth0\n`,
+  };
+  expect(resolveDefaultRoute(native6, endpoint)).toBe('c'.repeat(64));
+  expect(() =>
+    resolveDefaultRoute({ ...native6, ifInet6: native6.ifInet6.replace('eth0', 'eth9') }, endpoint),
+  ).toThrow();
+  expect(() =>
+    resolveDefaultRoute(
+      {
+        ...native6,
+        ipv6Route:
+          native6.ipv6Route +
+          `${zero6} 00 ${zero6} 00 ${gateway6} 00000000 00000000 00000000 00000003 eth9\n`,
+      },
+      endpoint,
     ),
   ).toThrow();
   const observed = parseNativeContainer(container);
@@ -973,3 +1064,315 @@ test('real TLS, registry and WSS probes reject wrong name, connect IP, challenge
     await rm(root, { recursive: true, force: true });
   }
 }, 30000);
+
+test('recovery classifies all nine stable states and refuses unexplained lifecycle or target names', () => {
+  for (const kind of ['registry', 'caddy'] as const) {
+    const original = parseNativeContainer(syntheticContainer());
+    original.name = `/wbs-${kind}-1`;
+    const candidate = structuredClone(original);
+    candidate.id = 'e'.repeat(64);
+    candidate.name = `/wbs-init-fixture-${kind}`;
+    const inert = (container: typeof candidate) => {
+      container.state = {
+        ...container.state,
+        Running: false,
+        Status: 'created',
+        Pid: 0,
+        StartedAt: '0001-01-01T00:00:00Z',
+        FinishedAt: '0001-01-01T00:00:00Z',
+      };
+      return container;
+    };
+    inert(candidate);
+    const intents = new Set<string>();
+    const classify = (
+      old = original,
+      next: typeof candidate | undefined = candidate,
+      recorded = true,
+    ) => classifyRecoveryTarget(kind, 'fixture', old, next, intents, recorded);
+    expect(classifyRecoveryTarget(kind, 'fixture', original, undefined, intents, false)).toBe(
+      'before-create',
+    );
+    intents.add('create-intended');
+    expect(classifyRecoveryTarget(kind, 'fixture', original, undefined, intents, false)).toBe(
+      'create-unacknowledged-no-candidate-observed',
+    );
+    expect(classify()).toBe('candidate-inert');
+    original.state = { ...original.state, Running: false, Status: 'exited', Pid: 0 };
+    expect(() => classify()).toThrow('recovery-stop-without-intent');
+    intents.add('stop-intended');
+    expect(classify()).toBe('original-stopped');
+    original.name = `/wbs-init-fixture-${kind}-original`;
+    expect(() => classify()).toThrow('recovery-name-differs');
+    intents.add('rename-original-intended');
+    expect(classify()).toBe('original-renamed');
+    candidate.name = `/wbs-${kind}-1`;
+    intents.add('rename-candidate-intended');
+    expect(classify()).toBe('candidate-renamed');
+    candidate.state = {
+      ...candidate.state,
+      Running: true,
+      Status: 'running',
+      Pid: 456,
+      StartedAt: '2026-01-01T00:00:00Z',
+    };
+    expect(() => classify()).toThrow('recovery-start-without-intent');
+    intents.add('start-intended');
+    expect(classify()).toBe('candidate-running-original-retained');
+    candidate.state = { ...candidate.state, Running: false, Status: 'exited', Pid: 0 };
+    expect(classify()).toBe('candidate-stopped-after-start');
+    candidate.state = { ...candidate.state, Running: true, Status: 'running', Pid: 456 };
+    expect(() =>
+      classifyRecoveryTarget(kind, 'fixture', undefined, candidate, intents, true),
+    ).toThrow('recovery-original-absence-unexplained');
+    intents.add('remove-intended');
+    expect(classifyRecoveryTarget(kind, 'fixture', undefined, candidate, intents, true)).toBe(
+      'candidate-running-original-absent',
+    );
+    expect(() =>
+      classifyRecoveryTarget(kind, 'fixture', undefined, undefined, intents, true),
+    ).toThrow();
+    for (const fault of [
+      () => {
+        candidate.name = `/wbs-${kind === 'registry' ? 'caddy' : 'registry'}-1`;
+      },
+      () => {
+        candidate.name = `/wbs-${kind}-1`;
+        candidate.state['Paused'] = true;
+      },
+      () => {
+        candidate.state['Paused'] = false;
+        candidate.restartCount = 1;
+      },
+      () => {
+        candidate.restartCount = 0;
+        candidate.state['Restarting'] = true;
+      },
+    ]) {
+      fault();
+      expect(() => classify()).toThrow();
+    }
+  }
+});
+
+test('private recovery reader accepts only legal v2 prefixes with immutable two-target evidence', async () => {
+  const root = await mkdtemp('/tmp/edge-init-recovery-chain-');
+  const source = join(root, 'compose.yml'),
+    directory = join(root, 'receipts');
+  await writeFile(source, 'services:\n  registry:\n    init: true\n  caddy:\n    init: true\n', {
+    mode: 0o600,
+  });
+  await chmod(root, 0o700);
+  const native = await lstat(source, { bigint: true });
+  const { packet } = packetFixture();
+  packet.receiptDirectory = directory;
+  packet.provenance = [
+    {
+      path: source,
+      sha256: digest(await readFile(source, 'utf8')),
+      device: String(native.dev),
+      inode: String(native.ino),
+      mode: 0o600,
+      uid: 1000,
+    },
+  ];
+  packet.targets.forEach((target) => {
+    target.composeFiles = [source];
+  });
+  const checked = decodeInitPacket(packet),
+    packetSha256 = digest(JSON.stringify(packet));
+  const invariants = checked.targets.map((target) => ({
+    target: target.kind,
+    original: target.id,
+    originalInvariantSha256: 'a'.repeat(64),
+    candidateInvariantSha256: 'b'.repeat(64),
+    originalProcess: {
+      pid: target.kind === 'registry' ? 123 : 124,
+      startTime: target.process.startTime,
+      cgroup: target.process.cgroup,
+      cgroupDevice: '1',
+      cgroupInode: '2',
+    },
+  }));
+  const proofs = await observeComposeDeclarations(
+    checked.targets.map((target) => {
+      const original = parseNativeContainer(syntheticContainer());
+      original.config['Labels'] = { 'com.docker.compose.project.config_files': source };
+      return { kind: target.kind, original, nativeSha256: fingerprint(original), roster: [source] };
+    }),
+    checked.provenance,
+  );
+  const stages = [
+    ...(['registry', 'caddy'] as const).flatMap((target) =>
+      [
+        'create-intended',
+        'created',
+        'candidate-verified',
+        'stop-intended',
+        'original-stopped',
+        'rename-original-intended',
+        'rename-candidate-intended',
+        'start-intended',
+        'healthy',
+      ].map((stage) => ({ target, stage })),
+    ),
+    { target: 'caddy' as const, stage: 'retention-point' },
+    { target: 'registry' as const, stage: 'remove-intended' },
+    { target: 'registry' as const, stage: 'original-absent' },
+    { target: 'caddy' as const, stage: 'remove-intended' },
+    { target: 'caddy' as const, stage: 'original-absent' },
+    { target: 'caddy' as const, stage: 'complete' },
+  ];
+  type Entry = Record<string, unknown>;
+  async function writeChain(entries: readonly Entry[]) {
+    await rm(directory, { recursive: true, force: true });
+    const writer = await PrivateReceipts.create(directory, checked.nonce);
+    for (const entry of entries) await writer.publish(entry as never);
+  }
+  const candidates = new Map<string, string>(),
+    witnesses = new Map<string, string>(),
+    chain: Entry[] = [];
+  try {
+    for (const { target, stage } of stages) {
+      if (stage === 'created')
+        candidates.set(target, (target === 'registry' ? '1' : '2').repeat(64));
+      if (stage === 'healthy')
+        witnesses.set(target, (target === 'registry' ? '3' : '4').repeat(64));
+      const proof = proofs.find((entry) => entry.target === target);
+      if (proof === undefined) throw new Error('missing fixture proof');
+      chain.push({
+        format: 'edge-init-receipt',
+        version: 2,
+        packetSha256,
+        ...proof,
+        stage,
+        original: checked.targets[target === 'registry' ? 0 : 1].id,
+        remaining: 100000,
+        ...(candidates.has(target) ? { candidate: candidates.get(target) } : {}),
+        invariants,
+        candidateProcesses: (['registry', 'caddy'] as const).map((kind) => ({
+          target: kind,
+          candidate: candidates.get(kind) ?? null,
+          processSha256: witnesses.get(kind) ?? null,
+        })),
+      });
+      await writeChain(chain);
+      const history = await readRecoveryHistory(checked, packetSha256);
+      expect(history.invariants).toEqual(invariants);
+    }
+    for (const [position, target, stage] of [
+      [0, 'registry', 'before-create'],
+      [1, 'registry', 'before-create'],
+      [1, 'registry', 'candidate-inert'],
+      [2, 'registry', 'candidate-inert'],
+      [3, 'registry', 'stop-uncertain'],
+      [4, 'registry', 'stop-uncertain'],
+      [5, 'registry', 'original-stopped'],
+      [5, 'registry', 'rename-uncertain'],
+      [6, 'registry', 'rename-uncertain'],
+      [7, 'registry', 'rename-uncertain'],
+      [7, 'registry', 'start-uncertain'],
+      [8, 'registry', 'candidate-running-unhealthy'],
+      [9, 'caddy', 'before-create'],
+      [8, 'registry', 'healthy-original-retained'],
+      [17, 'caddy', 'healthy-original-retained'],
+      [18, 'caddy', 'healthy-original-retained'],
+      [19, 'registry', 'healthy-original-retained'],
+      [19, 'registry', 'removal-uncertain'],
+      [20, 'registry', 'removal-uncertain'],
+      [21, 'caddy', 'removal-uncertain'],
+      [22, 'caddy', 'removal-uncertain'],
+      [23, 'caddy', 'removal-uncertain'],
+    ] as const) {
+      const referenceIndex =
+        stage === 'candidate-inert' && position === 1
+          ? 1
+          : stage === 'healthy-original-retained' && (position === 8 || position === 17)
+            ? position
+            : position === 0
+              ? 0
+              : position === 9
+                ? 9
+                : position === 19
+                  ? 19
+                  : position === 21
+                    ? 21
+                    : position - 1;
+      const failure = { ...structuredClone(chain[referenceIndex]), target, stage };
+      await writeChain([...chain.slice(0, position), failure]);
+      expect((await readRecoveryHistory(checked, packetSha256)).invariants).toEqual(invariants);
+    }
+    for (const fault of [
+      (entries: Entry[]) => {
+        delete entries[0]['version'];
+      },
+      (entries: Entry[]) => {
+        entries[0]['version'] = 1;
+      },
+      (entries: Entry[]) => {
+        entries[1]['invariants'] = structuredClone(entries[1]['invariants']);
+        (entries[1]['invariants'] as typeof invariants)[0].originalInvariantSha256 = '9'.repeat(64);
+      },
+      (entries: Entry[]) => {
+        entries[0]['packetSha256'] = '0'.repeat(64);
+      },
+      (entries: Entry[]) => {
+        delete entries[0]['sourceRosterSha256'];
+      },
+      (entries: Entry[]) => {
+        delete entries[0]['literalInitSha256'];
+      },
+      (entries: Entry[]) => {
+        delete entries[0]['invariants'];
+      },
+      (entries: Entry[]) => {
+        (entries[0]['invariants'] as typeof invariants)[0].originalProcess.startTime = '999';
+      },
+      (entries: Entry[]) => {
+        entries[1]['candidate'] = checked.targets[0].id;
+      },
+      (entries: Entry[]) => {
+        entries[2]['candidate'] = '5'.repeat(64);
+      },
+      (entries: Entry[]) => {
+        for (const entry of entries.slice(2)) {
+          if (entry['target'] === 'registry') entry['candidate'] = '5'.repeat(64);
+          (entry['candidateProcesses'] as { candidate: string | null }[])[0].candidate = '5'.repeat(
+            64,
+          );
+        }
+      },
+      (entries: Entry[]) => {
+        [entries[1], entries[2]] = [entries[2], entries[1]];
+      },
+      (entries: Entry[]) => {
+        entries[0]['stage'] = 'remove-intended';
+      },
+      (entries: Entry[]) => {
+        entries[0]['target'] = 'caddy';
+      },
+      (entries: Entry[]) => {
+        entries.push(structuredClone(entries[0]));
+      },
+      (entries: Entry[]) => {
+        (entries[18]['candidateProcesses'] as { processSha256: string | null }[])[0].processSha256 =
+          null;
+      },
+      (entries: Entry[]) => {
+        (entries[18]['candidateProcesses'] as { processSha256: string | null }[])[0].processSha256 =
+          '9'.repeat(64);
+      },
+    ]) {
+      const broken = structuredClone(chain);
+      fault(broken);
+      await writeChain(broken);
+      await rejects(readRecoveryHistory(checked, packetSha256));
+    }
+    await writeChain(chain);
+    await rejects(
+      readRecoveryHistory(checked, digest('changed host/image/backend/probe/bundle packet')),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
