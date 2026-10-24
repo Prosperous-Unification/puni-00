@@ -24,6 +24,13 @@ operator removes it (requirement "Today's memberships are backfilled into grants
   `GET /api/people` answers `200` listing only the member's own agent persons, and
   `GET /api/organization/machine-credentials` lists the credentials of those agents
 
+#### Scenario: A SCIM-provisioned member arrives with no grant
+
+- **WHEN** A's directory provisions a new account through SCIM
+- **THEN** the account is a current member of A with no `access_grant` row,
+  `GET /api/work-packages` answers `200` with `[]` and a `createWorkItem` batch on any
+  package of A answers `404 not_found`
+
 #### Scenario: A removed member's grants grant nothing
 
 - **WHEN** an account holds an `org-admin` grant in A and its membership is removed on
@@ -107,21 +114,47 @@ SHALL keep its `restricted` flag and its package-scope grants.
 - **THEN** be-01 answers `403 forbidden` naming `project.manage_packages` and W stays in P;
   with `(project Q, project-manager)` added the move is accepted
 
-### Requirement: Machine principals are capped at contributor
+### Requirement: A machine credential holds only its own grants, capped at contributor
 
-The evaluator SHALL apply `MIN(MAX(level), 2)` for a principal whose `authentication.kind`
-is `machine` or `consent`, through every subject kind, so a machine never holds manager,
-admin or super-admin permissions, `package.claim_for_others` included. A grant write or an
-access-group write requested by a machine principal SHALL be refused `403 forbidden`
-naming the grant permission, before any grant row is read or written.
+A machine credential SHALL be a grant subject (`subject_kind = 'machine_credential'`,
+`subject_id` the credential's id). For a principal whose `authentication.kind` is
+`machine` or `consent`, the evaluator SHALL consider only the grants naming that
+credential, never the bound account's direct grants, its access groups' grants or the
+organization members subject's, and SHALL apply `MIN(MAX(level), 2)`, so a machine never
+holds manager, admin or super-admin permissions, `package.claim_for_others` included.
+Current membership SHALL still be read from the bound account. A new credential SHALL hold
+no grant. Granting to or revoking from a credential SHALL need the permission the same
+grant to a person needs, and SHALL NOT bind a role above the granter's own effective level
+at that scope. Revoking a credential SHALL delete its grants in the same transaction. A
+grant write or an access-group write requested by a machine principal SHALL be refused
+`403 forbidden` naming the grant permission, before any grant row is read or written.
+Renewing a principal's claim leases SHALL move only the leases in work packages the
+principal can read; the others SHALL be left to expire.
+
+#### Scenario: A machine credential confined to one work package
+
+- **WHEN** account U holds `(organization A, org-admin)`, A holds work packages W and X,
+  and machine credential K, pinned to U's agent person, is new
+- **THEN** K's `GET /api/work-packages` answers `200` with `[]`; after U grants K
+  `(work package W, package-contributor)` K's `createWorkItem` on W is accepted, K's
+  `GET /api/work-packages` lists W only, K's `GET /api/work-packages/X` and any batch on X
+  answer `404 not_found`, and U still reads and writes both
 
 #### Scenario: A manager's agent is a contributor
 
-- **WHEN** account U holds `(project P, project-manager)` and a machine credential pinned
-  to U's agent person sends `freezeWorkPackage` and then `createWorkItem` to a package of P
-- **THEN** `freezeWorkPackage` is refused `403 forbidden` naming `package.manage_settings`,
-  `createWorkItem` is accepted, and U's own browser request for `freezeWorkPackage` is
-  accepted
+- **WHEN** account U holds `(project P, project-manager)`, grants its agent's credential K
+  `(project P, project-manager)`, and K sends `freezeWorkPackage` and then `createWorkItem`
+  to a package of P
+- **THEN** the grant is accepted, `freezeWorkPackage` is refused `403 forbidden` naming
+  `package.manage_settings`, `createWorkItem` is accepted, and U's own browser request for
+  `freezeWorkPackage` is accepted
+
+#### Scenario: Granting to a credential does not escalate
+
+- **WHEN** U holds only `(project P, project-manager)` and grants credential K
+  `(organization A, project-contributor)`
+- **THEN** be-01 answers `403 forbidden` naming `organization.manage_access` and no grant
+  row is written
 
 #### Scenario: A machine cannot grant
 
@@ -129,12 +162,21 @@ naming the grant permission, before any grant row is read or written.
 - **THEN** be-01 answers `403 forbidden` naming `organization.manage_access` and no grant
   row and no audit row is written
 
-#### Scenario: The cap holds through the members subject
+#### Scenario: Grants to people do not reach a machine
 
-- **WHEN** A holds `(organization A, organization members, project-manager)`
-- **THEN** a machine principal of any member writes work items but is refused
-  `package.manage_settings`, and a claim it makes for a person bound to another account is
-  refused `person_not_bound`
+- **WHEN** A holds `(organization A, organization members, project-manager)` and
+  credential K of a member's agent holds no grant
+- **THEN** K's read of every package of A answers `404 not_found`; with
+  `(work package W, package-manager)` granted to K, K writes work items in W, is refused
+  `403 forbidden` naming `package.manage_settings`, and a claim it makes for a person bound
+  to another account is refused `person_not_bound`
+
+#### Scenario: Renewal skips an unreadable work package
+
+- **WHEN** credential K holds unexpired leases in W and X, its grant on X is revoked, and K
+  sends `POST /api/claims/renew`
+- **THEN** the lease in W is renewed, the lease in X keeps its expiry and lapses at it, and
+  no `claims_changed` event is published for X
 
 ### Requirement: Organization-scope grants do not write a restricted work package
 
@@ -214,7 +256,8 @@ principal is null SHALL answer `404 not_found` identical to an absent one on det
 and writes alike, and SHALL be absent from every list, count, roll-up, startable read, load
 read and space read. A visible object with a short permission SHALL answer
 `403 forbidden` with the body `{ error: 'forbidden', permission }` naming the first missing
-permission. Organization-kind refusals, the organization's administration collections
+permission; every 403 shape SHALL type `permission` by one shared refusal over the whole
+permission catalogue, never by a per-route subset. Organization-kind refusals, the organization's administration collections
 included, SHALL always be 403. Listing SHALL run one statement per page over
 `readablePackageIds`, never one query per work package.
 
@@ -264,11 +307,15 @@ begins refuses it, whatever the request resolved earlier.
 `POST /api/organization/grants` SHALL require `organization.manage_organization_roles`
 for an organization role, `organization.manage_access` for a project or package role, or
 `project.grant` at the package's project for a package role; `DELETE …/:id` SHALL require
-the same for the grant it removes. A granter SHALL NOT bind a role whose level exceeds
+the same for the grant it removes; a `machine_credential` subject SHALL need the same as a
+person. Removing a member SHALL need `organization.manage_members`, and removing one who
+holds an organization-role grant directly SHALL also need
+`organization.manage_organization_roles`. A granter SHALL NOT bind a role whose level exceeds
 their own effective level at the target scope for that role's kind, evaluated without the
 restricted rule. The store SHALL refuse
 `409 role_scope_mismatch` for a role above its scope kind, `409 not_a_member` for a
-non-member subject, `404 unknown_group` for a foreign group, `409 already_granted` for a
+non-member subject, `404 unknown_group` for a foreign group, `404 unknown_credential` for
+a foreign or revoked credential, `409 already_granted` for a
 duplicate and `409 last_super_admin` for a revoke or removal that would leave the
 organization without an `org-super-admin`, each inside the grant's transaction. Every
 grant, revoke and access-group act SHALL write one `organization_audit` row in the same
@@ -297,6 +344,14 @@ package-viewer)`
   tries to grant `(project P, project-manager)`
 - **THEN** be-01 answers `403 forbidden` naming `organization.manage_access`
 
+#### Scenario: Removing an organization-role holder
+
+- **WHEN** `org-admin` V removes member X, who holds `(organization A, org-admin)`, and
+  then removes member Y, who holds only `(organization A, project-contributor)`
+- **THEN** the first is refused `403 forbidden` naming
+  `organization.manage_organization_roles` with X's membership and grants unchanged, and
+  the second is accepted; an `org-super-admin` removing X is accepted
+
 #### Scenario: The last super-admin
 
 - **WHEN** the only `org-super-admin` grant of A is revoked, or its holder removed
@@ -313,7 +368,10 @@ Migration `add_access_grants` SHALL seed the nine roles and, in the same transac
 write for every membership an organization-scope grant (`super_admin` → `org-super-admin`,
 `admin` → `org-admin`, `member` → `project-contributor`, `viewer` → `project-viewer`) and
 for every organization-owned work package a `package-manager` grant for its owner when the
-owner is a current member, all with `origin = 'backfill'`, and no project-scope grant. Its
+owner is a current member, all with `origin = 'backfill'`, and no project-scope grant. For every unrevoked machine credential whose person is bound to a current
+member it SHALL write a copy of that account's backfilled grants capped at contributor
+(`org-super-admin` and `org-admin` become `project-contributor` at organization scope,
+`package-manager` becomes `package-contributor`), naming the credential. Its
 `down.sql` SHALL refuse while any grant of another origin or any access group exists.
 `organization_membership.role` SHALL stay in place and unread. With only backfilled rows,
 every existing organization controller test SHALL pass unchanged except those that
@@ -328,11 +386,20 @@ exercise acts E7 moves to `org-admin` or restriction changes (design.md P5, P7).
   read the restricted one, the super-admin can clear its flag, and `down.sql` succeeds on
   that store and refuses once one grant is written by route
 
+#### Scenario: Backfilled credentials act as contributors
+
+- **WHEN** a store where an `org-admin` U and a member M each have an agent with a machine
+  credential is migrated
+- **THEN** each credential holds one organization-scope `project-contributor` grant of
+  origin `backfill`, both write every unrestricted work package and neither freezes one,
+  and after `revoke-backfill` both list `[]`
+
 ### Requirement: The operator revokes the backfill per organization
 
 The operator CLI `revoke-backfill --organization=<id>` SHALL print the organization-scope
 `project-contributor` and `project-viewer` grants of origin `backfill` in that
-organization, SHALL delete them only when `--expect-count` equals their number, in one
+organization, whatever their subject kind, the machine credentials' copies included, SHALL
+delete them only when `--expect-count` equals their number, in one
 transaction with one `access_revoked` audit row each, and SHALL delete no other grant.
 
 #### Scenario: Revoking the backfill makes members plain

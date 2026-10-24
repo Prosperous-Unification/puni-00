@@ -1,9 +1,10 @@
 # Permission matrix
 
 The inventory [design.md](design.md) ("Permission vocabulary") summarises. Read on
-2026-10-24 at `2e0ab3245` from `libs/wbs/domain/contracts/src/commands/definitions.ts`
-(54 plan-command kinds, 18 of them directory commands) and from every
-`defineEndpointShape` in `libs/wbs/domain/contracts/src/http/*-shapes.ts` (128 endpoints,
+2026-10-24 at `2e0ab3245` and re-derived at `0b1dddaa0` (main after #663, #704 and #706;
+Fable review PM-2, PM-3) from `libs/wbs/domain/contracts/src/commands/definitions.ts`
+(61 plan-command kinds, 21 of them directory commands) and from every
+`defineEndpointShape` in `libs/wbs/domain/contracts/src/http/*-shapes.ts` (133 endpoints,
 bound in `libs/wbs/application/core/src/http/*.routes.ts`), plus the 14 endpoints
 `wbs-work-packages` (PR #698) adds.
 
@@ -34,7 +35,7 @@ membership and nothing else. Slices 3 to 7 enforce this matrix and run after #69
 | `organization.recover_restricted`        | yes             |           |            |                 |                     |                |                 |                     |                 |
 | `project.read`                           | yes             | yes       | yes        | yes             | yes                 | yes            | shell only (P3) | shell only (P3)     | shell only (P3) |
 | `project.manage_settings`                | yes             | yes       |            | yes             |                     |                |                 |                     |                 |
-| `project.manage_budgets` (reserved)      | yes             | yes       |            | yes             |                     |                |                 |                     |                 |
+| `project.manage_budgets`                 | yes             | yes       |            | yes             |                     |                |                 |                     |                 |
 | `project.manage_dependencies` (reserved) | yes             | yes       |            | yes             |                     |                |                 |                     |                 |
 | `project.manage_packages`                | yes             | yes       |            | yes             |                     |                |                 |                     |                 |
 | `project.grant`                          | yes             | yes       |            | yes             |                     |                |                 |                     |                 |
@@ -43,35 +44,40 @@ membership and nothing else. Slices 3 to 7 enforce this matrix and run after #69
 | `package.manage_settings`                | yes             | yes       |            | yes             |                     |                | yes             |                     |                 |
 | `package.claim_for_others`               | yes             | yes       |            | yes             |                     |                | yes             |                     |                 |
 
-A machine principal's row is the contributor row of whatever it holds (P12). On a
+A machine credential's row is the contributor row of the grants naming it (P12, P17); its
+bound account's grants, groups and the organization-members subject do not reach it. On a
 restricted work package, organization-scope grants are skipped except `org-admin` and
 `org-super-admin` held directly or through a group, which count as viewer; an
 `org-super-admin` may also clear the flag through `organization.recover_restricted` (P5).
 A `package-*` or `project-*` role granted at organization scope counts only for the kinds
-it governs (P9). Sizes: 9 roles × 21 permissions; 54 command kinds and 150 endpoints
+it governs (P9). Sizes: 9 roles × 21 permissions; 61 command kinds and 155 endpoints
 below.
 
-## Plan-command kinds (`POST /api/work-packages/:id/commands`, 36)
+## Plan-command kinds (`POST /api/work-packages/:id/commands`, 40)
 
-Each command is checked at the work package the batch addresses, inside the batch's
-transaction; the batch is refused whole on the first short permission (P10).
+Each command is checked at the work package the batch addresses, `setBudget` and
+`clearBudget` at that work package's project (the organization row only until #698 slice
+2), inside the batch's transaction; the batch is refused whole on the first short
+permission (P10).
 
-| Permission                 | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Today          |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `package.write`            | `createWorkItem`, `patchWorkItem`, `moveWorkItem`, `duplicateWorkItem`, `deleteWorkItem`, `setEstimate`, `clearEstimate`, `setActual`, `clearActual`, `setProgress`, `setStepBlocked`, `clearProgress`, `startAttempt`, `endAttempt`, `removeAttempt`, `setStatus`, `setMeasure`, `clearMeasure`, `setAssignee`, `assignSubtree`, `claimWorkItem`, `releaseWorkItem`, `addDependency`, `removeDependency`, `addTypedDependency`, `updateTypedDependency`, `removeTypedDependency`, `arrangeBySchedule`, `unfreezeWorkItem`, `setDemand` (30) | member+creator |
-| `package.manage_settings`  | `freezeWorkPackage`, `unfreezeWorkPackage`, `setCapacity`, `setResourceCapacity`, `setStepAllowance`, `setPriorityBands` (6)                                                                                                                                                                                                                                                                                                                                                                                                                 | member+creator |
-| `package.claim_for_others` | additionally, `claimWorkItem` and `releaseWorkItem` naming a person not bound to the caller's account outside a delegated claim (the `isClaimAdmin` bypass)                                                                                                                                                                                                                                                                                                                                                                                  | admin          |
+| Permission                 | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Today          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| `package.write`            | `createWorkItem`, `patchWorkItem`, `moveWorkItem`, `duplicateWorkItem`, `deleteWorkItem`, `setEstimate`, `clearEstimate`, `setActual`, `clearActual`, `setProgress`, `setStepBlocked`, `clearProgress`, `startAttempt`, `endAttempt`, `removeAttempt`, `setStatus`, `setMeasure`, `clearMeasure`, `setAssignee`, `assignSubtree`, `claimWorkItem`, `releaseWorkItem`, `addDependency`, `removeDependency`, `addTypedDependency`, `updateTypedDependency`, `removeTypedDependency`, `arrangeBySchedule`, `unfreezeWorkItem`, `setDemand`, `setMeasureEstimate`, `clearMeasureEstimate` (32) | member+creator |
+| `package.manage_settings`  | `freezeWorkPackage`, `unfreezeWorkPackage`, `setCapacity`, `setResourceCapacity`, `setStepAllowance`, `setPriorityBands` (6)                                                                                                                                                                                                                                                                                                                                                                                                                                                               | member+creator |
+| `project.manage_budgets`   | `setBudget`, `clearBudget` (2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | member+creator |
+| `package.claim_for_others` | additionally, `claimWorkItem` and `releaseWorkItem` naming a person not bound to the caller's account outside a delegated claim (the `isClaimAdmin` bypass)                                                                                                                                                                                                                                                                                                                                                                                                                                | admin          |
 
 A typed dependency whose other end lies in another work package needs `package.write` at
 both ends until `project.manage_dependencies` gains behaviour. `createWorkItem` and
 `patchWorkItem` naming a type outside the project's `allowedWorkItemTypes` are refused
 `409 type_not_allowed_in_project` after the permission passes (#698 E22).
 
-## Directory commands (`POST /api/directory/commands`, 18)
+## Directory commands (`POST /api/directory/commands`, 21)
 
-| Permission                      | Kinds                                                                                                                                                                                                                                                                                                | Today  |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| `organization.manage_directory` | `createTeam`, `patchTeam`, `deleteTeam`, `createPerson`, `patchPerson`, `deletePerson`, `createTag`, `patchTag`, `deleteTag`, `createService`, `patchService`, `deleteService`, `createWorkItemType`, `patchWorkItemType`, `deleteWorkItemType`, `createResource`, `patchResource`, `deleteResource` | member |
+| Permission                      | Kinds                                                                                                                                                                                                                                                                                                | Today                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `organization.manage_directory` | `createTeam`, `patchTeam`, `deleteTeam`, `createPerson`, `patchPerson`, `deletePerson`, `createTag`, `patchTag`, `deleteTag`, `createService`, `patchService`, `deleteService`, `createWorkItemType`, `patchWorkItemType`, `deleteWorkItemType`, `createResource`, `patchResource`, `deleteResource` | member                                                                 |
+| `organization.manage_directory` | `createMeasure`, `patchMeasure`, `deleteMeasure` (measure definitions)                                                                                                                                                                                                                               | admin (`mayDefineMeasuresInOrganization`, `organization-access.ts:54`) |
 
 `patchPerson` with `accountId` (binding) was admin-only and stays inside
 `organization.manage_directory`. A `deletePerson … cascade` that revokes machine
@@ -79,26 +85,26 @@ credentials keeps A24's reach rule, now read from `organization.manage_directory
 item types stay directory-global (#698 E22); a project's allow-list of them is a project
 setting, below.
 
-## Routes (150)
+## Routes (155)
 
 ### Membership only, pre-membership, or infrastructure (`M`, 38)
 
-| Method and path                                                                                                                          | Endpoint                                                                            | Note                                                                                             |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `/api/auth/*` (11: context, link, link callback, login ×2, logout, me, methods, okta callback, refresh, register)                        | `issueBearerContext` … `registerPassword`                                           | authentication, before any organization                                                          |
-| `GET /health`, `GET /metrics`                                                                                                            | `health`, `metrics`                                                                 | infrastructure                                                                                   |
-| `GET /api/onboarding`, `POST /api/onboarding/{email-challenges,email-challenges/confirm,invitations/accept,join-requests,organizations}` | `readOnboarding` … `createOnboardingOrganization`                                   | pre-membership; the creator receives `org-super-admin` (P11)                                     |
-| `GET /api/organization/memberships`, `GET`/`POST /api/organization/active`                                                               | `listOrganizationMemberships`, `readActiveOrganization`, `selectActiveOrganization` | own memberships                                                                                  |
-| `GET /api/organization`                                                                                                                  | `readCapacityMode`                                                                  | name and capacity mode, which every reader renders                                               |
-| `GET /api/timezones`                                                                                                                     | `readTimezones`                                                                     | static                                                                                           |
-| `GET`/`POST /api/organization/machine-credentials`, `POST …/:id/rotate`, `DELETE …/:id`                                                  | `listMachineCredentials` … `revokeMachineCredential`                                | for agents bound to the caller's account (A7); every agent needs `organization.manage_directory` |
-| `POST /api/claims/renew`                                                                                                                 | `renewClaimLeases`                                                                  | the caller's own leases                                                                          |
-| `PUT /api/compute-providers/:providerId/resources/:resourceId/capacity-report`                                                           | `putCapacityReport`                                                                 | the provider's own machine credential (`compute-providers` P6)                                   |
-| `POST /api/smoke/echo`                                                                                                                   | `smokeEcho`                                                                         | unchanged                                                                                        |
-| `POST /internal/mcp/{organizations,delegation,authority,credentials,credentials/ended}`                                                  | `listMcpOrganizations` … `endMcpConsentCredential`                                  | service secret; unchanged                                                                        |
-| `POST /internal/forward`, `POST /internal/resume`                                                                                        | `forwardInternal`, `resumeInternal`                                                 | service; the forwarded principal is checked by the target                                        |
+| Method and path                                                                                                                          | Endpoint                                                                            | Note                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `/api/auth/*` (11: context, link, link callback, login ×2, logout, me, methods, okta callback, refresh, register)                        | `issueBearerContext` … `registerPassword`                                           | authentication, before any organization                                                                      |
+| `GET /health`, `GET /metrics`                                                                                                            | `health`, `metrics`                                                                 | infrastructure                                                                                               |
+| `GET /api/onboarding`, `POST /api/onboarding/{email-challenges,email-challenges/confirm,invitations/accept,join-requests,organizations}` | `readOnboarding` … `createOnboardingOrganization`                                   | pre-membership; the creator receives `org-super-admin` (P11)                                                 |
+| `GET /api/organization/memberships`, `GET`/`POST /api/organization/active`                                                               | `listOrganizationMemberships`, `readActiveOrganization`, `selectActiveOrganization` | own memberships                                                                                              |
+| `GET /api/organization`                                                                                                                  | `readCapacityMode`                                                                  | name and capacity mode, which every reader renders                                                           |
+| `GET /api/timezones`                                                                                                                     | `readTimezones`                                                                     | static                                                                                                       |
+| `GET`/`POST /api/organization/machine-credentials`, `POST …/:id/rotate`, `DELETE …/:id`                                                  | `listMachineCredentials` … `revokeMachineCredential`                                | for agents bound to the caller's account (A7); every agent needs `organization.manage_directory`             |
+| `POST /api/claims/renew`                                                                                                                 | `renewClaimLeases`                                                                  | the caller's own leases in work packages it can still read; the rest are skipped and expire naturally (PM-7) |
+| `PUT /api/compute-providers/:providerId/resources/:resourceId/capacity-report`                                                           | `putCapacityReport`                                                                 | the provider's own machine credential (`compute-providers` P6)                                               |
+| `POST /api/smoke/echo`                                                                                                                   | `smokeEcho`                                                                         | unchanged                                                                                                    |
+| `POST /internal/mcp/{organizations,delegation,authority,credentials,credentials/ended}`                                                  | `listMcpOrganizations` … `endMcpConsentCredential`                                  | service secret; unchanged                                                                                    |
+| `POST /internal/forward`, `POST /internal/resume`                                                                                        | `forwardInternal`, `resumeInternal`                                                 | service; the forwarded principal is checked by the target                                                    |
 
-### Lists: `200` with the visible subset (10)
+### Lists: `200` with the visible subset (11)
 
 Every member gets `200`; `organization.navigate` (any grant) decides whether the directory
 rows and spaces are in the subset (P10). A plain member gets `[]`, except their own agent
@@ -109,6 +115,7 @@ persons in `GET /api/people`.
 | `GET /api/{people,teams,services,tags,work-item-types,external-systems}` | `listPeople`, `listTeams`, `listServices`, `listTags`, `listWorkItemTypes`, `listExternalSystems` | member | the directory with `organization.navigate`; agent persons: every one with `organization.manage_directory`, else own |
 | `GET /api/people/load`, `GET /api/people/:personId/load`                 | `readOrganizationLoad`, `readPersonLoad`                                                          | member | folded over readable work packages only                                                                             |
 | `GET /api/spaces`, `GET /api/organization/work-package-rank`             | `listSpaces`, `readWorkPackageRank`                                                               | member | spaces with `organization.navigate`, their members and the rank filtered through `readablePackageIds`               |
+| `GET /api/measures`                                                      | `listMeasures`                                                                                    | member | the directory's measure definitions with `organization.navigate`                                                    |
 
 `GET /api/work-packages` and `GET /api/projects` are lists too and follow the same rule;
 they are counted under `package.read` and `project.read` below.
@@ -147,17 +154,17 @@ they are counted under `package.read` and `project.read` below.
 | `POST /api/spaces`, `PATCH`/`DELETE /api/spaces/:id`                                            | `createSpace`, `renameSpace`, `removeSpace`                              | member                                                                        |
 | `POST /api/spaces/:id/projects`, `DELETE …/:projectId`, `POST …/:projectId/move`                | `addSpaceProject`, `removeSpaceProject`, `moveSpaceProject`              | member (`/api/spaces/:id/work-packages…` from #698 slice 1 until its slice 3) |
 | `POST`/`DELETE /api/spaces/:id/people/:personId`, `POST`/`DELETE /api/spaces/:id/teams/:teamId` | `addSpacePerson`, `removeSpacePerson`, `addSpaceTeam`, `removeSpaceTeam` | new (#698 E23)                                                                |
-| `POST /api/organization/work-packages/:id/rank`                                                 | `moveWorkPackageRank`                                                    | member                                                                        |
+| `POST /api/organization/work-packages/:id/rank`                                                 | `moveWorkPackageRank`                                                    | admin (`project-rank.resource.ts:61`)                                         |
 
 Every project or work package a space write names must also be readable
 (`404 not_found` otherwise), as `space-authorization` states.
 
 ### `organization.manage_access` and `organization.manage_organization_roles` (7, new)
 
-| Method and path                                                                                                      | Endpoint                                                                                             | Permission                                                                                                                                                                                                 |
-| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/organization/grants`, `DELETE …/:id`                                                                      | `grantRole`, `revokeRole`                                                                            | organization roles: `manage_organization_roles`; project and package roles: `manage_access`, or `project.grant` at the work package's project for a package role; not narrowed by a restricted target (P5) |
-| `POST /api/organization/access-groups`, `PATCH`/`DELETE …/:id`, `POST …/:id/members`, `DELETE …/:id/members/:userId` | `createAccessGroup`, `renameAccessGroup`, `deleteAccessGroup`, `addGroupMember`, `removeGroupMember` | `manage_access`                                                                                                                                                                                            |
+| Method and path                                                                                                      | Endpoint                                                                                             | Permission                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/organization/grants`, `DELETE …/:id`                                                                      | `grantRole`, `revokeRole`                                                                            | organization roles: `manage_organization_roles`; project and package roles: `manage_access`, or `project.grant` at the work package's project for a package role; not narrowed by a restricted target (P5); a `machine_credential` subject takes the same permission and escalation rule as a person (P17) |
+| `POST /api/organization/access-groups`, `PATCH`/`DELETE …/:id`, `POST …/:id/members`, `DELETE …/:id/members/:userId` | `createAccessGroup`, `renameAccessGroup`, `deleteAccessGroup`, `addGroupMember`, `removeGroupMember` | `manage_access`                                                                                                                                                                                                                                                                                            |
 
 ### `organization.manage_security` (19)
 
@@ -207,10 +214,11 @@ Every project or work package a space write names must also be readable
 | `POST /api/work-packages/import`   | `importWorkPackage` (`importProject` today) | member                                         | same                                                                                                                                          |
 | `POST /api/work-packages/:id/move` | `moveWorkPackage`                           | new (#698 E17: admin plus edit on the package) | at **both** the source and the target project; the package must be readable (`404` otherwise); its restriction moves with it                  |
 
-Budgets and dependencies arrive with later changes and take `project.manage_budgets` and
+Budgets are written by the `setBudget` and `clearBudget` plan commands under
+`project.manage_budgets` (above); dependencies arrive with a later change and take
 `project.manage_dependencies`.
 
-### `package.read` (23)
+### `package.read` (27)
 
 | Method and path                                                                                                                                                                                                                                                     | Endpoint                                                                                                                                                                                                                                                     | Today  |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
@@ -221,6 +229,8 @@ Budgets and dependencies arrive with later changes and take `project.manage_budg
 | `POST /api/work-packages/:id/opened`                                                                                                                                                                                                                                | `recordWorkPackageOpen`                                                                                                                                                                                                                                      | viewer |
 | `GET /plans/by-solution/:slug`                                                                                                                                                                                                                                      | `readSolution`                                                                                                                                                                                                                                               | viewer |
 | `GET /api/spaces/:id`, `…/roll-ups`, `…/in-progress`                                                                                                                                                                                                                | `readSpace`, `readSpaceRollUps`, `readSpaceInProgress`                                                                                                                                                                                                       | member |
+| `GET /api/work-packages/:id/claims`, `…/claim-history`, `…/budget-headroom`                                                                                                                                                                                         | `readWorkPackageClaims` (`readProjectClaims` today), `readClaimHistory`, `readBudgetHeadroom`                                                                                                                                                                | viewer |
+| `GET /api/work-packages/:id/work-items/:workItemId/refs/:refId/delivery`                                                                                                                                                                                            | `getWorkItemDelivery`                                                                                                                                                                                                                                        | viewer |
 | `POST /internal/gateway/work-packages/:workPackageId/{access,browser-access}`                                                                                                                                                                                       | `gatewayWorkPackageAccess`, `gatewayBrowserWorkPackageAccess`                                                                                                                                                                                                | viewer |
 
 `GET /api/work-packages` answers `200` with the readable subset for any member (P10); the
@@ -253,12 +263,14 @@ keeps them in (P5, P6). Clearing it is `package.manage_settings`, or, for an
 ## Totals
 
 - Permissions: 21 over 4 evaluation kinds; roles: 9 (9 × 21 cells above).
-- Plan-command kinds: 54 (36 work package, 18 directory), each with exactly one permission.
-- Contract endpoints today: 128. #698 adds 14 (the `/api/projects` family 7, `move` 1, work
+- Plan-command kinds: 61 (40 work package, 21 directory), each with exactly one permission.
+- Contract endpoints today: 133 (128 at `2e0ab3245`; #663, #704 and #706 added
+  `listMeasures`, `readBudgetHeadroom`, `readProjectClaims`, `readClaimHistory` and
+  `getWorkItemDelivery`). #698 adds 14 (the `/api/projects` family 7, `move` 1, work
   package settings 2, space people and teams 4; its project steps replace the three work
   package step routes). This change removes `changeMemberRole` and adds 9 grant and group
-  routes: 128 − 1 + 14 + 9 = 150 = 38 `M` + 10 lists + 4 `organization.read` + 7 members +
+  routes: 133 − 1 + 14 + 9 = 155 = 38 `M` + 11 lists + 4 `organization.read` + 7 members +
   5 directory + 11 spaces + 7 access + 19 security + 1 capacity mode +
   1 `organization.create_project` + 3 `project.read` + 6 `project.manage_settings` +
-  3 `project.manage_packages` + 23 `package.read` + 9 `package.write` +
+  3 `project.manage_packages` + 27 `package.read` + 9 `package.write` +
   3 `package.manage_settings`.

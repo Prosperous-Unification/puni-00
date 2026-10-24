@@ -24,9 +24,10 @@ project → work package shape that access must follow.
 **Reach and principals**
 
 - From: one organization-wide role held by accounts.
-- To: grants at organization, project or work package to an account, an access group or
-  every current member; the strongest wins down the chain (E9); organization-wide grants
-  only read a restricted work package; machines are capped at contributor.
+- To: grants at organization, project or work package to an account, a machine
+  credential, an access group or every current member; the strongest wins down the chain
+  (E9); organization-wide grants only read a restricted work package; a machine credential
+  holds only its own grants, capped at contributor.
 
 **Visibility and administration**
 
@@ -39,8 +40,9 @@ Depends on `wbs-work-packages` (#698): slices 3 to 7 follow its renames.
 ## Non-Goals
 
 Deny rules; custom roles; grants on spaces; group sync from SSO or SCIM; nested groups;
-claim semantics; production activation; the reserved `project.manage_budgets` and
-`project.manage_dependencies`.
+claim semantics; production activation; budget behaviour (this change only gates
+`setBudget` and `clearBudget`); the reserved `project.manage_dependencies`; renaming access
+roles at runtime (E7's renaming is the scope-prefixed vocabulary, P18).
 
 ## Constraints
 
@@ -65,11 +67,12 @@ The machine cap applies at every check and refuses a machine principal every gra
 
 ## Domain Terms
 
-Seven added; two amended, one renamed, one retired.
+Nine added; four amended, one renamed, one retired.
 
 ## Decisions Recorded
 
-No ADR. E7–E9 fixed by Dany; P1–P16 assumed, overrulable by id (design.md).
+No ADR. E7–E9 fixed by Dany; P1–P18 assumed, overrulable by id (design.md); P17 (machine
+credentials as grant subjects, overriding P2) and P18 await Dany's confirmation.
 
 ## Impact
 
