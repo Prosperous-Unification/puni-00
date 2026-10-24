@@ -14,13 +14,14 @@ async function drain(stream: ReadableStream<Uint8Array>): Promise<void> {
 }
 
 test('source listener must belong to the actual application FD, not merely its shared network namespace', async () => {
+  // Proof: console.log emitted ANSI readiness bytes under FORCE_COLOR=1 and this actual FD test refused the malformed port.
   const child = Bun.spawn(
     [
       process.execPath,
       '-e',
-      "const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch(){return new Response('ok')}}); console.log(server.port); await new Response(Bun.stdin.stream()).text(); server.stop(true);",
+      "const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch(){return new Response('ok')}}); process.stdout.write(String(server.port)+'\\n'); await new Response(Bun.stdin.stream()).text(); server.stop(true);",
     ],
-    { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
+    { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, FORCE_COLOR: '1' } },
   );
   const foreign = Bun.spawn(
     [process.execPath, '-e', 'await new Response(Bun.stdin.stream()).text();'],
