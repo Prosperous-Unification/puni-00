@@ -55,6 +55,47 @@ const REASON_WORDS: Readonly<Record<ClaimHistoryEventView['reason'], string | nu
   credential_revoked: 'credential revoked',
 };
 
+/**
+ * Whether the plan offers the Claims sheet: once any claims read installed in
+ * this table for `projectId` has listed a claim, and from then on until the
+ * project changes (`wbs-claim-display` C16). A never-claimed plan offers none,
+ * so its toolbar is what it was; a plan whose last claim was just reaped keeps
+ * the offer, so the reason it went stays one click away (C13).
+ *
+ * Held by the table and not by the sheet: on a phone the sheet is mounted only
+ * while `Plan actions` is open, and a latch there would forget each time.
+ */
+export function useClaimsOffered(projectId: string, claims: InstalledClaims | null): boolean {
+  const [offeredFor, setOfferedFor] = useState<string | null>(null);
+  const holding = claims !== null && claims.claims.length > 0;
+  // Set during render, React's pattern for state derived from a change of props.
+  if (holding && offeredFor !== projectId) setOfferedFor(projectId);
+  // Proof: returning `holding` alone made `stays, with no number, when the last
+  // claim is reaped while it is closed` fail on `expected undefined to be
+  // 'Claims'`, and the open case's focus check on `expected <body …> to be
+  // <button …>`; watched 2026-10-24.
+  return holding || offeredFor === projectId;
+}
+
+/**
+ * Breaks a run id after its separators (`:`, `-`, `/`) rather than mid-word:
+ * `agent:codex-fleet:subagent:…` wraps at its own seams.
+ */
+function RunWords({ runId }: { runId: string }) {
+  const parts = runId.split(/(?<=[:/-])/);
+  return (
+    <>
+      {parts.map((part, index) => (
+        // A run id's parts repeat (`-`) and never reorder, so their position is their identity.
+        <span key={index}>
+          {part}
+          {index < parts.length - 1 && <wbr />}
+        </span>
+      ))}
+    </>
+  );
+}
+
 /** `24 Oct 10:42` in the project's zone, or null from a read without one. */
 function sinceWords(epochMs: number, zone: string | null): string | null {
   if (zone === null) return null;
@@ -81,6 +122,8 @@ export interface ClaimsSheetProps {
   zone: string | null;
   /** The plan's one lease clock, so the sheet counts as the chips do. */
   leaseClock: LeaseClock;
+  /** Whether the plan offers the sheet at all: {@link useClaimsOffered}. */
+  offered: boolean;
 }
 
 /**
@@ -88,13 +131,15 @@ export interface ClaimsSheetProps {
  * grouped by holder then run, and the recent claims and releases with why each
  * went. Display only (C15): no claim or release control.
  *
- * Its button is drawn only while a claim is held, or while the sheet is open,
- * so an unclaimed plan's toolbar is exactly what it was (design Goals); the
- * button carries the held count, and none at zero.
+ * Its button is drawn once the plan has held a claim since it was opened
+ * ({@link useClaimsOffered}) or while the sheet is open, so a never-claimed
+ * plan's toolbar is exactly what it was (design Goals); it carries the held
+ * count, and none at zero.
  *
  * The history is the sheet's own read, not a plan resource: read on open,
  * again on each tree change while open, and never while closed. A failed read
- * is said in place with its own retry, and the held list stays (C12).
+ * is said in place with its own retry, and the held list stays (spec scenario
+ * "The history cannot be read").
  */
 export function ClaimsSheet({
   claims,
@@ -104,6 +149,7 @@ export function ClaimsSheet({
   steps,
   zone,
   leaseClock,
+  offered,
 }: ClaimsSheetProps) {
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<HistoryState>({ kind: 'reading', events: null });
@@ -113,19 +159,30 @@ export function ClaimsSheet({
   const historyHeading = useId();
 
   useEffect(() => {
+    // Proof: with this return removed, `rereads the history on a tree change
+    // while open, and not on claims_changed` failed on the closed sheet's
+    // reads (`expected 3 to be +0`); watched 2026-10-24.
     if (!open) return;
     let current = true;
+    // While open, a reread keeps the list it replaces on screen, dimmed; a
+    // reopen starts from nothing (see `changeOpen`).
     setHistory((was) => ({ kind: 'reading', events: was.kind === 'read' ? was.events : null }));
     readHistory().then(
       (events) => {
+        // Only the newest read issued while open may land. Proof: with both
+        // `current` guards removed, `shows the newest read after a close and
+        // reopen` and `shows the tree change's read, not an older one that
+        // lands after it` failed on `expected [ 'old' ] to deeply equal
+        // [ 'new' ]`; watched 2026-10-24.
         if (current) setHistory({ kind: 'read', events });
       },
       () => {
-        // Modelled, not swallowed: the history is optional (C12) and its
-        // failure is the section's rendered state, with its own retry.
-        // Proof: answering an empty list here instead made `says the history
-        // could not be read in place, and keeps the held list` fail on the
-        // missing sentence; watched 2026-10-24.
+        // Modelled, not swallowed: the history is optional, and its failure,
+        // whatever the cause, is the section's rendered state with its own
+        // retry (spec scenario "The history cannot be read"), as the claims
+        // read's is (C12). Proof: answering an empty list here instead made
+        // `says the history could not be read in place, and keeps the held
+        // list` fail on the missing sentence; watched 2026-10-24.
         if (current) setHistory({ kind: 'failed' });
       },
     );
@@ -146,12 +203,21 @@ export function ClaimsSheet({
     stepId === null ? 'subtree' : (stepNames.get(stepId) ?? 'unlisted step');
   const groups = useMemo(() => groupHeldClaims(held), [held]);
 
+  /** A reopened sheet shows no list from an earlier opening while it rereads. */
+  const changeOpen = (next: boolean): void => {
+    // Proof: without this reset, `dims the list while open and rereading, and
+    // shows none of it on a reopen` failed on `expected [ 'second' ] to deeply
+    // equal []`; watched 2026-10-24.
+    if (!next) setHistory({ kind: 'reading', events: null });
+    setOpen(next);
+  };
+
   // Proof: with this return taken out, `is not drawn while no claim is held, so
   // an unclaimed plan pays nothing` failed on `expected <button …> to be null`;
   // watched 2026-10-24.
-  if (held.length === 0 && !open) return null;
+  if (!offered && !open) return null;
   return (
-    <Modal open={open} onOpenChange={setOpen}>
+    <Modal open={open} onOpenChange={changeOpen}>
       <ModalTrigger asChild>
         <Button
           variant="outline"
@@ -199,6 +265,9 @@ export function ClaimsSheet({
               {claims === null ? '' : ' These are the last ones read.'}
             </p>
           )}
+          {claims === null && !claimsMayBeStale && (
+            <p className="text-muted-foreground text-sm">Reading…</p>
+          )}
           {held.length === 0 && claims !== null && (
             <p className="text-muted-foreground text-sm">No claims are held.</p>
           )}
@@ -218,8 +287,8 @@ export function ClaimsSheet({
                   className="flex flex-col gap-0.5 border-l pl-2"
                 >
                   {run.runId !== null && (
-                    <p className="text-muted-foreground font-mono text-xs break-all">
-                      run {run.runId}
+                    <p className="text-muted-foreground font-mono text-xs [overflow-wrap:anywhere]">
+                      run <RunWords runId={run.runId} />
                     </p>
                   )}
                   <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
@@ -317,6 +386,17 @@ function whoWords(claims: readonly ClaimHistoryClaimView[]): string {
   return names.join(', ');
 }
 
+/** One claim of a history entry: `010.1 Paint · Dev`, or `a deleted item`. */
+function itemWords(
+  claim: ClaimHistoryClaimView | undefined,
+  stepWords: (stepId: string | null) => string,
+): string {
+  // Unreachable: called with an entry's only claim, after its length was read as 1.
+  if (claim === undefined) throw new Error('a history entry names no claim');
+  if (claim.item === null) return 'a deleted item';
+  return `${claim.item.number} ${claim.item.name} · ${stepWords(claim.stepId)}`;
+}
+
 function ClaimHistoryList({
   history,
   zone,
@@ -333,10 +413,10 @@ function ClaimHistoryList({
       <p data-claim-history-failed className="flex items-center gap-2 text-sm">
         <span className="text-muted-foreground">Claim history could not be read.</span>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           type="button"
-          className="h-6 px-2 text-xs"
+          className="h-7 px-2 text-xs"
           onClick={retry}
         >
           Retry history
@@ -351,7 +431,14 @@ function ClaimHistoryList({
     return <p className="text-muted-foreground text-sm">No claims or releases yet.</p>;
   }
   return (
-    <ol className="m-0 flex list-none flex-col gap-1.5 p-0" aria-busy={history.kind === 'reading'}>
+    <ol
+      className={`m-0 flex list-none flex-col gap-1.5 p-0${history.kind === 'reading' ? 'opacity-60' : ''}`}
+      aria-busy={history.kind === 'reading'}
+      // Proof: without this mark, `dims the list while open
+      // and rereading …` failed on `expected null not to be null`; watched
+      // 2026-10-24.
+      data-claim-history-rereading={history.kind === 'reading' ? '' : undefined}
+    >
       {history.events.map((entry) => {
         const reason = REASON_WORDS[entry.reason];
         const when = sinceWords(entry.at, zone);
@@ -368,14 +455,22 @@ function ClaimHistoryList({
               <span>
                 <span className="font-medium">{whoWords(entry.claims)}</span>{' '}
                 {entry.kind === 'claim' ? 'claimed' : 'released'}
+                {entry.claims.length > 1 && ` ${String(entry.claims.length)} items`}
               </span>
-              {entry.claims.map((claim) => (
-                <span key={claim.claimId} className="text-muted-foreground truncate">
-                  {claim.item === null
-                    ? 'a deleted item'
-                    : `${claim.item.number} ${claim.item.name} · ${stepWords(claim.stepId)}`}
+              {entry.claims.length === 1 ? (
+                <span className="text-muted-foreground truncate">
+                  {itemWords(entry.claims[0], stepWords)}
                 </span>
-              ))}
+              ) : (
+                <ul className="m-0 flex list-none flex-col p-0">
+                  {entry.claims.map((claim) => (
+                    <li key={claim.claimId} className="text-muted-foreground truncate">
+                      <span aria-hidden="true">– </span>
+                      {itemWords(claim, stepWords)}
+                    </li>
+                  ))}
+                </ul>
+              )}
               {reason !== null && (
                 <span data-claim-history-reason className="text-xs font-medium">
                   {reason}

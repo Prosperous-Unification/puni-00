@@ -137,10 +137,11 @@ failure in place. Neither SHALL reach the Error Boundary.
 ### Requirement: The Claims sheet lists who holds what
 
 fe-01 SHALL offer a Claims sheet from a toolbar button showing the number of claims held and
-from the phone `Plan actions` sheet. The button SHALL be drawn only while a claim is held or the
-sheet is open (an unclaimed plan's toolbar is unchanged), and SHALL show no number at zero. It SHALL list the held claims grouped
-by holder, then run, each with number, name, step name or `subtree`, lease text and claim
-instant. It SHALL offer no claim or release control.
+from the phone `Plan actions` sheet. The button SHALL be drawn once a claims read has listed a
+claim since the project was opened, and while the sheet is open, so a never-claimed plan's
+toolbar is unchanged; it SHALL show no number at zero. The sheet SHALL list the held claims
+grouped by holder, then run, each with number, name, step name or `subtree`, lease text and
+claim instant. It SHALL offer no claim or release control.
 
 #### Scenario: A swarm at a glance
 
@@ -150,13 +151,20 @@ instant. It SHALL offer no claim or release control.
 
 #### Scenario: An unclaimed plan offers no Claims button
 
-- **WHEN** no claim is held in the project and the sheet is closed
+- **WHEN** no claims read has listed a claim since the project was opened
 - **THEN** the toolbar draws no Claims button
 
 #### Scenario: The last claim goes while the sheet is open
 
 - **WHEN** the sheet is open and a claims read lists no claim
 - **THEN** the sheet stays open, says no claims are held, and its button shows no number
+- **AND** closing the sheet puts the focus back on its button
+
+#### Scenario: The last claim is reaped while the sheet is closed
+
+- **WHEN** the sweep releases the only claim held while the sheet is closed
+- **THEN** the button stays with no number, and the sheet's history names the release and its
+  reason
 
 ### Requirement: The Claims sheet says why claims went
 

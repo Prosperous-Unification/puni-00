@@ -878,8 +878,10 @@ each change of the installed tree's generation while open, never on `claims_chan
 while closed; its failure is said in place ("Claim history could not be read.", `Retry
 history`) with the held list kept; a failed claims read is said in place over the last claims.
 No claim or release control: the sheet's only button is its ✕. Ten cases in
-`claims-sheet.test.tsx`. Red before the green: 8 of 9 failed (no button, no dialog); the
-zero-claims case passed vacuously until its fault below.
+`claims-sheet.test.tsx` at first push. Red before the green: 8 of the first 9 failed (no
+button, no dialog); the zero-claims case passed vacuously until its fault below. The tenth,
+`says a failed claims read in place …`, was written after the green, its weight resting on its
+watched fault.
 
 | R5 fault (watched)                                        | Observed                                                                                           |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -900,12 +902,8 @@ Project settings does). Case `is offered on the Plan actions sheet, and opens ov
 
 Deviations:
 
-- C16 amended: the button is drawn only while a claim is held or the sheet is open, not at zero
-  with no count. The design's Goal ("an unclaimed plan looks and costs exactly what it does
-  today") and `project-settings.spec.ts`' pinned 1280px toolbar width (1332.5px, no margin
-  left) both forbid a new control on an unclaimed plan's toolbar. The cost: with no claim held,
-  the history is reachable only through the MCP read. Spec delta and design updated, with two
-  scenarios.
+- C16 amended (first push: drawn only while a claim is held or the sheet is open; replaced in
+  the review round below by the latch).
 - The history read is a `PlanCommands` route rather than a new `ProjectRuntime` member, as
   `exportPlan` is: a new runtime member would change the runtime's enumerated surface for one
   sheet-local read.
@@ -932,3 +930,57 @@ Results (fresh, 2026-10-24):
 Not run locally: the full fe-01 suite, e2e and pixels (CI carries them; laptop RAM). No e2e
 plan holds a claim, so no e2e toolbar count or width moves and no pixels baseline is expected to
 change.
+
+**Review round (#710 at `7c541b40a`, no blocker).** Coordinator decisions recorded as
+assumptions for Dany.
+
+- S1 The latch: `useClaimsOffered` in `claims-sheet.tsx`, held by the table (on a phone the
+  sheet mounts only while `Plan actions` is open), offers the button once a claims read in this
+  table has listed a claim for the project, and while the sheet is open. A never-claimed plan's
+  toolbar is unchanged; a plan whose last claim was reaped keeps a count-less button, so the
+  reason stays reachable (C13). C16 and the spec delta say so, with the scenario "The last claim
+  is reaped while the sheet is closed"; case `stays, with no number, when the last claim is
+reaped while it is closed`.
+- S2 Focus: the "last claim goes while open" case now closes the sheet with Escape and asserts
+  the focus is back on the trigger.
+- S3 Two deferred-promise cases: a close and reopen, and a tree change whose read lands before an
+  older one. Proof beside the `current` guards.
+- S4 The toolbar on the scratch plan (light, Chromium), `measureToolbar`'s sum:
+
+  | Width | Plan                            | laidOut | Rows | Overflow right | Page scroll |
+  | ----- | ------------------------------- | ------- | ---- | -------------- | ----------- |
+  | 1280  | never claimed                   | 1332.48 | 2    | 0              | 0           |
+  | 1280  | seven claims (`Claims 7`, 83px) | 1421.84 | 2    | 0              | 0           |
+  | 1024  | never claimed                   | 1332.48 | 2    | 0              | 0           |
+  | 1024  | seven claims                    | 1421.84 | 2    | 0              | 0           |
+
+  The never-claimed figure equals `project-settings.spec.ts`' pin (1332.5). With claims the
+  button ends row one and the `Whole plan` group stays whole and right-aligned on row two
+  (top 44, right edge 1272 and 1016); no third row, nothing clipped. Screenshots
+  `toolbar-{1280,1024}-light-claimed.png`.
+
+- Nits: a Proof on the never-read-while-closed return; a reopened sheet starts from `Reading…`
+  and a reread while open dims the list it keeps (`data-claim-history-rereading`); the history
+  failure comment cites the spec scenario; a `Reading…` line in the held section before the
+  first claims read; the amended design and spec lines rewrapped; the API JSDoc points at the
+  contract for the bound instead of repeating it; `PROJECT_COMMAND_ROUTES`' JSDoc names the
+  project-scoped reads.
+- Eye review: run ids break after `:`, `-` and `/` (`<wbr>`, `overflow-wrap: anywhere` only as
+  the last resort), so `…-long-` / `run-identifier`; `Retry history` is an outline button; a
+  history entry naming several claims reads `released 2 items` with one item per line, a
+  deleted one still `a deleted item`.
+
+| R5 fault (watched)               | Observed                                                                                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| latch dropped (`return holding`) | `stays, with no number, when … closed`: `expected undefined to be 'Claims'`; the open case's focus: `expected <body …> to be <button …>` |
+| both `current` guards removed    | the two race cases: `expected [ 'old' ] to deeply equal [ 'new' ]`                                                                       |
+| `if (!open) return` removed      | `rereads the history …`: `expected 3 to be +0`                                                                                           |
+| no history reset on close        | `dims the list while open and rereading, and shows none of it on a reopen`: `expected [ 'second' ] to deeply equal []`                   |
+| no rereading mark                | same case: `expected null not to be null`                                                                                                |
+
+Results after the round (fresh, 2026-10-24): `nx run wbs-fe-01:typecheck --skip-nx-cache`
+succeeded; eslint on the changed files exit 0; vitest over the same four trees, serial: 156
+files, 3564 pass (`claims-sheet.test.tsx` 14); `openspec validate --all --json` 282 of 282; Burokrat `check-indexes working . HEAD` exit 0.
+
+Screenshots re-shot: every sheet shot (desktop and phone, light and dark, history failed) and the
+two toolbar shots, in the session scratchpad's `claim-sheet-shots`.

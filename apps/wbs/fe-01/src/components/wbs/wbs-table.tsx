@@ -19,7 +19,7 @@ import {
 
 import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
-import { ClaimsSheet } from './claims-sheet';
+import { ClaimsSheet, useClaimsOffered } from './claims-sheet';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
 import { createDepLights, type DepLights } from './dep-light-store';
@@ -2359,6 +2359,7 @@ export function WbsTable({
       Reset layout
     </Button>
   );
+  const claimsOffered = useClaimsOffered(projectId, claims);
   const toolbarControls = (
     <PlanToolbar
       // Its urgent Find value belongs to one project. Proof: this key removed,
@@ -2446,6 +2447,7 @@ export function WbsTable({
           steps={steps}
           zone={chartRead.timezone}
           leaseClock={leaseClock}
+          offered={claimsOffered}
         />
       }
     />

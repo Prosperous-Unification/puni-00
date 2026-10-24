@@ -75,6 +75,11 @@ const historyRows = (sheet: HTMLElement): string[] =>
     (row) => row.textContent,
   );
 
+const historyIds = (sheet: HTMLElement): string[] =>
+  [...sheet.querySelectorAll<HTMLElement>('[data-claim-history-event]')].map(
+    (row) => row.getAttribute('data-claim-history-event') ?? '',
+  );
+
 const MINUTE = 60_000;
 
 function event(
@@ -132,6 +137,52 @@ describe('the Claims toolbar button (wbs-claim-display 9.1, C16)', () => {
     );
     expect(trigger?.getAttribute('aria-label')).toBe('Claims');
     expect(trigger?.querySelector('[data-claims-count]')).toBeNull();
+
+    // Closing gives the focus back to that trigger, never to <body>.
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Claims' })).toBeNull();
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(trigger);
+    });
+  });
+
+  itDom('stays, with no number, when the last claim is reaped while it is closed', async () => {
+    const fixture = await claimedPlan(['c-dana']);
+    const { stream } = drawTable(fixture.api);
+    await waitFor(() => {
+      expect(claimsButton()?.getAttribute('aria-label')).toBe('Claims, 1 held');
+    });
+
+    // The sweep reaps dana's claim: the tree is announced, the claims read
+    // lists nothing, and the history says why.
+    fixture.api.readClaims = () => Promise.resolve({ readAt: Date.now(), claims: [] });
+    fixture.history.push(
+      event('e9', CLAIMED_AT + 5 * MINUTE, 'release', 'lease_expired', [
+        {
+          claimId: 'c-dana',
+          workItemId: fixture.ids.prime,
+          stepId: 'step-dev',
+          runId: null,
+          holder: { personId: 'person-dana', name: 'dana' },
+          item: { number: '030', numberIsFrozen: false, name: 'Prime' },
+        },
+      ]),
+    );
+    act(() => {
+      stream().onChange('tree_replaced');
+    });
+
+    await waitFor(() => {
+      expect(claimsButton()?.getAttribute('aria-label')).toBe('Claims');
+    });
+    expect(claimsButton()?.querySelector('[data-claims-count]')).toBeNull();
+    const sheet = await openTheSheet();
+    await waitFor(() => {
+      expect(historyRows(sheet)).toEqual(['24 Oct 10:47dana released030 Prime · Devlease expired']);
+    });
+    expect(within(sheet).getByText('No claims are held.')).toBeInTheDocument();
   });
 });
 
@@ -228,6 +279,14 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
           holder: { personId: 'person-gone', name: null },
           item: null,
         },
+        {
+          claimId: 'c-4',
+          workItemId: ids.paint,
+          stepId: 'step-qa',
+          runId: null,
+          holder: { personId: 'person-gone', name: null },
+          item: paint,
+        },
       ]),
       event('e1', CLAIMED_AT, 'claim', 'claimed', [
         {
@@ -248,7 +307,7 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
       expect(historyRows(sheet)).toEqual([
         '24 Oct 10:46codex released010.1 Paint · Devlease expired',
         '24 Oct 10:45finn released020 Sand · QAcredential revoked',
-        '24 Oct 10:44a deleted person releaseda deleted item',
+        '24 Oct 10:44a deleted person released 2 items– a deleted item– 010.1 Paint · QA',
         '24 Oct 10:42codex claimed010.1 Paint · Dev',
       ]);
     });
@@ -353,6 +412,123 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
     });
     await waitFor(() => {
       expect(historyReads()).toBe(2);
+    });
+  });
+
+  itDom('shows the newest read after a close and reopen', async () => {
+    const { api } = await claimedPlan(['c-dana']);
+    const pending: ((events: ClaimHistoryEventView[]) => void)[] = [];
+    api.readClaimHistory = () =>
+      new Promise((resolve) => {
+        pending.push(resolve);
+      });
+    drawTable(api);
+
+    let sheet = await openTheSheet();
+    await waitFor(() => {
+      expect(pending).toHaveLength(1);
+    });
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Claims' })).toBeNull();
+    });
+    sheet = await openTheSheet();
+    await waitFor(() => {
+      expect(pending).toHaveLength(2);
+    });
+    // A reopened sheet shows nothing of an earlier opening while it rereads.
+    expect(within(sheet).getByText('Reading…')).toBeInTheDocument();
+
+    act(() => {
+      pending[1]?.([event('new', CLAIMED_AT, 'claim', 'claimed', [])]);
+    });
+    await act(async () => {
+      pending[0]?.([event('old', CLAIMED_AT, 'claim', 'claimed', [])]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(historyIds(sheet)).toEqual(['new']);
+    });
+  });
+
+  itDom('dims the list while open and rereading, and shows none of it on a reopen', async () => {
+    const { api } = await claimedPlan(['c-dana']);
+    const pending: ((events: ClaimHistoryEventView[]) => void)[] = [];
+    api.readClaimHistory = () =>
+      new Promise((resolve) => {
+        pending.push(resolve);
+      });
+    const { stream } = drawTable(api);
+
+    let sheet = await openTheSheet();
+    await waitFor(() => {
+      expect(pending).toHaveLength(1);
+    });
+    act(() => {
+      pending[0]?.([event('first', CLAIMED_AT, 'claim', 'claimed', [])]);
+    });
+    await waitFor(() => {
+      expect(historyIds(sheet)).toEqual(['first']);
+    });
+    expect(sheet.querySelector('[data-claim-history-rereading]')).toBeNull();
+
+    // A tree change while open: the list stays, marked as being reread.
+    act(() => {
+      stream().onChange('tree_replaced');
+    });
+    await waitFor(() => {
+      expect(pending).toHaveLength(2);
+    });
+    expect(historyIds(sheet)).toEqual(['first']);
+    expect(sheet.querySelector('[data-claim-history-rereading]')).not.toBeNull();
+    act(() => {
+      pending[1]?.([event('second', CLAIMED_AT, 'claim', 'claimed', [])]);
+    });
+    await waitFor(() => {
+      expect(historyIds(sheet)).toEqual(['second']);
+    });
+
+    // Closed and reopened, nothing of it shows until the new read lands.
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Claims' })).toBeNull();
+    });
+    sheet = await openTheSheet();
+    expect(historyIds(sheet)).toEqual([]);
+    expect(within(sheet).getByText('Reading…')).toBeInTheDocument();
+  });
+
+  itDom('shows the tree change’s read, not an older one that lands after it', async () => {
+    const { api } = await claimedPlan(['c-dana']);
+    const pending: ((events: ClaimHistoryEventView[]) => void)[] = [];
+    api.readClaimHistory = () =>
+      new Promise((resolve) => {
+        pending.push(resolve);
+      });
+    const { stream } = drawTable(api);
+
+    const sheet = await openTheSheet();
+    await waitFor(() => {
+      expect(pending).toHaveLength(1);
+    });
+    act(() => {
+      stream().onChange('tree_replaced');
+    });
+    await waitFor(() => {
+      expect(pending).toHaveLength(2);
+    });
+
+    act(() => {
+      pending[1]?.([event('new', CLAIMED_AT, 'claim', 'claimed', [])]);
+    });
+    await act(async () => {
+      pending[0]?.([event('old', CLAIMED_AT, 'claim', 'claimed', [])]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(historyIds(sheet)).toEqual(['new']);
     });
   });
 

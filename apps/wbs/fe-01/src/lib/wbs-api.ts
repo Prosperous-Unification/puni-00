@@ -1767,8 +1767,8 @@ export interface ProjectApi {
    */
   readClaims(projectId: string): Promise<ClaimsRead>;
   /**
-   * The project's newest claims and releases, at be-01's default bound (50),
-   * newest first. Read by the Claims sheet alone, while it is open; not a plan
+   * The project's newest claims and releases, newest first, at be-01's default
+   * bound (the `readClaimHistory` shape in `@wbs/contracts` names it). Read by the Claims sheet alone, while it is open; not a plan
    * resource, so no announcement rereads it (C13).
    */
   readClaimHistory(projectId: string): Promise<ClaimHistoryEventView[]>;

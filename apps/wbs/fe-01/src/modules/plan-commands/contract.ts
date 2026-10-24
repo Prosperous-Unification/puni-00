@@ -1,7 +1,8 @@
 import type { ProjectApi } from '@/lib/wbs-api';
 
 /**
- * The routes a plan command sends to one project as a whole, each taking that
+ * The routes a plan command or a project-scoped read (`exportPlan`,
+ * `readClaimHistory`) sends to one project as a whole, each taking that
  * project's id first.
  *
  * A value and not only a type, so a test can walk the list and a command that
