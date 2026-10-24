@@ -108,3 +108,17 @@ Parsing SHALL preserve an endpoint NetworkID that is empty or a full valid ID wi
 
 - **WHEN** the freshly inspected full ID differs from the nonce-filtered listed full ID
 - **THEN** fixture cleanup refuses before deletion even if the inspected name and label otherwise match
+
+### Requirement: Freeze one operation-wide monotonic effect limit
+
+Preparation and execution SHALL capture the checked wall-to-monotonic expiry once immediately after decoding the private packet and before asynchronous host preparation. Every ordinary admission SHALL fit its existing whole phase and reserve within that immutable finite limit. Admission or receipt time consumption SHALL remain subject to the runner's post-publication phase check before effect dispatch. Later wall-clock adjustments SHALL never renew the captured limit. Read-only recovery SHALL carry an explicit no-effect case with its fresh observation deadline and current edge admission, permitting an expired historical effect interval without reconstructing effect authority.
+
+#### Scenario: Wall time rolls back before the next service phase
+
+- **WHEN** elapsed monotonic time and the next complete service phase no longer fit under the initial effect limit while wall time rolls backward
+- **THEN** ordinary admission refuses before the next service is created or stopped
+
+#### Scenario: A clock mapping is not finite
+
+- **WHEN** the initial wall or monotonic sample is NaN or infinite
+- **THEN** preparation and execution refuse without constructing an unbounded effect limit

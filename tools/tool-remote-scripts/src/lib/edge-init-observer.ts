@@ -957,7 +957,13 @@ export async function probeHttp(probe: HttpProbe, timeout: number): Promise<void
     throw new ProbeMismatch('probe-refused');
 }
 
-/** Production alone constructs the local Engine and native observers; packet input cannot provide effects. */
+type OperationLimit = Readonly<{ kind: 'effects'; expiresAt: number } | { kind: 'read-only' }>;
+
+/** Production alone constructs the local Engine and native observers; packet input cannot provide effects.
+ * The checked wall-to-monotonic mapping is captured once before asynchronous host preparation.
+ * Each ordinary admission fits its whole existing phase under that immutable cap; the runner's
+ * post-publication phase check therefore also bounds dispatch after host/receipt time consumption.
+ */
 export async function runProductionInitAdoption(
   packetPath: string,
   mode: InitMode,
@@ -969,7 +975,19 @@ export async function runProductionInitAdoption(
     const packet = decodeInitPacket(
       parseJson(new TextDecoder('utf-8', { fatal: true }).decode(packetBytes)),
     );
-    return await runPreparedPacket(packet, sha(packetBytes), mode, packetPath);
+    const operationLimit: OperationLimit =
+      mode === 'inspect-recovery'
+        ? { kind: 'read-only' }
+        : {
+            kind: 'effects',
+            expiresAt: operationExpiry(
+              packet.quiescence.issuedAt,
+              packet.quiescence.expiresAt,
+              Date.now(),
+              performance.now(),
+            ),
+          };
+    return await runPreparedPacket(packet, sha(packetBytes), mode, packetPath, operationLimit);
   } catch (cause) {
     if (cause instanceof InitObservationRefusal) throw cause;
     // Proof: rethrowing the native cause exposed the synthetic private path and failed the factory redaction negative.
@@ -982,6 +1000,7 @@ async function runPreparedPacket(
   packetSha256: string,
   mode: InitMode,
   packetPath: string,
+  operationLimit: OperationLimit,
 ): Promise<SafeInitSummary> {
   if (
     process.getuid?.() !== 1000 ||
@@ -1053,7 +1072,14 @@ async function runPreparedPacket(
             await recheckWriters();
           };
           if (mode === 'inspect-recovery')
-            return inspectRecovery(packet, packetSha256, engine, recheckHeld, deadline);
+            return inspectRecovery(
+              packet,
+              packetSha256,
+              engine,
+              recheckHeld,
+              deadline,
+              operationLimit,
+            );
           const originals = await Promise.all(
             packet.targets.map((target) => engine.inspect(target.id, deadline.allocate(10000))),
           );
@@ -1090,6 +1116,7 @@ async function runPreparedPacket(
               await recheckWriters();
             },
             selection.targets,
+            operationLimit,
           );
           await observer.admit(deadline);
           for (const target of selection.targets) {
@@ -1415,6 +1442,7 @@ class ProductionObserver implements HostObserver {
     private readonly engine: ObserverEngine,
     private readonly recheck: () => Promise<void>,
     private readonly originals: readonly SelectedTarget[],
+    private readonly operationLimit: OperationLimit,
   ) {
     for (const target of packet.targets) this.active.set(target.kind, target.id);
   }
@@ -1425,20 +1453,24 @@ class ProductionObserver implements HostObserver {
     await this.admitCurrent(deadline, true);
   }
   private async admitCurrent(deadline: Deadline, readOnly: boolean): Promise<void> {
+    if (readOnly) {
+      if (this.operationLimit.kind !== 'read-only') refuse('operation-limit-invalid');
+    } else {
+      const remaining = deadline.remaining();
+      if (
+        this.operationLimit.kind !== 'effects' ||
+        !Number.isFinite(this.operationLimit.expiresAt) ||
+        this.operationLimit.expiresAt - performance.now() < remaining ||
+        remaining < 40000
+      )
+        refuse('operation-expired');
+    }
     if (
-      !readOnly &&
-      (operationExpiry(
-        this.packet.quiescence.issuedAt,
-        this.packet.quiescence.expiresAt,
-        Date.now(),
-        performance.now(),
-      ) -
-        performance.now() <
-        deadline.remaining() ||
-        deadline.remaining() < 40000)
+      historicalWindow(this.packet.quiescence.issuedAt, this.packet.quiescence.expiresAt) ===
+        'expired' &&
+      !readOnly
     )
       refuse('operation-expired');
-    historicalWindow(this.packet.quiescence.issuedAt, this.packet.quiescence.expiresAt);
     const edge = await requireInheritedEdgeLock();
     if (
       edge.stateDirectory !== '/home/puni1/wbs/state' ||
@@ -2071,7 +2103,10 @@ export function operationExpiry(
   const issued = Date.parse(issuedAt),
     expiry = Date.parse(expiresAt);
   // Proof: omitting expiry admission accepted the expired operation in operation validity.
+  // Proof: omitting finite clock admission accepted NaN/Infinity mappings in the clock boundary negatives.
   if (
+    !Number.isFinite(wallNow) ||
+    !Number.isFinite(monotonicNow) ||
     !Number.isFinite(issued) ||
     !Number.isFinite(expiry) ||
     issued > wallNow ||
@@ -2773,6 +2808,7 @@ async function inspectRecovery(
   engine: EngineTransport,
   recheck: () => Promise<void>,
   deadline: Deadline,
+  operationLimit: OperationLimit,
 ): Promise<SafeInitSummary> {
   const history = await readRecoveryHistory(packet, packetSha256);
   const initialEdge = await requireInheritedEdgeLock();
@@ -2807,7 +2843,7 @@ async function inspectRecovery(
       return engine.observeCaddyListed(binding, command, timeout);
     },
   };
-  const observer = new ProductionObserver(packet, readOnly, recheck, []);
+  const observer = new ProductionObserver(packet, readOnly, recheck, [], operationLimit);
   const current = packet.targets.map((target) => {
     const proof = history.invariants.find((entry) => entry.target === target.kind);
     if (proof === undefined) refuse('recovery-invariant-missing');
