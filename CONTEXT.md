@@ -537,6 +537,23 @@ person: an OpenClaw session key, a Codex thread, a Claude session id. WBS stores
 it and never parses it.
 _Avoid_: Session, instance, worker id
 
+**Claim chip**:
+The token fe-01 draws for one claim: beside a step's assignee for a step claim, in the Name
+cell for a subtree claim, naming its holder and, for a leased claim, the minutes left or that
+it is releasing. Display only; it claims and releases nothing.
+_Avoid_: lock icon, badge, claim pill
+
+**Releasing claim**:
+A claim whose lease has ended, by expiry or by revocation, that the coordinator has not yet
+released: still held, still counted, and gone at the next sweep.
+_Avoid_: expired claim, dead claim, stale claim
+
+**Claim history**:
+The claim and release events of one project's plan history, newest first, each naming its
+holders, runs, work items and why a release happened: a release command, an expired lease or a
+revoked credential.
+_Avoid_: claim log, activity feed, audit trail
+
 **Machine credential**:
 An organization's record that lets one agent person act in WBS: pinned to that person,
 issued by a member or admin account, admitting a token of one credential source, and

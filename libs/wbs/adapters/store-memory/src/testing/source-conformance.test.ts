@@ -96,6 +96,7 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   storeDependencyById(dependency: StoredDependency): void;
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
   pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
+  endLeasesOf: ReturnType<typeof openMemorySourceFixture>['endLeasesOf'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
   setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
@@ -170,6 +171,7 @@ function conformanceMemorySource(
     pinCredential: (issuer: string, subject: string, personId: string) => {
       fixture.pinCredential(issuer, subject, personId);
     },
+    endLeasesOf: (personId: string, at: number) => fixture.endLeasesOf(personId, at),
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
       fixture.source.uow.run(async ({ stores }) => {
         await stores.subtrees.insertSubtree(copy, stamp);
@@ -444,6 +446,15 @@ async function openMemoryCase<Family extends ExistingFamily>(
             },
       close: () => source.close(),
     } as unknown as CaseFixture<TransactionalStores[Family]>;
+  }
+  if (caseId === 'claims.lease:revoked-instant-read') {
+    return {
+      ...memoryFixture(source, family, caseId),
+      scenario: {
+        kind: 'lease-revocation',
+        endLeasesOf: (personId, at) => Promise.resolve(source.endLeasesOf(personId, at)),
+      },
+    };
   }
   return memoryFixture(source, family, caseId);
 }

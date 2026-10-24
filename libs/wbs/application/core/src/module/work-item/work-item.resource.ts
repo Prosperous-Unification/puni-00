@@ -211,6 +211,7 @@ import {
   type ReleaseInput,
 } from './claims';
 import { findPersonWork, type PersonWork } from './person-work';
+import { findProjectClaims, type ProjectClaims } from './project-claims';
 import { findStartableWork, type StartableWork } from './startable';
 
 /**
@@ -1981,6 +1982,44 @@ export class WorkItemService {
       assignments,
       claims: await this.claiming().claims.listStampedByProject(projectId),
     });
+  }
+
+  /**
+   * Every claim of a project (`wbs-claim-display` C1, C2,
+   * {@link findProjectClaims}), admitted as the tree read is: `null` for a
+   * project the caller may not read, refused alike with an absent one.
+   *
+   * Rows, steps, claims and holder names are one observation
+   * (`ClaimStore.observeProject`), which also rechecks the caller's
+   * membership as the tree read's snapshot does: a member removed after
+   * admission is refused `not_a_member`, not answered. It reads no schedule,
+   * so it answers while the tree read is refused `engine_unavailable`.
+   * `readAt` is this service's clock after the observation, so a lease's
+   * remaining time is never overstated.
+   */
+  async claimsWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<ProjectClaims | AccessRefused | null> {
+    // Proof: with this admission removed, `refuses a stranger exactly as the
+    // tree read does` (project-claims-organization.controller.db.test.ts)
+    // answered 200 with the foreign project's claims; watched 2026-10-23.
+    if (!(await this.admits(projectId, access))) return null;
+    // Every claim, unfiltered by status: a stopped leaf's holder is still on it.
+    // Proof: with the claims filtered to leaves whose status is not blocked,
+    // on hold, blocked by proxy or done, `lists every claim whatever its leaf
+    // status, …` (project-claims.test.ts) read none of them; watched 2026-10-23.
+    // One observation, never separate awaited reads of rows, steps, claims
+    // and names: a batch landing between them made a claim name a row the
+    // read did not hold, a 500.
+    // Proof: with the four separate reads back in place of the observation,
+    // `answers whatever a racing claim on a new row lands before or after`
+    // (claim-observation.db.test.ts) threw `claim claim-w-8 is on no row of
+    // this read` (3 pass, 2 fail with the snapshot case); watched 2026-10-23.
+    const observed = await this.claiming().claims.observeProject(projectId, access);
+    if (observed.kind === 'not_found') return null;
+    if (observed.kind === 'access_refused') return observed;
+    return findProjectClaims({ ...observed, readAt: this.clock.now() });
   }
 
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */

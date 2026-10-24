@@ -77,6 +77,8 @@ export interface SubscriptionHandlers {
   /** See `ProjectStreamOptions.onChange`: what the frame said changed, or `null`. */
   onChange: (changed?: string | null, seq?: number) => void;
   onConnectionChange: (connected: boolean) => void;
+  /** See `ProjectStreamOptions.onClaims`. */
+  onClaims: () => void;
 }
 
 /**
@@ -334,8 +336,18 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
    * keeping the last good tree on screen: rows that may be stale and no way to
    * tell are worse than an empty table. Cleared by any refresh that lands —
    * the retry button's, an edit's, or a peer's change event.
+   *
+   * The plan's resources only: claims are optional (`wbs-claim-display` C12)
+   * and their failure is {@link claimsMayBeStale}'s notice, so an older be-01
+   * without the claims read cannot mark the plan out of date.
    */
-  const treeMayBeStale = delivered.staleResources.length > 0;
+  // Proof: `staleResources.length > 0` here made `keeps the plan current and the
+  // optimizer's suggestion when only claims fail` (`optimization-integration.test.tsx`)
+  // lose the suggestion (`expected undefined to be '· Pri 3 days earlier'`);
+  // watched 2026-10-23.
+  const treeMayBeStale = delivered.staleResources.some((resource) => resource !== 'claims');
+  /** Whether the last claims read failed; the claims drawn, if any, are the last installed. */
+  const claimsMayBeStale = delivered.staleResources.includes('claims');
   const treeFailure = delivered.treeFailure;
   // Proof: suppressing this failure text left the peer-refetch window on
   // “the last refresh failed”, expected the named optimizer-unavailable
@@ -439,6 +451,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     chartRead,
     steps,
     treeMayBeStale,
+    claimsMayBeStale,
     treeFailureText,
     busy,
     busyWrites,

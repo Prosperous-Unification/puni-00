@@ -17,6 +17,7 @@ const EMPTY: PlanRefreshSnapshot = {
   steps: NOTHING_READ,
   directory: NOTHING_READ,
   markers: NOTHING_READ,
+  claims: NOTHING_READ,
   staleResources: [],
   baseline: null,
   acknowledged: -1,

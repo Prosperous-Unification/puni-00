@@ -147,11 +147,23 @@ export function createPlanReading({
             if (changed == null && seq === undefined) void owner.initialize();
             else void owner.invalidate({ resources: resourcesFor(changed), seq });
           },
+          onClaims: () => {
+            // A transient announcement: claims alone, and never a sequence.
+            // Proof: a handler that invalidates nothing left no claims invalidation in
+            // `reads claims alone for a claims announcement`; watched 2026-10-23.
+            if (isLive()) void owner.invalidate({ resources: ['claims'] });
+          },
           onConnectionChange: (connected) => {
             // Proof: calling `reportConnection(connected)` unguarded reported
             // [false] instead of [] in `ignores a change and a connection that
             // arrive after it stops being live` (2026-09-20).
-            if (isLive()) reportConnection(connected);
+            if (!isLive()) return;
+            reportConnection(connected);
+            // Every (re)synchronised socket rereads claims: their announcements
+            // are transient (C21), so a resume replays none of the gap's.
+            // Proof: deleting this line left no claims invalidation in `rereads
+            // claims each time the stream synchronises`; watched 2026-10-23.
+            if (connected) void owner.invalidate({ resources: ['claims'] });
           },
         },
         snapshot.baseline.seq,
