@@ -473,3 +473,15 @@ Deviations and limits:
   store-side `limit` (non-claim batches would use up slots). Needs a decision: record claim acts
   as their own events, or tag claim-bearing batches.
 - An undone claim stays listed as claimed (design Risks); the held claims are the truth.
+
+Results (fresh, 2026-10-24): core `claim-history`, `module-boundaries` (15) and the
+`module/work-item`, `module/plan-commands`, `module/plan-history`, `module/plan-event` and `http`
+suites 446 pass; store-memory 193 pass; store-sqlite `plan-event`, `command-journal`, `changes`
+and source conformance 91 pass; be-01 `claim-history-organization` (6),
+`project-claims-organization`, `app.routes`, `organization-context`, `claim-lease`,
+`claim-identity`, `saved-plan-organization` 52 pass and `history.controller` 8 pass; contracts
+496 pass; mcp-01 516 pass; typecheck wbs-contracts, wbs-core (+module), wbs-store-sqlite,
+wbs-store-memory, wbs-be-01 (+module), wbs-mcp-01 pass; lint of the same six projects pass;
+Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 280 of 280;
+`tool-devsync:test` 921 tests, target succeeded. Not run locally: the full be-01 and fe-01
+suites (CI carries them).
