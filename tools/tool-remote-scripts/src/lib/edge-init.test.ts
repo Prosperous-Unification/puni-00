@@ -2,9 +2,11 @@ import { describe, expect, test } from 'bun:test';
 
 import { syntheticContainer as container } from '../../test/edge-init-fixture';
 import {
+  admitInvariantProfile,
   candidateInvariant,
   compareCandidate,
   constructCandidate,
+  CREATED_OOM_PROFILE,
   encodeOrderedEnv,
   parseNativeContainer,
   projectInvariant,
@@ -207,4 +209,196 @@ describe('Init-only native preservation', () => {
   ])('matches frozen Python ensure-ASCII encoding %j', (env, encoded) => {
     expect(encodeOrderedEnv(env)).toBe(encoded);
   });
+});
+
+function inertOom(value: unknown = false) {
+  const observed = candidate();
+  Object.assign(observed.HostConfig, { OomKillDisable: value });
+  Object.assign(observed.State, {
+    Status: 'created',
+    Running: false,
+    Pid: 0,
+    StartedAt: '0001-01-01T00:00:00Z',
+  });
+  return observed;
+}
+function oomSource(value: unknown = null) {
+  const original = container();
+  Object.assign(original.HostConfig, { OomKillDisable: value });
+  return parseNativeContainer(original);
+}
+
+describe('measured inert OOM representation', () => {
+  test('retains the null request and independently expected invariant through created false and running null', () => {
+    const original = oomSource(),
+      raw = inertOom();
+    const expected = candidateInvariant(original);
+    expect(expected.host['OomKillDisable']).toBe(null);
+    expect(constructCandidate(original).HostConfig['OomKillDisable']).toBe(null);
+    const observed = parseNativeContainer(raw);
+    expect(() => {
+      compareCandidate(original, observed);
+    }).toThrow();
+    expect(projectInvariant(observed, CREATED_OOM_PROFILE)).toEqual(expected);
+    expect(() => {
+      compareCandidate(original, observed, CREATED_OOM_PROFILE);
+    }).not.toThrow();
+    expect(raw.HostConfig).toMatchObject({ OomKillDisable: false });
+    expect(observed.host['OomKillDisable']).toBe(false);
+    const running = candidate();
+    Object.assign(running.HostConfig, { OomKillDisable: null });
+    expect(projectInvariant(parseNativeContainer(running), CREATED_OOM_PROFILE)).toEqual(expected);
+    expect(candidateInvariant(original, CREATED_OOM_PROFILE)).toEqual(expected);
+    expect(() => {
+      compareCandidate(original, parseNativeContainer(running), CREATED_OOM_PROFILE);
+    }).not.toThrow();
+  });
+  for (const [name, change] of [
+    [
+      'true',
+      (raw: ReturnType<typeof candidate>) =>
+        Object.assign(raw.HostConfig, { OomKillDisable: true }),
+    ],
+    [
+      'absent',
+      (raw: ReturnType<typeof candidate>) =>
+        Reflect.deleteProperty(raw.HostConfig, 'OomKillDisable'),
+    ],
+    [
+      'running',
+      (raw: ReturnType<typeof candidate>) =>
+        Object.assign(raw.State, { Status: 'running', Running: true, Pid: 123 }),
+    ],
+    [
+      'stopped',
+      (raw: ReturnType<typeof candidate>) => Object.assign(raw.State, { Status: 'exited' }),
+    ],
+    [
+      'running-flag',
+      (raw: ReturnType<typeof candidate>) => Object.assign(raw.State, { Running: true }),
+    ],
+    ['paused', (raw: ReturnType<typeof candidate>) => Object.assign(raw.State, { Paused: true })],
+    [
+      'restarting',
+      (raw: ReturnType<typeof candidate>) => Object.assign(raw.State, { Restarting: true }),
+    ],
+    ['dead', (raw: ReturnType<typeof candidate>) => Object.assign(raw.State, { Dead: true })],
+    ['PID', (raw: ReturnType<typeof candidate>) => Object.assign(raw.State, { Pid: 123 })],
+    [
+      'started',
+      (raw: ReturnType<typeof candidate>) =>
+        Object.assign(raw.State, { StartedAt: '2026-01-01T00:00:00Z' }),
+    ],
+    [
+      'finished',
+      (raw: ReturnType<typeof candidate>) =>
+        Object.assign(raw.State, { FinishedAt: '2026-01-01T00:00:00Z' }),
+    ],
+    ['restarts', (raw: ReturnType<typeof candidate>) => raw.RestartCount++],
+    ['sandbox', (raw: ReturnType<typeof candidate>) => (raw.NetworkSettings.SandboxID = 'active')],
+    [
+      'sandbox-key',
+      (raw: ReturnType<typeof candidate>) => (raw.NetworkSettings.SandboxKey = '/active'),
+    ],
+    [
+      'port',
+      (raw: ReturnType<typeof candidate>) =>
+        Object.assign(raw.NetworkSettings.Ports, { '5000/tcp': [] }),
+    ],
+    [
+      'endpoint',
+      (raw: ReturnType<typeof candidate>) =>
+        (raw.NetworkSettings.Networks.edge.EndpointID = 'active'),
+    ],
+    [
+      'v4',
+      (raw: ReturnType<typeof candidate>) =>
+        (raw.NetworkSettings.Networks.edge.IPAddress = '172.18.0.2'),
+    ],
+    [
+      'v6',
+      (raw: ReturnType<typeof candidate>) =>
+        (raw.NetworkSettings.Networks.edge.GlobalIPv6Address = '::1'),
+    ],
+    ['Init', (raw: ReturnType<typeof candidate>) => (raw.HostConfig.Init = false)],
+    ['Image', (raw: ReturnType<typeof candidate>) => (raw.Config.Image = 'wrong:spelling')],
+    ['Env', (raw: ReturnType<typeof candidate>) => raw.Config.Env.push('DRIFT=1')],
+    [
+      'Entrypoint',
+      (raw: ReturnType<typeof candidate>) => Object.assign(raw.Config, { Entrypoint: [] }),
+    ],
+    ['OnBuild', (raw: ReturnType<typeof candidate>) => Object.assign(raw.Config, { OnBuild: [] })],
+  ] as const)
+    test(`profile refuses ${name} drift`, () => {
+      const raw = inertOom();
+      change(raw);
+      expect(() => {
+        compareCandidate(oomSource(), parseNativeContainer(raw), CREATED_OOM_PROFILE);
+      }).toThrow();
+    });
+  for (const value of [true, false, undefined])
+    test(`profile refuses source ${String(value)}`, () => {
+      const raw = container();
+      if (value !== undefined) Object.assign(raw.HostConfig, { OomKillDisable: value });
+      expect(() => candidateInvariant(parseNativeContainer(raw), CREATED_OOM_PROFILE)).toThrow();
+    });
+  for (const value of ['false', 0, []])
+    test(`parser refuses OOM type ${JSON.stringify(value)}`, () => {
+      expect(() => parseNativeContainer(inertOom(value))).toThrow();
+    });
+  test('wrong profile and daemon evidence refuse independently', () => {
+    expect(() => projectInvariant(parseNativeContainer(inertOom()), 'unknown' as never)).toThrow();
+    expect(() => candidateInvariant(oomSource(), 'unknown' as never)).toThrow();
+    const version = { Version: '29.1.3', ApiVersion: '1.52', Os: 'linux' };
+    const info = {
+      ServerVersion: '29.1.3',
+      OSType: 'linux',
+      CgroupVersion: '2',
+      CgroupDriver: 'systemd',
+    };
+    expect(admitInvariantProfile(version, info)).toBe(CREATED_OOM_PROFILE);
+    for (const key of Object.keys(version)) {
+      expect(() => admitInvariantProfile({ ...version, [key]: 'wrong' }, info)).toThrow();
+      const missing = { ...version };
+      Reflect.deleteProperty(missing, key);
+      expect(() => admitInvariantProfile(missing, info)).toThrow();
+    }
+    for (const key of Object.keys(info)) {
+      expect(() => admitInvariantProfile(version, { ...info, [key]: 'wrong' })).toThrow();
+      const missing = { ...info };
+      Reflect.deleteProperty(missing, key);
+      expect(() => admitInvariantProfile(version, missing)).toThrow();
+    }
+  });
+});
+
+test('profile preserves one expected hash through inert, running and synthetic stopped-null', () => {
+  const source = oomSource();
+  const expected = candidateInvariant(source);
+  const created = parseNativeContainer(inertOom());
+  const raw = candidate();
+  Object.assign(raw.HostConfig, { OomKillDisable: null });
+  const running = parseNativeContainer(raw);
+  Object.assign(raw.State, {
+    Status: 'exited',
+    Running: false,
+    Pid: 0,
+    FinishedAt: '2026-01-02T00:00:00Z',
+  });
+  const stopped = parseNativeContainer(raw);
+  for (const observed of [created, running, stopped])
+    expect(projectInvariant(observed, CREATED_OOM_PROFILE)).toEqual(expected);
+  expect(() =>
+    projectInvariant(parseNativeContainer(inertOom(true)), CREATED_OOM_PROFILE),
+  ).toThrow();
+  const absent = inertOom();
+  Reflect.deleteProperty(absent.HostConfig, 'OomKillDisable');
+  expect(() => projectInvariant(parseNativeContainer(absent), CREATED_OOM_PROFILE)).toThrow();
+  // Strict default still preserves a separately requested false without granting the observed profile.
+  const requestedFalse = oomSource(false),
+    actualFalse = candidate();
+  Object.assign(actualFalse.HostConfig, { OomKillDisable: false });
+  expect(() => {
+    compareCandidate(requestedFalse, parseNativeContainer(actualFalse));
+  }).not.toThrow();
 });

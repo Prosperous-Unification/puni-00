@@ -8,12 +8,19 @@ import { afterEach, expect, test } from 'bun:test';
 import { syntheticContainer } from '../../test/edge-init-fixture';
 import {
   constructCandidate,
+  CREATED_OOM_PROFILE,
   fingerprint,
   InitRefusal,
   parseNativeContainer,
   projectInvariant,
 } from './edge-init';
-import { Deadline, EngineTransport, PrivateReceipts, runInitAdoption } from './edge-init-operation';
+import {
+  type CaddyReadBinding,
+  Deadline,
+  EngineTransport,
+  PrivateReceipts,
+  runInitAdoption,
+} from './edge-init-operation';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -288,11 +295,26 @@ test('create flattens complete observed Config and admits null warnings without 
   }
 });
 
-test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receipt-failed'])(
+test.each([
+  'none',
+  'candidate-drift',
+  'stop-uncertain',
+  'health-failed',
+  'receipt-failed',
+  'profile',
+  'profile-running-false',
+  'profile-source-false',
+  'profile-other-field',
+  'profile-inert-running',
+])(
   'finite sequence retains originals on %s and removes only after both health rounds',
   async (fault) => {
     await Promise.resolve();
     const original = syntheticContainer();
+    if (fault.startsWith('profile'))
+      Object.assign(original.HostConfig, {
+        OomKillDisable: fault === 'profile-source-false' ? false : null,
+      });
     const caddy = structuredClone(original);
     caddy.Id = 'e'.repeat(64);
     caddy.Name = '/wbs-caddy-1';
@@ -309,9 +331,10 @@ test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receip
     };
     const engine = {
       inspect,
-      create: async (kind: string) => {
+      create: async (kind: string, request: ReturnType<typeof constructCandidate>) => {
         await Promise.resolve();
         effects.push(`create:${kind}`);
+        if (fault.startsWith('profile')) expect(request.HostConfig['OomKillDisable']).toBe(null);
         const observed = structuredClone(kind === 'registry' ? original : caddy);
         observed.Id = (++created === 1 ? 'b' : 'f').repeat(64);
         observed.Name = `/wbs-init-synthetic-${kind}`;
@@ -323,6 +346,10 @@ test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receip
           Pid: 0,
           StartedAt: '0001-01-01T00:00:00Z',
         });
+        if (fault.startsWith('profile'))
+          Object.assign(observed.HostConfig, { OomKillDisable: false });
+        if (fault === 'profile-inert-running') Object.assign(observed.State, { Running: true });
+        if (fault === 'profile-other-field') observed.HostConfig.Init = false;
         if (fault === 'candidate-drift') observed.Config.Env.reverse();
         containers.set(observed.Id, observed);
         return observed.Id;
@@ -347,6 +374,10 @@ test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receip
         effects.push(`start:${id}`);
         const observed = containers.get(id);
         if (observed === undefined) throw new Error('missing');
+        if (fault.startsWith('profile'))
+          Object.assign(observed.HostConfig, {
+            OomKillDisable: fault === 'profile-running-false' ? false : null,
+          });
         Object.assign(observed.State, {
           Status: 'running',
           Running: true,
@@ -383,6 +414,7 @@ test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receip
     const operation = runInitAdoption(
       {
         nonce: 'synthetic',
+        ...(fault.startsWith('profile') ? { invariantProfile: CREATED_OOM_PROFILE } : {}),
         targets: [
           { kind: 'registry', original: parseNativeContainer(original) },
           { kind: 'caddy', original: parseNativeContainer(caddy) },
@@ -406,7 +438,7 @@ test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receip
         },
       },
     );
-    if (fault === 'none') {
+    if (fault === 'none' || fault === 'profile') {
       await operation;
       expect(effects).toEqual([
         'create:registry',
@@ -433,7 +465,13 @@ test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receip
       expect(String(failure)).not.toContain('SECRET');
       expect(effects.some((effect) => effect.startsWith('remove:'))).toBe(false);
       expect(containers.has(original.Id)).toBe(true);
-      if (fault === 'candidate-drift' || fault === 'receipt-failed')
+      if (fault === 'profile-source-false') expect(effects).toEqual([]);
+      if (
+        fault === 'candidate-drift' ||
+        fault === 'receipt-failed' ||
+        fault === 'profile-other-field' ||
+        fault === 'profile-inert-running'
+      )
         expect(effects.some((effect) => effect.startsWith('stop:'))).toBe(false);
       if (fault === 'stop-uncertain')
         expect(effects.some((effect) => effect.startsWith('rename:'))).toBe(false);
@@ -443,6 +481,9 @@ test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receip
 
 for (const fault of [
   'none',
+  'profile',
+  'profile-unknown',
+  'profile-running-false',
   'live',
   'original',
   'nonce',
@@ -489,14 +530,18 @@ for (const fault of [
     raw.Config.Labels['com.docker.compose.service'] = 'caddy';
     raw.Config.Image = raw.Image;
     raw.HostConfig.Init = fault !== 'original';
-    const binding = {
+    if (fault.startsWith('profile')) Object.assign(raw.HostConfig, { OomKillDisable: null });
+    const binding: CaddyReadBinding = {
       id: raw.Id,
       originalId,
       candidateId: fault === 'original' ? null : candidateId,
       nonce: 'synthetic',
       name: '/wbs-caddy-1' as const,
       invariantSha256: fingerprint(projectInvariant(parseNativeContainer(raw))),
+      ...(fault.startsWith('profile') ? { invariantProfile: CREATED_OOM_PROFILE } : {}),
     };
+    if (fault === 'profile-unknown') Object.assign(binding, { invariantProfile: 'unknown' });
+    if (fault === 'profile-running-false') Object.assign(raw.HostConfig, { OomKillDisable: false });
     if (fault === 'nonce') binding.nonce = 'other';
     if (fault === 'original-id') binding.originalId = registryId;
     if (fault === 'crossed-id') {
@@ -628,7 +673,7 @@ for (const fault of [
           (value) => ({ value, failure: null }),
           (failure: unknown) => ({ value: null, failure }),
         );
-      if (['none', 'live', 'original'].includes(fault)) {
+      if (['none', 'live', 'original', 'profile'].includes(fault)) {
         expect(outcome).toEqual({ value: '{}', failure: null });
         expect(commands).toEqual([
           {
@@ -652,6 +697,7 @@ for (const fault of [
           'none',
           'live',
           'original',
+          'profile',
           'post-pid',
           'post-start',
           'post-env',
