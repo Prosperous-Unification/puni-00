@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { lstat, readdir, readFile, readlink, realpath } from 'node:fs/promises';
 import { type IncomingHttpHeaders, request as requestHttp } from 'node:http';
 import { request as requestHttps } from 'node:https';
-import { isIP } from 'node:net';
+import { isIP, type Socket } from 'node:net';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { requireInheritedEdgeLock } from './edge-admission';
@@ -2106,9 +2106,12 @@ export async function probeWebSocket(probe: WebSocketProbe, timeout: number): Pr
       .digest('base64');
     let complete = false,
       upgraded = false;
+    let ownedUpgrade: Pick<Socket, 'destroy'> | undefined;
     const fail = () => {
       if (!complete) {
         complete = true;
+        clearTimeout(timer);
+        ownedUpgrade?.destroy();
         reject(new InitRefusal('websocket-refused'));
       }
     };
@@ -2133,6 +2136,8 @@ export async function probeWebSocket(probe: WebSocketProbe, timeout: number): Pr
       },
     });
     const timer = setTimeout(() => {
+      // Proof: omitting owned-socket cleanup left the actual upgraded TLS socket unsettled when request cleanup and close writes stalled.
+      ownedUpgrade?.destroy();
       client.destroy();
       fail();
     }, timeout);
@@ -2143,6 +2148,7 @@ export async function probeWebSocket(probe: WebSocketProbe, timeout: number): Pr
     });
     client.on('upgrade', (response, socket, head) => {
       upgraded = true;
+      ownedUpgrade = socket;
       if (
         response.statusCode !== 101 ||
         response.headers.upgrade?.toLowerCase() !== 'websocket' ||

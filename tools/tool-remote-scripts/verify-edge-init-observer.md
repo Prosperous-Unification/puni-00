@@ -6,7 +6,7 @@ The production entry fixes its Engine socket, UID1000 context, target names, inh
 
 ## Observed checks
 
-- Bun1.4.4 focused constructor/transport/operation/observer suite: **68 passed, zero failed,215 assertions**. The observer's22 cases use actual owned files, kernel process observations, flock open descriptions, HTTP, TLS/SNI, registry reads, WebSocket upgrade/close IO, Compose source semantics and private receipt readback. TLS fixtures use an ephemeral test CA in a separate test process; production exposes no CA/socket/probe callback option.
+- Bun1.4.4 focused constructor/transport/operation/observer suite: **68 passed, zero failed,218 assertions**. The observer's22 cases use actual owned files, kernel process observations, flock open descriptions, HTTP, TLS/SNI, registry reads, WebSocket upgrade/close IO, Compose source semantics and private receipt readback. TLS fixtures use an ephemeral test CA in a separate test process; production exposes no CA/socket/probe callback option.
 - Actual Nx ProjectGraph generated with `NX_DAEMON=false bunx nx show project tool-remote-scripts --json`.
 - Configured `tool-remote-scripts:typecheck` and `lint`: passed with cache skipped, including the provenance followup. Earlier lint failures were fixed and are not counted as success.
 - Configured `tool-remote-scripts:build` and three prerequisites: passed with cache skipped. That baseline target does not yet bundle the separate CLI, owned by the CLI lane.
@@ -38,6 +38,8 @@ Each listed temporary omission made its negative fail; exact source was restored
 | Backend uniqueness                | duplicate backend pins admitted                                               |
 | Recovery stage roster             | unknown private receipt stage admitted                                        |
 | Crontab native status/diagnostics | absence became present empty bytes                                            |
+
+The final upgraded-WebSocket deadline also owns and destroys the actual transferred TLS socket, independently of the detached ClientRequest. Its real socket fixture stalls close writes and makes request destruction a no-op, then requires the socket close event before accepting probe refusal. Removing both owned-socket destruction sites made that settlement negative fail; restored source passed. This is a raw native IO dependency fault, available only in the test worker, with no production packet/CLI override.
 
 ## Installed Compose correction
 
