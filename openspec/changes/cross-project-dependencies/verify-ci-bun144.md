@@ -29,3 +29,11 @@ Base: `2c18bb67beec39cae548292f93f59d20c11a09ce`. This packet repairs the observ
 ## Limits
 
 No Docker, SSH, host gate, or full CI run was performed in this repair worktree. The CI bundled peer close failure and unnamed cleanup timeout remain unresolved pending a reproduction with child stderr and cleanup timing. Mainline integration and the canonical h2puni gate are owned by the parent lane.
+
+## Release configuration matrix repair (2026-10-24)
+
+The two per-tier missing-key and invalid-value process loops in `docker.test.ts` now use one real Bun child per tier. Each child imports the unchanged BE `loadConfig` and OIDC options, or GW `loadConfig`, once; it calls them on fresh per-row environments. The exact previous demanded-key and invalid-value rows remain, with separately indexed IDs, production preflight messages, three admitted controls, and the existing independent cold-import and production local-mode refusal cases. The existing 120-second aggregate allowance remains; child timeout is 100 seconds with bounded stdout/stderr. No product code changed.
+
+The combined BE/GW matrix and fresh controls passed in the 18-case focused suite: 18 pass, 0 fail, 109 assertions, 90.85 seconds. BE combined matrix was 3.70 seconds, GW 0.21 seconds. The former value-shape-only local case measured 79.84 seconds; these local measurements do not establish hosted timing. The actual emitted child fault tests passed for missing, duplicate, extra, reordered/wrong-index, wrong-ID, wrong-tier and unknown-status rows, malformed output, stderr, nonzero exit after valid JSON, timeout, output overflow, non-Error throw, and import/manifest errors. Reverse/mixed row order retained verdicts.
+
+Watched omissions of parent exit, stderr, tier, indexed ID, outcome, deadline, and output allowance guards each made a corresponding focused case RED before restoration. Actual child omission of BE/GW loaders or BE OIDC options, and blanket refusal, each made a named matrix assertion RED. Bun 1.4.4 sometimes kills an oversized child and sometimes returns truncated stdout with exit 0; both paths are now rejected. Targeted Prettier, ESLint and forced `tool-remote-scripts` TypeScript build exited 0. Normal hooks run on the commit below.
