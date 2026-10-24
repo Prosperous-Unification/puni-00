@@ -7328,3 +7328,9 @@ The [desktop FF packet](verify-task11-browser-ff.md) received independent Astra 
 Fresh combined installed-authority and source-database tests on `2d1152ac9` passed **125 tests, 202 assertions, zero failures**. The complete dedicated real-stack browser target on `0585e78a2` passed **10 tests**, one worker and zero retries; its owned loopback listeners were closed afterward. Affected infrastructure lint/typecheck/build passed all **six configured tasks**, uncached. OpenSpec passed **280 items, zero failures**. These commands used the measured Bun **1.4.4** executable; historical Bun 1.4.2 production-fault receipts retain their original scope.
 
 Parent 11.1 and activation/delivery remain open. Complete activation, compatible participant restoration, policy handoff, installed-writer adoption, the final exact-SHA host gate, CI and deployment are not established by this replay.
+
+## Reviewed Init preservation core integration — 2026-10-24
+
+The [bounded Init core](verify-edge-init-adoption.md), including both Astra-reviewed schema/redaction fixes, was integrated at `af4e1dc11`. Its [fresh integration receipt](evidence/init-core-integration-af4e1dc11.json) records **40 tests / 71 assertions / zero failures**, all **six configured Nx lint/typecheck/build tasks** uncached with no missing-ProjectGraph warning, and **280 OpenSpec items passing**, using Bun **1.4.4**.
+
+This is the preservation/finite-transition core. The production observer, CLI, native fixture acceptance, complete operation review and deployment remain incomplete. No production service action was performed, and parent activation/delivery tasks remain open.
