@@ -282,7 +282,7 @@ describe('the measure panel renders each budget by its policy', () => {
     const meter = within(tokens).getByRole('meter', { name: 'Tokens budget spent' });
     expect(meter).toHaveAttribute('aria-valuetext', '1,200 of 1,000, exceeded');
     expect(
-      within(tokens).getByText('Exceeded — the coordinator refuses the next attempt here.'),
+      within(tokens).getByText('Exceeded — the next attempt is refused here.'),
     ).toBeInTheDocument();
     expect(within(tokens).getByText(/200 over/)).toBeInTheDocument();
     const cost = screen.getByRole('region', { name: 'Cost' });
@@ -513,7 +513,7 @@ describe('review fixes of PR #680', () => {
     const { rerender } = render(panelWith(strictTokens(0, false)));
     let tokens = screen.getByRole('region', { name: 'Tokens' });
     expect(tokens.querySelector('[data-refusing-sentence]')).toHaveTextContent(
-      'Spent to the cap — the coordinator refuses the next attempt here.',
+      'Spent to the cap — the next attempt is refused here.',
     );
     expect(tokens).toHaveTextContent('1,000 of 1,000 · nothing left');
     expect(within(tokens).queryByText('exceeded')).toBeNull();
@@ -521,7 +521,7 @@ describe('review fixes of PR #680', () => {
     rerender(panelWith(strictTokens(-200, false, 600)));
     tokens = screen.getByRole('region', { name: 'Tokens' });
     expect(tokens.querySelector('[data-refusing-sentence]')).toHaveTextContent(
-      'Nothing left once running attempts’ holds are counted — the coordinator refuses the next attempt here.',
+      'Nothing left once running attempts’ holds are counted — the next attempt is refused here.',
     );
     expect(tokens).toHaveTextContent('600 of 1,000 · nothing left · 600 held for running attempts');
     expect(tokens).not.toHaveTextContent('over');

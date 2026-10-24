@@ -338,7 +338,7 @@ export type BudgetReading =
       remaining: number;
       exceeded: boolean;
       /**
-       * Whether the coordinator refuses the next attempt on it: a strict budget
+       * Whether the next start is refused on it (design D69): a strict budget
        * with nothing remaining once holds are counted (`remaining <= 0`, the
        * headroom read's rule). Spent exactly to the cap refuses; holds pushing
        * the remainder below zero refuse without the facts being `exceeded`.

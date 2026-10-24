@@ -331,7 +331,7 @@ test.describe('measure columns', () => {
     // is exceeded; and a cost under one cent reads as itself, not $0.00.
     panel = await openPanel(page, '040');
     await expect(panel.locator('[data-refusing-sentence]')).toHaveText(
-      'Spent to the cap — the coordinator refuses the next attempt here.',
+      'Spent to the cap — the next attempt is refused here.',
     );
     await expect(panel.getByRole('region', { name: 'Cost' }).locator('dd').nth(1)).toHaveText(
       '$0.0050',

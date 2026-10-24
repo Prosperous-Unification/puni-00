@@ -363,6 +363,19 @@ const batchRefusals = [
         // capacity-limit.controller.db.test.ts answered 500 "returned an
         // undeclared refusal" (6 pass, 6 fail); watched 2026-10-22.
         type({ ...context, error: "'capacity_limit'", ...capacityLimitCrossed }),
+        // A strict budget refusing a start (`wbs-measure-budgets` D69).
+        // Proof: with this arm removed, `refuses the second start of a strict
+        // 500 holding 300, naming the budget` (budget-admission.controller.db.test.ts)
+        // answered 500 "returned an undeclared refusal"; watched 2026-10-24.
+        type({
+          ...context,
+          error: "'budget_exhausted'",
+          workItemId: 'string',
+          measure: 'string',
+          remaining: 'number | null',
+          hold: 'number',
+          blocked: 'boolean',
+        }),
       ),
     ),
   },

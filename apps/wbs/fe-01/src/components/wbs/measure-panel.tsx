@@ -294,7 +294,7 @@ function BasisLine({
 
 /**
  * A budget drawn by its policy: a strict budget as a bar of spent against its
- * cap with what remains, since the coordinator refuses on it; an advisory or
+ * cap with what remains, since a start is refused on it; an advisory or
  * derived one as a marker line, since it only reports. Exceeded is said in
  * words and colour both.
  */
@@ -390,7 +390,7 @@ function BudgetView({
                 className="text-xs font-semibold"
                 style={{ color: 'var(--status-blocked)' }}
               >
-                {why} — the coordinator refuses the next attempt here.
+                {why} — the next attempt is refused here.
               </p>
             )}
           </div>

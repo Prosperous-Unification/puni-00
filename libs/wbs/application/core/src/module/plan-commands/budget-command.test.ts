@@ -373,7 +373,9 @@ describe('budgets on the row read', () => {
       const start = Date.now() - 60 * MINUTE;
       await run([
         setBudget(A, 'tokens', 500, 'strict', 300),
-        setBudget(P, 'tokens', 500, 'strict', 300),
+        // Advisory, so the second start below is admitted and holds: a strict
+        // parent would refuse it `budget_exhausted` (design D69).
+        setBudget(P, 'tokens', 500, 'advisory', 300),
       ]);
       await run([{ kind: 'startAttempt', workItemId: A, stepId: dev, at: start }]);
       expect((await rowOf(A)).budgets?.['tokens']).toEqual({

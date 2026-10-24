@@ -74,7 +74,7 @@ measure SHALL keep its existing estimate and actual storage and commands.
 - **WHEN** 200 random plans each receive random non-time estimates, facts and budgets
 - **THEN** each plan's schedule digest before and after is byte-identical
 
-### Requirement: Budgets are rows per work item and measure that reads can refuse on
+### Requirement: Budgets are rows per work item and measure that the start refuses on
 
 A work item SHALL hold at most one budget per measure with a cap in the measure's unit, a
 policy among `strict` and `advisory`, and a source among `stated` and `derived`; `setBudget`
@@ -109,6 +109,34 @@ remainder until they end.
 - **WHEN** an attempt with unknown usage runs under a step with 500 tokens remaining and a
   per-attempt allowance of 300
 - **THEN** the budget read shows 200 remaining until the attempt ends
+
+### Requirement: A strict budget admits an attempt's start inside its write
+
+`startAttempt` SHALL be refused `409 budget_exhausted`, writing nothing, when a strict budget of
+the work item or an ancestor has nothing remaining, when the attempt's hold would take its
+remainder below zero, or when a mix of rate cards keeps it from being read. The refusal SHALL
+name the budget's `workItemId`, `measure`, `remaining` (null when blocked), the `hold` the
+attempt would add and `blocked`. The decision SHALL be taken inside the start's own write, so
+concurrent starts SHALL never together exceed the room the budget holds. Advisory and derived
+budgets SHALL never refuse a start, and no budget SHALL refuse a fact or a claim.
+
+#### Scenario: Concurrent starts
+
+- **WHEN** a parent holds a strict tokens budget of 500 holding 300 per attempt and two of its
+  leaves start attempts at once
+- **THEN** exactly one start is admitted and the other is refused `budget_exhausted` with
+  remaining 200 and hold 300
+
+#### Scenario: Advisory never refuses
+
+- **WHEN** the same budget is advisory and both leaves start attempts
+- **THEN** both starts are admitted
+
+#### Scenario: A blocked strict budget refuses
+
+- **WHEN** a parent holds a strict cost budget and its leaves record cost facts under two rate
+  cards
+- **THEN** a start under it is refused `budget_exhausted` with `blocked: true` and remaining null
 
 ### Requirement: Money facts carry their pricing basis and mixed bases never add
 

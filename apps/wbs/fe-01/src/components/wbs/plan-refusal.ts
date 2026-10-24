@@ -484,6 +484,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'attemptNumber_must_be_a_whole_number_from_1':
     case 'node_done':
     case 'attempt_running':
+    case 'budget_exhausted':
     case 'attempt_in_future':
     case 'no_running_attempt':
     case 'attempt_ends_before_start':
@@ -882,6 +883,13 @@ export const PLAN_REFUSALS: RefusalWords = {
     no_running_attempt:
       'No attempt at this step is running any more — someone may have ended it. Nothing was changed.',
     attempt_in_future: 'An attempt cannot start or end after now. Nothing was changed.',
+    // A strict budget refusing the start inside its write (`wbs-measure-budgets`
+    // D69); reachable from the attempt button whenever another start took the rest.
+    // Proof: with this entry struck, `words each attempt refusal rather than
+    // naming its code` (attempt-actions.test.tsx) read the fallback carrying
+    // `budget_exhausted`; watched 2026-10-24.
+    budget_exhausted:
+      'A strict budget above this step has nothing left for another attempt — wait for a running attempt to report or end, or raise the budget. Nothing was changed.',
     attempt_ends_before_start: 'An attempt cannot end before it started. Nothing was changed.',
     unknown_attempt:
       'That attempt is no longer here — someone may have removed it. Nothing was changed.',

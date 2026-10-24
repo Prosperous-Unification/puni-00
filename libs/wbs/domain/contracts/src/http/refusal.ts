@@ -278,6 +278,13 @@ export type CommandRefusalCode =
    */
   | 'capacity_limit'
   /**
+   * `startAttempt` past a strict budget of the work item or an ancestor
+   * (`wbs-measure-budgets` D69): nothing remains, this attempt's hold would
+   * take it below zero, or a rate-card mix blocks it (`blocked`, `remaining`
+   * null). Names the budget's work item, measure, remainder and hold.
+   */
+  | 'budget_exhausted'
+  /**
    * A measure definition write under legacy access while no organization is
    * marked legacy: definitions belong to an organization (`wbs-measure-budgets`).
    */
@@ -300,6 +307,19 @@ export interface CapacityLimitRefusalDetail {
   cap: number;
   declared: number;
   asked: number;
+}
+
+/**
+ * What `budget_exhausted` names (`wbs-measure-budgets` D69): the work item
+ * stating the strict budget, its measure key, what remained before the
+ * refused start (null when `blocked`) and what the start would have held.
+ */
+export interface BudgetExhaustedRefusalDetail {
+  workItemId: string;
+  measure: string;
+  remaining: number | null;
+  hold: number;
+  blocked: boolean;
 }
 
 /** What a refused claim names: the organization's cap on bound claims and how many it holds. */
@@ -487,7 +507,9 @@ export type CommandRefusalDetail = {
                                 ? ClaimLimitRefusalDetail
                                 : C extends 'capacity_limit'
                                   ? CapacityLimitRefusalDetail
-                                  : Record<never, never>);
+                                  : C extends 'budget_exhausted'
+                                    ? BudgetExhaustedRefusalDetail
+                                    : Record<never, never>);
 };
 
 type BareRefusalCode =

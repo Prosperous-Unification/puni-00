@@ -37,6 +37,11 @@
 - [x] 3.3 `cost` basis: currency and rate card digest on estimate and fact; `mixed_rate_cards`
       — test: two digests under one parent refuse naming both; negative: drop the check and
       they sum.
+- [x] 3.4 Budget admission inside the attempt start's write (design D69): `budget_exhausted`
+      on a strict budget with no room, advisory and derived never — test: domain cases, the
+      be-01 strict 500/300 and advisory cases, and an `fc.asyncModelRun` race over SQLite;
+      negative: the admission read outside the turn, or the refusal removed, and the model
+      names seed 20261024; watched.
 
 ## 4. Surface
 

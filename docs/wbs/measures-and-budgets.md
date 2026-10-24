@@ -31,9 +31,16 @@ and the decisions (D1–D72) in its
   the project's budget factor (`PATCH /api/projects/:id`, `budgetFactor`). Only three-point
   trios derive one: a legacy single-point token estimate does not (design D68), and a step node
   that spends without a trio of its own leaves the subtree with no derived budget.
-- **The coordinator reads headroom.** `GET /api/projects/:id/budget-headroom` answers, per
+- **The start is admitted in the write.** `startAttempt` refuses `409 budget_exhausted`
+  (naming `workItemId`, `measure`, `remaining`, `hold` and `blocked`) when a strict budget of the
+  work item or an ancestor has nothing left, when the attempt's hold would take it below zero, or
+  when a mix of rate cards keeps it from being read (`blocked: true`, `remaining: null`). It is
+  decided inside the start's own write, so two coordinators racing for the last room cannot
+  both start (design D69). Advisory and derived budgets never refuse, a claim is never refused
+  for a budget (it starts no attempt), and WBS never refuses a fact past a budget.
+- **Headroom is for display and ranking.** `GET /api/projects/:id/budget-headroom` answers, per
   startable or claimed step and measure, the tightest strict and advisory budgets with what is
-  spent, held and remaining; WBS never refuses a fact past a budget.
+  spent, held and remaining; the write decides.
 
 ## Export, import and saved plans
 
