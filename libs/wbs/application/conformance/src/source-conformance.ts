@@ -424,18 +424,19 @@ export function existingStoreRegistrations(
         ]);
         // At 5,000 a lease is due below 845,000 (`renewalAt`): the first moves
         // to 905,000, the second was renewed within the resolution and stays.
+        // Only the first project's lease moved, so only it is named.
         expect(await port.renewLeases(agent, () => 5_000)).toEqual({
-          leases: 2,
-          leaseExpiresAt: 860_000,
+          standing: { leases: 2, leaseExpiresAt: 860_000 },
+          renewedProjectIds: [seed.projectIds[0]],
         });
         // At 860,000 the second lease has run out: it is not revived.
         expect(await port.renewLeases(agent, () => 860_000)).toEqual({
-          leases: 1,
-          leaseExpiresAt: 1_760_000,
+          standing: { leases: 1, leaseExpiresAt: 1_760_000 },
+          renewedProjectIds: [seed.projectIds[0]],
         });
         expect(await port.renewLeases(human, () => 860_000)).toEqual({
-          leases: 0,
-          leaseExpiresAt: null,
+          standing: { leases: 0, leaseExpiresAt: null },
+          renewedProjectIds: [],
         });
         expect(await port.expiredLeasesOf(seed.projectIds[1], 860_000)).toEqual([
           { claimId: elsewhere.id, reason: 'lease_expired' },
@@ -451,6 +452,38 @@ export function existingStoreRegistrations(
           seed.projectIds[0],
         ]);
         expect(await port.projectsWithExpiredLeases(1_760_000, 1)).toEqual([seed.projectIds[1]]);
+        // One renewal moving leases in both projects names each once, in
+        // code-unit order whatever order the claims were written in.
+        const [, secondLeaf] = seed.workItemIds[0];
+        const [, otherSecondLeaf] = seed.workItemIds[1];
+        const lateElsewhere = {
+          ...elsewhere,
+          id: 'claim-late-elsewhere',
+          workItemId: otherSecondLeaf,
+        };
+        const lateHere = { ...leased, id: 'claim-late-here', workItemId: secondLeaf };
+        const lateLeases = [
+          lateElsewhere,
+          lateHere,
+          { ...lateHere, id: 'claim-late-here-2', stepId: otherStepId },
+        ];
+        for (const late of lateLeases) {
+          expect(
+            await port.add(
+              [late],
+              [],
+              seed.stamps[0],
+              [],
+              [{ claimId: late.id, expiresAt: 2_000_000 }],
+            ),
+          ).toBe('written');
+        }
+        expect(await port.renewLeases(agent, () => 1_800_000)).toEqual({
+          standing: { leases: 3, leaseExpiresAt: 2_700_000 },
+          renewedProjectIds: [seed.projectIds[0], seed.projectIds[1]].sort((left, right) =>
+            left < right ? -1 : Number(left > right),
+          ),
+        });
       },
     ),
     // `wbs-claim-display` C1: one observation answers the rows, steps, claims
@@ -555,8 +588,8 @@ export function existingStoreRegistrations(
         expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(stamped(5_000, 5_000));
         // A revoked lease is never renewed again, and expires as revoked.
         expect(await port.renewLeases(agent, () => 4_000)).toEqual({
-          leases: 0,
-          leaseExpiresAt: null,
+          standing: { leases: 0, leaseExpiresAt: null },
+          renewedProjectIds: [],
         });
         expect(await port.expiredLeasesOf(seed.projectIds[0], 5_000)).toEqual([
           { claimId: leased.id, reason: 'credential_revoked' },

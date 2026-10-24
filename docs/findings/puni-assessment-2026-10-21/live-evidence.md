@@ -289,8 +289,20 @@ followed the script's own verified `prune` path after every local generation was
 run at 22:17Z in 5 m 24 s, each with a 985 MB `wbs-dev` generation, a healthy `status.json`
 and `check` exit 0. The first `prune-remote --dry-run` planned to keep 38 sets (152 files,
 8.4 GiB) and expire 775 sets (3,097 files, 143.5 GiB); the timer applies it on 2026-10-24.
+Claire PR #138 extended the same run to the plain `sqlite/<database>/` prefixes written by
+puni-00's k3s runner.
+
+**First retention run, 2026-10-24 04:47Z.** `sqlite-backup-remote-prune.service` ran
+19 m 3 s, exit 0, `remote-retention.json` `ok: true` with no alerts. `sqlitecrypt:generations`:
+3,304 files listed, 44 sets kept (176 files, 14.9 GiB; oldest 2026-08-25 23:17Z), 782 sets
+expired (3,128 files, 150.4 GiB). `sqlite/website-dev`: 824 files listed, 63 stamps kept
+(126 files, 22.7 MiB), 350 expired (698 files, 121 MiB). Read back from the bucket afterwards:
+`puni01:puni-01/backups/sqlite` holds exactly 176 objects and 14.86 GiB, `website-dev` 126
+objects, and `list-multipart-uploads` reports 0 (down from 68). The 05:17Z hourly backup
+after the prune was green.
 
 **Not done here.** The bucket lifecycle rule still lacks `AbortIncompleteMultipartUpload`
 and `ExpiredObjectDeleteMarker` (the session's permission classifier refused direct bucket
-mutations); deleted generations free space only after the 30-day noncurrent rule; the
-`website-dev` prefix has no retention; the `wbs-dev` database size itself is unexplained.
+mutations; the daily `rclone backend cleanup` covers stale multipart uploads meanwhile);
+the 150 GiB of expired generations stay billable as noncurrent versions until the 30-day
+rule releases them around 2026-11-23; the `wbs-dev` database size itself is unexplained.

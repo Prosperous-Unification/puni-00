@@ -103,7 +103,14 @@ const certificationCase = certificationValue === '1' ? it : it.skip;
 describe('the leveled pass, at the size of a real plan', () => {
   const plan = buildPlan();
 
-  it('measures CPU work without charging a descheduled interval', () => {
+  // The two cases below certify the measurement method, not the schedule, and
+  // they hold only where the host charges a sleeping thread no CPU. GitHub's
+  // runners under Bun 1.4.4 charged a 30 ms `Bun.sleepSync` 33.52 ms of process
+  // CPU on 2026-10-24 (three PRs, intermittently) while every local sample on
+  // 1.4.2 and 1.4.4 read below 1 ms, so they run with the certification pass
+  // (`WBS_PERFORMANCE_CERTIFY=1`), on the machine whose numbers are being
+  // certified, instead of asserting a host property CI cannot promise.
+  certificationCase('measures CPU work without charging a descheduled interval', () => {
     // Proof: with Bun.nanoseconds the 30 ms sleep measured 30.118 ms and
     // failed this case; process CPU measured the sleeping interval below 20 ms.
     expect(
@@ -113,7 +120,7 @@ describe('the leveled pass, at the size of a real plan', () => {
     ).toBeLessThan(20);
   });
 
-  it('also measures elapsed time spent blocked inside a schedule call', () => {
+  certificationCase('also measures elapsed time spent blocked inside a schedule call', () => {
     // Proof: process CPU measured this 30 ms block at 3.492 ms and failed
     // this case; elapsed time charges the whole blocking interval.
     expect(
