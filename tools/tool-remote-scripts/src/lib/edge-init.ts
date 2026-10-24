@@ -396,6 +396,7 @@ function configuredEndpoints(container: NativeContainer): NativeFields {
 export function constructCandidate(container: NativeContainer): CandidateRequest {
   return {
     Config: { ...container.config, Image: container.image },
+    // Proof: rewriting OOM to false failed the independent null-request regression.
     HostConfig: { ...container.host, Init: true },
     NetworkingConfig: { EndpointsConfig: configuredEndpoints(container) },
   };
@@ -408,18 +409,107 @@ export interface InvariantProjection {
   mounts: readonly unknown[];
   endpoints: NativeFields;
 }
-/** Complete admitted immutable fields; lifecycle and generated endpoint metadata are checked separately. */
-export function projectInvariant(container: NativeContainer): InvariantProjection {
+/** The only characterized created-state representation allowance; omitted context remains strict. */
+export const CREATED_OOM_PROFILE = 'engine-29.1.3-api-1.52-cgroup2-created-oom-v1';
+export type InvariantProfile = typeof CREATED_OOM_PROFILE;
+
+/** Requires fresh fixed daemon evidence; this identifier is never decoded from an operation packet.
+ * Proof: independently omitting each version/API/OS/server/cgroup check failed the daemon-evidence regression.
+ */
+export function admitInvariantProfile(version: unknown, information: unknown): InvariantProfile {
+  const server = readFields(version),
+    info = readFields(information);
+  if (
+    server['Version'] !== '29.1.3' ||
+    server['ApiVersion'] !== '1.52' ||
+    server['Os'] !== 'linux' ||
+    info['ServerVersion'] !== '29.1.3' ||
+    info['OSType'] !== 'linux' ||
+    info['CgroupVersion'] !== '2' ||
+    info['CgroupDriver'] !== 'systemd'
+  )
+    throw new InitRefusal('invariant-profile-unavailable');
+  return CREATED_OOM_PROFILE;
+}
+// Proof: removing profile identity admission failed the unknown-profile regression.
+function checkProfile(profile: unknown): void {
+  if (profile !== undefined && profile !== CREATED_OOM_PROFILE)
+    throw new InitRefusal('invariant-profile-invalid');
+}
+/** The characterized source must contain explicit null; absence and false never opt into this profile.
+ * Proof: omitting source admission failed source false/true/absence regressions, including zero-effect operation refusal.
+ */
+export function checkProfileSource(original: NativeContainer, profile?: InvariantProfile): void {
+  checkProfile(profile);
+  if (
+    profile !== undefined &&
+    (!Object.hasOwn(original.host, 'OomKillDisable') || original.host['OomKillDisable'] !== null)
+  )
+    throw new InitRefusal('invariant-profile-source-invalid');
+}
+/** Requires never-started process, sandbox, ports and endpoint evidence; an invariant hash is not a lifecycle proof.
+ * Proof: omitted status, running, dead, sandbox and endpoint checks each admitted its retained-false drift regression.
+ */
+export function checkInert(observed: NativeContainer): void {
+  if (
+    observed.state['Status'] !== 'created' ||
+    observed.state['Running'] !== false ||
+    observed.state['Paused'] !== false ||
+    observed.state['Restarting'] !== false ||
+    observed.state['Dead'] !== false ||
+    observed.state['Pid'] !== 0 ||
+    observed.state['StartedAt'] !== '0001-01-01T00:00:00Z' ||
+    observed.state['FinishedAt'] !== '0001-01-01T00:00:00Z' ||
+    observed.restartCount !== 0 ||
+    observed.sandboxId !== '' ||
+    observed.sandboxKey !== '' ||
+    Object.values(readFields(observed.ports)).some((bindings) => bindings !== null)
+  )
+    throw new InitRefusal('candidate-not-inert');
+  for (const network of Object.values(observed.networks)) {
+    const endpoint = readFields(network);
+    if (
+      endpoint['EndpointID'] !== '' ||
+      endpoint['IPAddress'] !== '' ||
+      endpoint['GlobalIPv6Address'] !== ''
+    )
+      throw new InitRefusal('candidate-network-active');
+  }
+}
+/** Complete admitted immutable fields; the fixed profile projects only a fully inert false to null on a fresh HostConfig copy.
+ * Proof: missing/value, phase and default-strictness omissions failed their regressions; broad running equality failed the actual finite operation.
+ */
+export function projectInvariant(
+  container: NativeContainer,
+  profile?: InvariantProfile,
+): InvariantProjection {
+  checkProfile(profile);
+  let host = container.host;
+  if (profile !== undefined) {
+    if (
+      !Object.hasOwn(host, 'OomKillDisable') ||
+      (host['OomKillDisable'] !== null && host['OomKillDisable'] !== false)
+    )
+      throw new InitRefusal('invariant-profile-value-invalid');
+    if (host['OomKillDisable'] === false) {
+      checkInert(container);
+      host = { ...host, OomKillDisable: null };
+    }
+  }
   return {
     image: container.image,
     config: container.config,
-    host: container.host,
+    host,
     mounts: container.mounts,
     endpoints: configuredEndpoints(container),
   };
 }
-/** Expected replacement fields from the original; never use this to project an observed replacement. */
-export function candidateInvariant(original: NativeContainer): InvariantProjection {
+/** Expected replacement fields from the unchanged original request; never project an observed replacement through its constructor. */
+export function candidateInvariant(
+  original: NativeContainer,
+  profile?: InvariantProfile,
+): InvariantProjection {
+  checkProfileSource(original, profile);
   const request = constructCandidate(original);
   return {
     image: original.image,
@@ -429,10 +519,16 @@ export function candidateInvariant(original: NativeContainer): InvariantProjecti
     endpoints: request.NetworkingConfig.EndpointsConfig,
   };
 }
-
-/** Compare independent stored fields; only inspected Mounts order and generated endpoint identity are excluded. */
-export function compareCandidate(original: NativeContainer, candidate: NativeContainer): void {
+/** Compare independent stored fields under an explicitly admitted native profile, or strictly by default. */
+export function compareCandidate(
+  original: NativeContainer,
+  candidate: NativeContainer,
+  profile?: InvariantProfile,
+): void {
   // Proof: omission admitted all eleven Env/image/HostConfig/mount/endpoint drifts in edge-init.test.ts.
-  if (fingerprint(candidateInvariant(original)) !== fingerprint(projectInvariant(candidate)))
+  if (
+    fingerprint(candidateInvariant(original, profile)) !==
+    fingerprint(projectInvariant(candidate, profile))
+  )
     throw new InitRefusal('candidate-preservation-mismatch');
 }

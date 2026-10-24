@@ -6,13 +6,32 @@ An attended helper SHALL select exactly the independently pinned registry and Ca
 
 #### Scenario: Candidate differs before original stop
 
-- **WHEN** an inert candidate differs in Config, ordered Env, HostConfig, image, mounted object or configured endpoint settings
+- **WHEN** an inert candidate differs in Config, ordered Env, HostConfig, image, mounted object or configured endpoint settings beyond the explicitly admitted native representation profile
 - **THEN** the helper refuses before stopping the original and retains the candidate for attended inspection
 
 #### Scenario: Inspected mount order varies
 
 - **WHEN** complete mount records have identical unique canonical destinations and only their inspect array order differs
 - **THEN** the helper treats the mount sets as equal without changing create-input arrays
+
+### Requirement: Bind the measured created-state OOM representation to a fixed native profile
+
+Generic invariant comparison SHALL remain strict. Production adoption SHALL independently admit the fixed `engine-29.1.3-api-1.52-cgroup2-created-oom-v1` profile from fresh pinned Docker 29.1.3, API 1.52, Linux, cgroup version 2 and systemd driver evidence, and SHALL require both original targets to contain explicit null OomKillDisable. The outgoing request SHALL retain that null. Only a never-started, fully inert created candidate's observed false OomKillDisable SHALL project to null on a copy for immutable comparison. Every production v2 receipt SHALL bind the same fixed profile identifier; read-only recovery SHALL independently re-admit the current daemon and use the same projection.
+
+#### Scenario: The measured daemon renders a new inert candidate as false
+
+- **WHEN** an admitted original contains null, its unchanged request contains null, and a candidate on the admitted profile has created status, zero PID and restarts, never-started timestamps, inactive sandbox, ports and endpoints, and false OomKillDisable
+- **THEN** the shared immutable projection equals the original-derived expected candidate invariant while the raw original, request and observation remain unchanged
+
+#### Scenario: The native profile or candidate phase differs
+
+- **WHEN** profile/version/API/cgroup evidence differs, the original's OomKillDisable is absent or non-null, a candidate contains true or an absent value, a false candidate is running or stopped, or another immutable field differs
+- **THEN** the helper refuses without extending null/false equivalence to that observation
+
+#### Scenario: Recovery evidence omits or changes the profile
+
+- **WHEN** a private receipt has a missing, unknown or changed invariant profile identifier
+- **THEN** recovery refuses the chain without upgrading its evidence or inferring historical expected configuration from a current candidate
 
 ### Requirement: Bound effects and retain originals until complete health
 

@@ -5,10 +5,13 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import {
   type CandidateRequest,
+  checkInert,
+  checkProfileSource,
   compareCandidate,
   constructCandidate,
   fingerprint,
   InitRefusal,
+  type InvariantProfile,
   type NativeContainer,
   parseNativeContainer,
   projectInvariant,
@@ -124,6 +127,7 @@ export class PrivateReceipts {
 }
 
 export interface CaddyReadBinding {
+  invariantProfile?: InvariantProfile;
   id: string;
   originalId: string;
   candidateId: string | null;
@@ -371,10 +375,18 @@ export class EngineTransport {
     const keys = Object.keys(fields);
     // Proof: closed-binding omission admitted the extra-field Unix-socket negative.
     if (
-      keys.length !== 6 ||
+      keys.length !== (Object.hasOwn(fields, 'invariantProfile') ? 7 : 6) ||
       keys.some(
         (key) =>
-          !['id', 'originalId', 'candidateId', 'nonce', 'name', 'invariantSha256'].includes(key),
+          ![
+            'id',
+            'originalId',
+            'candidateId',
+            'nonce',
+            'name',
+            'invariantSha256',
+            'invariantProfile',
+          ].includes(key),
       )
     )
       throw new InitRefusal('caddy-read-binding-invalid');
@@ -443,7 +455,8 @@ export class EngineTransport {
       observed.id !== binding.id ||
       observed.name !== binding.name ||
       readFields(observed.config['Labels'])['com.docker.compose.service'] !== 'caddy' ||
-      fingerprint(projectInvariant(observed)) !== binding.invariantSha256
+      // Proof: omitting the declared profile admitted an unknown-profile read through the actual Unix-socket boundary.
+      fingerprint(projectInvariant(observed, binding.invariantProfile)) !== binding.invariantSha256
     )
       throw new InitRefusal('caddy-read-invariant-differs');
     // Proof: replacing the running-state check with an unchecked identity admitted the paused-container negative.
@@ -516,6 +529,7 @@ export interface AdoptionSelection {
   nonce: string;
   targets: readonly [SelectedTarget, SelectedTarget];
   namespace?: 'production' | 'owned-fixture';
+  invariantProfile?: InvariantProfile;
 }
 export interface HostObserver {
   admit(deadline: Deadline): Promise<void>;
@@ -542,28 +556,6 @@ function checkStopped(observed: NativeContainer): void {
     observed.state['Pid'] !== 0
   )
     throw new InitRefusal('original-not-stopped');
-}
-function checkInert(observed: NativeContainer): void {
-  checkStopped(observed);
-  if (
-    observed.state['Status'] !== 'created' ||
-    observed.state['StartedAt'] !== '0001-01-01T00:00:00Z' ||
-    observed.state['FinishedAt'] !== '0001-01-01T00:00:00Z' ||
-    observed.restartCount !== 0 ||
-    observed.sandboxId !== '' ||
-    observed.sandboxKey !== '' ||
-    Object.values(readFields(observed.ports)).some((bindings) => bindings !== null)
-  )
-    throw new InitRefusal('candidate-not-inert');
-  for (const network of Object.values(observed.networks)) {
-    const endpoint = readFields(network);
-    if (
-      endpoint['EndpointID'] !== '' ||
-      endpoint['IPAddress'] !== '' ||
-      endpoint['GlobalIPv6Address'] !== ''
-    )
-      throw new InitRefusal('candidate-network-active');
-  }
 }
 function checkRunning(observed: NativeContainer): string {
   if (
@@ -601,6 +593,8 @@ export async function runInitAdoption(
 ): Promise<void> {
   const [registry, caddy] = selection.targets;
   const fixture = selection.namespace === 'owned-fixture';
+  for (const target of selection.targets)
+    checkProfileSource(target.original, selection.invariantProfile);
   if (
     registry.kind !== 'registry' ||
     caddy.kind !== 'caddy' ||
@@ -665,7 +659,8 @@ export async function runInitAdoption(
       phase = 'candidate-inert';
       await publish('created');
       const replacement = await engine.inspect(candidate, deadline.allocate(10000));
-      compareCandidate(before, replacement);
+      // Proof: dropping profile propagation refused the native false-to-null finite-sequence positive.
+      compareCandidate(before, replacement, selection.invariantProfile);
       checkInert(replacement);
       if (replacement.name !== `/wbs-init-${selection.nonce}-${target.kind}`)
         throw new InitRefusal('candidate-name-mismatch');
@@ -696,7 +691,7 @@ export async function runInitAdoption(
       );
       const renamed = await engine.inspect(candidateId, deadline.allocate(10000));
       checkInert(renamed);
-      compareCandidate(before, renamed);
+      compareCandidate(before, renamed, selection.invariantProfile);
       if (renamed.name !== before.name) throw new InitRefusal('candidate-rename-unverified');
       phase = 'start-uncertain';
       await effect('start-intended', 20000, (timeout) => engine.start(candidateId, timeout));
@@ -705,7 +700,7 @@ export async function runInitAdoption(
       const firstRound = clock.now();
       for (let round = 0; round < 3; round++) {
         const running = await engine.inspect(candidateId, deadline.allocate(10000));
-        compareCandidate(before, running);
+        compareCandidate(before, running, selection.invariantProfile);
         const current = checkRunning(running);
         if (identity !== undefined && identity !== current)
           throw new InitRefusal('candidate-process-changed');

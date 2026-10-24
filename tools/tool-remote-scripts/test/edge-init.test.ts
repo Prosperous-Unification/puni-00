@@ -13,8 +13,10 @@ import {
   describeFixtureFailure,
   publishFixtureFailure,
   removeFixtureResource,
+  requireFixtureOomRoster,
   requireUnusedFixtureNamespace,
   verifyFixtureFault,
+  verifyFixtureOom,
   verifyFixtureOwnership,
   verifyFixtureStopDeadline,
 } from './edge-init';
@@ -684,4 +686,54 @@ test('omitted stop acknowledgement fault cannot borrow an unrelated Caddy refusa
       network,
     });
   }).toThrow();
+});
+
+for (const phase of ['created', 'running'] as const) {
+  test('native OOM acceptance binds raw ' + phase + ' representation and lifecycle', () => {
+    const raw = syntheticContainer();
+    if (phase === 'created')
+      Object.assign(raw.State, {
+        Status: 'created',
+        Running: false,
+        Pid: 0,
+        StartedAt: '0001-01-01T00:00:00Z',
+      });
+    Object.assign(raw.HostConfig, { OomKillDisable: phase === 'created' ? false : null });
+    expect(() => {
+      verifyFixtureOom(parseNativeContainer(raw), phase);
+    }).not.toThrow();
+    for (const value of [true, phase === 'created' ? null : false]) {
+      const drift = structuredClone(raw);
+      Object.assign(drift.HostConfig, { OomKillDisable: value });
+      expect(() => {
+        verifyFixtureOom(parseNativeContainer(drift), phase);
+      }).toThrow();
+    }
+    const absent = structuredClone(raw);
+    Reflect.deleteProperty(absent.HostConfig, 'OomKillDisable');
+    expect(() => {
+      verifyFixtureOom(parseNativeContainer(absent), phase);
+    }).toThrow();
+    Object.assign(raw.State, { Status: 'exited', Running: false, Pid: 0 });
+    expect(() => {
+      verifyFixtureOom(parseNativeContainer(raw), phase);
+    }).toThrow();
+  });
+}
+
+test('native OOM report requires both targets and both observed phases', () => {
+  const full = new Set(['registry', 'caddy'] as const);
+  expect(() => {
+    requireFixtureOomRoster(full, full);
+  }).not.toThrow();
+  for (const kind of ['registry', 'caddy'] as const) {
+    const missing = new Set(full);
+    missing.delete(kind);
+    expect(() => {
+      requireFixtureOomRoster(missing, full);
+    }).toThrow();
+    expect(() => {
+      requireFixtureOomRoster(full, missing);
+    }).toThrow();
+  }
 });
