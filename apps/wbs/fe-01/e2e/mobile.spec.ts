@@ -1814,6 +1814,56 @@ test.describe('the phone review, at 375×812', () => {
     }
   });
 
+  test('sets the Plan · Board · Plan actions row in one type size (F-160)', async ({ page }) => {
+    const sizes = await Promise.all(
+      ['Plan', 'Board', 'Plan actions'].map((name) =>
+        page
+          .getByRole('button', { name, exact: true })
+          .evaluate((node) => getComputedStyle(node).fontSize),
+      ),
+    );
+    // Proof: before this change, `Expected: ["14px", "14px", "14px"] · Received: ["12px",
+    // "12px", "14px"]` (watched 2026-10-17).
+    expect(sizes).toEqual(['14px', '14px', '14px']);
+  });
+
+  test('starts every Plan actions label at one x, glyph or not (F-161)', async ({ page }) => {
+    await openTheSheet(page);
+    const starts = await page
+      .locator(
+        '[data-sheet-rows] > button, [data-sheet-rows] > span > button, [data-sheet-rows] > details > summary',
+      )
+      .evaluateAll((rows) =>
+        rows
+          .filter((row) => row.getClientRects().length > 0)
+          .map((row) => {
+            // The label is the first character outside the glyph: an icon's
+            // strokes and `↶`'s `[data-glyph]` are the glyph, not the words.
+            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+              if (node.parentElement?.closest('[data-glyph]')) continue;
+              const at = (node.textContent ?? '').search(/\S/u);
+              if (at < 0) continue;
+              const range = document.createRange();
+              range.setStart(node, at);
+              range.setEnd(node, at + 1);
+              return {
+                words: (row as HTMLElement).innerText.trim(),
+                x: range.getBoundingClientRect().left,
+              };
+            }
+            throw new Error('a sheet row has no words');
+          }),
+      );
+    expect(starts.length, 'the sheet has no rows').toBeGreaterThan(10);
+    const first = starts[0].x;
+    // Proof: before this change, `Gantt` and `Columns` started at 37 and the rows
+    // with a glyph at 59: `Collapse all starts elsewhere · Expected: <= 1 ·
+    // Received: 22` (watched 2026-10-17).
+    for (const start of starts)
+      expect(Math.abs(start.x - first), `${start.words} starts elsewhere`).toBeLessThanOrEqual(1);
+  });
+
   test('opens the team sheet titled by its field, chips and search at the top (F-049)', async ({
     page,
   }) => {

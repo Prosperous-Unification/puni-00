@@ -111,14 +111,28 @@ the Claims sheet by the claims read's own number and name, and SHALL NOT raise a
 ### Requirement: A failed claims read is visible and harmless
 
 When the claims read fails, including a 404 from a be-01 that predates it, fe-01 SHALL keep the
-last installed claims, show the plan's stale-read notice, and draw no chips when none were ever
-installed. The Claims sheet SHALL render the failure in place. Neither SHALL reach the Error
-Boundary.
+last installed claims, draw no chips when none were ever installed, and show a claims notice
+("Claims could not be read.") whose retry rereads claims alone. A claims failure SHALL NOT raise
+the plan's stale alert nor mark the optimization cue stale. The Claims sheet SHALL render the
+failure in place. Neither SHALL reach the Error Boundary.
 
 #### Scenario: An older be-01 mid-swap
 
 - **WHEN** the claims route answers 404 and no claims were installed
-- **THEN** the table renders with no chips and the stale-read notice, and the plan stays editable
+- **THEN** the table renders with no chips, the claims notice and no plan stale alert, and the
+  plan stays editable
+
+#### Scenario: The optimizer's suggestion survives a claims failure
+
+- **GIVEN** the plan read carries an optimization whose variant would finish earlier
+- **WHEN** the claims read fails
+- **THEN** the cue still suggests that variant, the claims notice shows, and no plan stale alert
+  shows
+
+#### Scenario: Retrying claims reads claims alone
+
+- **WHEN** the reader presses the claims notice's retry and the claims read succeeds
+- **THEN** only the claims read runs and the notice clears
 
 ### Requirement: The Claims sheet lists who holds what
 

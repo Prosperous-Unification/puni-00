@@ -6,7 +6,9 @@ The coordinator SHALL track claims as a fifth resource beside tree, steps, group
 calendar markers, with its own installation authority, failure state and installed `readAt`.
 `tree_replaced` SHALL invalidate tree and claims; `claims_changed` SHALL invalidate claims
 only; `plan_unavailable` SHALL invalidate the tree only; an unknown event SHALL invalidate
-every resource, claims included.
+every resource, claims included. Claims SHALL NOT gate the baseline, and a claims obligation
+SHALL NOT hold the stream acknowledgment. Claims SHALL be readable whether or not the coordinator
+holds an anchor, and a claims-only invalidation SHALL NOT start a resynchronisation.
 
 #### Scenario: A heartbeat refreshes claims alone
 
@@ -18,26 +20,64 @@ every resource, claims included.
 - **WHEN** `tree_replaced` arrives after a sweep release
 - **THEN** a tree read and a claims read run, and each installs on its own
 
+#### Scenario: The baseline does not wait for claims
+
+- **WHEN** the initial claims read fails
+- **THEN** the baseline is still established from the tree and the other resources, and claims
+  alone are stale
+
+#### Scenario: Claims never hold the stream acknowledgment
+
+- **GIVEN** the claims read keeps failing
+- **WHEN** `tree_replaced` events arrive and their tree reads succeed
+- **THEN** the acknowledged sequence advances with the tree, and a later successful claims read
+  still installs
+
+#### Scenario: Heartbeats while the anchor is failing
+
+- **GIVEN** a resynchronisation whose tree anchor was refused left the coordinator unanchored
+- **WHEN** ten claims-only invalidations arrive
+- **THEN** claims reads run and no tree read is requested
+
 #### Scenario: A failed claims read leaves the tree alone
 
 - **GIVEN** a claims read failed and the previous claims remain drawn
 - **WHEN** a later tree read succeeds
 - **THEN** the claims stale state remains until a covering claims read succeeds
 
-### Requirement: An unsequenced frame is a hint, and a resume rereads claims
+### Requirement: Claims announcements are transient
 
-fe-01's project stream SHALL treat a frame for its subscription with no `seq` as a change hint
-for the type it names, mapped as any event: it SHALL NOT advance, read or reset the resume
-point, and no `seen` follows its read. Because such frames are never replayed, the coordinator
-SHALL read claims whenever the stream synchronises: on every `resume_ack` (whatever its
-`replayed` count), on `resume_denied`, and on the first subscribe.
+`claims_changed` is a live announcement that the durable event log does not hold and a resume
+does not replay; it may carry no sequence. fe-01 SHALL deliver it only to a stream subscriber
+that opts in (the plan feed), SHALL treat it there as a claims-only invalidation whatever
+sequence it carries, and it SHALL neither move, hold nor open a gap in the stream
+acknowledgment. A subscriber that does not opt in (the saved-plan shelf) SHALL hear nothing of
+it. Every time the stream synchronises, on an accepted resume and on a refused one
+alike, fe-01 SHALL reread claims. A change whose sequence is not a whole number SHALL NOT enter
+the sequence bookkeeping.
 
-#### Scenario: An unsequenced claims_changed refreshes claims
+#### Scenario: An unsequenced heartbeat
 
-- **WHEN** a frame `{ subscription, message: { type: 'claims_changed' } }` arrives with no `seq`
-- **THEN** a claims read runs and the resume point is unchanged
+- **WHEN** a `claims_changed` frame arrives with no sequence
+- **THEN** a claims read runs, no other read is requested, and the acknowledged sequence is
+  unchanged
 
-#### Scenario: A resume rereads claims
+#### Scenario: A sequence on a transient announcement is ignored
 
-- **WHEN** the socket reconnects and the gateway answers `resume_ack` with nothing replayed
-- **THEN** a claims read runs
+- **WHEN** a `claims_changed` frame carries a sequence
+- **THEN** it is handled exactly as an unsequenced one
+
+#### Scenario: The saved-plan shelf ignores heartbeats
+
+- **WHEN** five `claims_changed` frames arrive on the shelf's socket
+- **THEN** the shelf rereads neither its capability nor its list
+
+#### Scenario: A reconnect rereads claims
+
+- **WHEN** the stream reconnects and the server accepts the resume
+- **THEN** one claims read runs, since the gap's claims announcements are not replayed
+
+#### Scenario: A malformed sequence is dropped
+
+- **WHEN** a frame carries a sequence that is not a whole number
+- **THEN** no invalidation is made from it

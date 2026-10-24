@@ -309,6 +309,31 @@ describe('the steps a project holds', () => {
     expect(stub.renameStep).not.toHaveBeenCalled();
   });
 
+  itDom(
+    'Escape in a Steps box forgets what was typed there, and sends nothing (F-162)',
+    async () => {
+      const stub = stubbed();
+
+      type('QA', 'Review');
+      fireEvent.keyDown(screen.getByLabelText('QA'), { key: 'Escape' });
+      type('QA allowance (%)', '30');
+      fireEvent.keyDown(screen.getByLabelText('QA allowance (%)'), { key: 'Escape' });
+      type('New step', 'Draft');
+      fireEvent.keyDown(screen.getByLabelText('New step'), { key: 'Escape' });
+      await settle();
+
+      expect(screen.getByLabelText<HTMLInputElement>('QA').value).toBe('QA');
+      expect(screen.getByLabelText<HTMLInputElement>('QA allowance (%)').value).toBe('0');
+      expect(screen.getByLabelText<HTMLInputElement>('New step').value).toBe('');
+      expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
+      fireEvent.blur(screen.getByLabelText('QA'));
+      fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
+      await settle();
+      expect(stub.renameStep).not.toHaveBeenCalled();
+      expect(stub.setStepAllowance).not.toHaveBeenCalled();
+    },
+  );
+
   itDom('sends nothing for a name that is only spaces', async () => {
     const stub = stubbed();
 

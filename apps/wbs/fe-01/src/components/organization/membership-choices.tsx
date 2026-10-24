@@ -1,3 +1,4 @@
+import { Button } from '@ui/saas-01';
 import { type ClientReply, listOrganizationMemberships } from '@wbs/contracts';
 import { useEffect, useState } from 'react';
 
@@ -90,7 +91,9 @@ function MembershipEntry({
         </span>
       </div>
       {!locked && onChoose !== undefined && (
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           disabled={disabled}
           onClick={() => {
@@ -98,7 +101,7 @@ function MembershipEntry({
           }}
         >
           Choose {membership.name}
-        </button>
+        </Button>
       )}
       {locked && (
         <p className="text-muted-foreground mt-1 text-sm">

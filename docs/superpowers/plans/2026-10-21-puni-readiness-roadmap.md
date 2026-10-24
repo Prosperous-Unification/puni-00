@@ -172,9 +172,10 @@ the evidence for any justified concurrency adjustment.
 Start the following as five bounded deliverables. This is the first work queue, not
 a claim they can all finish within one week:
 
-- [ ] W02: spend the first diagnostic half-day identifying the failing backup step,
+- [x] W02: spend the first diagnostic half-day identifying the failing backup step,
       covered stores and newest usable generation; preserve evidence, then size the repair
       and isolated restore. Escalate a missing recovery generation immediately to its owner.
+      Done 2026-10-23: [W02 resolution](../../findings/puni-assessment-2026-10-21/live-evidence.md#w02-resolution--2026-10-23).
 - [ ] W03: collect the exact routed runtime/image/state/build/gate chain for every tier;
       identify which claims can be proved. Do not repair metadata by guessing a SHA.
 - [ ] W04: determine required checks and bypass rules; apply and verify the chosen

@@ -85,9 +85,9 @@
       "arch": "amd64"
     },
     "solverBun": {
-      "version": "1.4.2",
-      "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64.zip",
-      "sha256": "36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913",
+      "version": "1.4.4",
+      "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.4/bun-linux-x64.zip",
+      "sha256": "bf8ccbfb2b0b80159e0f9a6d15c55317add8077534dbc6130a3edb52fccb395c",
       "os": "linux",
       "arch": "amd64"
     },
@@ -159,8 +159,8 @@
     },
     "sqliteBackup": {
       "role": "sqlite-backup",
-      "name": "docker.io/oven/bun:1.4.2-alpine",
-      "digest": "sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f"
+      "name": "docker.io/oven/bun:1.4.4-alpine",
+      "digest": "sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a"
     },
     "blackboxExporter": {
       "role": "blackbox-exporter",

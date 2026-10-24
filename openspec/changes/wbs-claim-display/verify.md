@@ -187,6 +187,218 @@ first round's lint); Burokrat `check-indexes working . HEAD` exit 0; `openspec v
 --json` 275 of 275; `tool-devsync:test` 921 tests pass. Not run locally: the full be-01 and
 fe-01 suites (CI carries them).
 
+### Slice 2: claims as a plan-refresh resource (fe-01), 2026-10-23
+
+Branch `feat/wbs-claim-display-refresh` on `plan/wbs-claim-display` at `dfacc4af0`. Commands ran
+with `env -u CLAUDECODE` and `TZ=UTC` from `apps/wbs/fe-01`.
+
+**2.1** `RefreshResource` gains `claims`; `ALL_RESOURCES` lists five. `resourcesFor`:
+`claims_changed` is `['claims']`, `tree_replaced` is `['tree', 'claims']`, `plan_unavailable`
+stays `['tree']`, unknown events answer all five. `ProjectApi.readClaims` reads
+`getApiProjectsByIdClaims` through `readProjectClaims`; `PlanReadRoutes` adds it. Red: three of
+the four new `plan-refresh.test.ts` cases failed before the green (`plan_unavailable` already
+answered `['tree']`).
+
+| R5 fault (watched)                            | Observed                                                         |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| `claims_changed` line removed (falls through) | `refreshes claims alone for a heartbeat` receives all five, 19/1 |
+
+**2.2** Claims are their own `resourceRead` with their own generations, failure and stale
+state; the installed value is `InstalledClaims` (`readAt` plus `installedAt` from the owner's
+injected `monotonicNow`, production `performance.now()`). The baseline does not wait for claims:
+`establish` starts the claims read beside steps, directory and markers without awaiting it, and
+an anchor failure marks claims stale with the others. Four cases in `claims as a refresh
+resource`: a heartbeat reads claims alone and installs `readAt` beside the monotonic instant; a
+held claims read for `tree_replaced` does not hold the tree install; a failed claims read keeps
+the last claims and their stale state across a later tree success, until a claims read
+succeeds; the baseline anchors while the claims read is refused.
+
+| R5 fault (watched)                                         | Observed                                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| `claims: tree` in the resources record (shared generation) | all four claims cases and the `plan_unavailable` case fail, 19/5   |
+| claims awaited with the baseline's anchored reads          | `anchors the baseline without claims …` initializes `failed`, 23/1 |
+
+**2.3** `plan-read-and-write.test.tsx` `draws the plan with the stale notice when an older be-01
+answers 404 for claims`: the table, under `AppFaultBoundary`, with a fake whose `readClaims`
+rejects a `not_found` refusal, draws row `010`, raises the stale notice, raises no toast and no
+`[data-app-fault]`. (The review round below replaced the plan stale notice with the claims notice.)
+
+| R5 fault (watched)                                | Observed                                                                      |
+| ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| claims awaited with the baseline's anchored reads | no rows drawn: `expected [] to deeply equal [ '010' ]` (1 failed, 90 skipped) |
+
+Deviations:
+
+- 2.1's green carried the whole fifth resource (it cannot type without a snapshot entry and a
+  read), so 2.2's and 2.3's cases passed on their first run. Their weight rests on the
+  watched faults above, not on a red before the green.
+- `WbsProblem`'s failure arm is one member instead of one per operation: with the 26th shape
+  (`readProjectClaims`) TypeScript no longer related `throwReply`'s failure object to the
+  per-operation union (its 25-member discriminant expansion limit). Only a refusal body depends
+  on the operation, so nothing narrowed on the failure arm's operation.
+- `plan-refusal.ts` gains `claimsReadCode` (the exhaustive refusal switch requires it).
+- Known consequence, by design of the existing acknowledgment rule: while claims reads fail (an
+  older be-01 mid-swap), a `tree_replaced` event's claims obligation is uncovered, so the
+  acknowledged sequence holds there, as it already does for a failed marker read; a reconnect
+  then resumes from the held sequence.
+
+Hard-coded counts moved: `READS_THE_FULL_SCOPE_MAKES` (optimization-integration) and
+`FULL_SCOPE_PUTS_ON_THE_WIRE` (wbs-api) gain the claims read (nine to ten); the replacement-reader
+case in `plan-read-and-write.test.tsx` records `readClaims` and expects ten;
+`keeps the narrow scopes …` expects `tree_replaced` to be `['tree', 'claims']`; the plan-feed
+reading case expects `['tree', 'claims']` for `tree_replaced`. Doubles that state every read
+(`gantt-panel`, `plan-dependencies`, `project-page`), the `refusing-api` shape boundary and
+`fakeProjectApi` answer `readClaims`; the stream test's fetch stub models `/claims`. No e2e spec
+counts plan reads (the specs that route `**/api/**` do not open a plan), and no pixels baseline
+change is expected: pixels run against this branch's be-01, which serves the route.
+
+Results (fresh, 2026-10-23): `nx run wbs-fe-01:typecheck` (with `typecheck:module`) pass;
+eslint on the 17 touched files exit 0; vitest over `src/lib`, `src/modules`, `src/runtime`,
+`src/testing`, `app-router`, `delivery-boundaries` and the plan component suites that build API
+doubles (67 files) first run 1385 pass, 8 fail (the counts and doubles above); after the fixes
+the 12 files holding those failures 421 pass, and `plan-read-and-write` with `wbs-api` 156 pass.
+Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 275 of 275. Not run locally: the full fe-01 suite, the Auckland zoned run, e2e and pixels (CI carries
+them; laptop RAM shared with another heavy agent).
+
+**Review round (Fable, PR #694 at `bd4e55cfe`, one S2).**
+
+- S2-1: a failed claims read made the whole plan stale. That raised the red "This plan may be
+  out of date" alert, nulled the optimization cue's comparisons, and its Retry could not clear a
+  claims failure that would not go away. Now `treeMayBeStale` counts the plan's resources only
+  (`use-plan-read.ts`), and claims have their own quiet status line, "Claims could not be
+  read.", with a `Retry claims` button that rereads `['claims']` alone (`wbs-table.tsx`,
+  `[data-stale-claims]`). C12 and the `claim-display` delta now name that notice and add two
+  scenarios.
+- S3-1, decision C20 (proposal, design, `plan-refresh` delta): claims obligations are not
+  recorded against an event's sequence, so a failing claims read never holds the stream
+  acknowledgment.
+- S3-2: the anchor-failure path that marks claims stale now has a negative.
+- S4-1: `plan-refresh-stream.test.ts` gives the real `httpProjectApi` an older be-01's router
+  miss for `/claims`: Elysia's bare `404` with body `NOT_FOUND` and no content type. That body
+  was measured with `new Elysia()` (`^1.4.30`) on an unmounted path. The plan anchors, only
+  claims are stale, and the cause is a `WbsRequestError`.
+- S4-2: in the 2.3 test, the `[data-app-fault]` assertion is not an R5 proof. Nothing can throw
+  into the Error Boundary yet; the assertion guards the chips of later slices. The test's own
+  comment says so.
+- S4-3: the `project-stream.ts` JSDoc now says ten requests. S4-4: the `tree_replaced` line now
+  has a `Proof:` comment.
+
+| R5 fault (watched)                                                  | Observed                                                                                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `treeMayBeStale` back to `staleResources.length > 0`                | `keeps the plan current and the optimizer's suggestion when only claims fail`: `expected undefined to be '· Pri 3 days earlier'` |
+| claims notice suppressed                                            | same case: `[data-stale-claims]` absent                                                                                          |
+| `Retry claims` wired to `refreshOrMarkStale()` (every resource)     | 404 table case: the tree read twice, expected once                                                                               |
+| claims obligations recorded against the event sequence (C20 undone) | `resumes past tree events while claims fail …`: acknowledged 0, expected 2 (31/1)                                                |
+| `claims` dropped from the anchor-failure list                       | `ends a claims invalidation made during an initialize whose anchor fails`: `expected 'pending' to be 'failed'` (24/1)            |
+| `tree_replaced` answering `['tree']`                                | 5 cases across `plan-refresh`, `plan-feed.resource`, `optimization-integration`                                                  |
+
+The 2.3 table case now asserts the claims notice and no plan alert. Its Retry clears the notice
+by succeeding, with one more claims read and no tree read.
+
+By eye (2026-10-23): be-01, gw-01 and fe-01 ran from this branch (`bun run dev:setup`, local auth
+`local-dev`). fe-01's Vite proxy pointed at a small Bun proxy (port 3150) that answered
+`GET /api/projects/:id/claims` with `404 NOT_FOUND` and forwarded everything else to be-01. A
+headless Chromium (Playwright) loaded the plan page.
+
+- Desktop 1440×900: the plan drew its rows with no red alert. One muted line, "Claims could not
+  be read.", sat between the toolbar and the table, with a small ghost `Retry claims`. Once the
+  proxy served claims, `Retry claims` cleared the line.
+- Phone 390×844: the same line appeared under the Plan/Board/Plan actions row, above the first
+  card, with no alert.
+
+Results after the round (fresh, 2026-10-23):
+
+- `nx run wbs-fe-01:typecheck` succeeded.
+- eslint on the 19 changed TypeScript files: exit 0.
+- vitest over `src/lib`, `src/modules`, `src/runtime`, `src/testing`, `src/components/board`,
+  `app-router`, `delivery-boundaries` and the plan component suites with API doubles,
+  `optimization-cue` included: 70 files, 1456 pass.
+
+Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 275 of 275.
+Not run locally: the full fe-01 suite, the Auckland zoned run, e2e and pixels.
+
+**Transient claims announcements (C21, coordinator, 2026-10-23).** be-01 will push
+`claims_changed` as a live announcement. It is not written to the durable log, a resume does not
+replay it, and it may carry no sequence. Slice 3 records C21 in the proposal and design; this
+branch adds the `plan-refresh` delta requirement "Claims announcements are transient" with four
+scenarios.
+
+- `project-stream.ts` forwards `claims_changed` as `onChange('claims_changed')` with no
+  sequence, whether the frame carries one or not. Any other change enters the bookkeeping only
+  with a whole sequence (`Number.isSafeInteger`). JSON's `1e400` parses to Infinity, and that or
+  `1.5` would otherwise poison `Math.max` in `received`. Such a change is dropped, just as an
+  unsequenced one already was.
+- `plan-feed.resource.ts` rereads `['claims']` every time the stream reports it is synchronised
+  (`onConnectionChange(true)`). That covers an accepted resume and a refused one alike (the
+  refusal's full resync reads claims too), and the first synchronisation after the baseline.
+- With no sequence, `invalidate` neither records an obligation nor checks for a gap (C20 already
+  keeps claims out of obligations). `plan-refresh.test.ts` pins this: an unsequenced
+  announcement reads claims alone, leaves the acknowledgment where it was, and the next durable
+  event acknowledges normally without a resync.
+
+| R5 fault (watched)                                     | Observed                                                                                                                           |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| claims branch removed from `project-stream.ts`         | `forwards an unsequenced claims announcement`: `expected [] …`; `… without whatever sequence it carries`: `['claims_changed', 40]` |
+| whole-sequence check back to `typeof seq !== 'number'` | `drops a change whose sequence is not a whole number`: `['tree_replaced', Infinity]` forwarded                                     |
+| claims reread on synchronisation removed               | `rereads claims each time the stream synchronises`: `expected [] …` (30/1)                                                         |
+
+Results (fresh): `nx run wbs-fe-01:typecheck` succeeded; eslint on the touched files exit 0;
+vitest over the same set plus presence, 71 files, 1469 pass; Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 275 of 275.
+
+Not covered end to end: the real-stream harness (`plan-refresh-stream.test.ts`) drives the owner
+directly, not through `createPlanReading`. The one-claims-read-per-reconnect rule is therefore
+pinned at the plan-feed seam with a recording owner.
+
+**Second review round (Fable, PR #694 at `a4aaa1265`, one S2).**
+
+- S2-A: `project-stream.ts` delivered unsequenced `claims_changed` frames to every subscriber.
+  The saved-plan shelf's socket therefore reread its capability (the whole OpenAPI document) and
+  its list once per heartbeat per viewer.
+  - Claims announcements now go to a new opt-in `onClaims`, never to `onChange`.
+  - Only the plan feed opts in: `PlanFeedStreamHandlers.onClaims` is threaded through the
+    project runtime and composition.
+  - The shelf passes no `onClaims`, so it hears nothing.
+  - Audit, pre-existing and unchanged: the shelf still rereads on every sequenced event of any
+    type (`tree_replaced` and the rest), because `watchShelf` hands `read` to `subscribe`
+    whatever the event says.
+- S3-A: while unanchored (for example after a resynchronisation whose anchor was refused
+  `engine_unavailable`), every claims-only invalidation escalated to `initialize()`.
+  - Choice: claims are readable whether or not the coordinator holds an anchor (C11 handles
+    moment skew), and a claims-only invalidation never starts a resynchronisation.
+  - Recorded in the `plan-refresh` delta with the scenario "Heartbeats while the anchor is
+    failing".
+  - The anchor-failure path no longer marks claims stale, since the tree's failure is not
+    theirs. The S3-2 case became `reads claims during an initialize whose anchor fails`.
+- S4:
+  - Page load reads claims twice. This is kept and documented under design Risks: the first
+    read always starts before the socket registers, so only the synchronisation reread covers
+    that interval.
+  - The design Risks entry that said heartbeats reach the event log is replaced (C21).
+  - The claims notice is now an always-mounted `aria-live="polite"` region (`[data-claims-notice]`)
+    whose words change. It has no `role=status`, so the existing `getByRole('status')` cases
+    still find one status.
+
+| R5 fault (watched)                                              | Observed                                                                                                          |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| claims branch removed from `project-stream.ts`                  | `onClaims` 0 calls; a subscriber that did not opt in received `['claims_changed', 40]`; shelf reads 3, expected 1 |
+| claims announcement also sent to `onChange`                     | shelf `rereads nothing for five claims announcements`: reads and capability reads 6, expected 1                   |
+| plan feed `onClaims` invalidates nothing                        | `reads claims alone for a claims announcement`: `['initialize']`, expected `['initialize', 'invalidate']`         |
+| claims-only invalidation escalates                              | `reads claims, not the tree, for heartbeats while unanchored`: `['tree']`, expected none                          |
+| claims readable only when anchored (`() => unsequencedAllowed`) | `reads claims during an initialize whose anchor fails`: `pending`, expected `installed`; heartbeat case times out |
+| notice region mounted only while stale                          | 404 table case: `toHaveAttribute('aria-live', 'polite')` after the retry, region gone                             |
+
+`composition.test.ts` `READ_ROUTES` now lists `readClaims` (ten routes).
+
+Results (fresh, 2026-10-23):
+
+- `nx run wbs-fe-01:typecheck` succeeded.
+- eslint on the touched files: exit 0.
+- vitest over the earlier set plus the saved-plan suites: 74 files, 1522 pass.
+- Burokrat `check-indexes working . HEAD`: exit 0.
+- `openspec validate --all --json`: 275 of 275.
+
+The C21 section above described `onChange('claims_changed')`; the second review round replaced that with the opt-in `onClaims`.
+
 ### Slice 3: heartbeat announcement (be-01), 2026-10-23
 
 Branch `feat/wbs-claim-display-heartbeat` on `plan/wbs-claim-display` at `dfacc4af0`. Commands
