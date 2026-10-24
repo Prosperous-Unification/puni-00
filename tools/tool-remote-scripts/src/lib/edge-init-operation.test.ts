@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 
 import { syntheticContainer } from '../../test/edge-init-fixture';
-import { InitRefusal, parseNativeContainer } from './edge-init';
+import { constructCandidate, InitRefusal, parseNativeContainer } from './edge-init';
 import { Deadline, EngineTransport, PrivateReceipts, runInitAdoption } from './edge-init-operation';
 
 const roots: string[] = [];
@@ -71,6 +71,8 @@ test('Engine transport sends t=-1 once and forbids unrelated IDs and mutation ro
     const engine = new EngineTransport(socket, ['a'.repeat(64)], 'synthetic');
     await engine.stop('a'.repeat(64), 1000);
     expect(engine.stop('c'.repeat(64), 1000)).rejects.toThrow();
+    const fixture = new EngineTransport(socket, ['a'.repeat(64)], 'synthetic', 'owned-fixture');
+    expect(fixture.rename('a'.repeat(64), 'wbs-registry-1', 1000)).rejects.toThrow();
     expect(transcript).toEqual([`POST /v1.52/containers/${'a'.repeat(64)}/stop?t=-1`]);
   } finally {
     await new Promise<void>((resolve, reject) =>
@@ -117,6 +119,168 @@ test.each(['body', 'timeout'])(
     }
   },
 );
+
+test('Engine read discovery never authorizes a mutation and Caddy Exec is fixed and terminal', async () => {
+  const root = await directory();
+  const socket = join(root, 'engine.sock');
+  const transcript: string[] = [];
+  const execBodies: unknown[] = [];
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    request.on('end', () => {
+      transcript.push(`${String(request.method)} ${String(request.url)}`);
+      if (request.url?.endsWith('/exec') === true) {
+        execBodies.push(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        response.writeHead(201);
+        response.end(JSON.stringify({ Id: 'f'.repeat(64) }));
+        return;
+      }
+      if (request.url?.endsWith('/start') === true) {
+        const body = Buffer.from('{}');
+        const header = Buffer.alloc(8);
+        header[0] = 1;
+        header.writeUInt32BE(body.length, 4);
+        response.end(Buffer.concat([header, body]));
+        return;
+      }
+      if (request.url?.includes('/exec/') === true) {
+        response.end(
+          JSON.stringify({
+            ID: 'f'.repeat(64),
+            ContainerID: 'b'.repeat(64),
+            Running: false,
+            ExitCode: 0,
+          }),
+        );
+        return;
+      }
+      response.end(JSON.stringify([{ Id: 'c'.repeat(64) }]));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(socket, resolve));
+  try {
+    const engine = new EngineTransport(socket, ['a'.repeat(64), 'b'.repeat(64)], 'synthetic');
+    await engine.inventory(1000);
+    expect(engine.stop('c'.repeat(64), 1000)).rejects.toThrow();
+    expect(engine.execCaddy('a'.repeat(64), 'adapt', 1000)).rejects.toThrow();
+    expect(await engine.execCaddy('b'.repeat(64), 'adapt', 1000)).toBe('{}');
+    expect(execBodies).toEqual([
+      {
+        AttachStdin: false,
+        AttachStdout: true,
+        AttachStderr: true,
+        Tty: false,
+        Privileged: false,
+        Cmd: ['caddy', 'adapt', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'],
+      },
+    ]);
+    expect(transcript.filter((entry) => entry.includes('/stop'))).toHaveLength(0);
+    expect(transcript.some((entry) => entry.includes(`/containers/${'a'.repeat(64)}/exec`))).toBe(
+      false,
+    );
+  } finally {
+    await new Promise<void>((resolve) =>
+      server.close(() => {
+        resolve();
+      }),
+    );
+  }
+});
+
+test.each(['stderr', 'nonterminal', 'foreign', 'truncated'])(
+  'Caddy Exec refuses %s and exposes no private output',
+  async (fault) => {
+    const root = await directory();
+    const socket = join(root, 'engine.sock');
+    const server = createServer((request, response) => {
+      if (request.url?.endsWith('/exec') === true) {
+        response.writeHead(201);
+        response.end(JSON.stringify({ Id: 'f'.repeat(64) }));
+        return;
+      }
+      if (request.url?.endsWith('/start') === true) {
+        const body = Buffer.from('PRIVATE_EXEC_SENTINEL');
+        const header = Buffer.alloc(8);
+        header[0] = fault === 'stderr' ? 2 : 1;
+        header.writeUInt32BE(body.length + (fault === 'truncated' ? 1 : 0), 4);
+        response.end(Buffer.concat([header, body]));
+        return;
+      }
+      response.end(
+        JSON.stringify({
+          ID: 'f'.repeat(64),
+          ContainerID: (fault === 'foreign' ? 'c' : 'b').repeat(64),
+          Running: fault === 'nonterminal',
+          ExitCode: 0,
+        }),
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(socket, resolve));
+    try {
+      const engine = new EngineTransport(socket, ['a'.repeat(64), 'b'.repeat(64)], 'synthetic');
+      const failure = await engine.execCaddy('b'.repeat(64), 'adapt', 1000).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toBeInstanceOf(InitRefusal);
+      expect(String(failure)).not.toContain('PRIVATE_EXEC_SENTINEL');
+    } finally {
+      await new Promise<void>((resolve) =>
+        server.close(() => {
+          resolve();
+        }),
+      );
+    }
+  },
+);
+
+test('create flattens complete observed Config and admits null warnings without a pull or new resource request', async () => {
+  const root = await directory();
+  const socket = join(root, 'engine.sock');
+  let posted: unknown;
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    request.on('end', () => {
+      posted = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      response.writeHead(201);
+      response.end(JSON.stringify({ Id: 'f'.repeat(64), Warnings: null }));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(socket, resolve));
+  try {
+    const engine = new EngineTransport(socket, ['a'.repeat(64), 'b'.repeat(64)], 'synthetic');
+    const candidate = constructCandidate(parseNativeContainer(syntheticContainer()));
+    expect(await engine.create('registry', candidate, 1000)).toBe('f'.repeat(64));
+    expect(posted).toEqual({
+      ...syntheticContainer().Config,
+      Image: `sha256:${'b'.repeat(64)}`,
+      HostConfig: { ...syntheticContainer().HostConfig, Init: true },
+      NetworkingConfig: {
+        EndpointsConfig: {
+          ['c'.repeat(64)]: {
+            Aliases: ['registry'],
+            IPAMConfig: null,
+            Links: null,
+            DriverOpts: null,
+            GwPriority: 0,
+          },
+        },
+      },
+    });
+  } finally {
+    await new Promise<void>((resolve) =>
+      server.close(() => {
+        resolve();
+      }),
+    );
+  }
+});
 
 test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receipt-failed'])(
   'finite sequence retains originals on %s and removes only after both health rounds',

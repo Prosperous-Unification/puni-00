@@ -125,12 +125,17 @@ export class PrivateReceipts {
 /** Internal local socket injection is for owned native fixtures and Unix-socket tests only; CLI has no override. */
 export class EngineTransport {
   private readonly ids: Set<string>;
+  private readonly readIds = new Set<string>();
+  private readonly caddyIds = new Set<string>();
   constructor(
     private readonly socket: string,
     ids: readonly string[],
     private readonly nonce: string,
+    private readonly namespace: 'production' | 'owned-fixture' = 'production',
   ) {
     this.ids = new Set(ids.map(readIdentity));
+    const caddy = ids.at(1);
+    if (caddy !== undefined) this.caddyIds.add(caddy);
     if (!/^[a-z0-9-]{1,64}$/.test(nonce)) throw new InitRefusal('attempt-invalid');
   }
   private select(id: string): string {
@@ -144,6 +149,7 @@ export class EngineTransport {
     timeout: number,
     expected: number,
     body?: unknown,
+    raw = false,
   ): Promise<unknown> {
     if (!Number.isSafeInteger(timeout) || timeout <= 0) throw new InitRefusal('deadline-exhausted');
     const bytes = body === undefined ? undefined : JSON.stringify(body);
@@ -184,12 +190,18 @@ export class EngineTransport {
               fail('engine-status-refused');
               return;
             }
+            if (raw) {
+              resolveResponse(Buffer.concat(chunks));
+              return;
+            }
             if (length === 0) {
               resolveResponse(null);
               return;
             }
             try {
-              resolveResponse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+              resolveResponse(
+                JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))),
+              );
             } catch {
               fail('engine-json-invalid');
             }
@@ -213,6 +225,120 @@ export class EngineTransport {
   async inspect(id: string, timeout: number): Promise<NativeContainer> {
     return parseNativeContainer(await this.call('GET', `${this.select(id)}/json`, timeout, 200));
   }
+  async version(timeout: number): Promise<unknown> {
+    return this.call('GET', '/version', timeout, 200);
+  }
+  async info(timeout: number): Promise<unknown> {
+    return this.call('GET', '/info', timeout, 200);
+  }
+  async image(id: string, timeout: number): Promise<unknown> {
+    if (!/^sha256:[a-f0-9]{64}$/.test(id)) throw new InitRefusal('image-id-invalid');
+    return this.call('GET', `/images/${id}/json`, timeout, 200);
+  }
+  async network(id: string, timeout: number): Promise<unknown> {
+    return this.call('GET', `/networks/${readIdentity(id)}`, timeout, 200);
+  }
+  async volume(name: string, timeout: number): Promise<unknown> {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(name))
+      throw new InitRefusal('volume-name-invalid');
+    return this.call('GET', `/volumes/${name}`, timeout, 200);
+  }
+  async inventory(timeout: number): Promise<unknown> {
+    const listing = await this.call('GET', '/containers/json?all=1', timeout, 200);
+    if (!Array.isArray(listing) || listing.length > 65536)
+      throw new InitRefusal('container-list-invalid');
+    this.readIds.clear();
+    for (const raw of listing as unknown[]) this.readIds.add(readIdentity(readFields(raw)['Id']));
+    return listing;
+  }
+  async inspectListed(id: string, timeout: number): Promise<NativeContainer> {
+    if (!this.readIds.has(readIdentity(id))) throw new InitRefusal('unlisted-container');
+    return parseNativeContainer(await this.call('GET', `/containers/${id}/json`, timeout, 200));
+  }
+  async resolveCandidate(kind: TargetKind, timeout: number): Promise<NativeContainer> {
+    const name = `wbs-init-${this.nonce}-${kind}`;
+    const observed = parseNativeContainer(
+      await this.call('GET', `/containers/${name}/json`, timeout, 200),
+    );
+    if (observed.name !== `/${name}`) throw new InitRefusal('reserved-name-mismatch');
+    return observed;
+  }
+  async inspectAbsent(id: string, timeout: number): Promise<boolean> {
+    this.select(id);
+    await this.inventory(timeout);
+    // Complete native listing supplies absence without converting an arbitrary transport error to 404.
+    return !this.readIds.has(readIdentity(id)) && this.ids.has(id);
+  }
+  async execCaddy(id: string, command: 'adapt' | 'live', timeout: number): Promise<string> {
+    this.select(id);
+    // Proof: Caddy-roster omission reached a registry Exec request; the real Unix-socket discovery test failed.
+    if (!this.caddyIds.has(id) || !['adapt', 'live'].includes(command))
+      throw new InitRefusal('unselected-caddy-exec');
+    const expires = performance.now() + timeout;
+    const remaining = () => {
+      const milliseconds = Math.floor(expires - performance.now());
+      if (milliseconds <= 0) throw new InitRefusal('exec-deadline-uncertain');
+      return milliseconds;
+    };
+    const reply = readFields(
+      await this.call('POST', `/containers/${id}/exec`, remaining(), 201, {
+        AttachStdin: false,
+        AttachStdout: true,
+        AttachStderr: true,
+        Tty: false,
+        Privileged: false,
+        Cmd:
+          command === 'adapt'
+            ? ['caddy', 'adapt', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile']
+            : ['wget', '-qO-', 'http://127.0.0.1:2019/config/'],
+      }),
+    );
+    const exec = readIdentity(reply['Id']);
+    const stream = await this.call(
+      'POST',
+      `/exec/${exec}/start`,
+      remaining(),
+      200,
+      { Detach: false, Tty: false },
+      true,
+    );
+    if (!Buffer.isBuffer(stream)) throw new InitRefusal('exec-stream-invalid');
+    const chunks: Buffer[] = [];
+    for (let offset = 0; offset < stream.length;) {
+      if (
+        stream.length - offset < 8 ||
+        stream[offset + 1] !== 0 ||
+        stream[offset + 2] !== 0 ||
+        stream[offset + 3] !== 0
+      )
+        throw new InitRefusal('exec-frame-invalid');
+      const channel = stream[offset];
+      const length = stream.readUInt32BE(offset + 4);
+      // Proof: stderr admission omission made the secret-output Exec negative succeed; its test failed.
+      if (
+        ![1, 2].includes(channel) ||
+        length > stream.length - offset - 8 ||
+        (channel === 2 && length > 0)
+      )
+        throw new InitRefusal('exec-output-refused');
+      if (channel === 1) chunks.push(stream.subarray(offset + 8, offset + 8 + length));
+      offset += 8 + length;
+    }
+    const terminal = readFields(await this.call('GET', `/exec/${exec}/json`, remaining(), 200));
+    // Proof: terminal-running and container-binding omissions each made its real Exec negative succeed.
+    if (
+      terminal['ID'] !== exec ||
+      terminal['ContainerID'] !== id ||
+      terminal['Running'] !== false ||
+      terminal['ExitCode'] !== 0
+    )
+      throw new InitRefusal('exec-terminal-unverified');
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+    } catch {
+      throw new InitRefusal('exec-utf8-invalid');
+    }
+  }
   async create(kind: TargetKind, candidate: CandidateRequest, timeout: number): Promise<string> {
     const name = `wbs-init-${this.nonce}-${kind}`;
     const reply = readFields(
@@ -224,9 +350,10 @@ export class EngineTransport {
     );
     const id = readIdentity(reply['Id']);
     this.ids.add(id);
+    if (kind === 'caddy') this.caddyIds.add(id);
     if (
-      !Array.isArray(reply['Warnings']) ||
-      reply['Warnings'].length !== 0 ||
+      (reply['Warnings'] !== null &&
+        (!Array.isArray(reply['Warnings']) || reply['Warnings'].length !== 0)) ||
       Object.keys(reply).some((key) => !['Id', 'Warnings'].includes(key))
     )
       throw new InitRefusal('create-acknowledgement-uncertain');
@@ -238,8 +365,9 @@ export class EngineTransport {
   async rename(id: string, name: string, timeout: number): Promise<void> {
     if (
       ![
-        'wbs-registry-1',
-        'wbs-caddy-1',
+        ...(this.namespace === 'production'
+          ? ['wbs-registry-1', 'wbs-caddy-1']
+          : [`wbs-init-${this.nonce}-registry-fixture`, `wbs-init-${this.nonce}-caddy-fixture`]),
         `wbs-init-${this.nonce}-registry-original`,
         `wbs-init-${this.nonce}-caddy-original`,
       ].includes(name)
@@ -277,6 +405,7 @@ export interface SelectedTarget {
 export interface AdoptionSelection {
   nonce: string;
   targets: readonly [SelectedTarget, SelectedTarget];
+  namespace?: 'production' | 'owned-fixture';
 }
 export interface HostObserver {
   admit(deadline: Deadline): Promise<void>;
@@ -361,12 +490,21 @@ export async function runInitAdoption(
   },
 ): Promise<void> {
   const [registry, caddy] = selection.targets;
+  const fixture = selection.namespace === 'owned-fixture';
   if (
     registry.kind !== 'registry' ||
     caddy.kind !== 'caddy' ||
     registry.original.id === caddy.original.id ||
-    registry.original.name !== '/wbs-registry-1' ||
-    caddy.original.name !== '/wbs-caddy-1'
+    registry.original.name !==
+      (fixture ? `/wbs-init-${selection.nonce}-registry-fixture` : '/wbs-registry-1') ||
+    caddy.original.name !==
+      (fixture ? `/wbs-init-${selection.nonce}-caddy-fixture` : '/wbs-caddy-1') ||
+    (fixture &&
+      selection.targets.some(
+        (target) =>
+          readFields(target.original.config['Labels'])['club.bulletpoints.edge-init-fixture'] !==
+          selection.nonce,
+      ))
   )
     throw new InitRefusal('closed-target-roster-invalid');
   const replacements: { target: SelectedTarget; candidate: string; originalName: string }[] = [];
