@@ -127,3 +127,11 @@ not run on a hosted runner, so no complete exact-head cold gate, post-partition 
 times, or sustainable-capacity claim exists yet. The h2/h4 canonical host gate was not
 run under this local source-only task. Docker release shape timeout and the remote
 global cleanup-hook incident remain separate investigations, not capacity fixes.
+
+The implementation commit `fc3dc813d1c50536462cd64ba5696f778263d858` passed normal
+lefthook pre-commit: plaintext secrets,
+private nesting, Prettier and scoped ESLint. Migration, website migration and doc-cap hooks
+reported no matching staged files. Tool Wiki reported `inactive`, `certified:false` because
+the external activation root is not provisioned. Both agent trailer hooks passed. No hook
+was bypassed. This evidence update is a separate documentation commit so the recorded hook
+outcome follows the commit it describes.
