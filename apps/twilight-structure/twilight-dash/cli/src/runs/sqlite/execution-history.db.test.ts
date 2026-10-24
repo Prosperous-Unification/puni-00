@@ -1605,7 +1605,7 @@ test('remaining sqlite supplied attempt projection must match audited history', 
 import { parseOrThrow, type } from '@shared/validation';
 
 import { CompletionRecordCodec, ExecutionRecordCodec } from '../execution-codecs';
-import { decodeCompletionRow, decodeExecutionRow } from './row-codecs';
+import { decodeCompletionRow, decodeExecutionRow, decodeRunRow } from './row-codecs';
 for (const fault of ['version', 'unknown key'] as const)
   test('storage boundary completion envelope rejects ' + fault, async () => {
     const stores = await createExecutionDatabase(),
@@ -1736,6 +1736,45 @@ test('sqlite shared history audit rejects queued reservation loss before public 
         .run(setup.admission.attemptId);
     }
     expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
+  } finally {
+    database.close();
+    stores.close();
+  }
+});
+
+test('sqlite shared history audit rejects queued run revision drift before public read', async () => {
+  const stores = await createExecutionDatabase();
+  const database = new Database(stores.options.path);
+  try {
+    const setup = await prepareAttempt(stores);
+    const snapshot = await stores.runs.readRun(setup.run.runId);
+    expect(snapshot.attempts.at(0)?.state).toEqual({ kind: 'queued' });
+    expect(snapshot.run.revision).toBe(1);
+    expect(snapshot.capacity.reserved).toBe(1);
+    const row = database
+      .query<
+        { run_id: string; manifest_digest: string; record: string; initial_record: string },
+        [string]
+      >('SELECT * FROM run_record WHERE run_id=?')
+      .get(setup.run.runId);
+    if (row === null) throw new Error('missing retained run row');
+    const retained = decodeRunRow(row);
+    const candidate = JSON.stringify({ ...retained.run, revision: retained.run.revision + 1 });
+    expect(decodeRunRow({ ...row, record: candidate }).run.revision).toBe(2);
+    try {
+      database
+        .query('UPDATE run_record SET record=? WHERE run_id=?')
+        .run(candidate, setup.run.runId);
+      // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
+      await expect(stores.runs.readRun(setup.run.runId)).rejects.toThrow(
+        'corrupt run revision provenance',
+      );
+    } finally {
+      database
+        .query('UPDATE run_record SET record=? WHERE run_id=?')
+        .run(row.record, setup.run.runId);
+    }
+    expect(await stores.runs.readRun(setup.run.runId)).toEqual(snapshot);
   } finally {
     database.close();
     stores.close();

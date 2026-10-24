@@ -194,12 +194,14 @@ export function claimAcceptTransition(
   if (state.kind !== 'claiming' && state.kind !== 'reconciling' && state.kind !== 'unresolved')
     return { kind: 'refused', reason: 'state_conflict' };
   const checkpoint = executionCheckpoint(state);
+  // Proof: F232 removed this checkpoint refusal; 'review guard claim acceptance refuses reconciling prepared checkpoint' received identity_conflict instead of state_conflict. Refusal-priority only; exact restoration passed.
   if (checkpoint.kind !== 'claiming') return { kind: 'refused', reason: 'state_conflict' };
   const retained = facts.scope.intents.find(
     (intent) => intent.commandId === command.intent.commandId,
   );
   if (
     retained === undefined ||
+    // Proof: F231 removed this submitted-intent comparison; 'review guard claim acceptance rejects different submitted intent' received applied instead of identity_conflict. Exact restoration passed.
     !equalRecords(retained, command.intent) ||
     !equalRecords(checkpoint.intent, retained)
   )

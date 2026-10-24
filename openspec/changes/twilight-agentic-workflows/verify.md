@@ -2435,3 +2435,110 @@ the hold; worker is idle pending permission. No guard fault F222–227 ran. Orig
 No fix commit, scoped re-review, whole-phase review, host gate, applicable CI or integration
 acceptance is claimed. All nine Task2 boxes remain open. WBS connector access remains
 unavailable; no remote status update, main merge, live spend or deployment occurred.
+
+### Task2 first scoped re-review and independent audit proof
+
+Test-only candidate48e6ea25b committed the verified fixture fixes and truthful metadata
+with normal hooks. Scoped re-review8071351ba..48e6ea25b marks I3fixture duplication and
+I4file inventory ADDRESSED; I1audit dependency and I2guard coverage/unreachable check
+remain NOT ADDRESSED. No new fix-diff breakage was found. The proposed persistent
+production refactor remains unapplied and still requires the requested user approval.
+
+The next bounded fix round investigates I1only through the user-required R5 procedure:
+one temporary SQLite audit-dependency fault in an isolated owned test, restored exactly
+in finally under a separately granted full source/Git hold. The rejected runtime/claim
+source files and persistent patch remain untouched. No such new trial has run yet;
+its exact current-source plan, expected assertion and restoration must precede execution.
+Any automatic rejection of this separate test action will be respected without a retry.
+No Task2 checkbox, whole-phase, gate, CI or integration acceptance is implied.
+
+### Task2 independent SQLite audit proof accepted locally
+
+Root independently audited F222: one valid-shaped queued run-revision mismatch lost
+its public-read rejection when only the shared validateHistory call was bypassed. The
+pinned baseline and exact-restored case each passed1test/6expects; the fault failed
+0pass/1fail/5expects at the declared rejection assertion. Source bytes/modes, complete
+Git state, raw logs, driver/script prehashes and all three child executable identities
+matched. The explicit root hold was released before adding its adjacent Proof comment
+and222nd registry entry; original221 entries and32unproved originals remain preserved.
+This certifies one shared dependency/public-read sample, not three coupled callers.
+
+The original queued-reservation candidate remains an unexecuted proof plan: a separate
+capacity check would still reject it. The actual revision case leaves reservations
+intact. Historical global-Bun1.4.4 baseline remains separate; the accepted proof used
+repository-pinned1.4.2 from the checksum-verified isolated temporary installation.
+
+Remaining retained-guard proposals are five separate temporary trials, F228–232. Old
+F223–227 plans stay unexecuted. The replay and checkpoint-priority cases are bounded
+contract samples; reconstruction and submitted-intent cases require their actual named
+loss of rejection. These proposals do not authorize the rejected persistent refactor
+or removal of any predicate it deletes. No new trial or result is claimed yet.
+
+A task-local bunx probe exited0 with empty version streams. It remains inconclusive;
+direct pinned CLI probes printed ESLint v10.10.0. Final local static checks will invoke
+the installed CLI entrypoints directly with the configured full Dash scope and forced
+project-build arguments. No new named Nx-target verdict is inferred. Canonical host
+gate, applicable CI and complete task/phase acceptance remain open.
+
+### Task2 retained-check observations and evidence gap
+
+Independent current-window audit verified all11813 source identities and unchanged
+HEAD, branch, index, stage and status across the five temporary retained-check trials.
+Baseline and restored runs each passed7tests/18expects. F228 and F229 changed replay
+refusals to duplicate replies; these establish refusal/replay contracts only. F230
+removed one compound reconstruction check and lost three named authority throws. F231
+changed a submitted-intent identity refusal to applied. F232 changed state_conflict to
+identity_conflict and establishes refusal priority only. Each literal, protected
+statement, original/mutant/restored body, recorded mode and actual raw log matched.
+
+The original complete audit FAILED because the original early-evidence manifest
+`/tmp/puni-execution-history-early-evidence-audit-084.json` is absent. Its historical
+creator printed only the summary, so the transcript cannot recover the349 original
+file identities. Earlier evidence preservation is therefore UNVERIFIED for this
+window. No current hashes were substituted for historical identities, and the failed
+complete audit was neither overwritten nor relabeled successful. The separate report
+`/tmp/puni-i2-current-window-audit.json` certifies current-window observations only.
+
+Root released the current hold for five bounded adjacent Proof comments and registry
+append, preserving all222 existing entries and32 UNPROVED originals. F223–227 remain
+unexecuted plans; five appended trials yield227 actual entries, highest ID232. Final
+pinned format, direct full-Dash ESLint, forced TypeScript project build and covering
+tests are pending. The persistent guard-removal patch remains unapplied and subject
+to the existing user approval request. I2, complete Task2/phase acceptance, canonical
+host gate, applicable CI and integration remain open.
+
+### Task2 final local proof fix verified
+
+The final exact source passed changed-file formatting, direct four-file and full-Dash
+ESLint, the configured native TypeScript7.0.2 forced project build, and nine covering
+tests/27assertions. Root independently checked actual commands, exits, raw hashes,
+retained drivers/scripts, exact case sets and restoration. The post-format/final
+capture comparison preserved all11813 source identities plus complete Git/index state.
+Formatting changed only the declared SQLite test; production changes are six bounded
+Proof comments, with planner behavior byte-identical after removing those comments.
+
+The initial preflight FAILED on the assumed Nx bin path and ran no final checks.
+Read-only resolution established Nx23.2.1 at dist/bin/nx.js and configured tsc at
+@typescript/native/bin/tsc, resolving TypeScript7.0.2. The separate parser-compatible
+TypeScript6 installation was not used. Corrected preparation preceded the successful
+window; original failure and unused draft remain retained. These are direct lint/type
+checks with configured scope/arguments, not named Nx-target/full-host verdicts.
+
+Original222 registry bytes and entries are unchanged; five appended observations yield
+227entries/maxID232 with all32 UNPROVED originals retained. F223–227 remain unexecuted.
+The current audit reports and recovered review-only patch are archived in the task
+workspace. Missing older temporary review files are represented only by the delivered
+agent-verdict transcript, not claimed recovered originals. The proposed patch matched
+its recorded original SHA256 and remains unapplied; its historical note describes
+then-planned verification rather than current results.
+
+The missing084 manifest still prevents historical349-file preservation verification.
+Task2/I2, whole-phase review, canonical host gate, applicable CI and integration remain
+open. The broad historical986-test result was not rerun for this test/comment slice;
+unchanged process, policy and migration checks remain historical. No live action or
+production deployment was performed.
+
+Root checks: Nx exact-five-file format check and git diff --check passed.
+OpenSpec validate twilight-agentic-workflows passed with13 existing requirement-length
+warnings. Raw root-fix2-013–015 command evidence is retained beside the worker window.
+Scoped round2 re-review and the remaining guard-refactor approval are still pending.

@@ -98,6 +98,7 @@ export function reconstructRuntimeScope(
         (operation.expectedGeneration === null || operation.expectedGeneration < generation)
       )
         throw new Error('corrupt runtime generation progression');
+      // Proof: F230 removed this compound check; all three 'review guard runtime claim reconstruction rejects' samples lost their expected throw after valid reconstruction. One owner/three samples; exact restoration passed.
       if (
         !('kind' in operation) &&
         (latestAuthority === null ||
@@ -250,6 +251,7 @@ export function planRuntimeStage(
     !equalRuntimeScopes(scope, guard.scope)
   )
     return { kind: 'refused', reason: 'authority_conflict' };
+  // Proof: F228 removed this early refusal; 'review guard authority stage refuses coupled claim replay' returned duplicate instead of state_conflict. Replay-contract only; exact restoration passed.
   if (!('kind' in operation)) return { kind: 'refused', reason: 'state_conflict' };
   const previous = catalog.intents.find((intent) => intent.commandId === operation.commandId);
   if (previous !== undefined)
@@ -318,6 +320,7 @@ export function planRuntimeAcceptance(
     !equalRuntimeScopes(readRuntimeRequest(retained.canonicalRequest).scope, guard.scope)
   )
     return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: F229 removed this early refusal; 'review guard authority acceptance refuses coupled claim replay' returned duplicate instead of state_conflict. Replay-contract only; exact restoration passed.
   if (!('kind' in readRuntimeRequest(retained.canonicalRequest).operation))
     return { kind: 'refused', reason: 'state_conflict' };
   const previous = catalog.acceptances.find(

@@ -41,6 +41,8 @@ export function readHistory(database: Database) {
       .all()
       .map((row) => attemptId(parseOrThrow(type({ attempt_id: 'string' }), row).attempt_id)),
   };
+  // Proof: F222 bypassed validateHistory; 'sqlite shared history audit rejects queued run revision drift before public read' resolved instead of rejecting.
+  // Exact restoration passed; one shared-dependency/public-read sample.
   const histories = validateHistory(catalog);
   const outbox = database
     .query('SELECT command_id FROM run_outbox')
