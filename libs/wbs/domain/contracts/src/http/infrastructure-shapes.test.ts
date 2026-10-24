@@ -58,7 +58,7 @@ test('declares public health JSON and Prometheus text without request input', ()
           schema: {
             $schema: 'https://json-schema.org/draft/2020-12/schema',
             type: 'object',
-            properties: { error: { const: 'invalid_body' } },
+            properties: { error: { enum: ['invalid_body', 'invalid_query'] } },
             required: ['error'],
           },
         },

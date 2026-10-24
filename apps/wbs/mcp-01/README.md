@@ -35,7 +35,8 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   releases, batched ones included, each with holder, items and reason, such as a lease that
   expired);
 - the agent heartbeat (`postApiClaimsRenew`: renews every claim lease of the calling agent; a
-  claim an agent takes for itself is released 15 minutes after its last write unless renewed);
+  claim an agent takes for itself is released 15 minutes after its last write unless renewed; a
+  raw HTTP caller sends no body and no query string, either is refused `400` and renews nothing);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the
   project's capacities and demands);
 - the measure definition read (`getApiMeasures`: the organization's measure definitions, the five

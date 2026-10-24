@@ -7,9 +7,13 @@ import { responseSchema } from './schema-shape';
 // "text/plain; version=0.0.4" and receive "text/plain".
 export const PROMETHEUS_CONTENT_TYPE = 'text/plain; version=0.0.4';
 
-const bodyRefusal = {
+// Proof: with this file's stray-input codes undeclared, be-01's audit `answers every
+// request-boundary failure the mount can raise with a declared 4xx` listed
+// `getHealth invalid_query` and `getMetrics invalid_query` (watched 2026-10-24); it guards each widened 400 here.
+/** A probe or scrape carrying a body or a query string; neither route reads input. */
+const inputRefusal = {
   status: 400,
-  schema: responseSchema(type({ error: "'invalid_body'" })),
+  schema: responseSchema(type({ error: "'invalid_body' | 'invalid_query'" })),
 } as const;
 
 /** Process readiness and its dependency state, including deploy commit identity. */
@@ -38,7 +42,7 @@ export const health = defineEndpointShape({
     },
     // Proof: omitting this declaration made the real production /health TCP
     // test receive six 500s instead of typed 400s for GET/HEAD body framing.
-    bodyRefusal,
+    inputRefusal,
   ],
   document: { summary: 'Report backend readiness and dependency health.' },
 });
@@ -53,6 +57,6 @@ export const metrics = defineEndpointShape({
     { kind: 'text', status: 200, contentType: PROMETHEUS_CONTENT_TYPE },
     { kind: 'text', status: 500, contentType: PROMETHEUS_CONTENT_TYPE },
   ],
-  refusals: [bodyRefusal],
+  refusals: [inputRefusal],
   document: { summary: 'Expose backend Prometheus metrics.' },
 });
