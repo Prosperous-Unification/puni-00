@@ -1,4 +1,6 @@
 import { readFile } from 'node:fs/promises';
+import { ClientRequest } from 'node:http';
+import { TLSSocket } from 'node:tls';
 
 import { fingerprint } from '../src/lib/edge-init';
 import {
@@ -190,10 +192,41 @@ if (import.meta.main) {
     mode = process.argv[3];
   if (packetPath === undefined) throw new Error('missing fixture packet');
   const packet = decodeInitPacket(JSON.parse(await readFile(packetPath, 'utf8')));
+  let upgradeObservation: { socket: TLSSocket; closed: Promise<void> } | undefined;
+  if (mode === 'hold-upgrade') {
+    ClientRequest.prototype.destroy = function () {
+      return this;
+    };
+    TLSSocket.prototype.end = function () {
+      upgradeObservation = {
+        socket: this,
+        closed: new Promise<void>((resolve) => {
+          this.once('close', () => {
+            resolve();
+          });
+        }),
+      };
+      return this;
+    };
+    TLSSocket.prototype.destroySoon = function () {
+      return this;
+    };
+  }
   if (mode === 'registry') await probeRegistry(packet.registry, new Deadline(120000));
   else {
     const probe = packet.public.probes[0];
     if (probe.kind === 'http') await probeHttp(probe, 2000);
-    else await probeWebSocket(probe, 2000);
+    else if (mode === 'hold-upgrade') {
+      let refused = false;
+      try {
+        await probeWebSocket(probe, 2000);
+      } catch {
+        refused = true;
+      }
+      if (!refused || !upgradeObservation?.socket.destroyed)
+        throw new Error('owned upgraded socket did not settle');
+      await upgradeObservation.closed;
+      console.log('upgrade-deadline-refused-and-closed');
+    } else await probeWebSocket(probe, 2000);
   }
 }

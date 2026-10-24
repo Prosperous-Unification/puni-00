@@ -854,7 +854,7 @@ test('real TLS, registry and WSS probes reject wrong name, connect IP, challenge
         '\r\n\r\n',
     );
     socket.once('data', () => {
-      socket.destroy();
+      if (fault !== 'hold-upgrade') socket.destroy();
     });
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -955,6 +955,12 @@ test('real TLS, registry and WSS probes reject wrong name, connect IP, challenge
     expect((await run(websocket)).code).toBe(0);
     fault = 'accept';
     expect((await run(websocket)).code).not.toBe(0);
+    fault = 'hold-upgrade';
+    const started = performance.now();
+    const held = await run(websocket, 'hold-upgrade');
+    expect(held.code).toBe(0);
+    expect(held.stdout).toBe('upgrade-deadline-refused-and-closed\n');
+    expect(performance.now() - started).toBeLessThan(4000);
   } finally {
     for (const socket of sockets) socket.destroy();
     server.closeAllConnections();
