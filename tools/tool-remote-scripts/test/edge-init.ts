@@ -5,8 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  admitInvariantProfile,
+  checkInert,
+  checkProfileSource,
   compareCandidate,
   constructCandidate,
+  CREATED_OOM_PROFILE,
   fingerprint,
   InitRefusal,
   type NativeContainer,
@@ -71,6 +75,11 @@ export function describeFixtureFailure(stage: FixtureFailureStage, cause: unknow
     'native-fixture-ownership-refused',
     'native-fixture-caddy-config-changed',
     'native-fixture-required-shape-absent',
+    'native-fixture-oom-representation-unproved',
+    'invariant-profile-unavailable',
+    'invariant-profile-source-invalid',
+    'invariant-profile-value-invalid',
+    'invariant-profile-invalid',
     'native-fixture-original-process-changed',
     'native-fixture-process-retained',
     'native-fixture-cgroup-retained',
@@ -132,6 +141,36 @@ export async function publishFixtureFailure(
     flag: 'wx',
   });
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+/** Native acceptance requires the characterized raw values in addition to immutable comparison.
+ * Proof: omitting raw-value comparison admitted the wrong native OOM regression.
+ */
+export function verifyFixtureOom(observed: NativeContainer, phase: 'created' | 'running'): void {
+  if (
+    !Object.hasOwn(observed.host, 'OomKillDisable') ||
+    observed.host['OomKillDisable'] !== (phase === 'created' ? false : null)
+  )
+    throw new InitRefusal('native-fixture-oom-representation-unproved');
+  if (phase === 'created') checkInert(observed);
+  else if (
+    observed.state['Status'] !== 'running' ||
+    observed.state['Running'] !== true ||
+    typeof observed.state['Pid'] !== 'number' ||
+    observed.state['Pid'] <= 0
+  )
+    throw new InitRefusal('native-fixture-oom-representation-unproved');
+}
+
+/** Requires both raw phases for the fixed two-target report.
+ * Proof: removing roster admission failed the missing target/phase report regression.
+ */
+export function requireFixtureOomRoster(
+  created: ReadonlySet<TargetKind>,
+  running: ReadonlySet<TargetKind>,
+): void {
+  if ((['registry', 'caddy'] as const).some((kind) => !created.has(kind) || !running.has(kind)))
+    throw new InitRefusal('native-fixture-oom-representation-unproved');
 }
 
 type FixtureDocker = (arguments_: readonly string[], timeout?: number) => Promise<string>;
@@ -610,6 +649,11 @@ export async function runNativeInitAcceptance(): Promise<void> {
     (await docker(['info', '--format', '{{.OSType}}'])) !== 'linux'
   )
     throw new InitRefusal('native-fixture-engine-refused');
+  const nativeVersion: unknown = JSON.parse(
+    await docker(['version', '--format', '{{json .Server}}']),
+  );
+  const nativeInfo: unknown = JSON.parse(await docker(['info', '--format', '{{json .}}']));
+  const profile = admitInvariantProfile(nativeVersion, nativeInfo);
   for (const image of [registryImage, caddyImage])
     if ((await docker(['image', 'inspect', '--format', '{{.Id}}', image])) !== image)
       throw new InitRefusal('native-fixture-image-not-present');
@@ -741,6 +785,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       Object.keys(targets[1].original.networks).length !== 3
     )
       throw new InitRefusal('native-fixture-required-shape-absent');
+    for (const target of targets) checkProfileSource(target.original, profile);
     stage = 'baseline';
     const processes = new Map<string, SolverProcess>();
     const ports = new Map<TargetKind, string>();
@@ -768,9 +813,12 @@ export async function runNativeInitAcceptance(): Promise<void> {
       caddyHash = hash;
     };
     await checkCaddy(caddy);
+    const oomCreated = new Set<TargetKind>(),
+      oomRunning = new Set<TargetKind>();
     const observer: HostObserver = {
       admit: async (deadline) => {
         deadline.allocate(1000);
+        admitInvariantProfile(await engine.version(10000), await engine.info(10000));
         for (const raw of await engine.inventory(10000)) {
           const fields = readFields(raw);
           if (fields['Labels'] !== null && readFields(fields['Labels'])[LABEL] === nonce)
@@ -789,7 +837,9 @@ export async function runNativeInitAcceptance(): Promise<void> {
         )
           throw new InitRefusal('native-fixture-original-process-changed');
       },
-      inert: async (_target, container) => {
+      inert: async (target, container) => {
+        verifyFixtureOom(container, 'created');
+        oomCreated.add(target.kind);
         verifyFixtureOwnership(container, nonce);
         for (const network of Object.values(container.networks).map(readFields)) {
           const members = readFields(
@@ -821,6 +871,8 @@ export async function runNativeInitAcceptance(): Promise<void> {
         }
       },
       running: async (target, container) => {
+        verifyFixtureOom(container, 'running');
+        oomRunning.add(target.kind);
         verifyFixtureOwnership(container, nonce);
         if (
           (await docker(['exec', container.id, 'cat', '/proc/1/comm'])) !== 'docker-init' ||
@@ -848,7 +900,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
             throw new InitRefusal('native-fixture-final-target-absent');
           const container = parseNativeContainer(raw[0]);
           verifyFixtureOwnership(container, nonce);
-          compareCandidate(target.original, container);
+          compareCandidate(target.original, container, profile);
           await observer.running(target, container, deadline);
           await observer.health(target.kind, container.id, deadline);
         }
@@ -865,7 +917,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
     const mismatched = await engine.create('registry', mismatch, 20000);
     let refused = false;
     try {
-      compareCandidate(targets[0].original, await engine.inspect(mismatched, 10000));
+      compareCandidate(targets[0].original, await engine.inspect(mismatched, 10000), profile);
     } catch (cause) {
       if (!(cause instanceof InitRefusal)) throw cause;
       refused = true;
@@ -986,7 +1038,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       let failure: unknown;
       try {
         await runInitAdoption(
-          { nonce, targets, namespace: 'owned-fixture' },
+          { nonce, targets, namespace: 'owned-fixture', invariantProfile: profile },
           effects,
           faultObserver,
           faultReceipts,
@@ -1027,7 +1079,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
     stage = 'adoption';
     const receipts = await PrivateReceipts.create(join(root, 'receipts'), nonce);
     await runInitAdoption(
-      { nonce, targets, namespace: 'owned-fixture' },
+      { nonce, targets, namespace: 'owned-fixture', invariantProfile: profile },
       engine,
       observer,
       receipts,
@@ -1055,10 +1107,22 @@ export async function runNativeInitAcceptance(): Promise<void> {
     await Bun.sleep(200);
     const stopEngine = new EngineTransport('/var/run/docker.sock', [term], nonce, 'owned-fixture');
     await verifyFixtureStopDeadline(stopEngine, stubborn, nonce);
+    requireFixtureOomRoster(oomCreated, oomRunning);
     stage = 'report';
     const report = {
       version: 1,
       status: 'passed',
+      invariantProfile: CREATED_OOM_PROFILE,
+      images: { registry: registryImage, caddy: caddyImage },
+      daemonVersionSha256: fingerprint(nativeVersion),
+      daemonInfoSha256: fingerprint(nativeInfo),
+      oomRepresentations: targets.map(({ kind }) => ({
+        target: kind,
+        original: null,
+        request: null,
+        created: false,
+        running: null,
+      })),
       nonce,
       checks: [
         'native-preservation',

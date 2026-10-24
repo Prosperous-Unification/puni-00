@@ -8,14 +8,20 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { requireInheritedEdgeLock } from './edge-admission';
 import {
+  admitInvariantProfile,
   candidateInvariant,
+  checkInert,
+  checkProfileSource,
+  CREATED_OOM_PROFILE,
   encodeOrderedEnv,
   fingerprint,
   InitRefusal,
+  type InvariantProfile,
   type NativeContainer,
   projectInvariant,
 } from './edge-init';
 import {
+  type AdoptionSelection,
   createLocalEngine,
   Deadline,
   type EngineTransport,
@@ -1058,13 +1064,16 @@ async function runPreparedPacket(
             caddy.name !== '/wbs-caddy-1'
           )
             refuse('target-roster-differs');
-          const selection = {
+          const selection: AdoptionSelection = {
             nonce: packet.nonce,
+            invariantProfile: CREATED_OOM_PROFILE,
             targets: [
               { kind: 'registry' as const, original: registry },
               { kind: 'caddy' as const, original: caddy },
             ] as const,
           };
+          for (const target of selection.targets)
+            checkProfileSource(target.original, CREATED_OOM_PROFILE);
           const observer = new ProductionObserver(
             packet,
             engine,
@@ -1494,6 +1503,7 @@ class ProductionObserver implements HostObserver {
       fingerprint(info) !== this.packet.daemonInfoSha256
     )
       refuse('daemon-differs');
+    admitInvariantProfile(version, info);
     const registry = this.packet.targets[0];
     if (this.active.get('registry') === registry.id && this.processes.has(registry.id)) {
       const observed = await this.engine.inspect(registry.id, deadline.allocate(10000));
@@ -1573,8 +1583,12 @@ class ProductionObserver implements HostObserver {
       return {
         target: selected.kind,
         original: selected.original.id,
-        originalInvariantSha256: fingerprint(projectInvariant(selected.original)),
-        candidateInvariantSha256: fingerprint(candidateInvariant(selected.original)),
+        originalInvariantSha256: fingerprint(
+          projectInvariant(selected.original, CREATED_OOM_PROFILE),
+        ),
+        candidateInvariantSha256: fingerprint(
+          candidateInvariant(selected.original, CREATED_OOM_PROFILE),
+        ),
         originalProcess,
       };
     });
@@ -2118,6 +2132,8 @@ function daemonIdentity(value: unknown): Record<string, unknown> {
       'InitBinary',
       'InitCommit',
       'ServerVersion',
+      'CgroupVersion',
+      'CgroupDriver',
       'SecurityOptions',
       'LiveRestoreEnabled',
     ];
@@ -2743,6 +2759,7 @@ async function inspectRecovery(
       nonce: string;
       name: '/wbs-caddy-1';
       invariantSha256: string;
+      invariantProfile: InvariantProfile;
     }
   >();
   const readOnly: ObserverEngine = {
@@ -2786,9 +2803,11 @@ async function inspectRecovery(
     );
     if (
       (original !== undefined &&
-        fingerprint(projectInvariant(original)) !== proof.originalInvariantSha256) ||
+        fingerprint(projectInvariant(original, CREATED_OOM_PROFILE)) !==
+          proof.originalInvariantSha256) ||
       (candidate !== undefined &&
-        fingerprint(projectInvariant(candidate)) !== proof.candidateInvariantSha256)
+        fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE)) !==
+          proof.candidateInvariantSha256)
     )
       refuse('recovery-invariant-differs');
     const reference = candidate ?? original;
@@ -2867,6 +2886,7 @@ async function inspectRecovery(
         candidateId: entry.candidate?.id ?? null,
         nonce: packet.nonce,
         name: '/wbs-caddy-1',
+        invariantProfile: CREATED_OOM_PROFILE,
         invariantSha256:
           entry.serving.id === entry.target.id
             ? entry.proof.originalInvariantSha256
@@ -3128,6 +3148,7 @@ export async function readRecoveryHistory(
       'packetSha256',
       'sourceRosterSha256',
       'literalInitSha256',
+      'invariantProfile',
       'invariants',
       'candidateProcesses',
       ...(hasCandidate ? ['candidate'] : []),
@@ -3247,24 +3268,7 @@ function runningState(observed: NativeContainer): boolean {
   refuse('recovery-runtime-invalid');
 }
 function requireInert(observed: NativeContainer): void {
-  if (
-    runningState(observed) ||
-    observed.state['Status'] !== 'created' ||
-    observed.state['StartedAt'] !== '0001-01-01T00:00:00Z' ||
-    observed.state['FinishedAt'] !== '0001-01-01T00:00:00Z' ||
-    observed.sandboxId !== '' ||
-    observed.sandboxKey !== '' ||
-    Object.values(record(observed.ports)).some((entry) => entry !== null) ||
-    Object.values(observed.networks).some((entry) => {
-      const endpoint = record(entry);
-      return (
-        endpoint['EndpointID'] !== '' ||
-        endpoint['IPAddress'] !== '' ||
-        endpoint['GlobalIPv6Address'] !== ''
-      );
-    })
-  )
-    refuse('recovery-candidate-not-inert');
+  checkInert(observed);
 }
 /** Classifies only the nine stable current states explained by durable intents.
  * @internal
@@ -3390,6 +3394,7 @@ interface ComposeProof {
 interface ProductionInitReceipt extends Receipt, ReceiptEvidence {
   format: 'edge-init-receipt';
   version: 2;
+  invariantProfile: InvariantProfile;
   packetSha256: string;
   sourceRosterSha256: string;
   literalInitSha256: string;
@@ -3412,6 +3417,8 @@ export async function publishInitReceipt(
     ...receipt,
     format: 'edge-init-receipt',
     version: 2,
+    // Proof: omitting profile publication failed exact private receipt readback.
+    invariantProfile: CREATED_OOM_PROFILE,
     invariants: evidence.invariants,
     candidateProcesses: evidence.candidateProcesses,
     packetSha256: hash(packetSha256),
@@ -3431,6 +3438,8 @@ export function checkReceiptSources(
 ): void {
   if (
     // Proof: independently omitting the packet or either source comparison admitted changed metadata in receipt recovery.
+    // Proof: omitting profile equality admitted missing/unknown profile metadata in private receipt recovery.
+    receipt['invariantProfile'] !== CREATED_OOM_PROFILE ||
     hash(receipt['packetSha256']) !== hash(packetSha256) ||
     hash(receipt['sourceRosterSha256']) !== proof.sourceRosterSha256 ||
     hash(receipt['literalInitSha256']) !== proof.literalInitSha256 ||

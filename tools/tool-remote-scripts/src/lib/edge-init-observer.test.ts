@@ -12,7 +12,13 @@ import { expect, test } from 'bun:test';
 
 import { syntheticContainer } from '../../test/edge-init-fixture';
 import { packetFixture } from '../../test/edge-init-observer-fixture';
-import { fingerprint, parseNativeContainer } from './edge-init';
+import {
+  candidateInvariant,
+  CREATED_OOM_PROFILE,
+  fingerprint,
+  parseNativeContainer,
+  projectInvariant,
+} from './edge-init';
 import {
   checkGraph,
   checkInheritedInitLocks,
@@ -405,6 +411,7 @@ test('production receipt readback contains both exact source hashes and recovery
       ...evidence,
       format: 'edge-init-receipt',
       version: 2,
+      invariantProfile: CREATED_OOM_PROFILE,
     });
     expect(persisted['packetSha256']).toBe('e'.repeat(64));
     checkReceiptSources(persisted, proof, 'e'.repeat(64));
@@ -416,6 +423,8 @@ test('production receipt readback contains both exact source hashes and recovery
     }).toThrow();
     for (const fault of [
       missingPacket,
+      { ...persisted, invariantProfile: undefined },
+      { ...persisted, invariantProfile: 'unknown' },
       { ...persisted, packetSha256: 'f'.repeat(64) },
       missingRoster,
       missingLiteral,
@@ -1243,6 +1252,7 @@ test('private recovery reader accepts only legal v2 prefixes with immutable two-
       chain.push({
         format: 'edge-init-receipt',
         version: 2,
+        invariantProfile: CREATED_OOM_PROFILE,
         packetSha256,
         ...proof,
         stage,
@@ -1303,6 +1313,15 @@ test('private recovery reader accepts only legal v2 prefixes with immutable two-
       expect((await readRecoveryHistory(checked, packetSha256)).invariants).toEqual(invariants);
     }
     for (const fault of [
+      (entries: Entry[]) => {
+        delete entries[0]['invariantProfile'];
+      },
+      (entries: Entry[]) => {
+        entries[0]['invariantProfile'] = 'unknown';
+      },
+      (entries: Entry[]) => {
+        entries[1]['invariantProfile'] = 'unknown';
+      },
       (entries: Entry[]) => {
         delete entries[0]['version'];
       },
@@ -1374,5 +1393,45 @@ test('private recovery reader accepts only legal v2 prefixes with immutable two-
     );
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('recovery shares the admitted profile hash for inert and running candidates including legal original absence', () => {
+  for (const kind of ['registry', 'caddy'] as const) {
+    const raw = syntheticContainer();
+    raw.Name = `/wbs-${kind}-1`;
+    Object.assign(raw.HostConfig, { OomKillDisable: null });
+    const original = parseNativeContainer(raw);
+    const expected = fingerprint(candidateInvariant(original));
+    const candidate = structuredClone(original);
+    candidate.id = 'e'.repeat(64);
+    candidate.name = `/wbs-init-fixture-${kind}`;
+    candidate.config = { ...candidate.config, Image: candidate.image };
+    candidate.host = { ...candidate.host, Init: true, OomKillDisable: false };
+    candidate.state = {
+      ...candidate.state,
+      Status: 'created',
+      Running: false,
+      Pid: 0,
+      StartedAt: '0001-01-01T00:00:00Z',
+    };
+    const intents = new Set(['create-intended']);
+    expect(classifyRecoveryTarget(kind, 'fixture', original, candidate, intents, true)).toBe(
+      'candidate-inert',
+    );
+    expect(fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE))).toBe(expected);
+    candidate.name = `/wbs-${kind}-1`;
+    candidate.state = { ...original.state };
+    candidate.host = { ...candidate.host, OomKillDisable: null };
+    intents.add('remove-intended');
+    expect(classifyRecoveryTarget(kind, 'fixture', undefined, candidate, intents, true)).toBe(
+      'candidate-running-original-absent',
+    );
+    expect(fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE))).toBe(expected);
+    candidate.host = { ...candidate.host, Init: false };
+    expect(fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE))).not.toBe(expected);
+    candidate.host = { ...candidate.host, Init: true };
+    candidate.config = { ...candidate.config, Image: 'wrong:spelling' };
+    expect(fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE))).not.toBe(expected);
   }
 });
