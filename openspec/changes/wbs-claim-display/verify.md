@@ -1,6 +1,6 @@
 ## Verification record
 
-Drafted 2026-10-23 as an OpenSpec proposal; nothing is built. C1 to C18 are assumed until
+Drafted 2026-10-23 as an OpenSpec proposal; nothing is built. C1 to C19 are assumed until
 Dany reads them. Sources read on 2026-10-23 on `main` at `e70166d28` and on
 `plan/wbs-claim-leases` at `485972419`: `wbs-team-claims` (tasks 1.7, D1 to D8, spec
 `startable-work`), `wbs-claim-leases` (L1 to L16, tasks 2.1), `startable-shapes.ts`,
@@ -398,6 +398,136 @@ Results (fresh, 2026-10-23):
 - `openspec validate --all --json`: 275 of 275.
 
 The C21 section above described `onChange('claims_changed')`; the second review round replaced that with the opt-in `onClaims`.
+
+### Slice 3: heartbeat announcement (be-01), 2026-10-23
+
+Branch `feat/wbs-claim-display-heartbeat` on `plan/wbs-claim-display` at `dfacc4af0`. Commands
+ran with `env -u CLAUDECODE` from the worktree.
+
+**3.1** `ClaimStore.renewLeases` answers a `LeaseRenewal`: the standing and the projects whose
+leases its committed write moved, in project-id order. SQLite reads them inside the transaction
+that moves the leases; the memory twin from the rows it moves. `PlanCommandRunner.renewLeases`
+publishes one type-only `claims_changed` per named project after the store answers, and the
+route still answers the standing alone. `claims_changed` joins `ProjectEvent` (core only; fe-01
+reads event types as strings, so no fe-01 union changed). Red: two of three new
+`claim-lease.controller.db.test.ts` cases failed before the change (4 pass, 2 fail); the
+`write-renew-expire` conformance case now asserts the named projects.
+
+| R5 fault (watched)                                                                                  | Observed                                                                |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| SQLite store answers the pre-turn due projects and does not await the write (publish before commit) | `announces nothing when the renewal rolls back` records one (0/1 alone) |
+| SQLite store answers every in-force lease's project after the renewal (publish unconditionally)     | `announces nothing for a heartbeat within the minute, …` (5/1)          |
+| SQLite in-transaction read selects in-force rather than due leases                                  | SQLite certification fails `claims.lease:write-renew-expire` (74/1)     |
+| memory twin names the in-force rows' projects rather than the due rows'                             | memory certification fails `claims.lease:write-renew-expire` (74/1)     |
+
+The rolled-back renewal is made by a temporary `RAISE(ABORT)` trigger on `claim.lease_expires_at`;
+the route answers 500 and the lease keeps its old expiry.
+
+Deviation: the task's fault "publish before commit" has no one-line form here, because the store
+owns both the turn and the transaction and the runner learns the moved projects only from its
+answer. The injected fault is the closest real mistake: the store answers before its write
+commits. Observation, not changed: a batch's own renewal moves the agent's leases in every
+project, yet only the batch's project is announced (`tree_replaced`); design C4 accepts the
+batch's project and says nothing of the others.
+
+**3.2** `optimizer-trigger-broadcaster.test.ts` `schedules no optimization for claims_changed`.
+The trigger is an allowlist, so there is no exclusion to remove; the fault adds `claims_changed`
+to the list.
+
+| R5 fault (watched)                      | Observed                      |
+| --------------------------------------- | ----------------------------- |
+| `claims_changed` added to the allowlist | the case sees a trigger (3/1) |
+
+Results (fresh, 2026-10-23): be-01 `claim-lease.controller` (6), `project-claims-organization`,
+`gateway-broadcaster-*`, `services.db`, `app.routes` 163 pass; be-01 `optimization-events` 4
+pass; core `service`, `module/plan-commands`, `module/work-item`, `http/claim*` 830 pass;
+store-sqlite `claim*` and source conformance 130 pass; store-memory 193 pass; conformance 35
+pass; typecheck wbs-contracts, wbs-core (+module), wbs-store-sqlite, wbs-store-memory,
+wbs-conformance, wbs-be-01 (+module), wbs-mcp-01 pass. Not run: mcp-01 tests and fe-01
+`typecheck:module` (no contract or fe-01-visible union changed), the full be-01 and fe-01
+suites (CI carries them).
+
+**3.3** (C19, the coordinator's decision of 2026-10-23, assumed until Dany reads it) A
+committed agent batch announces `claims_changed` through its collector to each project its
+renewal moved other than its own. Four new cases in `claim-lease.controller.db.test.ts`
+(`a batch renewal announcing claims_changed elsewhere`); red before the change on the two
+announcing cases (8 pass, 2 fail).
+
+| R5 fault (watched)                                                | Observed                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| announcement loop removed                                         | `announces once to each other project, …` records none (8/2) |
+| own-project filter removed                                        | the batch's own project is announced too (8/2)               |
+| published through the outer broadcaster in place of the collector | deadlock on the event log's turn: both cases time out (8/2)  |
+| SQLite store answers its due projects before its write            | `announces nothing when the batch rolls back` records one    |
+| SQLite store answers every in-force lease's project               | `announces nothing within the minute` records a second       |
+
+The refused case renews nothing, because a refusal never reaches the renewal. It reddened only
+under the every-in-force-project fault, whose setup claims also announce, so it has no fault of
+its own.
+
+**Review round (Fable, #693 at 965adfe10).** After-commit and tenant isolation held. Fixes:
+
+- S3-1 (task 3.4): the own-project exclusion assumed a `tree_replaced` that only a dirty batch
+  sends. A batch that changed no row now announces its own project too. Step commands are not
+  plan commands (steps have their own routes), so no step-only batch renews. Residual, recorded
+  in design C19: a dirty batch whose tree answers `plan_unavailable` refreshes the tree only.
+- S3-2 → C21 (task 3.5): `claims_changed` is transient. `GatewayBroadcaster` pushes it with no
+  `seq`, no `event_log` row and no buffer entry; `InternalPushRequest.seq` is optional and gw-01
+  forwards the frame without one. The route tests now read the pushes (`pushFetch`) and throw if
+  the event is ever logged or sequenced. fe-01 (slice 2) must treat an unsequenced frame as a
+  hint and reread claims on every resume (plan-refresh delta).
+- S4-1: the runner's JSDoc says what a throwing publish means; sequential, kept.
+- S4-2 (task 3.6): SQLite names the projects from `UPDATE … RETURNING` with a scalar subquery,
+  one write statement, no read snapshot before the write.
+- S4-3: the memory twin finds every due row's project before moving any row (new memory test);
+  the conformance case asserts two projects in code-unit order.
+- S4-4: the loop variable is `renewedProjectId`.
+
+| R5 fault (watched 2026-10-23)                                    | Observed                                                                                |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| batch announcement loop removed                                  | three announcing batch cases record none (8/3)                                          |
+| own-project filter removed                                       | the dirty batch's own project is announced (9/2)                                        |
+| dirty test removed                                               | `announces its own project for a batch that changed no row` (10/1)                      |
+| SQLite store answers due projects before its write               | both rollback cases record one (7/4)                                                    |
+| SQLite store answers every in-force lease's project              | within-the-minute and refused cases record extra (4/7)                                  |
+| `isTransient` never true                                         | gateway-broadcaster unit cases (5/2); be-01 cases throw `claims_changed recorded` (6/5) |
+| a failed transient push rethrown                                 | `reports a refused transient push and does not throw` (6/1)                             |
+| `InternalPushRequest.seq` required again                         | gw-01 `delivers an unsequenced push without a sequence` 400 (7/1)                       |
+| SQLite project list unsorted; again undeduplicated               | SQLite certification `write-renew-expire` (74/1 each)                                   |
+| memory project list unsorted; due rows replaced by in-force rows | memory certification `write-renew-expire` (74/1 each)                                   |
+| memory rows moved before the work-item lookups                   | `renews nothing when a due claim names an absent work item` (0/1)                       |
+
+Not watchable: publishing the batch's announcement through the outer broadcaster instead of the
+collector left every case green, because nothing in a batch can fail after its renewal; the
+collector's after-commit send is the existing batch rule, proven in `plan-commands.db.test.ts`.
+The earlier "deadlock" observation no longer holds since the event is not logged.
+
+Merge order (tasks.md): after slices 1 and 2 reach `main` and deploy; gw-01 no later than be-01.
+
+**Cross-check (contract drift, task 3.7).** C21 frames had no home in the socket vocabulary:
+`WsFrame` requires `seq` and the generic client's guard refused a frame without one. Chosen: a
+named `WsTransientFrame` (subscription, message, `'seq?': 'never'`) with its builder
+`wsTransient`, rather than an optional `seq` on `WsFrame`, so every reader that advances a
+resume point still holds a `seq` it can trust. gw-01's internal push builds it when `seq` is
+absent; `createReconnectingWs` gains a required `onTransient` and never updates its tracker
+for one.
+
+| R5 fault (watched 2026-10-23)                     | Observed                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| client's transient arm removed                    | `hands a seq-less frame to onTransient and leaves …` fails (6/1)    |
+| guard's transient arm removed                     | the same case throws on parse (6/1)                                 |
+| tracker advanced on a transient frame             | the same case fails on the snapshot (6/1)                           |
+| `'seq?': 'never'` dropped from `WsTransientFrame` | `are transient frames the parser accepts, and only without …` (6/1) |
+
+design.md's Risks no longer says heartbeat events reach the event log; the claim-reads delta
+states that a transient announcement SHALL NOT consume a durable sequence.
+
+Slice 3 gate fix, 2026-10-24: the h4claw gate on 9bb246710 failed `wbs-core:test` in
+`module-boundaries.test.ts` ("closed feature modules do not reference repository ports"):
+`plan-commands.feature.ts` resolved `renewLeases`' answer to `LeaseRenewal`, then declared in
+`ports/claim-store.ts`. `LeaseRenewal` now lives in `@wbs/domain` beside `LeaseStanding` and the
+port re-exports it. After the move the audit file passes 15 of 15; typecheck wbs-domain, wbs-core,
+wbs-store-sqlite, wbs-store-memory, wbs-be-01 and lint wbs-domain, wbs-core pass.
 
 ### Slices 4–7: claim chips, lease display, phone cards (fe-01), 2026-10-24
 

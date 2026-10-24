@@ -4,7 +4,7 @@ export type { CredentialPair, CredentialPin } from '@wbs/contracts';
 import type {
   Claim,
   LeaseReleaseReason,
-  LeaseStanding,
+  LeaseRenewal,
   OccupancyRow,
   WorkItemPlacement,
 } from '@wbs/domain';
@@ -92,7 +92,7 @@ export interface ExpiredLease {
   readonly reason: LeaseReleaseReason;
 }
 
-export type { LeaseStanding } from '@wbs/domain';
+export type { LeaseRenewal, LeaseStanding } from '@wbs/domain';
 
 /**
  * What {@link ClaimStore.add} answers: written, a claim's step or subtree was
@@ -174,9 +174,10 @@ export interface ClaimStore extends ClaimIdentity {
    * due leases first, and takes the write turn only when one is due; inside
    * the turn it reads `now` again and decides against that instant, so a
    * heartbeat queued behind a long write never renews a lease that ran out
-   * while it waited.
+   * while it waited. The projects it answers are those whose leases that
+   * decision moved.
    */
-  renewLeases(personId: string, now: () => number): Promise<LeaseStanding>;
+  renewLeases(personId: string, now: () => number): Promise<LeaseRenewal>;
   /**
    * The project's claims whose lease has run out at `at` (expiry at or before
    * it), in claim-id order, each with its reason: `credential_revoked` when
