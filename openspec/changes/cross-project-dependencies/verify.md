@@ -7320,3 +7320,11 @@ prerequisite in 4 minutes 39 seconds; output:
 `/tmp/puni-main-oracles-checks.log`. Scoped formatting and normal commit hooks
 passed. The full backend suite and broad host gate were not rerun; focused
 verification does not establish a passing integrated host gate.
+
+## Integrated Bun 1.4.4 replay — 2026-10-24
+
+The [desktop FF packet](verify-task11-browser-ff.md) received independent Astra approval, including its scoped raw-log whitespace correction, and was integrated through `0585e78a2`. The [integration receipt](evidence/integration-0585e78a2.json) distinguishes the producer baseline from the browser baseline and retains runtime/log hashes.
+
+Fresh combined installed-authority and source-database tests on `2d1152ac9` passed **125 tests, 202 assertions, zero failures**. The complete dedicated real-stack browser target on `0585e78a2` passed **10 tests**, one worker and zero retries; its owned loopback listeners were closed afterward. Affected infrastructure lint/typecheck/build passed all **six configured tasks**, uncached. OpenSpec passed **280 items, zero failures**. These commands used the measured Bun **1.4.4** executable; historical Bun 1.4.2 production-fault receipts retain their original scope.
+
+Parent 11.1 and activation/delivery remain open. Complete activation, compatible participant restoration, policy handoff, installed-writer adoption, the final exact-SHA host gate, CI and deployment are not established by this replay.
