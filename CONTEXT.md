@@ -36,8 +36,36 @@ _Avoid_: tenant, workspace, account; not Twilight Structure's installation
 [Organization](docs/twilight-structure/CONTEXT.md#authority)
 
 **Membership**:
-One user's association with one organization and the role that governs access there. It is separate from a directory person's service-team membership.
-_Avoid_: team membership, IdP group
+One user's association with one organization: it admits the user and lets access grants name them, and by itself opens nothing but their own agent persons and credentials. Access grants, not the membership, decide access. Separate from a directory person's service-team membership.
+_Avoid_: team membership, IdP group, role
+
+**Access grant**:
+One statement that a principal holds one access role at one grant scope of an organization. Grants add up and the strongest wins; nothing subtracts.
+_Avoid_: permission (what a role implies), ACL entry, share, binding, role assignment
+
+**Access role**:
+A named rung of the seeded catalogue, prefixed by the object kind it governs (`org-`, `project-`, `package-`) and ranked by level. Code checks the permissions a role implies, never the role's name.
+_Avoid_: role (alone), permission set, custom role, scope
+
+**Access group**:
+An organization's named set of member accounts that exists only to be named by access grants. Not a service team, and never a constraint on who may be assigned work.
+_Avoid_: team, group (alone), user group, IdP group
+
+**Grant scope**:
+The organization, project or work package an access grant names; a grant at a scope reaches every object beneath it, including ones created later. Not the admitted turn's **Scope** below.
+_Avoid_: scope (alone), target, resource, level
+
+**Effective role**:
+The strongest access role a principal holds at one grant scope through every grant that reaches it, direct, via an access group or via the organization members subject, after the machine cap; null means the object is invisible to them.
+_Avoid_: permissions, computed role, access level
+
+**Organization members subject**:
+The grant subject that stands for every current member of the organization, resolved at check time; how "every member may view every project" is one row.
+_Avoid_: everyone, public, wildcard user, base permission
+
+**Machine cap**:
+The ceiling of contributor applied to every effective role of a machine principal, whatever its bound account holds and however the grant reaches it.
+_Avoid_: role cap, scope narrowing, member cap
 
 **Active organization**:
 The organization selected from a user's current memberships for their present WBS access.
@@ -63,13 +91,9 @@ _Avoid_: access credential, provider refresh token
 The monotonically increasing version that makes a refresh completion conditional on logout or a newer credential replacement not having committed first.
 _Avoid_: timestamp, provider token version
 
-**Role**:
-The level of authority a membership grants within its organization: super-admin, admin, member or viewer.
-_Avoid_: scope, group
-
 **Super-admin**:
-The organization role responsible for ownership and security decisions within that organization.
-_Avoid_: platform administrator, root user
+The `org-super-admin` access role: ownership and security decisions within that organization, and the only role that grants organization roles.
+_Avoid_: platform administrator, root user, owner
 
 **Verified domain**:
 An exact email domain whose controller has proved ownership and which is associated with one organization.
@@ -674,9 +698,10 @@ itself.
 _Avoid_: plus, add affordance, new button, opener
 
 **Work package owner**:
-The account that created a work package and retains stewardship of a restricted one within
-its organization. A current creator-member may edit it; a current super-admin may make an
-audited recovery edit. An account, never a person from the directory. A project has no owner.
+The account that created a work package. Under scoped grants it holds a direct
+`package-manager` grant from creation, which is what lets it keep editing a restricted work
+package; a super-admin's recovery is the audited clearing of the restriction, not an edit. An
+account, never a person from the directory. A project has no owner.
 _Avoid_: project owner, author, creator, user
 
 **Work package entry**:
@@ -1543,11 +1568,11 @@ one excludes other processes, the other orders this one's own writers.
 _Avoid_: using this name for the coordinator
 
 **Restricted work package**:
-A work package readable by current members of its organization but ordinarily editable only
-by its creator while that creator remains a member. A current super-admin may make an audited
-recovery edit; an unrestricted work package is editable by current members, admins and
-super-admins.
-_Avoid_: restricted project, private, locked project
+A work package that organization-scope access grants do not write: of them only
+`org-admin` and `org-super-admin` reach it, and only to read it, while grants naming its
+project or the work package apply unchanged. A super-admin's only recovery is the audited
+clearing of the flag; its creator holds a direct grant from creation.
+_Avoid_: restricted project, private, locked, locked project, hidden work package
 
 **External ref**:
 One link out of a work item to where that work also exists — an external system, a URL and a

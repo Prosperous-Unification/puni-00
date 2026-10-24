@@ -117,6 +117,8 @@ export default defineConfig({
       // through; it is `runtime:isomorphic` and has no Node import, so the same
       // module serves the browser build and both test tiers.
       '@shared/failures': resolve(__dirname, '../../../libs/shared/domain/failures/src/index.ts'),
+      // Proof: removing this alias failed delivery-panel.test.tsx collection and alias parity.
+      '@shared/delivery': resolve(__dirname, '../../../libs/shared/domain/delivery/src/index.ts'),
       '@ui/core-01/testing': resolve(
         __dirname,
         '../../../libs/shared/adapters/ui-core-01/src/testing.ts',

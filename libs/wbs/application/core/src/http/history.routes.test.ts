@@ -20,6 +20,7 @@ it('returns the modeled missing-project refusal from a literal history request',
       method: 'GET',
       url: new URL('http://localhost/api/projects/missing/history'),
       headers: new Headers(),
+      signal: new AbortController().signal,
     },
   });
   expect(reply).toEqual({ ok: false, status: 404, body: { error: 'not_found' } });
