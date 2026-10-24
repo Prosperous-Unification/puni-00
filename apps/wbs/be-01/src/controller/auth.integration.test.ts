@@ -429,6 +429,7 @@ function heldLogins(maxConcurrentLogins?: number, now?: () => number) {
             body: { username, password: 'long-enough-password' },
             request: {
               headers: request.headers,
+              signal: request.signal,
               method: request.method,
               url: new URL(request.url),
             },

@@ -21,6 +21,7 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 87 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
+- the saved-reference delivery read, which observes public GitHub delivery without changing planning progress;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
   claimed);
 - the by-person read (`getApiProjectsByIdPeopleByPersonIdWork`: one person's assignments and
