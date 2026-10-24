@@ -1,3 +1,5 @@
+import { writeSync } from 'node:fs';
+
 import { afterAll } from 'bun:test';
 
 import { removeProcessRoot } from '.';
@@ -10,7 +12,23 @@ import { removeProcessRoot } from '.';
 // Proof: tool-git-hooks:typecheck caught a deliberate string assigned to number
 // here (TS2322); removing ../test/scratch/**/*.ts from its spec include hid the
 // same error. The temporary assignment was removed after both runs.
-afterAll(removeProcessRoot);
+afterAll(removeScratchAfterAll);
+
+/**
+ * Trace the global cleanup synchronously so an event-loop stall still has an entry marker.
+ * Emits only its hook source and elapsed milliseconds; `return` means the existing
+ * cleanup returned, not that its best-effort removal succeeded. The hook keeps the
+ * command-line timeout and the existing cleanup error policy.
+ */
+function removeScratchAfterAll(): void {
+  const started = performance.now();
+  writeSync(2, 'scratch cleanup source=afterAll event=start\n');
+  removeProcessRoot();
+  writeSync(
+    2,
+    `scratch cleanup source=afterAll event=return elapsedMs=${String(Math.round(performance.now() - started))}\n`,
+  );
+}
 
 // No `setDefaultTimeout` here. Bun 1.4.2 applies a preload's default to the first test file only
 // and overrides the target's `--timeout=<ms>` there, so the 30-second default this file used to set

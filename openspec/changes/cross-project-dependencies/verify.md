@@ -7544,3 +7544,18 @@ failures. [Model reporter evidence](verify-model-child-reporter.md) records the
 exact child format cause, independently reviewed repair, focused verification
 and still-unattributed hook timeout. The earlier paragraph's running status is
 a historical observation, not the final conclusion. Complete CI remains open.
+
+## Reviewed source measurement and hook diagnostics
+
+The final source measurement packet and tracked compiler configuration are
+integrated with byte-exact reviewed source and fresh explicit compiler
+coverage, typecheck, lint and pure-suite evidence. See
+[source measurement integration](verify-source-profile-measurement.md) for the
+repaired init-roster proof and the unexecuted provider/native conditions.
+
+The independently reviewed [global hook diagnostics](verify-ci-hook-diagnostics.md)
+add fixed source/phase/elapsed markers around actual scratch cleanup. Combined
+source/scratch verification passed 36 tests and 104 assertions; all four
+configured static targets passed. The actual hosted timeout cause remains
+unproven, and no test or global budget was increased. The next hosted run and
+complete activation prerequisites remain open.
