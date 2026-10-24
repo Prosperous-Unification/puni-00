@@ -12,6 +12,7 @@ import {
   createFixtureVolume,
   describeFixtureFailure,
   publishFixtureFailure,
+  removeFixtureContainer,
   removeFixtureResource,
   requireFixtureOomRoster,
   requireUnusedFixtureNamespace,
@@ -587,6 +588,8 @@ test('omitted stop acknowledgement fault cannot borrow an unrelated Caddy refusa
       ],
     },
     {
+      network: () => Promise.reject(new Error('unexpected network read')),
+      networkByName: () => Promise.reject(new Error('unexpected network name read')),
       inspect: (id) => Promise.resolve(parseNativeContainer(read(id))),
       create: (kind) => {
         effects.push(`create:${kind}`);
@@ -737,3 +740,43 @@ test('native OOM report requires both targets and both observed phases', () => {
     }).toThrow();
   }
 });
+
+for (const fault of ['none', 'id', 'label', 'name', 'inspection'] as const)
+  test(`owned created blank-network cleanup binds ${fault}`, async () => {
+    const raw = syntheticContainer();
+    raw.Name = '/wbs-init-synthetic-registry';
+    Object.assign(raw.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'synthetic' });
+    raw.NetworkSettings.Networks.edge.NetworkID = '';
+    Object.assign(raw.State, {
+      Status: 'created',
+      Running: false,
+      Pid: 0,
+      StartedAt: '0001-01-01T00:00:00Z',
+    });
+    const listed = raw.Id;
+    if (fault === 'id') raw.Id = 'f'.repeat(64);
+    if (fault === 'label')
+      Reflect.deleteProperty(raw.Config.Labels, 'club.bulletpoints.edge-init-fixture');
+    if (fault === 'name') raw.Name = '/foreign';
+    const calls: string[][] = [];
+    const operation = removeFixtureContainer(listed, 'synthetic', (argv) => {
+      calls.push([...argv]);
+      return Promise.resolve(
+        argv[0] === 'inspect' ? JSON.stringify(fault === 'inspection' ? [] : [raw]) : '',
+      );
+    });
+    if (fault === 'none') {
+      await operation;
+      expect(calls).toEqual([
+        ['inspect', listed],
+        ['rm', '--force', '--volumes', listed],
+      ]);
+    } else {
+      const failure = await operation.then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toBeInstanceOf(InitRefusal);
+      expect(calls).toEqual([['inspect', listed]]);
+    }
+  });

@@ -16,7 +16,7 @@ An attended helper SHALL select exactly the independently pinned registry and Ca
 
 ### Requirement: Bind the measured created-state OOM representation to a fixed native profile
 
-Generic invariant comparison SHALL remain strict. Production adoption SHALL independently admit the fixed `engine-29.1.3-api-1.52-cgroup2-created-oom-v1` profile from fresh pinned Docker 29.1.3, API 1.52, Linux, cgroup version 2 and systemd driver evidence, and SHALL require both original targets to contain explicit null OomKillDisable. The outgoing request SHALL retain that null. Only a never-started, fully inert created candidate's observed false OomKillDisable SHALL project to null on a copy for immutable comparison. Every production v2 receipt SHALL bind the same fixed profile identifier; read-only recovery SHALL independently re-admit the current daemon and use the same projection.
+Generic invariant comparison SHALL remain strict. Production adoption SHALL independently admit the fixed `engine-29.1.3-api-1.52-cgroup2-created-v2` profile from fresh pinned Docker 29.1.3, API 1.52, Linux, cgroup version 2 and systemd driver evidence, and SHALL require both original targets to contain explicit null OomKillDisable. The outgoing request SHALL retain that null. Only a never-started, fully inert created candidate's observed false OomKillDisable SHALL project to null on a copy for immutable comparison. Every production v2 receipt SHALL bind the same fixed profile identifier; read-only recovery SHALL independently re-admit the current daemon and use the same projection.
 
 #### Scenario: The measured daemon renders a new inert candidate as false
 
@@ -79,3 +79,32 @@ Source and bundled entries SHALL invoke the same production factory. Production 
 
 - **WHEN** admission, preparation or an attended operation refuses
 - **THEN** diagnostics expose fixed codes and selected validated private receipt metadata, plus the read-only recovery invocation for a validated packet path, without native error messages, stacks, causes, configuration or credentials
+
+### Requirement: Bind never-started endpoint representation to independent network pins
+
+Parsing SHALL preserve an endpoint NetworkID that is empty or a full valid ID without granting admission. Construction and generic comparison SHALL require full IDs. The fixed created-v2 profile SHALL allow empty endpoint IDs only for an explicitly attributed replacement whose actual lifecycle is never-started and fully inert. Its immutable endpoint keys SHALL come from the independently pinned exact name/full-ID roster, with unique names and IDs and unchanged NetworkMode and configured settings. Original, running and stopped contexts SHALL require full actual IDs.
+
+#### Scenario: An owned created candidate has empty runtime network IDs
+
+- **WHEN** the independently attributed candidate is never-started with zero runtime allocations and its exact configured endpoint names match the independent network roster
+- **THEN** comparison uses those pinned full IDs as keys while preserving every configured setting and the raw empty observation
+
+#### Scenario: Current network name ownership or candidate stability differs
+
+- **WHEN** fresh full-ID and exact-name network reads differ in ID, name or complete configuration, a never-started candidate appears in either membership record, or its native identity/configuration/lifecycle changes during those reads
+- **THEN** candidate verification and the next stop, start or health boundary are refused
+
+#### Scenario: Recovery retains only packet network pins after original removal
+
+- **WHEN** the durable removal grammar permits an absent original and a running replacement remains
+- **THEN** recovery uses the historical packet's independent network pins and persisted expected invariant, requires full actual endpoint IDs and fresh network observations, and performs no mutation
+
+#### Scenario: An unrelated created container appears in inventory
+
+- **WHEN** inventory includes an unrelated parsed object with empty endpoint IDs
+- **THEN** raw stability hashing preserves its observation without granting it an owner context, mutation membership or Caddy Exec capability
+
+#### Scenario: Owned fixture cleanup observes a different inspected ID
+
+- **WHEN** the freshly inspected full ID differs from the nonce-filtered listed full ID
+- **THEN** fixture cleanup refuses before deletion even if the inspected name and label otherwise match

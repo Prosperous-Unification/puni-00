@@ -8,9 +8,10 @@ import { afterEach, expect, test } from 'bun:test';
 import { syntheticContainer } from '../../test/edge-init-fixture';
 import {
   constructCandidate,
-  CREATED_OOM_PROFILE,
+  CREATED_PROFILE,
   fingerprint,
   InitRefusal,
+  type InvariantContext,
   parseNativeContainer,
   projectInvariant,
 } from './edge-init';
@@ -18,6 +19,7 @@ import {
   type CaddyReadBinding,
   Deadline,
   EngineTransport,
+  observeNetworks,
   PrivateReceipts,
   runInitAdoption,
 } from './edge-init-operation';
@@ -306,6 +308,11 @@ test.each([
   'profile-source-false',
   'profile-other-field',
   'profile-inert-running',
+  'profile-network-id',
+  'profile-network-name',
+  'profile-network-config',
+  'profile-network-member',
+  'profile-network-changed',
 ])(
   'finite sequence retains originals on %s and removes only after both health rounds',
   async (fault) => {
@@ -329,8 +336,26 @@ test.each([
       if (observed === undefined) throw new Error('absent');
       return parseNativeContainer(observed);
     };
+    const networkReply = (byName: boolean) => {
+      const fields: Record<string, unknown> = {
+        Id: 'c'.repeat(64),
+        Name: 'edge',
+        Driver: 'bridge',
+        Containers: {},
+      };
+      if (byName && fault === 'profile-network-id') fields['Id'] = 'f'.repeat(64);
+      if (byName && fault === 'profile-network-name') fields['Name'] = 'foreign';
+      if (byName && fault === 'profile-network-config') fields['Driver'] = 'changed';
+      if (byName && fault === 'profile-network-member')
+        fields['Containers'] = { ['b'.repeat(64)]: { Name: 'candidate' } };
+      if (byName && fault === 'profile-network-changed')
+        containers.get('b'.repeat(64))?.NetworkSettings.Networks.edge.Aliases.push('changed');
+      return fields;
+    };
     const engine = {
       inspect,
+      network: () => Promise.resolve(networkReply(false)),
+      networkByName: () => Promise.resolve(networkReply(true)),
       create: async (kind: string, request: ReturnType<typeof constructCandidate>) => {
         await Promise.resolve();
         effects.push(`create:${kind}`);
@@ -346,8 +371,10 @@ test.each([
           Pid: 0,
           StartedAt: '0001-01-01T00:00:00Z',
         });
-        if (fault.startsWith('profile'))
+        if (fault.startsWith('profile')) {
           Object.assign(observed.HostConfig, { OomKillDisable: false });
+          observed.NetworkSettings.Networks.edge.NetworkID = '';
+        }
         if (fault === 'profile-inert-running') Object.assign(observed.State, { Running: true });
         if (fault === 'profile-other-field') observed.HostConfig.Init = false;
         if (fault === 'candidate-drift') observed.Config.Env.reverse();
@@ -374,10 +401,12 @@ test.each([
         effects.push(`start:${id}`);
         const observed = containers.get(id);
         if (observed === undefined) throw new Error('missing');
-        if (fault.startsWith('profile'))
+        if (fault.startsWith('profile')) {
           Object.assign(observed.HostConfig, {
             OomKillDisable: fault === 'profile-running-false' ? false : null,
           });
+          observed.NetworkSettings.Networks.edge.NetworkID = 'c'.repeat(64);
+        }
         Object.assign(observed.State, {
           Status: 'running',
           Running: true,
@@ -414,10 +443,30 @@ test.each([
     const operation = runInitAdoption(
       {
         nonce: 'synthetic',
-        ...(fault.startsWith('profile') ? { invariantProfile: CREATED_OOM_PROFILE } : {}),
+        ...(fault.startsWith('profile') ? { invariantProfile: CREATED_PROFILE } : {}),
         targets: [
-          { kind: 'registry', original: parseNativeContainer(original) },
-          { kind: 'caddy', original: parseNativeContainer(caddy) },
+          {
+            kind: 'registry',
+            original: parseNativeContainer(original),
+            networks: [
+              {
+                name: 'edge',
+                id: 'c'.repeat(64),
+                sha256: fingerprint({ Id: 'c'.repeat(64), Name: 'edge', Driver: 'bridge' }),
+              },
+            ],
+          },
+          {
+            kind: 'caddy',
+            original: parseNativeContainer(caddy),
+            networks: [
+              {
+                name: 'edge',
+                id: 'c'.repeat(64),
+                sha256: fingerprint({ Id: 'c'.repeat(64), Name: 'edge', Driver: 'bridge' }),
+              },
+            ],
+          },
         ],
       },
       engine,
@@ -466,6 +515,7 @@ test.each([
       expect(effects.some((effect) => effect.startsWith('remove:'))).toBe(false);
       expect(containers.has(original.Id)).toBe(true);
       if (fault === 'profile-source-false') expect(effects).toEqual([]);
+      if (fault.startsWith('profile-network')) expect(effects).toEqual(['create:registry']);
       if (
         fault === 'candidate-drift' ||
         fault === 'receipt-failed' ||
@@ -538,9 +588,23 @@ for (const fault of [
       nonce: 'synthetic',
       name: '/wbs-caddy-1' as const,
       invariantSha256: fingerprint(projectInvariant(parseNativeContainer(raw))),
-      ...(fault.startsWith('profile') ? { invariantProfile: CREATED_OOM_PROFILE } : {}),
+      ...(fault.startsWith('profile')
+        ? {
+            invariantContext: {
+              profile: CREATED_PROFILE,
+              owner: {
+                role: 'replacement' as const,
+                id: raw.Id,
+                originalId,
+                phase: 'running' as const,
+              },
+              networks: [{ name: 'edge', id: 'c'.repeat(64), sha256: '0'.repeat(64) }],
+            },
+          }
+        : {}),
     };
-    if (fault === 'profile-unknown') Object.assign(binding, { invariantProfile: 'unknown' });
+    if (fault === 'profile-unknown')
+      Object.assign(binding.invariantContext ?? {}, { profile: 'unknown' });
     if (fault === 'profile-running-false') Object.assign(raw.HostConfig, { OomKillDisable: false });
     if (fault === 'nonce') binding.nonce = 'other';
     if (fault === 'original-id') binding.originalId = registryId;
@@ -724,3 +788,187 @@ for (const fault of [
     }
   });
 }
+
+for (const kind of ['registry', 'caddy'] as const)
+  for (const fault of [
+    'none',
+    'id-owner',
+    'name-owner',
+    'id-hash-consistent',
+    'name-hash-consistent',
+    'id-read-owner',
+    'id-read-name',
+    'id-read-config',
+    'configuration',
+    'missing',
+    'ambiguous',
+    'malformed',
+    'members-malformed',
+    'member-by-id',
+    'member-by-name',
+    'after-id',
+    'after-name',
+    'after-alias',
+    'after-host',
+    'after-pid',
+    'after-start',
+    'after-network',
+    'deadline',
+  ] as const) {
+    test(`fresh network observation binds ${kind} ${fault}`, async () => {
+      const root = await directory(),
+        socket = join(root, 'network.sock'),
+        id = 'd'.repeat(64);
+      const definitions =
+        kind === 'registry'
+          ? [{ name: 'edge', id: 'c'.repeat(64) }]
+          : [
+              { name: 'edge', id: 'c'.repeat(64) },
+              { name: 'other', id: '1'.repeat(64) },
+              { name: 'third', id: '2'.repeat(64) },
+            ];
+      const pins = definitions.map((pin) => ({
+        ...pin,
+        sha256: fingerprint({
+          Id: fault === 'id-hash-consistent' ? 'f'.repeat(64) : pin.id,
+          Name: fault === 'name-hash-consistent' ? 'foreign' : pin.name,
+          Driver: 'bridge',
+        }),
+      }));
+      const raw = syntheticContainer();
+      raw.Id = id;
+      raw.Name = `/wbs-init-synthetic-${kind}`;
+      raw.Config.Image = raw.Image;
+      raw.HostConfig.Init = true;
+      Object.assign(raw.HostConfig, { OomKillDisable: false });
+      Object.assign(raw.State, {
+        Status: 'created',
+        Running: false,
+        Pid: 0,
+        StartedAt: '0001-01-01T00:00:00Z',
+      });
+      const endpoint = structuredClone(raw.NetworkSettings.Networks.edge);
+      endpoint.NetworkID = '';
+      Reflect.deleteProperty(raw.NetworkSettings.Networks, 'edge');
+      for (const pin of definitions)
+        Object.assign(raw.NetworkSettings.Networks, { [pin.name]: structuredClone(endpoint) });
+      const context: InvariantContext = {
+        profile: CREATED_PROFILE,
+        owner: { role: 'replacement', id, originalId: 'a'.repeat(64), phase: 'never-started' },
+        networks: pins,
+      };
+      const transcript: string[] = [];
+      let ticks = 0;
+      const server = createServer((incoming, response) => {
+        const route = incoming.url ?? '';
+        transcript.push(`${String(incoming.method)} ${route}`);
+        if (route === `/v1.52/containers/${id}/json`) {
+          const after = structuredClone(raw);
+          if (fault === 'after-id') after.Id = 'f'.repeat(64);
+          if (fault === 'after-name') after.Name = '/foreign';
+          if (fault === 'after-alias') after.NetworkSettings.Networks.edge.Aliases.push('changed');
+          if (fault === 'after-host') after.HostConfig.NetworkMode = 'other';
+          if (fault === 'after-pid') after.State.Pid = 123;
+          if (fault === 'after-start') after.State.StartedAt = '2026-01-01T00:00:00Z';
+          if (fault === 'after-network')
+            after.NetworkSettings.Networks.edge.NetworkID = 'f'.repeat(64);
+          response.end(JSON.stringify(after));
+          return;
+        }
+        const pin = pins.find(
+          (pin) => route === `/v1.52/networks/${pin.id}` || route === `/v1.52/networks/${pin.name}`,
+        );
+        if (pin === undefined) {
+          response.writeHead(404);
+          response.end('{}');
+          return;
+        }
+        const byName = route.endsWith('/' + pin.name);
+        if (byName && (fault === 'missing' || fault === 'ambiguous')) {
+          response.writeHead(fault === 'missing' ? 404 : 400);
+          response.end('{}');
+          return;
+        }
+        if (byName && fault === 'malformed') {
+          response.end('[');
+          return;
+        }
+        const network: Record<string, unknown> = {
+          Id: pin.id,
+          Name: pin.name,
+          Driver: 'bridge',
+          Containers: {},
+        };
+        if (
+          (byName && fault === 'id-owner') ||
+          (!byName && fault === 'id-read-owner') ||
+          fault === 'id-hash-consistent'
+        )
+          network['Id'] = 'f'.repeat(64);
+        if (
+          (byName && fault === 'name-owner') ||
+          (!byName && fault === 'id-read-name') ||
+          fault === 'name-hash-consistent'
+        )
+          network['Name'] = 'foreign';
+        if ((byName && fault === 'configuration') || (!byName && fault === 'id-read-config'))
+          network['Driver'] = 'changed';
+        if (byName && fault === 'members-malformed') network['Containers'] = null;
+        if ((!byName && fault === 'member-by-id') || (byName && fault === 'member-by-name'))
+          network['Containers'] = { [id]: { Name: raw.Name } };
+        if (fault === 'deadline' && !byName) ticks = 2;
+        response.end(JSON.stringify(network));
+      });
+      await new Promise<void>((resolve) => server.listen(socket, resolve));
+      const engine = new EngineTransport(socket, [id], 'synthetic');
+      try {
+        const observed = parseNativeContainer(raw);
+        const outcome = await observeNetworks(
+          engine,
+          observed,
+          context,
+          new Deadline(fault === 'deadline' ? 40001 : 120000, () => ticks),
+        ).then(
+          () => null,
+          (cause: unknown) => cause,
+        );
+        if (fault === 'none') {
+          expect(outcome).toBe(null);
+          expect(transcript).toEqual([
+            ...pins.flatMap((pin) => [
+              `GET /v1.52/networks/${pin.id}`,
+              `GET /v1.52/networks/${pin.name}`,
+            ]),
+            `GET /v1.52/containers/${id}/json`,
+          ]);
+          expect(observed.networks['edge']).toMatchObject({ NetworkID: '' });
+        } else expect(outcome).toBeInstanceOf(fault === 'members-malformed' ? Error : InitRefusal);
+        expect(transcript.every((entry) => entry.startsWith('GET '))).toBe(true);
+        if (fault === 'deadline') expect(transcript).toHaveLength(1);
+      } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve) =>
+          server.close(() => {
+            resolve();
+          }),
+        );
+      }
+    });
+  }
+
+test('network name read refuses non-Docker names before dispatch and keeps full-ID lookup strict', async () => {
+  const engine = new EngineTransport('/never-accessed.sock', ['a'.repeat(64)], 'synthetic');
+  for (const name of ['', '/foreign', 'name?query', 'name#fragment', 'a'.repeat(256), 'a b']) {
+    const cause = await engine.networkByName(name, 1000).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(cause).toBeInstanceOf(InitRefusal);
+    expect(String(cause)).toContain('network-name-invalid');
+  }
+  const invalid = await engine.network('', 1000).then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  expect(invalid).toBeInstanceOf(Error);
+});

@@ -12,10 +12,11 @@ import {
   candidateInvariant,
   checkInert,
   checkProfileSource,
-  CREATED_OOM_PROFILE,
+  CREATED_PROFILE,
   encodeOrderedEnv,
   fingerprint,
   InitRefusal,
+  type InvariantContext,
   type InvariantProfile,
   type NativeContainer,
   projectInvariant,
@@ -26,6 +27,7 @@ import {
   Deadline,
   type EngineTransport,
   type HostObserver,
+  observeNetworks,
   PrivateReceipts,
   readPrivateFile,
   type Receipt,
@@ -1066,14 +1068,18 @@ async function runPreparedPacket(
             refuse('target-roster-differs');
           const selection: AdoptionSelection = {
             nonce: packet.nonce,
-            invariantProfile: CREATED_OOM_PROFILE,
+            invariantProfile: CREATED_PROFILE,
             targets: [
-              { kind: 'registry' as const, original: registry },
-              { kind: 'caddy' as const, original: caddy },
+              {
+                kind: 'registry' as const,
+                original: registry,
+                networks: packet.targets[0].networks,
+              },
+              { kind: 'caddy' as const, original: caddy, networks: packet.targets[1].networks },
             ] as const,
           };
           for (const target of selection.targets)
-            checkProfileSource(target.original, CREATED_OOM_PROFILE);
+            checkProfileSource(target.original, CREATED_PROFILE);
           const observer = new ProductionObserver(
             packet,
             engine,
@@ -1363,9 +1369,30 @@ type ObserverEngine = Pick<
   | 'info'
   | 'image'
   | 'network'
+  | 'networkByName'
   | 'volume'
   | 'execCaddy'
 >;
+
+function targetContext(
+  expected: Pick<TargetPin, 'id' | 'networks'>,
+  observed: NativeContainer,
+): InvariantContext {
+  const phase =
+    observed.state['Status'] === 'created'
+      ? 'never-started'
+      : observed.state['Running'] === true
+        ? 'running'
+        : 'stopped';
+  return {
+    profile: CREATED_PROFILE,
+    networks: expected.networks,
+    owner:
+      observed.id === expected.id
+        ? { role: 'original', id: expected.id, phase: phase === 'running' ? 'running' : 'stopped' }
+        : { role: 'replacement', id: observed.id, originalId: expected.id, phase },
+  };
+}
 
 class ProductionObserver implements HostObserver {
   private readonly processes = new Map<
@@ -1584,10 +1611,13 @@ class ProductionObserver implements HostObserver {
         target: selected.kind,
         original: selected.original.id,
         originalInvariantSha256: fingerprint(
-          projectInvariant(selected.original, CREATED_OOM_PROFILE),
+          projectInvariant(
+            selected.original,
+            targetContext(this.expected(selected.kind), selected.original),
+          ),
         ),
         candidateInvariantSha256: fingerprint(
-          candidateInvariant(selected.original, CREATED_OOM_PROFILE),
+          candidateInvariant(selected.original, CREATED_PROFILE),
         ),
         originalProcess,
       };
@@ -1727,6 +1757,12 @@ class ProductionObserver implements HostObserver {
     observed: NativeContainer,
     deadline: Deadline,
   ): Promise<void> {
+    await observeNetworks(
+      this.engine,
+      observed,
+      targetContext(this.expected(target.kind), observed),
+      deadline,
+    );
     if (
       observed.state['Pid'] !== 0 ||
       observed.sandboxId !== '' ||
@@ -1889,27 +1925,9 @@ class ProductionObserver implements HostObserver {
       const { kind: _kind, name: _name, volumeSha256: _volume, ...pin } = resource;
       if (fingerprint(native.storage[index]) !== fingerprint(pin)) refuse('storage-pin-differs');
     }
-    if (Object.keys(observed.networks).length !== expected.networks.length)
-      refuse('network-roster-differs');
-    for (const network of expected.networks) {
-      const endpoint = observed.networks[network.name];
-      if (
-        !Object.hasOwn(observed.networks, network.name) ||
-        record(endpoint)['NetworkID'] !== network.id
-      )
-        refuse('network-identity-differs');
-      const { Containers: _containers, ...configuration } = record(
-        await this.engine.network(network.id, deadline.allocate(10000)),
-      );
-      if (fingerprint(configuration) !== network.sha256) refuse('network-pin-differs');
-    }
-    const mode = observed.host['NetworkMode'];
-    if (
-      typeof mode !== 'string' ||
-      !expected.networks.some((network) => mode === network.name || mode === network.id)
-    )
-      refuse('network-mode-differs');
+    await observeNetworks(this.engine, observed, targetContext(expected, observed), deadline);
   }
+
   private async process(
     expected: TargetPin,
     observed: NativeContainer,
@@ -2698,13 +2716,23 @@ function requireComposeLabelRoster(observed: NativeContainer, expected: readonly
   if (new Set(roster).size !== roster.length || fingerprint(roster) !== fingerprint(expected))
     refuse('compose-roster-differs');
 }
-function recoverySnapshot(observed: readonly NativeContainer[]): string {
+/** Raw stability evidence excludes volatile health logs and grants no owner or immutable admission.
+ * Proof: substituting immutable projection refused the unrelated blank-endpoint inventory regression.
+ * @internal
+ */
+export function recoverySnapshot(observed: readonly NativeContainer[]): string {
   return fingerprint(
     observed
       .map((entry) => ({
         id: entry.id,
         name: entry.name,
-        invariant: projectInvariant(entry),
+        invariant: {
+          image: entry.image,
+          config: entry.config,
+          host: entry.host,
+          mounts: entry.mounts,
+          networks: entry.networks,
+        },
         state: Object.fromEntries(
           [
             'Status',
@@ -2759,7 +2787,7 @@ async function inspectRecovery(
       nonce: string;
       name: '/wbs-caddy-1';
       invariantSha256: string;
-      invariantProfile: InvariantProfile;
+      invariantContext: InvariantContext;
     }
   >();
   const readOnly: ObserverEngine = {
@@ -2771,6 +2799,7 @@ async function inspectRecovery(
     info: (timeout) => engine.info(timeout),
     image: (id, timeout) => engine.image(id, timeout),
     network: (id, timeout) => engine.network(id, timeout),
+    networkByName: (name, timeout) => engine.networkByName(name, timeout),
     volume: (name, timeout) => engine.volume(name, timeout),
     execCaddy: (id, command, timeout) => {
       const binding = bindings.get(id);
@@ -2803,10 +2832,10 @@ async function inspectRecovery(
     );
     if (
       (original !== undefined &&
-        fingerprint(projectInvariant(original, CREATED_OOM_PROFILE)) !==
+        fingerprint(projectInvariant(original, targetContext(target, original))) !==
           proof.originalInvariantSha256) ||
       (candidate !== undefined &&
-        fingerprint(projectInvariant(candidate, CREATED_OOM_PROFILE)) !==
+        fingerprint(projectInvariant(candidate, targetContext(target, candidate))) !==
           proof.candidateInvariantSha256)
     )
       refuse('recovery-invariant-differs');
@@ -2886,7 +2915,7 @@ async function inspectRecovery(
         candidateId: entry.candidate?.id ?? null,
         nonce: packet.nonce,
         name: '/wbs-caddy-1',
-        invariantProfile: CREATED_OOM_PROFILE,
+        invariantContext: targetContext(entry.target, entry.serving),
         invariantSha256:
           entry.serving.id === entry.target.id
             ? entry.proof.originalInvariantSha256
@@ -3418,7 +3447,7 @@ export async function publishInitReceipt(
     format: 'edge-init-receipt',
     version: 2,
     // Proof: omitting profile publication failed exact private receipt readback.
-    invariantProfile: CREATED_OOM_PROFILE,
+    invariantProfile: CREATED_PROFILE,
     invariants: evidence.invariants,
     candidateProcesses: evidence.candidateProcesses,
     packetSha256: hash(packetSha256),
@@ -3439,7 +3468,7 @@ export function checkReceiptSources(
   if (
     // Proof: independently omitting the packet or either source comparison admitted changed metadata in receipt recovery.
     // Proof: omitting profile equality admitted missing/unknown profile metadata in private receipt recovery.
-    receipt['invariantProfile'] !== CREATED_OOM_PROFILE ||
+    receipt['invariantProfile'] !== CREATED_PROFILE ||
     hash(receipt['packetSha256']) !== hash(packetSha256) ||
     hash(receipt['sourceRosterSha256']) !== proof.sourceRosterSha256 ||
     hash(receipt['literalInitSha256']) !== proof.literalInitSha256 ||
