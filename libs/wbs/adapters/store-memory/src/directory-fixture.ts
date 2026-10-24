@@ -13,6 +13,11 @@ import type {
   WorkItemType,
 } from '@wbs/core';
 
+import {
+  memoryMeasureDefinitions,
+  type MemoryMeasureDefinitionTables,
+  memoryMeasureDefinitionTables,
+} from './measure-definition-fixture';
 import { type MemoryResourceTables, memoryResourceTables } from './resource-fixture';
 
 /** The empty usage, both halves present — what this fixture can honestly say. */
@@ -94,6 +99,8 @@ export interface MemoryDirectoryTables {
   readonly credentialPins: Map<string, string>;
   /** The resources and what plans state about them (`wbs-resources`). */
   readonly resources: MemoryResourceTables;
+  /** The organizations and their measure definitions (`wbs-measure-budgets`). */
+  readonly measureDefinitions: MemoryMeasureDefinitionTables;
 }
 
 /** The {@link MemoryDirectoryTables.credentialPins} key of one `(issuer, subject)`. */
@@ -123,6 +130,7 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
     organizationMembers: new Map(),
     credentialPins: new Map(),
     resources: memoryResourceTables(),
+    measureDefinitions: memoryMeasureDefinitionTables(),
   };
 }
 
@@ -163,6 +171,7 @@ export function inMemoryDirectory(
    */
 
   const store: DirectoryStore = {
+    ...memoryMeasureDefinitions(tables.measureDefinitions),
     // Organization-local writes exist only over SQLite, where the ownership
     // side tables and their freeze live; the in-memory directory models the
     // mapping for reads alone.

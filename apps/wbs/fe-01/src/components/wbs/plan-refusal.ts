@@ -104,6 +104,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'forbidden':
     case 'bad_start_date':
     case 'bad_pert_weights':
+    case 'bad_budget_factor':
     case 'invalid_timezone':
     case 'optimizer_unavailable':
     case 'solution_taken':
@@ -372,6 +373,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'invalid_progress':
     case 'invalid_status':
     case 'invalid_estimate':
+    case 'invalid_budget':
+    case 'rateCardDigest_must_be_1_to_128_characters':
     case 'conflicting_step_address':
     case 'invalid_step_node_id':
     case 'unknown_step_node_encoding':
@@ -468,6 +471,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_step':
     case 'unknown_dependency':
     case 'unknown_metric':
+    case 'unknown_measure':
     case 'unknown_person':
     case 'unknown_account':
     case 'unknown_team':
@@ -480,6 +484,15 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'schedule_not_ready':
     case 'engine_unavailable':
     case 'rolled_up':
+    case 'derived_measure':
+    case 'scheduling_measure_fact':
+    case 'scale_mismatch':
+    case 'scheduling_measure_estimate':
+    case 'three_point_forbidden':
+    case 'scheduling_measure_budget':
+    case 'rate_card_required':
+    case 'rate_card_forbidden':
+    case 'mixed_rate_cards':
     case 'ancestor':
     case 'self_node':
     case 'not_a_parent':
@@ -509,6 +522,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'attemptNumber_must_be_a_whole_number_from_1':
     case 'node_done':
     case 'attempt_running':
+    case 'budget_exhausted':
     case 'attempt_in_future':
     case 'no_running_attempt':
     case 'attempt_ends_before_start':
@@ -580,6 +594,31 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_provider':
     case 'provider_not_in_organization':
       return refusal.error;
+    // Measure definitions (`wbs-measure-budgets` slice 1): the table sends none
+    // of these until task 4.2, so they arrive only from a batch another client wrote.
+    case 'measureId_must_be_an_id':
+    case 'measureRef_must_be_an_id':
+    case 'key_must_be_a_measure_key':
+    case 'unit_must_be_text':
+    case 'unit_must_be_at_most_40_characters':
+    case 'measureKind_must_be_duration_count_or_money':
+    case 'scale_must_be_integer_or_real':
+    case 'threePoint_must_be_true_or_false':
+    case 'showByDefault_must_be_true_or_false':
+    case 'schedulesWork_must_be_true_or_false':
+    case 'order_must_be_a_whole_number_from_0_to_1000000':
+    case 'currency_must_be_three_capital_letters':
+    case 'organization_required':
+    case 'measure_key_taken':
+    case 'measure_key_immutable':
+    case 'measure_shape_immutable':
+    case 'second_scheduling_measure':
+    case 'scheduling_measure_fixed':
+    case 'currency_required':
+    case 'currency_forbidden':
+    case 'unit_required':
+    case 'measure_in_use':
+      return refusal.error;
     // The organization limits (`wbs-organization-limits` L9): worded with the
     // body's numbers by `limitSentence` before this code is ever read.
     case 'agent_person_limit':
@@ -625,6 +664,24 @@ function timezonesReadCode(refusal: RefusalOf<'getApiTimezones'>): string {
     case 'invalid_params':
     case 'invalid_body':
     case 'unauthenticated':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
+function measuresReadCode(refusal: RefusalOf<'getApiMeasures'>): string {
+  switch (refusal.error) {
+    case 'invalid_query':
+    case 'invalid_params':
+    case 'invalid_body':
+    case 'unauthenticated':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+    case 'organization_required':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -677,6 +734,8 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return optimizationRetryCode(problem.refusal);
     case 'getApiTimezones':
       return timezonesReadCode(problem.refusal);
+    case 'getApiMeasures':
+      return measuresReadCode(problem.refusal);
     default:
       return unreachable(problem);
   }
@@ -866,9 +925,51 @@ export const PLAN_REFUSALS: RefusalWords = {
     no_running_attempt:
       'No attempt at this step is running any more — someone may have ended it. Nothing was changed.',
     attempt_in_future: 'An attempt cannot start or end after now. Nothing was changed.',
+    // A strict budget refusing the start inside its write (`wbs-measure-budgets`
+    // D69); reachable from the attempt button whenever another start took the rest.
+    // Proof: with this entry struck, `words each attempt refusal rather than
+    // naming its code` (attempt-actions.test.tsx) read the fallback carrying
+    // `budget_exhausted`; watched 2026-10-24.
+    budget_exhausted:
+      'A strict budget above this step has nothing left for another attempt — wait for a running attempt to report or end, or raise the budget. Nothing was changed.',
     attempt_ends_before_start: 'An attempt cannot end before it started. Nothing was changed.',
     unknown_attempt:
       'That attempt is no longer here — someone may have removed it. Nothing was changed.',
+    // The measure refusals (`wbs-measure-budgets` slices 1–5), as the Measures
+    // panel reaches them. The panel keeps no copy of be-01's rules — it sends
+    // what was typed — so each of these is reachable from one form there.
+    // Proof: with these entries struck, `words every measure refusal the panel
+    // can reach` (plan-refusal-measures.test.ts) read the fallback carrying the
+    // code for each; watched 2026-10-23.
+    unknown_measure:
+      'That measure is no longer defined in your organization — reopen the plan to see the current ones. Nothing was changed.',
+    derived_measure:
+      'Agent minutes are read from ended attempts and cannot be typed. Nothing was changed.',
+    scheduling_measure_fact:
+      'Time’s fact is the actual days, recorded when work is marked done. Nothing was changed.',
+    scheduling_measure_estimate:
+      'Time is estimated in the step columns, not here. Nothing was changed.',
+    scheduling_measure_budget:
+      'Time takes no budget: its figures are the step estimates and the actual days. Nothing was changed.',
+    three_point_forbidden:
+      'This measure takes a single fact, not three points. Nothing was changed.',
+    scale_mismatch:
+      'This measure counts in whole units — type a whole number. Nothing was changed.',
+    rate_card_required:
+      'A cost is priced on a rate card: type the card’s digest before saving. Nothing was changed.',
+    rate_card_forbidden:
+      'Only money is priced on a rate card; leave the digest empty here. Nothing was changed.',
+    mixed_rate_cards:
+      'That would add figures priced on different rate cards, which WBS never does. Nothing was changed.',
+    invalid_measure: 'A fact is a figure of 0 or more. Nothing was changed.',
+    invalid_estimate:
+      'Three points are figures of 0 or more, with optimistic ≤ realistic ≤ pessimistic. Nothing was changed.',
+    invalid_budget:
+      'A budget’s cap and hold are figures of 0 or more, and its policy strict or advisory. Nothing was changed.',
+    rolled_up:
+      'This row’s figures are the sums of the rows beneath it; estimate on those. Nothing was changed.',
+    organization_required:
+      'Measures belong to an organization, and this workspace does not belong to one yet. Nothing was changed.',
     // {@link INVALID_REQUEST}'s three, worded from the one list that also decides
     // whether the plan is read again.
     ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),

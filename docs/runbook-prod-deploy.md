@@ -312,6 +312,86 @@ docker exec be-01-<colour> bun run src/<cli> restore <file>
   attempt's work item is gone or has become a parent, a saved mark's work item is gone, or a saved
   step is gone, and it refuses a version-1 file.
 
+## Measure fact rollback
+
+**The pre-deploy database backup is the rollback** (`wbs-measure-budgets` D72). Once any of
+these exists, `down.sql` refuses: a fact in a defined measure, a three-point trio, a priced fact
+or trio, or a stated budget (or a budget factor other than 1). The older image then fails the whole
+project's plan read with `invalid metric` once one fact sits in a defined measure (its tree read
+lists every measure row), and silently loses three-point trios and
+ignores budgets and bases, as the sections below detail. Clearing those rows by hand to reopen
+`down.sql` discards the figures for good. With no users yet (Dany, 2026-10-24), restore the
+backup taken before the deploy instead; the hand-clearing paths below remain for a rollback
+that must keep every other write made since the deploy.
+
+`20261023150000_key_step_measure` (`wbs-measure-budgets` slice 2) keys `step_measure` rows by
+measure definition. A fact in a defined measure (`cost`, or one an organization defined) has no
+legacy `metric` and no save/remove CLI. Backend swaps stop the old writer before migrating, so
+blue and green never serve the new schema together; the exposure is recovery only. While such a
+fact exists, an attended restart of the older image answers 500 on every work item holding one
+(its targeted read refuses a row with no metric), and `down.sql` refuses with `facts on defined
+measures exist`. Both exits stay closed until those rows are cleared by hand: record every
+`step_measure` row whose `metric` is NULL, remove each with `clearMeasure` (or by SQL), then run
+`migrate-down-cli.ts --to=20261023140000_add_measure`. Tokens and hours facts keep their legacy
+names and need nothing.
+
+### Measure estimate rollback
+
+`20261023160000_add_measure_estimate` (slice 3) adds `measure_estimate`. Single-point `tokens`
+trios mirror the legacy `token_estimate` rows through triggers, so the older image keeps reading
+and writing its token estimates. Three-point trios and trios in other measures have no legacy
+row: `down.sql` refuses with `measure estimates the legacy token estimate cannot hold exist`
+until each is cleared with `clearMeasureEstimate` (allowed even on a definition patched to
+`threePoint: false`) or by SQL, then `migrate-down-cli.ts --to=20261023150000_key_step_measure`.
+
+An attended restart of the older image without `down.sql` keeps the table and its triggers but
+loses three-point trios in these ways, with no error:
+
+- its undo of a `setMeasure token_estimate` written over a three-point trio runs `clear_measure`
+  and takes the trio with the legacy row;
+- its delete, undo and first-child hand-down carry only legacy rows, so a three-point trio is
+  cascaded away on delete, not put back on undo, and left behind on the parent at a hand-down;
+- its step removal does not delete `measure_estimate` rows, so removing a step that holds a
+  three-point trio fails on the `measure_estimate.step_id` foreign key (500).
+
+Clear or record three-point trios before such a restart.
+
+### Budget rollback
+
+`20261023170000_add_work_item_budget` (slice 4) adds `work_item_budget`, `project.budget_factor`
+and the money basis columns `currency` and `rate_card_digest` on `step_measure` and
+`measure_estimate`. The older image reads none of them: an attended restart of it ignores
+budgets and bases (its writes leave a fact or trio unpriced, which reads as a basis of its own
+afterwards); no older-image restart over this schema was exercised. `down.sql` refuses with `budgets, budget factors or priced
+figures exist` until every stated budget is cleared with `clearBudget`, every project's factor
+is patched back to `budgetFactor: 1`, and every priced fact or trio is cleared with
+`clearMeasure` or `clearMeasureEstimate` (or by SQL); then run
+`migrate-down-cli.ts --to=20261023160000_add_measure_estimate`.
+
+Deploy slices 2–4 of `wbs-measure-budgets` together, in one swap: the migrations
+`20261023150000_key_step_measure`, `20261023160000_add_measure_estimate` and
+`20261023170000_add_work_item_budget` then land at once, and no release ever writes facts or
+trios in money measures without a rate card, which would read as a basis of their own beside
+every priced figure and split those sums (design D44).
+
+### Plan documents and saved plans after measures
+
+Slice 7 adds no migration. A plan holding a fact in a defined measure, a three-point trio, a
+stated budget or a budget factor other than 1 exports as plan document version 11; every other
+plan still exports version 10 (design D63). The older image refuses a version-11 file with
+`400 unsupported_version`, so after a rollback re-export such a plan from the older image (it
+leaves the measures out) or clear them first. Saved plans written by this release carry plan
+input schema 9 (design D66); the older image answers `501 unsupported_body_version` when it
+reads or compares one, and reads its own schema-8 saves as before. Nothing rewrites stored
+bodies, so rolling forward again reads both.
+
+### mcp-01 boot memory
+
+mcp-01 compiles every HTTP shape at boot inside a 512 Mi pod. Refusal codes join the
+enumerated lists rather than adding union arms (design D47), and
+`libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts` bounds the cost of loading
+every shape; run it before shipping a change to the contracts and record its printed figure.
+
 ## Shared people restore approvals
 
 The approval preparation endpoint is available at

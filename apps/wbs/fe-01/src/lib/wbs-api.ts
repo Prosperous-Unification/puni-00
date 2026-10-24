@@ -23,6 +23,7 @@ import {
   type LimitRefusalDetail,
   listCalendarMarkers as listCalendarMarkersShape,
   listExternalSystems as listExternalSystemsShape,
+  listMeasures as listMeasuresShape,
   listPeople as listPeopleShape,
   listProjects as listProjectsShape,
   listServices as listServicesShape,
@@ -293,6 +294,84 @@ export interface ElsewhereHolderView {
   name: string;
 }
 
+/**
+ * One measure definition as `GET /api/measures` lists it (`wbs-measure-budgets`
+ * D1). Declared for {@link EstimateMethod}'s reason; `currency` is set exactly
+ * on money, and a `derived` figure is computed on read and never typed.
+ */
+export interface MeasureDefinitionView {
+  id: string;
+  key: string;
+  name: string;
+  unit: string;
+  kind: 'duration' | 'count' | 'money';
+  scale: 'integer' | 'real';
+  threePoint: boolean;
+  showByDefault: boolean;
+  schedulesWork: boolean;
+  derived: boolean;
+  order: number;
+  currency: string | null;
+}
+
+/**
+ * What the measure list answered. `organization_required` is a **modeled
+ * state** (review S3-6): before organization activation, legacy access with no
+ * legacy organization holds no definitions, and the table says so rather than
+ * failing.
+ */
+export type MeasureDirectory =
+  { kind: 'ready'; measures: MeasureDefinitionView[] } | { kind: 'organization_required' };
+
+/** A summed trio in one measure on one step, as the row read folds it (design D29). */
+export interface MeasureEstimateView {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+  /** True only when every trio summed is a legacy single figure (design D28). */
+  singlePoint: boolean;
+  expected: number;
+  /** Facts minus expected on this step; absent where either side is. */
+  variance?: number;
+}
+
+/** A row's budget in one measure, stated or derived (design D39). */
+export interface BudgetView {
+  cap: number;
+  policy: 'strict' | 'advisory';
+  source: 'stated' | 'derived';
+  /** Cap less spent and held; negative past the cap. */
+  remaining: number;
+  /** Spent above the cap: facts alone, never holds. */
+  exceeded: boolean;
+  held?: number;
+  /** The stated hold per running attempt, only where one is stated (design D60). */
+  holdPerAttempt?: number;
+}
+
+/** A money basis: the currency and the rate card digest a figure was priced with (D43). */
+export interface MoneyBasisView {
+  currency: string;
+  rateCardDigest: string;
+}
+
+/** The first two bases a mixed sum names; `null` is an unpriced figure (D44). */
+export type MixedBasesView = readonly [MoneyBasisView | null, MoneyBasisView | null];
+
+/** A three-point estimate in a measure's own unit and scale. */
+export interface MeasureTrio {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+}
+
+/** A budget as `setBudget` states it (design D37). */
+export interface BudgetStatement {
+  cap: number;
+  policy: 'strict' | 'advisory';
+  holdPerAttempt?: number | null;
+}
+
 export interface WorkItemView {
   charged?: Record<string, ChargedEstimate>;
   id: string;
@@ -545,6 +624,31 @@ export interface WorkItemView {
    * refs"; `toTree` folds it to `[]`, which is the one place it may.
    */
   externalRefs?: ExternalRefView[];
+  /**
+   * Time's facts — the actual days — by step id (`wbs-measure-budgets` D27).
+   * Optional here for `tagIds`' swap reason; the measure panel reads it and
+   * nothing else does.
+   */
+  actuals?: Record<string, number>;
+  /**
+   * Facts per metric, then step id: `token_actual`, `hours_actual`,
+   * `token_estimate` (the legacy single figure) and every other definition by
+   * its key, `agent_minutes` derived (design D18, D20). A key mixing money bases
+   * is left out ({@link WorkItemView.mixedRateCards}). Required on the wire and
+   * optional here only so fixtures that predate measures stay valid.
+   */
+  measures?: Record<string, Record<string, number>>;
+  /**
+   * Trios per definition key, then step id, each with its expected figure and,
+   * beside a fact, its variance (design D29). Absent on a row with no trio.
+   */
+  measureEstimates?: Record<string, Record<string, MeasureEstimateView>>;
+  /** Budgets per definition key (design D39); absent on a row with none. */
+  budgets?: Record<string, BudgetView>;
+  /** Money keys whose sums mix bases, per kind, naming the first two (design D44). */
+  mixedRateCards?: Record<string, { facts?: MixedBasesView; estimates?: MixedBasesView }>;
+  /** The one priced basis of a money key's sums, per kind (design D49). */
+  moneyBases?: Record<string, { facts?: MoneyBasisView; estimates?: MoneyBasisView }>;
   /**
    * Who does this work, by step id.
    *
@@ -2085,6 +2189,36 @@ export interface ProjectApi {
    */
   clearEstimate(id: string, stepId: string): Promise<void>;
   /**
+   * The organization's measure definitions in list order, or the modeled
+   * `organization_required` answer before activation (review S3-6). Every
+   * other refusal throws its code.
+   */
+  listMeasures(): Promise<MeasureDirectory>;
+  /**
+   * Sets one step's trio in a measure other than time (`setMeasureEstimate`,
+   * design D33); `rateCardDigest` is required on money and refused elsewhere.
+   */
+  setMeasureEstimate(
+    id: string,
+    stepId: string,
+    measure: string,
+    estimate: MeasureTrio,
+    rateCardDigest?: string,
+  ): Promise<void>;
+  clearMeasureEstimate(id: string, stepId: string, measure: string): Promise<void>;
+  /** Records one step's fact in a measure by its key (`setMeasure`, design D18, D43). */
+  setMeasure(
+    id: string,
+    stepId: string,
+    metric: string,
+    value: number,
+    rateCardDigest?: string,
+  ): Promise<void>;
+  clearMeasure(id: string, stepId: string, metric: string): Promise<void>;
+  /** States a work item's budget in one measure (`setBudget`, design D37). */
+  setBudget(id: string, measure: string, budget: BudgetStatement): Promise<void>;
+  clearBudget(id: string, measure: string): Promise<void>;
+  /**
    * Puts every sibling group in the order its bars start.
    *
    * No arguments beyond the project: the order is the server's, taken from the
@@ -2129,6 +2263,7 @@ const WBS_SHAPES = [
   getWorkItems,
   listCalendarMarkersShape,
   listExternalSystemsShape,
+  listMeasuresShape,
   listPeopleShape,
   listProjectsShape,
   listServicesShape,
@@ -2505,8 +2640,12 @@ interface BatchAnswer {
     entity?: {
       id: string;
       name: string;
-      /** A person's kind, or a resource's on `createResource` (`wbs-resources`). */
-      kind?: PersonKindView | 'exclusive' | 'divisible';
+      /**
+       * A person's kind, a resource's on `createResource` (`wbs-resources`), or a
+       * measure definition's on `createMeasure` (`wbs-measure-budgets`); fe-01
+       * sends no measure command yet and reads none of its other fields.
+       */
+      kind?: PersonKindView | 'exclusive' | 'divisible' | 'duration' | 'count' | 'money';
       serviceIds?: string[];
       teamIds?: string[];
       unitLabel?: string;
@@ -3204,6 +3343,55 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
     },
     async clearEstimate(id, stepId) {
       await onRow(id, { kind: 'clearEstimate', workItemId: id, stepId });
+    },
+    async listMeasures() {
+      const reply = await client.getApiMeasures({ headers: auth(token) });
+      if (reply.kind === 'success') return { kind: 'ready', measures: reply.body.measures };
+      // Proof: with this arm removed, `answers organization_required as a modeled
+      // state` (wbs-api.test.ts) rejected with WbsRequestError organization_required
+      // instead of resolving the state.
+      if (reply.kind === 'refusal' && reply.body.error === 'organization_required')
+        return { kind: 'organization_required' };
+      return throwReply(listMeasuresShape, reply);
+    },
+    async setMeasureEstimate(id, stepId, measure, estimate, rateCardDigest) {
+      await onRow(id, {
+        kind: 'setMeasureEstimate',
+        workItemId: id,
+        stepId,
+        measure,
+        estimate: { ...estimate },
+        ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+      });
+    },
+    async clearMeasureEstimate(id, stepId, measure) {
+      await onRow(id, { kind: 'clearMeasureEstimate', workItemId: id, stepId, measure });
+    },
+    async setMeasure(id, stepId, metric, value, rateCardDigest) {
+      await onRow(id, {
+        kind: 'setMeasure',
+        workItemId: id,
+        stepId,
+        metric,
+        value,
+        ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+      });
+    },
+    async clearMeasure(id, stepId, metric) {
+      await onRow(id, { kind: 'clearMeasure', workItemId: id, stepId, metric });
+    },
+    async setBudget(id, measure, budget) {
+      await onRow(id, {
+        kind: 'setBudget',
+        workItemId: id,
+        measure,
+        cap: budget.cap,
+        policy: budget.policy,
+        ...(budget.holdPerAttempt === undefined ? {} : { holdPerAttempt: budget.holdPerAttempt }),
+      });
+    },
+    async clearBudget(id, measure) {
+      await onRow(id, { kind: 'clearBudget', workItemId: id, measure });
     },
     async arrangeBySchedule(projectId) {
       await command(projectId, { kind: 'arrangeBySchedule' });

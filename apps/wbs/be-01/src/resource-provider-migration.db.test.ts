@@ -14,6 +14,13 @@ const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
 const AUDIT_WIDENING = '20261022140100_widen_organization_audit_compute_providers';
 /** The claim lease migration, newer than both, which reverses first. */
 const CLAIM_LEASE = '20261023100000_add_claim_lease';
+/** The measure migrations (`wbs-measure-budgets`), newer still, which reverse before it. */
+const MEASURES = [
+  '20261023170000_add_work_item_budget',
+  '20261023160000_add_measure_estimate',
+  '20261023150000_key_step_measure',
+  '20261023140000_add_measure',
+];
 const roots: string[] = [];
 
 afterEach(() => {
@@ -76,7 +83,7 @@ function limitsOnlyStore(): string {
   const root = mkdtempSync(join(tmpdir(), 'wbs-resource-provider-baseline-'));
   roots.push(root);
   cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
-  for (const name of [RESOURCE_PROVIDER, AUDIT_WIDENING, CLAIM_LEASE])
+  for (const name of [RESOURCE_PROVIDER, AUDIT_WIDENING, CLAIM_LEASE, ...MEASURES])
     rmSync(join(root, 'drizzle', name), { recursive: true });
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, join(root, 'drizzle'));
@@ -179,7 +186,7 @@ describe(RESOURCE_PROVIDER, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
+      `rolled back: ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
     );
     expect(columnsOf(dbPath, 'resource')).not.toContain('provider_id');
     expect(columnsOf(dbPath, 'compute_provider')).toEqual([]);

@@ -115,6 +115,13 @@ export type UniqueIndexColumns = readonly [string, ...string[]];
  */
 export const UNIQUE_INDEXES = {
   personName: ['person.name'],
+  /** One key per organization (`measure_organization_key`); test it before the next. */
+  measureKeyInOrganization: ['measure.organization_id', 'measure.key'],
+  /**
+   * One scheduling measure per organization (`measure_one_scheduling`, partial).
+   * Its message is a prefix of {@link UNIQUE_INDEXES.measureKeyInOrganization}'s.
+   */
+  schedulingMeasureInOrganization: ['measure.organization_id'],
   resourceName: ['resource.name'],
   provenAuth0Connection: ['organization_sso_connection.auth0_connection'],
   serviceName: ['service.name'],

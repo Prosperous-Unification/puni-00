@@ -4,7 +4,7 @@
 
 Everything this browser remembers for its reader: the palette they chose, whether the chart shows
 its detail, which project they had open, how wide each column was, which settings tab they were
-on. Fourteen keys, and the one rule that governs all of them.
+on. Fifteen keys, and the one rule that governs all of them.
 
 The service is plain TypeScript and imports no React, which is rule F1 of the code organization
 design in `docs/superpowers/specs/2026-09-19-code-organization-design.md`. It is a repository, a
@@ -13,8 +13,8 @@ repository and the feature exclusively owns the resource.
 
 ## What it owns
 
-- The names of all fourteen keys, in `preference-keys.ts`, and nothing else names one.
-- The three stored shapes, and which key uses which: JSON for eleven of them, bare text for the
+- The names of all fifteen keys, in `preference-keys.ts`, and nothing else names one.
+- The three stored shapes, and which key uses which: JSON for twelve of them, bare text for the
   remembered project id and for the settings modal's open section.
 - The one refusal rule the whole app shares: a stored value that is no longer the expected type
   takes its key with it, and the caller's own default stands. This is deliberately not the

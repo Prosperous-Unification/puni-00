@@ -33,6 +33,8 @@ export interface PlanLiveValues {
   addChild: (parent: TreeRow) => Promise<CommitOutcome>;
   /** Opens the Move under… picker over a row — the keyboard's and the phone's reparent. */
   openMoveUnder: (rowId: string) => void;
+  /** Opens the row's Measures panel (`wbs-measure-budgets` task 4.3). */
+  openMeasures: (rowId: string) => void;
   deleteRow: (row: TreeRow) => Promise<CommitOutcome>;
   commitNameCell: (rowId: string, typed: string, baseline: string) => Promise<CommitOutcome>;
   onKeyDown: (event: React.KeyboardEvent, row: TreeRow) => void;

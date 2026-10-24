@@ -115,6 +115,10 @@ describe(MIGRATION, () => {
             '20261022140000_add_resource_provider',
             '20261022140100_widen_organization_audit_compute_providers',
             '20261023100000_add_claim_lease',
+            '20261023140000_add_measure',
+            '20261023150000_key_step_measure',
+            '20261023160000_add_measure_estimate',
+            '20261023170000_add_work_item_budget',
           ].includes(name),
       ),
     );
@@ -122,6 +126,10 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261023170000_add_work_item_budget',
+      '20261023160000_add_measure_estimate',
+      '20261023150000_key_step_measure',
+      '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',

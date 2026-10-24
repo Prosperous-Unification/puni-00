@@ -26,7 +26,7 @@ beforeAll(() => {
   exportsDirectory = mkdtempSync(join(tmpdir(), 'navigator-exports-'));
   const requirements = join(exportsDirectory, 'requirements.md');
   writeFileSync(requirements, 'Requirements\n');
-  for (const version of [7, 8, 9, 10]) {
+  for (const version of [7, 8, 9, 10, 11]) {
     const output = join(exportsDirectory, `v${String(version)}`);
     mkdirSync(output);
     const child = Bun.spawnSync({
@@ -66,7 +66,7 @@ afterAll(() => {
   rmSync(exportsDirectory, { recursive: true, force: true });
 });
 
-function generate(version: 7 | 8 | 9 | 10 = 8): void {
+function generate(version: 7 | 8 | 9 | 10 | 11 = 8): void {
   const output = join(directory, `v${String(version)}`);
   mkdirSync(output);
   referencePath = join(output, 'plan-reference.json');
@@ -130,7 +130,7 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-for (const version of [7, 8, 9, 10] as const) {
+for (const version of [7, 8, 9, 10, 11] as const) {
   test(`validates real Navigator v${String(version)} output deterministically`, async () => {
     if (version !== 8) generate(version);
     const argv = ['validate-progress-receipt', receiptPath, referencePath, tasksPath];
@@ -184,7 +184,7 @@ for (const version of [6, 7] as const) {
     await refuse('schema pairing');
   });
 }
-test.each([8, 9])('refuses schema 1 with reference v%s', async (version) => {
+test.each([8, 9, 10, 11])('refuses schema 1 with reference v%s', async (version) => {
   generate(7);
   reference['planDocumentVersion'] = version;
   save(true);
@@ -377,8 +377,8 @@ for (const location of ['receipt', 'receipt planRef', 'entry', 'measures', 'evid
     await refuse('extra');
   });
 }
-test('refuses plan document v11', async () => {
-  reference['planDocumentVersion'] = 11;
+test('refuses plan document v12', async () => {
+  reference['planDocumentVersion'] = 12;
   save(true);
   await refuse('planDocumentVersion');
 });

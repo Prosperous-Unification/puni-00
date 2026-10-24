@@ -957,6 +957,11 @@ describe('after activation', () => {
         [theirs, ownStep],
       ],
       [
+        'incoming_step_row',
+        "INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES (?, ?, 'tokens', 1, 2, 3)",
+        [theirs, ownStep],
+      ],
+      [
         'incoming_parent',
         "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-in', ?, ?, 9, 'In')",
         [foreign, mine],
@@ -978,6 +983,7 @@ describe('after activation', () => {
       }
       expect(snapshot()).toEqual(before);
       h.sqlite.run('DELETE FROM estimate WHERE step_id = ?', [ownStep]);
+      h.sqlite.run('DELETE FROM measure_estimate WHERE step_id = ?', [ownStep]);
       h.sqlite.run("DELETE FROM work_item WHERE id = 'w-in'");
       h.sqlite.run("DELETE FROM dependency WHERE id = 'd-in'");
     }
