@@ -81,6 +81,13 @@
       "@wbs/runtime-portable/testing": ["./libs/wbs/adapters/runtime-portable/src/testing.ts"],
       "@wbs/runtime-portable": ["./libs/wbs/adapters/runtime-portable/src/index.ts"],
       "@wbs/store-sqlite": ["./libs/wbs/adapters/store-sqlite/src/index.ts"],
+      "@wbs/store-sqlite/db": ["./libs/wbs/adapters/store-sqlite/src/db.ts"],
+      "@wbs/store-sqlite/backup": ["./libs/wbs/adapters/store-sqlite/src/backup.ts"],
+      "@wbs/store-sqlite/migration-set": ["./libs/wbs/adapters/store-sqlite/src/migration-set.ts"],
+      "@wbs/store-sqlite/cross-project-dependency-activation": [
+        "./libs/wbs/adapters/store-sqlite/src/cross-project-dependency-activation.ts"
+      ],
+      "@wbs/store-sqlite/migrate": ["./libs/wbs/adapters/store-sqlite/src/migrate.ts"],
       "@wbs/store-sqlite/*": ["./libs/wbs/adapters/store-sqlite/src/*"],
       "@wbs/store-memory": ["./libs/wbs/adapters/store-memory/src/index.ts"],
       "@wbs/store-memory/*": ["./libs/wbs/adapters/store-memory/src/*"],

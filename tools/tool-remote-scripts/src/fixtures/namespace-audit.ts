@@ -170,8 +170,23 @@ export async function createNamespaceFixture(
         .map((path) => (path.startsWith('/') ? namespace + path : path))
         .join(' '),
     );
+    if (process.getuid === undefined)
+      throw new Error('native namespace fixture requires Linux UID observation');
+    const credentials =
+      fault === 'unreadable-hardlink' && process.getuid() === 0
+        ? ['/usr/bin/setpriv', '--bounding-set=-dac_override,-dac_read_search']
+        : [];
     const child = Bun.spawn(
-      ['/usr/bin/busybox', 'sh', '-c', emitted, '--', nonce, ...argumentsForProgram],
+      [
+        ...credentials,
+        '/usr/bin/busybox',
+        'sh',
+        '-c',
+        emitted,
+        '--',
+        nonce,
+        ...argumentsForProgram,
+      ],
       { stdout: 'pipe', stderr: 'pipe' },
     );
     const [stdout, stderr, code] = await Promise.all([

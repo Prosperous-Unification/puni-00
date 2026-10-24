@@ -75,6 +75,14 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
 // @tools/fleet-ssh-transport to `compute/`,
 // @tools/test-scratch to tests and @twilight-burokrat/judge to cli.ts, `authority/` and tests,
 // and refuse a sibling alias and a relative path into Burokrat.
+// Source-bundled SQLite activation has exact importer/leaf ESLint exceptions.
+// This project-pair oracle retains the actual static product edges; the effective lint tests
+// refuse every sibling importer, barrel, relative path and extra leaf.
+const ALLOWED_ACTIVATION_EDGES = [
+  ['tool-remote-scripts', 'wbs-store-sqlite'],
+  ['tool-remote-scripts', 'wbs-contracts'],
+] as const;
+
 const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-fleet'],
   ['twilight-dash', 'tool-test-clock-reads'],
@@ -473,6 +481,7 @@ describe('productConstraints', () => {
         if (
           [
             ...ALLOWED_DASH_EDGES,
+            ...ALLOWED_ACTIVATION_EDGES,
             ...ALLOWED_BUROKRAT_EDGES,
             ...ALLOWED_NAVIGATOR_RECORD_EDGES,
           ].some(([source, reached]) => project.name === source && target.name === reached)
@@ -505,4 +514,65 @@ describe('productConstraints', () => {
     // even with `@wbs/domain` itself allowed (2026-09-15).
     expect(violations).toEqual([]);
   });
+});
+
+describe('source-bundled activation graph', () => {
+  it('retains real static source dependencies, leaf ownership and product/runtime tags', async () => {
+    const graph = await nxProjectGraph();
+    const imports = [
+      'db',
+      'backup',
+      'migration-set',
+      'cross-project-dependency-activation',
+      'migrate',
+    ];
+    const configuration: unknown = JSON.parse(
+      await readFile(new URL('tsconfig.base.json', WORKSPACE), 'utf8'),
+    );
+    if (
+      typeof configuration !== 'object' ||
+      configuration === null ||
+      !('compilerOptions' in configuration)
+    )
+      throw new Error('TypeScript options unavailable');
+    const options = configuration.compilerOptions;
+    if (typeof options !== 'object' || options === null || !('paths' in options))
+      throw new Error('TypeScript paths unavailable');
+    const paths = options.paths;
+    if (typeof paths !== 'object' || paths === null) throw new Error('TypeScript paths malformed');
+    for (const leaf of imports)
+      expect(Reflect.get(paths, `@wbs/store-sqlite/${leaf}`)).toEqual([
+        `./libs/wbs/adapters/store-sqlite/src/${leaf}.ts`,
+      ]);
+    expect(Reflect.get(paths, '@wbs/contracts/dependency-runtime')).toEqual([
+      './libs/wbs/domain/contracts/src/dependency-runtime.ts',
+    ]);
+    expect(graph.nodes['wbs-store-sqlite'].data.root).toBe('libs/wbs/adapters/store-sqlite');
+    expect([...(graph.nodes['wbs-store-sqlite'].data.tags ?? [])].sort()).toEqual([
+      'product:wbs',
+      'ring:adapter',
+      'runtime:bun',
+      'scope:shared',
+    ]);
+    expect(graph.nodes['wbs-contracts'].data.root).toBe('libs/wbs/domain/contracts');
+    expect([...(graph.nodes['wbs-contracts'].data.tags ?? [])].sort()).toEqual([
+      'product:wbs',
+      'ring:domain',
+      'runtime:isomorphic',
+      'scope:shared',
+      'type:contracts',
+    ]);
+    for (const target of ['wbs-store-sqlite', 'wbs-contracts'])
+      expect(
+        graph.dependencies['tool-remote-scripts'].some(
+          (edge) => edge.type === 'static' && edge.target === target,
+        ),
+      ).toBe(true);
+    expect(graph.nodes['tool-remote-scripts'].data.targets?.['build']?.inputs).toContain(
+      '^production',
+    );
+    expect(graph.nodes['tool-remote-scripts'].data.targets?.['test']?.inputs).toContain(
+      '^production',
+    );
+  }, 30000);
 });

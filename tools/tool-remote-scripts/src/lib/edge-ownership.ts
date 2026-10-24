@@ -3,6 +3,10 @@ import { closeSync, constants, fstatSync, fsyncSync, readFileSync, writeFileSync
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
+import type {
+  ActivationRecordByLabel,
+  ActivationRecordLabel,
+} from './dependency-activation-records';
 import { openDirectoryFile, renameDirectoryFile } from './directory-file';
 import type { RunDocker } from './docker-deadline';
 import type { DockerExec } from './docker-exec';
@@ -549,6 +553,69 @@ export async function retainSolverRecord(
   await assertDependencyOwner(owner, layouts.prod);
   await assertDependencyOwner(owner, layouts.dev);
   return { path, contents };
+}
+
+/** Reads attribution from the exact pending publication while retaining original live lock authority. */
+export async function inspectDependencyOwnerPublication(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+): Promise<DependencyOwnerPublication> {
+  await assertDependencyOwner(owner, layouts.prod);
+  await assertDependencyOwner(owner, layouts.dev);
+  const ownership = owners.get(owner);
+  if (ownership === undefined) throw new Error('dependency owner is not live');
+  const pending = await captureEdgeRecord(ownership.directory, 'edge-owner.pending', 65536);
+  const publication = decodeDependencyOwnerPublication(JSON.parse(pending.contents));
+  await assertDependencyOwner(owner, layouts.prod);
+  await assertDependencyOwner(owner, layouts.dev);
+  return publication;
+}
+
+/** Retains fixed-label activation evidence exclusively; publication never creates a live activation grant. */
+export async function retainActivationRecord<Label extends ActivationRecordLabel>(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+  label: Label,
+  record: ActivationRecordByLabel[Label],
+): Promise<{ path: string; contents: string }> {
+  await assertDependencyOwner(owner, layouts.prod);
+  await assertDependencyOwner(owner, layouts.dev);
+  const ownership = owners.get(owner);
+  if (ownership === undefined) throw new Error('dependency owner is not live');
+  const statePath = ownership.directory;
+  const name = `edge-owner-${String(++ownership.sequence).padStart(6, '0')}-activation-${label}.json`;
+  const path = join(ownership.directory, name);
+  const contents = `${JSON.stringify({ owner: ownership.publication, record })}\n`;
+  const directory = await open(
+    ownership.directory,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  try {
+    const parent = await directory.stat({ bigint: true });
+    async function assertDirectory() {
+      const named = await lstat(statePath, { bigint: true });
+      if (
+        !parent.isDirectory() ||
+        !named.isDirectory() ||
+        parent.dev !== named.dev ||
+        parent.ino !== named.ino ||
+        (await realpath(statePath)) !== statePath
+      )
+        throw new Error('activation owner evidence parent changed');
+    }
+    await assertDirectory();
+    await publishRecord(`/proc/self/fd/${String(directory.fd)}/${name}`, contents);
+    await assertDirectory();
+    const published = await captureEdgeRecord(statePath, name, 65536);
+    if (published.contents !== contents)
+      throw new Error('activation owner evidence readback differs');
+    await assertDependencyOwner(owner, layouts.prod);
+    await assertDependencyOwner(owner, layouts.dev);
+    await assertDirectory();
+    return { path, contents };
+  } finally {
+    await directory.close();
+  }
 }
 
 /** Binds an effective participant namespace to the directory actually holding this live owner's markers and locks. */

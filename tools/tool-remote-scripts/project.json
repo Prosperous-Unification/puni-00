@@ -13,7 +13,8 @@
           "bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js",
           "bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js",
           "bun build tools/tool-remote-scripts/src/activate-dependencies.ts --target=bun --outfile dist/tool-remote-scripts/activate-dependencies.js",
-          "bun build tools/tool-remote-scripts/src/initialize-edge-policy.ts --target=bun --outfile dist/tool-remote-scripts/initialize-edge-policy.js"
+          "bun build tools/tool-remote-scripts/src/initialize-edge-policy.ts --target=bun --outfile dist/tool-remote-scripts/initialize-edge-policy.js",
+          "bun build tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts --target=bun --outfile dist/tool-remote-scripts/dependency-complete-activation.js"
         ],
         "parallel": false
       },

@@ -310,5 +310,62 @@ export default [
   // override; the blocks that precede it here declare rules no generic block re-declares.
   ...productPolicies,
 
+  // Proof: missing anchors, broad importer globs, barrel/migrate additions, weakened options and missing needed aliases each failed real lint boundary oracles.
+  // These exact source-bundled activation leaves are deliberate product/buildable exceptions.
+  // Every other edge keeps the complete Nx options and constraints. There is no forward SQL in production storage.
+  ...[
+    [
+      'lib/dependency-activation-storage.ts',
+      [
+        '@wbs/contracts/dependency-runtime',
+        '@wbs/store-sqlite/db',
+        '@wbs/store-sqlite/backup',
+        '@wbs/store-sqlite/migration-set',
+        '@wbs/store-sqlite/cross-project-dependency-activation',
+      ],
+    ],
+    ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
+    ['lib/dependency-activation-failure.ts', ['@wbs/contracts/dependency-runtime']],
+    ['lib/dependency-activation-records.ts', ['@wbs/contracts/dependency-runtime']],
+    [
+      'lib/complete-dependency-exclusion.test.ts',
+      ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+    ],
+    ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
+  ].map(([file, aliases]) => ({
+    files: [`tools/tool-remote-scripts/src/${file}`],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          ...nxBoundaryOptions,
+          allow: [
+            '^@wbs/contracts/solver/supervisor-protocol$',
+            '^@wbs/domain$',
+            ...aliases.map((alias) => `^${alias}$`),
+          ],
+        },
+      ],
+    },
+  })),
+  {
+    // Proof: removing this exact type-only alias restriction admitted a runtime receipt parser import; type-only boundary negative failed.
+    files: ['tools/tool-remote-scripts/src/lib/dependency-activation-records.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@wbs/contracts/dependency-runtime',
+              allowTypeImports: true,
+              message: 'Activation records import receipt types only.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   prettier,
 ];

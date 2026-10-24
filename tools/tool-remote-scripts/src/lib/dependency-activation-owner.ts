@@ -1,5 +1,9 @@
 import { fenceBackendsUnderOwner, inspectBackendFenceUnderOwner } from './backend-exclusion';
-import { fenceDependencyIngress, inspectDependencyIngress } from './dependency-ingress';
+import {
+  type DependencyServingSelection,
+  fenceDependencyIngress,
+  inspectDependencyIngress,
+} from './dependency-ingress';
 import type { RunDocker } from './docker-deadline';
 import { runDockerBefore } from './docker-deadline';
 import { type DockerExec, runDockerExec } from './docker-exec';
@@ -200,7 +204,8 @@ export async function excludeSourceAndManagedDependencies<T>(
   );
 }
 
-async function excludeSourceAndManagedUnderOwner<T>(
+/** @internal */
+export async function excludeSourceAndManagedUnderOwner<T>(
   owner: DependencyOwner,
   plan: DependencyOwnerPlan,
   layouts: SolverLayouts,
@@ -215,9 +220,10 @@ async function excludeSourceAndManagedUnderOwner<T>(
   ) => Promise<T>,
   namespaceProof: typeof verifyContainerNamespace,
   execDocker: DockerExec,
+  expectedServing?: DependencyServingSelection,
 ): Promise<T> {
   const { prod, dev } = layouts;
-  await fenceDependencyIngress(owner, [prod, dev], runDocker, deadline);
+  await fenceDependencyIngress(owner, [prod, dev], runDocker, deadline, expectedServing);
   const value = await withSolverDrainUnderOwner(
     owner,
     { prod, dev },

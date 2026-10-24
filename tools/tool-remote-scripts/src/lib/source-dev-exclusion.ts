@@ -461,3 +461,19 @@ export async function assertParkedSourceDev(
   assertSourceDevExcluded(observed);
   await assertScope(scope);
 }
+
+/** Exact bytes of the original scoped source fences; retained JSON cannot reconstruct their live token. */
+export async function inspectSourceDevFenceHash(
+  owner: DependencyOwner,
+  token: SourceDevExclusion,
+): Promise<string> {
+  const scope = exclusions.get(token);
+  if (scope?.owner !== owner) throw new Error('source exclusion is not live');
+  await inspectSourceDevExclusion(owner, token);
+  for (const record of scope.records)
+    if ((await readRecord(record.path)) !== record.contents)
+      throw new Error('source fence bytes changed');
+  return createHash('sha256')
+    .update(JSON.stringify(scope.records.map((record) => record.contents)))
+    .digest('hex');
+}

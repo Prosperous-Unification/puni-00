@@ -16,6 +16,8 @@ import {
 } from './edge-ownership';
 import { EDGE_CONTAINER, type EnvLayout } from './env';
 import { readFields, readInteger, readRecord, readString } from './managed-cohort';
+import { routedColorFromAdminConfig } from './site';
+import type { Color } from './state';
 
 const BODY = 'WBS dependency maintenance';
 interface EdgeIdentity {
@@ -243,6 +245,77 @@ async function assertFiles(files: OwnedSiteFile[], directory: string): Promise<v
   if (!isDeepStrictEqual(await snapshotDirectory(directory), files))
     throw new Error('dependency ingress persistent configuration changed');
 }
+/** @internal */
+export interface DependencyServingSelection {
+  readonly backend: Color;
+  readonly gateway: Color;
+}
+/** Refuses dynamic, foreign and extra role upstreams in the bounded installed activation profile. */
+export function assertDependencyServingSelection(
+  configuration: unknown,
+  layouts: readonly EnvLayout[],
+  selection: DependencyServingSelection,
+): void {
+  const routes = selectRoutes(
+    configuration,
+    layouts.map((layout) => layout.siteAddress),
+  );
+  for (const layout of layouts) {
+    const route = routes.selected.get(layout.siteAddress);
+    if (route === undefined) throw new Error('activation serving route missing');
+    const dials: string[] = [];
+    function visit(value: unknown): void {
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      if (value === null || typeof value !== 'object') return;
+      const fields = readFields(value);
+      if (fields['handler'] === 'reverse_proxy') {
+        const upstreams = fields['upstreams'];
+        if (
+          fields['dynamic_upstreams'] !== undefined ||
+          !Array.isArray(upstreams) ||
+          upstreams.length !== 1
+        )
+          throw new Error('activation serving upstream shape differs');
+        const upstream = readFields(upstreams[0]);
+        if (Object.keys(upstream).join() !== 'dial')
+          throw new Error('activation serving upstream differs');
+        dials.push(readString(upstream['dial']));
+      }
+      for (const child of Object.values(fields)) visit(child);
+    }
+    visit(route);
+    if (dials.length === 0) throw new Error('activation serving upstreams absent');
+    if (layout.env === 'prod') {
+      const allowed = [
+        `be-01-${selection.backend}:3100`,
+        `gw-01-${selection.gateway}:3200`,
+        'fe-01-blue:80',
+        'fe-01-green:80',
+      ];
+      if (
+        dials.some((dial) => !allowed.includes(dial)) ||
+        !dials.includes(allowed[0]) ||
+        !dials.includes(allowed[1]) ||
+        routedColorFromAdminConfig('be', layout.siteAddress, JSON.stringify(configuration)) !==
+          selection.backend ||
+        routedColorFromAdminConfig('gw', layout.siteAddress, JSON.stringify(configuration)) !==
+          selection.gateway
+      )
+        throw new Error('activation selected production routes differ');
+    } else if (
+      dials.some(
+        (dial) => !['3100', '3200', '3300', '4200'].some((port) => dial === `wbs-dev-src:${port}`),
+      ) ||
+      !dials.includes('wbs-dev-src:3100') ||
+      !dials.includes('wbs-dev-src:3200')
+    )
+      throw new Error('activation selected source routes differ');
+  }
+}
+
 /**
  * Persist only selected whole-site WBS maintenance and reload the captured full edge ID.
  * Private original/config evidence and owner intent precede all publication. Full adapted/live
@@ -254,6 +327,7 @@ export async function fenceDependencyIngress(
   layouts: readonly EnvLayout[],
   runDocker: RunDocker,
   deadline: number,
+  expectedServing?: DependencyServingSelection,
 ): Promise<void> {
   const layout = layouts.at(0);
   if (
@@ -290,6 +364,8 @@ export async function fenceDependencyIngress(
   // Proof: omitted disk/live equality; live-drift negative changed the selected file before refusing later (exit 1).
   if (!isDeepStrictEqual(adapted, live))
     throw new Error('dependency ingress persistent/live configuration differs before mutation');
+  if (expectedServing !== undefined)
+    assertDependencyServingSelection(live, layouts, expectedServing);
   const hosts = layouts.map((selected) => selected.siteAddress);
   const original = selectRoutes(live, hosts);
   // Proof: restoring raw adapted/live configuration leaked the expanded credential sentinel; combined composition failed.
@@ -380,4 +456,14 @@ export async function inspectDependencyIngress(
     !isDeepStrictEqual(parseConfiguration(await admin(call, receipt.edge.id)), receipt.expected)
   )
     throw new Error('dependency ingress fresh configuration differs');
+}
+
+/** Exact original live ingress receipt bytes after its retained publication check. */
+export async function inspectDependencyIngressHash(owner: DependencyOwner): Promise<string> {
+  const receipt = receipts.get(owner);
+  if (receipt === undefined) throw new Error('dependency ingress receipt not live');
+  for (const layout of receipt.layouts) await assertDependencyOwner(owner, layout);
+  if ((await readRecord(receipt.publication)) !== receipt.contents)
+    throw new Error('dependency ingress receipt changed');
+  return createHash('sha256').update(receipt.contents).digest('hex');
 }

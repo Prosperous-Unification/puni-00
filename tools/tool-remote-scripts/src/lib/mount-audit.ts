@@ -185,7 +185,7 @@ function familyIdentity(family: readonly FamilyFile[]): string {
  * ACK deadline. Init reaps forced descendants; uncertainty refuses with exact
  * container/session context. No writer is stopped or restarted here.
  */
-export async function verifyContainerNamespace(
+export function verifyContainerNamespace(
   container: unknown,
   destinations: readonly string[],
   databaseHostPath: string,
@@ -194,6 +194,57 @@ export async function verifyContainerNamespace(
   databasePath: string | null = null,
   bounds: AuditBounds = BOUNDS,
   execDocker: DockerExec = runDockerExec,
+): Promise<void> {
+  return verifyContainerAccessExclusion(
+    'writers',
+    container,
+    destinations,
+    databaseHostPath,
+    image,
+    runDocker,
+    databasePath,
+    bounds,
+    execDocker,
+  );
+}
+
+/**
+ * Excludes unmanaged readers as well as writers from the actual SQLite family.
+ * Scans readonly roots without pruning and requires a native entry for every selected root.
+ * Uses the same initialized namespace, bounded session, acknowledgement and cleanup protocol.
+ */
+export function verifyContainerReaderExclusion(
+  container: unknown,
+  destinations: readonly string[],
+  databaseHostPath: string,
+  image: string,
+  runDocker: RunDocker,
+  bounds: AuditBounds = BOUNDS,
+  execDocker: DockerExec = runDockerExec,
+): Promise<void> {
+  return verifyContainerAccessExclusion(
+    'readers-and-writers',
+    container,
+    destinations,
+    databaseHostPath,
+    image,
+    runDocker,
+    null,
+    bounds,
+    execDocker,
+  );
+}
+
+async function verifyContainerAccessExclusion(
+  access: 'writers' | 'readers-and-writers',
+  container: unknown,
+  destinations: readonly string[],
+  databaseHostPath: string,
+  image: string,
+  runDocker: RunDocker,
+  databasePath: string | null,
+  bounds: AuditBounds,
+  execDocker: DockerExec,
 ): Promise<void> {
   const subject = readNamespaceIdentity(container);
   if (!subject.running) {
@@ -271,6 +322,9 @@ export async function verifyContainerNamespace(
     };
     const members: string[] = [];
     const seen = new Set<string>();
+    const selectedRoots =
+      access === 'readers-and-writers' && mode === 'census' ? args.slice(1) : [];
+    const seenRoots = new Set<string>();
     let failure: unknown = null;
     const arities: Readonly<Record<string, number>> = {
       SESSION: 5,
@@ -347,6 +401,7 @@ export async function verifyContainerNamespace(
           path.split('/').includes('..')
         )
           throw new Error('exec entry receipt is malformed');
+        if (selectedRoots.includes(path)) seenRoots.add(path);
         const parsed = /^([0-9]+):([1-9][0-9]*):([a-f0-9]+)$/.exec(metadata);
         const device = parsed?.at(1);
         const inode = parsed?.at(2);
@@ -393,7 +448,8 @@ export async function verifyContainerNamespace(
               throw new Error('managed actual mounted SQLite family differs');
             seen.add(suffix);
           }
-        } else if (mount.writable) {
+          // Proof: restoring writable-only classification admitted an actual RO SQLite hardlink; readonly-reader negative failed.
+        } else if (access === 'readers-and-writers' || mount.writable) {
           // Proof: omitting this refusal admitted the symlink alias negative.
           if (kind !== 0x8000n && kind !== 0x4000n)
             throw new Error('actual namespace cannot exclude symbolic/special aliases');
@@ -427,6 +483,9 @@ export async function verifyContainerNamespace(
           (!seenDirectory || family.some((file) => !seen.has(file.suffix)))
         )
           throw new Error('managed actual mounted SQLite family is incomplete');
+        // Proof: omitting root coverage admitted a valid-count downgraded writer census; selected-root negative failed.
+        if (selectedRoots.some((root) => !seenRoots.has(root)))
+          throw new Error('strong namespace census omitted a selected root');
         state.done = true;
         return true;
       } else if (frame === 'REAPED') {
@@ -512,7 +571,8 @@ export async function verifyContainerNamespace(
       ? mounts
           .filter(
             (mount) =>
-              mount.writable &&
+              // Proof: writable-only roots omitted the real RO hardlink; readonly-reader negative failed.
+              (access === 'readers-and-writers' || mount.writable) &&
               (destinations.some(
                 (path) => mount.point === path || mount.point.startsWith(`${path}/`),
               ) ||
@@ -520,8 +580,9 @@ export async function verifyContainerNamespace(
           )
           .map((mount) => mount.point)
       : [posix.dirname(databasePath)];
+  // Proof: allowing ordinary RO pruning changed the actual strong census request; initialized-namespace protocol assertion failed.
   const readonly =
-    databasePath === null
+    databasePath === null && access === 'writers'
       ? mounts
           .filter(
             (mount) =>

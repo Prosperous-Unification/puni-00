@@ -18,9 +18,18 @@ import {
   SOLVER_SUPERVISOR_UNIT,
 } from '../lib/solver-supervisor-install-contract';
 import { type SourceDevExclusion, withSourceDevExcluded } from '../lib/source-dev-exclusion';
-import { decodeSourceStartupManifest } from '../lib/source-startup-manifest';
+import {
+  createSourceStartupManifest,
+  decodeSourceStartupManifest,
+} from '../lib/source-startup-manifest';
 import { sourceFixture } from './source-dev';
-import { artifact, roots } from './source-startup';
+import {
+  artifact,
+  configuration as startupConfiguration,
+  git,
+  modes,
+  roots,
+} from './source-startup';
 const controls = [
   'NODE_ENV=development',
   'NX_DAEMON=false',
@@ -80,8 +89,40 @@ export async function sourceDatabaseFixture(
   inherited: string[] = [],
   prodDirectory = 'data',
   nested = false,
+  migrationsDirectory?: string,
 ) {
   const prepared = await artifact();
+  if (migrationsDirectory !== undefined) {
+    await cp(migrationsDirectory, join(prepared.root, 'apps/wbs/be-01/drizzle'), {
+      recursive: true,
+    });
+    await modes(prepared.root);
+    await git(prepared.root, 'add', '.');
+    await git(
+      prepared.root,
+      '-c',
+      'user.name=Fixture',
+      '-c',
+      'user.email=fixture@example.invalid',
+      'commit',
+      '-qm',
+      'pin actual migration artifact',
+    );
+    prepared.sourceSha = await git(prepared.root, 'rev-parse', 'HEAD');
+    await modes(prepared.root);
+    const generated = await createSourceStartupManifest(
+      prepared.root,
+      prepared.sourceSha,
+      startupConfiguration,
+    );
+    prepared.contents = generated.contents;
+    prepared.sha256 = generated.sha256;
+    prepared.pins = {
+      ...prepared.pins,
+      sourceSha: prepared.sourceSha,
+      manifestSha256: generated.sha256,
+    };
+  }
   const root = await mkdtemp(join(tmpdir(), 'source-database-'));
   roots.push(root);
   const layouts = {
@@ -237,7 +278,10 @@ export async function sourceDatabaseFixture(
       {
         callerName: 'be-01-blue',
         callerImage: backend.Config.Image,
-        solverImage: 'registry/solver@sha256:' + 'f'.repeat(64),
+        solverImage:
+          migrationsDirectory === undefined
+            ? 'registry/solver@sha256:' + 'f'.repeat(64)
+            : backend.Config.Image,
       },
     ],
   });
@@ -275,7 +319,10 @@ export async function sourceDatabaseFixture(
     observeProcess: () => Promise.resolve({ pid: 123, startTime: '12345', cgroup: GROUP }),
     observeCgroup: () => Promise.resolve({ device: '1', inode: '2', populated: !stopped }),
     runDocker: (args) => {
-      if (args[0] === 'image') return Promise.resolve('sha256:' + 'f'.repeat(64));
+      if (args[0] === 'image')
+        return Promise.resolve(
+          migrationsDirectory === undefined ? 'sha256:' + 'f'.repeat(64) : backend.Image,
+        );
       if (args[0] === 'ps') return Promise.resolve('');
       throw new Error('unexpected solver command');
     },
@@ -324,6 +371,8 @@ export async function sourceDatabaseFixture(
   }
   return {
     docker,
+    ports,
+    solverPins,
     root,
     layouts,
     pins,

@@ -74,7 +74,10 @@ function decodeRestoringEdgePolicy(value: unknown, edgeState: string): Restoring
     policy['edgeState'] !== edgeState ||
     !/^[a-f0-9]{64}$/.test(ownerPublicationSha256) ||
     !/^[a-f0-9]{64}$/.test(sha256) ||
-    !/^edge-owner-[0-9]{6,12}-solver-restore-intent\.json$/.test(name)
+    (!/^edge-owner-[0-9]{6,12}-solver-restore-intent\.json$/.test(name) &&
+      !/^edge-owner-[0-9]{6,12}-activation-(participants|capture|backup|intent|committed|fenced-complete)\.json$/.test(
+        name,
+      ))
   )
     throw new Error('invalid restoring edge policy');
   return {
@@ -150,7 +153,10 @@ export async function captureEdgeRecord(
   if (
     name !== 'edge-policy.json' &&
     name !== 'edge-owner.pending' &&
-    !/^edge-owner-[0-9]{6,12}-solver-restore-intent\.json$/.test(name)
+    !/^edge-owner-[0-9]{6,12}-solver-restore-intent\.json$/.test(name) &&
+    !/^edge-owner-[0-9]{6,12}-activation-(participants|capture|backup|intent|committed|fenced-complete)\.json$/.test(
+      name,
+    )
   )
     throw new Error('unsupported edge record path');
   await assertPolicyDirectory(edgeState);

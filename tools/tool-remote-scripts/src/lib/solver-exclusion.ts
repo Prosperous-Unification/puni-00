@@ -47,6 +47,7 @@ interface SolverScope {
   layout: EnvLayout;
   snapshots: readonly SolverSnapshot[];
   inspect: () => Promise<void>;
+  record: { path: string; contents: string };
 }
 const exclusions = new WeakMap<SolverExclusion, SolverScope>();
 
@@ -272,7 +273,7 @@ export async function withSolverDrainUnderOwner<T>(
     }
     await inspect();
     const token: SolverExclusion = Object.freeze({ [exclusionIdentity]: true as const });
-    exclusions.set(token, { deadline, owner, layout: layouts.prod, snapshots, inspect });
+    exclusions.set(token, { deadline, owner, layout: layouts.prod, snapshots, inspect, record });
     try {
       return await action(token);
     } finally {
@@ -339,4 +340,15 @@ export async function inspectExcludedSolverMembers(
   if (exclusions.get(token) !== scope)
     throw new Error('solver exclusion is not live after inspection');
   return members;
+}
+
+/** Exact original drained owner envelope, checked through the still-live solver scope. */
+export async function inspectSolverFenceHash(
+  owner: DependencyOwner,
+  token: SolverExclusion,
+): Promise<string> {
+  const scope = exclusions.get(token);
+  if (scope?.owner !== owner) throw new Error('solver exclusion is not live');
+  await scope.inspect();
+  return createHash('sha256').update(scope.record.contents).digest('hex');
 }
