@@ -1,4 +1,5 @@
 import type { ParticipantSnapshot } from './dependency-participant-transition';
+import type { Color } from './deploy-contract';
 import { SOLVER_SUPERVISOR_CONTAINER_DIRECTORY, SOLVER_SUPERVISOR_HOST_DIRECTORY } from './docker';
 import { orderMounts } from './docker-inventory';
 import { assertSame, readFields } from './managed-cohort';
@@ -8,7 +9,7 @@ export interface ProductImageBinding {
   readonly reference: string;
   readonly imageId: string;
   readonly sourceSha: string;
-  readonly backendColor: 'blue' | 'green';
+  readonly backendColor: Color;
   readonly dataDirectory: string;
 }
 /** Exact immutable image and pinned-builder provenance contract. It does not infer loaded source identity from a container label or health response. */

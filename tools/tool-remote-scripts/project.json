@@ -72,6 +72,7 @@
         "{workspaceRoot}/libs/wbs/domain/validation/src/*.ts",
         "!{workspaceRoot}/libs/wbs/domain/validation/src/*.test.ts",
         "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
+        "{workspaceRoot}/deploy/compose/base.yml",
         "{workspaceRoot}/docs/runbook-dev-deploy.md",
         "{workspaceRoot}/node_modules/nx/dist/src/**/*"
       ],
