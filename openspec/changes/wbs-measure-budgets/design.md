@@ -498,7 +498,9 @@ Decisions from the review fixes (PR A, 2026-10-24):
   that would create a definition (D65) requires the same role and is refused `403 forbidden`
   whole, writing nothing; matching held definitions needs no more than the import itself.
   Legacy access carries no role, and every legacy caller already writes the whole directory, so
-  it keeps writing definitions. A definition changes what every project's figures mean, an
+  it keeps writing definitions. Machine principals resolve to the member role (A23), so a
+  machine credential can define nothing: `403 forbidden` on all three commands and on a
+  defining import. A definition changes what every project's figures mean, an
   organization act like ranking projects.
 - **D71 Always version 11** (placeholder). Whether the export writes version 11 for every plan,
   retiring D63's conditional, follows once Navigator, Burokrat and Dash admit it (task 4.6).

@@ -44,7 +44,7 @@ and the decisions (D1–D72) in its
 - Importing version 11 matches each definition by key and never remaps: a held definition of
   another shape refuses the import, writing nothing, and a missing one is defined, which only an
   admin's import may do (design D70); an unpriced money fact or trio is refused
-  `400 invalid_body` with detail `rate_card_required`, as the commands refuse it; older
+  `400 invalid_body` with the commands' refusal code `rate_card_required` as its detail; older
   versions import onto the seeded definitions. The rule and its refusal are
   [design D65](../../openspec/changes/wbs-measure-budgets/design.md).
 - Under legacy access (before activation) the organization an import matches and defines in
