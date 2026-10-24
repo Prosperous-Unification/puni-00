@@ -28,6 +28,7 @@ const request = {
   method: 'POST',
   url: new URL('https://app.example/steps'),
   headers: new Headers(),
+  signal: new AbortController().signal,
 };
 
 test('publishes a dependent recovery only after its unit of work commits', async () => {

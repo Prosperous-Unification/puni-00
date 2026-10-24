@@ -92,6 +92,12 @@
       "rationale": "work-item.resource.ts decodes journal entries into the inverse store writes undo applies (WorkItemPatch, Reparented, FrozenNumber and the stored-value keys); its vocabulary is the stores', so it is not domain code"
     },
     {
+      "path": "libs/wbs/application/core/src/service/delivery-gate.ts",
+      "kind": "support",
+      "disposition": "application support; constructed in the be-01 composition root (apps/wbs/be-01/src/app.ts), limits overridden by apps/wbs/be-01/src/testing/organization-harness.ts, and injected into libs/wbs/application/core/src/http/delivery.routes.ts",
+      "rationale": "Shares the anonymous delivery provider quota: per-URL reading cache, per-organization token bucket and process-wide in-flight cap over the injected clock and timers; process-local state, no store"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
       "kind": "support",
       "disposition": "shared by the work item, project and step resources; stays in the core's service/ because it reads stores (dependency.ts moved to @wbs/domain without it)",

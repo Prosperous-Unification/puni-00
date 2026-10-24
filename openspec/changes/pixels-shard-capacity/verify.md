@@ -1,5 +1,7 @@
 # Verification
 
+The historical 35-minute budget and its completed proofs below are superseded by the integrated [browser-validation-budget](../separate-browser-setup-budget/specs/browser-validation-budget/spec.md). Eight-way partition and dedicated shard-four routing remain active; the later budget's amendment records their combined limits.
+
 ## Scope and hosted evidence
 
 Base: `5328162f7`. Reviewed 2026-10-23 using the `openspec-verify-change` workflow.

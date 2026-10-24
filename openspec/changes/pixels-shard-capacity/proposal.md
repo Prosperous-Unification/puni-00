@@ -4,7 +4,7 @@ Hosted CI run 39898917880 canceled browser shard 1/4 at its 25-minute job limit 
 
 ## What Changes
 
-Run the same browser suite across eight file shards, retaining the stable required `pixels` verdict. Raise the finite job timeout from 25 to 35 minutes and run the existing dedicated cross-project browser target once on lightly loaded shard 4. Record measured partition sizes and hosted timings so the capacity choice can be reviewed.
+Run the same browser suite across eight file shards, retaining the stable required `pixels` verdict, and run the existing dedicated cross-project browser target once on lightly loaded shard 4. The original 35-minute budget was superseded by the integrated path allowances in [browser-validation-budget](../separate-browser-setup-budget/specs/browser-validation-budget/spec.md). Record measured partition sizes and hosted timings so the capacity choice can be reviewed.
 
 ## Non-Goals
 

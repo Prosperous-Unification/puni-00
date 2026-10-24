@@ -18,6 +18,7 @@ const input = {
     method: 'GET',
     url: new URL('https://example.com/plans/by-solution/linked'),
     headers: new Headers(),
+    signal: new AbortController().signal,
   },
 };
 

@@ -27,8 +27,12 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
   ['apps/website/be-01', 'website-be-01'],
   ['apps/website/fe-01', 'website-fe-01'],
+  // Proof: omitting both delivery projects failed the root/identity and product-axis
+  // inventory cases with these exact additional tuples (2026-10-23).
+  ['libs/shared/adapters/delivery-github', 'shared-delivery-github'],
   ['libs/shared/adapters/ui-core-01', 'shared-ui-core-01'],
   ['libs/shared/adapters/ui-saas-01', 'shared-ui-saas-01'],
+  ['libs/shared/domain/delivery', 'shared-delivery'],
   ['libs/shared/domain/failures', 'shared-failures'],
   ['libs/shared/domain/portability-format', 'shared-portability-format'],
   // Proof: omitting these committed candidates failed both the root/identity

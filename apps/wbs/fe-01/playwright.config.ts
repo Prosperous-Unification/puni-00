@@ -95,10 +95,11 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: isCi,
-  // Zero, deliberately. `.github/workflows/ci.yml` rules a retry out of the
-  // gate for a reason that applies here twice over: a layout check people
-  // re-run until it is green is a check that cannot fail wearing a different
-  // hat. A flake in this spec is a bug in this spec.
+  // Zero, deliberately. The `pixels_shard` job comment in
+  // `.github/workflows/ci.yml` rules a retry out of the gate for a reason that
+  // applies here twice over: a layout check people re-run until it is green is
+  // a check that cannot fail wearing a different hat. A flake in this spec is a
+  // bug in this spec.
   retries: 0,
   /**
    * How long one **case** may take, and 120s on CI against 60s here.

@@ -5,6 +5,8 @@ import { scratchSync } from '@tools/test-scratch';
 import { describe, expect, test } from 'bun:test';
 
 interface WorkflowStep {
+  'timeout-minutes'?: number;
+  'continue-on-error'?: boolean;
   id?: string;
   name?: string;
   if?: string;
@@ -15,13 +17,14 @@ interface WorkflowStep {
 }
 
 interface WorkflowJob {
+  'timeout-minutes'?: number;
+  'continue-on-error'?: boolean;
   if?: string;
   name?: string;
   needs?: string | string[];
   outputs?: Record<string, string>;
   steps?: WorkflowStep[];
   strategy?: { 'fail-fast'?: boolean; matrix?: { shard?: number[] } };
-  'timeout-minutes'?: number;
 }
 
 interface Workflow {
@@ -42,6 +45,53 @@ const workflowPath = join(
 const readWorkflow = (): Workflow => Bun.YAML.parse(readFileSync(workflowPath, 'utf8')) as Workflow;
 
 describe('the CI pixels gate', () => {
+  test('funds every selected browser phase and overhead on each shard', () => {
+    const shardJob = readWorkflow().jobs?.['pixels_shard'];
+    const steps = shardJob?.steps ?? [];
+    const requirePhase = (name: string): WorkflowStep => {
+      const matches = steps.filter((step) => step.name === name);
+      expect(matches, `${name} must occur exactly once`).toHaveLength(1);
+      const phase = matches[0];
+      expect(Number.isInteger(phase['timeout-minutes'])).toBe(true);
+      expect(phase['timeout-minutes']).toBeGreaterThan(0);
+      expect(phase['continue-on-error']).not.toBe(true);
+      return phase;
+    };
+    const setup = requirePhase('Install chromium');
+    const layout = requirePhase('Layout gate');
+    const organization = requirePhase('Activated organization context');
+    const crossProject = requirePhase('Cross-project dependency delivery');
+    const jobMinutes = shardJob?.['timeout-minutes'];
+    const timeoutOf = (phase: WorkflowStep): number => {
+      const minutes = phase['timeout-minutes'];
+      if (minutes === undefined) throw new Error(`${String(phase.name)} timeout is absent`);
+      return minutes;
+    };
+
+    expect(Number.isInteger(jobMinutes)).toBe(true);
+    expect(jobMinutes).toBeGreaterThan(0);
+    expect(shardJob?.['continue-on-error']).not.toBe(true);
+    expect(organization.if).toBe('${{ matrix.shard == 1 }}');
+    expect(crossProject.if).toBe('${{ matrix.shard == 4 }}');
+    if (jobMinutes === undefined) throw new Error('browser job timeout is absent');
+    for (const shard of shardJob?.strategy?.matrix?.shard ?? []) {
+      const selectedMinutes =
+        timeoutOf(setup) +
+        timeoutOf(layout) +
+        (shard === 1 ? timeoutOf(organization) : 0) +
+        (shard === 4 ? timeoutOf(crossProject) : 0);
+      expect(
+        jobMinutes,
+        `shard ${String(shard)} needs five minutes for setup and artifacts`,
+      ).toBeGreaterThanOrEqual(selectedMinutes + 5);
+    }
+    expect(jobMinutes).toBe(55);
+    expect(timeoutOf(setup)).toBe(15);
+    expect(timeoutOf(layout)).toBe(25);
+    expect(timeoutOf(organization)).toBe(5);
+    expect(timeoutOf(crossProject)).toBe(10);
+  });
+
   test('runs every browser shard and makes the stable pixels check depend on them', () => {
     const workflow = readWorkflow();
     const shardJob = workflow.jobs?.['pixels_shard'];
@@ -60,9 +110,7 @@ describe('the CI pixels gate', () => {
     // Proof (2026-10-23): deleting production matrix shard 8 failed on [1..7];
     // reverting only Layout gate's denominator to /4 failed on its run command.
     // Enabling fail-fast failed false/true.
-    // Proof (2026-10-23): restoring the production 25-minute budget failed 35/25.
     expect(shardJob?.strategy?.['fail-fast']).toBe(false);
-    expect(shardJob?.['timeout-minutes']).toBe(35);
     expect(shardJob?.strategy?.matrix?.shard).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/8');
     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/8');

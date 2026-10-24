@@ -36,6 +36,8 @@ export interface RequestMetadata {
   url: URL;
   method: string;
   headers: Headers;
+  /** Aborts when the client goes away; long reads pass it on to cancel their own work. */
+  signal: AbortSignal;
 }
 
 export type IdentityResolution =

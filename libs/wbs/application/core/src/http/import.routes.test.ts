@@ -56,6 +56,7 @@ test('binds the import shape and returns its complete created summary', async ()
       url: new URL('https://app.test/api/projects/import'),
       method: 'POST',
       headers: new Headers(),
+      signal: new AbortController().signal,
     },
   });
 
@@ -121,6 +122,7 @@ test.each([
       url: new URL('https://app.test/api/projects/import'),
       method: 'POST',
       headers: new Headers(),
+      signal: new AbortController().signal,
     },
   });
   expect(response.status).toBe(status);

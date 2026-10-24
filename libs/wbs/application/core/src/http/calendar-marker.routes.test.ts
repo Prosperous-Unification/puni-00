@@ -20,6 +20,7 @@ const input = {
     method: 'POST',
     url: new URL('https://example.com/api/projects/project/calendar-markers'),
     headers: new Headers(),
+    signal: new AbortController().signal,
   },
 };
 async function fixture() {

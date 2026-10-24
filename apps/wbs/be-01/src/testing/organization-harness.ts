@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { DeliveryReader } from '@shared/delivery';
 import {
   buildOidcVerifier,
   type IssuerFetch,
@@ -39,6 +40,7 @@ import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
+import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { CapacityMode } from '@wbs/domain';
@@ -706,6 +708,8 @@ export class OrganizationHarness {
     withOptimizer = false,
     syntheticTransferImports,
     syntheticExternalCommands,
+    delivery,
+    deliveryLimits,
     afterResolve,
     spawn = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
@@ -830,6 +834,8 @@ export class OrganizationHarness {
         nodeDigest,
       ),
       appOrigin,
+      ...(delivery === undefined ? {} : { delivery }),
+      ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
       clock: services.clock,
       migrationsApplied: true,
       ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
@@ -1229,6 +1235,10 @@ export interface ComposedHarnessOptions {
   readonly syntheticTransferImports?: true;
   /** Replaces only the admitted command WorkItemService with explicit fixture authority. */
   readonly syntheticExternalCommands?: true;
+  /** Trusted external delivery reader; absent exercises production composition. */
+  readonly delivery?: DeliveryReader;
+  /** Delivery gate limits; absent uses the production defaults. */
+  readonly deliveryLimits?: DeliveryGateLimits;
   readonly sessionBinding?: boolean;
   /** One secret for the mounted backend and its outbound production push client. */
   readonly internalAuthSecret?: string;

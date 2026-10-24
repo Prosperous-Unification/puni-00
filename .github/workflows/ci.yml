@@ -1109,14 +1109,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: pixels_mode
     if: ${{ needs.pixels_mode.outputs.stack == 'affected' }}
-    # Eight shards after run 39898917880 canceled 1/4 at 25 minutes with 160
-    # cases passed, one skipped and none failed; 2/4 needed 21m03s for layout. The real
-    # Playwright listing gives 164 cases on 1/4, 138 on 1/6, and 80 on 1/8.
-    # Eight moves the 58-case Gantt file off shard 1, leaving more room for setup
-    # and its organization check. Run 39951248349 still canceled shard 3 after
-    # a ten-minute Chromium install and 112 passing cases. A finite 35-minute
-    # budget retains setup headroom; workers and retries stay unchanged.
-    # Evidence: openspec/changes/pixels-shard-capacity/verify.md.
+    # Eight shards move the 58-case Gantt file off shard 1; see
+    # openspec/changes/pixels-shard-capacity/verify.md. Budget each selected path:
+    # 15 minutes for Chromium, 25 for layout, at most 10 for the dedicated
+    # cross-project check on shard 4 (or 5 for organization on shard 1), and 5
+    # for checkout, dependency installation and artifacts: 15 + 25 + 10 + 5 = 55.
     strategy:
       fail-fast: false
       matrix:
@@ -1125,7 +1122,9 @@ jobs:
         # Proof: removing shard 8 made the production-workflow oracle fail with
         # expected [1..8], received [1..7] (2026-10-23).
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
-    timeout-minutes: 35
+    # Proof: omitting this bound or lowering it to 50 failed the parsed-YAML
+    # per-shard budget oracle; shard 4 lacked its five-minute overhead reserve.
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -1144,6 +1143,8 @@ jobs:
       # fails to start on a missing shared object, which reads as a broken
       # spec rather than a missing package.
       - name: Install chromium
+        # Proof: omitting this timeout failed the parsed-YAML per-shard budget oracle.
+        timeout-minutes: 15
         run: bunx playwright install --with-deps chromium
 
       # Starts be-01, gw-01 and Vite itself (see playwright.config.ts) against
@@ -1151,15 +1152,22 @@ jobs:
       # first test. `bun run e2e` seeds the three `.env` files first — a fresh
       # checkout has none, and every app refuses to boot without one.
       - name: Layout gate
+        # Proof: omitting this timeout failed the parsed-YAML per-shard budget oracle.
+        timeout-minutes: 25
         run: bun run e2e -- --shard=${{ matrix.shard }}/8
 
       - name: Activated organization context
+        # Proof: omitting this timeout failed the parsed-YAML per-shard budget oracle.
+        timeout-minutes: 5
         if: ${{ matrix.shard == 1 }}
         run: bunx nx run wbs-fe-01:e2e-organization
 
       # The ordinary config excludes this dedicated real-stack spec. Shard 4
       # had 31 ordinary cases and a 5m40s hosted job in run 39902390852.
       - name: Cross-project dependency delivery
+        # Proof: omitting this timeout failed the budget oracle; raising it to 11
+        # failed shard 4's parsed-YAML arithmetic with only 55 minutes available.
+        timeout-minutes: 10
         if: ${{ matrix.shard == 4 }}
         run: bunx nx run wbs-fe-01:e2e-cross-project
 

@@ -2,7 +2,7 @@
 
 ### Requirement: Complete eight-way browser partition
 
-When the browser stack is affected, CI SHALL schedule shards 1 through 8 with matching `/8` display names and Playwright shard arguments, with a finite 35-minute job budget and disabled fail-fast.
+When the browser stack is affected, CI SHALL schedule shards 1 through 8 with matching `/8` display names and Playwright shard arguments and disabled fail-fast. The finite job and phase limits SHALL satisfy the active [browser-validation-budget requirement](../../../separate-browser-setup-budget/specs/browser-validation-budget/spec.md).
 
 #### Scenario: Every partition is scheduled
 

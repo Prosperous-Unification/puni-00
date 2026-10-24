@@ -17,6 +17,7 @@ const request = {
   method: 'POST',
   url: new URL('http://localhost/api/projects'),
   headers: new Headers(),
+  signal: new AbortController().signal,
 };
 
 test('direct project bindings create, read, patch and record opening with admitted actor', async () => {

@@ -13,6 +13,7 @@ export * from './http/client-error';
 export * from './http/client-fetch';
 export * from './http/client-types';
 export * from './http/compute-provider-shapes';
+export * from './http/delivery-shapes';
 export * from './http/directory-shapes';
 export * from './http/document-from-shapes';
 export * from './http/domain-shapes';

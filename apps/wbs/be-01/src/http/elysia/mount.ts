@@ -89,6 +89,13 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         headers: responseHeaders(admission.endpoint.shape),
       });
     }
+    // A closed client's cancellation is a controlled exit, not a server fault; nobody reads the answer.
+    // Proof: removing this exit made 'ends a cancelled request without reporting a server fault' answer 500 instead of 499 (2026-10-24).
+    if (request.signal.aborted && error instanceof DOMException && error.name === 'AbortError')
+      return new Response(null, {
+        status: 499,
+        headers: responseHeaders(admission.endpoint.shape),
+      });
     options.reportUnexpectedFailure(error);
     // Proof: on 2026-09-21, returning String(error) made the account-store test receive
     // `Error: account store offline` instead of the generic body; adding a JSON content type made
@@ -103,6 +110,8 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
       url: new URL(request.url),
       method: request.method,
       headers: request.headers,
+      // Proof: a fresh signal here made 'cancels the provider read when the request aborts' see the provider signal still open (2026-10-24).
+      signal: request.signal,
     };
     const matched = endpoints
       .filter(

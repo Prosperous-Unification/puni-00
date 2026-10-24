@@ -609,7 +609,10 @@ type BareRefusalCode =
   // A25: another organization registered the issuer with this audience; an
   // organization at its trusted issuer cap.
   | 'audience_taken'
-  | 'trusted_issuer_limit';
+  | 'trusted_issuer_limit'
+  // Delivery observation (`track-work-delivery`): every provider read slot
+  // stayed taken for the bounded wait.
+  | 'delivery_busy';
 
 type SharedCommandCode =
   | 'external_dependencies_inactive'
@@ -681,6 +684,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
      * pinned person's kind.
      */
     not_an_agent_principal: { authentication: 'session' | 'delegation' } | { personKind: 'person' };
+    /** The organization spent its delivery provider reads; whole seconds until the next one. */
+    delivery_rate_limited: { retryAfterSeconds: number };
     /** A capacity report observed further ahead of WBS's clock than the tolerance, by this much. */
     observedAt_in_future: { skewMs: number };
     /** A capacity report for a resource that names another instance, or none. */

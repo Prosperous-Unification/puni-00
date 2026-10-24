@@ -9,5 +9,7 @@
 
 ## 3. Bounded CI delivery amendment
 
+The completed 35-minute budget task below is historical. The active limit and its proof are owned by [browser-validation-budget](../separate-browser-setup-budget/specs/browser-validation-budget/spec.md).
+
 - [x] 3.1 Pin the 35-minute timeout and exactly one cross-project browser command on shard 4 in the production workflow oracle; watch the original workflow fail, implement, and watch independent command removal, duplicate command, condition inversion and 25-minute restoration fail.
 - [x] 3.2 Run focused workflow tests, lint/typecheck, format and OpenSpec checks; record the bounded receipt and every unavailable check. Hosted completion remains pending.

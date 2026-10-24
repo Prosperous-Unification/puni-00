@@ -609,6 +609,13 @@ export const RESTART_PATHS: readonly string[] = [
   // project manifests were omitted from the supervisor's startup fingerprint.
   'libs/shared/domain/portability-format/project.json',
   'libs/shared/domain/validation/project.json',
+  // Proof: after restoring the adapter manifest, omitting this entry failed
+  // `names every library project.json that exists on disk` on this exact domain manifest
+  // (2026-10-23).
+  'libs/shared/domain/delivery/project.json',
+  // Proof: omitting this entry failed `names every library project.json that exists on disk`
+  // with this exact missing adapter manifest (2026-10-23).
+  'libs/shared/adapters/delivery-github/project.json',
   // Proof: CI run 39513645384 (job gate workspace) failed `names every library project.json
   // that exists on disk` when the two design-system kit manifests were omitted.
   'libs/shared/adapters/ui-core-01/project.json',
