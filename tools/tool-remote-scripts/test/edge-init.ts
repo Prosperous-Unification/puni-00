@@ -26,6 +26,114 @@ import { observeSolverProcess, type SolverProcess } from '../src/lib/solver-host
 const LABEL = 'club.bulletpoints.edge-init-fixture';
 const IMAGE = /^sha256:[a-f0-9]{64}$/;
 
+type FixtureFailureStage =
+  | 'networks'
+  | 'volumes'
+  | 'containers'
+  | 'original-inspection'
+  | 'baseline'
+  | 'inert-candidate'
+  | `fault-${FixtureFault}`
+  | 'adoption'
+  | 'stop-deadline'
+  | 'report'
+  | 'cleanup';
+interface FixtureFailure {
+  stage: FixtureFailureStage;
+  reason: string;
+  diagnosticSha256: string;
+}
+/**
+ * Native fixture errors retain a finite stage and whitelisted code; arbitrary diagnostic bytes are represented only by SHA256.
+ * Proof: accepting arbitrary refusal reasons or retaining raw diagnostics made the failure diagnostic regression fail.
+ */
+export function describeFixtureFailure(stage: FixtureFailureStage, cause: unknown): FixtureFailure {
+  const controlled = new Set([
+    'unsupported-native-shape',
+    'invalid-ordered-env',
+    'candidate-preservation-mismatch',
+    'engine-status-refused',
+    'engine-deadline-uncertain',
+    'engine-transport-uncertain',
+    'engine-response-truncated',
+    'engine-read-failed',
+    'engine-response-too-large',
+    'engine-json-invalid',
+    'create-acknowledgement-uncertain',
+    'exec-deadline-uncertain',
+    'exec-frame-invalid',
+    'exec-output-refused',
+    'exec-stream-invalid',
+    'exec-terminal-unverified',
+    'exec-utf8-invalid',
+    'native-fixture-command-refused',
+    'native-fixture-output-too-large',
+    'native-fixture-ownership-refused',
+    'native-fixture-caddy-config-changed',
+    'native-fixture-required-shape-absent',
+    'native-fixture-original-process-changed',
+    'native-fixture-process-retained',
+    'native-fixture-cgroup-retained',
+    'native-fixture-public-health-refused',
+    'native-fixture-health-did-not-converge',
+    'native-fixture-fault-not-injected',
+    'native-fixture-fault-stage-unproved',
+    'native-fixture-fault-effects-unproved',
+    'native-fixture-fault-state-unproved',
+    'native-fixture-fault-native-state-unproved',
+    'native-fixture-stop-deadline-unproved',
+    'native-fixture-stop-process-changed',
+    'before-create',
+    'candidate-inert',
+    'stop-uncertain',
+    'original-stopped',
+    'rename-uncertain',
+    'start-uncertain',
+    'candidate-running-unhealthy',
+    'healthy-original-retained',
+    'removal-uncertain',
+  ]);
+  const reason =
+    cause instanceof InitRefusal
+      ? controlled.has(cause.reason)
+        ? cause.reason
+        : 'unrecognized-refusal'
+      : 'unexpected-failure';
+  const diagnostic =
+    cause instanceof Error
+      ? `${cause.name}\0${cause.message}`
+      : typeof cause === 'string'
+        ? cause
+        : typeof cause;
+  return { stage, reason, diagnosticSha256: createHash('sha256').update(diagnostic).digest('hex') };
+}
+
+/**
+ * Preserve the first proof failure before cleanup and publish cleanup failure separately without overwriting it.
+ * Proof: omitting the nonempty guard, exclusive creation, separate cleanup path, private mode or exact byte hash each failed the private native records regression.
+ */
+export async function publishFixtureFailure(
+  root: string,
+  nonce: string,
+  proof: FixtureFailure | null,
+  cleanup: FixtureFailure | null,
+): Promise<string> {
+  if (proof === null && cleanup === null)
+    throw new InitRefusal('native-fixture-failure-evidence-empty');
+  const bytes = JSON.stringify({
+    format: 'edge-init-native-failure',
+    version: 1,
+    nonce,
+    proof,
+    cleanup,
+  });
+  await writeFile(join(root, cleanup === null ? 'failure.json' : 'cleanup-failure.json'), bytes, {
+    mode: 0o600,
+    flag: 'wx',
+  });
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
 type FixtureDocker = (arguments_: readonly string[], timeout?: number) => Promise<string>;
 type FixtureFault =
   | 'alias-drift'
@@ -518,13 +626,17 @@ export async function runNativeInitAcceptance(): Promise<void> {
   const volumes = ['registry', 'caddy-data', 'caddy-config'].map((name) => `${prefix}-${name}`);
   let summary: { stage: string; receiptDirectory: string; sha256: string } | undefined;
   let failureCode: 'native-fixture-proof-failed' | 'native-fixture-receipt-failed' | undefined;
+  let stage: FixtureFailureStage = 'networks';
+  let proofFailure: FixtureFailure | null = null;
   await requireUnusedFixtureNamespace(nonce);
   try {
     for (const network of networks)
       await docker(['network', 'create', '--label', `${LABEL}=${nonce}`, network]);
+    stage = 'volumes';
     for (const volume of volumes) {
       await createFixtureVolume(volume, nonce, caddyImage);
     }
+    stage = 'containers';
     const shared = [
       '--detach',
       '--pull=never',
@@ -619,6 +731,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       nonce,
       'owned-fixture',
     );
+    stage = 'original-inspection';
     const targets: [SelectedTarget, SelectedTarget] = [
       { kind: 'registry', original: await engine.inspect(registry, 10000) },
       { kind: 'caddy', original: await engine.inspect(caddy, 10000) },
@@ -628,6 +741,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       Object.keys(targets[1].original.networks).length !== 3
     )
       throw new InitRefusal('native-fixture-required-shape-absent');
+    stage = 'baseline';
     const processes = new Map<string, SolverProcess>();
     const ports = new Map<TargetKind, string>();
     const routes = new Map<TargetKind, string>();
@@ -657,7 +771,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
     const observer: HostObserver = {
       admit: async (deadline) => {
         deadline.allocate(1000);
-        for (const raw of (await engine.inventory(10000)) as unknown[]) {
+        for (const raw of await engine.inventory(10000)) {
           const fields = readFields(raw);
           if (fields['Labels'] !== null && readFields(fields['Labels'])[LABEL] === nonce)
             verifyFixtureOwnership(
@@ -745,6 +859,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       },
     };
     // Deliberate native preservation mismatch proves an inert candidate cannot stop a serving original.
+    stage = 'inert-candidate';
     const mismatch = constructCandidate(targets[0].original);
     mismatch.Config = { ...mismatch.Config, Env: ['MISMATCH=1'] };
     const mismatched = await engine.create('registry', mismatch, 20000);
@@ -775,6 +890,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       'start-ack-lost',
     ] as const;
     for (const fault of faults) {
+      stage = `fault-${fault}`;
       const candidates: string[] = [];
       let candidateHealthRounds = 0;
       const transcript: string[] = [];
@@ -908,6 +1024,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       routes.set('registry', await routeNetwork(targets[0].original));
       await ready(publishedPort(targets[0].original, 'registry'), 'registry');
     }
+    stage = 'adoption';
     const receipts = await PrivateReceipts.create(join(root, 'receipts'), nonce);
     await runInitAdoption(
       { nonce, targets, namespace: 'owned-fixture' },
@@ -915,6 +1032,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
       observer,
       receipts,
     );
+    stage = 'stop-deadline';
     const term = readIdentity(
       await docker([
         'run',
@@ -937,6 +1055,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
     await Bun.sleep(200);
     const stopEngine = new EngineTransport('/var/run/docker.sock', [term], nonce, 'owned-fixture');
     await verifyFixtureStopDeadline(stopEngine, stubborn, nonce);
+    stage = 'report';
     const report = {
       version: 1,
       status: 'passed',
@@ -962,28 +1081,44 @@ export async function runNativeInitAcceptance(): Promise<void> {
       receiptDirectory: root,
       sha256: createHash('sha256').update(JSON.stringify(report)).digest('hex'),
     };
-  } catch {
+  } catch (cause) {
     failureCode = 'native-fixture-proof-failed';
-    const failure = { stage: 'native-proof-failed', nonce };
+    proofFailure = describeFixtureFailure(stage, cause);
+    let receiptSha256: string | null = null;
     try {
-      await writeFile(join(root, 'failure.json'), JSON.stringify(failure), {
-        mode: 0o600,
-        flag: 'wx',
-      });
-      console.log(
-        JSON.stringify({
-          stage: failure.stage,
-          receiptDirectory: root,
-          sha256: fingerprint(failure),
-        }),
-      );
+      receiptSha256 = await publishFixtureFailure(root, nonce, proofFailure, null);
     } catch {
       failureCode = 'native-fixture-receipt-failed';
     }
+    console.log(
+      JSON.stringify({
+        stage: 'native-proof-failed',
+        failure: proofFailure,
+        receiptDirectory: root,
+        receiptSha256,
+      }),
+    );
   }
   try {
     await cleanup(nonce);
-  } catch {
+  } catch (cause) {
+    const cleanupFailure = describeFixtureFailure('cleanup', cause);
+    let receiptSha256: string | null = null;
+    try {
+      receiptSha256 = await publishFixtureFailure(root, nonce, proofFailure, cleanupFailure);
+    } catch {
+      failureCode = 'native-fixture-receipt-failed';
+    }
+    console.log(
+      JSON.stringify({
+        stage: 'native-cleanup-failed',
+        proof: proofFailure,
+        cleanup: cleanupFailure,
+        receiptDirectory: root,
+        receiptSha256,
+        publication: failureCode === 'native-fixture-receipt-failed' ? 'failed' : 'written',
+      }),
+    );
     throw new InitRefusal('native-fixture-cleanup-failed');
   }
   if (failureCode !== undefined) throw new InitRefusal(failureCode);

@@ -134,6 +134,7 @@ const configRules = {
   Volumes: nullable(dictionary(empty)),
   WorkingDir: text,
   Entrypoint: strings,
+  // Proof: weakening this present-value rule made the malformed native OnBuild cases fail.
   OnBuild: strings,
   Labels: stringMap,
   StopSignal: text,
@@ -151,6 +152,8 @@ const configRules = {
     Retries: integer,
   }),
 };
+// API 1.52 omits OnBuild; preserve absence rather than supplying null.
+// Proof: requiring OnBuild made the observed-shape absence regression fail; admitting an unknown key also failed its strictness regression.
 const configRequired = [
   'Hostname',
   'Domainname',
@@ -167,7 +170,6 @@ const configRequired = [
   'Volumes',
   'WorkingDir',
   'Entrypoint',
-  'OnBuild',
   'Labels',
 ];
 const hostRules: Record<string, Rule> = {
