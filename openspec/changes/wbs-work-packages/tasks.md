@@ -1,12 +1,13 @@
-## 0. Dany reads E10 to E32
+## 0. Dany reads E10 to E34
 
-- [ ] 0.1 Dany confirms or amends design.md E10 to E32, in particular the 2026-10-24
+- [ ] 0.1 Dany confirms or amends design.md E10 to E34, in particular the 2026-10-24
       revisions of E10 (merge-date stamps; plan documents 12–14 after budgets' 11; slice 3
       split into 3a and 3b), E15 (nullable `created_by`), E21 (steps as project entities and
       their re-key), E22 (directory-global types with a project allow-list), E26 (no solver
       wire change), E27 (the deletion rule) and **E30 (every organization has exactly one
       default project; awaits Dany's confirmation)**; E31 and E32 only move planner content
-      out of E1 and E9. Slice 1 is built on the assumptions; an amendment lands as a
+      out of E1 and E9; E33 (the step lift rewrites stored JSON once, no alias table) and
+      E34 (an explicit default-project route) are session decisions after the re-check. Slice 1 is built on the assumptions; an amendment lands as a
       follow-up slice.
 - [x] 0.2 Landing order decided before slice 1 starts: budgets #663 (plan document 11,
       saved-plan input 9) lands first; `feat/cross-project-dependencies` renumbers after.
@@ -131,7 +132,10 @@
       onboarding test and the create-without-`projectId` route test fail); watched.
 - [ ] 3.3 Red: `project.routes.test.ts` (create 201, list with counts, read with entries, patch
       409/404, delete 204/409 `not_empty`/409 `last_project`/404, admin-only writes, member
-      reads) and `work-package-move.routes.test.ts` (200 with both projects' revisions up by
+      reads), `default-project.routes.test.ts` (`PATCH /api/organization/default-project`
+      200 with the audit row and the next create landing in the new default, `404 not_found`
+      for a foreign or missing project, admin-only until `wbs-permissions` adds its row, E34)
+      and `work-package-move.routes.test.ts` (200 with both projects' revisions up by
       one and the audit row; 404, `cross_organization`, `dependency_crosses_project` behind a
       fixture flag until the dependency branch lands); `POST /api/work-packages` and the
       import routes without `projectId` land in the default project, with a foreign one
@@ -141,7 +145,9 @@
       the onboarding route and the e2e seeding (`apps/wbs/fe-01/e2e/create-project.ts`).
       Green: routes, contracts, OpenAPI, MCP tools by derivation, and mcp-01's README count
       ("91 tools in all" raised by the new tools; `openapi-tools.test.ts` asserts it, WP-10).
-      R5 faults: the move's organization check removed; the audit append removed; watched.
+      R5 faults: the move's organization check removed; the audit append removed; the
+      default-project route's organization check removed (the foreign-project scenario
+      moves the mark across organizations); each watched.
 - [ ] 3.4 Plan document 13 (`project: { id, name }`, informational on import) with its test;
       the work package read carries `projectId`.
 - [ ] 3.5 fe-01: picker grouped by project, a projects page (create, rename, delete, move),
@@ -201,23 +207,28 @@
 
 ## 5. Steps as project entities (slice 3b, `feat/wbs-work-packages-3b`)
 
-- [ ] 5.1 Red: `lift-steps-to-project.db.test.ts` over a dev-shaped fixture (E21): project steps
-      deduplicated by code in first-occurrence order, the first occurrence's id kept, one
-      `work_package_step` row per project step per package carrying the old allowance,
-      allowance revision and unit; every step id re-keyed through `step_lift_alias` in
-      `actual`, `assignment`, `claim`, `estimate`, `measure_estimate`, `step_blockage`,
+- [ ] 5.1 Red: `lift-steps-to-project.db.test.ts` over a dev-shaped fixture (E21, E33): project
+      steps deduplicated by code in first-occurrence order, the first occurrence's id kept,
+      one `work_package_step` row per project step per package carrying the old allowance,
+      allowance revision and unit; every lifted step id re-keyed to the kept id in `actual`,
+      `assignment`, `claim`, `estimate`, `measure_estimate`, `step_blockage`,
       `step_measure`, `step_node_attempt`, `step_node_attempt_issued`, `step_parallel`,
       `step_progress`, `typed_dependency` (both columns) and `plan_event.step_id`, with
-      `PRAGMA foreign_key_check` empty; the six owner triggers rebuilt (a claim on a step of
-      another project refused); the guard refuses naming the package for a code-less step and
-      naming the project for two codes sharing a name; undo and redo of a batch journaled
-      before the lift, history and a saved plan stored before it read the same after it.
-      Green: `<merge-date>100000_lift_steps_to_project` in the compatible rebuild form,
-      `down.sql` refusing while any project step is used by two packages' rows, the journal
-      replay and saved-plan reader resolving old step ids through the alias. R5 faults: the
-      code dedupe removed (duplicate project steps observed); `step_node_attempt_issued`
-      left out of the re-key (`foreign_key_check` names it); the alias lookup removed from
-      journal replay (the undo scenario fails); each watched.
+      `PRAGMA foreign_key_check` empty and no map table left behind; step ids in
+      `command_journal.payload`/`inverse` and saved-plan input bodies rewritten once with
+      `json_set`; the six owner triggers rebuilt (a claim on a step of another project
+      refused); the guard refuses naming the package for a code-less step, refuses
+      `step_name_clash` naming the project and packages for two codes sharing a name, and
+      refuses naming the journal row for an unrecognised payload shape; replaying a batch
+      journaled before the lift yields the same tree as before it, and history and a saved
+      plan stored before it read the same after it. Green:
+      `<merge-date>100000_lift_steps_to_project` in the compatible rebuild form, `down.sql`
+      refusing while any project step is used by two packages' rows (the backup is the
+      rollback, D72). R5 faults: the code dedupe removed (duplicate project steps observed);
+      `step_node_attempt_issued` left out of the re-key (`foreign_key_check` names it); the
+      journal rewrite removed (replaying the pre-lift entry fails on an unknown step id); the
+      unrecognised-shape check removed (the fixture's odd payload migrates unchanged instead
+      of the migration refusing naming its row); each watched.
 - [ ] 5.2 Steps (E21): step create, rename and reorder as project routes, per-package
       allowance and estimate unit, `step_code_not_in_project` and re-key on move, import
       adding the file's missing codes to the project; mcp-01's README count raised (WP-10).

@@ -181,9 +181,10 @@ INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER` for the 25 indexes and
   vocabulary (the `widen_organization_audit_*` shape) and `UPDATE`s of its `subject_kind` and
   `action` values; a `CHECK (violations = 0)` guard table refuses while any work package lacks
   an organization row. Stored JSON is not rewritten: `command_journal` and `plan_event` keep
-  their payloads (their `project_id` is a column), and `saved_plan_body.input_bytes` stays
-  at schema ≤ 9 bytes read through a new 9 → 10 upgrade step in the saved-plan reader (the
-  established reader-side chain; a stored body is never rewritten; corrected 2026-10-24,
+  their payloads (their `project_id` is a column), and the saved-plan input body stays
+  at schema ≤ 9 bytes (`saved_plan_body.bytes`, kind `input`) read through a new 9 → 10 upgrade step in the saved-plan reader (the
+  established reader-side chain; a stored body is not rewritten here, and only slice 3b's
+  step-id rewrite (E33) ever touches one; corrected 2026-10-24,
   WP-5, to agree with E10). Task 1.3 proves by
   replaying every journal kind through a migrated fixture that no payload names `projectId`;
   if one does, the migration rewrites it with `json_set` and the test proves that instead.
@@ -250,7 +251,8 @@ NULL → project(id)` through a compatible table rebuild of `work_package` (lint
   `name_taken`; `GET /api/projects` (the caller's organization, with work package counts);
   `GET /api/projects/:id` (its work package entries); `PATCH /api/projects/:id {name}` → 200 /
   409 `name_taken` / 404; `DELETE /api/projects/:id` → 204 / 409 `not_empty` / 409
-  `last_project` (the organization's only project, E30) / 404; `POST
+  `last_project` (the organization's only project, E30) / 404; `PATCH
+/api/organization/default-project {projectId}` → 200 / 404 (E34); `POST
 /api/work-packages/:id/move {projectId}` → 200 / 404 (either side, organization-scoped) /
   409 `cross_organization` / 409 `dependency_crosses_project { dependencyIds }` once
   cross-work-package dependencies exist / 409 `type_not_allowed_in_project { typeIds }` (E22)
@@ -354,30 +356,38 @@ code)` and `UNIQUE (project_id, name)`; the per-package columns move to
 allowance_revision, estimate_unit)` with PK `(work_package_id, step_id)`, one row per
   project step per package (a step added later gets allowance 0 and the column default
   `workdays` unit for every package). **Every column holding a step id** is re-keyed from
-  the merged step id to the project step id, through a `step_lift_alias(old_step_id PK,
-step_id → step(id), work_package_id)` table the migration fills first: the twelve tables
-  with a foreign key to `step(id)` on `main` at `0b1dddaa0` (`actual`, `assignment`,
-  `claim`, `estimate`, `measure_estimate`, `step_blockage`, `step_measure`,
-  `step_node_attempt`, `step_node_attempt_issued`, `step_parallel`, `step_progress`, and
-  `typed_dependency` on both `predecessor_step_id` and `successor_step_id`), plus
-  `plan_event.step_id` (a column without a foreign key), all by `UPDATE … FROM
-step_lift_alias`. The map is injective inside one work package (codes are unique per
-  package today, `step_project_code`), so no per-work-item unique key can collide. Stored JSON
-  is not rewritten (E13's rule): `command_journal` payloads and inverses that name an old step
-  id are resolved through `step_lift_alias` when undo or redo replays them, and saved-plan
-  bodies the same way when read; the alias table is permanent. The six triggers that compare
+  the merged step id to the kept first-occurrence id, by `UPDATE` through a map the
+  migration builds in a `TEMP` table and drops before it commits: the twelve tables with a
+  foreign key to `step(id)` on `main` at `0b1dddaa0` (`actual`, `assignment`, `claim`,
+  `estimate`, `measure_estimate`, `step_blockage`, `step_measure`, `step_node_attempt`,
+  `step_node_attempt_issued`, `step_parallel`, `step_progress`, and `typed_dependency` on
+  both `predecessor_step_id` and `successor_step_id`), plus `plan_event.step_id` (a column
+  without a foreign key). The map is injective inside one work package (codes are unique per
+  package today, `step_project_code`), so no per-work-item unique key can collide. _Stored
+  JSON revised 2026-10-24 by E33 (was: a permanent `step_lift_alias` table read at replay):_
+  the same migration rewrites, once, every step id inside `command_journal.payload` and
+  `command_journal.inverse` and inside saved-plan input bodies (`saved_plan_body.bytes`,
+  kind `input`) with `json_set`, the device E13 already names, mapping each lifted id to the
+  kept id; a payload whose shape the rewrite does not recognise makes the migration refuse
+  through its `CHECK (violations = 0)` guard naming the journal row id or saved-plan id,
+  never passing it through unchanged (R5). After the window no reader knows a step was ever
+  merged. Rollback is the pre-deploy backup (`wbs-measure-budgets` D72, E14), not `down.sql`
+  reversing the rewrite. Rejected: the permanent alias table (every journal replay and
+  saved-plan read would depend on a table forever, and it is the alias the Non-Goals rule
+  out). The six triggers that compare
   a step's owner with the work item's package (`claim_step_*`, `step_blockage_owner_*`,
   `step_parallel_owner_*`, under their slice 1 names) are dropped and recreated to require
   that the step belongs to the project of the work item's work package. **Code-less and
   clashing steps:** `step.code` is nullable; a `CHECK (violations = 0)` guard refuses the
-  migration naming each work package that holds a step without a code, and naming each
-  project where two distinct codes carry one name; the runbook precondition is
+  migration naming each work package that holds a step without a code, and, for two
+  distinct codes carrying one name in a project, refuses `step_name_clash { projectId, name,
+codes, workPackageIds }` naming the project and the packages holding them; the runbook precondition is
   `backfill-step-codes-cli.ts` (codes) and a hand rename (names) before the window. Import
   into a project adds the file's codes the project lacks as project steps (appended in file
   order) and takes the project's name and order for the codes it has; the new package's
   rows carry the file's allowance and unit. `moveWorkPackage` refuses
   `step_code_not_in_project { codes }` while the target lacks a code the package uses, and
-  re-keys by code when it applies (rows and aliases alike). Merging step rows across work
+  re-keys by code when it applies. Merging step rows across work
   packages is thereby decided, not a non-goal.
 - **E22. Work item types stay directory-global; a project allows a subset.** _Revised
   2026-10-24 after review (was: project-scoped types with `work_item_type.project_id`)._
@@ -463,7 +473,7 @@ wbs-work-packages` refused six of them, because a MODIFIED block cannot rename a
   E11), moves `project-assignment-reads` to `work-package-assignment-reads` with `git mv`,
   and this change's archive syncs only `work-packages`.
 
-### Assumed decisions added after the Fable review (2026-10-24)
+### Assumed decisions added after the Fable reviews (2026-10-24)
 
 - **E30. Every organization has exactly one default project** (resolves WP-4, replaces E16's
   narrowing; **awaits Dany's confirmation**). Every organization has exactly one default
@@ -483,19 +493,35 @@ NULL UNIQUE, FOREIGN KEY (project_id, organization_id) → project(id, organizat
   answers `409 not_empty` while it holds packages and `409 last_project` while it is the only
   project; deleting an empty default while other projects exist hands the mark to the oldest
   remaining project (`created_at`, then id) in the same transaction and appends
-  `default_project_changed`. Callers verified to work with the default project (tasks 3.3,
+  `default_project_changed`. Choosing another default is E34's explicit route; the hand-over
+  on deletion is only the fallback. Callers verified to work with the default project (tasks 3.3,
   3.5): fe-01's create (`project-page.tsx`, "New project" with no picker) and import
-  (`import-with-ai.ts`, `wbs-api.ts`), mcp-01's import tool (`postApiProjectsImport`, renamed
+  (`apps/wbs/fe-01/src/components/wbs/import-with-ai.ts`, `src/lib/wbs-api.ts`), mcp-01's import tool (`postApiProjectsImport`, renamed
   `postApiWorkPackagesImport` by slice 1), the activation CLI, the onboarding route, and the
   e2e seeding (`apps/wbs/fe-01/e2e/create-project.ts` and the be-01 test harnesses that
   insert organizations by SQL: `organization-harness.ts`, `booted-browser-process.ts`,
   `measure-bound-claims.ts`, `capacity-fanout-process.ts`, store-sqlite's
   `testing/space-database.ts`, which must write the mark too). `wbs-permissions` P16 gates
-  creation without naming a project; its slice 3 check at the named project applies to the
+  creation without naming a project; `wbs-permissions` slice 3's check at the named project applies to the
   resolved project (named or default), cross-referenced here, not edited.
 - **E31. Persons and teams belong to spaces** (resolves WP-9; moved out of E1). A person or
   team may belong to one or several spaces (new, cheap link). The link carries no authority,
   capacity or scheduling effect (E1); its storage and routes are E23's.
+- **E33. The step lift rewrites stored JSON once; no alias table** (session decision
+  2026-10-24, on the Fable re-check of #714). Slice 3b's migration rewrites step ids in
+  `command_journal.payload`/`inverse` and saved-plan input bodies with `json_set`, refusing
+  on an unrecognised payload shape naming the row; the permanent `step_lift_alias` table is
+  rejected as the compatibility layer the Non-Goals forbid. Detail in E21.
+- **E34. The default project is chosen by an explicit route** (session decision 2026-10-24,
+  on the Fable re-check of #714). `PATCH /api/organization/default-project { projectId }`
+  moves the mark to another project of the caller's organization (`404 not_found` for a
+  project of another organization or none), in one immediate transaction appending
+  `default_project_changed`; it is the normal way to change the default, and E30's
+  hand-over on deleting an empty default stays as the fallback. Authority: the
+  organization-settings permission of `wbs-permissions`; its matrix has no fitting row
+  today (the nearest, `organization.manage_capacity_mode`, guards only
+  `switchCapacityMode`), so `wbs-permissions` must add a row; until it lands, admin or
+  super-admin as for the other project writes (E17).
 - **E32. The settings catalogue and `resolveSetting`** (resolves WP-9; moved out of E9).
   Settings are a small catalogue (key, value type, overridable-at levels) and one
   `resolveSetting(scope, key)` in core; E18 gives the catalogue's entries and storage and
@@ -526,7 +552,7 @@ is the share of those lines that mention Nx vocabulary (`nx run`, `project.json`
 | tools, deploy, infra, ops, bin                    |   134 |  1,204 | 536 Nx-ish; the rest hand-checked (devsync, smoke, fleet manifests)                     |
 | docs                                              |   230 |  5,585 | 573 Nx-ish; current docs by script, dated records excluded (E11)                        |
 | `CONTEXT.md` and root `*.md`                      |     6 |    152 | hand (terms, E24); `LLM_README.md` tables line                                          |
-| openspec/specs                                    |    10 |     80 | at archive time (E29)                                                                   |
+| openspec/specs                                    |    10 |     80 | by hand in the slice 1 PR (E29)                                                         |
 | openspec/changes (non-archive)                    | 1,429 |  8,537 | untouched (history)                                                                     |
 | openspec/changes/archive                          |   369 |  2,039 | untouched                                                                               |
 | **Code surfaces the script rewrites** (rows 2–12) | 1,243 | 14,782 |                                                                                         |
@@ -617,8 +643,8 @@ day.
 - E21 changes authoring flows (adding, renaming or reordering a step is a project write
   that every work package of the project sees); E22 adds one refusal on type assignment
   when a project narrows its allow-list. Both revised after review; flagged for Dany.
-- E21's lift (slice 3b) re-keys twelve foreign-keyed tables and `plan_event`, and undo of a
-  pre-lift batch depends on `step_lift_alias`; it gets its own window so a failure there
+- E21's lift (slice 3b) re-keys twelve foreign-keyed tables and `plan_event` and rewrites
+  stored journal and saved-plan JSON once (E33); it gets its own window so a failure there
   rolls back only the step lift, never the settings of slice 3a.
 - Whether prod records a release could not be read from this machine; the gate decides on the
   day, and the procedure covers both outcomes.
@@ -628,7 +654,9 @@ day.
 - E5's deletion list: Dany confirms the owner logins and name patterns in E27 before `apply`.
 - E30 (every organization has exactly one default project, created at activation and
   back-filled for every organization) awaits Dany's confirmation; E31 and E32 only move
-  planner content out of E1 and E9 and are overrulable by id like E10 onward.
+  planner content out of E1 and E9 and are overrulable by id like E10 onward. E34 needs a
+  `wbs-permissions` matrix row for its route; that change owns adding it.
+- E5's "the owner logins" in E27 means owners' `users.username`.
 - The dependency shape of `feat/cross-project-dependencies` was skimmed read-only (abbreviation
   side table, stable endpoint identities, typed external rows); its rebase is that branch's
   work.

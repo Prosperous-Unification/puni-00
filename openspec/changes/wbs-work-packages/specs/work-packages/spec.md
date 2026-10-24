@@ -156,6 +156,25 @@ found without a default project SHALL make the read throw, never pick one.
 - **THEN** each organization holds exactly one project, named "Default project", marked as
   its default, with `created_by` the creating account
 
+### Requirement: An admin chooses the default project explicitly
+
+`PATCH /api/organization/default-project { projectId }` SHALL move the default-project mark
+to another project of the caller's organization in one transaction and append
+`default_project_changed`; a project of another organization, or no project, SHALL answer
+`404 not_found` and change nothing.
+
+#### Scenario: The default moves to a named project
+
+- **WHEN** an admin of organization A whose default is D sends `{ projectId: P }` for
+  project P of A
+- **THEN** it answers `200`, a later `POST /api/work-packages` without `projectId` lands in
+  P, D is an ordinary project, and the audit holds one `default_project_changed` row
+
+#### Scenario: A foreign project cannot become the default
+
+- **WHEN** an admin of organization A sends `{ projectId: Q }` for project Q of organization B
+- **THEN** it answers `404 not_found` and A's default is unchanged
+
 ### Requirement: The default project survives deletion attempts
 
 The default project SHALL NOT be deleted while it holds work packages (`409 not_empty`) or
@@ -325,8 +344,9 @@ of the project.
 The slice 3b migration SHALL lift steps into projects by code and re-key every row that
 names a step: every table with a foreign key to `step` (twelve on `main` at `0b1dddaa0`,
 listed in design E21) and `plan_event.step_id`. Stored journal payloads and saved-plan
-bodies SHALL resolve old step ids through a permanent alias. It SHALL refuse while any step
-has no code.
+bodies SHALL have their step ids rewritten once by the same migration, which SHALL refuse,
+naming the row, on a payload shape it does not recognise. It SHALL refuse while any step
+has no code or two codes of one project share a name.
 
 #### Scenario: Lift and re-key
 
@@ -340,14 +360,28 @@ has no code.
 
 - **WHEN** the last batch before the slice 3b migration edited an estimate on W2's `qa` step
   (merged into W1's `qa`), and the same account presses undo after it
-- **THEN** the edit is undone on W2's estimate for project step `qa`, W2's history lists the
-  event against that step, and a saved plan of W2 stored before the lift compares equal to
-  one saved after it
+- **THEN** replaying that pre-lift journal entry yields the same W2 tree as undo before the
+  lift would have (the estimate restored on project step `qa`), W2's history lists the event
+  against that step, and a saved plan of W2 stored before the lift compares equal to one
+  saved after it
+
+#### Scenario: An unrecognised journal payload refuses the lift
+
+- **WHEN** journal row J holds a payload naming a step id in a shape the rewrite does not
+  recognise
+- **THEN** the migration fails on its guard naming J, and nothing is lifted or rewritten
 
 #### Scenario: A code-less step refuses the lift
 
 - **WHEN** work package W holds a step whose `code` is null
 - **THEN** the migration fails on its guard naming W, and nothing is lifted
+
+#### Scenario: Two codes with one name refuse the lift
+
+- **WHEN** project P holds W1 with step `qa` named "Review" and W2 with step `rev` also named
+  "Review"
+- **THEN** the migration fails on its guard with `step_name_clash { projectId: P, name:
+"Review", codes: ["qa", "rev"], workPackageIds: [W1, W2] }`, and nothing is lifted
 
 ### Requirement: Work item types stay directory-wide and a project allows a subset
 
@@ -393,7 +427,7 @@ schedule SHALL change.
 ### Requirement: The dev cleanup CLI reports before it deletes
 
 `work-package-cleanup-cli.ts report` SHALL list doomed work packages by the selection rule
-(owner login in the named set or `^claire-reg-`, or name matching `^TASK-\d+\b`,
+(owner's `users.username` in the named set or `^claire-reg-`, or name matching `^TASK-\d+\b`,
 `^New project$`, `^resume check \d+$`) and the survivors; `apply` SHALL refuse unless
 `--expect-count` equals the report's count and SHALL delete through the existing deletion path.
 

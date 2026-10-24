@@ -233,9 +233,9 @@ _Avoid_: engagement, programme, portfolio, project (for one WBS)
 
 **Default project**:
 The one project of each organization that receives a work package created or imported without
-naming a project. Every organization has exactly one: organization activation creates it, and
-the first project migration gave one to every organization. It can be renamed and emptied; it
-cannot be deleted while it holds work packages or is the organization's only project.
+naming a project. Every organization has exactly one. It can be renamed, emptied and replaced
+by another project as the default; it cannot be deleted while it holds work packages or is the
+organization's only project.
 _Avoid_: root project, unfiled, inbox
 
 **Work item**:
