@@ -211,9 +211,10 @@ and a separate plain-HTTP debug port (5001) for health probes. NetworkPolicy
 issues a disposable CA and certificate through cert-manager.
 `registry/production` issues `registry.puni.internal` from the escrowed
 `registry-ca` Secret, so a rebuild keeps the chain that nodes and Dagger trust.
-Node containerd trust (`/etc/rancher/k3s/registries.yaml` with that CA and
-credential) and the private-network endpoint are not yet configured by any
-role; until they are, the existing external registry stays authoritative.
+The standalone `infra/ansible/playbooks/registry.yml` configures the private
+endpoint and per-node containerd trust without reprovisioning k3s. Its inputs,
+Flux ownership, recovery custody and rollback are in [registry operation](registry.md).
+The existing product registries remain authoritative until a separately verified migration.
 
 Migrate by copying each image by tag without re-encoding it; the copier
 verifies every blob digest and requires the target to report the source
