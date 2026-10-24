@@ -73,7 +73,7 @@
         "{workspaceRoot}/docs/runbook-dev-deploy.md"
       ],
       "options": {
-        "command": "bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts test/source-exclusion-transport.test.ts test/source-exclusion-topology.test.ts test/source-exclusion-native.test.ts test/fixture-failure.test.ts --preload ../test/scratch/preload.ts --timeout=10000",
+        "command": "bun test src test/edge-init.test.ts test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts test/source-exclusion-transport.test.ts test/source-exclusion-topology.test.ts test/source-exclusion-native.test.ts test/fixture-failure.test.ts --preload ../test/scratch/preload.ts --timeout=10000",
         "cwd": "tools/tool-remote-scripts"
       },
       "dependsOn": ["test:caddy"]
@@ -108,6 +108,13 @@
       "cache": false,
       "options": {
         "command": "bun run tools/tool-remote-scripts/test/backend-recreation.ts"
+      }
+    },
+    "test:edge-init": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/edge-init.ts"
       }
     },
     "check-installed-solver": {
