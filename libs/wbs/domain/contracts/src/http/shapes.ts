@@ -99,6 +99,7 @@ import {
   discoverAddressProjects,
   resolveAddressReference,
 } from './project-address-shapes';
+import { readProjectClaims } from './project-claims-shapes';
 import { moveProjectRank, readProjectRank } from './project-rank-shapes';
 import {
   createProject,
@@ -258,6 +259,7 @@ export const httpShapes = [
   getStepReference,
   readStartableWork,
   readPersonWork,
+  readProjectClaims,
   renewClaimLeases,
   readProjectResources,
   applyProjectCommands,

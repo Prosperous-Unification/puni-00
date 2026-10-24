@@ -3919,6 +3919,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     // create would turn that assertion into "the composer happened to be
     // closed" — `notImplemented` makes the write audible instead.
     listCalendarMarkers: () => Promise.resolve([]),
+    readClaims: () => Promise.resolve({ readAt: 0, claims: [] }),
     createCalendarMarker: () => notImplemented('createCalendarMarker'),
     renameCalendarMarker: () => notImplemented('renameCalendarMarker'),
     recolorCalendarMarker: () => notImplemented('recolorCalendarMarker'),

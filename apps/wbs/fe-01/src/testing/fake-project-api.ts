@@ -15,6 +15,7 @@ import { byTreeOrder, treeOrder } from '@wbs/domain/tree-order';
 import type {
   AssumedAssigneeFlipView,
   CalendarMarkerView,
+  ClaimView,
   Days,
   EstimateMethod,
   ProjectApi,
@@ -79,6 +80,8 @@ export function fakeProjectApi(): ProjectApi & {
    * only observable against a list a create would have grown.
    */
   markers: CalendarMarkerView[];
+  /** The claims this fake answers `readClaims` with; a test pushes what it needs. */
+  claims: ClaimView[];
   stack: { undoable: boolean; redoable: boolean };
   stackCalls: ('undo' | 'redo')[];
   answerStackWith: (answer: UndoResult) => void;
@@ -146,6 +149,7 @@ export function fakeProjectApi(): ProjectApi & {
    * of the API, and be-01's answer side has no `null` in it.
    */
   const markers: CalendarMarkerView[] = [];
+  const claims: ClaimView[] = [];
   const typedDependencies: TypedDependencyView[] = [];
   let nextDependencyId = 0;
   /** Minted here when the caller names none, as be-01 mints one. */
@@ -434,6 +438,7 @@ export function fakeProjectApi(): ProjectApi & {
   return refusingApi({
     rows,
     markers,
+    claims,
     stack,
     stackCalls,
     /** What the next undo or redo answers, for the refusals be-01 models. */
@@ -794,6 +799,11 @@ export function fakeProjectApi(): ProjectApi & {
       return Promise.resolve();
     },
     listCalendarMarkers: () => Promise.resolve(markers.map((marker) => ({ ...marker }))),
+    readClaims: () =>
+      Promise.resolve({
+        readAt: Date.now(),
+        claims: claims.map((claim) => ({ ...claim, holder: { ...claim.holder } })),
+      }),
     createCalendarMarker(_projectId, marker) {
       const id = marker.markerId ?? `marker-${String(nextMarkerId++)}`;
       const stored: CalendarMarkerView = {

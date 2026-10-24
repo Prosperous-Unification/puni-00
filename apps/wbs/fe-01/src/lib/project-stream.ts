@@ -64,6 +64,15 @@ export interface ProjectStreamOptions {
   /** Whether a socket is currently open, so the caller can say so on screen. */
   onConnectionChange?: (connected: boolean) => void;
   /**
+   * A `claims_changed` announcement arrived. Opt-in: the announcement is
+   * transient and frequent (one per agent heartbeat that moved a lease,
+   * `wbs-claim-display` C4, C21), so a subscriber that does not ask for it never
+   * hears it — not even as an `onChange` — and pays nothing per heartbeat. It
+   * carries no sequence: none it may arrive with is one the acknowledgment may
+   * move to, wait on or count a gap from.
+   */
+  onClaims?: () => void;
+  /**
    * Who else is in this project, whenever gw-01 says.
    *
    * **On this socket, which is the point.** The presence panel opened a second
@@ -139,8 +148,8 @@ const browserDeps: ProjectStreamDeps = {
  *
  * **It is not one request, and calling it that is what made the cost invisible.**
  * The caller decides how much to read, and `resourcesFor` in `plan-refresh.ts`
- * answers with every resource for an event this side does not recognise — nine requests,
- * the plan and the steps and six vocabularies and the markers. That is the
+ * answers with every resource for an event this side does not recognise — ten requests,
+ * the plan and the steps and six vocabularies and the markers and the claims. That is the
  * honest price of ignoring the payload, and an optimizer outcome pays it
  * (TASK-324). The resource set narrows where be-01 guarantees it can; the
  * default stays the full read because an unknown event has no such guarantee.
@@ -254,8 +263,26 @@ export function subscribeToProject(
     // screen — and a stream that advanced on the frame rather than on the read
     // would then resume past an edit nobody ever saw. `seen` is the only way
     // forward, and it is called by whoever actually installed the new rows.
-    if (typeof frame.seq !== 'number') return;
-    options.onChange(changedFactOf(frame.message), frame.seq);
+    const changed = changedFactOf(frame.message);
+    // A transient announcement goes to `onClaims` alone, never to `onChange`.
+    // Proof: dropping this branch left `hands a claims announcement to
+    // onClaims alone …` at 0 calls, passed `['claims_changed', 40]` to a
+    // subscriber that did not opt in, and made the saved-plan shelf's `rereads
+    // nothing for five claims announcements` read its capability and list 3
+    // times, expected 1. Calling `onChange` here as well read them 6 times;
+    // watched 2026-10-23.
+    if (changed === 'claims_changed') {
+      options.onClaims?.();
+      return;
+    }
+    // Only a whole sequence enters the bookkeeping: JSON can say `1e400`
+    // (Infinity) or `1.5`, and either would poison `Math.max` downstream.
+    // Proof: `typeof seq !== 'number'` here forwarded `['tree_replaced',
+    // Infinity]` and `1.5` in `drops a change whose sequence is not a whole
+    // number`; watched 2026-10-23.
+    const seq = frame.seq;
+    if (seq === undefined || !Number.isSafeInteger(seq)) return;
+    options.onChange(changed, seq);
   }
 
   /**

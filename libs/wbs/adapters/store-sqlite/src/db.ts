@@ -362,3 +362,36 @@ export function openReadOnlyDatabase(dbPath: string): Database {
     database.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
   });
 }
+
+/**
+ * Runs `read` on a connection of its own inside one `BEGIN DEFERRED` read
+ * transaction, then commits and closes it: the committed state at one
+ * instant, never a batch's uncommitted writes on the process connection and
+ * never another process's commit landing between two of its statements. What
+ * `read` answers must not borrow the connection, which is closed on return.
+ */
+export async function observeCommitted<T>(
+  openConnection: () => Connection,
+  read: (db: Drizzle) => Promise<T> | T,
+): Promise<T> {
+  const connection = openConnection();
+  try {
+    const transaction = drizzleReadTransaction(connection.db);
+    // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
+    transaction.begin();
+    try {
+      const captured = await read(connection.db);
+      // Proof: omitting commit failed owned success/refusal close-time BEGIN assertions (transaction still active).
+      transaction.commit();
+      return captured;
+    } catch (failure) {
+      // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
+      transaction.rollback();
+      throw failure;
+    }
+  } finally {
+    // Proof: omitting close failed all four owned lifecycle cases and the
+    // mounted admission check saw one open snapshot at both launch handoffs.
+    connection.close();
+  }
+}

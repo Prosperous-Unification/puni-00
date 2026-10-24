@@ -9,6 +9,7 @@ import {
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
   readPersonWork,
+  readProjectClaims,
   readProjectResources,
   readStartableWork,
   redoProject,
@@ -780,6 +781,21 @@ export function workItemRoutes(
         if (work === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if ('kind' in work) return { ok: false, status: 404, body: { error: work.kind } };
         return { ok: true, status: 200, body: work };
+      },
+    ),
+    bind(
+      readProjectClaims,
+      async ({ params, principal }): Promise<HttpReply<typeof readProjectClaims>> => {
+        // Proof: reading without resolving access made `refuses a stranger
+        // exactly as the tree read does`
+        // (project-claims-organization.controller.db.test.ts) answer 200;
+        // watched 2026-10-23.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const claims = await workItems.claimsWithin(params.id, resolved.access);
+        if (claims === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if ('kind' in claims) return organizationRefusal(claims.refusal);
+        return { ok: true, status: 200, body: claims };
       },
     ),
     bind(

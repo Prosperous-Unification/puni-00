@@ -27,6 +27,7 @@ function stamped(
     accountId: 'account-f',
     claimedAt: 100,
     leaseExpiresAt: null,
+    leaseRevokedAt: null,
     ...over,
   };
 }

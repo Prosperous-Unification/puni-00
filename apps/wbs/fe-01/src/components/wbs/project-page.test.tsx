@@ -152,6 +152,8 @@ function fakeProjects(
       // refuses on purpose and the refusal arrives as a toast over every case in
       // this file. Empty is what these projects have.
       listCalendarMarkers: () => Promise.resolve([]),
+      // Claims too, for the same reason: unstated, the stale notice stands over every case.
+      readClaims: () => Promise.resolve({ readAt: 0, claims: [] }),
       addPerson: () => Promise.reject(new Error('not_in_these_tests')),
       assignPerson: () => Promise.reject(new Error('not_in_these_tests')),
       steps: () => Promise.resolve([]),

@@ -111,6 +111,7 @@ export function installProjectRuntime({
                 if (isCurrent()) presence.reportConnection(connected);
                 handlers.onConnectionChange(connected);
               },
+              onClaims: handlers.onClaims,
               onPresence: (users) => {
                 // Proof: on 2026-09-24, reporting the roster unconditionally here (m8) failed
                 // `keeps one runtime current, and nothing of a withdrawn one reaches anybody` at

@@ -299,9 +299,9 @@ async function withLifecycle<T>(
   }
 }
 
-// Proof: the original 10 s suite budget timed out during the two real worker
-// startups under concurrent test load; the same protocol completed in 9.66 s
-// in isolation with a 30 s suite budget. Each operation still has its 10 s bound.
+// This test migrates a fresh database and starts three workers. The protocol completed in
+// 9.66 s in isolation, and CI twice hit the 10 s default (10079 ms and 10120 ms,
+// "worker exited 143"). The 30 s case budget leaves each operation's 10 s bound intact.
 test('mounted worker protocol buffers split and coalesced frames and fails promptly on child exit', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-protocol-'));
   const path = join(dir, 'shared.db');

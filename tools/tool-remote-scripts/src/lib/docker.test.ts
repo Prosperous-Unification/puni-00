@@ -1693,6 +1693,10 @@ for (const [environment, expected] of [
   });
 }
 
+// This test renders the environment and boots the local backend configuration, so it carries its
+// own budget (docs/test-budgets.md: at least 3 times its run, 16.6-18.2 s on a loaded workstation on
+// 2026-10-23, rounded up to the 60 s step). Proof: under the target's 10 s default it timed out in CI
+// on three unrelated branches on 2026-10-23 (10053-10075 ms), twice on PR #675's gate workspace job.
 it('boots local backend configuration from the rendered environment and keeps OIDC callback origin authoritative', () => {
   const context = tierComposeContext(
     'be',

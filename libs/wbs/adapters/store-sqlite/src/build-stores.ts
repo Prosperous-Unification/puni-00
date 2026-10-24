@@ -5,7 +5,7 @@ import { CalendarMarkerRepository } from './calendar-marker';
 import { CapacityRepository } from './capacity';
 import { ClaimRepository } from './claim';
 import { CommandJournalRepository } from './command-journal';
-import type { Drizzle } from './db';
+import type { Connection, Drizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
@@ -33,6 +33,11 @@ export function buildStores(
   gate: Gate,
   lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
   livePlans?: LivePlanStore,
+  /**
+   * The connection the claims read observes committed state through; absent
+   * for a batch's own catalog, whose reads must see its uncommitted writes.
+   */
+  claimObservation?: { readonly openConnection: () => Connection },
 ) {
   return {
     ...(livePlans === undefined ? {} : { livePlans }),
@@ -58,7 +63,7 @@ export function buildStores(
     progress: new StepProgressRepository(db, gate),
     blockages: new StepBlockageRepository(db, gate),
     stepParallels: new StepParallelRepository(db, gate),
-    claims: new ClaimRepository(db, gate),
+    claims: new ClaimRepository(db, gate, claimObservation),
     demands: new DemandRepository(db, gate),
     attempts: new StepNodeAttemptRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),

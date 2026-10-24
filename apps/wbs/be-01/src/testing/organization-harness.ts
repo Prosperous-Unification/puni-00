@@ -80,6 +80,7 @@ import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import type { Connection } from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection as openAddressConnection } from '@wbs/store-sqlite/db';
+import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -523,7 +524,14 @@ export class OrganizationHarness {
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),
-        claims: new ClaimRepository(db, OPEN),
+        // The claims read observes committed state on a read-only connection
+        // of its own, as openSqliteSource's public catalogs do. This copy of the
+        // binding has no negative of its own: no harness test opens a batch
+        // beside a read. The source's binding is proven in
+        // claim-observation.db.test.ts.
+        claims: new ClaimRepository(db, OPEN, {
+          openConnection: () => openReadOnlyConnection(path),
+        }),
         demands: new DemandRepository(db, OPEN),
         resourceCapacity: new ResourceCapacityRepository(db, OPEN),
         stepParallels: new StepParallelRepository(db, OPEN),

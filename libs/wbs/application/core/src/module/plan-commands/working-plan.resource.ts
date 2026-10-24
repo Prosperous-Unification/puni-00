@@ -579,6 +579,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertProject(requestedProjectId);
         return scope.stores.claims.findById(requestedProjectId, claimId);
       },
+      observeProject: (requestedProjectId, access) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.observeProject(requestedProjectId, access);
+      },
       occupancyOf: (requestedProjectId) => {
         assertProject(requestedProjectId);
         return scope.stores.claims.occupancyOf(requestedProjectId);

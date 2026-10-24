@@ -34,6 +34,7 @@ export * from './http/person-work-shapes';
 export * from './http/plan-document-connected-shapes';
 export * from './http/plan-document-shapes';
 export * from './http/project-address-shapes';
+export * from './http/project-claims-shapes';
 export * from './http/project-rank-shapes';
 export * from './http/project-response';
 export * from './http/project-shapes';
