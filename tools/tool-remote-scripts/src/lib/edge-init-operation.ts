@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath } from 'node:fs/promises';
 import { request } from 'node:http';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { types } from 'node:util';
 
 import {
   type CandidateRequest,
@@ -19,6 +21,163 @@ import {
   projectInvariant,
 } from './edge-init';
 import { readFields, readIdentity } from './managed-cohort';
+
+const INIT_DIAGNOSTIC_REASONS = [
+  'candidate-name-mismatch',
+  'candidate-preservation-mismatch',
+  'candidate-not-inert',
+  'candidate-network-active',
+  'invariant-context-invalid',
+  'invariant-phase-differs',
+  'invariant-profile-unavailable',
+  'invariant-profile-invalid',
+  'invariant-profile-source-invalid',
+  'invariant-profile-value-invalid',
+  'network-pins-missing',
+  'network-roster-invalid',
+  'network-roster-differs',
+  'network-mode-differs',
+  'network-identity-differs',
+  'network-pin-differs',
+  'network-observation-unstable',
+  'unsupported-native-shape',
+  'invalid-ordered-env',
+  'engine-status-refused',
+  'engine-deadline-uncertain',
+  'engine-transport-uncertain',
+  'engine-response-truncated',
+  'engine-read-failed',
+  'engine-response-too-large',
+  'engine-json-invalid',
+  'create-acknowledgement-uncertain',
+  'exec-deadline-uncertain',
+  'exec-frame-invalid',
+  'exec-output-refused',
+  'exec-stream-invalid',
+  'exec-terminal-unverified',
+  'exec-utf8-invalid',
+  'deadline-reserve-exhausted',
+  'deadline-exhausted',
+] as const;
+type DiagnosticReason =
+  | (typeof INIT_DIAGNOSTIC_REASONS)[number]
+  | 'unrecognized-refusal'
+  | 'unexpected-failure'
+  | 'uninspectable-failure';
+export interface InitDiagnostic {
+  readonly reason: DiagnosticReason;
+  readonly diagnosticSha256: string;
+}
+type DiagnosticValueType =
+  | 'object'
+  | 'function'
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'bigint'
+  | 'symbol'
+  | 'undefined'
+  | 'null';
+type DiagnosticMessageKind =
+  | 'primitive-string'
+  | 'no-message'
+  | 'uninspectable'
+  | 'absent-message'
+  | 'accessor-message'
+  | 'data-message'
+  | 'non-string-message';
+type DiagnosticReasonKind = 'not-refusal' | 'absent-reason' | 'data-reason' | 'accessor-reason';
+const initDiagnostics = new WeakMap<InitRefusal, Readonly<InitDiagnostic>>();
+
+/** Exact error identity only; this reads no property/prototype and grants no effect or recovery capability.
+ * Lookalikes and publication-failure errors have no record; concurrent catches retain independent identities.
+ */
+export function readInitDiagnostic(cause: unknown): Readonly<InitDiagnostic> | undefined {
+  if ((typeof cause !== 'object' || cause === null) && typeof cause !== 'function')
+    return undefined;
+  // WeakMap.get reads exact identity only; this cast bridges the narrower key type without inspecting an untrusted object.
+  return initDiagnostics.get(cause as InitRefusal);
+}
+// Proof: proxy-guard removal invoked hostile traps; expanding the prototype bound failed its bounded-inspection negative.
+function isDiagnosticRefusal(cause: object): boolean {
+  let current: object | null = cause;
+  const seen = new Set<object>();
+  for (let depth = 0; current !== null && depth < 32; depth++) {
+    if (types.isProxy(current) || seen.has(current))
+      throw new Error('diagnostic inspection unavailable');
+    // Proof: treating the prototype object itself as an instance failed its separate classification regression.
+    if (depth > 0 && current === InitRefusal.prototype) return true;
+    seen.add(current);
+    const parent: unknown = Object.getPrototypeOf(current);
+    if (parent !== null && typeof parent !== 'object' && typeof parent !== 'function')
+      throw new Error('diagnostic inspection unavailable');
+    current = parent;
+  }
+  if (current !== null) throw new Error('diagnostic inspection unavailable');
+  return false;
+}
+/** v1 hashes a NUL-delimited ASCII header (value type, finite reason, reason kind, message kind, full UTF-16 length, truncation), then at most 8192 code units encoded UTF-16LE.
+ * Proof: removing the prefix bound, original-length framing, UTF-16 encoding or frozen record failed fixed-vector/framing/shape tests.
+ */
+function frameInitDiagnostic(
+  reason: DiagnosticReason,
+  valueType: DiagnosticValueType,
+  messageKind: DiagnosticMessageKind,
+  message: string,
+  reasonKind: DiagnosticReasonKind = 'not-refusal',
+): Readonly<InitDiagnostic> {
+  const header = `init-diagnostic-v1\0${valueType}\0${reason}\0${reasonKind}\0${messageKind}\0${String(message.length)}\0${message.length > 8192 ? 'truncated' : 'complete'}\0`;
+  return Object.freeze({
+    reason,
+    diagnosticSha256: createHash('sha256')
+      .update(header, 'utf8')
+      .update(message.slice(0, 8192), 'utf16le')
+      .digest('hex'),
+  });
+}
+/** Optional private projection retains no raw cause, invokes no application getter/serializer and cannot replace a public operation outcome.
+ * Loss of inspection is explicit; raw input exists only transiently while hashing the bounded own-data message.
+ * Proof: arbitrary reason passthrough and direct getter reads failed the privacy/accessor negatives; raw stored message failed exact record shape.
+ */
+function projectInitDiagnostic(cause: unknown): Readonly<InitDiagnostic> {
+  const type = cause === null ? 'null' : typeof cause;
+  try {
+    if (typeof cause === 'string')
+      return frameInitDiagnostic('unexpected-failure', type, 'primitive-string', cause);
+    if ((typeof cause !== 'object' || cause === null) && typeof cause !== 'function')
+      return frameInitDiagnostic('unexpected-failure', type, 'no-message', '');
+    if (types.isProxy(cause))
+      return frameInitDiagnostic('uninspectable-failure', type, 'uninspectable', '');
+    let reason: DiagnosticReason = 'unexpected-failure';
+    let reasonSource: DiagnosticReasonKind = 'not-refusal';
+    if (isDiagnosticRefusal(cause)) {
+      const descriptor = Object.getOwnPropertyDescriptor(cause, 'reason');
+      reasonSource =
+        descriptor === undefined
+          ? 'absent-reason'
+          : Object.hasOwn(descriptor, 'value')
+            ? 'data-reason'
+            : 'accessor-reason';
+      const value: unknown =
+        descriptor !== undefined && Object.hasOwn(descriptor, 'value')
+          ? descriptor.value
+          : undefined;
+      const known = INIT_DIAGNOSTIC_REASONS.find((expected) => expected === value);
+      reason = known ?? 'unrecognized-refusal';
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(cause, 'message');
+    if (descriptor === undefined)
+      return frameInitDiagnostic(reason, type, 'absent-message', '', reasonSource);
+    if (!Object.hasOwn(descriptor, 'value'))
+      return frameInitDiagnostic(reason, type, 'accessor-message', '', reasonSource);
+    const message: unknown = descriptor.value;
+    return typeof message === 'string'
+      ? frameInitDiagnostic(reason, type, 'data-message', message, reasonSource)
+      : frameInitDiagnostic(reason, type, 'non-string-message', '', reasonSource);
+  } catch {
+    return frameInitDiagnostic('uninspectable-failure', type, 'uninspectable', '');
+  }
+}
 
 /** Per-service monotonic ceiling retains thirty seconds for bounded readback and publication. */
 export class Deadline {
@@ -860,7 +1019,7 @@ export async function runInitAdoption(
     }
     await observer.combined(deadline);
     await publish('complete');
-  } catch {
+  } catch (cause) {
     // No raw transport/host cause reaches public diagnostics or hash-only receipts.
     try {
       await publish(phase);
@@ -868,6 +1027,10 @@ export async function runInitAdoption(
       // Proof: omitted boundary exposed SECRET from a persistently failing receipt writer in the real finite sequence.
       throw new InitRefusal(`${phase}-receipt-publication-failed`);
     }
-    throw new InitRefusal(phase);
+    const refusal = new InitRefusal(phase);
+    // Proof: omitted registration and phase-only projection lost actual inner reasons; raw cause/message attachment failed public error privacy.
+    // Failure publication precedes this optional capture; moving capture into its failure path failed metadata-absence proof.
+    initDiagnostics.set(refusal, projectInitDiagnostic(cause));
+    throw refusal;
   }
 }

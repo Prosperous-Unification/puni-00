@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -6,6 +7,7 @@ import { join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 
 import { syntheticContainer } from '../../test/edge-init-fixture';
+import { describeInitRefusal } from '../adopt-edge-init';
 import {
   constructCandidate,
   CREATED_PROFILE,
@@ -21,6 +23,7 @@ import {
   EngineTransport,
   observeNetworks,
   PrivateReceipts,
+  readInitDiagnostic,
   runInitAdoption,
 } from './edge-init-operation';
 
@@ -514,7 +517,16 @@ test.each([
       expect(String(failure)).not.toContain('SECRET');
       expect(effects.some((effect) => effect.startsWith('remove:'))).toBe(false);
       expect(containers.has(original.Id)).toBe(true);
-      if (fault === 'profile-source-false') expect(effects).toEqual([]);
+      if (fault === 'profile-source-false') {
+        expect(effects).toEqual([]);
+        expect(readInitDiagnostic(failure)).toBeUndefined();
+      }
+      if (fault === 'receipt-failed') {
+        expect(failure).toMatchObject({ reason: 'before-create-receipt-publication-failed' });
+        expect(readInitDiagnostic(failure)).toBeUndefined();
+        expect(Object.getOwnPropertySymbols(failure)).toEqual([]);
+        expect(Reflect.ownKeys(failure as object)).not.toContain('cause');
+      }
       if (fault.startsWith('profile-network')) expect(effects).toEqual(['create:registry']);
       if (
         fault === 'candidate-drift' ||
@@ -971,4 +983,358 @@ test('network name read refuses non-Docker names before dispatch and keeps full-
     (cause: unknown) => cause,
   );
   expect(invalid).toBeInstanceOf(Error);
+});
+
+type DiagnosticCase = { kind: 'network' | 'context' } | { kind: 'cause'; cause: unknown };
+async function runDiagnosticSequence(variant: DiagnosticCase) {
+  const original = syntheticContainer();
+  Object.assign(original.HostConfig, { OomKillDisable: null });
+  const caddy = structuredClone(original);
+  caddy.Id = 'e'.repeat(64);
+  caddy.Name = '/wbs-caddy-1';
+  const replacement = structuredClone(original);
+  replacement.Id = 'd'.repeat(64);
+  replacement.Name = '/wbs-init-synthetic-registry';
+  replacement.Config.Image = replacement.Image;
+  replacement.HostConfig.Init = true;
+  Object.assign(replacement.HostConfig, { OomKillDisable: false });
+  Object.assign(replacement.State, {
+    Status: 'created',
+    Running: false,
+    Pid: 0,
+    StartedAt: '0001-01-01T00:00:00Z',
+  });
+  replacement.NetworkSettings.Networks.edge.NetworkID = '';
+  if (variant.kind === 'context') replacement.HostConfig.NetworkMode = 'foreign';
+  const containers = new Map([original, caddy, replacement].map((raw) => [raw.Id, raw]));
+  const effects: string[] = [],
+    receipts: string[] = [];
+  const network = { Id: 'c'.repeat(64), Name: 'edge', Driver: 'bridge', Containers: {} };
+  const pins = [
+    {
+      name: 'edge',
+      id: network.Id,
+      sha256: fingerprint({ Id: network.Id, Name: network.Name, Driver: network.Driver }),
+    },
+  ];
+  const verify = () => Promise.resolve();
+  const refusal = await runInitAdoption(
+    {
+      nonce: 'synthetic',
+      invariantProfile: CREATED_PROFILE,
+      targets: [
+        { kind: 'registry', original: parseNativeContainer(original), networks: pins },
+        { kind: 'caddy', original: parseNativeContainer(caddy), networks: pins },
+      ],
+    },
+    {
+      inspect: (id) => {
+        const raw = containers.get(id);
+        if (raw === undefined) throw Error('missing diagnostic fixture');
+        return Promise.resolve(parseNativeContainer(raw));
+      },
+      create: () => {
+        effects.push('create');
+        return Promise.resolve(replacement.Id);
+      },
+      network: () => Promise.resolve(network),
+      networkByName: () =>
+        Promise.resolve(variant.kind === 'network' ? { ...network, Id: 'f'.repeat(64) } : network),
+      stop: () => {
+        effects.push('stop');
+        return verify();
+      },
+      rename: () => {
+        effects.push('rename');
+        return verify();
+      },
+      start: () => {
+        effects.push('start');
+        return verify();
+      },
+      remove: () => {
+        effects.push('remove');
+        return verify();
+      },
+    },
+    {
+      admit: verify,
+      original: verify,
+      inert: () => (variant.kind === 'cause' ? Promise.reject(variant.cause as Error) : verify()),
+      stopped: verify,
+      running: verify,
+      health: verify,
+      combined: verify,
+      absent: verify,
+    },
+    {
+      publish: (receipt) => {
+        receipts.push(JSON.stringify(receipt));
+        return Promise.resolve('0'.repeat(64));
+      },
+    },
+  ).then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  if (!(refusal instanceof InitRefusal)) throw Error('expected sanitized diagnostic refusal');
+  return { refusal, effects, receipts };
+}
+function expectedDiagnosticHash(
+  reason: string,
+  type: string,
+  reasonSource: string,
+  messageSource: string,
+  message: string,
+) {
+  return createHash('sha256')
+    .update(
+      `init-diagnostic-v1\0${type}\0${reason}\0${reasonSource}\0${messageSource}\0${String(message.length)}\0${message.length > 8192 ? 'truncated' : 'complete'}\0`,
+      'utf8',
+    )
+    .update(message.slice(0, 8192), 'utf16le')
+    .digest('hex');
+}
+
+test('real candidate-inert catches retain distinct private network and context reasons under identical public errors', async () => {
+  const [network, context] = await Promise.all([
+    runDiagnosticSequence({ kind: 'network' }),
+    runDiagnosticSequence({ kind: 'context' }),
+  ]);
+  for (const entry of [network, context]) {
+    expect(entry.effects).toEqual(['create']);
+    expect(entry.refusal.reason).toBe('candidate-inert');
+    expect(entry.refusal.message).toBe(new InitRefusal('candidate-inert').message);
+    expect(entry.refusal.name).toBe(new InitRefusal('candidate-inert').name);
+    expect(Reflect.ownKeys(entry.refusal).sort()).toEqual(
+      Reflect.ownKeys(new InitRefusal('candidate-inert')).sort(),
+    );
+    expect(Object.getPrototypeOf(entry.refusal)).toBe(InitRefusal.prototype);
+    const diagnostic = readInitDiagnostic(entry.refusal);
+    expect(Object.isFrozen(diagnostic)).toBe(true);
+    expect(Reflect.ownKeys(diagnostic ?? {}).sort()).toEqual(['diagnosticSha256', 'reason']);
+    expect(JSON.stringify(entry.refusal)).toBe(JSON.stringify(new InitRefusal('candidate-inert')));
+  }
+  expect(readInitDiagnostic(network.refusal)).toEqual({
+    reason: 'network-pin-differs',
+    diagnosticSha256: 'c6f78fed98628ac47a35112ff6e07cc87f777a40a25dd4fd42dfc0c6fd59a569',
+  });
+  expect(readInitDiagnostic(context.refusal)?.reason).toBe('network-mode-differs');
+  expect(readInitDiagnostic(context.refusal)?.diagnosticSha256).not.toBe(
+    readInitDiagnostic(network.refusal)?.diagnosticSha256,
+  );
+  for (const cause of [
+    new InitRefusal('candidate-inert'),
+    new Error('candidate-inert'),
+    undefined,
+    null,
+    1,
+    'candidate-inert',
+    Symbol('candidate-inert'),
+  ])
+    expect(readInitDiagnostic(cause)).toBeUndefined();
+  const third = await runDiagnosticSequence({
+    kind: 'cause',
+    cause: Object.assign(new InitRefusal('network-pin-differs'), {
+      message: 'different bounded message',
+    }),
+  });
+  expect(readInitDiagnostic(third.refusal)?.reason).toBe('network-pin-differs');
+  expect(readInitDiagnostic(third.refusal)?.diagnosticSha256).not.toBe(
+    readInitDiagnostic(network.refusal)?.diagnosticSha256,
+  );
+  expect(readInitDiagnostic(network.refusal)?.reason).toBe('network-pin-differs');
+});
+
+test('private diagnostics never attach or serialize arbitrary errors or refusal text', async () => {
+  for (const cause of [
+    new Error('PRIVATE_CAUSE_SENTINEL'),
+    new InitRefusal('network-PRIVATE_CAUSE_SENTINEL'),
+  ]) {
+    const entry = await runDiagnosticSequence({ kind: 'cause', cause });
+    const expected = cause instanceof InitRefusal ? 'unrecognized-refusal' : 'unexpected-failure';
+    expect(readInitDiagnostic(entry.refusal)?.reason).toBe(expected);
+    expect(JSON.stringify(readInitDiagnostic(entry.refusal))).not.toContain(
+      'PRIVATE_CAUSE_SENTINEL',
+    );
+    expect(entry.effects).toEqual(['create']);
+    expect(JSON.stringify(Object.getOwnPropertyDescriptors(entry.refusal))).not.toContain(
+      'PRIVATE_CAUSE_SENTINEL',
+    );
+    expect(JSON.stringify(entry.refusal)).not.toContain('PRIVATE_CAUSE_SENTINEL');
+    expect(JSON.stringify(describeInitRefusal(entry.refusal))).not.toContain(
+      'PRIVATE_CAUSE_SENTINEL',
+    );
+    expect(entry.receipts.join('\n')).not.toContain('PRIVATE_CAUSE_SENTINEL');
+    expect(Reflect.ownKeys(entry.refusal)).not.toContain('cause');
+    expect(Object.getOwnPropertySymbols(entry.refusal)).toEqual([]);
+  }
+});
+
+test('diagnostic hashing is getter-free and hostile values cannot replace the public phase', async () => {
+  let getters = 0;
+  const getter = new InitRefusal('network-pin-differs');
+  Object.defineProperties(getter, {
+    reason: {
+      get() {
+        getters++;
+        throw Error('PRIVATE_GETTER');
+      },
+    },
+    message: {
+      get() {
+        getters++;
+        throw Error('PRIVATE_GETTER');
+      },
+    },
+  });
+  const hostile = new Proxy(
+    {},
+    {
+      getOwnPropertyDescriptor() {
+        getters++;
+        throw Error('PRIVATE_TRAP');
+      },
+      getPrototypeOf() {
+        getters++;
+        throw Error('PRIVATE_TRAP');
+      },
+    },
+  );
+  for (const cause of [getter, hostile]) {
+    const entry = await runDiagnosticSequence({ kind: 'cause', cause });
+    expect(entry.refusal.reason).toBe('candidate-inert');
+    expect(readInitDiagnostic(entry.refusal)?.reason).toBe(
+      cause === getter ? 'unrecognized-refusal' : 'uninspectable-failure',
+    );
+    expect(JSON.stringify(readInitDiagnostic(entry.refusal))).not.toContain('PRIVATE_');
+  }
+  expect(readInitDiagnostic(hostile)).toBeUndefined();
+  expect(getters).toBe(0);
+});
+
+test('diagnostic framing bounds raw UTF-16 message input with explicit original length and truncation', async () => {
+  const message = 'x'.repeat(8192) + 'PRIVATE_SUFFIX';
+  const cause = new Error(message);
+  const entry = await runDiagnosticSequence({ kind: 'cause', cause });
+  expect(readInitDiagnostic(entry.refusal)).toEqual({
+    reason: 'unexpected-failure',
+    diagnosticSha256: expectedDiagnosticHash(
+      'unexpected-failure',
+      'object',
+      'not-refusal',
+      'data-message',
+      message,
+    ),
+  });
+  const same = await runDiagnosticSequence({
+    kind: 'cause',
+    cause: new Error('x'.repeat(8192) + 'OTHER_SUFFIX__'),
+  });
+  expect(readInitDiagnostic(same.refusal)?.diagnosticSha256).toBe(
+    readInitDiagnostic(entry.refusal)?.diagnosticSha256,
+  );
+  const longer = await runDiagnosticSequence({ kind: 'cause', cause: new Error(message + 'x') });
+  expect(readInitDiagnostic(longer.refusal)?.diagnosticSha256).not.toBe(
+    readInitDiagnostic(entry.refusal)?.diagnosticSha256,
+  );
+  const primitive = await runDiagnosticSequence({ kind: 'cause', cause: 'PRIVATE_STRING' });
+  expect(readInitDiagnostic(primitive.refusal)?.diagnosticSha256).toBe(
+    expectedDiagnosticHash(
+      'unexpected-failure',
+      'string',
+      'not-refusal',
+      'primitive-string',
+      'PRIVATE_STRING',
+    ),
+  );
+});
+
+test('diagnostic framing marks accessor fields without invoking getters or serializers', async () => {
+  let reads = 0;
+  const messageGetter = new InitRefusal('network-pin-differs');
+  Object.defineProperty(messageGetter, 'message', {
+    get() {
+      reads++;
+      throw Error('PRIVATE_ACCESSOR');
+    },
+  });
+  const reasonGetter = new InitRefusal('network-pin-differs');
+  Object.defineProperty(reasonGetter, 'reason', {
+    get() {
+      reads++;
+      throw Error('PRIVATE_ACCESSOR');
+    },
+  });
+  const serialized = {
+    message: 'PRIVATE_MESSAGE',
+    get cause() {
+      reads++;
+      throw Error('PRIVATE_CAUSE');
+    },
+    toJSON() {
+      reads++;
+      throw Error('PRIVATE_JSON');
+    },
+    toString() {
+      reads++;
+      throw Error('PRIVATE_STRING');
+    },
+  };
+  const message = await runDiagnosticSequence({ kind: 'cause', cause: messageGetter });
+  expect(readInitDiagnostic(message.refusal)?.diagnosticSha256).toBe(
+    expectedDiagnosticHash('network-pin-differs', 'object', 'data-reason', 'accessor-message', ''),
+  );
+  const reason = await runDiagnosticSequence({ kind: 'cause', cause: reasonGetter });
+  expect(readInitDiagnostic(reason.refusal)?.diagnosticSha256).toBe(
+    expectedDiagnosticHash(
+      'unrecognized-refusal',
+      'object',
+      'accessor-reason',
+      'data-message',
+      'edge Init adoption refused: network-pin-differs',
+    ),
+  );
+  const arbitrary = await runDiagnosticSequence({ kind: 'cause', cause: serialized });
+  expect(readInitDiagnostic(arbitrary.refusal)?.reason).toBe('unexpected-failure');
+  expect(reads).toBe(0);
+});
+
+test('diagnostic inspection remains bounded for deep prototypes and ignores non-string message conversion', async () => {
+  let deep: object = {};
+  for (let count = 0; count < 40; count++) deep = Object.create(deep) as object;
+  const bounded = await runDiagnosticSequence({ kind: 'cause', cause: deep });
+  expect(readInitDiagnostic(bounded.refusal)?.reason).toBe('uninspectable-failure');
+  let conversions = 0;
+  const cause = {
+    message: {
+      toString() {
+        conversions++;
+        throw Error('PRIVATE_CONVERSION');
+      },
+      toJSON() {
+        conversions++;
+        throw Error('PRIVATE_CONVERSION');
+      },
+    },
+  };
+  const ignored = await runDiagnosticSequence({ kind: 'cause', cause });
+  expect(readInitDiagnostic(ignored.refusal)?.diagnosticSha256).toBe(
+    expectedDiagnosticHash('unexpected-failure', 'object', 'not-refusal', 'non-string-message', ''),
+  );
+  expect(conversions).toBe(0);
+});
+
+for (const reason of ['deadline-reserve-exhausted', 'deadline-exhausted'] as const)
+  test('private diagnostics admit fixed ' + reason, async () => {
+    const entry = await runDiagnosticSequence({ kind: 'cause', cause: new InitRefusal(reason) });
+    expect(entry.refusal.reason).toBe('candidate-inert');
+    expect(readInitDiagnostic(entry.refusal)?.reason).toBe(reason);
+    expect(entry.effects).toEqual(['create']);
+  });
+
+test('private diagnostic classification does not treat the class prototype as a refusal instance', async () => {
+  const entry = await runDiagnosticSequence({ kind: 'cause', cause: InitRefusal.prototype });
+  expect(readInitDiagnostic(entry.refusal)?.reason).toBe('unexpected-failure');
+  expect(readInitDiagnostic(InitRefusal.prototype)).toBeUndefined();
 });
