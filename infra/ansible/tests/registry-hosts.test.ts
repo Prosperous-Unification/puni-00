@@ -1,4 +1,5 @@
 import { chmod, cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
 
 import { beforeAll, expect, it } from 'bun:test';
@@ -91,11 +92,25 @@ async function fixture(
     ...overrides,
   };
   const serviceLog = join(root, 'services');
+  const unitPaths = (await run('systemd-analyze', ['unit-paths'])).output
+    .trim()
+    .split('\n')
+    .map((path) => root + path)
+    .join(':');
   async function rewrite(path: string) {
     const tasks = parse(await readFile(path, 'utf8')) as Task[];
     const rewritten: Task[] = [];
     for (const task of tasks) {
       if (task.name === removed) continue;
+      if (task.name === 'Read systemd unit search paths')
+        task['environment'] = { SYSTEMD_UNIT_PATH: unitPaths };
+      if (task.name === 'Refuse competing registry units or overrides') {
+        const command = task['ansible.builtin.command'];
+        if (command && Array.isArray(command['argv']))
+          command['argv'] = command['argv'].map((argument: unknown) =>
+            argument === '/etc/systemd/system' ? root + argument : argument,
+          );
+      }
       if (fault === 'proxy' && task.name === 'Inspect proxy executable')
         task['ansible.builtin.stat']!['path'] = join(root, 'missing-proxy');
       if (task.loop instanceof Array)
@@ -164,6 +179,16 @@ async function fixture(
     ANSIBLE_PYTHON_INTERPRETER: '/usr/bin/python3',
   };
   if (fault === 'override') await mkdir(root + '/etc/systemd/system/puni-registry.socket.d');
+  const overridePath =
+    fault === 'vendor-override'
+      ? '/usr/lib/systemd/system/puni-registry.socket.d'
+      : fault === 'prefix-override'
+        ? '/etc/systemd/system/puni-.socket.d'
+        : undefined;
+  if (overridePath) {
+    await mkdir(root + overridePath, { recursive: true });
+    await writeFile(root + overridePath + '/public.conf', '[Socket]\nListenStream=0.0.0.0:5000\n');
+  }
   return {
     root,
     serviceLog,
@@ -317,3 +342,116 @@ it('R5 proves address, CA and ownership negatives break when their production gu
       ).toBe(true);
   }
 }, 120000);
+
+it('rejects effective vendor and prefix socket drop-ins before unit writes', async () => {
+  for (const fault of ['vendor-override', 'prefix-override']) {
+    const host = await fixture('registry_endpoint', {}, undefined, fault);
+    expect((await host.apply()).code).not.toBe(0);
+    expect(await Bun.file(host.root + '/etc/systemd/system/puni-registry.socket').exists()).toBe(
+      false,
+    );
+    const unguarded = await fixture(
+      'registry_endpoint',
+      {},
+      'Refuse competing registry units or overrides',
+      fault,
+    );
+    expect((await unguarded.apply()).code).toBe(0);
+    expect(
+      await Bun.file(unguarded.root + '/etc/systemd/system/puni-registry.socket').exists(),
+    ).toBe(true);
+  }
+}, 60000);
+
+it('bounds the production server readiness request against a stalled API response', async () => {
+  const tasks = parse(
+    await readFile(
+      join(repository, 'infra/ansible/roles/registry_client/handlers/main.yml'),
+      'utf8',
+    ),
+  ) as Task[];
+  const probe = tasks.find((task) => task.name === 'Wait for registry server readiness');
+  const arguments_ = (probe?.['ansible.builtin.command']?.['argv'] as string[]).slice();
+  const requestedKubectl = process.env['REGISTRY_TEST_KUBECTL'] ?? 'kubectl';
+  const resolvedKubectl = Bun.which(requestedKubectl);
+  if (!resolvedKubectl) throw new Error('Pinned kubectl is required for registry readiness tests');
+  const kubectl = resolvedKubectl;
+  const lock = (await Bun.file(join(repository, 'infra/versions/toolchain.json')).json()) as {
+    binaries: { kubectl: { sha256: string } };
+  };
+  const checksum = new Bun.CryptoHasher('sha256')
+    .update(await Bun.file(kubectl).arrayBuffer())
+    .digest('hex');
+  expect(checksum).toBe(lock.binaries.kubectl.sha256);
+  const root = await scratchAsync('registry-readiness-');
+  const server = createServer((_request, response) => {
+    response.writeHead(200);
+    response.flushHeaders();
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const address = server.address();
+    if (address === null || typeof address === 'string')
+      throw new Error('Fixture listener has no address');
+    const kubeconfig = join(root, 'kubeconfig');
+    await writeFile(
+      kubeconfig,
+      stringify({
+        apiVersion: 'v1',
+        kind: 'Config',
+        clusters: [
+          { name: 'fixture', cluster: { server: 'http://127.0.0.1:' + String(address.port) } },
+        ],
+        contexts: [{ name: 'fixture', context: { cluster: 'fixture', user: 'fixture' } }],
+        'current-context': 'fixture',
+        users: [{ name: 'fixture', user: {} }],
+      }),
+    );
+    const k3s = join(root, 'k3s');
+    await writeFile(k3s, '#!/bin/sh\nshift\nexec "$REGISTRY_TEST_KUBECTL" "$@"\n');
+    await chmod(k3s, 0o700);
+    const position = arguments_.indexOf('k3s');
+    arguments_[position] = k3s;
+    async function executeProbe(command: string[]) {
+      const started = performance.now();
+      const child = Bun.spawn(command, {
+        env: { ...process.env, REGISTRY_TEST_KUBECTL: kubectl, KUBECONFIG: kubeconfig },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        detached: true,
+      });
+      let expired = false;
+      const deadline = setTimeout(() => {
+        expired = true;
+        process.kill(-child.pid, 'SIGKILL');
+      }, 18000);
+      const [code, output] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+      clearTimeout(deadline);
+      return { code, output, expired, elapsed: performance.now() - started };
+    }
+    const stalledRequest = await executeProbe(arguments_);
+    expect(stalledRequest.code).not.toBe(0);
+    expect(stalledRequest.output).toMatch(/timeout|deadline exceeded/i);
+    expect(stalledRequest.expired).toBe(false);
+    expect(stalledRequest.elapsed).toBeLessThan(10000);
+    const unlimitedRequest = await executeProbe(
+      arguments_.filter((argument) => argument !== '--request-timeout=5s'),
+    );
+    expect(() => {
+      expect(unlimitedRequest.elapsed).toBeLessThan(10000);
+    }).toThrow();
+    expect(unlimitedRequest.expired).toBe(false);
+    await writeFile(k3s, '#!/bin/sh\nexec sleep 60\n');
+    const stalledProcess = await executeProbe(arguments_);
+    expect(stalledProcess.code).not.toBe(0);
+    expect(stalledProcess.expired).toBe(false);
+    expect(stalledProcess.elapsed).toBeLessThan(17000);
+    const unlimitedProcess = await executeProbe(arguments_.slice(arguments_.indexOf(k3s)));
+    expect(() => {
+      expect(unlimitedProcess.expired).toBe(false);
+    }).toThrow();
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+}, 90000);

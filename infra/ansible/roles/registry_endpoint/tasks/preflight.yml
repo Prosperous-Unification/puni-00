@@ -65,28 +65,37 @@
     loop_var: registry_unit
   when: not (registry_unit.skipped | default(false))
 
-- name: Inspect conflicting registry unit paths
-  ansible.builtin.stat:
-    path: '{{ registry_path }}'
-    follow: false
-  loop:
-    - /etc/systemd/system/puni-registry.socket.d
-    - /etc/systemd/system/puni-registry.service.d
-    - /run/systemd/system/puni-registry.socket
-    - /run/systemd/system/puni-registry.service
-    - /run/systemd/system/puni-registry.socket.d
-    - /run/systemd/system/puni-registry.service.d
-    - /usr/lib/systemd/system/puni-registry.socket
-    - /usr/lib/systemd/system/puni-registry.service
-  loop_control:
-    loop_var: registry_path
-  register: puni_registry_conflicts
+- name: Read systemd unit search paths
+  ansible.builtin.command:
+    argv: [systemd-analyze, unit-paths]
+  register: puni_registry_unit_paths
+  changed_when: false
 
-# Proof: registry-hosts.test.ts injects a socket override; removing this assertion permits unit writes.
+# Proof: registry-hosts.test.ts injects vendor and puni-.socket.d public listeners;
+# removing this command permits unit writes despite the inherited public listeners.
 - name: Refuse competing registry units or overrides
-  ansible.builtin.assert:
-    that: not registry_path.stat.exists
-    fail_msg: Refusing a competing registry unit or override
-  loop: '{{ puni_registry_conflicts.results }}'
-  loop_control:
-    loop_var: registry_path
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import pathlib, sys
+        managed = pathlib.Path(sys.argv[1])
+        roots = sys.stdin.read().splitlines()
+        if not roots or any(not pathlib.Path(root).is_absolute() for root in roots):
+            raise ValueError('Systemd unit search paths must be nonempty absolute paths')
+        for root in map(pathlib.Path, roots):
+            for kind in ('socket', 'service'):
+                unit = 'puni-registry.' + kind
+                for name in (unit, unit + '.d', 'puni-.' + kind + '.d', kind + '.d'):
+                    if root == managed and name == unit:
+                        continue
+                    candidate = root / name
+                    try:
+                        candidate.lstat()
+                    except FileNotFoundError:
+                        continue
+                    raise RuntimeError('Competing registry unit or effective drop-in: ' + str(candidate))
+      - /etc/systemd/system
+    stdin: '{{ puni_registry_unit_paths.stdout }}'
+  changed_when: false

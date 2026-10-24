@@ -8,9 +8,11 @@
     - Wait for registry server readiness
     - Wait for registry agent readiness
 
+# Proof: registry-hosts.test.ts stalls a real kubectl API response; removing request timeout
+# exceeds the request deadline, and removing process timeout permits a stuck executable to survive.
 - name: Wait for registry server readiness
   ansible.builtin.command:
-    argv: [k3s, kubectl, get, --raw=/readyz]
+    argv: [timeout, --signal=KILL, 15s, k3s, kubectl, --request-timeout=5s, get, --raw=/readyz]
   register: puni_registry_ready
   changed_when: false
   until: puni_registry_ready.rc == 0 and puni_registry_ready.stdout | trim == 'ok'
