@@ -124,3 +124,34 @@ non-root coordinator, actual namespace/socket joins, production observer protoco
 and negative matrix remain to be added and independently reviewed. No namespace
 command in this artifact has executed. The retained automatic-review rejection
 still applies, including indirect/default CI execution.
+
+## Consumed-context and source socket follow-up
+
+The internal `assertParticipantRestorationContext` boundary checks the original
+context-to-key identity, successful one-shot consumption, retained key membership,
+live original owner, deadline and original pending/fenced-complete record snapshots.
+A spread copy refuses. Real SQLite one-shot replay: 1 pass, 130 assertions, 68.45s,
+`/tmp/puni-participant-context-green.log`. Omitting that provenance guard admitted
+the copy and failed at `Missing expected rejection` after 75.14s,
+`/tmp/puni-participant-context-watch.log`; original source restored.
+
+The source UID socket observer joins each actual TCP/TCP6 LISTEN inode to exactly
+one application FD and brackets namespaces, process identity and FD ownership.
+The native positive uses an owned loopback child. Its foreign-process negative
+uses another stable child in the same network namespace, with no listener FD.
+Breaking the inode-to-FD lookup failed that exact negative with `Missing expected
+rejection`, `/tmp/puni-participant-listener-watch2.log`; restored code passes,
+`/tmp/puni-participant-listener-green2.log`. An earlier mutation attempt against the
+test runner itself remained green because its transient descriptors caused an
+earlier refusal; that attempt is not claimed as proof. No root product observer,
+namespace rehearsal, actual participant restart or complete readiness is implied.
+
+Follow-up configured graph-loaded lint/typecheck/build: 7 targets pass, 4 dependency
+cache hits, 18.7s, `/tmp/puni-participant-context-listener-static2.log`. The first
+follow-up lint failed unnecessary indexed-access guards; `.at()` now preserves
+explicit external-field validation under the actual compiler settings. Fresh
+restored native listener case after that refactor passes 1 test, 5 assertions,
+`/tmp/puni-participant-listener-green3.log`. The product split is frozen by
+`/tmp/puni-product-process-split-ruling.md`; its new observer files and the manual
+rehearsal are reserved for the separately dispatched worker. No privilege grant is
+inferred from that split.

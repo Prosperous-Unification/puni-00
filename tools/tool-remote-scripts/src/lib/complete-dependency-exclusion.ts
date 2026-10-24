@@ -157,6 +157,10 @@ const preparations = new WeakMap<
   FinalizedParticipantRestorationContext
 >();
 const consumedPreparations = new WeakSet<PreparedDependencyActivation>();
+const preparedContexts = new WeakMap<
+  FinalizedParticipantRestorationContext,
+  PreparedDependencyActivation
+>();
 /** Internal fixed-profile composition under an already retained outer owner; return follows every physical finalizer. */
 async function activateCompleteUnderOwner(
   owner: DependencyOwner,
@@ -806,7 +810,9 @@ async function activateCompleteUnderOwner(
       const key: PreparedDependencyActivation = Object.freeze({
         [preparationIdentity]: true as const,
       });
-      preparations.set(key, { ...provisional, completion, fencedComplete });
+      const context = { ...provisional, completion, fencedComplete };
+      preparations.set(key, context);
+      preparedContexts.set(context, key);
       isRetainedForRestoration = true;
       return { completion, prepared: key };
     }
@@ -886,6 +892,29 @@ export async function consumePreparedDependencyActivation(
     throw cause;
   }
 }
+/** Private composition boundary. Only the original consumed in-memory context under its continuously retained owner can observe or restart participants. This checks ownership and immutable records without assuming the source is still stopped. */
+export async function assertParticipantRestorationContext(
+  context: FinalizedParticipantRestorationContext,
+): Promise<void> {
+  const key = preparedContexts.get(context);
+  // Proof: omitting this original-context guard admitted a spread copy after real SQLite activation; one-shot context test failed with Missing expected rejection.
+  if (key === undefined || preparations.get(key) !== context || !consumedPreparations.has(key))
+    throw new Error('participant restoration context is not original and consumed');
+  if (!Number.isFinite(context.deadline) || performance.now() >= context.deadline)
+    throw new Error('participant restoration deadline exceeded');
+  await assertDependencyOwner(context.owner, context.layouts.prod, context.request.owner.sha);
+  await assertDependencyOwner(context.owner, context.layouts.dev, context.request.owner.sha);
+  assertSame(
+    context.pending,
+    await captureEdgeRecord(context.directory, 'edge-owner.pending', 65536),
+    'restoration original pending ownership',
+  );
+  assertSame(
+    context.fencedComplete,
+    await captureEdgeRecord(context.directory, basename(context.fencedComplete.path), 65536),
+    'restoration finalized fence',
+  );
+}
 /** Releases only private descriptor observations; every durable fence and record stays present. */
 export function releasePreparedDependencyActivation(
   owner: DependencyOwner,
@@ -895,6 +924,7 @@ export function releasePreparedDependencyActivation(
   if (context?.owner !== owner)
     throw new Error('participant restoration preparation is not retained');
   preparations.delete(prepared);
+  preparedContexts.delete(context);
   try {
     context.storage.evidence.close();
   } finally {

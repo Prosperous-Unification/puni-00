@@ -9,6 +9,7 @@ import { participantActivationFixture } from '../fixtures/dependency-participant
 import { roots } from '../fixtures/source-startup';
 import {
   activateCompleteDependenciesUnderOwner,
+  assertParticipantRestorationContext,
   consumePreparedDependencyActivation,
   prepareActivatedParticipantsUnderOwner,
   releasePreparedDependencyActivation,
@@ -92,6 +93,8 @@ for (const lifetime of ['one-shot', 'expired-owner'] as const)
         if (lifetime === 'one-shot') {
           const context = await consumePreparedDependencyActivation(owner, prepared);
           expect(context.completion.activated).toEqual(['prod']);
+          await assertParticipantRestorationContext(context);
+          await rejects(assertParticipantRestorationContext({ ...context }));
           await rejects(consumePreparedDependencyActivation(owner, prepared));
           releasePreparedDependencyActivation(owner, prepared);
         }
