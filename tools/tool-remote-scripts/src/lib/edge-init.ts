@@ -43,7 +43,8 @@ const closed =
     if (required.some((key) => !Object.hasOwn(fields, key))) refuse();
     return Object.fromEntries(
       Object.entries(fields).map(([key, entry]) => {
-        const rule = rules[key];
+        // Proof: omitting own-key admission let Config constructor/toString bypass the native-schema negatives.
+        const rule = Object.hasOwn(rules, key) ? rules[key] : undefined;
         // Proof: unknown-field omission admitted unsupported Config, HostConfig, State and endpoint fields in edge-init.test.ts.
         if (rule === undefined) refuse();
         return [key, rule(entry)];

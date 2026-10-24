@@ -504,7 +504,12 @@ export async function runInitAdoption(
     await publish('complete');
   } catch {
     // No raw transport/host cause reaches public diagnostics or hash-only receipts.
-    await publish(phase);
+    try {
+      await publish(phase);
+    } catch {
+      // Proof: omitted boundary exposed SECRET from a persistently failing receipt writer in the real finite sequence.
+      throw new InitRefusal(`${phase}-receipt-publication-failed`);
+    }
     throw new InitRefusal(phase);
   }
 }

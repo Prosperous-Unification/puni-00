@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 
 import { syntheticContainer } from '../../test/edge-init-fixture';
-import { parseNativeContainer } from './edge-init';
+import { InitRefusal, parseNativeContainer } from './edge-init';
 import { Deadline, EngineTransport, PrivateReceipts, runInitAdoption } from './edge-init-operation';
 
 const roots: string[] = [];
@@ -255,7 +255,12 @@ test.each(['none', 'candidate-drift', 'stop-uncertain', 'health-failed', 'receip
       expect(stages.filter((stage) => stage === 'healthy')).toHaveLength(2);
       expect(stages.indexOf('combined')).toBeLessThan(stages.indexOf('remove-intended'));
     } else {
-      expect(operation).rejects.toThrow();
+      const failure = await operation.then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toBeInstanceOf(InitRefusal);
+      expect(String(failure)).not.toContain('SECRET');
       expect(effects.some((effect) => effect.startsWith('remove:'))).toBe(false);
       expect(containers.has(original.Id)).toBe(true);
       if (fault === 'candidate-drift' || fault === 'receipt-failed')
