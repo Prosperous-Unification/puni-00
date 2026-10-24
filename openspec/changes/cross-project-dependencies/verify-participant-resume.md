@@ -313,3 +313,9 @@ full restart/public wrapper, exact role HTTP/process/collector joins and full
 P2b3 acceptance are separate OPEN milestones. Privileged/native image rehearsals
 remain unrun after the retained automatic-review rejection. No remote/host gate
 or live activation action was performed by this worker.
+
+### Groundwork review: exact refined metadata dependency
+
+Replaced only `docker-product-metadata.ts` and its test with byte-identical versions from frozen product source `c01d9470f83d6e59678092194b0f3f8d8b133ac2`. The required internal synchronous raw-child seam and production factory remain unchanged; the product observer is not imported. The adapter pins `/usr/bin/docker --host unix:///var/run/docker.sock`, refuses ambient `DOCKER_*`, reserves the original deadline and starts cleanup at first refusal.
+
+Fresh Bun1.4.4 metadata replay: 17 passed, 0 failed, 36 assertions, 11.57s (`/tmp/puni-participant-metadata-refined.log`). Required base-fixture raw mapping refusal: 3 passed, 3 assertions (`/tmp/puni-participant-metadata-refined-composition.log`). Uncached configured Nx lint/typecheck/build plus dependencies passed (`/tmp/puni-participant-metadata-refined-static.log`). Exact file identity was checked against the frozen source object. No Docker invocation or privileged/native image rehearsal was performed. Source output/profile allowances remain provisional and unmeasured; this does not complete participant restoration.
