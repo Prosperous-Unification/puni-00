@@ -96,6 +96,36 @@ function requireRejectedPeer(
     );
 }
 
+/**
+ * The exact separate-Bun client run against both live listeners and controlled transport faults.
+ * Proof: omitting its ECONNRESET guard made the controlled unknown-error child exit zero;
+ * omitting reset handling made the controlled exact-reset child exit one.
+ */
+function peerClientProgram(unix: string): string {
+  return `
+let emitted = false;
+let closeTimer;
+const terminal = (record) => {
+  if (emitted) return;
+  emitted = true;
+  process.stderr.write(JSON.stringify(record) + '\\n');
+};
+const reset = (error, phase) => {
+  if (error?.code !== 'ECONNRESET') throw error;
+  if (closeTimer !== undefined) clearTimeout(closeTimer);
+  terminal({version:1,kind:'reset',phase,code:'ECONNRESET'});
+};
+try {
+  await Bun.connect({unix:${JSON.stringify(unix)}, socket:{
+    open(s){try{s.write(${JSON.stringify(`${JSON.stringify(frame)}\n`)});}catch(error){reset(error,'socket');}},
+    data(s,bytes){process.stdout.write(bytes);},
+    close(){closeTimer=setTimeout(() => terminal({version:1,kind:'closed',phase:'socket'}),0);},
+    error(s,error){reset(error,'socket');}
+  }});
+} catch (error) { reset(error,'connect'); }
+`;
+}
+
 test('peer client terminal parser refuses unmodeled transport outcomes', () => {
   expect(parseClientTerminal('{"version":1,"kind":"closed","phase":"socket"}\n')).toEqual({
     version: 1,
@@ -144,6 +174,92 @@ test('peer client terminal parser refuses unmodeled transport outcomes', () => {
   expect(() => {
     requireRejectedPeer(17, 0, '', [new Error('other refusal')], refused);
   }).toThrow();
+});
+
+test('the emitted Bun client classifies only controlled connect and socket resets', async () => {
+  const root = scratchSync('supervisor-peer-transport-');
+  const preload = `${root}/transport.mjs`;
+  await writeFile(
+    preload,
+    `
+const mode = process.env.PEER_TRANSPORT_FAULT;
+const code = mode?.endsWith('unknown') ? 'EPIPE' : 'ECONNRESET';
+const fault = () => Object.assign(new Error('controlled transport fault'), {code});
+Bun.connect = async ({socket}) => {
+  if (mode?.startsWith('connect-')) throw fault();
+  const peer = {write() {if (mode?.startsWith('write-')) throw fault(); return 1;}};
+  if (mode?.startsWith('write-')) socket.open(peer);
+  else if (mode === 'close-then-error') {socket.close(peer); socket.error(peer,fault());}
+  else if (mode === 'error-then-close') {socket.error(peer,fault()); socket.close(peer);}
+  else socket.error(peer,fault());
+  if (mode?.startsWith('write-')) socket.close(peer);
+  return peer;
+};
+`,
+  );
+  for (const [mode, phase] of [
+    ['connect-reset', 'connect'],
+    ['socket-reset', 'socket'],
+    ['write-reset', 'socket'],
+    ['close-then-error', 'socket'],
+    ['error-then-close', 'socket'],
+  ] as const) {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '--no-env-file',
+        '--preload',
+        preload,
+        '--eval',
+        peerClientProgram('/unused'),
+      ],
+      {
+        env: { ...process.env, PEER_TRANSPORT_FAULT: mode },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    const [stdout, stderr, exit] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect(stdout).toBe('');
+    expect(requireClientTerminal(exit, child.signalCode, stderr, false)).toEqual({
+      version: 1,
+      kind: 'reset',
+      phase,
+      code: 'ECONNRESET',
+    });
+  }
+  for (const mode of ['connect-unknown', 'socket-unknown', 'write-unknown']) {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '--no-env-file',
+        '--preload',
+        preload,
+        '--eval',
+        peerClientProgram('/unused'),
+      ],
+      {
+        env: { ...process.env, PEER_TRANSPORT_FAULT: mode },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    const [stdout, stderr, exit] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect(stdout).toBe('');
+    expect(exit).not.toBe(0);
+    expect(stderr).toContain('controlled transport fault');
+    expect(() => requireClientTerminal(exit, child.signalCode, stderr, false)).toThrow();
+  }
 });
 
 for (const bundled of [false, true])
@@ -225,31 +341,7 @@ for (const bundled of [false, true])
         },
       );
       const client = Bun.spawn(
-        [
-          process.execPath,
-          '--no-env-file',
-          '--eval',
-          `
-let emitted = false;
-const terminal = (record) => {
-  if (emitted) return;
-  emitted = true;
-  process.stderr.write(JSON.stringify(record) + '\\n');
-};
-const reset = (error, phase) => {
-  if (error?.code !== 'ECONNRESET') throw error;
-  terminal({version:1,kind:'reset',phase,code:'ECONNRESET'});
-};
-try {
-  await Bun.connect({unix:${JSON.stringify(unix)}, socket:{
-    open(s){try{s.write(${JSON.stringify(`${JSON.stringify(frame)}\n`)});}catch(error){reset(error,'socket');}},
-    data(s,bytes){process.stdout.write(bytes);},
-    close(){terminal({version:1,kind:'closed',phase:'socket'});},
-    error(s,error){reset(error,'socket');}
-  }});
-} catch (error) { reset(error,'connect'); }
-`,
-        ],
+        [process.execPath, '--no-env-file', '--eval', peerClientProgram(unix)],
         { stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(5000) },
       );
       try {
