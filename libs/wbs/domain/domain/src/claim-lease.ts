@@ -29,6 +29,17 @@ export interface LeaseStanding {
 }
 
 /**
+ * What the claim store's lease renewal answers: the person's standing after the
+ * renewal, and the projects in which its committed write moved at least one
+ * lease, in project-id order, empty when it moved none. The heartbeat route
+ * announces `claims_changed` to exactly these (`wbs-claim-display` C4).
+ */
+export interface LeaseRenewal {
+  readonly standing: LeaseStanding;
+  readonly renewedProjectIds: readonly string[];
+}
+
+/**
  * The expiry a claim written at `at` carries (L1): `at + CLAIM_LEASE_MS` when
  * the caller's credential is pinned to the claimant itself (an API key, a
  * trusted-issuer token or an MCP consent of that person), else null. A

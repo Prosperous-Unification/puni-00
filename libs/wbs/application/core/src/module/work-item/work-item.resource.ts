@@ -136,7 +136,7 @@ import {
   type ClaimOccupancy,
   type ClaimStore,
   type CredentialPin,
-  type LeaseStanding,
+  type LeaseRenewal,
   unstampClaim,
 } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
@@ -3917,9 +3917,9 @@ export class WorkItemService {
    * Renews every lease of `personId` due at this instant, in every project
    * (`wbs-claim-leases` L4), and answers the person's standing after it. The
    * store writes only when one is due, so a call within the resolution of the
-   * last one writes nothing.
+   * last one writes nothing, and names the projects whose leases it moved.
    */
-  renewLeases(personId: string): Promise<LeaseStanding> {
+  renewLeases(personId: string): Promise<LeaseRenewal> {
     return this.claiming().claims.renewLeases(personId, () => this.clock.now());
   }
 

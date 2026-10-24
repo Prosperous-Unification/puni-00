@@ -1,8 +1,17 @@
 import { type } from '@wbs/validation';
 
+/**
+ * One event be-01 hands gw-01 to fan out. `seq` is the event's place in the
+ * subscription's durable log; a transient announcement
+ * (`wbs-claim-display` C21) carries none, is never replayed, and gw-01
+ * forwards it to the sockets without one.
+ */
 export const InternalPushRequest = type({
   subscription: 'string',
-  seq: 'number',
+  // Proof: with `seq` required again, `delivers an unsequenced push without a
+  // sequence` (gw-01 fan-out.integration.test.ts) was refused 400 (7 pass,
+  // 1 fail); watched 2026-10-23.
+  'seq?': 'number',
   message: 'unknown',
   'trace_id?': 'string',
 });

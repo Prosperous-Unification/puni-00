@@ -1,6 +1,6 @@
 ## 0. Before slice 1
 
-- [ ] 0.1 Dany confirms or amends C1 to C18 (proposal.md, design.md); in particular C1 (a new
+- [ ] 0.1 Dany confirms or amends C1 to C19 (proposal.md, design.md); in particular C1 (a new
       read, not the tree read), C4 (heartbeat events), C7 (no minutes in the folded chip) and
       C13 (a claim history read rather than a history view). Slices build on the assumptions;
       an amendment lands as a follow-up slice.
@@ -40,44 +40,71 @@
 
 ## 3. Heartbeat announcement (be-01)
 
-- [ ] 3.1 Red: renew-route tests: one `claims_changed` per project with a moved lease, none for
+- [x] 3.1 Red: renew-route tests: one `claims_changed` per project with a moved lease, none for
       a heartbeat within the minute, none when the turn refuses `not_pinned`; published after
       commit. Green. R5 faults: publish before commit (a rolled-back renewal still announces);
       publish unconditionally (the within-the-minute case reddens); watched.
-- [ ] 3.2 Red: `optimizer-trigger-broadcaster` ignores `claims_changed` — test: no run
+- [x] 3.2 Red: `optimizer-trigger-broadcaster` ignores `claims_changed` — test: no run
       scheduled. R5 fault: remove the exclusion; watched.
+
+- [x] 3.3 Red: a batch's renewal (C19): an agent with leases in A and B commits a batch in A,
+      B gets exactly one `claims_changed` and A none; none within the minute; none for a refused
+      or rolled-back batch. Green: announce through the batch's collector. R5 faults: drop the
+      announcement; drop the own-project filter; publish through the outer broadcaster; the
+      store answers before its write; the store answers every in-force project; watched.
+
+- [x] 3.4 Red: a batch that changed no row (empty, directory-only) announces its own project
+      too (C19 as amended after review). R5 fault: drop the dirty test; watched.
+- [x] 3.5 Red: `claims_changed` is transient (C21): `GatewayBroadcaster` pushes it with no
+      `seq`, records and buffers nothing, and swallows a failed push; the internal push
+      contract's `seq` is optional and gw-01 forwards the frame without one. R5 faults: treat it
+      as durable; rethrow a failed push; require `seq` again; watched.
+- [x] 3.6 Review fixes: the SQLite renewal names its projects from `UPDATE … RETURNING` in one
+      statement; the memory twin finds every due row's project before moving any; the
+      conformance case asserts two projects in code-unit order. R5 faults: unsorted,
+      undeduplicated, rows moved before the lookups, in-force rows; watched.
+
+- [x] 3.7 Red: the socket vocabulary names the transient frame: `WsTransientFrame` and
+      `wsTransient` in `@wbs/contracts` (no `seq`, and a `seq` makes it not transient); gw-01
+      builds it; the generic realtime client hands it to a required `onTransient` without
+      touching its resume point. R5 faults: drop the client's arm; drop the guard's arm; advance
+      the tracker; let the contract accept a `seq`; watched.
+
+**Merge order:** this slice merges into `plan/wbs-claim-display` only after slices 1 and 2 have
+reached `main` and deployed (C5), and gw-01 with the optional `seq` deploys no later than be-01
+(C21).
 
 ## 4. Step claim chip (fe-01; builds `wbs-team-claims` 1.7, steps)
 
-- [ ] 4.1 Red: table rendering tests with a claim-shaped read: folded chip with the holder's
+- [x] 4.1 Red: table rendering tests with a claim-shaped read: folded chip with the holder's
       initials beside the assignee slot, unfolded chip after the picker, card claim line
       (holder, run, instant), chip accessible name, no slot in a column without a claim, an
       unclaimed plan's column widths equal today's. Green: `CLAIM_SLOT_PX` and the chip. R5
       faults: reserve the slot unconditionally (the width case reddens); drop the accessible
       name; watched.
-- [ ] 4.2 Red: a claim on a work item or step the installed tree lacks draws nothing and does
+- [x] 4.2 Red: a claim on a work item or step the installed tree lacks draws nothing and does
       not throw. R5 fault: look the row up with a throwing accessor; watched.
 
 ## 5. Subtree claim chip (fe-01; builds `wbs-team-claims` 1.7, subtrees)
 
-- [ ] 5.1 Red: a subtree claim's chip in its row's Name cell, none on the leaves under it, none
+- [x] 5.1 Red: a subtree claim's chip in its row's Name cell, none on the leaves under it, none
       on a collapsed ancestor; a delegated step claim's card names the parent's holder and
       number. Green. R5 fault: inherit the chip down the tree; watched.
 
 ## 6. Lease display (fe-01; builds `wbs-claim-leases` 2.1, chip)
 
-- [ ] 6.1 Red: `claim-lease-view.test.ts`, a pure function of (lease end, revocation, `readAt`,
+- [x] 6.1 Red: `claim-lease-view.test.ts`, a pure function of (lease end, revocation, `readAt`,
       install instant, now): minutes rounded down, `<1m`, releasing at exactly the end,
       revoked reads releasing with its cause, no lease reads nothing; a property that the
       browser's wall clock never changes the answer. Green. R5 fault: `Date.now()` in place of
       the server instant (the clock-ahead case reddens); `<` for `<=` at the end; watched.
-- [ ] 6.2 Red: one table-level ticker at 15 s while a leased claim is drawn and the page is
+- [x] 6.2 Red: one table-level ticker at 15 s while a leased claim is drawn and the page is
       visible, none otherwise — test with fake timers and a visibility toggle. R5 fault: a
       timer per chip (the count assertion reddens); watched.
 
 ## 7. Phone cards (fe-01)
 
-- [ ] 7.1 Red: `plan-cards` tests: a step chip beside the card's step assignee, a subtree chip
+- [x] 7.1 Red: `plan-cards` tests: a step chip beside the card's step assignee, a subtree chip
       in the header, the same lease text. Green.
 
 ## 8. Claim history read (be-01)
