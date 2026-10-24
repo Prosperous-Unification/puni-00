@@ -7371,3 +7371,23 @@ Bun 1.4.4. The actual CI peer-client failure and full-suite cleanup timeout
 remain unreproduced. The canonical exact-SHA host gate, green CI, complete
 participant restoration/handoff, compatible controllers and deployment remain
 open. This replay performed no production activation or service action.
+
+## Reviewed delivery-main and browser observer integration — 2026-10-24
+
+Main `df8b9bcc3` and the separately committed browser observer repair are
+integrated at `a2e156b76`, following independent Astra approval. The
+[main receipt](verify-main-df8.md) preserves delivery, claims and address
+contracts; [the browser receipt](verify-browser-observer-ci400604.md) records
+the actual delayed-body navigation race and its omission proof.
+
+The [combined replay](evidence/main-df8-integration-a2e.json) passed **85 tests,
+567 assertions**, all **13 configured infrastructure tasks** uncached, and
+**285 OpenSpec items**, using Bun 1.4.4. The first direct MCP replay rejected
+the stale ignored generated document: its declared preparation step had been
+omitted. Running `wbs-mcp-01:prepare` before the unchanged replay corrected
+that prerequisite; no source behavior changed for it.
+
+Hosted browser acceptance of this repair, earlier CI peer/cleanup incidents,
+the final exact-SHA host gate, participant restoration/handoff, compatible
+controllers and deployment remain open. No production activation or service
+action occurred in this replay.
