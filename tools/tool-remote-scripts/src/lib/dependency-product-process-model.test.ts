@@ -26,7 +26,8 @@ async function runModelChild(
 }> {
   const child = Bun.spawn([...command], {
     cwd: project,
-    env: environment,
+    // Proof: inherited FORCE_COLOR=1 made the actual child emit ANSI/checkmarks; the exact-name reporter control failed without this fixed child format.
+    env: { ...(environment ?? process.env), FORCE_COLOR: '0' },
     stdin: 'ignore',
     stdout: 'ignore',
     stderr: 'pipe',
@@ -207,3 +208,31 @@ test('model child output refusal joins exact owned child before returning', asyn
     await rm(directory, { recursive: true });
   }
 });
+
+test('model child retains exact plain case names under inherited CI colors', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'product-model-reporter-'));
+  try {
+    const path = join(directory, 'reporter.test.ts');
+    await Bun.write(
+      path,
+      "import { expect, test } from 'bun:test'; test('owned model reporter control', () => { expect(1).toBe(1); });\n",
+    );
+    const child = await runModelChild([process.execPath, 'test', path], 5000, directory, {
+      ...process.env,
+      FORCE_COLOR: '1',
+      GITHUB_ACTIONS: 'true',
+    });
+    expect(child.expired).toBe(false);
+    expect(child.signal).toBeNull();
+    expect(child.exit).toBe(0);
+    expect(child.output).not.toContain('\u001b');
+    const passed = [...child.output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
+      (match) => match[1],
+    );
+    expect(passed).toEqual(['owned model reporter control']);
+    expect(child.output).toMatch(/\b1 pass\b/);
+    expect(child.output).toMatch(/\b0 fail\b/);
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+}, 10000);

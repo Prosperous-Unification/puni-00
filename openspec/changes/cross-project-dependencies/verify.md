@@ -7538,3 +7538,9 @@ without that required closure was correctly refused and is preserved as a
 failed configuration attempt, rather than counted as a product regression.
 The other pilot cases and complete hosted run still require their next CI
 result; the two focused cases do not constitute a full Twilight gate.
+
+Hosted checkpoint `78c92f21` has now completed with remote and Twilight
+failures. [Model reporter evidence](verify-model-child-reporter.md) records the
+exact child format cause, independently reviewed repair, focused verification
+and still-unattributed hook timeout. The earlier paragraph's running status is
+a historical observation, not the final conclusion. Complete CI remains open.
