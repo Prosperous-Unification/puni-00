@@ -7338,3 +7338,19 @@ This is the preservation/finite-transition core. The production observer, CLI, n
 ## Native Bun 1.4.4 coordinator acceptance — 2026-10-24
 
 The [source-exclusion host receipt](verify-source-exclusion-host.md) now includes the exact `f6d5c954d` Bun 1.4.4 rerun: real peer authentication, protected callback completion, 44 finished/reaped scanners and independent cleanup. The unchanged source image, later complete reader audit, full activation and final delivery retain their separately stated limits.
+
+## Reviewed complete activation integration — 2026-10-24
+
+The [complete activation packet](verify-complete-activation.md), including its
+Astra-reviewed policy/import/reader corrections, is integrated at
+`5e954ba39398b50db96276a0eff2356538a24259`. Fresh combined Bun 1.4.4 replay
+passed **77 tests, 223 assertions, zero failures** across complete request
+validation, activation records/storage, edge policy and strong reader exclusion.
+Configured uncached lint/typecheck/build for `tool-remote-scripts` and
+`tool-devsync` passed all **12 tasks** in 17.5 seconds. Logs:
+`/tmp/puni-complete-integrated-5e954-unit.log` and
+`/tmp/puni-complete-integrated-5e954-static.log`.
+
+These are local integration checks. Participant restoration, policy handoff,
+normal-controller adoption, final exact-SHA host gate, green CI and deployment
+remain open. No production activation or service action was performed.

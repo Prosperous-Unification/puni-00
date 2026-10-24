@@ -1494,3 +1494,33 @@ byte hash; parser/schema diagnostics and nested raw causes are not propagated.
 The producer, coordinator and all drain finalizers share that same boundary.
 The pending-publication decoder preserves the publisher's exact `[prod, dev]`
 layout order as well as its closed fields, identities and full scope checks.
+
+### Owner-bound complete activation with participants fenced (P2b-2)
+
+The structured complete coordinator retains the same outer owner through actual
+source/solver and both database-family exclusions. Selected stores receive a
+verified backup, durable intent, atomic SQLite activation and independent
+read-only receipt/full-ledger readback. Nonselected stores remain DISABLED. A
+committed prod activation survives a later dev refusal; no cross-store atomicity
+is claimed. Complete authority expires before the original physical finalizers.
+All participants and ingress remain fenced on return or refusal. P2b-3/P2b-4
+and normal-controller adoption remain required before delivery.
+
+Complete exclusion uses a dedicated unmanaged reader-and-writer audit for both
+store families. It includes read-only roots and aliases without changing the
+ordinary writer-only or managed scanner contracts. The canonical parent remains
+anchored throughout; main/SQLite descriptors close before awaited host census,
+and each later storage boundary reopens the existing named inode independently.
+
+The activation Bun bundle deliberately consumes six exact importer/leaf alias
+pairs from SQLite/contracts source libraries without separate Nx build targets.
+Anchored, file-scoped allowances bypass Nx boundary checks for those pairs only;
+they do not make those libraries Nx-buildable. All other options, generated
+product/runtime/ring constraints, the original two tools aliases and
+`enforceBuildableLibDependency: true` remain unchanged. Real graph edges and
+dependency-sensitive inputs remain visible. Receipt records admit type-only
+contracts imports and refuse static or dynamic runtime imports. Real bundled
+SQLite execution and watched boundary omissions substantiate this limited
+exception in [the complete activation receipt](verify-complete-activation.md).
+The restoring-policy grammar remains solver-intent-only; only the closed
+activation record reader accepts the six activation labels.
