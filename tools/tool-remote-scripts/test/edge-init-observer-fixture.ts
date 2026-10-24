@@ -1,15 +1,10 @@
-import { readFile } from 'node:fs/promises';
+import * as nativeFilesModule from 'node:fs/promises';
 import { ClientRequest } from 'node:http';
+import { dirname } from 'node:path';
 import { TLSSocket } from 'node:tls';
 
-import { fingerprint } from '../src/lib/edge-init';
-import {
-  decodeInitPacket,
-  probeHttp,
-  probeRegistry,
-  probeWebSocket,
-} from '../src/lib/edge-init-observer';
-import { Deadline } from '../src/lib/edge-init-operation';
+import { installTenantFixtureOwnership } from '../src/fixtures/edge-init-owner-mock';
+import { CREATED_PROFILE, fingerprint } from '../src/lib/edge-init';
 
 export function packetFixture() {
   const sha256 = 'a'.repeat(64),
@@ -70,7 +65,8 @@ export function packetFixture() {
   const bootId = '12345678-1234-1234-1234-123456789abc';
   const now = Date.now();
   const packet = {
-    version: 1,
+    version: 2,
+    invariantProfile: CREATED_PROFILE,
     nonce: 'fixture',
     receiptDirectory: '/tmp/private-fixture/receipts',
     sourceSha,
@@ -191,7 +187,15 @@ if (import.meta.main) {
   const packetPath = process.argv.at(2),
     mode = process.argv[3];
   if (packetPath === undefined) throw new Error('missing fixture packet');
-  const packet = decodeInitPacket(JSON.parse(await readFile(packetPath, 'utf8')));
+  const nativeFiles = { ...nativeFilesModule };
+  await installTenantFixtureOwnership(
+    dirname(packetPath),
+    mode === 'registry-owner-mismatch' ? 'credential-owner-mismatch' : undefined,
+  );
+  const { decodeInitPacket, probeHttp, probeRegistry, probeWebSocket } =
+    await import('../src/lib/edge-init-observer');
+  const { Deadline } = await import('../src/lib/edge-init-operation');
+  const packet = decodeInitPacket(JSON.parse(await nativeFiles.readFile(packetPath, 'utf8')));
   let upgradeObservation: { socket: TLSSocket; closed: Promise<void> } | undefined;
   if (mode === 'hold-upgrade') {
     ClientRequest.prototype.destroy = function () {
@@ -212,7 +216,8 @@ if (import.meta.main) {
       return this;
     };
   }
-  if (mode === 'registry') await probeRegistry(packet.registry, new Deadline(120000));
+  if (mode === 'registry' || mode === 'registry-owner-mismatch')
+    await probeRegistry(packet.registry, new Deadline(120000));
   else {
     const probe = packet.public.probes[0];
     if (probe.kind === 'http') await probeHttp(probe, 2000);

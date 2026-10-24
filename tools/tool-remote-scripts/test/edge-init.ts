@@ -19,6 +19,7 @@ import {
   parseNativeContainer,
   projectInvariant,
 } from '../src/lib/edge-init';
+import { parseNetworkInspect } from '../src/lib/edge-init-network';
 import {
   EngineTransport,
   type HostObserver,
@@ -261,6 +262,22 @@ function fixtureResourceIdentity(
     throw new InitRefusal('native-fixture-resource-ownership-refused');
   // Proof: replacing full-ID admission with string admission made network cleanup delete an abbreviated ID; its test failed.
   return kind === 'network' ? readIdentity(fields['Id']) : name;
+}
+
+/** Pins only the configuration of one checked CLI network inspection; ownership stays independent. */
+export function pinFixtureNetworkInspect(
+  contents: string,
+  id: string,
+  name: string,
+  nonce: string,
+): NetworkPin {
+  // Proof: replacing this checked raw parse with ordinary JSON.parse accepted
+  // the rounded fractional CLI counter in edge-init.test.ts.
+  const observed = parseNetworkInspect(contents, 'single-array');
+  const owner = fixtureResourceIdentity('network', [observed.native], nonce);
+  if (owner !== id || observed.configuration['Name'] !== name)
+    throw new InitRefusal('native-fixture-network-pin-invalid');
+  return { name, id, sha256: fingerprint(observed.configuration) };
 }
 
 /** A previous owned attempt is still a collision; create's idempotent acknowledgement never grants permission to seed. */
@@ -792,14 +809,9 @@ export async function runNativeInitAcceptance(): Promise<void> {
       const id = readIdentity(
         await docker(['network', 'create', '--label', `${LABEL}=${nonce}`, network]),
       );
-      const raw: unknown = JSON.parse(await docker(['network', 'inspect', id]));
-      const owner = fixtureResourceIdentity('network', raw, nonce);
-      if (owner !== id || !Array.isArray(raw) || raw.length !== 1)
-        throw new InitRefusal('native-fixture-network-pin-invalid');
-      const { Containers: _members, ...configuration } = readFields(raw[0]);
-      if (configuration['Name'] !== network)
-        throw new InitRefusal('native-fixture-network-pin-invalid');
-      pinnedNetworks.push({ name: network, id, sha256: fingerprint(configuration) });
+      pinnedNetworks.push(
+        pinFixtureNetworkInspect(await docker(['network', 'inspect', id]), id, network, nonce),
+      );
     }
     stage = 'volumes';
     for (const volume of volumes) {

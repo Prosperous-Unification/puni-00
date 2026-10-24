@@ -124,7 +124,9 @@ if (import.meta.main) {
               '--inspect-recovery',
             ],
           };
-    console.error(JSON.stringify({ ...describeInitRefusal(cause), ...recovery }));
+    // Proof: under FORCE_COLOR=1, console.error wrapped the refusal JSON in
+    // ANSI bytes and the actual CLI parser refused its documented line.
+    process.stderr.write(JSON.stringify({ ...describeInitRefusal(cause), ...recovery }) + '\n');
     process.exitCode = 1;
   }
 }

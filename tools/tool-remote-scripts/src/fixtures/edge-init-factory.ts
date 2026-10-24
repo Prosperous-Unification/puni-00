@@ -1,5 +1,6 @@
 import * as children from 'node:child_process';
 import { createHash } from 'node:crypto';
+import type { BigIntStats, Stats } from 'node:fs';
 import * as filesystemModule from 'node:fs';
 import * as filesModule from 'node:fs/promises';
 import type { IncomingMessage, RequestOptions } from 'node:http';
@@ -11,6 +12,8 @@ import type { Duplex } from 'node:stream';
 import { dlopen, FFIType } from 'bun:ffi';
 import { mock } from 'bun:test';
 
+import { FixtureOwnership } from './edge-init-owner';
+
 const files = { ...filesModule };
 const filesystem = { ...filesystemModule };
 const http = { ...httpModule };
@@ -19,6 +22,7 @@ const https = { ...httpsModule };
 const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const suppliedRoot = process.env['INIT_FACTORY_ROOT'];
 const root = suppliedRoot ?? (await files.mkdtemp('/tmp/edge-init-factory-'));
+const ownership = new FixtureOwnership(root);
 const originalSpawn = children.spawn;
 const originalBunSpawn = Bun.spawn;
 const paths = new Set<string>();
@@ -49,7 +53,7 @@ async function write(path: string, bytes: string | Uint8Array, mode = 0o600) {
   await files.writeFile(root + path, bytes, { mode });
 }
 async function pin(path: string) {
-  const metadata = await files.lstat(root + path);
+  const metadata = modelPath(root + path, await files.lstat(root + path));
   return {
     path,
     device: String(metadata.dev),
@@ -64,6 +68,46 @@ const reads: string[] = [];
 const action = process.argv[2] ?? 'prepare';
 const injection = process.argv.at(5);
 const fault = injection === undefined || injection === '' ? action : injection;
+// This process is an isolated synthetic host. Native Python supervisor identity
+// remains real; only the modeled operator's Node observation is fixed here.
+process.getuid = () => (fault === 'operator-uid-mismatch' ? 1001 : 1000);
+process.geteuid = () => (fault === 'operator-euid-mismatch' ? 1001 : 1000);
+function modelPath<T extends Stats | BigIntStats>(path: string, metadata: T): T {
+  if (fault === 'runner-uid-1001-modeled' && ownership.owner(path) !== undefined)
+    Object.defineProperty(metadata, 'uid', {
+      value: typeof metadata.uid === 'bigint' ? 1001n : 1001,
+    });
+  // Proof: omitting this projection made the isolated raw-UID1001 prepare
+  // positive refuse before reads, while its modeled counterpart completed.
+  const modeled = ownership.path(path, metadata);
+  if (
+    entryActive &&
+    fault === 'receipt-parent-owner-mismatch' &&
+    path === root + dirname(packet.receiptDirectory)
+  )
+    Object.defineProperty(modeled, 'uid', {
+      value: typeof modeled.uid === 'bigint' ? 1001n : 1001,
+    });
+  if (
+    entryActive &&
+    fault === 'receipt-directory-owner-mismatch' &&
+    path === root + packet.receiptDirectory
+  )
+    Object.defineProperty(modeled, 'uid', {
+      value: typeof modeled.uid === 'bigint' ? 1001n : 1001,
+    });
+  return modeled;
+}
+function modelDescriptor<T extends Stats | BigIntStats>(descriptor: number, metadata: T): T {
+  if (
+    fault === 'runner-uid-1001-modeled' &&
+    ownership.owner('/proc/self/fd/' + String(descriptor)) !== undefined
+  )
+    Object.defineProperty(metadata, 'uid', {
+      value: typeof metadata.uid === 'bigint' ? 1001n : 1001,
+    });
+  return ownership.fd(descriptor, metadata);
+}
 const clockFault = fault === 'clock-rollback' || fault === 'clock-forward-control';
 const rawMonotonic = performance.now.bind(performance),
   rawWall = Date.now.bind(Date);
@@ -109,7 +153,7 @@ let unitBytes = '';
 let sourceRaceInjected = false;
 await mock.module('node:fs/promises', () => ({
   ...files,
-  open: (
+  open: async (
     path: string,
     ...arguments_: Parameters<typeof files.open> extends [unknown, ...infer Rest] ? Rest : never
   ) => {
@@ -127,7 +171,40 @@ await mock.module('node:fs/promises', () => ({
         filesystem.writeFileSync(named, bytes, { mode: 0o600 });
       } else filesystem.appendFileSync(named, '\n# changed while held\n');
     }
-    return files.open(map(path), ...arguments_);
+    const mapped = map(path);
+    const descriptor = await files.open(mapped, ...arguments_);
+    const fd = descriptor.fd;
+    const ownerToken = ownership.track(fd, mapped);
+    const nativeStat = descriptor.stat.bind(descriptor);
+    const nativeClose = descriptor.close.bind(descriptor);
+    Object.defineProperty(descriptor, 'stat', {
+      value: async (options?: { bigint?: boolean }) => {
+        const metadata = modelDescriptor(
+          fd,
+          options?.bigint ? await nativeStat({ bigint: true }) : await nativeStat(),
+        );
+        // Proof: an independently wrong held packet owner must fail the
+        // production private-file read before its named packet is admitted.
+        if (
+          fault === 'packet-descriptor-owner-mismatch' &&
+          mapped === root + '/home/puni1/wbs/factory-packet.json'
+        )
+          Object.defineProperty(metadata, 'uid', {
+            value: typeof metadata.uid === 'bigint' ? 1001n : 1001,
+          });
+        return metadata;
+      },
+    });
+    Object.defineProperty(descriptor, 'close', {
+      value: async () => {
+        try {
+          await nativeClose();
+        } finally {
+          ownership.forget(fd, ownerToken);
+        }
+      },
+    });
+    return descriptor;
   },
   lstat: (path: string, options?: Parameters<typeof files.lstat>[1]) => {
     if (
@@ -144,10 +221,17 @@ await mock.module('node:fs/promises', () => ({
         expires: monotonic + Date.parse(packet.quiescence.expiresAt) - wall,
       };
     }
-    return files.lstat(map(path), options);
+    const mapped = map(path);
+    if (options?.bigint)
+      return files.lstat(mapped, { bigint: true }).then((native) => modelPath(mapped, native));
+    return files.lstat(mapped).then((native) => modelPath(mapped, native));
   },
-  stat: (path: string, options?: Parameters<typeof files.stat>[1]) =>
-    files.stat(map(path), options),
+  stat: (path: string, options?: Parameters<typeof files.stat>[1]) => {
+    const mapped = map(path);
+    if (options?.bigint)
+      return files.stat(mapped, { bigint: true }).then((native) => modelPath(mapped, native));
+    return files.stat(mapped).then((native) => modelPath(mapped, native));
+  },
   readFile: (path: string, options?: Parameters<typeof files.readFile>[1]) =>
     options === undefined ? files.readFile(map(path)) : files.readFile(map(path), options),
   readlink: (path: string) => files.readlink(map(path)),
@@ -161,14 +245,39 @@ await mock.module('node:fs/promises', () => ({
 }));
 await mock.module('node:fs', () => ({
   ...filesystem,
-  statSync: (path: string) => filesystem.statSync(map(path)),
-  lstatSync: (path: string) => filesystem.lstatSync(map(path)),
+  statSync: (path: string, options?: { bigint?: boolean }) => {
+    const mapped = map(path);
+    return options?.bigint
+      ? modelPath(mapped, filesystem.statSync(mapped, { bigint: true }))
+      : modelPath(mapped, filesystem.statSync(mapped));
+  },
+  lstatSync: (path: string, options?: { bigint?: boolean }) => {
+    const mapped = map(path);
+    return options?.bigint
+      ? modelPath(mapped, filesystem.lstatSync(mapped, { bigint: true }))
+      : modelPath(mapped, filesystem.lstatSync(mapped));
+  },
   realpathSync: (path: string) => {
     const canonical = filesystem.realpathSync(map(path));
     return canonical.startsWith(root + '/') ? canonical.slice(root.length) : canonical;
   },
-  openSync: (path: string, flags: number, mode?: number) =>
-    filesystem.openSync(map(path), flags, mode),
+  openSync: (path: string, flags: number, mode?: number) => {
+    const mapped = map(path);
+    const descriptor = filesystem.openSync(mapped, flags, mode);
+    ownership.track(descriptor, mapped);
+    return descriptor;
+  },
+  fstatSync: (descriptor: number, options?: { bigint?: boolean }) =>
+    options?.bigint
+      ? modelDescriptor(descriptor, filesystem.fstatSync(descriptor, { bigint: true }))
+      : modelDescriptor(descriptor, filesystem.fstatSync(descriptor)),
+  closeSync: (descriptor: number) => {
+    try {
+      filesystem.closeSync(descriptor);
+    } finally {
+      ownership.forget(descriptor);
+    }
+  },
   readFileSync: (path: string, options?: Parameters<typeof filesystem.readFileSync>[1]) =>
     options === undefined
       ? filesystem.readFileSync(map(path))
@@ -497,6 +606,7 @@ const network = {
   Name: 'edge',
   Driver: 'bridge',
   Scope: 'local',
+  ConfigOnly: false,
   Internal: false,
   Attachable: false,
   Ingress: false,
@@ -674,7 +784,7 @@ for (const [index, target] of packet.targets.entries()) {
         device: String(metadata.dev),
         inode: String(metadata.ino),
         mode: metadata.mode & 0o7777,
-        uid: metadata.uid,
+        uid: ownership.path(root + resourcePath, metadata).uid,
         parentsSha256: fingerprint(parents),
         volumeSha256: target.kind === 'caddy' ? null : fingerprint(volume),
       },
@@ -748,12 +858,26 @@ FIXTURE_FAULT=__FAULT__
 SYNTHETIC=__SYNTHETIC__
 RAW_HOST=Host
 RAW_OPEN=os.open
+class ModeledStat:
+    def __init__(self,native,uid):self.native=native;self.st_uid=uid
+    def __getattr__(self,name):return getattr(self.native,name)
+def modeled_stat(native,uid):
+    if FIXTURE_FAULT=='runner-uid-1001-modeled':native=ModeledStat(native,1001)
+    # Proof: omitting mapped Python owner projection made raw-UID1001 prepare
+    # refuse while real inode, mode and opened-object identity stayed unchanged.
+    return ModeledStat(native,uid)
 class FactoryHost(Complete):
     def __init__(self,request,kernel=None):
         super().__init__();self.request=request;self.deadline=time.monotonic()+100;self.actual=RAW_HOST(self.deadline);self.fixture_reads=0
         self.internal_processes={} if kernel is None else dict(kernel.internal_processes)
     def mapped(self,path):return ROOT+path
     def virtual(self,path):return any(path==base or path.startswith(base+'/') for base in SYNTHETIC) or path.startswith('/sys/fs/cgroup') or path=='/run/docker.pid'
+    def open_executable(self,path):
+        # Proof: without this adapter the actual production prepare case refused
+        # after the first collector read; the inherited memfd had another inode.
+        # The synthetic PID's executable is an actual owned file.
+        if self.virtual(path):return RAW_OPEN(self.mapped(path),os.O_RDONLY|os.O_NONBLOCK)
+        return RAW_HOST.open_executable(self,path)
     def read(self,path,limit):
         if self.virtual(path):
             content=self.actual.read(self.mapped(path),limit)
@@ -765,10 +889,14 @@ class FactoryHost(Complete):
         if path.startswith('/proc/') and path!='/proc/sys/kernel/random/boot_id':return self.actual.read(path,limit)
         return super().read(path,limit)
     def metadata(self,path,follow=True):
-        if self.virtual(path):return os.stat(self.mapped(path),follow_symlinks=False if '/ns/' in path else follow)
+        if self.virtual(path):
+            named=self.mapped(path);native=os.stat(named,follow_symlinks=False if '/ns/' in path else follow)
+            return modeled_stat(native,1000 if path.startswith('/home/puni1/') or path.startswith('/var/lib/docker/volumes/') else 0)
         if path.startswith('/proc/'):return self.actual.metadata(path,follow)
         if path.startswith('/home/puni1/wbs/') or path.startswith('/var/lib/docker/volumes/') or path=='/' or path in ['/home','/home/puni1','/home/puni1/wbs','/var','/var/lib','/var/lib/docker','/var/lib/docker/volumes']:
-            if os.path.exists(self.mapped(path)):return os.stat(self.mapped(path),follow_symlinks=follow)
+            if os.path.exists(self.mapped(path)):
+                native=os.stat(self.mapped(path),follow_symlinks=follow)
+                return modeled_stat(native,1000 if path.startswith('/home/puni1/') or path.startswith('/var/lib/docker/volumes/') else 0)
         return super().metadata(path,follow)
     def listing(self,path,limit):
         if self.virtual(path):return self.actual.listing(self.mapped(path),limit)
@@ -1207,11 +1335,53 @@ async function serveEngine(request: IncomingMessage, response: httpModule.Server
       ...(active && fault === 'network-config-drift' && byName
         ? { Options: { 'fixture.changed': 'true' } }
         : {}),
+      ...(active && fault === 'network-ipam-drift' && byName
+        ? {
+            IPAM: {
+              ...selectedNetwork.IPAM,
+              Config: selectedNetwork.IPAM.Config.map((entry) => ({
+                ...entry,
+                Gateway: '172.31.0.1',
+              })),
+            },
+          }
+        : {}),
     };
-    reply(200, {
+    const observedNetwork = {
       ...configuration,
       Containers: active && fault === 'network-membership-malformed' && byName ? 0 : members,
-    });
+      ...(active && fault === 'network-status-missing' && byName
+        ? {}
+        : {
+            Status: {
+              IPAM: {
+                Subnets: Object.fromEntries(
+                  configuration.IPAM.Config.map(({ Subnet }) => [
+                    Subnet,
+                    {
+                      IPsInUse:
+                        3 +
+                        Object.keys(members).length +
+                        (active && byName && fault === 'network-status-drift' ? 1 : 0),
+                      DynamicIPsAvailable:
+                        65533 -
+                        Object.keys(members).length -
+                        (active && byName && fault === 'network-status-drift' ? 1 : 0),
+                    },
+                  ]),
+                ),
+              },
+              ...(active && byName && fault === 'network-status-extra' ? { Extra: 1 } : {}),
+            },
+          }),
+    };
+    if (active && byName && fault === 'network-status-unsafe') {
+      const serialized = JSON.stringify(observedNetwork);
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(serialized.replace(/"IPsInUse":\d+/, '"IPsInUse":9007199254740991.1'));
+      return;
+    }
+    reply(200, observedNetwork);
     return;
   }
   const volume = /^\/volumes\/(.+)$/.exec(path);
@@ -1733,6 +1903,7 @@ async function injectRecoveryFault() {
         receipt['invariantProfile'] = 'engine-29.1.3-api-1.52-cgroup2-created-oom-v1';
       if (fault === 'receipt-profile-changed') receipt['invariantProfile'] = 'unrecognized-profile';
       if (fault === 'receipt-version') receipt['version'] = 1;
+      if (fault === 'receipt-v2' || fault === 'receipt-v2-expired') receipt['version'] = 2;
       if (fault === 'receipt-versionless') {
         Reflect.deleteProperty(receipt, 'format');
         Reflect.deleteProperty(receipt, 'version');
@@ -1783,7 +1954,7 @@ try {
     packet.quiescence.issuedAt = new Date(Date.now() - 1000).toISOString();
     packet.quiescence.expiresAt = new Date(Date.now() + 360000).toISOString();
   }
-  if (fault === 'expired-window' || fault === 'expired-prepare') {
+  if (fault === 'expired-window' || fault === 'expired-prepare' || fault === 'receipt-v2-expired') {
     packet.quiescence.issuedAt = new Date(Date.now() - 1200000).toISOString();
     packet.quiescence.expiresAt = new Date(Date.now() - 600000).toISOString();
   }
@@ -1824,6 +1995,13 @@ try {
   };
   await write(packet.quiescence.operation.path, JSON.stringify(operation));
   packet.quiescence.operation = await pin(packet.quiescence.operation.path);
+  if (fault === 'credential-owner-1001') packet.registry.credentials.uid = 1001;
+  if (fault === 'operation-owner-1001') packet.quiescence.operation.uid = 1001;
+  if (fault === 'packet-version') packet.version = 1;
+  if (fault === 'packet-versionless') Reflect.deleteProperty(packet, 'version');
+  if (fault === 'packet-profile-missing') Reflect.deleteProperty(packet, 'invariantProfile');
+  if (fault === 'packet-profile-old')
+    packet.invariantProfile = 'engine-29.1.3-api-1.52-cgroup2-created-v2';
   const packetPath = '/home/puni1/wbs/factory-packet.json';
   await write(packetPath, JSON.stringify(packet));
   if (action === 'recovery') await recoveryFixture(packetPath);

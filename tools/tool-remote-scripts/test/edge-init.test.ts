@@ -15,6 +15,7 @@ import {
 import {
   createFixtureVolume,
   describeFixtureFailure,
+  pinFixtureNetworkInspect,
   publishFixtureFailure,
   publishFixtureFault,
   removeFixtureContainer,
@@ -27,6 +28,41 @@ import {
   verifyFixtureStopDeadline,
 } from './edge-init';
 import { syntheticContainer } from './edge-init-fixture';
+
+test('native CLI network pin requires the checked raw single-array counter path', () => {
+  const id = 'c'.repeat(64);
+  const native = {
+    Id: id,
+    Name: 'wbs-init-synthetic-net-0',
+    Scope: 'local',
+    Driver: 'bridge',
+    ConfigOnly: false,
+    IPAM: { Driver: 'default', Config: [{ Subnet: '172.24.0.0/16' }] },
+    Labels: { 'club.bulletpoints.edge-init-fixture': 'synthetic' },
+    Containers: {},
+    Status: { IPAM: { Subnets: { '172.24.0.0/16': { IPsInUse: 3, DynamicIPsAvailable: 65533 } } } },
+  };
+  const raw = JSON.stringify([native]);
+  expect(pinFixtureNetworkInspect(raw, id, native.Name, 'synthetic').sha256).toBe(
+    fingerprint({
+      Id: id,
+      Name: native.Name,
+      Scope: 'local',
+      Driver: 'bridge',
+      ConfigOnly: false,
+      IPAM: native.IPAM,
+      Labels: native.Labels,
+    }),
+  );
+  expect(() =>
+    pinFixtureNetworkInspect(
+      raw.replace('"IPsInUse":3', '"IPsInUse":9007199254740991.1'),
+      id,
+      native.Name,
+      'synthetic',
+    ),
+  ).toThrow();
+});
 
 test('native fixture ownership rejects foreign names and invocation labels before any effect', () => {
   const raw = syntheticContainer();

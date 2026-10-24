@@ -236,7 +236,8 @@ interface BackendPin {
   nativeSha256: string;
 }
 interface InitPacket {
-  version: 1;
+  version: 2;
+  invariantProfile: InvariantProfile;
   nonce: string;
   receiptDirectory: string;
   sourceSha: string;
@@ -435,6 +436,7 @@ function sha(bytes: Uint8Array | string): string {
 export function decodeInitPacket(value: unknown): InitPacket {
   const fields = closed(value, [
     'version',
+    'invariantProfile',
     'nonce',
     'receiptDirectory',
     'sourceSha',
@@ -457,7 +459,8 @@ export function decodeInitPacket(value: unknown): InitPacket {
     'quiescence',
     'backends',
   ]);
-  if (fields['version'] !== 1) refuse();
+  // Proof: old/versionless and missing/unknown profile packet negatives reject before Engine effects.
+  if (fields['version'] !== 2 || fields['invariantProfile'] !== CREATED_PROFILE) refuse();
   const nonce = text(fields['nonce'], 64),
     sourceSha = text(fields['sourceSha'], 40),
     bootId = text(fields['bootId'], 36);
@@ -525,7 +528,8 @@ export function decodeInitPacket(value: unknown): InitPacket {
   )
     refuse();
   const packet: InitPacket = {
-    version: 1,
+    version: 2,
+    invariantProfile: CREATED_PROFILE,
     nonce,
     receiptDirectory: path(fields['receiptDirectory']),
     sourceSha,
@@ -1094,7 +1098,7 @@ async function runPreparedPacket(
             refuse('target-roster-differs');
           const selection: AdoptionSelection = {
             nonce: packet.nonce,
-            invariantProfile: CREATED_PROFILE,
+            invariantProfile: packet.invariantProfile,
             targets: [
               {
                 kind: 'registry' as const,
@@ -1211,6 +1215,8 @@ async function compareFiles(pins: readonly Pin[], files: readonly AuthorityFile[
       expected === undefined ||
       observed === undefined ||
       fingerprint({ ...observed, uid: expected.uid }) !== fingerprint(expected) ||
+      // Proof: omitting the named-owner read let the isolated credential UID1001
+      // fault reach authenticated registry HTTP instead of refusing at the file boundary.
       (await lstat(expected.path)).uid !== expected.uid
     )
       refuse('file-pin-differs');
@@ -3197,8 +3203,8 @@ export async function readRecoveryHistory(
     const receipt = record(parseJson(await readPrivateFile(path)));
     if ((await fileIdentity(path)) !== before) refuse('recovery-current-state-unstable');
     fileIdentities.push({ path, identity: before });
-    // Proof: omitting the version comparison admitted a self-consistent version1 private chain.
-    if (receipt['format'] !== 'edge-init-receipt' || receipt['version'] !== 2)
+    // Proof: omitting the version comparison admitted a self-consistent historical private chain.
+    if (receipt['format'] !== 'edge-init-receipt' || receipt['version'] !== 3)
       refuse('recovery-evidence-insufficient');
     const hasCandidate = Object.hasOwn(receipt, 'candidate');
     closed(receipt, [
@@ -3458,7 +3464,7 @@ interface ComposeProof {
 /** Production publications carry required proofs of the freshly pinned installed declaration. */
 interface ProductionInitReceipt extends Receipt, ReceiptEvidence {
   format: 'edge-init-receipt';
-  version: 2;
+  version: 3;
   invariantProfile: InvariantProfile;
   packetSha256: string;
   sourceRosterSha256: string;
@@ -3481,7 +3487,7 @@ export async function publishInitReceipt(
   const publication: ProductionInitReceipt = {
     ...receipt,
     format: 'edge-init-receipt',
-    version: 2,
+    version: 3,
     // Proof: omitting profile publication failed exact private receipt readback.
     invariantProfile: CREATED_PROFILE,
     invariants: evidence.invariants,

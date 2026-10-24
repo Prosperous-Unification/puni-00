@@ -68,6 +68,37 @@ test('real CLI requires an inherited edge lock and redacts trusted-state diagnos
   expect(stdout + stderr).toContain('admission-failed');
 });
 
+test('actual source CLI success emits one plain JSON line under FORCE_COLOR=1', async () => {
+  const preload = fileURLToPath(
+    new URL('./fixtures/adopt-edge-init-output-preload.ts', import.meta.url),
+  );
+  const entry = fileURLToPath(new URL('./adopt-edge-init.ts', import.meta.url));
+  const child = Bun.spawn(
+    [process.execPath, '--preload=' + preload, entry, '--packet=/private/synthetic-output-only'],
+    {
+      env: { ...process.env, FORCE_COLOR: '1' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  expect(code, stderr).toBe(0);
+  expect(stderr).toBe('');
+  expect(stdout).toBe(
+    JSON.stringify({
+      attempt: 'synthetic-output-only',
+      stage: 'prepared',
+      packetSha256: 'a'.repeat(64),
+      receiptDirectory: '/private/synthetic-output-only',
+      receiptSha256: null,
+    }) + '\n',
+  );
+});
+
 test('failure projection exposes only validated private attempt metadata and fixed codes', () => {
   const summary = {
     attempt: 'synthetic',
@@ -154,6 +185,7 @@ for (const bundled of [false, true]) {
                 WBS_EDGE_LOCK_FD: '3',
                 EDGE_INIT_SKIP: '1',
                 EDGE_INIT_FIXTURE: '1',
+                FORCE_COLOR: '1',
                 DOCKER_HOST: 'tcp://PRIVATE_REMOTE_SENTINEL:2375',
               },
               stdio: ['ignore', 'pipe', 'pipe', descriptor],
@@ -167,6 +199,7 @@ for (const bundled of [false, true]) {
           expect(status).toBe(1);
           expect(stdout).toBe('');
           const diagnostic: unknown = JSON.parse(stderr);
+          expect(stderr).toBe(JSON.stringify(diagnostic) + '\n');
           expect(diagnostic).toMatchObject({
             stage: 'preparation-failed',
             recoveryInvocation: [

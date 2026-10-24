@@ -167,6 +167,43 @@ test('actual production prepare traverses native host, collector, fixed Caddy Ex
   expect(observation.reads.filter((read) => read.startsWith('POST /containers/'))).toHaveLength(6);
 }, 120000);
 
+test('isolated host models UID1000 across raw UID1001 named and held observations', async () => {
+  const { observation, code } = await observe('prepare', '', '', 'runner-uid-1001-modeled');
+  expect(code, failureContext(observation)).toBe(0);
+  expect(observation.summary?.stage).toBe('prepared');
+  expect(observation.reads).toContain('upgrade:/ws');
+  expect(observation.transcript).toEqual([]);
+}, 120000);
+
+for (const fault of [
+  'credential-owner-1001',
+  'operation-owner-1001',
+  'operator-uid-mismatch',
+  'operator-euid-mismatch',
+  'packet-descriptor-owner-mismatch',
+] as const) {
+  test(
+    'actual production prepare rejects modeled owner fault ' + fault + ' before effects',
+    async () => {
+      const { observation, code } = await observe('prepare', '', '', fault);
+      expect(code).toBe(2);
+      expect(observation.refusal).toBe('edge Init adoption refused: preparation-failed');
+      expect(observation.reads).toEqual([]);
+      expect(observation.transcript).toEqual([]);
+      expect(observation.receiptStages).toEqual([]);
+    },
+    120000,
+  );
+}
+
+test('actual production prepare rejects synthetic receipt-parent owner drift without mutation', async () => {
+  const { observation, code } = await observe('prepare', '', '', 'receipt-parent-owner-mismatch');
+  expect(code).toBe(2);
+  expect(observation.refusal).toBe('edge Init adoption refused: preparation-failed');
+  expect(observation.transcript).toEqual([]);
+  expect(observation.receiptStages).toEqual([]);
+}, 120000);
+
 const preparationFaults = [
   // Proof: omitting both production literal-source comparisons admitted self-consistently pinned false YAML beside a good pinned historical projection; restored actual-entry run refused.
   ['source-false', false, false],
@@ -215,6 +252,10 @@ const preparationFaults = [
   ['source-later-true', false, false],
 
   ['source-missing', false, false],
+  ['packet-version', false, false],
+  ['packet-versionless', false, false],
+  ['packet-profile-missing', false, false],
+  ['packet-profile-old', false, false],
   ['source-unreadable', false, false],
   ['source-replaced', false, false],
   ['source-byte-race', false, false],
@@ -294,6 +335,10 @@ for (const [fault, reachesNative, reachesCollector] of preparationFaults) {
           'source-byte-race',
           'writer-changed',
           'bundle-changed',
+          'packet-version',
+          'packet-versionless',
+          'packet-profile-missing',
+          'packet-profile-old',
           'expired-prepare',
         ].includes(fault)
       )
@@ -399,6 +444,14 @@ test('actual recovery accepts expired historical operation under a distinct curr
   expect(code, failureContext(observation)).toBe(0);
   expect(observation.summary?.recovery?.window).toBe('expired');
 }, 120000);
+
+test('actual read-only recovery refuses a v1 packet before any observation', async () => {
+  const { observation, code } = await observe('recovery', 'complete', 'registry', 'packet-version');
+  expect(code).toBe(2);
+  expect(observation.refusal).toBe('edge Init adoption refused: preparation-failed');
+  expect(observation.reads).toEqual([]);
+  expect(observation.transcript).toEqual([]);
+}, 120000);
 for (const fault of [
   // Proof: omitting the production historical packet equality made this actual-entry recovery negative fail with success exit0; restored run passed.
   'receipt-packet',
@@ -410,6 +463,9 @@ for (const fault of [
   'receipt-profile-changed',
   'receipt-profile-old',
   'receipt-version',
+  'receipt-v2',
+  'receipt-v2-expired',
+  'receipt-directory-owner-mismatch',
   'receipt-versionless',
   'receipt-original-process',
   'receipt-process-drift',
@@ -459,6 +515,9 @@ for (const fault of [
           'receipt-profile-changed',
           'receipt-profile-old',
           'receipt-version',
+          'receipt-v2',
+          'receipt-v2-expired',
+          'receipt-directory-owner-mismatch',
           'receipt-versionless',
           'receipt-invariants',
           'receipt-order',
@@ -562,6 +621,14 @@ test('actual production execute completes the closed twelve-effect transcript an
   ]);
 }, 120000);
 
+test('actual execute accepts changed allocation counters on the independent name read', async () => {
+  const { observation, code } = await observe('execute', '', '', 'network-status-drift');
+  expect(code, failureContext(observation)).toBe(0);
+  expect(observation.summary?.stage).toBe('complete');
+  expect(observation.transcript).toHaveLength(12);
+  expect(observation.reads).toContain('GET /networks/edge');
+}, 120000);
+
 for (const [classification, fault] of [
   ['candidate-running-original-retained', 'original-absent-early'],
   ['create-unacknowledged-no-candidate-observed', 'lost-create-wrong-name'],
@@ -596,6 +663,10 @@ const createdNetworkFaults = [
   'network-name-substitution',
   'network-id-owner',
   'network-config-drift',
+  'network-ipam-drift',
+  'network-status-missing',
+  'network-status-extra',
+  'network-status-unsafe',
   'network-name-missing',
   'network-name-unreadable',
   'network-malformed',
@@ -645,6 +716,9 @@ for (const fault of [
   'network-name-substitution',
   'network-id-owner',
   'network-config-drift',
+  'network-ipam-drift',
+  'network-status-missing',
+  'network-status-unsafe',
   'network-name-missing',
   'network-name-unreadable',
   'network-malformed',

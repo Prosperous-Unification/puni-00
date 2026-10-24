@@ -475,7 +475,7 @@ export interface InvariantProjection {
   endpoints: NativeFields;
 }
 /** The characterized OOM and endpoint representations share one closed profile; omitted owner context remains strict. */
-export const CREATED_PROFILE = 'engine-29.1.3-api-1.52-cgroup2-created-v2';
+export const CREATED_PROFILE = 'engine-29.1.3-api-1.52-cgroup2-created-v3';
 export type InvariantProfile = typeof CREATED_PROFILE;
 
 /** Requires fresh fixed daemon evidence; this identifier is never decoded from an operation packet.

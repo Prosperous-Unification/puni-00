@@ -339,12 +339,23 @@ test.each([
       if (observed === undefined) throw new Error('absent');
       return parseNativeContainer(observed);
     };
+    const networkConfiguration = {
+      Id: 'c'.repeat(64),
+      Name: 'edge',
+      Driver: 'bridge',
+      Scope: 'local',
+      ConfigOnly: false,
+      IPAM: { Driver: 'default', Config: [{ Subnet: '172.24.0.0/16' }] },
+    };
     const networkReply = (byName: boolean) => {
       const fields: Record<string, unknown> = {
-        Id: 'c'.repeat(64),
-        Name: 'edge',
-        Driver: 'bridge',
+        ...networkConfiguration,
         Containers: {},
+        Status: {
+          IPAM: {
+            Subnets: { '172.24.0.0/16': { IPsInUse: 3, DynamicIPsAvailable: 65533 } },
+          },
+        },
       };
       if (byName && fault === 'profile-network-id') fields['Id'] = 'f'.repeat(64);
       if (byName && fault === 'profile-network-name') fields['Name'] = 'foreign';
@@ -455,7 +466,7 @@ test.each([
               {
                 name: 'edge',
                 id: 'c'.repeat(64),
-                sha256: fingerprint({ Id: 'c'.repeat(64), Name: 'edge', Driver: 'bridge' }),
+                sha256: fingerprint(networkConfiguration),
               },
             ],
           },
@@ -466,7 +477,7 @@ test.each([
               {
                 name: 'edge',
                 id: 'c'.repeat(64),
-                sha256: fingerprint({ Id: 'c'.repeat(64), Name: 'edge', Driver: 'bridge' }),
+                sha256: fingerprint(networkConfiguration),
               },
             ],
           },
@@ -816,6 +827,11 @@ for (const kind of ['registry', 'caddy'] as const)
     'ambiguous',
     'malformed',
     'members-malformed',
+    'id-raw-counter',
+    'name-raw-counter',
+    'status-drift-id',
+    'status-drift-name',
+    'status-malformed',
     'member-by-id',
     'member-by-name',
     'after-id',
@@ -845,6 +861,9 @@ for (const kind of ['registry', 'caddy'] as const)
           Id: fault === 'id-hash-consistent' ? 'f'.repeat(64) : pin.id,
           Name: fault === 'name-hash-consistent' ? 'foreign' : pin.name,
           Driver: 'bridge',
+          Scope: 'local',
+          ConfigOnly: false,
+          IPAM: { Driver: 'default', Config: [{ Subnet: '172.24.0.0/16' }] },
         }),
       }));
       const raw = syntheticContainer();
@@ -905,11 +924,20 @@ for (const kind of ['registry', 'caddy'] as const)
           response.end('[');
           return;
         }
+        const status = {
+          IPAM: {
+            Subnets: { '172.24.0.0/16': { IPsInUse: 3, DynamicIPsAvailable: 65533 } },
+          },
+        };
         const network: Record<string, unknown> = {
           Id: pin.id,
           Name: pin.name,
           Driver: 'bridge',
+          Scope: 'local',
+          ConfigOnly: false,
+          IPAM: { Driver: 'default', Config: [{ Subnet: '172.24.0.0/16' }] },
           Containers: {},
+          Status: status,
         };
         if (
           (byName && fault === 'id-owner') ||
@@ -926,10 +954,20 @@ for (const kind of ['registry', 'caddy'] as const)
         if ((byName && fault === 'configuration') || (!byName && fault === 'id-read-config'))
           network['Driver'] = 'changed';
         if (byName && fault === 'members-malformed') network['Containers'] = null;
+        if ((byName && fault === 'status-drift-name') || (!byName && fault === 'status-drift-id')) {
+          status.IPAM.Subnets['172.24.0.0/16'].IPsInUse = 4;
+          status.IPAM.Subnets['172.24.0.0/16'].DynamicIPsAvailable = 65532;
+        }
+        if (byName && fault === 'status-malformed') network['Status'] = { IPAM: { Subnets: {} } };
         if ((!byName && fault === 'member-by-id') || (byName && fault === 'member-by-name'))
           network['Containers'] = { [id]: { Name: raw.Name } };
         if (fault === 'deadline' && !byName) ticks = 2;
-        response.end(JSON.stringify(network));
+        const serialized = JSON.stringify(network);
+        response.end(
+          (byName && fault === 'name-raw-counter') || (!byName && fault === 'id-raw-counter')
+            ? serialized.replace('"IPsInUse":3', '"IPsInUse":9007199254740991.1')
+            : serialized,
+        );
       });
       await new Promise<void>((resolve) => server.listen(socket, resolve));
       const engine = new EngineTransport(socket, [id], 'synthetic');
@@ -944,7 +982,7 @@ for (const kind of ['registry', 'caddy'] as const)
           () => null,
           (cause: unknown) => cause,
         );
-        if (fault === 'none') {
+        if (fault === 'none' || fault === 'status-drift-id' || fault === 'status-drift-name') {
           expect(outcome).toBe(null);
           expect(transcript).toEqual([
             ...pins.flatMap((pin) => [
@@ -1009,12 +1047,28 @@ async function runDiagnosticSequence(variant: DiagnosticCase) {
   const containers = new Map([original, caddy, replacement].map((raw) => [raw.Id, raw]));
   const effects: string[] = [],
     receipts: string[] = [];
-  const network = { Id: 'c'.repeat(64), Name: 'edge', Driver: 'bridge', Containers: {} };
+  const network = {
+    Id: 'c'.repeat(64),
+    Name: 'edge',
+    Driver: 'bridge',
+    Scope: 'local',
+    ConfigOnly: false,
+    IPAM: { Driver: 'default', Config: [{ Subnet: '172.24.0.0/16' }] },
+    Containers: {},
+    Status: { IPAM: { Subnets: { '172.24.0.0/16': { IPsInUse: 3, DynamicIPsAvailable: 65533 } } } },
+  };
   const pins = [
     {
       name: 'edge',
       id: network.Id,
-      sha256: fingerprint({ Id: network.Id, Name: network.Name, Driver: network.Driver }),
+      sha256: fingerprint({
+        Id: network.Id,
+        Name: network.Name,
+        Driver: network.Driver,
+        Scope: network.Scope,
+        ConfigOnly: network.ConfigOnly,
+        IPAM: network.IPAM,
+      }),
     },
   ];
   const verify = () => Promise.resolve();

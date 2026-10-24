@@ -20,6 +20,7 @@ import {
   parseNativeContainer,
   projectInvariant,
 } from './edge-init';
+import { parseNetworkInspect, projectNetworkInspect } from './edge-init-network';
 import { readFields, readIdentity } from './managed-cohort';
 
 const INIT_DIAGNOSTIC_REASONS = [
@@ -214,6 +215,8 @@ export async function readPrivateFile(path: string): Promise<string> {
   const descriptor = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const metadata = await descriptor.stat();
+    // Proof: omitting this held-descriptor owner check let the isolated
+    // packet-FD UID1001 fault complete prepare (exit 0 instead of refusal).
     if (
       !metadata.isFile() ||
       metadata.uid !== process.getuid?.() ||
@@ -415,7 +418,18 @@ export class EngineTransport {
     return this.call('GET', `/images/${id}/json`, timeout, 200);
   }
   async network(id: string, timeout: number): Promise<unknown> {
-    return this.call('GET', `/networks/${readIdentity(id)}`, timeout, 200);
+    const bytes = await this.call(
+      'GET',
+      `/networks/${readIdentity(id)}`,
+      timeout,
+      200,
+      undefined,
+      true,
+    );
+    if (!(bytes instanceof Uint8Array)) throw new InitRefusal('engine-json-invalid');
+    // Proof: raw fractional/exponent counters in both ID/name transport negatives are rejected
+    // before JSON.parse can round them into accepted allocation observations.
+    return parseNetworkInspect(bytes, 'object').native;
   }
   /** Resolves one independently pinned Docker name through the local daemon without expanding mutation membership.
    * Proof: syntax omission dispatched invalid names and failed the zero-dispatch name regression.
@@ -423,7 +437,18 @@ export class EngineTransport {
   async networkByName(name: string, timeout: number): Promise<unknown> {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(name))
       throw new InitRefusal('network-name-invalid');
-    return this.call('GET', '/networks/' + encodeURIComponent(name), timeout, 200);
+    const bytes = await this.call(
+      'GET',
+      '/networks/' + encodeURIComponent(name),
+      timeout,
+      200,
+      undefined,
+      true,
+    );
+    if (!(bytes instanceof Uint8Array)) throw new InitRefusal('engine-json-invalid');
+    // Proof: replacing this name read alone with JSON.parse accepted a rounded
+    // raw fractional counter in the local Engine name-response negative.
+    return parseNetworkInspect(bytes, 'object').native;
   }
   async volume(name: string, timeout: number): Promise<unknown> {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(name))
@@ -748,15 +773,15 @@ export async function observeNetworks(
     const byId = await engine.network(pin.id, deadline.allocate(10000));
     const byName = await engine.networkByName(pin.name, deadline.allocate(10000));
     for (const response of [byId, byName]) {
-      const fields = readFields(response),
-        { Containers, ...configuration } = fields;
+      // Proof: hashing the full native response instead of this configuration
+      // projection refused the unchanged-pinned positive due only to Status.
+      const { native: fields, configuration, members } = projectNetworkInspect(response);
       if (
         fields['Id'] !== pin.id ||
         fields['Name'] !== pin.name ||
         fingerprint(configuration) !== pin.sha256
       )
         throw new InitRefusal('network-pin-differs');
-      const members = readFields(Containers);
       if (
         context.owner.role === 'replacement' &&
         context.owner.phase === 'never-started' &&

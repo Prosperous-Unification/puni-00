@@ -16,7 +16,7 @@ An attended helper SHALL select exactly the independently pinned registry and Ca
 
 ### Requirement: Bind the measured created-state OOM representation to a fixed native profile
 
-Generic invariant comparison SHALL remain strict. Production adoption SHALL independently admit the fixed `engine-29.1.3-api-1.52-cgroup2-created-v2` profile from fresh pinned Docker 29.1.3, API 1.52, Linux, cgroup version 2 and systemd driver evidence, and SHALL require both original targets to contain explicit null OomKillDisable. The outgoing request SHALL retain that null. Only a never-started, fully inert created candidate's observed false OomKillDisable SHALL project to null on a copy for immutable comparison. Every production v2 receipt SHALL bind the same fixed profile identifier; read-only recovery SHALL independently re-admit the current daemon and use the same projection.
+Generic invariant comparison SHALL remain strict. Production adoption SHALL independently admit the fixed `engine-29.1.3-api-1.52-cgroup2-created-v3` profile from fresh pinned Docker 29.1.3, API 1.52, Linux, cgroup version 2 and systemd driver evidence, and SHALL require both original targets to contain explicit null OomKillDisable. The outgoing request SHALL retain that null. Only a never-started, fully inert created candidate's observed false OomKillDisable SHALL project to null on a copy for immutable comparison. Every production v2 packet and v3 receipt SHALL require and bind the same fixed profile identifier; read-only recovery SHALL independently re-admit the current daemon and use the same projection. Historical v1 packets and v2 receipts SHALL refuse without reinterpretation or migration.
 
 #### Scenario: The measured daemon renders a new inert candidate as false
 
@@ -68,7 +68,7 @@ The CLI SHALL admit one canonical absolute `--packet` path and at most one `--ex
 
 ### Requirement: Bundle the production factory and preserve bounded diagnostics
 
-Source and bundled entries SHALL invoke the same production factory. Production receipts SHALL bind the full packet and each target's ordered Compose source roster and literal Init proof. Diagnostics SHALL expose fixed codes, selected validated receipt metadata and a read-only recovery invocation for a validated packet path, without native messages, stacks, causes, configuration or credentials.
+Source and bundled entries SHALL invoke the same production factory. Production receipts SHALL bind the full packet and each target's ordered Compose source roster and literal Init proof. Diagnostics SHALL expose fixed codes, selected validated receipt metadata and a read-only recovery invocation for a validated packet path, without native messages, stacks, causes, configuration or credentials. The CLI SHALL emit one plain JSON line on stdout for success or stderr for refusal even when terminal color is requested.
 
 #### Scenario: The bundle runs outside the source tree
 
@@ -80,9 +80,26 @@ Source and bundled entries SHALL invoke the same production factory. Production 
 - **WHEN** admission, preparation or an attended operation refuses
 - **THEN** diagnostics expose fixed codes and selected validated private receipt metadata, plus the read-only recovery invocation for a validated packet path, without native error messages, stacks, causes, configuration or credentials
 
+#### Scenario: A colored environment invokes the machine-readable CLI
+
+- **WHEN** source or bundled CLI runs with `FORCE_COLOR=1`
+- **THEN** its success or refusal stream contains a complete plain JSON line without ANSI formatting
+
 ### Requirement: Bind never-started endpoint representation to independent network pins
 
-Parsing SHALL preserve an endpoint NetworkID that is empty or a full valid ID without granting admission. Construction and generic comparison SHALL require full IDs. The fixed created-v2 profile SHALL allow empty endpoint IDs only for an explicitly attributed replacement whose actual lifecycle is never-started and fully inert. Its immutable endpoint keys SHALL come from the independently pinned exact name/full-ID roster, with unique names and IDs and unchanged NetworkMode and configured settings. Original, running and stopped contexts SHALL require full actual IDs.
+Parsing SHALL preserve an endpoint NetworkID that is empty or a full valid ID without granting admission. Construction and generic comparison SHALL require full IDs. The fixed created-v3 profile SHALL allow empty endpoint IDs only for an explicitly attributed replacement whose actual lifecycle is never-started and fully inert. Its immutable endpoint keys SHALL come from the independently pinned exact name/full-ID roster, with unique names and IDs and unchanged NetworkMode and configured settings. Original, running and stopped contexts SHALL require full actual IDs.
+
+The fixed profile SHALL admit only characterized local bridge/default-IPAM network inspections with ConfigOnly false, explicit Containers and a closed runtime Status.IPAM.Subnets roster matching the configured subnet spellings exactly. Each CIDR SHALL be bounded and numeric, without scoped or mapped addresses. Both allocation counters SHALL be exact canonical nonnegative integer JSON tokens no larger than Number.MAX_SAFE_INTEGER; unsupported uint64 values SHALL refuse. Engine ID/name reads and native CLI pin creation SHALL validate raw UTF-8 before the parser can round a token. The immutable hash SHALL cover every top-level configuration field except exactly Containers and Status. Membership and runtime allocation observations SHALL remain distinct; valid counter drift between reads SHALL not alter a pin or suppress a membership, identity, inactive-candidate or stable-read refusal.
+
+#### Scenario: Runtime allocation changes after a network is pinned
+
+- **WHEN** fresh ID and name responses retain the independently pinned exact configuration, name and full ID while Status counters change within the admitted range
+- **THEN** candidate and recovery observations continue with their existing membership and stability checks, using the unchanged configuration pin
+
+#### Scenario: Raw counter or configuration differs
+
+- **WHEN** Status is absent, malformed or unsupported, a counter raw token is imprecise or outside the safe range, or IPAM, Options, Labels or another configuration field differs from the pin
+- **THEN** the observation refuses before the next effect without rebasing the pin or accepting a rounded number
 
 #### Scenario: An owned created candidate has empty runtime network IDs
 

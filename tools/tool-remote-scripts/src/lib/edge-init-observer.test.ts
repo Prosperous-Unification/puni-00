@@ -53,6 +53,19 @@ test('production packet boundary rejects an unknown field without echoing privat
   expect(() => decodeInitPacket({ password: 'private-secret-marker' })).toThrow('packet-invalid');
 });
 
+test('production packet admits only v2 with the current required invariant profile', () => {
+  const packet = packetFixture().packet;
+  const current = { ...packet, version: 2, invariantProfile: CREATED_PROFILE };
+  expect(decodeInitPacket(current).invariantProfile).toBe(CREATED_PROFILE);
+  for (const old of [
+    { ...current, version: 1 },
+    { ...current, invariantProfile: 'engine-29.1.3-api-1.52-cgroup2-created-v2' },
+    { ...current, invariantProfile: 'unknown' },
+    { ...current, invariantProfile: undefined },
+  ])
+    expect(() => decodeInitPacket(old)).toThrow('packet-invalid');
+});
+
 test('closed packet decodes independent pins and rejects target, probe, graph and lock expansion', () => {
   const { packet } = packetFixture();
   expect(decodeInitPacket(packet).nonce).toBe('fixture');
@@ -411,7 +424,7 @@ test('production receipt readback contains both exact source hashes and recovery
       ...proof,
       ...evidence,
       format: 'edge-init-receipt',
-      version: 2,
+      version: 3,
       invariantProfile: CREATED_PROFILE,
     });
     expect(persisted['packetSha256']).toBe('e'.repeat(64));
@@ -905,6 +918,7 @@ test('real TLS, registry and WSS probes reject wrong name, connect IP, challenge
   ]);
   expect(generated).toBe(0);
   let fault = '',
+    registryReads = 0,
     observedSni: string | false | null = '',
     observedAuthorization = '';
   const sockets = new Set<Socket>();
@@ -920,6 +934,7 @@ test('real TLS, registry and WSS probes reject wrong name, connect IP, challenge
         return;
       }
       if (request.url === '/v2/') {
+        registryReads++;
         response.setHeader('Docker-Distribution-Api-Version', 'registry/2.0');
         response.end('{}');
       } else if (request.url?.startsWith('/v2/')) {
@@ -984,7 +999,9 @@ test('real TLS, registry and WSS probes reject wrong name, connect IP, challenge
     sha256: digest(await readFile(credentialsPath, 'utf8')),
     device: String(credentials.dev),
     inode: String(credentials.ino),
-    uid: Number(credentials.uid),
+    // This test's isolated child models the tenant owner independently of
+    // the hosted runner's raw scratch-file owner.
+    uid: 1000,
     mode: 0o600,
   };
   async function run(packet: unknown, mode = 'public', trusted = true) {
@@ -1016,6 +1033,9 @@ test('real TLS, registry and WSS probes reject wrong name, connect IP, challenge
     expect(observedAuthorization).toBe(
       'Basic ' + Buffer.from('fixture:private-secret-marker').toString('base64'),
     );
+    const admittedReads = registryReads;
+    expect((await run(packet, 'registry-owner-mismatch')).code).not.toBe(0);
+    expect(registryReads).toBe(admittedReads);
     await writeFile(
       credentialsPath,
       JSON.stringify({ username: 'fixture', password: 'substituted-private-marker' }),
@@ -1166,8 +1186,48 @@ test('recovery classifies all nine stable states and refuses unexplained lifecyc
   }
 });
 
-test('private recovery reader accepts only legal v2 prefixes with immutable two-target evidence', async () => {
-  const root = await mkdtemp('/tmp/edge-init-recovery-chain-');
+test('private recovery reader accepts only legal v3 prefixes with immutable two-target evidence', async () => {
+  const isolatedRoot = process.env['EDGE_INIT_RECOVERY_OWNER_ROOT'];
+  if (isolatedRoot === undefined) {
+    const root = await mkdtemp('/tmp/edge-init-recovery-chain-');
+    try {
+      const preload = fileURLToPath(
+        new URL('../fixtures/edge-init-owner-preload.ts', import.meta.url),
+      );
+      for (const fault of ['', 'receipt-directory-owner-mismatch']) {
+        const child = Bun.spawn(
+          [
+            process.execPath,
+            '--preload=' + preload,
+            'test',
+            fileURLToPath(import.meta.url),
+            '--test-name-pattern=^private recovery reader accepts only legal v3 prefixes with immutable two-target evidence$',
+            '--timeout=20000',
+          ],
+          {
+            env: {
+              ...process.env,
+              EDGE_INIT_RECOVERY_OWNER_ROOT: root,
+              ...(fault === '' ? {} : { EDGE_INIT_RECOVERY_OWNER_FAULT: fault }),
+            },
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
+        const [stdout, stderr, code] = await Promise.all([
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+          child.exited,
+        ]);
+        expect(code, stderr.slice(-1200)).toBe(0);
+        expect(stdout + stderr).toContain('1 pass');
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+    return;
+  }
+  const root = isolatedRoot;
   const source = join(root, 'compose.yml'),
     directory = join(root, 'receipts');
   await writeFile(source, 'services:\n  registry:\n    init: true\n  caddy:\n    init: true\n', {
@@ -1253,7 +1313,7 @@ test('private recovery reader accepts only legal v2 prefixes with immutable two-
       if (proof === undefined) throw new Error('missing fixture proof');
       chain.push({
         format: 'edge-init-receipt',
-        version: 2,
+        version: 3,
         invariantProfile: CREATED_PROFILE,
         packetSha256,
         ...proof,
@@ -1269,6 +1329,13 @@ test('private recovery reader accepts only legal v2 prefixes with immutable two-
         })),
       });
       await writeChain(chain);
+      if (process.env['EDGE_INIT_RECOVERY_OWNER_FAULT'] === 'receipt-directory-owner-mismatch') {
+        process.env['EDGE_INIT_RECOVERY_OWNER_READ'] = '1';
+        await rejects(readRecoveryHistory(checked, packetSha256), {
+          reason: 'recovery-directory-invalid',
+        });
+        return;
+      }
       const history = await readRecoveryHistory(checked, packetSha256);
       expect(history.invariants).toEqual(invariants);
     }
@@ -1394,7 +1461,8 @@ test('private recovery reader accepts only legal v2 prefixes with immutable two-
       readRecoveryHistory(checked, digest('changed host/image/backend/probe/bundle packet')),
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    if (process.env['EDGE_INIT_RECOVERY_OWNER_FAULT'] === 'receipt-directory-owner-mismatch')
+      await rm(root, { recursive: true, force: true });
   }
 });
 
