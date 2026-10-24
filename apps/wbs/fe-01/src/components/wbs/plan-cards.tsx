@@ -43,6 +43,7 @@ import { type CommitOutcome, didLand, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
+import { demandSummary } from './resource-demand-words';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { statusActions } from './status-cell';
 import { StepBlockageSection } from './step-blockage';
@@ -475,6 +476,8 @@ export interface CardRowActionHandlers {
   moveUnder: (rowId: string) => void;
   /** Opens the row's Measures panel, the table's own; absent where none is offered. */
   measures?: (rowId: string) => void;
+  /** Opens a leaf's Resources panel, the table's own; absent where none is offered. */
+  resources?: (rowId: string) => void;
   unfreeze: (rowId: string) => void;
   remove: (row: TreeRow) => void;
   /** The table's own `chooseStatus`: Done and In progress ask first, the rest are sent at once. */
@@ -525,6 +528,18 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
           label: 'Measures…',
           run: () => {
             handlers.measures?.(row.id);
+          },
+        },
+      ]),
+  // A leaf's only: a parent's demand charges nothing (`wbs-resources` R2).
+  ...(handlers.resources === undefined || row.subRows.length > 0
+    ? []
+    : [
+        {
+          id: 'resources',
+          label: 'Resources…',
+          run: () => {
+            handlers.resources?.(row.id);
           },
         },
       ]),
@@ -3323,6 +3338,26 @@ export function PlanCards({
                   createValue={createService}
                   foldsWhenEmpty={folds}
                 />
+              )}
+              {/*
+                What the leaf holds while it runs (`wbs-resources` 1.5), after
+                the labels as the table's Resources column sits after Types.
+                Only where it states some: the ⋯ menu's `Resources…` offers the
+                panel on every leaf, so an empty chip would be a second offer.
+              */}
+              {row.demands.length > 0 && row.subRows.length === 0 && (
+                <button
+                  type="button"
+                  data-card-resources={row.id}
+                  aria-label={`Resources for ${row.number}: ${demandSummary(row.demands)}`}
+                  disabled={rowActions?.resources === undefined}
+                  className={fieldTriggerClass(false, folds)}
+                  onClick={() => {
+                    rowActions?.resources?.(row.id);
+                  }}
+                >
+                  {demandSummary(row.demands)}
+                </button>
               )}
               {/*
                 What the plan was asked to run this row at, where somebody asked

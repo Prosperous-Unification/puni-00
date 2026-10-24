@@ -388,6 +388,14 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // type is created **in the cell** by naming one. A column that appears once you
   // have used it, and cannot be used until it appears, is not a column.
   ['type', 120],
+  // The resources a leaf demands (`wbs-resources` 1.5): `h2puni ram 6 GB ·
+  // staging` is a phrase, and operators name machine resources after their
+  // host, so 120 like the label columns clipped the first name in the eye
+  // review (`h2puni agent sl…`); 168 holds one host-named resource and its
+  // units. Hidden by default, on the `type` column's terms: the folded budget
+  // at 1280 has no room, and resources are stated on the plans a swarm runs,
+  // which turn the column on in Columns. The cell's hover fact says it whole.
+  ['resources', 168],
   // People at once, and this is the tightest column in the table: a two-person
   // icon for a heading and three digits of value, right-aligned. 32px is 24px of
   // mark room plus the 8px of padding the declared width includes — enough for
@@ -681,6 +689,7 @@ export const INITIAL_HIDDEN_COLUMNS: readonly string[] = [
   'team',
   'service',
   'type',
+  'resources',
   // The work item deadline, hidden for the same reason `type` is: the folded
   // table has 29px of slack at 1280 and this column is 84, so on by default it
   // would overflow the budget test measures — and a deadline is a thing a
@@ -748,6 +757,7 @@ export function hideableColumnIds(stepIds: readonly string[]): readonly string[]
     'tag',
     'service',
     'type',
+    'resources',
     'in-parallel',
     ...stepIds,
     'final-total',

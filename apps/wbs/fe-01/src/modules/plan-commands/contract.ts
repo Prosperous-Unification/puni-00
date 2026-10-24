@@ -34,6 +34,8 @@ export const PROJECT_COMMAND_ROUTES = [
   'addTypedDependency',
   'updateTypedDependency',
   'removeTypedDependency',
+  'readResources',
+  'setDemands',
 ] as const;
 
 /**

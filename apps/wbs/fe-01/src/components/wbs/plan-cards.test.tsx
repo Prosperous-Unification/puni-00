@@ -2659,6 +2659,8 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
         'Duplicate',
         // The table's own Measures… (`wbs-measure-budgets` task 4.3).
         'Measures…',
+        // A leaf's Resources… (`wbs-resources` 1.5).
+        'Resources…',
         'Unfreeze',
         'Delete',
       ]);
@@ -2746,6 +2748,7 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
       serviceIds: [],
       typeIds: [],
       externalRefs: [],
+      demands: [],
     },
     overrides,
   );

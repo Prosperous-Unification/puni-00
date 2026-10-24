@@ -36,6 +36,7 @@ import {
   readClaimHistory as readClaimHistoryShape,
   readProject as readProjectShape,
   readProjectClaims as readProjectClaimsShape,
+  readProjectResources as readProjectResourcesShape,
   readTimezones as readTimezonesShape,
   recordProjectOpen,
   redoProject as redoProjectShape,
@@ -2252,6 +2253,33 @@ export interface ProjectApi {
     type: TypedDependencyType,
   ): Promise<void>;
   removeTypedDependency(projectId: string, dependencyId: string): Promise<void>;
+  /**
+   * The resources the caller's directory holds, this project's stated
+   * capacities and every demand on its work items (`wbs-resources`): what a
+   * row's Resources panel offers and states against. Every refusal throws its
+   * code.
+   */
+  readResources(projectId: string): Promise<ProjectResourcesView>;
+  /**
+   * States or clears (`units: null`) one work item's demand on each named
+   * resource, all as **one** batch: one journal entry, so the plan's Undo takes
+   * the whole edit back at once. Units are not validated here; be-01 answers
+   * `units_must_be_a_whole_number_from_1` and `exclusive_demand_is_one`.
+   */
+  setDemands(projectId: string, statements: readonly DemandStatement[]): Promise<void>;
+}
+
+/** What {@link ProjectApi.readResources} answers. */
+export type ProjectResourcesView = Extract<
+  ClientReply<typeof readProjectResourcesShape>,
+  { kind: 'success' }
+>['body'];
+
+/** One work item's demand on one resource as a `setDemand` states it; null removes it. */
+export interface DemandStatement {
+  workItemId: string;
+  resourceId: string;
+  units: number | null;
 }
 
 const WBS_SHAPES = [
@@ -2274,6 +2302,7 @@ const WBS_SHAPES = [
   readProjectShape,
   readClaimHistoryShape,
   readProjectClaimsShape,
+  readProjectResourcesShape,
   readTimezonesShape,
   recordProjectOpen,
   redoProjectShape,
@@ -3144,6 +3173,28 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
           params: { id: projectId, markerId },
           headers: auth(token),
         }),
+      );
+    },
+    async readResources(projectId) {
+      return jsonBody(
+        readProjectResourcesShape,
+        await client.getApiProjectsByIdResources({
+          params: { id: projectId },
+          headers: auth(token),
+        }),
+      );
+    },
+    async setDemands(projectId, statements) {
+      await postBatch(
+        client,
+        token,
+        projectId,
+        statements.map(({ workItemId, resourceId, units }) => ({
+          kind: 'setDemand',
+          workItemId,
+          resourceId,
+          units,
+        })),
       );
     },
     async setTeamCapacity(projectId, teamId, size) {

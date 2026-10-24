@@ -222,35 +222,37 @@ const documentWorkItem = numberedWorkItem
   )
   .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
 
-export const planDocument = workItemTree.omit('typedDependencies', 'workItems').and({
-  workItems: documentWorkItem.array(),
-  stepBlockages: type({
-    workItemId: 'string',
-    stepId: 'string',
-    blockedAt: 'number.integer',
-  }).array(),
-  typedDependencies: documentTypedDependency.array(),
-  steps: type({ code: 'string', estimateUnit: "'workdays' | 'minutes'" }).array(),
-  stepNodes: type({
-    id: 'string',
-    workItemId: 'string',
-    stepId: 'string',
-    reference: 'string',
-  }).array(),
-  project,
-  document: planHeader,
-  settings: planSettings,
-  capacity: type({ teamId: 'string', size: 'number' }).array(),
-  resourceCapacities: documentResourceCapacity.array(),
-  demands: documentDemand.array(),
-  calendarMarkers: authoredMarker.array(),
-  directory: directory.and({ resources: documentResource.array() }),
-  // Always written, empty when the plan holds none (design D63, D71).
-  measureDefinitions: documentMeasureDefinition.array(),
-  measureFacts: documentMeasureFact.array(),
-  measureEstimates: documentMeasureEstimate.array(),
-  budgets: documentBudget.array(),
-});
+export const planDocument = workItemTree
+  .omit('typedDependencies', 'workItems', 'demands', 'demandedResources')
+  .and({
+    workItems: documentWorkItem.array(),
+    stepBlockages: type({
+      workItemId: 'string',
+      stepId: 'string',
+      blockedAt: 'number.integer',
+    }).array(),
+    typedDependencies: documentTypedDependency.array(),
+    steps: type({ code: 'string', estimateUnit: "'workdays' | 'minutes'" }).array(),
+    stepNodes: type({
+      id: 'string',
+      workItemId: 'string',
+      stepId: 'string',
+      reference: 'string',
+    }).array(),
+    project,
+    document: planHeader,
+    settings: planSettings,
+    capacity: type({ teamId: 'string', size: 'number' }).array(),
+    resourceCapacities: documentResourceCapacity.array(),
+    demands: documentDemand.array(),
+    calendarMarkers: authoredMarker.array(),
+    directory: directory.and({ resources: documentResource.array() }),
+    // Always written, empty when the plan holds none (design D63, D71).
+    measureDefinitions: documentMeasureDefinition.array(),
+    measureFacts: documentMeasureFact.array(),
+    measureEstimates: documentMeasureEstimate.array(),
+    budgets: documentBudget.array(),
+  });
 
 export type PlanDocument = (typeof planDocument)['infer'];
 

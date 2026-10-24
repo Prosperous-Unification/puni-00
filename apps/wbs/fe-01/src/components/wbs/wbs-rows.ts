@@ -1,5 +1,7 @@
 import type { ExternalRefView, WorkItemView } from '@/lib/wbs-api';
 
+import type { RowDemand } from './resource-demand-words';
+
 /** A work item with its children attached, which is the shape a table row model wants. */
 export interface TreeRow extends WorkItemView {
   subRows: TreeRow[];
@@ -42,6 +44,12 @@ export interface TreeRow extends WorkItemView {
    * same thing — an empty cell.
    */
   externalRefs: ExternalRefView[];
+  /**
+   * The resources this row's own work item demands (`wbs-resources` 1.5), off
+   * the same tree read as the row, by resource name; `[]` for none. Never an
+   * ancestor's: a demand is not inherited down the tree.
+   */
+  demands: readonly RowDemand[];
 }
 
 /**
@@ -65,7 +73,10 @@ export interface TreeRow extends WorkItemView {
  * documents the same window from the other side. An untagged plan for the
  * length of a deploy is right; a page that throws on every row is not.
  */
-export function toTree(flat: readonly WorkItemView[]): TreeRow[] {
+export function toTree(
+  flat: readonly WorkItemView[],
+  demands: ReadonlyMap<string, readonly RowDemand[]> = new Map(),
+): TreeRow[] {
   const rows = new Map<string, TreeRow>(
     flat.map((item) => [
       item.id,
@@ -75,6 +86,7 @@ export function toTree(flat: readonly WorkItemView[]): TreeRow[] {
         serviceIds: item.serviceIds ?? [],
         typeIds: item.typeIds ?? [],
         externalRefs: item.externalRefs ?? [],
+        demands: demands.get(item.id) ?? [],
         subRows: [],
       },
     ]),
