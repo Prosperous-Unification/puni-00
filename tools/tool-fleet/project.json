@@ -165,6 +165,13 @@
       "options": {
         "command": "bun tools/tool-fleet/src/object-store-image-cli.ts"
       }
+    },
+    "test:registry-hosts": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test --preload ./tools/test/scratch/preload.ts ./infra/ansible/tests/registry-hosts.test.ts"
+      }
     }
   }
 }

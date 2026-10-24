@@ -1,0 +1,92 @@
+---
+# Proof: registry-hosts.test.ts removes this command; a public listener then renders successfully.
+- name: Validate private endpoint inputs
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import ipaddress, sys
+        address, port, upstream = sys.argv[1:]
+        private = tuple(ipaddress.IPv4Network(cidr) for cidr in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
+        for candidate in (address, upstream):
+            parsed = ipaddress.IPv4Address(candidate)
+            if not any(parsed in network for network in private):
+                raise ValueError('Registry addresses must be RFC1918 IPv4')
+        if not port.isascii() or not port.isdecimal() or not 1 <= int(port) <= 65535:
+            raise ValueError('Registry port must be numeric TCP port 1..65535')
+      - '{{ puni_registry_address }}'
+      - '{{ puni_registry_port }}'
+      - '{{ puni_registry_upstream }}'
+  changed_when: false
+
+- name: Inspect proxy executable
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/systemd-socket-proxyd
+  register: puni_registry_proxy
+
+# Proof: registry-hosts.test.ts injects an absent proxy; removing this assertion permits unit writes.
+- name: Require installed proxy executable
+  ansible.builtin.assert:
+    that:
+      - puni_registry_proxy.stat.exists
+      - puni_registry_proxy.stat.isreg
+      - puni_registry_proxy.stat.executable
+
+- name: Inspect registry unit ownership
+  ansible.builtin.stat:
+    path: '/etc/systemd/system/puni-registry.{{ registry_unit }}'
+    follow: false
+  loop: [socket, service]
+  loop_control:
+    loop_var: registry_unit
+  register: puni_registry_units
+
+- name: Read existing registry units
+  ansible.builtin.slurp:
+    src: '{{ registry_unit.stat.path }}'
+  loop: '{{ puni_registry_units.results }}'
+  loop_control:
+    loop_var: registry_unit
+  when: registry_unit.stat.exists
+  register: puni_registry_unit_contents
+
+# Proof: registry-hosts.test.ts removes this assertion; the operator-owned socket is overwritten.
+- name: Refuse unmanaged registry units
+  ansible.builtin.assert:
+    that:
+      - registry_unit.registry_unit.stat.isreg
+      - registry_unit.registry_unit.stat.uid == 0
+      - >-
+        (registry_unit.content | b64decode).startswith('# Ansible managed: puni-registry endpoint v1\n')
+    fail_msg: Refusing to replace an unmanaged registry unit
+  loop: '{{ puni_registry_unit_contents.results }}'
+  loop_control:
+    loop_var: registry_unit
+  when: not (registry_unit.skipped | default(false))
+
+- name: Inspect conflicting registry unit paths
+  ansible.builtin.stat:
+    path: '{{ registry_path }}'
+    follow: false
+  loop:
+    - /etc/systemd/system/puni-registry.socket.d
+    - /etc/systemd/system/puni-registry.service.d
+    - /run/systemd/system/puni-registry.socket
+    - /run/systemd/system/puni-registry.service
+    - /run/systemd/system/puni-registry.socket.d
+    - /run/systemd/system/puni-registry.service.d
+    - /usr/lib/systemd/system/puni-registry.socket
+    - /usr/lib/systemd/system/puni-registry.service
+  loop_control:
+    loop_var: registry_path
+  register: puni_registry_conflicts
+
+# Proof: registry-hosts.test.ts injects a socket override; removing this assertion permits unit writes.
+- name: Refuse competing registry units or overrides
+  ansible.builtin.assert:
+    that: not registry_path.stat.exists
+    fail_msg: Refusing a competing registry unit or override
+  loop: '{{ puni_registry_conflicts.results }}'
+  loop_control:
+    loop_var: registry_path

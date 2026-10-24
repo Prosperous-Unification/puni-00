@@ -1,0 +1,29 @@
+---
+- name: Restart registry client
+  ansible.builtin.systemd_service:
+    name: '{{ puni_registry_service }}'
+    state: restarted
+  when: puni_registry_mode == 'k3s'
+  notify:
+    - Wait for registry server readiness
+    - Wait for registry agent readiness
+
+- name: Wait for registry server readiness
+  ansible.builtin.command:
+    argv: [k3s, kubectl, get, --raw=/readyz]
+  register: puni_registry_ready
+  changed_when: false
+  until: puni_registry_ready.rc == 0 and puni_registry_ready.stdout | trim == 'ok'
+  retries: 30
+  delay: 2
+  when: puni_registry_service == 'k3s'
+
+- name: Wait for registry agent readiness
+  ansible.builtin.command:
+    argv: [systemctl, is-active, k3s-agent]
+  register: puni_registry_active
+  changed_when: false
+  until: puni_registry_active.rc == 0 and puni_registry_active.stdout | trim == 'active'
+  retries: 30
+  delay: 2
+  when: puni_registry_service == 'k3s-agent'

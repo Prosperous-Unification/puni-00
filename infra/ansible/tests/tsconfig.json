@@ -1,0 +1,4 @@
+{
+  "extends": "../../../tools/tool-fleet/tsconfig.spec.json",
+  "include": ["*.test.ts"]
+}

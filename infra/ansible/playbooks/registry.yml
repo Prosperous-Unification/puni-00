@@ -1,0 +1,16 @@
+---
+- name: Converge the private registry TCP endpoint
+  hosts: registry_endpoints
+  become: true
+  gather_facts: false
+  serial: 1
+  tags: [registry_endpoint]
+  roles: [registry_endpoint]
+
+- name: Converge registry client trust and optional k3s authentication
+  hosts: registry_clients
+  become: true
+  gather_facts: false
+  serial: 1
+  tags: [registry_client]
+  roles: [registry_client]

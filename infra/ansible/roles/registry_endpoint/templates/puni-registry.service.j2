@@ -1,0 +1,22 @@
+# Ansible managed: puni-registry endpoint v1
+[Unit]
+Description=PUNI registry TCP proxy
+Requires=puni-registry.socket
+After=network-online.target puni-registry.socket
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd {{ puni_registry_upstream }}:5000
+DynamicUser=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=

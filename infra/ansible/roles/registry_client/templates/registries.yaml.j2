@@ -1,0 +1,8 @@
+# Ansible managed: puni-registry client v1
+configs:
+  {{ (puni_registry_hostname ~ ':' ~ puni_registry_port) | to_json }}:
+    auth:
+      username: {{ puni_registry_username | to_json }}
+      password: {{ puni_registry_password | to_json }}
+    tls:
+      ca_file: /etc/puni/registry/ca.crt
