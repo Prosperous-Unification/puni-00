@@ -7488,3 +7488,44 @@ Combined validation passed 373 component tests, the preparation model and both
 repository guards; configured uncached tool lint/types actually executed.
 Final exact-head hosted CI, canonical host gate, native acceptance and complete
 restoration/activation remain open. No live service or store was changed.
+
+## Retained snapshots, TCP closure and CI classification
+
+Reviewed retained-record source `ac05056e` is integrated as `376e78c7`. The
+original publication snapshot remains authoritative through retention and both
+completion routes. Root replay passed nine continuity/API cases with 376
+assertions in 134.99s and the fenced positive with 133 assertions in 46.19s.
+Configured uncached tool lint and typecheck actually executed and passed.
+The independent source review and its original object-replacement negatives
+are recorded in [retained-record evidence](verify-retained-record.md).
+
+Reviewed TCP source `2ae61653` is integrated as `ff362061`. Root replay passed
+eight focused cases with 36 assertions in 12.15s, including actual delayed
+close and pending-close refusals. [TCP evidence](verify-participant-tcp-close.md)
+preserves the earlier rejected implementation and the corrected review.
+These leaves do not implement the complete restoration coordinator.
+
+Hosted CI at public checkpoint `78c92f21` passed checks, backend, frontend,
+workspace and all eight browser shards. Twilight completed with 2,340 passing
+and 11 failing tests: the fixture ownership self-test matched both the `test`
+and `fixture` rules before the intended pilot checks could run. The remote job
+was still running at this observation; no complete green CI is claimed.
+
+The self-test now lives in `src/lib`, importing its unchanged fixture helper.
+Both unchanged shipped policies rejected its original path through the actual
+classification CLI in an isolated committed candidate, then classified the
+moved path exactly as `test`. The complete staged candidate passed the full
+policy classification over 15,406 tuples. The narrow bootstrap policy is not
+a full-tree policy: applying it to the full candidate independently refused an
+unrelated unsupported skill marker; its moved-path check used the isolated
+candidate. The relocated ownership test passed all 15 assertions, and the
+configured uncached tool lint/typecheck targets passed in 20.2s. Neither policy
+nor the multiple-match safety check changed.
+
+The next readiness slice remains unintegrated. Its first unrestricted local
+replay exercised real HTTP and the canonical observer with modeled raw process
+and Docker inputs, then all three cases failed on absent fixture transport
+settlement evidence (198.63s, frozen files unchanged). The earlier restricted
+attempt failed at loopback listen with EPERM. Neither run is counted as passing
+readiness or native acceptance. The fixture owner is correcting that evidence
+boundary before a fresh replay and independent review.

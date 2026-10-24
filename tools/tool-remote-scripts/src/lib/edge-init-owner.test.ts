@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 
 import { expect, test } from 'bun:test';
 
-import { FixtureOwnership } from './edge-init-owner';
+import { FixtureOwnership } from '../fixtures/edge-init-owner';
 
 test('fixture owner projects only declared synthetic paths and held descriptors', async () => {
   const root = await mkdtemp('/tmp/edge-init-owner-');
