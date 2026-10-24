@@ -22,6 +22,46 @@ function candidate() {
 }
 
 describe('Init-only native preservation', () => {
+  test('admits native API 1.52 Config without OnBuild and preserves its absence', () => {
+    const original = container(),
+      observed = candidate();
+    Reflect.deleteProperty(original.Config, 'OnBuild');
+    Reflect.deleteProperty(observed.Config, 'OnBuild');
+    const parsed = parseNativeContainer(original);
+    expect(Object.hasOwn(parsed.config, 'OnBuild')).toBe(false);
+    expect(Object.hasOwn(constructCandidate(parsed).Config, 'OnBuild')).toBe(false);
+    expect(() => {
+      compareCandidate(parsed, parseNativeContainer(observed));
+    }).not.toThrow();
+    Object.assign(observed.Config, { OnBuild: null });
+    expect(() => {
+      compareCandidate(parsed, parseNativeContainer(observed));
+    }).toThrow();
+  });
+  for (const onBuild of [null, [], ['RUN /bin/true']]) {
+    test(`preserves a present native OnBuild value ${JSON.stringify(onBuild)}`, () => {
+      const original = container(),
+        observed = candidate();
+      Object.assign(original.Config, { OnBuild: onBuild });
+      Object.assign(observed.Config, { OnBuild: onBuild });
+      const parsed = parseNativeContainer(original);
+      expect(constructCandidate(parsed).Config['OnBuild']).toEqual(onBuild);
+      expect(() => {
+        compareCandidate(parsed, parseNativeContainer(observed));
+      }).not.toThrow();
+      Reflect.deleteProperty(observed.Config, 'OnBuild');
+      expect(() => {
+        compareCandidate(parsed, parseNativeContainer(observed));
+      }).toThrow();
+    });
+  }
+  for (const onBuild of [true, 1, 'RUN /bin/true', [1], { unexpected: true }]) {
+    test(`rejects malformed native OnBuild ${JSON.stringify(onBuild)}`, () => {
+      const observed = container();
+      Object.assign(observed.Config, { OnBuild: onBuild });
+      expect(() => parseNativeContainer(observed)).toThrow();
+    });
+  }
   test('shares the complete invariant projection without rewriting an observed candidate', () => {
     const raw = container();
     const original = parseNativeContainer(raw);
