@@ -71,6 +71,9 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiProjectsByIdAddressCandidates',
       'getApiProjectsByIdAddressReferences',
       'getApiProjectsByIdCalendar-markers',
+      // Proof: temporarily exempting this exact claim operation moved it out of
+      // the protected matrix and failed this test (2026-10-24 CI repair).
+      'getApiProjectsByIdClaims',
       'getApiProjectsByIdExport',
       'getApiProjectsByIdHistory',
       'getApiProjectsByIdPeopleByPersonIdWork',
@@ -82,6 +85,9 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiProjectsByIdWork-item-rows',
       'getApiProjectsByIdWork-items',
       'getApiProjectsByIdWork-itemsByWorkItemId',
+      // Proof: temporarily exempting this saved-reference delivery operation
+      // moved it out of the protected matrix and failed this test (2026-10-24).
+      'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
       'getApiSaved-plansById',
       'getApiServices',
       'getApiSpaces',
