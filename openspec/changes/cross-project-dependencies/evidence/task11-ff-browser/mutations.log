@@ -1,0 +1,4 @@
+serialization: exit 1, intended browser assertion observed
+storage: exit 1, intended browser assertion observed
+finish: exit 1, intended browser assertion observed
+start: exit 1, intended browser assertion observed

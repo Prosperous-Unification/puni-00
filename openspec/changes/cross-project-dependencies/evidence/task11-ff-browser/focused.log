@@ -1,0 +1,35 @@
+
+> nx run wbs-fe-01:e2e-cross-project --grep desktop FF edit persists identity
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "desktop FF edit persists identity"
+
+(node:3797307) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:3798509) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:3798652) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:981:1 › desktop FF edit persists identity and releases only its finish condition on remote completion (19.3s)
+
+  1 passed (29.6s)
+
+
+
+ NX   Successfully ran target e2e-cross-project for project wbs-fe-01
+
+
+  Run duration:      30.2s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     30.2s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-fe-01:e2e-cross-project    30.2s
