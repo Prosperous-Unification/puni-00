@@ -7,4 +7,4 @@ skip.test.ts:
  [0m[33m1 skip[0m
 [0m[2m 0 fail[0m
  1 expect() calls
-Ran 2 tests across 1 file. [0m[2m[[1m8.00ms[0m[2m][0m
+Ran 2 tests across 1 file. [0m[2m[[1m14.00ms[0m[2m][0m

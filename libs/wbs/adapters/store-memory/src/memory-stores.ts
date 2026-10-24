@@ -602,6 +602,11 @@ export function bindStores(
       state.tables.claims,
       claimIdentityOf(directory),
       (resourceId) => state.tables.directory.resources.resources.has(resourceId),
+      {
+        projects: state.tables.projects,
+        workItems: state.tables.workItems,
+        people: state.tables.directory.people,
+      },
     ),
     dependencies,
     typedDependencies,

@@ -31,7 +31,7 @@ _Avoid_: lock, refresh mutex
 ### Organization access
 
 **Organization**:
-The ownership and access boundary for WBS projects and shared resources. A user may belong to more than one organization.
+The ownership and access boundary for WBS projects, their work packages and shared resources. A user may belong to more than one organization.
 _Avoid_: tenant, workspace, account; not Twilight Structure's installation
 [Organization](docs/twilight-structure/CONTEXT.md#authority)
 
@@ -170,20 +170,24 @@ _Avoid_: claim row, active claim, slot
 ### Spaces
 
 **Space**:
-An organization-owned, named lens over an ordered set of that organization's projects. It owns nothing: removing a project from it, or deleting it, changes no project.
-_Avoid_: portfolio, program, folder, workspace
+An organization-owned, named lens over an ordered set of that organization's projects, to which persons and teams may also belong. It owns nothing and grants nothing: removing a project, a person or a team from it, or deleting it, changes no project and no access.
+_Avoid_: portfolio, program, folder, workspace, department
 
 **Space membership**:
-One project's place in one space: the pair and its position. A project may sit in many spaces.
-_Avoid_: link, assignment
+One project's, person's or team's place in one space: the pair and, for a project, its position. A project, a person or a team may sit in many spaces.
+_Avoid_: link, assignment, space access
 
 **All projects**:
-The virtual space every organization has, addressed as `all`; it has no row and its members are the caller's project list.
+The virtual space every organization has, addressed as `all`; it has no row and its members are the caller's projects.
 _Avoid_: default space, root space
 
 **Project roll-up**:
-One project read as one row of a space — dates, total days, folded status and counts — derived on read from the tree the project page reads.
+One project read as one row of a space — dates, total days, folded status and counts — folded from its work packages' roll-ups.
 _Avoid_: summary, project status (alone)
+
+**Work package roll-up**:
+One work package read as one row beneath its project — dates, total days, folded status and counts — derived on read from the tree its page reads.
+_Avoid_: summary, package status
 
 **In progress now**:
 The leaf work items across a space whose folded status reads in progress.
@@ -202,8 +206,8 @@ entry; it names a sort key, never a position count. `null` means the list is exh
 _Avoid_: offset, page token, bookmark
 
 **Update instant**:
-When a project or work item last changed, from its stamped `updated_at`; for a project also
-its work items' stamps and its plan events. `null` for rows written before those stamps.
+When a work package or work item last changed, from its stamped `updated_at`; for a work
+package also its work items' stamps and its plan events. `null` for rows written before those stamps.
 _Avoid_: modified date, last edit
 
 **Field group**:
@@ -214,14 +218,27 @@ _Avoid_: projection, include, expand
 
 **First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.
 
+**Work package**:
+One work breakdown structure and everything scoped to it — its work items, its steps, its
+restriction, its claims, its saved plans, its exports and its history. Every work package
+belongs to exactly one project; organization directory entities, including people, can serve
+several work packages and are not owned by any one of them.
+_Avoid_: project (for one WBS), workspace, board, plan
+
 **Project**:
-One work breakdown structure and everything scoped to it — its work items, its steps and
-its restriction. Work items and steps belong to one project; organization directory entities,
-including people, can serve several projects and are not owned by any one of them.
-_Avoid_: workspace, board, plan
+One client engagement: an organization's named collection of work packages, owning the
+settings they share, the dependencies between them and the budgets that bound several of
+them. Every project belongs to exactly one organization.
+_Avoid_: engagement, programme, portfolio, project (for one WBS)
+
+**Default project**:
+The project named "Default project" that the first project migration gives each organization
+holding work packages, so that every work package has a project. Ordinary afterwards: renamed,
+emptied or deleted like any other.
+_Avoid_: root project, unfiled, inbox
 
 **Work item**:
-One unit of work in a project, holding a name, notes and a place in the tree; once it has
+One unit of work in a work package, holding a name, notes and a place in the tree; once it has
 children it owns no estimate of its own
 ([spec](openspec/changes/archive/2026-08-10-wbs-domain-model/specs/wbs-domain/spec.md)). Never
 `item` alone (R2).
@@ -283,21 +300,23 @@ together keeping their order. Frozen work items move with the rest; nothing chan
 _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
 
 **Step**:
-A named kind of work a project estimates separately, unique by name within it and carrying a
-**step code**; every project starts with `Dev` and `QA`
+A named kind of work a project defines once for all its work packages, each estimating it
+separately; unique by name within the project and carrying a **step code**; every project
+starts with `Dev` and `QA`
 ([spec](openspec/changes/archive/2026-08-30-steps-not-phases/specs/wbs-domain/spec.md)). A
 definition, not an occurrence: its work within one leaf is a **step node**.
 _Avoid_: discipline, type, category
 
 **Step code**:
-A step's short, immutable, project-unique name for references — `dev`, `qa`, `review`: a
+A step's short, immutable name for references, unique within its project — `dev`, `qa`,
+`review`: a
 lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
 step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are
 reserved for ordinal references.
 _Avoid_: slug, step key, step id (which is the stored identity)
 
 **Step node**:
-One leaf work item's occurrence of one project step — the addressable unit that carries that
+One leaf work item's occurrence of one step — the addressable unit that carries that
 pair's estimate, actual, measures, progress, assignment and dependencies. It exists for every
 leaf and step whether or not anything is stored for it, and a parent has none. Not a work item:
 no tree position, title, type or number of its own ([ADR
@@ -397,7 +416,8 @@ _Avoid_: component, system, area, service team
 
 **Work item type**:
 A word for what a work item **is** — `epic`, `story`, `spike` — named globally and unique
-across the directory. A work item carries at most one, and none is allowed. Unlike a Tag it
+across the directory; a project may narrow which of them its work items may carry to an
+allow-list, none meaning all. A work item carries at most one, and none is allowed. Unlike a Tag it
 does not inherit at all ([ADR
 0009](docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md)): a row's type is the row's
 own, and an ancestor's says nothing about it.
@@ -561,6 +581,23 @@ person: an OpenClaw session key, a Codex thread, a Claude session id. WBS stores
 it and never parses it.
 _Avoid_: Session, instance, worker id
 
+**Claim chip**:
+The token fe-01 draws for one claim: beside a step's assignee for a step claim, in the Name
+cell for a subtree claim, naming its holder and, for a leased claim, the minutes left or that
+it is releasing. Display only; it claims and releases nothing.
+_Avoid_: lock icon, badge, claim pill
+
+**Releasing claim**:
+A claim whose lease has ended, by expiry or by revocation, that the coordinator has not yet
+released: still held, still counted, and gone at the next sweep.
+_Avoid_: expired claim, dead claim, stale claim
+
+**Claim history**:
+The claim and release events of one project's plan history, newest first, each naming its
+holders, runs, work items and why a release happened: a release command, an expired lease or a
+revoked credential.
+_Avoid_: claim log, activity feed, audit trail
+
 **Machine credential**:
 An organization's record that lets one agent person act in WBS: pinned to that person,
 issued by a member or admin account, admitting a token of one credential source, and
@@ -660,21 +697,22 @@ moment after taking a value, and the `+` has to open from there. It never takes 
 itself.
 _Avoid_: plus, add affordance, new button, opener
 
-**Project owner**:
-The account that created a project and retains stewardship of a restricted project within its
-organization. A current creator-member may edit it; a current super-admin may make an audited
-recovery edit. An account, never a person from the directory.
-_Avoid_: author, creator, user
+**Work package owner**:
+The account that created a work package. Under scoped grants it holds a direct
+`package-manager` grant from creation, which is what lets it keep editing a restricted work
+package; a super-admin's recovery is the audited clearing of the restriction, not an edit. An
+account, never a person from the directory. A project has no owner.
+_Avoid_: project owner, author, creator, user
 
-**Project entry**:
-One project as the picker offers it: the name it is chosen by, followed by its entry
+**Work package entry**:
+One work package as the picker offers it: the name it is chosen by, followed by its entry
 meta. The unit the list is bounded and truncated by — one line, whole or clipped, never
 two.
-_Avoid_: option, row, list item, project summary
+_Avoid_: project entry, option, row, list item, package summary
 
 **Entry meta**:
-The muted parenthetical on a project entry in the picker: who owns the project and the
-day it was created. Shown to tell same-named projects apart, never searched.
+The muted parenthetical on a work package entry in the picker: who owns the work package and
+the day it was created. Shown to tell same-named work packages apart, never searched.
 _Avoid_: subtitle, caption, details
 
 **Estimate**:
@@ -683,15 +721,15 @@ one step node. Workday-unit trios may be fractions; minute-unit trios are whole 
 item with children has no estimates of its own.
 _Avoid_: points, effort, sizing, days (as the only unit)
 
-**Project-step allowance**:
-The percentage on a project step, default zero, applied to each leaf's combined base estimate
-before project rounding. It does not change optimistic, realistic or pessimistic entries, and a
-parent does not apply it again.
-_Avoid_: contingency estimate, per-work-item allowance
+**Step allowance**:
+The percentage a work package holds for one of its project's steps, default zero, applied to
+each leaf's combined base estimate before estimate rounding. It does not change optimistic,
+realistic or pessimistic entries, and a parent does not apply it again.
+_Avoid_: project-step allowance, contingency estimate, per-work-item allowance
 
 **Charged estimate**:
-The effort for an estimated step node after its project-step allowance is applied to the
-combined base and the figure is rounded in the step's unit: by the project's estimate
+The effort for an estimated step node after its step allowance is applied to the
+combined base and the figure is rounded in the step's unit: by the work package's estimate
 rounding for workdays, to the whole minute for minutes. Unknown remains unknown and
 contributes zero scheduling duration; a stated zero stays estimated.
 _Avoid_: base estimate, raw estimate
@@ -702,20 +740,20 @@ folded step's cell shows and takes, in place of three boxes.
 _Avoid_: quick entry, inline estimate, compact form
 
 **Final days**:
-One step's **charged estimate** for one work item: apply the project's estimate method to its
-**estimate**, then the **project-step allowance**, then **estimate rounding**. Shown beside the
+One step's **charged estimate** for one work item: apply the work package's estimate method
+to its **estimate**, then the **step allowance**, then **estimate rounding**. Shown beside the
 **trio shorthand** when the two differ, summed across steps into the work item's total days, and
 summed across descendants for a work item with children without a second allowance.
 _Avoid_: PERT number, computed figure, effective estimate
 
 **PERT weights**:
-The three coefficients a project weighs an **estimate**'s optimistic, realistic and
-pessimistic figures by, whose sum is the divisor. 1, 4 and 1 unless the project says
-otherwise; read only under the `pert` estimate method.
+The three coefficients a work package weighs an **estimate**'s optimistic, realistic and
+pessimistic figures by, whose sum is the divisor. 1, 4 and 1 unless its project or its own
+override says otherwise; read only under the `pert` estimate method.
 _Avoid_: PERT formula, coefficients, lambda
 
 **Estimate rounding**:
-A project's answer to how one workday-unit step's combined figure, after its project-step
+A work package's answer to how one workday-unit step's combined figure, after its step
 allowance, becomes the days it is charged: `floor`, `round`, `ceil`, or `exact` for the
 fraction itself. `ceil` by default and applied per step before any sum; minute-unit steps are
 charged to the minute ([ADR 0011](docs/adr/0011-final-days-are-whole-days-rounded-per-step.md),
@@ -795,11 +833,11 @@ slice: solid when succeeded, hatched when failed, dotted when cancelled, open to
 running. Narrower than 4 px it is a tick.
 _Avoid_: actual bar (which is the work item's done bar), run bar
 
-**Project timezone**:
-The IANA zone a project's instants are read as days in — attempts, fact fills and the
-working window. One per project, `UTC` unless the project says otherwise, never the
-viewer's.
-_Avoid_: viewer's zone, browser zone, local time
+**Work package timezone**:
+The IANA zone a work package's instants are read as days in — attempts, fact fills and the
+working window: its own override when set, otherwise its project's value, `UTC` when neither
+says; never the viewer's.
+_Avoid_: project timezone (for this), viewer's zone, browser zone, local time
 
 **Node reading**:
 What a step node reads as, derived on every read and never stored: skipped, done, on hold,
@@ -911,7 +949,7 @@ project holding two steps is two slices, run one after the other in step order.
 _Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
-A work item's first slice in project-step order that somebody estimated — the one a legacy
+A work item's first slice in step order that somebody estimated — the one a legacy
 dependency waits on where project Dependency reach is `anchor-slice`
 ([spec](openspec/changes/archive/2026-08-30-dep-waits-on-first-role/specs/wbs-domain/spec.md)).
 Where nothing is estimated, it is the work item's zero-duration scheduled finish after its
@@ -943,23 +981,34 @@ higher priority cannot use.
 _Avoid_: priority, importance, urgency, severity, weight
 
 **Priority band**:
-One rung of what a project calls its priority numbers: a start value, a label, and the number
+One rung of what a work package calls its priority numbers: a start value, a label, and the number
 choosing that label writes. The band above ends the one below and the highest ends nowhere, so
 every priority resolves to exactly one band
 ([priority-bands](openspec/changes/archive/2026-08-30-priority-bands/specs/wbs-domain/spec.md)).
 _Avoid_: priority level, priority range, severity level, tier
 
 **Priority ladder**:
-A project's five bands, in rank order: a vocabulary and never a constraint
+A work package's five bands, in rank order: a vocabulary and never a constraint
 ([priority-bands](openspec/changes/archive/2026-08-30-priority-bands/specs/wbs-domain/spec.md)).
 _Avoid_: priority scheme, priority config, priority scale
 
 **Project settings**:
-The one surface where a project's own configuration is edited: its teams' capacity, its
-priority ladder and its steps, each a section of one modal opened from one plan-toolbar
-control. A section holds an edit until it is saved or abandoned, and the surface refuses to
-close over one.
-_Avoid_: project config, settings dialog, Teams dialog, Priorities dialog, Steps dialog
+The configuration a project defines for all its work packages: timezone, calendar markers and
+PERT weights, which a work package may override, and step codes, work item types and budget
+factor, which it may not. Also the surface where they are edited.
+_Avoid_: project config, shared settings, defaults
+
+**Work package settings**:
+The one surface where a work package's own configuration is edited — its teams' capacity, its
+priority ladder, its steps and its overrides of project settings — each a section of one modal
+opened from one plan-toolbar control. A section holds an edit until it is saved or abandoned,
+and the surface refuses to close over one.
+_Avoid_: project settings (for this), settings dialog, Teams dialog, Priorities dialog, Steps dialog
+
+**Setting provenance**:
+The level — organization, space, project, work package or the catalogue default — and the id
+a resolved setting value came from, answered with every settings read.
+_Avoid_: source, origin, inherited flag
 
 **Rank**:
 A band's position in its ladder, 0 (most important) to 4, which every face keys a band's colour
@@ -1047,8 +1096,8 @@ offered is a rendered state.
 _Avoid_: zoom level, slider position, minute view
 
 **Calendar marker**:
-A named annotation on an absolute calendar date, scoped to one project. Not a work item
-and not visible to the scheduler.
+A named annotation on an absolute calendar date, defined by a project for all its work
+packages or by one work package for itself. Not a work item and not visible to the scheduler.
 _Avoid_: milestone, date tag, annotation
 
 **Workday axis**:
@@ -1236,11 +1285,11 @@ keeps what it was reaching for. Arriving on the open card, or leaving the trigge
 pending takeover; with nothing open a trigger opens at once. One rule for every card.
 _Avoid_: hover intent, switch delay, debounce, grace period
 
-**Project fact**:
-Words a mark carries that say something about **this project** — who a tag was inherited
+**Work package fact**:
+Words a mark carries that say something about **this work package** — who a tag was inherited
 from, how many days a row can slip, where a link goes. Shown the moment the pointer
 arrives, because the reader came to the plan to learn it.
-_Avoid_: data hint, content tooltip, instant hint
+_Avoid_: project fact, data hint, content tooltip, instant hint
 
 **Tool hint**:
 Words a control carries that say what **the control** does — a toolbar button, a column
@@ -1250,7 +1299,7 @@ _Avoid_: UI tooltip, chrome hint, slow hint
 
 **Wait ring**:
 The mark drawn beside the cursor while a tool hint is waiting to open, and the only sign
-that one exists. It is not a control and it never appears for a project fact.
+that one exists. It is not a control and it never appears for a work package fact.
 _Avoid_: spinner, loader, progress indicator, countdown
 
 **Press quiet**:
@@ -1404,14 +1453,14 @@ what be-01 now holds. Ends at the next refetch that lands, whichever asked for i
 _Avoid_: out of date, dirty, unsynced, desynced
 
 **Plan export**:
-One project written out as a document somebody reads elsewhere — a Markdown table, a CSV
+One work package written out as a document somebody reads elsewhere — a Markdown table, a CSV
 file, or a plan document — headed, in the two prose formats, by what the table alone cannot
 say: the estimate method by name, whether the dates are dates or day offsets, and when the
-figures were taken. Always the whole project, never the view of it.
+figures were taken. Always the whole work package, never the view of it.
 _Avoid_: report, download, dump, extract
 
 **Plan document**:
-The one plan export the tool can read back: a JSON file carrying the project's settings,
+The one plan export the tool can read back: a JSON file carrying the work package's settings,
 steps, priority ladder, capacity, every work item with everything typed on it, and the names
 behind every directory id it uses, under a format name and version. Derived figures ride
 along for readers and are never restored.
@@ -1423,11 +1472,11 @@ out its commands. It ends with that batch; a saved plan is a separate record of 
 _Avoid_: plan snapshot (for this), cached plan, saved plan (for this)
 
 **Saved plan**:
-One project's whole plan copied by value at one instant and kept in the database: the settings,
+One work package's whole plan copied by value at one instant and kept in the database: the settings,
 the tree, the estimates, the ownership, the names behind every id it uses, and the dates the
 scheduler gave it. Read to be looked at or compared, never exported, never imported, never
-applied to a project — nothing puts one back. Not a Plan document: that one leaves the tool for
-a reader and can make a new project; this one never leaves.
+applied to a work package — nothing puts one back. Not a Plan document: that one leaves the tool for
+a reader and can make a new work package; this one never leaves.
 _Avoid_: snapshot, checkpoint, backup, version
 
 **Import**:
@@ -1523,7 +1572,7 @@ A work package that organization-scope access grants do not write: of them only
 `org-admin` and `org-super-admin` reach it, and only to read it, while grants naming its
 project or the work package apply unchanged. A super-admin's only recovery is the audited
 clearing of the flag; its creator holds a direct grant from creation.
-_Avoid_: restricted project, private, locked, hidden work package
+_Avoid_: restricted project, private, locked, locked project, hidden work package
 
 **External ref**:
 One link out of a work item to where that work also exists — an external system, a URL and a
@@ -1619,24 +1668,25 @@ scheduler never overlaps a person with themself, so an overlap spans projects, a
 while the organization's people are isolated.
 _Avoid_: conflict, double-booking (in code)
 
-**Project rank**:
-The organization's total order over its projects; a higher project books a shared person
-first. Ranked projects by position, then every unranked one by creation.
-_Avoid_: project priority
+**Work package rank**:
+The organization's total order over its work packages; a higher work package books a shared
+person first. Ranked work packages by position, then every unranked one by creation.
+_Avoid_: project rank, project priority
 
 **Influencer**:
-A readable, dated project above another in project rank that shares a person with that project
-or a higher project reached through it. Its displayed bookings can move the lower project.
+A readable, dated work package above another in work package rank that shares a person with
+that work package or a higher one reached through it. Its displayed bookings can move the
+lower work package.
 _Avoid_: upstream dependency
 
 **Influencer closure**:
-The influencers reached by repeatedly following shared-person edges toward higher project ranks.
-An undated project stops traversal because it neither consumes nor supplies bookings.
-_Avoid_: recursive project dependencies
+The influencers reached by repeatedly following shared-person edges toward higher work package
+ranks. An undated work package stops traversal because it neither consumes nor supplies bookings.
+_Avoid_: recursive project dependencies, recursive work package dependencies
 
 **Elsewhere**:
-The bookings a project's scheduler works around: those of the people it names, made by the
-projects that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
+The bookings a work package's scheduler works around: those of the people it names, made by
+the work packages that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
 _Avoid_: foreign load
 
 **Shared people**:

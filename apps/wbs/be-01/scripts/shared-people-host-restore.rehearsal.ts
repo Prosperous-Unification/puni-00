@@ -20,7 +20,7 @@ import { afterEach, beforeEach, expect, it } from 'bun:test';
 import { OrganizationHarness } from '../src/testing/organization-harness';
 
 const image =
-  'oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895';
+  'oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d';
 const host = '/home/puni1/wbs';
 let directory: string;
 let containerId: string | undefined;
@@ -225,7 +225,7 @@ beforeEach(async () => {
     '-c',
     'exec sleep 300',
   ]);
-  expect(await requireDocker(['exec', containerId, 'bun', '--version'])).toBe('1.4.2');
+  expect(await requireDocker(['exec', containerId, 'bun', '--version'])).toBe('1.4.4');
   expect(
     await requireDocker([
       'exec',

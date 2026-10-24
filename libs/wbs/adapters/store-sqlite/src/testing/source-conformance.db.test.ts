@@ -72,6 +72,8 @@ import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
 import { asc, eq, sql } from 'drizzle-orm';
 
+import { endLeasesOfUncredentialed } from '../claim';
+import { writeImmediately } from '../immediate-write';
 import type { SqliteLateWriteEvidence } from '../late-write-seam';
 import { runMigrations } from '../migrate';
 import { OrganizationLimitGaugeRepository } from '../organization-limits';
@@ -433,6 +435,19 @@ async function openSqliteCase<Family extends ExistingFamily>(
               reached: () => lateControl.reached(),
               evidence: () => lateControl.observedSavedPlan(),
             },
+    };
+  }
+  if (caseId === 'claims.lease:revoked-instant-read') {
+    return {
+      ...sqliteFixture(source, directory, family, caseId),
+      scenario: {
+        kind: 'lease-revocation',
+        // The revoking transaction's own lease end, as both revocation paths run it.
+        endLeasesOf: (personId, at) =>
+          writeImmediately(source.db, source.gate, (tx) =>
+            endLeasesOfUncredentialed(tx, personId, at),
+          ),
+      },
     };
   }
   return sqliteFixture(source, directory, family, caseId);

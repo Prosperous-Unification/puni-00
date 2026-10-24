@@ -34,24 +34,36 @@ export function PageNav({ organization = false }: { organization?: boolean }) {
   // So this is not a contrast fix and `dark-mode.spec.ts` does not assert it as
   // one — it asserts the link is the palette's own ink, which is a claim that
   // can fail. Both numbers: `openspec/changes/dark-mode/verify.md`.
+  //
+  // The mark is keyed on `aria-current`, the attribute the router stamps: a
+  // 2px bar in the ink along the link's foot, as a tab is marked (square
+  // there, so the bar runs straight; no weight change, which would move the
+  // links beside it from page to page). A bar rather than the pressed
+  // toggle's fill, because the plan's own Plan · Board toggle stands in the
+  // same header filled, and two filled `Plan`s read as one control. The ink stands far above 3:1 on the
+  // header in both palettes. It was `activeProps` naming `bg-accent`, which
+  // never painted — `buttonVariants`' `bg-transparent` came later in the
+  // stylesheet — and would have stood 1.07:1 off white if it had (UI review
+  // F-155). `no-underline` because these are shaped as the header's buttons,
+  // and no button in it is underlined.
   const shape = cn(
     buttonVariants({ variant: 'ghost', size: 'sm' }),
-    'text-foreground shrink-0 max-md:min-h-11',
+    'text-foreground shrink-0 no-underline max-md:min-h-11',
+    'aria-[current=page]:rounded-b-none aria-[current=page]:shadow-[inset_0_-2px_0_var(--foreground)]',
   );
-  const marked = { className: 'bg-accent text-accent-foreground' };
   return (
     <nav aria-label="Pages" className="flex shrink-0 items-center gap-1">
-      <Link to="/" className={shape} activeProps={marked}>
+      <Link to="/" className={shape}>
         Plan
       </Link>
-      <Link to="/directory" className={shape} activeProps={marked}>
+      <Link to="/directory" className={shape}>
         Directory
       </Link>
-      <Link to="/spaces" className={shape} activeProps={marked}>
+      <Link to="/spaces" className={shape}>
         Spaces
       </Link>
       {organization && (
-        <Link to="/organization" className={shape} activeProps={marked}>
+        <Link to="/organization" className={shape}>
           Organization
         </Link>
       )}

@@ -93,6 +93,7 @@ import {
 } from './organization-shapes';
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
 import { readPersonWork } from './person-work-shapes';
+import { readProjectClaims } from './project-claims-shapes';
 import { moveProjectRank, readProjectRank } from './project-rank-shapes';
 import {
   createProject,
@@ -249,6 +250,7 @@ export const httpShapes = [
   getStepReference,
   readStartableWork,
   readPersonWork,
+  readProjectClaims,
   renewClaimLeases,
   readProjectResources,
   applyProjectCommands,

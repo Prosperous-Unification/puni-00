@@ -205,7 +205,7 @@ export function FilterFacets({
   return (
     <details ref={useClosedOnDismiss()} data-facets className="relative">
       <summary
-        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        className="border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
       >
         Filters{chosen > 0 ? ` (${String(chosen)})` : ''}
@@ -376,7 +376,7 @@ export function ColumnsControl({
   return (
     <details ref={useClosedOnDismiss()} data-columns className="relative">
       <summary
-        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        className="border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Choose which columns are on the table. Number, Name and the row's controls always are."
       >
         Columns
@@ -505,7 +505,7 @@ export function SavedViews({
   return (
     <details ref={useClosedOnDismiss()} data-saved-views className="relative">
       <summary
-        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        className="border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Name the current filter, or pick one already named"
       >
         Views{views.length > 0 ? ` (${String(views.length)})` : ''}
@@ -1400,7 +1400,10 @@ export function PlanToolbar({
           void stepStack('undo');
         }}
       >
-        ↶{sheet && ' Undo'}
+        <span data-glyph aria-hidden="true">
+          ↶
+        </span>
+        {sheet && 'Undo'}
       </Button>
     </>
   );
@@ -1418,7 +1421,10 @@ export function PlanToolbar({
           void stepStack('redo');
         }}
       >
-        ↷{sheet && ' Redo'}
+        <span data-glyph aria-hidden="true">
+          ↷
+        </span>
+        {sheet && 'Redo'}
       </Button>
     </>
   );
@@ -1487,7 +1493,7 @@ export function PlanToolbar({
       {exportAvailable && (
         <details ref={exportMenu} data-export className="relative">
           <summary
-            className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs whitespace-nowrap select-none"
+            className="border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs whitespace-nowrap select-none"
             data-hint="Copy, download, or import the plan as Markdown, Mermaid, CSV, JSON, or what is on screen"
           >
             {/*
@@ -1648,7 +1654,7 @@ export function PlanToolbar({
             <label className="flex items-center justify-between gap-1 px-3 text-xs">
               Mermaid lanes
               <select
-                className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+                className="border-control-edge bg-background h-8 rounded-md border px-2 text-xs"
                 // No `aria-label`: the `<label>` wrapping it already names it,
                 // which is where it parts from `Final estimate` below — that one
                 // reads `Plan with` on screen and needs the name spelling out.
@@ -1702,7 +1708,7 @@ export function PlanToolbar({
         */}
         <span data-start-box className="group relative inline-flex">
           <DateField
-            className="border-input bg-background h-8 rounded-md border px-2 text-sm not-focus:text-transparent"
+            className="border-control-edge bg-background h-8 rounded-md border px-2 text-sm not-focus:text-transparent"
             aria-label="Project start date"
             disabled={busy}
             {...busyAffordance(busy)}
@@ -1737,7 +1743,7 @@ export function PlanToolbar({
         dates off one plan is the failure this must not have.
       */}
         <select
-          className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+          className="border-control-edge bg-background h-8 rounded-md border px-2 text-sm"
           aria-label="Final estimate"
           value={estimateMethod}
           disabled={busy}

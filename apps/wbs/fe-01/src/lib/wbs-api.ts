@@ -33,6 +33,7 @@ import {
   type PlanDocument,
   type PlanDocumentRequest,
   readProject as readProjectShape,
+  readProjectClaims as readProjectClaimsShape,
   readTimezones as readTimezonesShape,
   recordProjectOpen,
   redoProject as redoProjectShape,
@@ -1555,6 +1556,37 @@ export interface CalendarMarkerView {
 }
 
 /**
+ * One **Claim** held in a project, as `GET /api/projects/:id/claims` answers it
+ * (`wbs-claim-display` C1, C2). `stepId` is null for a subtree claim;
+ * `leaseExpiresAt` is null for a claim no agent renews, and `leaseRevokedAt`
+ * names the instant the holder's last credential was revoked.
+ */
+export interface ClaimView {
+  claimId: string;
+  workItemId: string;
+  number: string;
+  numberIsFrozen: boolean;
+  name: string;
+  stepId: string | null;
+  holder: { personId: string; name: string };
+  runId: string | null;
+  parentClaimId: string | null;
+  claimedAt: number;
+  leaseExpiresAt: number | null;
+  leaseRevokedAt: number | null;
+}
+
+/**
+ * Every claim in one project with the server's clock at the read (`readAt`,
+ * epoch milliseconds): a lease's time left is counted from `readAt`, never from
+ * this browser's wall clock (C6).
+ */
+export interface ClaimsRead {
+  readAt: number;
+  claims: ClaimView[];
+}
+
+/**
  * A marker as a client asks for it, which is not the same shape as one that
  * exists.
  *
@@ -1667,6 +1699,12 @@ export interface ProjectApi {
    * the table never looks at.
    */
   listCalendarMarkers(projectId: string): Promise<CalendarMarkerView[]>;
+  /**
+   * Every claim held in the project, its own read and not a member of
+   * {@link PlanRead}: a heartbeat moves a lease and nothing in the schedule, so
+   * folding claims into the tree would make every heartbeat a full plan read.
+   */
+  readClaims(projectId: string): Promise<ClaimsRead>;
   /** Puts a marker on an absolute date, answering the one be-01 stored. */
   createCalendarMarker(
     projectId: string,
@@ -2032,6 +2070,7 @@ const WBS_SHAPES = [
   listWorkItemTypesShape,
   patchProjectShape,
   readProjectShape,
+  readProjectClaimsShape,
   readTimezonesShape,
   recordProjectOpen,
   redoProjectShape,
@@ -2050,13 +2089,21 @@ type WbsShape = (typeof WBS_SHAPES)[number];
 export type WbsOperationId =
   WbsShape['operationId'] | (typeof PROJECT_TRANSFER_SHAPES)[number]['operationId'];
 type RefusalFor<S extends WbsShape> = Extract<ClientReply<S>, { kind: 'refusal' }>['body'];
-type WbsProblemFor<S extends WbsShape> = S extends WbsShape
-  ? | { kind: 'refusal'; operation: S['operationId']; refusal: RefusalFor<S> }
-    | { kind: 'failure'; operation: S['operationId']; failure: ClientFailure }
+type WbsRefusalProblemFor<S extends WbsShape> = S extends WbsShape
+  ? { kind: 'refusal'; operation: S['operationId']; refusal: RefusalFor<S> }
   : never;
 
-/** A validated operation-specific refusal or failure at the shared client boundary. */
-export type WbsProblem = WbsProblemFor<WbsShape>;
+/**
+ * A validated operation-specific refusal or failure at the shared client boundary.
+ *
+ * Only a refusal's body depends on its operation, so the failure arm is one
+ * member, not one per operation: TypeScript relates an object to a union by its
+ * discriminant only up to 25 members, and a per-operation failure arm stopped
+ * `throwReply` typechecking at the 26th shape (`readProjectClaims`).
+ */
+export type WbsProblem =
+  | WbsRefusalProblemFor<WbsShape>
+  | { kind: 'failure'; operation: WbsShape['operationId']; failure: ClientFailure };
 export type WbsRefusalFor<O extends WbsOperationId> = Extract<
   WbsProblem,
   { kind: 'refusal'; operation: O }
@@ -2840,6 +2887,15 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
           headers: auth(token),
         }),
       ).markers;
+    },
+    async readClaims(projectId) {
+      return jsonBody(
+        readProjectClaimsShape,
+        await client.getApiProjectsByIdClaims({
+          params: { id: projectId },
+          headers: auth(token),
+        }),
+      );
     },
     async createCalendarMarker(projectId, marker) {
       const body = jsonBody(
