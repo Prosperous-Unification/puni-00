@@ -90,12 +90,15 @@ export async function sourceDatabaseFixture(
   prodDirectory = 'data',
   nested = false,
   migrationsDirectory?: string,
+  prepareSource?: (root: string) => Promise<void>,
 ) {
   const prepared = await artifact();
-  if (migrationsDirectory !== undefined) {
-    await cp(migrationsDirectory, join(prepared.root, 'apps/wbs/be-01/drizzle'), {
-      recursive: true,
-    });
+  if (prepareSource !== undefined) await prepareSource(prepared.root);
+  if (migrationsDirectory !== undefined || prepareSource !== undefined) {
+    if (migrationsDirectory !== undefined)
+      await cp(migrationsDirectory, join(prepared.root, 'apps/wbs/be-01/drizzle'), {
+        recursive: true,
+      });
     await modes(prepared.root);
     await git(prepared.root, 'add', '.');
     await git(

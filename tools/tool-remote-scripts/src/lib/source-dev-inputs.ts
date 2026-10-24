@@ -19,6 +19,7 @@ import {
 import {
   assertSourceDeadline,
   assertSourceEnvironment,
+  captureSourceRestartTree,
   captureSourceStartupTree,
   decodeSourceDevPins,
   decodeSourceStartupManifest,
@@ -43,9 +44,16 @@ export interface SourceDevInputObservation {
   readonly containerId: string;
   readonly capabilities: readonly SourceCapability[];
 }
+/** Read-only source monitors remain bound to the original outer owner, never to a revived exclusion token. */
+export interface SourceDevRestartInputs {
+  readonly openapiSha256: string;
+  inspectCold(): Promise<void>;
+  inspectRunning(): Promise<void>;
+}
 interface ObservationScope {
   owner: DependencyOwner;
   recheck: () => Promise<void>;
+  captureRestart: (runtimeReference: string) => Promise<SourceDevRestartInputs>;
 }
 const observations = new WeakMap<SourceDevInputObservation, ObservationScope>();
 // Proof: retained backend invocation omitted; exact ordered roster and four-call observation test failed.
@@ -360,7 +368,86 @@ export async function observeSourceDevInputs(
       containerId: member.id,
       capabilities: Object.freeze(capabilities),
     });
-    observations.set(observation, { owner, recheck });
+    async function captureRestart(runtimeReference: string): Promise<SourceDevRestartInputs> {
+      if (!/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(runtimeReference)) refuse();
+      await recheck();
+      const command = createRoleCommand(pins.runtimeImageId, `${layouts.dev.root}/src`, 'be-01');
+      command[command.indexOf('--workdir') + 1] = '/src';
+      command[command.length - 1] = 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts';
+      const generated = await readSourceDocker(command, docker, deadline);
+      if (Buffer.byteLength(generated) > 16 * 1024 * 1024) refuse();
+      const document = readFields(JSON.parse(generated));
+      if (typeof document['openapi'] !== 'string' || !document['openapi'].startsWith('3.'))
+        refuse();
+      readFields(document['info']);
+      readFields(document['paths']);
+      const openapiSha256 = createHash('sha256').update(generated).digest('hex');
+      const tree = await captureSourceRestartTree(
+        `${layouts.dev.root}/src`,
+        manifest,
+        deadline,
+        openapiSha256,
+      );
+      await recheck();
+      async function inspectRestartRuntime(): Promise<void> {
+        await assertDependencyOwner(owner, layouts.prod, pins.sourceSha);
+        await assertDependencyOwner(owner, layouts.dev, pins.sourceSha);
+        assertSourceDeadline(deadline);
+        const inventory = await readInventory(docker, deadline);
+        const matching = inventory.filter((raw) => readFields(raw)['Id'] === member.id);
+        const raw = matching.at(0);
+        if (matching.length !== 1 || raw === undefined) refuse();
+        const current = decodeSourceDev(raw, layouts.dev);
+        const resolved = (
+          await readSourceDocker(
+            ['image', 'inspect', '--format', '{{.Id}}', sourceDevContract(layouts.dev).image],
+            docker,
+            deadline,
+          )
+        ).trim();
+        const references = parseDockerInspection(
+          await readSourceDocker(['image', 'inspect', pins.runtimeImageId], docker, deadline),
+        );
+        if (!Array.isArray(references) || references.length !== 1) refuse();
+        const image = readFields(references[0]);
+        if (
+          current.image !== pins.runtimeImageId ||
+          resolved !== pins.runtimeImageId ||
+          image['Id'] !== pins.runtimeImageId ||
+          !Array.isArray(image['RepoDigests']) ||
+          !image['RepoDigests'].includes(runtimeReference)
+        )
+          refuse();
+        const defaults = readFields(image['Config']);
+        assertSame(
+          defaults['Entrypoint'],
+          current.config['Entrypoint'],
+          'source restart inherited entrypoint',
+        );
+        assertSourceEnvironment(current.config['Env'], defaults['Env'], pins.environmentSha256);
+        validateDiff(await readSourceDocker(['diff', member.id], docker, deadline));
+        await assertDependencyOwner(owner, layouts.prod, pins.sourceSha);
+        await assertDependencyOwner(owner, layouts.dev, pins.sourceSha);
+        assertSourceDeadline(deadline);
+      }
+      async function inspect(cold: boolean): Promise<void> {
+        try {
+          await inspectRestartRuntime();
+          if (cold) await tree.inspectCold();
+          else await tree.inspectRunning();
+          await inspectRestartRuntime();
+        } catch {
+          return refuse();
+        }
+      }
+      await inspect(true);
+      return Object.freeze({
+        openapiSha256,
+        inspectCold: () => inspect(true),
+        inspectRunning: () => inspect(false),
+      });
+    }
+    observations.set(observation, { owner, recheck, captureRestart });
     return observation;
   } catch {
     // Proof: raw rethrow exposed the synthetic stdout secret; observer refuses malformed test failed.
@@ -376,6 +463,22 @@ export async function inspectSourceDevInputs(
     const scope = observations.get(observation);
     if (scope?.owner !== owner) refuse();
     await scope.recheck();
+  } catch {
+    return refuse();
+  }
+}
+
+/** Captures independent generated-document expectation and original cold identities while the actual input/exclusion scope is still live. */
+export async function captureSourceDevRestartInputs(
+  owner: DependencyOwner,
+  observation: SourceDevInputObservation,
+  runtimeReference: string,
+): Promise<SourceDevRestartInputs> {
+  try {
+    const scope = observations.get(observation);
+    if (scope?.owner !== owner) refuse();
+    await scope.recheck();
+    return await scope.captureRestart(runtimeReference);
   } catch {
     return refuse();
   }

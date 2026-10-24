@@ -13,6 +13,12 @@ import type { CompleteDependencyActivationRequest } from './dependency-complete-
 import { inspectDependencyIngress, inspectDependencyIngressHash } from './dependency-ingress';
 import { observeDependencyMigrationArtifact } from './dependency-migration-artifact';
 import { scanMigrationArtifact } from './dependency-migration-artifact-scanner';
+import { assertParticipantImage } from './dependency-participant-images';
+import type {
+  FinalizedParticipantRestorationContext,
+  ParticipantRestorationContext,
+} from './dependency-participant-preparation';
+import { readParticipantSnapshot } from './dependency-participant-transition';
 import { observeDependencyCapabilities, probeDependencyCapabilities } from './dependency-preflight';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
 import type { DockerExec } from './docker-exec';
@@ -57,7 +63,7 @@ import {
   inspectExcludedSourceMember,
   inspectSourceDevFenceHash,
 } from './source-dev-exclusion';
-import { inspectSourceDevInputs } from './source-dev-inputs';
+import { captureSourceDevRestartInputs, inspectSourceDevInputs } from './source-dev-inputs';
 
 const identity: unique symbol = Symbol('complete-dependency-exclusion');
 /** Internal original in-memory interval. JSON, copied tokens and historical evidence carry no authority. */
@@ -108,6 +114,7 @@ interface SelectedParticipant {
   readonly imageId: string;
   readonly fingerprint: string;
   readonly networkId: string;
+  readonly original: Record<string, unknown>;
 }
 function fingerprint(raw: Record<string, unknown>) {
   const host = { ...readFields(raw['HostConfig']) };
@@ -133,15 +140,36 @@ function authorityIdentity(observation: InstalledAuthorityObservation) {
     solver: observation.solver,
   };
 }
+export interface CompleteDependencyActivationCompletion {
+  state: 'activation-committed-participants-fenced';
+  exposure: 'closed';
+  controllers: 'fenced';
+  activated: EnvName[];
+  receipts: { environment: EnvName; receipt: DependencyActivationReceipt }[];
+}
+const preparationIdentity: unique symbol = Symbol('finalized-dependency-activation');
+/** Original finalized activation only; serialized or copied summaries never authorize participant startup. */
+export interface PreparedDependencyActivation {
+  readonly [preparationIdentity]: true;
+}
+const preparations = new WeakMap<
+  PreparedDependencyActivation,
+  FinalizedParticipantRestorationContext
+>();
+const consumedPreparations = new WeakSet<PreparedDependencyActivation>();
 /** Internal fixed-profile composition under an already retained outer owner; return follows every physical finalizer. */
-export async function activateCompleteDependenciesUnderOwner(
+async function activateCompleteUnderOwner(
   owner: DependencyOwner,
   request: CompleteDependencyActivationRequest,
   layouts: SolverLayouts,
   deadline: number,
   directory: string,
   ports: CompleteActivationTransports,
-) {
+  purpose: 'fenced' | 'restoration',
+): Promise<{
+  completion: CompleteDependencyActivationCompletion;
+  prepared?: PreparedDependencyActivation;
+}> {
   const sha = request.owner.sha;
   const docker = ownerDockerHashed(owner, layouts.prod, ports.docker);
   const bounded = () => Math.min(deadline, performance.now() + 120000);
@@ -156,6 +184,9 @@ export async function activateCompleteDependenciesUnderOwner(
   const pending = pendingSnapshot.contents;
   const committed = new Map<EnvName, DependencyActivationReceipt>();
   let evidence: Awaited<ReturnType<typeof activateDependencyStores>>['evidence'] | undefined;
+  let provisional: ParticipantRestorationContext | undefined;
+  let restorationArtifact: Awaited<ReturnType<typeof scanMigrationArtifact>> | undefined;
+  let isRetainedForRestoration = false;
   try {
     const originalPolicy = await captureEdgePolicy(directory);
     decodeOrdinaryEdgePolicy(originalPolicy.policy, directory);
@@ -269,11 +300,36 @@ export async function activateCompleteDependenciesUnderOwner(
         imageId,
         fingerprint: fingerprint(raw),
         networkId,
+        original: structuredClone(raw),
       };
     }
     const selected = { backend: await select('backend'), gateway: await select('gateway') };
+    const originals =
+      purpose === 'restoration'
+        ? {
+            backend: readParticipantSnapshot(selected.backend.original),
+            gateway: readParticipantSnapshot(selected.gateway.original),
+            source: readParticipantSnapshot(sourceRaw),
+          }
+        : undefined;
     if (selected.backend.networkId !== selected.gateway.networkId)
       throw new Error('activation selected network identities differ');
+    if (purpose === 'restoration') {
+      for (const role of ['backend', 'gateway'] as const) {
+        const participant = selected[role];
+        const inspected = parseDockerInspection(
+          await runDockerBefore(['image', 'inspect', participant.imageId], docker, deadline),
+        );
+        assertParticipantImage(readParticipantSnapshot(participant.original), inspected, {
+          role,
+          reference: participant.image,
+          imageId: participant.imageId,
+          sourceSha: sha,
+          backendColor: request.prod.backend.color,
+          dataDirectory: join(layouts.prod.root, 'data'),
+        });
+      }
+    }
     await inspectRuntime();
     const backendCapabilities = await probeDependencyCapabilities(
       selected.backend.image,
@@ -314,6 +370,18 @@ export async function activateCompleteDependenciesUnderOwner(
           ports.execDocker,
         );
         const databases = { prod: bindings.prod, dev: bindings.dev };
+        if (purpose === 'restoration') {
+          const sourceIntent = readFields(
+            JSON.parse(
+              await readRecord(join(layouts.dev.stateDir, 'dependency-source-dev-intent.json')),
+            ),
+          );
+          assertSame(
+            hashActivationBytes(JSON.stringify(initialSource)),
+            readFields(sourceIntent['member'])['snapshotSha256'],
+            'restoration original source intent identity',
+          );
+        }
         const authorityDatabases: AuthorityDatabase[] = (['prod', 'dev'] as const).map(
           (environment) => ({
             environment,
@@ -641,6 +709,14 @@ export async function activateCompleteDependenciesUnderOwner(
           inspect,
         });
         try {
+          const sourceInputs =
+            purpose === 'restoration'
+              ? await captureSourceDevRestartInputs(
+                  owner,
+                  bindings.sourceInputs,
+                  request.source.runtimeReference,
+                )
+              : undefined;
           const storage = await activateDependencyStores(owner, token);
           evidence = storage.evidence;
           const parked = await captureParkedDependencies(
@@ -653,6 +729,37 @@ export async function activateCompleteDependenciesUnderOwner(
             deadline,
           );
           await assertCompleteDependencyExclusion(owner, token);
+          if (purpose === 'restoration') {
+            if (originals === undefined || sourceInputs === undefined)
+              throw new Error('original restart identities absent');
+            restorationArtifact = await scanMigrationArtifact(
+              join(directory, 'dependency-artifacts', request.migrations.manifestSha256, 'drizzle'),
+              deadline,
+              true,
+            );
+            await assertCompleteDependencyExclusion(owner, token);
+            provisional = {
+              owner,
+              layouts,
+              request,
+              deadline,
+              directory,
+              attempt: publication.attempt,
+              ports,
+              originalPolicy,
+              pending: pendingSnapshot,
+              originals,
+              parkedInventory: structuredClone(await inventory()),
+              parked,
+              solverIntent,
+              authorities,
+              observeAuthorities,
+              source: sourceInputs,
+              artifact: restorationArtifact,
+              storage,
+              participants,
+            };
+          }
           return { receipts: storage.receipts, parked };
         } finally {
           // Proof: omitting expiry left this complete token usable before the still-live source finalizer; expired-complete boundary negative failed.
@@ -672,7 +779,7 @@ export async function activateCompleteDependenciesUnderOwner(
     );
     if (evidence === undefined) throw new Error('activation evidence monitor missing');
     await evidence.inspect();
-    await retainActivationRecord(owner, layouts, 'fenced-complete', {
+    const fencedRecord = await retainActivationRecord(owner, layouts, 'fenced-complete', {
       format: 'dependency-activation-fenced-complete',
       version: 1,
       activated: prepared.receipts,
@@ -681,13 +788,29 @@ export async function activateCompleteDependenciesUnderOwner(
     });
     await evidence.inspect();
     assertDeadline();
-    return {
-      state: 'activation-committed-participants-fenced' as const,
-      exposure: 'closed' as const,
-      controllers: 'fenced' as const,
+    const completion: CompleteDependencyActivationCompletion = {
+      state: 'activation-committed-participants-fenced',
+      exposure: 'closed',
+      controllers: 'fenced',
       activated: [...request.activate],
       receipts: prepared.receipts,
     };
+    if (purpose === 'restoration') {
+      if (provisional === undefined) throw new Error('original participant preparation absent');
+      const fencedComplete = await captureEdgeRecord(directory, basename(fencedRecord.path), 65536);
+      assertSame(
+        fencedRecord.contents,
+        fencedComplete.contents,
+        'final participant preparation fence',
+      );
+      const key: PreparedDependencyActivation = Object.freeze({
+        [preparationIdentity]: true as const,
+      });
+      preparations.set(key, { ...provisional, completion, fencedComplete });
+      isRetainedForRestoration = true;
+      return { completion, prepared: key };
+    }
+    return { completion };
   } catch (cause) {
     if (cause instanceof DependencyActivationFailure) throw cause;
     throw new DependencyActivationFailure(
@@ -697,6 +820,84 @@ export async function activateCompleteDependenciesUnderOwner(
       committed,
     );
   } finally {
-    if (evidence !== undefined) evidence.close();
+    if (!isRetainedForRestoration) {
+      try {
+        if (evidence !== undefined) evidence.close();
+      } finally {
+        restorationArtifact?.close();
+      }
+    }
+  }
+}
+
+type CompleteActivationArguments = [
+  owner: DependencyOwner,
+  request: CompleteDependencyActivationRequest,
+  layouts: SolverLayouts,
+  deadline: number,
+  directory: string,
+  ports: CompleteActivationTransports,
+];
+/** Frozen fenced-only composition. It never retains a participant restoration grant or starts participants. */
+export async function activateCompleteDependenciesUnderOwner(
+  ...args: CompleteActivationArguments
+): Promise<CompleteDependencyActivationCompletion> {
+  return (await activateCompleteUnderOwner(...args, 'fenced')).completion;
+}
+/** Internal same-owner activation path; only actual post-finalizer success mints this opaque original object. */
+export async function prepareActivatedParticipantsUnderOwner(
+  ...args: CompleteActivationArguments
+): Promise<PreparedDependencyActivation> {
+  const packet = await activateCompleteUnderOwner(...args, 'restoration');
+  if (packet.prepared === undefined) throw new Error('finalized activation preparation absent');
+  return packet.prepared;
+}
+/** Consumes the original finalized object once, before any restart effect. Owner expiry cannot be replaced with historical records. */
+export async function consumePreparedDependencyActivation(
+  owner: DependencyOwner,
+  prepared: PreparedDependencyActivation,
+): Promise<FinalizedParticipantRestorationContext> {
+  const context = preparations.get(prepared);
+  if (context?.owner !== owner || consumedPreparations.has(prepared))
+    throw new Error('participant restoration preparation is not live and unused');
+  consumedPreparations.add(prepared);
+  try {
+    if (!Number.isFinite(context.deadline) || performance.now() >= context.deadline)
+      throw new Error('participant restoration deadline exceeded');
+    await assertDependencyOwner(owner, context.layouts.prod, context.request.owner.sha);
+    await assertDependencyOwner(owner, context.layouts.dev, context.request.owner.sha);
+    assertSame(
+      context.pending,
+      await captureEdgeRecord(context.directory, 'edge-owner.pending', 65536),
+      'restoration original pending ownership',
+    );
+    assertSame(
+      context.fencedComplete,
+      await captureEdgeRecord(context.directory, basename(context.fencedComplete.path), 65536),
+      'restoration finalized fence',
+    );
+    await context.storage.evidence.inspect();
+    context.artifact.verify();
+    await context.storage.stores.inspect();
+    await context.source.inspectCold();
+    return context;
+  } catch (cause) {
+    releasePreparedDependencyActivation(owner, prepared);
+    throw cause;
+  }
+}
+/** Releases only private descriptor observations; every durable fence and record stays present. */
+export function releasePreparedDependencyActivation(
+  owner: DependencyOwner,
+  prepared: PreparedDependencyActivation,
+): void {
+  const context = preparations.get(prepared);
+  if (context?.owner !== owner)
+    throw new Error('participant restoration preparation is not retained');
+  preparations.delete(prepared);
+  try {
+    context.storage.evidence.close();
+  } finally {
+    context.artifact.close();
   }
 }

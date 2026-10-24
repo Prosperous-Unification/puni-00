@@ -39,7 +39,11 @@ import type {
   ActivationRecordLabel,
 } from './dependency-activation-records';
 import { inspectDormantDependencies } from './dependency-inventory';
-import { type DependencyOwner, retainActivationRecord } from './edge-ownership';
+import {
+  assertDependencyOwner,
+  type DependencyOwner,
+  retainActivationRecord,
+} from './edge-ownership';
 import type { EnvName } from './env';
 import { assertSame, readRecord } from './managed-cohort';
 import { writeNewMigrationCapture } from './migration-capture-file';
@@ -130,6 +134,7 @@ export async function activateDependencyStores(
   const backups: { path: string; sha256: string; bytes: number; identity: string }[] = [];
   let retainedEvidence = false;
   const committed: { environment: EnvName; receipt: DependencyActivationReceipt }[] = [];
+  const commitRecords: { environment: EnvName; reference: { name: string; sha256: string } }[] = [];
   let stage = 'initial-storage';
   let environment: EnvName | undefined;
   let evidence: number | undefined;
@@ -481,7 +486,7 @@ export async function activateDependencyStores(
       await inspectRetained();
       scope.authority.set(env, receipt);
       scope.committed.set(env, receipt);
-      await retain('committed', {
+      const committedRecord = await retain('committed', {
         format: 'dependency-activation-committed',
         version: 1,
         environment: env,
@@ -489,6 +494,7 @@ export async function activateDependencyStores(
         captureSha256: preparation.capture.sha256,
         migrationManifestSha256: request.migrations.manifestSha256,
       });
+      commitRecords.push({ environment: env, reference: committedRecord });
       committed.push({ environment: env, receipt });
     }
     stage = 'final-readback';
@@ -501,9 +507,82 @@ export async function activateDependencyStores(
       inspectLedger(env);
     }
     await inspectRetained();
+    const expected = new Map<
+      EnvName,
+      | { readonly state: 'DISABLED' }
+      | { readonly state: 'ENABLED'; readonly receipt: DependencyActivationReceipt }
+    >();
+    for (const env of ['prod', 'dev'] as const) {
+      const enabled = committed.find((entry) => entry.environment === env);
+      if (request.activate.includes(env) && enabled === undefined)
+        throw new Error('selected activation receipt absent');
+      expected.set(
+        env,
+        enabled === undefined
+          ? { state: 'DISABLED' }
+          : { state: 'ENABLED', receipt: structuredClone(enabled.receipt) },
+      );
+    }
+    const inspectStores = async () => {
+      try {
+        await assertDependencyOwner(owner, layouts.prod, request.owner.sha);
+        await assertDependencyOwner(owner, layouts.dev, request.owner.sha);
+        checkDeadline();
+        for (const env of ['prod', 'dev'] as const) {
+          const authority = expected.get(env);
+          const captured = original(env);
+          if (authority === undefined) throw new Error('expected store authority absent');
+          const anchored = retainActivationDatabase(scope.databases[env]);
+          try {
+            anchored.withPath((path) => {
+              if (authority.state === 'ENABLED') {
+                const connection = openReadOnlyConnection(path);
+                try {
+                  assertSame(
+                    authority,
+                    inspectDependencyActivation(connection.db),
+                    'restoration exact activation receipt',
+                  );
+                } finally {
+                  connection.close();
+                }
+              } else {
+                const database = openReadOnlyDatabase(path);
+                try {
+                  inspectDormantDependencies(database);
+                } finally {
+                  database.close();
+                }
+              }
+              const current = captureAppliedMigrationSet(path, artifactDirectory, {
+                target: captured.target,
+                attempt: captured.attempt,
+                candidate: captured.candidate,
+              });
+              assertSame(captured, current, 'restoration complete migration ledger');
+            });
+          } finally {
+            anchored.close();
+          }
+          checkDeadline();
+        }
+        await assertDependencyOwner(owner, layouts.prod, request.owner.sha);
+        await assertDependencyOwner(owner, layouts.dev, request.owner.sha);
+      } catch {
+        throw new DependencyActivationFailure(
+          attempt,
+          'restoration-store-readback',
+          undefined,
+          scope.committed,
+        );
+      }
+    };
     retainedEvidence = true;
     return {
       receipts: committed,
+      participantRecord,
+      commitRecords,
+      stores: Object.freeze({ inspect: inspectStores }),
       evidence: {
         inspect: inspectPublications,
         close: () => {

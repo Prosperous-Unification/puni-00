@@ -22,8 +22,16 @@ const migrationsDirectory = new URL('../../../../apps/wbs/be-01/drizzle', import
 export async function completeActivationFixture(
   activate: readonly ('prod' | 'dev')[] = ['prod', 'dev'],
   preparedDirectory = migrationsDirectory,
+  prepareSource?: (root: string) => Promise<void>,
 ) {
-  const base = await sourceDatabaseFixture(undefined, [], 'data', false, preparedDirectory);
+  const base = await sourceDatabaseFixture(
+    undefined,
+    [],
+    'data',
+    false,
+    preparedDirectory,
+    prepareSource,
+  );
   await writeFile(
     join(base.root, 'edge-policy.json'),
     JSON.stringify({
@@ -411,6 +419,7 @@ print(encode(collect(REQUEST,ActivationHost())).decode())
     caddy,
     commands,
     namespace,
+    backendNamespace,
     ports,
     collections: () => collections,
     setAuthorityFault: (fault: typeof authorityFault) => {

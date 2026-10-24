@@ -52,6 +52,14 @@ const COLD_PATHS = [
   'apps/wbs/fe-01/.vite',
   'apps/wbs/mcp-01/src/openapi.json',
 ];
+const RUNNING_OUTPUTS = [
+  '.nx',
+  'node_modules/.cache',
+  'node_modules/.vite',
+  'node_modules/.vite-temp',
+  'apps/wbs/fe-01/.vite',
+  'apps/wbs/mcp-01/src/openapi.json',
+];
 const CONFIG_NAMES = [
   '.env.local',
   '.local.env',
@@ -550,10 +558,12 @@ async function scanTree(
   root: string,
   deadline: number,
   configuration: readonly SourceConfigPin[] | null,
+  runningOpenapiSha256?: string,
 ): Promise<{
   entries: SourceEntry[];
   blobs: Map<string, string>;
   identities: Map<string, Identity>;
+  outputParents: ReadonlySet<string>;
 }> {
   assertSourceDeadline(deadline);
   const ancestry = await captureAncestors(root);
@@ -563,6 +573,56 @@ async function scanTree(
   const blobs = new Map<string, string>();
   const identities = new Map<string, Identity>();
   let total = 0;
+  let generatedEntries = 0;
+  const outputParents = new Set<string>();
+  const outputs = new Set<string>();
+  async function inspectOutput(path: string, relative: string): Promise<void> {
+    assertSourceDeadline(deadline);
+    readPath(relative);
+    if (++generatedEntries > MAX_ENTRIES) fail();
+    const before = await lstat(path);
+    // Proof: accepting a regular .nx root admitted the derived-root-file negative before this directory contract.
+    if (
+      RUNNING_OUTPUTS.includes(relative) &&
+      relative !== 'apps/wbs/mcp-01/src/openapi.json' &&
+      !before.isDirectory()
+    )
+      fail();
+    if (before.isFile()) {
+      const observed = await readRegular(path, deadline, MAX_FILE);
+      total += observed.size;
+      if (total > MAX_TOTAL) fail();
+      leaves.push({ path, identity: identifyFile(before) });
+      if (
+        relative === 'apps/wbs/mcp-01/src/openapi.json' &&
+        observed.sha256 !== runningOpenapiSha256
+      )
+        fail();
+    } else if (before.isDirectory() && relative !== 'apps/wbs/mcp-01/src/openapi.json') {
+      const descriptor = await open(
+        path,
+        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+      );
+      let registered = false;
+      try {
+        const opened = await descriptor.stat();
+        assertSame(identifyFile(before), identifyFile(opened));
+        if (![0o700, 0o755].includes(opened.mode & 0o7777)) fail();
+        const names = (await readdir(`/proc/self/fd/${String(descriptor.fd)}`)).sort(
+          (left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)),
+        );
+        held.push({ path, descriptor, identity: identifyFile(opened), names });
+        registered = true;
+        for (const name of names)
+          await inspectOutput(
+            `/proc/self/fd/${String(descriptor.fd)}/${name}`,
+            `${relative}/${name}`,
+          );
+      } finally {
+        if (!registered) await descriptor.close();
+      }
+    } else fail();
+  }
   async function walk(path: string, kind: SourceRoot, prefix: string): Promise<void> {
     assertSourceDeadline(deadline);
     await assertAncestors(ancestry);
@@ -588,6 +648,18 @@ async function scanTree(
         if (kind === 'source' && ['node_modules', '.git'].includes(relative)) continue;
         if (kind === 'source' && CONFIGS.includes(relative)) {
           if (configuration === null) fail();
+          continue;
+        }
+        const sourcePath =
+          kind === 'dependencies'
+            ? `node_modules/${relative}`
+            : kind === 'git'
+              ? `.git/${relative}`
+              : relative;
+        if (runningOpenapiSha256 !== undefined && RUNNING_OUTPUTS.includes(sourcePath)) {
+          await inspectOutput(child, sourcePath);
+          outputs.add(sourcePath);
+          outputParents.add(`${kind}/${prefix}`);
           continue;
         }
         if (isReserved(kind, relative)) fail();
@@ -677,7 +749,9 @@ async function scanTree(
     );
     const decoded = decodeEntries(entries);
     checkLinks(decoded);
-    return { entries: decoded, blobs, identities };
+    if (runningOpenapiSha256 !== undefined && !outputs.has('apps/wbs/mcp-01/src/openapi.json'))
+      fail();
+    return { entries: decoded, blobs, identities, outputParents };
   } catch {
     return fail();
   } finally {
@@ -783,6 +857,48 @@ export async function captureSourceStartupTree(
   } catch {
     return fail();
   }
+}
+/** Captures original cold identities once, then validates the fixed generated-output transition without retaining any exclusion token. */
+export async function captureSourceRestartTree(
+  root: string,
+  manifest: SourceStartupManifest,
+  deadline: number,
+  generatedOpenapiSha256: string,
+): Promise<{ inspectCold(): Promise<void>; inspectRunning(): Promise<void> }> {
+  readDigest(generatedOpenapiSha256);
+  const parents = await captureAncestors(root);
+  const initial = await scanTree(root, deadline, manifest.configuration);
+  assertSame(initial.entries, manifest.entries);
+  await assertLaunchProfile(root, deadline);
+  async function inspect(running: boolean): Promise<void> {
+    try {
+      await assertAncestors(parents);
+      const current = await scanTree(
+        root,
+        deadline,
+        manifest.configuration,
+        running ? generatedOpenapiSha256 : undefined,
+      );
+      assertSame(current.entries, manifest.entries);
+      assertSame([...initial.identities.keys()], [...current.identities.keys()]);
+      for (const [path, original] of initial.identities) {
+        const observed = current.identities.get(path);
+        if (observed === undefined) fail();
+        if (running && current.outputParents.has(path)) {
+          assertSame(
+            { dev: original.dev, ino: original.ino, mode: original.mode },
+            { dev: observed.dev, ino: observed.ino, mode: observed.mode },
+          );
+        } else assertSame(original, observed);
+      }
+      await assertAncestors(parents);
+      assertSourceDeadline(deadline);
+    } catch {
+      return fail();
+    }
+  }
+  await inspect(false);
+  return { inspectCold: () => inspect(false), inspectRunning: () => inspect(true) };
 }
 /** Fresh bounded exact-tree verification, including private config; errors contain no file bytes. */
 export async function verifySourceStartupTree(
