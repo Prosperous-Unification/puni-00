@@ -4,7 +4,7 @@ export type { CredentialPair, CredentialPin } from '@wbs/contracts';
 import type {
   Claim,
   LeaseReleaseReason,
-  LeaseStanding,
+  LeaseRenewal,
   OccupancyRow,
   WorkItemPlacement,
 } from '@wbs/domain';
@@ -92,18 +92,7 @@ export interface ExpiredLease {
   readonly reason: LeaseReleaseReason;
 }
 
-export type { LeaseStanding } from '@wbs/domain';
-
-/**
- * What {@link ClaimStore.renewLeases} answers: the person's standing after the
- * renewal, and the projects in which its committed write moved at least one
- * lease, in project-id order, empty when it moved none. The heartbeat route
- * announces `claims_changed` to exactly these (`wbs-claim-display` C4).
- */
-export interface LeaseRenewal {
-  readonly standing: LeaseStanding;
-  readonly renewedProjectIds: readonly string[];
-}
+export type { LeaseRenewal, LeaseStanding } from '@wbs/domain';
 
 /**
  * What {@link ClaimStore.add} answers: written, a claim's step or subtree was

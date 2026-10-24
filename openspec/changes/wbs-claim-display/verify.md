@@ -521,3 +521,10 @@ for one.
 
 design.md's Risks no longer says heartbeat events reach the event log; the claim-reads delta
 states that a transient announcement SHALL NOT consume a durable sequence.
+
+Slice 3 gate fix, 2026-10-24: the h4claw gate on 9bb246710 failed `wbs-core:test` in
+`module-boundaries.test.ts` ("closed feature modules do not reference repository ports"):
+`plan-commands.feature.ts` resolved `renewLeases`' answer to `LeaseRenewal`, then declared in
+`ports/claim-store.ts`. `LeaseRenewal` now lives in `@wbs/domain` beside `LeaseStanding` and the
+port re-exports it. After the move the audit file passes 15 of 15; typecheck wbs-domain, wbs-core,
+wbs-store-sqlite, wbs-store-memory, wbs-be-01 and lint wbs-domain, wbs-core pass.
