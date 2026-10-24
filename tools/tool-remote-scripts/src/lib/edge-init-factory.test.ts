@@ -15,6 +15,20 @@ interface FactoryObservation {
       targets: { target: string; class: string; health: string; probeApplicability: string }[];
     };
   };
+  clock?: {
+    firstAdmission: { monotonic: number; wall: number; expires: number };
+    shifts: {
+      event: string;
+      beforeMonotonic: number;
+      afterMonotonic: number;
+      beforeWall: number;
+      afterWall: number;
+    }[];
+    effects: { route: string; monotonic: number; wall: number; applied: boolean }[];
+    stopApplied: boolean;
+    issuedAt: number;
+    sourceSha256: Record<string, string>;
+  };
   refusal?: string;
   transcript: string[];
   reads: string[];
@@ -216,7 +230,6 @@ for (const [fault, reachesNative, reachesCollector] of preparationFaults) {
           'owner-marker',
           'queued-job',
           'boot-drift',
-          'expired-prepare',
         ].includes(fault) ||
         (fault.startsWith('source-') &&
           !['source-missing', 'source-unreadable', 'source-replaced', 'source-byte-race'].includes(
@@ -232,6 +245,7 @@ for (const [fault, reachesNative, reachesCollector] of preparationFaults) {
           'source-byte-race',
           'writer-changed',
           'bundle-changed',
+          'expired-prepare',
         ].includes(fault)
       )
         expect(observation.reads).toEqual([]);
@@ -345,6 +359,7 @@ for (const fault of [
   'receipt-literal',
   'receipt-profile-missing',
   'receipt-profile-changed',
+  'receipt-profile-old',
   'receipt-version',
   'receipt-versionless',
   'receipt-original-process',
@@ -393,6 +408,7 @@ for (const fault of [
           'receipt-literal',
           'receipt-profile-missing',
           'receipt-profile-changed',
+          'receipt-profile-old',
           'receipt-version',
           'receipt-versionless',
           'receipt-invariants',
@@ -519,6 +535,183 @@ for (const fault of ['service-unhealthy', 'manifest-body']) {
       expect(code).toBe(0);
       expect(observation.summary?.recovery?.targets[0]?.health).toBe('unhealthy');
       expect(observation.summary?.recovery?.targets[1]?.health).toBe('healthy');
+    },
+    120000,
+  );
+}
+
+// Proof: omitting the network configuration fingerprint admitted the drifting exact-name response and completed execute; this actual-entry negative failed with exit0.
+// Proof: omitting candidate membership admission also completed execute with an inert candidate listed on the full-ID read; its negative failed with exit0.
+// Proof: omitting raw readback stability admitted a one-shot changed candidate hostname and completed execute; its negative failed with exit0.
+const createdNetworkFaults = [
+  'network-name-substitution',
+  'network-id-owner',
+  'network-config-drift',
+  'network-name-missing',
+  'network-name-unreadable',
+  'network-malformed',
+  'network-membership-id',
+  'network-membership-name',
+  'network-membership-malformed',
+  'network-stable-read',
+  'created-wrong-id',
+  'created-extra-name',
+  'created-alias-drift',
+  'created-gateway',
+  'created-ipv6-gateway',
+  'created-mac',
+  'created-prefix',
+  'created-ipv6-prefix',
+  'created-dns',
+  'created-sandbox',
+  'created-process',
+  'created-ports',
+];
+for (const fault of createdNetworkFaults) {
+  test(
+    'actual factory refuses created network fault ' + fault + ' before original stop',
+    async () => {
+      const { observation, code } = await observe('execute', '', '', fault);
+      expect(code).toBe(2);
+      expect(observation.refusal).toBe('edge Init adoption refused: operation-refused');
+      expect(observation.transcript).toEqual([
+        'POST /containers/create?name=wbs-init-fixture-registry',
+      ]);
+      expect(observation.receiptStages).toEqual(['create-intended', 'created', 'candidate-inert']);
+      const afterCreate = observation.reads.slice(
+        observation.reads.lastIndexOf('POST /containers/create?name=wbs-init-fixture-registry') + 1,
+      );
+      if (fault.startsWith('created-') || fault === 'network-stable-read')
+        expect(afterCreate.at(-1)).toBe('GET /containers/' + hashCandidate(0) + '/json');
+      else expect(afterCreate.at(-1)).toBe('GET /networks/edge');
+      if (!fault.startsWith('created-')) {
+        expect(afterCreate).toContain('GET /networks/' + '1'.repeat(64));
+        expect(afterCreate).toContain('GET /networks/edge');
+      }
+    },
+    120000,
+  );
+}
+for (const fault of [
+  'network-name-substitution',
+  'network-id-owner',
+  'network-config-drift',
+  'network-name-missing',
+  'network-name-unreadable',
+  'network-malformed',
+  'network-membership-malformed',
+  'running-blank',
+  'inventory-unknown',
+  'raw-inventory-drift',
+]) {
+  test(
+    'actual recovery refuses refreshed network fault ' + fault,
+    async () => {
+      const { observation, code } = await observe('recovery', 'complete', 'registry', fault);
+      expect(code).toBe(2);
+      expect(observation.refusal).toBe('edge Init adoption refused: preparation-failed');
+      expect(observation.summary).toBeUndefined();
+      const last = observation.reads.at(-1);
+      if (fault === 'running-blank') expect(observation.reads).toHaveLength(4);
+      else if (fault === 'inventory-unknown')
+        expect(last).toBe(
+          'GET /containers/' +
+            createHash('sha256').update('unknown-inventory').digest('hex') +
+            '/json',
+        );
+      else if (fault === 'raw-inventory-drift')
+        expect(last).toBe(
+          'GET /containers/' +
+            createHash('sha256').update('unrelated-created').digest('hex') +
+            '/json',
+        );
+      else expect(last).toBe('GET /networks/edge');
+    },
+    120000,
+  );
+}
+for (const fault of ['network-membership-id', 'network-membership-name']) {
+  test(
+    'actual inert recovery refuses network membership ' + fault,
+    async () => {
+      const { observation, code } = await observe('recovery', 'candidate-inert', 'registry', fault);
+      expect(code).toBe(2);
+      expect(observation.refusal).toBe('edge Init adoption refused: preparation-failed');
+      expect(observation.reads.at(-1)).toBe('GET /networks/edge');
+    },
+    120000,
+  );
+}
+test('actual stopped-original recovery refuses a blank original endpoint', async () => {
+  const { observation, code } = await observe(
+    'recovery',
+    'original-stopped',
+    'registry',
+    'stopped-original-blank',
+  );
+  expect(code).toBe(2);
+  expect(observation.refusal).toBe('edge Init adoption refused: preparation-failed');
+  expect(observation.reads).not.toContain('collector');
+}, 120000);
+test('actual recovery snapshots an unrelated created blank endpoint without granting effects', async () => {
+  const { observation, code } = await observe(
+    'recovery',
+    'complete',
+    'registry',
+    'unrelated-created',
+  );
+  expect(code).toBe(0);
+  expect(observation.summary?.stage).toBe('recovery-observed');
+  expect(observation.summary?.recovery?.targets.map((entry) => entry.class)).toEqual([
+    'candidate-running-original-absent',
+    'candidate-running-original-absent',
+  ]);
+  expect(observation.reads).toContain(
+    'GET /containers/' + createHash('sha256').update('unrelated-created').digest('hex') + '/json',
+  );
+}, 120000);
+
+// Proof: omitting the frozen expiry or recapturing it from current clocks each applied a late Caddy stop and failed the actual-entry rollback assertion; restored regression passed.
+for (const fault of ['clock-rollback', 'clock-forward-control']) {
+  test(
+    'actual factory preserves first effect expiry under ' + fault,
+    async () => {
+      const { observation, code } = await observe('execute', '', '', fault);
+      expect(code).toBe(2);
+      expect(observation.refusal).toBe('edge Init adoption refused: operation-refused');
+      const clock = observation.clock;
+      if (clock === undefined) throw new Error('actual clock evidence missing');
+      expect(clock.firstAdmission.expires).toBeGreaterThan(clock.firstAdmission.monotonic + 350000);
+      expect(clock.firstAdmission.expires).toBeLessThan(clock.firstAdmission.monotonic + 361000);
+      expect(clock.shifts[0]?.event).toBe('registry-create-150s');
+      if (fault === 'clock-rollback') {
+        const rollback = clock.shifts.find(
+          (shift) => shift.event === 'wall-rollback-before-caddy-reset',
+        );
+        expect(rollback).toBeDefined();
+        if (rollback === undefined) throw new Error('clock rollback not exercised');
+        expect(rollback.beforeWall - rollback.afterWall).toBe(150000);
+        expect(rollback.afterWall).toBeGreaterThan(clock.issuedAt);
+      } else expect(clock.shifts).toHaveLength(1);
+      expect(clock.stopApplied).toBe(false);
+      expect(
+        clock.effects.filter(
+          (effect) => effect.applied && effect.monotonic > clock.firstAdmission.expires,
+        ),
+      ).toEqual([]);
+      expect(observation.transcript).toEqual([
+        'POST /containers/create?name=wbs-init-fixture-registry',
+        'POST /containers/' + 'd'.repeat(64) + '/stop?t=-1',
+        'POST /containers/' + 'd'.repeat(64) + '/rename?name=wbs-init-fixture-registry-original',
+        'POST /containers/' + hashCandidate(0) + '/rename?name=wbs-registry-1',
+        'POST /containers/' + hashCandidate(0) + '/start',
+      ]);
+      expect(observation.receiptStages.at(-1)).toBe('before-create');
+      expect(Object.keys(clock.sourceSha256)).toEqual([
+        'edge-init.ts',
+        'edge-init-operation.ts',
+        'edge-init-observer.ts',
+      ]);
     },
     120000,
   );

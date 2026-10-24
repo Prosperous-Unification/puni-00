@@ -64,6 +64,45 @@ const reads: string[] = [];
 const action = process.argv[2] ?? 'prepare';
 const injection = process.argv.at(5);
 const fault = injection === undefined || injection === '' ? action : injection;
+const clockFault = fault === 'clock-rollback' || fault === 'clock-forward-control';
+const rawMonotonic = performance.now.bind(performance),
+  rawWall = Date.now.bind(Date);
+let monotonicOffset = 0,
+  wallOffset = 0,
+  entryActive = false,
+  clockRegistryAdvanced = false,
+  clockWallRolledBack = false,
+  clockCaddyAdvanced = false,
+  clockStopApplied = false;
+const clockEffects: { route: string; monotonic: number; wall: number; applied: boolean }[] = [];
+const clockShifts: {
+  event: string;
+  beforeMonotonic: number;
+  afterMonotonic: number;
+  beforeWall: number;
+  afterWall: number;
+}[] = [];
+let firstAdmissionClock: { monotonic: number; wall: number; expires: number } | undefined;
+if (clockFault) {
+  Date.now = () => rawWall() + wallOffset;
+  Object.defineProperty(performance, 'now', {
+    configurable: true,
+    value: () => rawMonotonic() + monotonicOffset,
+  });
+}
+function shiftClock(event: string, monotonic: number, wall: number) {
+  const beforeMonotonic = performance.now(),
+    beforeWall = Date.now();
+  monotonicOffset += monotonic;
+  wallOffset += wall;
+  clockShifts.push({
+    event,
+    beforeMonotonic,
+    afterMonotonic: performance.now(),
+    beforeWall,
+    afterWall: Date.now(),
+  });
+}
 const socketPath = root + '/run/docker.sock';
 let pythonWrapper = '';
 let unitBytes = '';
@@ -90,8 +129,23 @@ await mock.module('node:fs/promises', () => ({
     }
     return files.open(map(path), ...arguments_);
   },
-  lstat: (path: string, options?: Parameters<typeof files.lstat>[1]) =>
-    files.lstat(map(path), options),
+  lstat: (path: string, options?: Parameters<typeof files.lstat>[1]) => {
+    if (
+      clockFault &&
+      entryActive &&
+      firstAdmissionClock === undefined &&
+      path === '/home/puni1/wbs/state'
+    ) {
+      const monotonic = performance.now(),
+        wall = Date.now();
+      firstAdmissionClock = {
+        monotonic,
+        wall,
+        expires: monotonic + Date.parse(packet.quiescence.expiresAt) - wall,
+      };
+    }
+    return files.lstat(map(path), options);
+  },
   stat: (path: string, options?: Parameters<typeof files.stat>[1]) =>
     files.stat(map(path), options),
   readFile: (path: string, options?: Parameters<typeof files.readFile>[1]) =>
@@ -455,6 +509,17 @@ const network = {
   Options: {},
   Labels: {},
 };
+const auxiliaryNetwork = {
+  ...structuredClone(network),
+  Id: '2'.repeat(64),
+  Name: 'auxiliary',
+  IPAM: {
+    Driver: 'default',
+    Options: null,
+    Config: [{ Subnet: '172.30.0.0/24', Gateway: '172.30.0.1' }],
+  },
+};
+const networkConfigurations = [network, auxiliaryNetwork];
 type Container = ReturnType<typeof syntheticContainer>;
 const containers = new Map<string, Container>();
 const images = new Map<string, unknown>();
@@ -512,6 +577,16 @@ for (const [index, target] of packet.targets.entries()) {
     IPAddress: '172.29.0.' + String(2 + index),
     IPPrefixLen: 24,
   });
+  if (index === 1)
+    Object.assign(native.NetworkSettings.Networks, {
+      auxiliary: {
+        ...structuredClone(endpoint),
+        NetworkID: auxiliaryNetwork.Id,
+        Gateway: '172.30.0.1',
+        IPAddress: '172.30.0.3',
+        EndpointID: hash('caddy auxiliary endpoint'),
+      },
+    });
   const resourcePath =
     target.kind === 'caddy' ? '/home/puni1/wbs/caddy' : '/var/lib/docker/volumes/registry/_data';
   if (index === 1) {
@@ -562,7 +637,11 @@ for (const [index, target] of packet.targets.entries()) {
     imageSha256: fingerprint(image),
     envSha256: hash(encodeOrderedEnv(native.Config.Env)),
     defaultRouteNetwork: networkId,
-    networks: [{ id: networkId, name: 'edge', sha256: fingerprint(network) }],
+    networks: [network, ...(index === 1 ? [auxiliaryNetwork] : [])].map((configuration) => ({
+      id: configuration.Id,
+      name: configuration.Name,
+      sha256: fingerprint(configuration),
+    })),
   });
   Object.assign(target.process, {
     startTime: String(native.State.Pid * 10),
@@ -609,6 +688,16 @@ backend.Name = '/wbs-backend-1';
 Reflect.deleteProperty(backend.Config, 'OnBuild');
 backend.Config.Labels = { 'com.docker.compose.service': 'backend' };
 backend.NetworkSettings.Networks.edge.Aliases = ['backend'];
+backend.State.Pid = 200004;
+backend.NetworkSettings.SandboxID = hash('backend sandbox');
+backend.NetworkSettings.SandboxKey = '/var/run/docker/netns/backend';
+Object.assign(backend.NetworkSettings.Networks.edge, {
+  NetworkID: networkId,
+  EndpointID: hash('backend endpoint'),
+  Gateway: '172.29.0.1',
+  IPAddress: '172.29.0.20',
+  IPPrefixLen: 24,
+});
 containers.set(backend.Id, backend);
 packet.backends[0].image = backend.Image;
 const caddyDirectory = await files.lstat(root + dirname(packet.caddy.root));
@@ -853,15 +942,17 @@ if (fault === 'wrong-connect') {
 let execIndex = 0;
 const execs = new Map<string, string>();
 const execCommands = new Map<string, 'adapt' | 'live'>();
+let networkRaceArmed = false;
+let networkRaceInjected = false;
+let rawInventoryChanged = false;
 const originalCopies = packet.targets.map((target) => {
   const native = containers.get(target.id);
   if (native === undefined) throw new Error('missing fixture original');
   return structuredClone(native);
 });
 const candidates = new Map<string, Container>();
-/** Builds the current synthetic inert observation. Its configured NetworkID remains populated.
- * Actual Engine29.1.3 created endpoints have an empty NetworkID; this fixture cannot establish
- * native-equivalent create admission until the separately reviewed native endpoint contract lands.
+/** Models the sanitized captured created endpoint shape; the exact production profile/context must admit it.
+ * Native acceptance remains a separate authorized run; this worker executes only synthetic raw IO.
  */
 function candidateFixture(index: number): Container {
   const original = originalCopies.at(index);
@@ -879,15 +970,19 @@ function candidateFixture(index: number): Container {
   native.NetworkSettings.SandboxID = '';
   native.NetworkSettings.SandboxKey = '';
   native.NetworkSettings.Ports = {};
-  Object.assign(native.NetworkSettings.Networks.edge, {
-    EndpointID: '',
-    Gateway: '',
-    IPAddress: '',
-    IPPrefixLen: 0,
-    GlobalIPv6Address: '',
-    GlobalIPv6PrefixLen: 0,
-    MacAddress: '',
-  });
+  for (const endpoint of Object.values(native.NetworkSettings.Networks))
+    Object.assign(endpoint, {
+      NetworkID: '',
+      EndpointID: '',
+      Gateway: '',
+      IPv6Gateway: '',
+      IPAddress: '',
+      IPPrefixLen: 0,
+      GlobalIPv6Address: '',
+      GlobalIPv6PrefixLen: 0,
+      MacAddress: '',
+      DNSNames: null,
+    });
   return native;
 }
 async function stopFixture(native: Container) {
@@ -900,15 +995,18 @@ async function stopFixture(native: Container) {
   native.NetworkSettings.SandboxID = '';
   native.NetworkSettings.SandboxKey = '';
   native.NetworkSettings.Ports = {};
-  Object.assign(native.NetworkSettings.Networks.edge, {
-    EndpointID: '',
-    Gateway: '',
-    IPAddress: '',
-    IPPrefixLen: 0,
-    GlobalIPv6Address: '',
-    GlobalIPv6PrefixLen: 0,
-    MacAddress: '',
-  });
+  for (const endpoint of Object.values(native.NetworkSettings.Networks))
+    Object.assign(endpoint, {
+      EndpointID: '',
+      Gateway: '',
+      IPv6Gateway: '',
+      IPAddress: '',
+      IPPrefixLen: 0,
+      GlobalIPv6Address: '',
+      GlobalIPv6PrefixLen: 0,
+      MacAddress: '',
+      DNSNames: null,
+    });
   await files.rm(root + '/proc/' + String(pid), { recursive: true });
   await write('/sys/fs/cgroup' + group + '/cgroup.procs', '');
   await write('/sys/fs/cgroup' + group + '/cgroup.events', 'populated 0\n');
@@ -922,12 +1020,19 @@ async function startFixture(native: Container, index: number) {
   native.State.FinishedAt = '0001-01-01T00:00:00Z';
   native.NetworkSettings.SandboxID = hash('candidate sandbox ' + String(index));
   native.NetworkSettings.SandboxKey = '/var/run/docker/netns/candidate-' + String(index);
-  Object.assign(native.NetworkSettings.Networks.edge, {
-    EndpointID: hash('candidate endpoint ' + String(index)),
-    Gateway: '172.29.0.1',
-    IPAddress: '172.29.0.' + String(12 + index),
-    IPPrefixLen: 24,
-  });
+  const target = packet.targets.at(index);
+  if (target === undefined) throw new Error('fixture start target unavailable');
+  for (const [name, endpoint] of Object.entries(native.NetworkSettings.Networks)) {
+    const pin = target.networks.find((pin) => pin.name === name);
+    if (pin === undefined) throw new Error('fixture start network not independently pinned');
+    Object.assign(endpoint, {
+      NetworkID: pin.id,
+      EndpointID: hash('candidate endpoint ' + String(index) + ' ' + name),
+      Gateway: name === 'edge' ? '172.29.0.1' : '172.30.0.1',
+      IPAddress: (name === 'edge' ? '172.29.0.' : '172.30.0.') + String(12 + index),
+      IPPrefixLen: 24,
+    });
+  }
   await processFixture(
     native.State.Pid,
     native.Id,
@@ -981,6 +1086,38 @@ async function serveEngine(request: IncomingMessage, response: httpModule.Server
     const native =
       containers.get(inspect[1]) ??
       [...containers.values()].find((native) => native.Name === '/' + inspect[1]);
+    if (
+      fault === 'network-stable-read' &&
+      networkRaceArmed &&
+      !networkRaceInjected &&
+      native !== undefined &&
+      candidates.has(native.Id) &&
+      native.State.Status === 'created'
+    ) {
+      networkRaceArmed = false;
+      networkRaceInjected = true;
+      reply(200, { ...native, Config: { ...native.Config, Hostname: 'single-read-substitution' } });
+      return;
+    }
+    if (
+      clockFault &&
+      clockRegistryAdvanced &&
+      !clockWallRolledBack &&
+      fault === 'clock-rollback' &&
+      native?.Id === packet.targets[1].id &&
+      [...candidates.values()].some(
+        (candidate) =>
+          candidate.Config.Labels['com.docker.compose.service'] === 'registry' &&
+          candidate.State.Running,
+      )
+    ) {
+      shiftClock('wall-rollback-before-caddy-reset', 0, -150000);
+      clockWallRolledBack = true;
+    }
+    if (clockFault && clockStopApplied && native?.Id === packet.targets[1].id) {
+      reply(503, { message: 'PRIVATE_FACTORY_SECRET bounded clock witness stop' });
+      return;
+    }
     if (fault.startsWith('label-') && native?.Id === packet.targets[1].id) {
       const labels = {
         ...native.Config.Labels,
@@ -996,6 +1133,10 @@ async function serveEngine(request: IncomingMessage, response: httpModule.Server
       reply(200, { ...native, Config: { ...native.Config, Labels: labels } });
       return;
     }
+    if (fault === 'inventory-unknown' && native?.Id === hash('unknown-inventory')) {
+      reply(404, { message: 'PRIVATE_FACTORY_SECRET' });
+      return;
+    }
     if (fault === 'native-malformed' && native !== undefined) {
       reply(200, { ...native, State: { ...native.State, Pid: 'PRIVATE_FACTORY_SECRET' } });
       return;
@@ -1008,18 +1149,68 @@ async function serveEngine(request: IncomingMessage, response: httpModule.Server
     reply(200, images.get(image[1]));
     return;
   }
-  if (path === '/networks/' + networkId) {
+  const selectedNetwork = networkConfigurations.find(
+    (configuration) =>
+      path === '/networks/' + configuration.Id || path === '/networks/' + configuration.Name,
+  );
+  if (selectedNetwork !== undefined) {
     if (fault === 'network-missing') {
       reply(404, { message: 'PRIVATE_FACTORY_SECRET' });
       return;
     }
+    const byName = path === '/networks/' + selectedNetwork.Name;
+    const active = candidates.size > 0;
+    const inert = [...candidates.values()].find((native) => native.State.Status === 'created');
+    if (active && byName && fault === 'network-name-missing') {
+      reply(404, { message: 'PRIVATE_FACTORY_SECRET' });
+      return;
+    }
+    if (active && byName && fault === 'network-name-unreadable') {
+      reply(503, { message: 'PRIVATE_FACTORY_SECRET' });
+      return;
+    }
+    if (active && byName && fault === 'network-malformed') {
+      reply(200, []);
+      return;
+    }
+    if (active && byName && fault === 'network-stable-read' && inert !== undefined)
+      networkRaceArmed = true;
+    if (byName && fault === 'raw-inventory-drift' && !rawInventoryChanged) {
+      const unrelated = containers.get(hash('unrelated-created'));
+      if (unrelated === undefined) throw new Error('fixture unrelated inventory absent');
+      unrelated.Config.Hostname = 'changed-unrelated-native';
+      rawInventoryChanged = true;
+    }
+    const members = Object.fromEntries(
+      [...containers.values()]
+        .filter(
+          (native) =>
+            native.State.Running &&
+            Object.values(native.NetworkSettings.Networks).some(
+              (endpoint) => endpoint.NetworkID === selectedNetwork.Id,
+            ),
+        )
+        .map((native) => [native.Id, {}]),
+    );
+    if (
+      inert !== undefined &&
+      ((fault === 'network-membership-name' && byName) ||
+        (fault === 'network-membership-id' && !byName))
+    )
+      members[inert.Id] = {};
+    const configuration = {
+      ...selectedNetwork,
+      ...(active && fault === 'network-name-substitution' && byName
+        ? { Id: hash('replacement network') }
+        : {}),
+      ...(active && fault === 'network-id-owner' && !byName ? { Name: 'foreign-network' } : {}),
+      ...(active && fault === 'network-config-drift' && byName
+        ? { Options: { 'fixture.changed': 'true' } }
+        : {}),
+    };
     reply(200, {
-      ...network,
-      Containers: Object.fromEntries(
-        [...containers.values()]
-          .filter((native) => native.State.Running)
-          .map((native) => [native.Id, {}]),
-      ),
+      ...configuration,
+      Containers: active && fault === 'network-membership-malformed' && byName ? 0 : members,
     });
     return;
   }
@@ -1093,7 +1284,16 @@ async function serveEngine(request: IncomingMessage, response: httpModule.Server
     });
     return;
   }
-  if (method !== 'GET') transcript.push(method + ' ' + path);
+  if (method !== 'GET') {
+    transcript.push(method + ' ' + path);
+    if (clockFault)
+      clockEffects.push({
+        route: method + ' ' + path,
+        monotonic: performance.now(),
+        wall: Date.now(),
+        applied: false,
+      });
+  }
   const create = /^\/containers\/create\?name=wbs-init-fixture-(registry|caddy)$/.exec(path);
   if (method === 'POST' && create) {
     const index = create[1] === 'registry' ? 0 : 1,
@@ -1101,26 +1301,64 @@ async function serveEngine(request: IncomingMessage, response: httpModule.Server
       body = await readRequest(request),
       original = originalCopies.at(index);
     if (original === undefined) throw new Error('fixture original unavailable');
-    const endpoint = original.NetworkSettings.Networks.edge;
     const expected = {
       ...native.Config,
       HostConfig: { ...original.HostConfig, Init: true },
       NetworkingConfig: {
-        EndpointsConfig: {
-          [networkId]: {
-            IPAMConfig: endpoint.IPAMConfig,
-            Links: endpoint.Links,
-            Aliases: endpoint.Aliases,
-            DriverOpts: endpoint.DriverOpts,
-            GwPriority: endpoint.GwPriority,
-          },
-        },
+        EndpointsConfig: Object.fromEntries(
+          Object.values(original.NetworkSettings.Networks).map((endpoint) => [
+            endpoint.NetworkID,
+            {
+              IPAMConfig: endpoint.IPAMConfig,
+              Links: endpoint.Links,
+              Aliases: endpoint.Aliases,
+              DriverOpts: endpoint.DriverOpts,
+              GwPriority: endpoint.GwPriority,
+            },
+          ]),
+        ),
       },
     };
     if (fingerprint(body) !== fingerprint(expected))
       throw new Error('fixture create request differs from independent model');
+    if (fault === 'created-wrong-id')
+      native.NetworkSettings.Networks.edge.NetworkID = hash('foreign endpoint network');
+    if (fault === 'created-extra-name')
+      Object.assign(native.NetworkSettings.Networks, {
+        unreviewed: structuredClone(native.NetworkSettings.Networks.edge),
+      });
+    if (fault === 'created-alias-drift')
+      native.NetworkSettings.Networks.edge.Aliases = ['substituted'];
+    if (fault === 'created-gateway') native.NetworkSettings.Networks.edge.Gateway = '172.29.0.1';
+    if (fault === 'created-ipv6-gateway') native.NetworkSettings.Networks.edge.IPv6Gateway = '::1';
+    if (fault === 'created-mac')
+      native.NetworkSettings.Networks.edge.MacAddress = '02:00:00:00:00:01';
+    if (fault === 'created-prefix') native.NetworkSettings.Networks.edge.IPPrefixLen = 24;
+    if (fault === 'created-ipv6-prefix')
+      native.NetworkSettings.Networks.edge.GlobalIPv6PrefixLen = 64;
+    if (fault === 'created-dns')
+      Object.assign(native.NetworkSettings.Networks.edge, { DNSNames: ['unexpected'] });
+    if (fault === 'created-sandbox') native.NetworkSettings.SandboxID = hash('unexpected sandbox');
+    if (fault === 'created-process') native.State.Pid = 200099;
+    if (fault === 'created-ports')
+      Object.assign(native.NetworkSettings, {
+        Ports: { '5000/tcp': [{ HostIp: '127.0.0.1', HostPort: '5000' }] },
+      });
     containers.set(native.Id, native);
     candidates.set(native.Id, native);
+    if (clockFault) {
+      const effect = clockEffects.at(-1);
+      if (effect === undefined) throw new Error('clock create witness missing');
+      effect.applied = true;
+      if (index === 0 && !clockRegistryAdvanced) {
+        shiftClock('registry-create-150s', 150000, 150000);
+        clockRegistryAdvanced = true;
+      }
+      if (index === 1 && fault === 'clock-rollback' && !clockCaddyAdvanced) {
+        shiftClock('caddy-create-220s', 220000, 0);
+        clockCaddyAdvanced = true;
+      }
+    }
     reply(201, { Id: native.Id, Warnings: [] });
     return;
   }
@@ -1145,11 +1383,16 @@ async function serveEngine(request: IncomingMessage, response: httpModule.Server
         native.Config.Labels['com.docker.compose.service'] === 'registry' ? 0 : 1,
       );
     else throw new Error('fixture unsupported mutation');
+    if (clockFault) {
+      const effect = clockEffects.at(-1);
+      if (effect === undefined) throw new Error('clock mutation witness missing');
+      effect.applied = true;
+      if (mutation[2] === 'stop' && native.Id === packet.targets[1].id) clockStopApplied = true;
+    }
     response.writeHead(204);
     response.end();
     return;
   }
-  if (method !== 'GET') transcript.push(method + ' ' + path);
   reply(500, { message: 'PRIVATE_FACTORY_SECRET unexpected route' });
 }
 await files.mkdir(dirname(socketPath), { recursive: true });
@@ -1178,7 +1421,7 @@ const classes = [
   'candidate-running-original-absent',
 ];
 async function recoveryFixture(packetPath: string) {
-  const { projectInvariant, candidateInvariant, CREATED_OOM_PROFILE } =
+  const { projectInvariant, candidateInvariant, CREATED_PROFILE } =
     await import('../lib/edge-init');
   const { observeComposeDeclarations, publishInitReceipt } =
     await import('../lib/edge-init-observer');
@@ -1200,8 +1443,14 @@ async function recoveryFixture(packetPath: string) {
       return {
         target: target.kind,
         original: target.id,
-        originalInvariantSha256: fingerprint(projectInvariant(native, CREATED_OOM_PROFILE)),
-        candidateInvariantSha256: fingerprint(candidateInvariant(native, CREATED_OOM_PROFILE)),
+        originalInvariantSha256: fingerprint(
+          projectInvariant(native, {
+            profile: CREATED_PROFILE,
+            owner: { role: 'original', id: native.id, phase: 'running' },
+            networks: target.networks,
+          }),
+        ),
+        candidateInvariantSha256: fingerprint(candidateInvariant(native, CREATED_PROFILE)),
         originalProcess: {
           pid: original.State.Pid,
           startTime: target.process.startTime,
@@ -1363,6 +1612,12 @@ async function recoveryFixture(packetPath: string) {
   process.env['WBS_EDGE_LOCK_FD'] = String(fresh);
 }
 
+async function clockSourceHashes(): Promise<Record<string, string>> {
+  const hashes: Record<string, string> = {};
+  for (const name of ['edge-init.ts', 'edge-init-operation.ts', 'edge-init-observer.ts'])
+    hashes[name] = hash(await files.readFile(resolve(import.meta.dir, '../lib', name)));
+  return hashes;
+}
 async function receiptStages(): Promise<string[]> {
   if (!filesystem.existsSync(root + packet.receiptDirectory)) return [];
   const stages: string[] = [];
@@ -1382,6 +1637,27 @@ async function receiptStages(): Promise<string[]> {
   return stages;
 }
 async function injectRecoveryFault() {
+  if (fault === 'unrelated-created' || fault === 'raw-inventory-drift') {
+    const unrelated = candidateFixture(0);
+    unrelated.Id = hash('unrelated-created');
+    unrelated.Name = '/unrelated-created-1';
+    unrelated.Config.Labels = { 'com.docker.compose.service': 'unrelated' };
+    unrelated.Config.Env = ['FIXTURE=unrelated'];
+    unrelated.NetworkSettings.Networks.edge.Aliases = ['unrelated'];
+    containers.set(unrelated.Id, unrelated);
+  }
+  if (fault === 'inventory-unknown')
+    containers.set(hash('unknown-inventory'), {
+      ...candidateFixture(0),
+      Id: hash('unknown-inventory'),
+      Name: '/unknown-inventory-1',
+    });
+  if (fault === 'stopped-original-blank') {
+    const original = containers.get(packet.targets[0].id);
+    if (original === undefined) throw new Error('fixture stopped original missing');
+    original.NetworkSettings.Networks.edge.NetworkID = '';
+  }
+
   const candidate = [...candidates.values()].find(
     (native) =>
       native.Config.Labels['com.docker.compose.service'] === (process.argv[4] ?? 'registry'),
@@ -1398,6 +1674,7 @@ async function injectRecoveryFault() {
       Object.assign(candidate.State, {
         Health: { Status: 'unhealthy', FailingStreak: 1, Log: [] },
       });
+    if (fault === 'running-blank') candidate.NetworkSettings.Networks.edge.NetworkID = '';
     if (fault === 'candidate-env') candidate.Config.Env = ['PRIVATE_FACTORY_SECRET=changed'];
     if (fault === 'candidate-init') candidate.HostConfig.Init = false;
     if (fault === 'candidate-image') candidate.Config.Image = 'changed:fixture';
@@ -1452,6 +1729,8 @@ async function injectRecoveryFault() {
       if (fault === 'receipt-source') receipt['sourceRosterSha256'] = hash('wrong source');
       if (fault === 'receipt-literal') receipt['literalInitSha256'] = hash('wrong literal');
       if (fault === 'receipt-profile-missing') Reflect.deleteProperty(receipt, 'invariantProfile');
+      if (fault === 'receipt-profile-old')
+        receipt['invariantProfile'] = 'engine-29.1.3-api-1.52-cgroup2-created-oom-v1';
       if (fault === 'receipt-profile-changed') receipt['invariantProfile'] = 'unrecognized-profile';
       if (fault === 'receipt-version') receipt['version'] = 1;
       if (fault === 'receipt-versionless') {
@@ -1500,6 +1779,10 @@ try {
     target.nativeSha256 = fingerprint(parseNativeContainer(native));
   }
   packet.backends[0].nativeSha256 = fingerprint(parseNativeContainer(backend));
+  if (clockFault) {
+    packet.quiescence.issuedAt = new Date(Date.now() - 1000).toISOString();
+    packet.quiescence.expiresAt = new Date(Date.now() + 360000).toISOString();
+  }
   if (fault === 'expired-window' || fault === 'expired-prepare') {
     packet.quiescence.issuedAt = new Date(Date.now() - 1200000).toISOString();
     packet.quiescence.expiresAt = new Date(Date.now() - 600000).toISOString();
@@ -1564,6 +1847,7 @@ try {
     );
   if (fault === 'daemon-drift') info.ID = 'replacement-daemon';
   if (action === 'recovery') await injectRecoveryFault();
+  entryActive = true;
   const summary = await runProductionInitAdoption(
     packetPath,
     action === 'recovery' ? 'inspect-recovery' : action === 'execute' ? 'execute' : 'prepare',
@@ -1574,6 +1858,18 @@ try {
       transcript,
       reads,
       receiptStages: await receiptStages(),
+      ...(clockFault
+        ? {
+            clock: {
+              firstAdmission: firstAdmissionClock,
+              shifts: clockShifts,
+              effects: clockEffects,
+              stopApplied: clockStopApplied,
+              issuedAt: Date.parse(packet.quiescence.issuedAt),
+              sourceSha256: await clockSourceHashes(),
+            },
+          }
+        : {}),
       receiptDirectoryPresent: filesystem.existsSync(root + packet.receiptDirectory),
     }),
   );
@@ -1584,6 +1880,18 @@ try {
       transcript,
       reads,
       receiptStages: await receiptStages(),
+      ...(clockFault
+        ? {
+            clock: {
+              firstAdmission: firstAdmissionClock,
+              shifts: clockShifts,
+              effects: clockEffects,
+              stopApplied: clockStopApplied,
+              issuedAt: Date.parse(packet.quiescence.issuedAt),
+              sourceSha256: await clockSourceHashes(),
+            },
+          }
+        : {}),
     }),
   );
   process.exitCode = 2;
