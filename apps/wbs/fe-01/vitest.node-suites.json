@@ -21,6 +21,9 @@
       "file": "src/components/wbs/cell-card-store.test.ts"
     },
     {
+      "file": "src/components/wbs/claim-lease-view.test.ts"
+    },
+    {
       "file": "src/components/wbs/claim-limit-words.test.ts"
     },
     {

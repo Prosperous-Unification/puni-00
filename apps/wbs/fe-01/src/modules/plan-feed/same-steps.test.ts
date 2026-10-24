@@ -36,6 +36,7 @@ it('publishes a step code-only refresh through the delivered plan store', () => 
     directory: null,
     tree: null,
     markers: null,
+    claims: null,
   };
   store.deliver({ ...unchanged, steps: [step] });
   const before = store.snapshot();

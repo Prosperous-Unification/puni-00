@@ -9,6 +9,7 @@ import type { KeyboardEvent } from 'react';
 import type { Days, PlanRead } from '@/lib/wbs-api';
 
 import { type AttemptActions, AttemptsSection } from './attempts-section';
+import { ClaimLine, type DrawnClaim } from './claim-chip';
 import type { Point } from './estimate-draft';
 import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
@@ -71,6 +72,11 @@ export interface FoldedStepCardProps {
   allowancePercent: number;
   rule: EstimateRule;
   doing: CardAssignee | null;
+  /**
+   * The step's claim, said in full under who is doing it (`wbs-claim-display`
+   * C9); absent or null where nobody holds one.
+   */
+  claim?: DrawnClaim | null;
   /**
    * The cell's complaint, where it holds one — a typed trio that saves
    * nothing. On the card because the card is the cell's one hint: the native
@@ -141,6 +147,7 @@ export function FoldedStepCard({
   allowancePercent,
   rule,
   doing,
+  claim = null,
   problem,
   node,
   attemptActions,
@@ -344,6 +351,7 @@ export function FoldedStepCard({
         {doing?.outside != null && (
           <div style={{ color: 'var(--muted-foreground)' }}>{doing.outside}</div>
         )}
+        {claim !== null && <ClaimLine drawn={claim} />}
         {/*
         Proof: this line deleted, four tests failed — `a folded step cannot
         hide a complaint`, `sends nothing for a trio that runs backwards, and

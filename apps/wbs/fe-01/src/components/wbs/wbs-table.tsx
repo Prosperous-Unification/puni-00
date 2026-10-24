@@ -29,6 +29,7 @@ import { ExternalRefsModal } from './external-refs-modal';
 import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
+import { useLeaseClock, useLeaseTicker } from './lease-clock';
 import { didLand } from './live-editing';
 import { logicalGrid } from './logical-grid';
 import { formatDestination, moveUnderCandidates, MoveUnderPicker } from './move-under-picker';
@@ -87,6 +88,7 @@ import {
   useEstimateDraftState,
   useEstimateMentions,
 } from './use-estimate-drafts';
+import { usePlanClaims } from './use-plan-claims';
 import { usePlanDependencies } from './use-plan-dependencies';
 import { usePlanFields } from './use-plan-fields';
 import { usePlanFilter, usePlanFilterState } from './use-plan-filter';
@@ -701,6 +703,7 @@ export function WbsTable({
     claimsMayBeStale,
     treeFailureText,
     markers,
+    claims,
     busy,
     busyWrites,
     refusals,
@@ -1456,6 +1459,15 @@ export function WbsTable({
     people,
     flat,
   });
+  /** The plan's one lease clock (C6), which every chip reads; no chip owns a timer. */
+  const leaseClock = useLeaseClock();
+  const { stepClaimOn, subtreeClaimOn, anyClaimOn, leaseDeadlineOn } = usePlanClaims({
+    claims,
+    rows: flat,
+    steps,
+    zone: chartRead.timezone,
+    leaseClock,
+  });
 
   /**
    * The work items one waits for, in the order it holds them.
@@ -1541,11 +1553,13 @@ export function WbsTable({
         if (hiddenColumnIds.includes(step.id)) continue;
         const doing = assigneeOn(row, step.id);
         const anyAssignee = anyAssigneeOn(step.id);
+        const claim = stepClaimOn(row.id, step.id);
         const node = stepNodeReadingsOf(row, step.id, peopleById, chartRead.timezone, causeLabels);
         if (unfoldedSteps.includes(step.id)) {
           estimateReadings.set(step.id, {
             layout: 'unfolded',
             anyAssignee,
+            claim,
             doing,
             estimateValues: {
               optimistic: estimateValue(row, step.id, 'optimistic'),
@@ -1560,6 +1574,8 @@ export function WbsTable({
         estimateReadings.set(step.id, {
           layout: 'folded',
           anyAssignee,
+          anyClaim: anyClaimOn(step.id),
+          claim,
           combinedProblem: combinedProblem(row, step.id),
           combinedValue: combinedValue(row, step.id),
           doing,
@@ -1603,6 +1619,11 @@ export function WbsTable({
           nodesByRow === null
             ? null
             : (nodesByRow.get(row.id) ?? new Map<string, NonNullable<typeof stepNodes>[number]>()),
+        // Its own row's subtree claim only (C8). Proof: falling back to the
+        // parent's made `sits in its own row’s Name cell and on no leaf under
+        // it` fail on `expected [ 'CL14m' ] to deeply equal []`; watched
+        // 2026-10-24.
+        subtreeClaim: subtreeClaimOn(row.id),
         hasSchedule: hasSchedule(),
         finish: span.finish,
         nonOwnerNote: nonOwnerNoteOf(row),
@@ -1621,6 +1642,7 @@ export function WbsTable({
     return { rowsWithReadings: rows, spanByRow: spans };
   }, [
     anyAssigneeOn,
+    anyClaimOn,
     assigneeOn,
     busy,
     causeLabels,
@@ -1652,7 +1674,9 @@ export function WbsTable({
     services,
     spanOf,
     startDate,
+    stepClaimOn,
     steps,
+    subtreeClaimOn,
     tags,
     teams,
     trioProblemFor,
@@ -1831,6 +1855,20 @@ export function WbsTable({
     [rowModel, search.visibleIds],
   );
   const shownRowIds = useMemo(() => shownRows.map((row) => row.original.id), [shownRows]);
+  /**
+   * When the plan's one lease ticker may stop: the latest lease end among the
+   * claims drawn on screen — rows the collapse and the filter leave, step
+   * columns not hidden (C6). The cards draw the same rows.
+   */
+  const leaseDeadline = useMemo(
+    () =>
+      leaseDeadlineOn(
+        new Set(shownRowIds),
+        new Set(steps.filter((step) => !hiddenColumnIds.includes(step.id)).map((step) => step.id)),
+      ),
+    [leaseDeadlineOn, shownRowIds, steps, hiddenColumnIds],
+  );
+  useLeaseTicker(leaseClock, leaseDeadline);
 
   const committedLogicalCells = useMemo(
     () =>
@@ -2745,6 +2783,8 @@ export function WbsTable({
               leaveEstimate={leaveFoldedCell}
               mentionOptions={mentionOptions}
               assigneeOn={assigneeOn}
+              stepClaimOn={(row, stepId) => stepClaimOn(row.id, stepId)}
+              subtreeClaimOn={(row) => subtreeClaimOn(row.id)}
               attemptsOn={(row, stepId) =>
                 stepNodeReadingsOf(row, stepId, peopleById, chartRead.timezone, causeLabels)
               }
