@@ -338,6 +338,11 @@ test('restoring policy refuses every activation record as restoration authority'
     'intent',
     'committed',
     'fenced-complete',
+    'participant-restore-intent',
+    'participant-start-intent',
+    'participant-ready',
+    'participant-policy-intent',
+    'participants-restored',
   ]) {
     await writeFile(
       `${directory}/edge-policy.json`,

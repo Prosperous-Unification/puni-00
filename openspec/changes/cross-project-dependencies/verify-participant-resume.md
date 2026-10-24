@@ -195,3 +195,18 @@ Configured graph-loaded checks after this source slice: lint/typecheck/build,
 scoped autofix was limited to changed files and the configured replay executed
 the changed project targets. Existing solver-restoration regression passes
 41 tests, 149 assertions, 3.25s, `/tmp/puni-source-config-solver-regression.log`.
+
+## Participant evidence label boundary
+
+Five typed closed activation-evidence labels now describe the planned participant
+restore/start/ready/policy/final records. `captureEdgeRecord` admits only those
+additional fixed filenames; restoring-policy authority still accepts only the
+existing solver-restore-intent grammar. No record decoder or readiness/activation
+success constructor was introduced, and orchestration does not yet publish these
+records. Readback plus policy tests: 37 pass, 136 assertions,
+`/tmp/puni-participant-record-labels-final-green.log`. The readback test first failed
+on the previously unsupported participant label. Widening restoration authority
+specifically to participant-start-intent failed at the eighth decoder assertion,
+`/tmp/puni-participant-record-restoring-new-label-watch.log`; source restored.
+Configured graph lint/typecheck/build: 7 targets pass, 4 dependency cache hits,
+27.9s, `/tmp/puni-participant-records-static2.log`.

@@ -2,6 +2,8 @@ import type { DependencyActivationReceipt } from '@wbs/contracts/dependency-runt
 
 import type { DatabaseIdentity } from './backend-cohort';
 import type { DependencyCapabilityObservation } from './dependency-capability';
+import type { DependencyParticipantRole } from './dependency-participant-preparation';
+import type { ParticipantRestartPolicy } from './dependency-participant-transition';
 import type { EnvName } from './env';
 import type { SolverPins } from './solver-host';
 import type { SourceDevInputObservation } from './source-dev-inputs';
@@ -102,6 +104,55 @@ export interface ActivationRecordByLabel {
     readonly receipt: DependencyActivationReceipt;
     readonly captureSha256: string;
     readonly migrationManifestSha256: string;
+  };
+  readonly 'participant-restore-intent': {
+    readonly format: 'dependency-participant-restore-intent';
+    readonly version: 1;
+    readonly participants: ActivationRecordReference;
+    readonly committed: readonly {
+      readonly environment: EnvName;
+      readonly record: ActivationRecordReference;
+    }[];
+    readonly solverIntent: ActivationRecordReference;
+    readonly selected: readonly {
+      readonly role: DependencyParticipantRole;
+      readonly id: string;
+      readonly originalPolicy: ParticipantRestartPolicy;
+      readonly snapshotSha256: string;
+    }[];
+  };
+  readonly 'participant-start-intent': {
+    readonly format: 'dependency-participant-start-intent';
+    readonly version: 1;
+    readonly restoration: ActivationRecordReference;
+    readonly role: DependencyParticipantRole;
+    readonly id: string;
+  };
+  readonly 'participant-ready': {
+    readonly format: 'dependency-participant-ready';
+    readonly version: 1;
+    readonly restoration: ActivationRecordReference;
+    readonly role: DependencyParticipantRole;
+    readonly id: string;
+    readonly readinessSha256: string;
+  };
+  readonly 'participant-policy-intent': {
+    readonly format: 'dependency-participant-policy-intent';
+    readonly version: 1;
+    readonly ready: ActivationRecordReference;
+    readonly role: DependencyParticipantRole;
+    readonly id: string;
+    readonly policySha256: string;
+  };
+  readonly 'participants-restored': {
+    readonly format: 'dependency-participants-restored';
+    readonly version: 1;
+    readonly restoration: ActivationRecordReference;
+    readonly activated: readonly ReceiptEntry[];
+    readonly ready: readonly ActivationRecordReference[];
+    readonly policies: readonly ActivationRecordReference[];
+    readonly exposure: 'closed';
+    readonly controllers: 'fenced';
   };
   readonly 'fenced-complete': {
     readonly format: 'dependency-activation-fenced-complete';

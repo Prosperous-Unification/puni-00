@@ -68,6 +68,7 @@ function decodeRestoringEdgePolicy(value: unknown, edgeState: string): Restoring
   const sha256 = readString(reference['sha256']);
   const ownerPublicationSha256 = readString(policy['ownerPublicationSha256']);
   // Proof: widening this grammar admitted activation evidence as restoration authority; every-activation-label negative failed.
+  // Proof: permitting only the new participant-start-intent label failed the decoder negative at its eighth assertion; restored policy remains solver-intent-only.
   if (
     policy['format'] !== 'dependency-edge-policy' ||
     policy['version'] !== 1 ||
@@ -152,7 +153,7 @@ export async function captureEdgeRecord(
     name !== 'edge-policy.json' &&
     name !== 'edge-owner.pending' &&
     !/^edge-owner-[0-9]{6,12}-solver-restore-intent\.json$/.test(name) &&
-    !/^edge-owner-[0-9]{6,12}-activation-(participants|capture|backup|intent|committed|fenced-complete)\.json$/.test(
+    !/^edge-owner-[0-9]{6,12}-activation-(participants|capture|backup|intent|committed|fenced-complete|participant-restore-intent|participant-start-intent|participant-ready|participant-policy-intent|participants-restored)\.json$/.test(
       name,
     )
   )

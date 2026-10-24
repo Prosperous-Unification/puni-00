@@ -62,6 +62,11 @@ test('activation record readback admits every closed label and rejects sibling p
     'intent',
     'committed',
     'fenced-complete',
+    'participant-restore-intent',
+    'participant-start-intent',
+    'participant-ready',
+    'participant-policy-intent',
+    'participants-restored',
   ]) {
     const name = `edge-owner-000001-activation-${label}.json`;
     await writeFile(`${directory}/${name}`, '{}\n', { mode: 0o600 });
