@@ -29,6 +29,7 @@ import {
   removeComputeProvider,
   updateComputeProvider,
 } from './compute-provider-shapes';
+import { getWorkItemDelivery } from './delivery-shapes';
 import {
   listExternalSystems,
   listPeople,
@@ -248,6 +249,8 @@ export const httpShapes = [
   getWorkItems,
   getWorkItemRows,
   getWorkItem,
+  // Proof: removing this entry made the delivery client/OpenAPI contract test find no client operation.
+  getWorkItemDelivery,
   getStepReference,
   readStartableWork,
   readPersonWork,
