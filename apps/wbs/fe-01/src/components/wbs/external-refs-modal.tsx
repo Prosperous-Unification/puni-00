@@ -1,8 +1,10 @@
+import { Button } from '@ui/saas-01';
 import { refLabelOf, systemOfUrl } from '@wbs/domain/external-system';
 import { useState } from 'react';
 
 import { type ExternalRefView, type ExternalSystemView, followableHref } from '@/lib/wbs-api';
 
+import { DeliveryPanel } from './delivery-panel';
 import { Modal, ModalContent, ModalDescription, ModalHeader, ModalTitle } from './modal';
 
 /** A ref as this editor states it — the shape the patch takes, with no minted id. */
@@ -24,6 +26,8 @@ export interface ExternalRefsModalProps {
   onOpenChange: (open: boolean) => void;
   /** The work item's number, so the surface says whose links these are. */
   number: string;
+  projectId: string;
+  workItemId: string;
   /** The refs as they stand, in order. */
   refs: readonly ExternalRefView[];
   /** The directory's vocabulary — what a system may be set to. */
@@ -117,10 +121,13 @@ export function ExternalRefsModal({
   open,
   onOpenChange,
   number,
+  projectId,
+  workItemId,
   refs,
   systems,
   onReplace,
 }: ExternalRefsModalProps) {
+  const [deliveryRefId, setDeliveryRefId] = useState<string | null>(null);
   const [typedUrl, setTypedUrl] = useState('');
   const [chosenSystemId, setChosenSystemId] = useState('');
   /**
@@ -171,14 +178,14 @@ export function ExternalRefsModal({
         dialog *and* the cell button beneath it and broke two tests on
         `Found multiple elements with the text of: Links for 010`.
       */}
-      <ModalContent>
+      <ModalContent className="w-[calc(100%-2rem)] max-w-2xl">
         <ModalHeader>
           <ModalTitle>{`Links for ${number}`}</ModalTitle>
           <ModalDescription>
-            Where this work also exists. Nothing is fetched — a ref is a link.
+            Where this work also exists. Open delivery to read a saved link on demand.
           </ModalDescription>
         </ModalHeader>
-        <div data-refs-editor className="flex flex-col gap-3">
+        <div data-refs-editor className="flex shrink-0 flex-col gap-3">
           {refs.map((ref, at) => {
             const href = followableHref(ref.url);
             return (
@@ -217,7 +224,8 @@ export function ExternalRefsModal({
                     if (event.key === 'Enter') event.currentTarget.blur();
                   }}
                 />
-                <div className="flex items-center gap-2">
+                {/* Proof: without wrapping, the phone browser case measured 383px of content in a 356px modal; Remove link 5 overflowed beside the unsafe URL. */}
+                <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                   <SystemChoice
                     label={`System of link ${String(at + 1)}`}
                     value={systems.find((system) => system.id === ref.systemId)?.name ?? ''}
@@ -283,11 +291,42 @@ export function ExternalRefsModal({
                     <span aria-hidden="true">✕</span>
                   </button>
                 </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-label={`Delivery for link ${String(at + 1)}`}
+                    aria-pressed={deliveryRefId === ref.id}
+                    onClick={() => {
+                      setDeliveryRefId(ref.id);
+                    }}
+                  >
+                    Delivery
+                  </Button>
+                </div>
+                {deliveryRefId === ref.id && (
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setDeliveryRefId(null);
+                        }}
+                      >
+                        Close delivery
+                      </Button>
+                    </div>
+                    <DeliveryPanel projectId={projectId} workItemId={workItemId} reference={ref} />
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-        <div data-refs-add className="flex flex-col gap-2 border-t pt-3">
+        <div data-refs-add className="flex shrink-0 flex-col gap-2 border-t pt-3">
           {/*
             The URL first and the name under it, which is the order the reader
             works in: they paste an address, and the box below fills itself with

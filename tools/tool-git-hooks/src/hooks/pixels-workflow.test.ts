@@ -5,6 +5,7 @@ import { scratchSync } from '@tools/test-scratch';
 import { describe, expect, test } from 'bun:test';
 
 interface WorkflowStep {
+  'timeout-minutes'?: number;
   id?: string;
   name?: string;
   if?: string;
@@ -15,6 +16,7 @@ interface WorkflowStep {
 }
 
 interface WorkflowJob {
+  'timeout-minutes'?: number;
   if?: string;
   name?: string;
   needs?: string | string[];
@@ -41,6 +43,22 @@ const workflowPath = join(
 const readWorkflow = (): Workflow => Bun.YAML.parse(readFileSync(workflowPath, 'utf8')) as Workflow;
 
 describe('the CI pixels gate', () => {
+  test('reserves setup and overhead outside the layout and organization budgets', () => {
+    const shardJob = readWorkflow().jobs?.['pixels_shard'];
+
+    expect(shardJob?.['timeout-minutes']).toBe(50);
+  });
+
+  test.each([
+    ['Install chromium', 15],
+    ['Layout gate', 25],
+    ['Activated organization context', 5],
+  ])('bounds %s to %i minutes', (name, minutes) => {
+    const step = jobStep(readWorkflow(), 'pixels_shard', name);
+
+    expect(step['timeout-minutes']).toBe(minutes);
+  });
+
   test('runs every browser shard and makes the stable pixels check depend on them', () => {
     const workflow = readWorkflow();
     const shardJob = workflow.jobs?.['pixels_shard'];
