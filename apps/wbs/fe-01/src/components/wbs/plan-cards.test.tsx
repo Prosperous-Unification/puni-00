@@ -61,6 +61,7 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { claimedPlan } from '@/testing/claims-fixture';
 import { fakeProjectApi as dependencyApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
@@ -2227,6 +2228,62 @@ describe('a step’s node reading, on a card', () => {
     ]);
     expect(readingOnCard(DEV.id, '010')).toBeNull();
     expect(readingOnCard(QA.id, '010')).toBeNull();
+  });
+});
+
+describe('claims on a card (wbs-claim-display 7.1)', () => {
+  const cardOf = (number: string): HTMLElement => {
+    const card = screen.getByLabelText(`Name of ${number}`).closest('article');
+    if (card === null) throw new Error(`No card for ${number}`);
+    return card;
+  };
+  const chips = (scope: Element | null | undefined): string[] =>
+    [...(scope?.querySelectorAll('[data-claim-chip]') ?? [])].map((chip) => chip.textContent);
+
+  itDom('draws a step’s chip beside its assignee, with the lease text', async () => {
+    const { api } = await claimedPlan();
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    await waitFor(() => {
+      expect(chips(cardOf('010.1').querySelector(`[data-step="${DEV.id}"]`))).toEqual(['CO14m']);
+    });
+    const line = cardOf('010.1').querySelector(`[data-step="${DEV.id}"]`);
+    const assignee = line?.querySelector(`[data-card-assignee="${DEV.id}"]`);
+    const chip = line?.querySelector(`[data-card-claim="${DEV.id}"]`);
+    expect(assignee?.textContent).toBe('ada');
+    expect(
+      assignee !== null &&
+        assignee !== undefined &&
+        chip !== null &&
+        chip !== undefined &&
+        assignee.nextElementSibling === chip,
+    ).toBe(true);
+    // The table's text rules: under a minute, releasing, and no lease at all.
+    expect(chips(cardOf('020').querySelector(`[data-step="${DEV.id}"]`))).toEqual(['EV<1m']);
+    expect(chips(cardOf('020').querySelector(`[data-step="${QA.id}"]`))).toEqual(['FIreleasing']);
+    expect(chips(cardOf('030').querySelector(`[data-step="${DEV.id}"]`))).toEqual(['DA']);
+    expect(
+      screen
+        .getByRole('img', {
+          name: "Claimed by codex since 24 Oct 10:42, run r-7, under claire's claim on 010; lease 14 min left",
+        })
+        .getAttribute('data-claim-chip'),
+    ).toBe('c-codex');
+  });
+
+  itDom('draws a subtree claim’s chip in its card’s header, and none under it', async () => {
+    const { api } = await claimedPlan();
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    await waitFor(() => {
+      expect(chips(cardOf('010').querySelector('header'))).toEqual(['CL14m']);
+    });
+    expect(chips(cardOf('010.1').querySelector('header'))).toEqual([]);
+    expect(chips(cardOf('010'))).toEqual(['CL14m']);
   });
 });
 

@@ -24,6 +24,7 @@ function publish(plan: DeliveredPlanStore, delivery: Partial<PlanFeedDelivery>):
       steps: null,
       directory: null,
       markers: null,
+      claims: null,
       staleResources: [],
       treeFailure: null,
       ...delivery,
