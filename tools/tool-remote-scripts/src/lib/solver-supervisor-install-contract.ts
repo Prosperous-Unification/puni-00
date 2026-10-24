@@ -27,8 +27,8 @@ export const SOLVER_SUPERVISOR_BUN_SOURCE = process.execPath;
  * Bun 1.4.4 is measured separately by solver-supervisor-peer.proc.test.ts through
  * source and bundled production listeners with real cross-process SO_PEERCRED.
  * This local candidate proof does not establish host operational acceptance.
+ * Proof: omitting 1.4.4 failed its installer admission test; omitting version validation admitted unmeasured versions (verify-main-sync-bun144.md).
  */
-// Proof: omitting 1.4.4 failed its installer admission test; omitting version validation admitted unmeasured versions (verify-main-sync-bun144.md).
 export const SOLVER_SUPERVISOR_BUN_VERSIONS = ['1.4.2', '1.4.4'] as const;
 export const SOLVER_SUPERVISOR_RUNTIME_DIRECTORY = 'wbs-solver';
 export const SOLVER_SUPERVISOR_SOCKET = '/run/user/1000/wbs-solver/supervisor.sock';
