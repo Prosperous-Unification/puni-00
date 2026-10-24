@@ -38,7 +38,7 @@ export type SessionAccount = { kind: 'password'; user: User } | { kind: 'oidc'; 
 export interface AuthServiceOptions {
   account: AccountResource;
   oidc?: OidcVerifier;
-  /** Accept locally issued password sessions after OIDC verification fails. */
+  /** Accept native password sessions beside OIDC; they verify on the JWT key before any OIDC read. */
   passwordSessions?: boolean;
   /** Fixed cookie-free identity used only by explicit non-production local mode. */
   localIdentity?: AuthenticatedUser;
@@ -253,6 +253,10 @@ export class AuthService {
    * {@link AuthServiceOptions.trustedIssuers} is wired: see
    * {@link authenticateTrustedIssuerToken}. It never falls back to another
    * verifier, and a token of the configured issuer never reaches it.
+   *
+   * **A native session never reads the OIDC verifier**: when password
+   * sessions are admitted it verifies on the JWT key first, so a session
+   * cookie does not wait on issuer discovery (issue #669 F5).
    */
   async authenticateOrRefuse(
     token: string | null,
@@ -270,40 +274,51 @@ export class AuthService {
       const trusted = await this.authenticateTrustedIssuerToken(token, this.opts.trustedIssuers);
       if (trusted !== 'configured_path') return trusted;
     }
-    if (this.opts.oidc !== undefined) {
-      const identity = await this.opts.oidc.verify(token);
-      if (identity === null) {
-        // Proof: falling through while password sessions were disabled made the
-        // literal fallback test authenticate the legacy account instead of null
-        // (auth-service-null-password.test.ts).
-        if (this.opts.passwordSessions !== true) return null;
-      } else if (!identity.groupsClaimed) {
-        // Proof: resolving this through `resolveOidcIdentity` made `refuses an
-        // unlinked machine token as unknown_identity, minting no account` in
-        // `fleet-credential.controller.db.test.ts` mint a second account and
-        // answer 403 instead of 401 (watched 2026-10-20), and made `leaves the
-        // owner's email alone under a groups-less token carrying an email`
-        // write the token's address over Dany's (watched 2026-10-20).
-        const linked = await this.readExistingOidcIdentity(identity);
-        if (linked === null) return 'unknown_identity';
-        return {
-          id: linked.id,
-          username: linked.username,
-          scopes: scopesOfRoles(await this.opts.account.membershipRolesOf(linked.id)),
-          authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
-        };
-      } else {
-        const user = await this.resolveOidcIdentity(identity);
-        if (user === null) return null;
-        return {
-          id: user.id,
-          username: user.username,
-          scopes: identity.scopes,
-          authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
-        };
-      }
+    // A native session verifies on the JWT key alone, before any OIDC read:
+    // the OIDC verifier accepts RS256 only, so it never admits a token the
+    // codec does, and asking it first made every cookie session wait on, and
+    // fail with, issuer discovery (issue #669 F5).
+    // Proof: with the OIDC-first order restored, `verifies a native session
+    // without reading the OIDC verifier` in `auth-service-null-password.test.ts`
+    // failed with the verifier's `only requests to HTTPS are allowed`; with
+    // this condition made always true, `falls back from invalid OIDC only when
+    // password sessions are enabled` authenticated the legacy account instead
+    // of null; both watched 2026-10-24.
+    if (this.opts.oidc === undefined || this.opts.passwordSessions === true) {
+      const native = await this.nativeSessionUser(token);
+      if (native !== null) return native;
     }
+    if (this.opts.oidc === undefined) return null;
+    const identity = await this.opts.oidc.verify(token);
+    if (identity === null) return null;
+    if (!identity.groupsClaimed) {
+      // Proof: resolving this through `resolveOidcIdentity` made `refuses an
+      // unlinked machine token as unknown_identity, minting no account` in
+      // `fleet-credential.controller.db.test.ts` mint a second account and
+      // answer 403 instead of 401 (watched 2026-10-20), and made `leaves the
+      // owner's email alone under a groups-less token carrying an email`
+      // write the token's address over Dany's (watched 2026-10-20).
+      const linked = await this.readExistingOidcIdentity(identity);
+      if (linked === null) return 'unknown_identity';
+      return {
+        id: linked.id,
+        username: linked.username,
+        scopes: scopesOfRoles(await this.opts.account.membershipRolesOf(linked.id)),
+        authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
+      };
+    }
+    const user = await this.resolveOidcIdentity(identity);
+    if (user === null) return null;
+    return {
+      id: user.id,
+      username: user.username,
+      scopes: identity.scopes,
+      authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
+    };
+  }
 
+  /** The account a native session token proves, or null when it is not one or its account is gone. */
+  private async nativeSessionUser(token: string): Promise<AuthenticatedUser | null> {
     const claims = await this.opts.tokens.verify(token);
     if (claims === null) return null;
     const user = await this.opts.account.readAccount(claims.subject);

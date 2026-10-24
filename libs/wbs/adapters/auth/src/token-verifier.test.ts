@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import type { Configuration } from 'openid-client';
 
-import { JwksTokenVerifier } from './token-verifier';
+import { JwksTokenVerifier, oidcTokenVerifierFromEnv } from './token-verifier';
 
 const ISSUER = 'https://idp.example.test/oauth2/default';
 const AUDIENCE = 'api://wbs';
@@ -70,5 +71,40 @@ describe('JwksTokenVerifier', () => {
     expect(verifier().verify(await tokenWith({ expiresAt: now - 60 }))).rejects.toThrow(
       /exp|expired/i,
     );
+  });
+});
+
+describe('oidcTokenVerifierFromEnv', () => {
+  const env = {
+    AUTH_ISSUER_DISCOVERY_URL: ISSUER,
+    AUTH_AUDIENCE: AUDIENCE,
+    AUTH_CLIENT_ID: 'client',
+    AUTH_CLIENT_SECRET: 'secret',
+  };
+
+  it('discovers again once a failed discovery cools down, instead of failing until restart', async () => {
+    let clock = 0;
+    let loads = 0;
+    const verifier = oidcTokenVerifierFromEnv(env, {
+      now: () => clock,
+      discover: () => {
+        loads += 1;
+        if (loads === 1) return Promise.reject(new Error('discovery unavailable'));
+        return Promise.resolve({
+          serverMetadata: () => ({ issuer: ISSUER, jwks_uri: 'https://idp.example.test/keys' }),
+        } as unknown as Configuration);
+      },
+    });
+
+    let failure: unknown;
+    try {
+      await verifier.issuer();
+    } catch (cause) {
+      failure = cause;
+    }
+    expect((failure as Error).message).toBe('discovery unavailable');
+    clock = 60_000;
+    expect(await verifier.issuer()).toBe(ISSUER);
+    expect(loads).toBe(2);
   });
 });

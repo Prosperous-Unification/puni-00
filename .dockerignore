@@ -25,7 +25,8 @@ coverage
 **/*.db-wal
 **/*.db-shm
 
-# The local-solver development entrypoint and its spawner. They must not reach
+# Development entrypoints: the local solver with its spawner, and the activated
+# organization server with its fixture secrets. They must not reach
 # the production image: `COPY apps/wbs/be-01` takes the whole app, and the boundary
 # is this exclusion rather than the directory name.
 apps/wbs/be-01/src/dev

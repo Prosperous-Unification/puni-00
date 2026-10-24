@@ -10,7 +10,12 @@ the historical Okta setup uses the same contract.
 `AUTH_ISSUER_DISCOVERY_URL` is the **issuer URL** passed to OIDC discovery (the
 name is historical). It is not the literal `/.well-known/openid-configuration`
 URL. The issuer must be HTTPS; the OIDC client rejects plain HTTP, including
-localhost.
+localhost, so be-01 and gw-01 refuse to start with any other scheme or an
+unparsable value (`issuerUrlFromEnv` in `@wbs/auth`). When password sessions
+are on, a native session never reads the OIDC verifier, in authentication or in
+be-01's per-route credential evidence, so it keeps working while discovery
+fails; an OIDC token still answers 500 then. A failed discovery is retried after
+a short cooldown rather than held until restart.
 
 The provider must supply:
 
