@@ -9,6 +9,7 @@ import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
+import { MeasureEstimateRepository } from './measure-estimate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
@@ -18,6 +19,7 @@ import { StepParallelRepository } from './step-parallel';
 import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 /**
  * Every row one capture read, as the stores returned it.
@@ -185,6 +187,14 @@ export async function readPlanInputIn(
   // Proof: snapshot read replaced with empty; concurrent-clear sparse capture failed (sqlite-read.txt), 2026-10-17.
   const stepParallels = await new StepParallelRepository(db, OPEN).listByProject(projectId);
   const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
+  // On the snapshot with the facts, so a saved plan pairs each budget with
+  // the figures it bounds (`wbs-measure-budgets` design D66).
+  // Proof: with either read replaced by `[]`, the SQLite run of the
+  // conformance case `savedPlanCapture.readPlanInput:complete` captured none
+  // (source-conformance.db.test.ts: 75 pass became 68 pass, 7 fail, for each
+  // read alone); watched 2026-10-23.
+  const measureEstimates = await new MeasureEstimateRepository(db, OPEN).listByProject(projectId);
+  const budgets = await new WorkItemBudgetRepository(db, OPEN).listByProject(projectId);
   const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
   const typedDependencies = (
     await new TypedDependencyRepository(db, OPEN).listByProject(projectId)
@@ -241,6 +251,8 @@ export async function readPlanInputIn(
     stepBlockages,
     stepParallels,
     measures,
+    measureEstimates,
+    budgets,
     dependencies,
     // Proof: omitting this snapshot read made `keeps captured node endpoints after step reorder and live relationship removal` receive undefined (2026-09-27).
     typedDependencies,

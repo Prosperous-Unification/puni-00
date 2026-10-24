@@ -179,6 +179,7 @@ const PUBLIC_OPERATIONS = [
 ] as const;
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
+  'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganization',
   'getApiOrganizationDomains',
@@ -208,6 +209,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
@@ -388,6 +390,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiAuthMethods',
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
+  'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganizationMemberships',
   'getApiOrganizationActive',
@@ -416,6 +419,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',

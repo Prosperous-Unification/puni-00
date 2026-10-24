@@ -32,6 +32,7 @@ export const planFixtureRows: PlanInputRows = {
     pertWeightRealistic: 4,
     pertWeightPessimistic: 1,
     timezone: 'UTC',
+    budgetFactor: 1.25,
   },
   workItems: [
     {
@@ -120,9 +121,64 @@ export const planFixtureRows: PlanInputRows = {
   ],
   measures: [
     // Same item, same metric, two steps — the pair `stepId` was dropped from.
-    { workItemId: 'w2', stepId: 's2', metric: 'tokens', value: 300 },
-    { workItemId: 'w2', stepId: 's1', metric: 'tokens', value: 1200 },
-    { workItemId: 'w2', stepId: 's1', metric: 'hours', value: 8 },
+    {
+      workItemId: 'w2',
+      stepId: 's2',
+      metric: 'tokens',
+      value: 300,
+      currency: null,
+      rateCardDigest: null,
+    },
+    {
+      workItemId: 'w2',
+      stepId: 's1',
+      metric: 'tokens',
+      value: 1200,
+      currency: null,
+      rateCardDigest: null,
+    },
+    {
+      workItemId: 'w2',
+      stepId: 's1',
+      metric: 'hours',
+      value: 8,
+      currency: null,
+      rateCardDigest: null,
+    },
+    {
+      workItemId: 'w2',
+      stepId: 's1',
+      metric: 'cost',
+      value: 2_500_000,
+      currency: 'USD',
+      rateCardDigest: 'sha256:a',
+    },
+  ],
+  measureEstimates: [
+    {
+      workItemId: 'w2',
+      stepId: 's2',
+      key: 'tokens',
+      optimistic: 100,
+      realistic: 200,
+      pessimistic: 600,
+      currency: null,
+      rateCardDigest: null,
+    },
+    {
+      workItemId: 'w2',
+      stepId: 's1',
+      key: 'cost',
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 4,
+      currency: 'USD',
+      rateCardDigest: 'sha256:a',
+    },
+  ],
+  budgets: [
+    { workItemId: 'w2', key: 'tokens', cap: 5000, policy: 'strict', holdPerAttempt: 300 },
+    { workItemId: 'w1', key: 'cost', cap: 9_000_000, policy: 'advisory', holdPerAttempt: null },
   ],
   dependencies: [
     { predecessorId: 'w2', successorId: 'w1' },

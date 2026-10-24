@@ -228,7 +228,7 @@ describe('resources in an organization', () => {
       expect(exported).toMatchObject({
         status: 200,
         body: {
-          document: { version: 10 },
+          document: { version: 11 },
           directory: {
             resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
           },

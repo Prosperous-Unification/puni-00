@@ -56,12 +56,11 @@ export const approveSharedPeopleRestore = defineEndpointShape({
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
-    {
-      status: 409,
-      schema: responseSchema(
-        type({ error: "'organization_required' | 'restore_approval_conflict'" }),
-      ),
-    },
+    // Two arms rather than one enumerated error: `organization_required` also
+    // carries a command position from a measure batch, so its refusal variants
+    // are a union TypeScript cannot match against an enumerated `error`.
+    { status: 409, schema: responseSchema(type({ error: "'organization_required'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'restore_approval_conflict'" })) },
   ],
   document: {
     summary: 'Personally approve a shared people backup restore in the active organization.',

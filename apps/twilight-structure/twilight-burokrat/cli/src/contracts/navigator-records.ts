@@ -41,8 +41,10 @@ export const PlanReferenceRecord = type({
   // Original wire version; historical records retain their digest and continue decoding.
   // Proof: omitting 9 failed its decode test (RED); admitting 10 failed the future-version
   // refusal in navigator-records.test.ts (2026-10-15). Omitting 10 failed its decode test;
-  // admitting 11 failed the future-version refusal (2026-10-20).
-  planDocumentVersion: '6 | 7 | 8 | 9 | 10',
+  // admitting 11 failed the future-version refusal (2026-10-20). Omitting 11 failed its
+  // decode test and Navigator's v11 plan-reference test; admitting 12 failed the
+  // future-version refusal (2026-10-24).
+  planDocumentVersion: '6 | 7 | 8 | 9 | 10 | 11',
   exportDigest: Sha256,
   // Proof: widening tasksDigest to string failed Navigator `refuses a malformed task digest`
   // before-writing diagnostic in receipt-to-commands.test.ts (2026-10-14).

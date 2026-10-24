@@ -2633,6 +2633,8 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
         'Add child',
         'Move under…',
         'Duplicate',
+        // The table's own Measures… (`wbs-measure-budgets` task 4.3).
+        'Measures…',
         'Unfreeze',
         'Delete',
       ]);

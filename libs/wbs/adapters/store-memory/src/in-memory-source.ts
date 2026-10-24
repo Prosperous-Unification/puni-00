@@ -3,6 +3,7 @@ import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 import { inMemoryActuals } from './actual-fixture';
 import { inMemoryAttempts } from './attempt-fixture';
 import { inMemoryUsers } from './auth-fixture';
+import { inMemoryBudgets } from './budget-fixture';
 import { inMemoryCalendarMarkers } from './calendar-marker-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
 import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
@@ -11,7 +12,8 @@ import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryDirectory, memoryDirectoryTables } from './directory-fixture';
 import { inMemoryEstimates, memoryEstimateTable } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
-import { inMemoryMeasures } from './measure-fixture';
+import { inMemoryMeasureEstimates, memoryMeasureEstimateTable } from './measure-estimate-fixture';
+import { inMemoryMeasures, memoryMeasureTable } from './measure-fixture';
 import { inMemoryWorkItems, memoryWorkItemTables } from './memory-work-item-fixture';
 import { inMemoryPriorityBands } from './priority-band-fixture';
 import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
@@ -48,7 +50,21 @@ export function inMemoryStores(): TransactionalStores {
   const steps = inMemorySteps([], undefined, estimateTable, { table: parallelTable, workItems });
   const estimates = inMemoryEstimates(workItems, estimateTable, steps);
   const actuals = inMemoryActuals(workItems, undefined, steps);
-  const measures = inMemoryMeasures(workItems, undefined, steps);
+  const measureTable = memoryMeasureTable();
+  const measureEstimateTable = memoryMeasureEstimateTable();
+  const measures = inMemoryMeasures(
+    workItems,
+    measureTable,
+    steps,
+    undefined,
+    measureEstimateTable,
+  );
+  const measureEstimates = inMemoryMeasureEstimates(
+    workItems,
+    measureTable,
+    measureEstimateTable,
+    steps,
+  );
   const progressTable = memoryProgressTable();
   const progress = inMemoryProgress(workItems, progressTable, steps);
   const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
@@ -64,6 +80,8 @@ export function inMemoryStores(): TransactionalStores {
     estimates,
     actuals,
     measures,
+    measureEstimates,
+    budgets: inMemoryBudgets(workItems),
     progress,
     attempts,
     stepParallels: inMemoryStepParallels(workItems, steps, parallelTable),

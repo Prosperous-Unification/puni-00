@@ -117,10 +117,19 @@ describe('canonicalisePlanInput', () => {
    * figure the record keeps — the plan says 1200 for Build and 300 for Test.
    */
   it('keeps one measure per step, not one per item and metric', () => {
+    const unpriced = { currency: null, rateCardDigest: null };
     expect(canonicalisePlanInput(rows).measures).toEqual([
-      { workItemId: 'w2', stepId: 's1', metric: 'hours', value: 8 },
-      { workItemId: 'w2', stepId: 's1', metric: 'tokens', value: 1200 },
-      { workItemId: 'w2', stepId: 's2', metric: 'tokens', value: 300 },
+      {
+        workItemId: 'w2',
+        stepId: 's1',
+        metric: 'cost',
+        value: 2_500_000,
+        currency: 'USD',
+        rateCardDigest: 'sha256:a',
+      },
+      { workItemId: 'w2', stepId: 's1', metric: 'hours', value: 8, ...unpriced },
+      { workItemId: 'w2', stepId: 's1', metric: 'tokens', value: 1200, ...unpriced },
+      { workItemId: 'w2', stepId: 's2', metric: 'tokens', value: 300, ...unpriced },
     ]);
   });
 
@@ -220,6 +229,8 @@ describe('canonicalisePlanInput round trip', () => {
           progress: 'in_progress',
         })),
         measures: [],
+        measureEstimates: [],
+        budgets: [],
         dependencies: [],
         typedDependencies: [],
         assignments: [],

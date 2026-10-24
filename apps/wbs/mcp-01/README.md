@@ -18,12 +18,15 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-89 tools in all:
+91 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the saved-reference delivery read, which observes public GitHub delivery without changing planning progress;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
   claimed);
+- the budget headroom read (`getApiProjectsByIdBudget-headroom`: per startable and claimed step,
+  the tightest budget per measure with what is spent, held and remaining, set with the `setBudget`
+  and `clearBudget` batch kinds);
 - the by-person read (`getApiProjectsByIdPeopleByPersonIdWork`: one person's assignments and
   claims in a project, each claim with its lease expiry);
 - the claims read (`getApiProjectsByIdClaims`: every claim held in a project, with holder, run,
@@ -35,6 +38,9 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   claim an agent takes for itself is released 15 minutes after its last write unless renewed);
 - the project resource read (`getApiProjectsByIdResources`: the directory's resources, the
   project's capacities and demands);
+- the measure definition read (`getApiMeasures`: the organization's measure definitions, the five
+  seeded and any it defined, written with the `createMeasure`, `patchMeasure` and `deleteMeasure`
+  directory commands, which only an organization admin or super-admin may send);
 - the two person-load reads, the project rank read and move;
 - the organization's capacity-mode read and switch (the switch refuses every delegated caller and
   so answers an MCP client with 403);

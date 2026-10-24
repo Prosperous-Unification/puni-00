@@ -1321,3 +1321,21 @@ describe('a column this browser has dragged to another width', () => {
     expect(sizableColumn('serviec', DATED)).toBe(false);
   });
 });
+
+describe('measure columns (wbs-measure-budgets D7)', () => {
+  it('lays every measure column at its declared width', () => {
+    for (const id of [
+      'measure-tokens-estimate',
+      'measure-tokens-fact',
+      'measure-tokens-variance',
+      'measure-agent_minutes-fact',
+    ]) {
+      expect(widthFor(id, DATED), id).toBe(96);
+      expect(sizableColumn(id, DATED), id).toBe(true);
+    }
+  });
+
+  it('leaves the default column set, and so the folded budget, untouched', () => {
+    expect(DEFAULT_COLUMN_SET.some((id) => id.startsWith('measure-'))).toBe(false);
+  });
+});
