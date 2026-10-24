@@ -1,17 +1,18 @@
 ## Context
 
-What exists, read on 2026-10-24 at `2e0ab3245`:
+What exists, read on 2026-10-24 at `2e0ab3245`; counts and line numbers re-derived at
+`0b1dddaa0` (main after #663, #704 and #706) for the Fable review's amendments:
 
-| Need                           | Exists today                                                                                                                                                                                                                                                                                                                                                     | Missing                                                                     |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Who may act in an organization | `organization_membership (organization_id, user_id, role)` with `ORGANIZATION_ROLES` (`stored-vocabularies.ts`); `OrganizationAccess.resolve` answers one `OrganizationScope { organizationId, userId, role, delegated? }` per request                                                                                                                           | any authority narrower than the organization                                |
-| The role checks                | `organization-access.ts` in `@wbs/domain`: `canWriteInOrganization`, `mayBindAccountInOrganization`, `canEditProjectInOrganization`, `classifyProjectEdit`, `mayAdministerMembership`, `mayInvite`; in `@wbs/core`: `mayEditProjectWithin`, `findProjectWithin`, `isClaimAdmin`, `maySwitchCapacityMode`, `machineCredentialReachOf`, `scopesOfRoles`            | one check that names a permission                                           |
-| Where the role is read         | 11 sites in `@wbs/core` read `scope.role` directly; the stores read it again inside the write transaction (`admitEditInOrganization`, `mayInvite` in `invitation.ts`, `mayAdministerMembership` in `organization.ts`, `super_admin` in `domain-claim.ts`, `enterprise-connection.ts`, `shared-people-restore*.ts`, `session-policy.ts`, `provisioning-token.ts`) | a store port that answers an effective level inside the same transaction    |
-| What a project is              | `project` with `owner_id` and `restricted`; `project_organization (resource_id, organization_id)` owns it; `canEditProject` is the creator rule                                                                                                                                                                                                                  | the project → work package split (`wbs-work-packages`, E1 to E3)            |
-| A grant's subject              | `users.id`; `person.account_id` binds an agent person to an account; a machine principal acts as that account with `authentication.kind` `machine` or `consent` and is capped by `organizationRoleOf` (A23)                                                                                                                                                      | a group of accounts; a members-wide subject                                 |
-| Listing                        | `listForInOrganization(userId, organizationId)` and the spaces' omit-never-hint rule (`space-authorization`)                                                                                                                                                                                                                                                     | a list filtered by grants in one statement                                  |
-| Audit                          | `organization_audit` with 23 actions and 9 subject kinds, widened by compatible rebuild (`20261012090200`, `20261022110000`)                                                                                                                                                                                                                                     | grant and group acts                                                        |
-| The technical basis            | [Authorization model research](../../../docs/wbs/research/2026-10-23-authorization-model.md): typed grant table, seeded role catalogue, strongest-wins down the scope chain, `MIN(MAX(level), cap)`, permissions not roles, one EXISTS listing query, in-transaction check, backfill, deny and custom roles addable without reshaping grants                     | the owner's answers to its open questions Q1 to Q6: E7, and P1 to P14 below |
+| Need                           | Exists today                                                                                                                                                                                                                                                                                                                                                     | Missing                                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Who may act in an organization | `organization_membership (organization_id, user_id, role)` with `ORGANIZATION_ROLES` (`stored-vocabularies.ts`); `OrganizationAccess.resolve` answers one `OrganizationScope { organizationId, userId, role, delegated? }` per request                                                                                                                           | any authority narrower than the organization                                               |
+| The role checks                | `organization-access.ts` in `@wbs/domain`: `canWriteInOrganization`, `mayBindAccountInOrganization`, `canEditProjectInOrganization`, `classifyProjectEdit`, `mayAdministerMembership`, `mayInvite`; in `@wbs/core`: `mayEditProjectWithin`, `findProjectWithin`, `isClaimAdmin`, `maySwitchCapacityMode`, `machineCredentialReachOf`, `scopesOfRoles`            | one check that names a permission                                                          |
+| Where the role is read         | 13 sites in `@wbs/core` read `scope.role` directly; the stores read it again inside the write transaction (`admitEditInOrganization`, `mayInvite` in `invitation.ts`, `mayAdministerMembership` in `organization.ts`, `super_admin` in `domain-claim.ts`, `enterprise-connection.ts`, `shared-people-restore*.ts`, `session-policy.ts`, `provisioning-token.ts`) | a store port that answers an effective level inside the same transaction                   |
+| What a project is              | `project` with `owner_id` and `restricted`; `project_organization (resource_id, organization_id)` owns it; `canEditProject` is the creator rule                                                                                                                                                                                                                  | the project → work package split (`wbs-work-packages`, E1 to E3)                           |
+| A grant's subject              | `users.id`; `person.account_id` binds an agent person to an account; a machine principal acts as that account with `authentication.kind` `machine` or `consent` and is capped by `organizationRoleOf` (A23)                                                                                                                                                      | a group of accounts; a members-wide subject; a machine credential as its own subject (P17) |
+| Listing                        | `listForInOrganization(userId, organizationId)` and the spaces' omit-never-hint rule (`space-authorization`)                                                                                                                                                                                                                                                     | a list filtered by grants in one statement                                                 |
+| Audit                          | `organization_audit` with 23 actions and 9 subject kinds, widened by compatible rebuild (`20261012090200`, `20261022110000`)                                                                                                                                                                                                                                     | grant and group acts                                                                       |
+| The technical basis            | [Authorization model research](../../../docs/wbs/research/2026-10-23-authorization-model.md): typed grant table, seeded role catalogue, strongest-wins down the scope chain, `MIN(MAX(level), cap)`, permissions not roles, one EXISTS listing query, in-transaction check, backfill, deny and custom roles addable without reshaping grants                     | the owner's answers to its open questions Q1 to Q6: E7, and P1 to P14 below                |
 
 Three facts shape the design. First, the stores already re-check the role inside the
 write's transaction (`admitEditInOrganization` refuses "an actor demoted on another
@@ -29,7 +30,8 @@ the engagement, tables `work_package` and `work_package_organization`, command k
 rows are the work package scope, P1) and may land before #698 slice 1. Slices 3 to 7 run
 after #698 slice 1, because their routes, tests and matrix use its names; slice 3's
 project-scope rules (create, import and move at the named project, project grants,
-`project.read`) also wait for #698 slice 2's project entity.
+`project.read`) also wait for #698 slice 2's project entity, and so does slice 3's listing
+statement (task 3.2), which joins `work_package.project_id`.
 
 ## Goals / Non-Goals
 
@@ -40,9 +42,10 @@ permission)`; unreadable objects are absent and 404; grants are administered, li
 audited in the organization; dev data keeps today's behaviour through a backfill.
 
 **Non-Goals:** deny rules, custom roles, space-scoped grants, group sync from SSO or SCIM,
-nested groups, changes to claim semantics, production activation, the behaviour behind
-`project.manage_budgets` (owned by `wbs-measure-budgets`) and `project.manage_dependencies`
-(owned by cross-package dependencies).
+nested groups, changes to claim semantics, production activation, the budgets' behaviour
+(owned by `wbs-measure-budgets`; this change only gates `setBudget` and `clearBudget` by
+`project.manage_budgets`), the behaviour behind `project.manage_dependencies` (owned by
+cross-package dependencies), and renaming access roles at runtime (P18).
 
 ## Decisions
 
@@ -50,7 +53,11 @@ E7, E8 and E9 are Dany's (2026-10-23/24) and fixed. P1 to P16 are **assumed** by
 draft; each is overrulable by id without moving another decision unless noted. After the
 review of 2026-10-24 the coordinator revised P5, P9 and P10, kept P4 and P7 with their
 consequences stated in "What breaks", and added P15 and P16; each revision names its
-reason, and Dany may overturn any of them by id. The
+reason, and Dany may overturn any of them by id. After the Fable review of PR #699
+(findings PM-1 to PM-11, puni-plan `reviews/699-wbs-permissions.md`) the coordinator added
+P17, which overrides P2, and P18, both awaiting Dany's confirmation, and amended P10 (one
+shared refusal type), P11 (who removes an organization-role holder), P12 (the cap over a
+credential's own grants) and the matrix (re-derived at `0b1dddaa0`). The
 research note's open questions map: Q1 → E7 (access group), Q2 → P2, Q3 → P1, Q4 → P3,
 Q5 → P5, Q6 → P4.
 
@@ -64,8 +71,8 @@ estimates and claims across the project's packages; no settings or budgets),
 `project-viewer`; `package-manager`, `package-contributor`, `package-viewer` (the same
 inside one work package). Plain membership can be granted and sees nothing until granted,
 except the member's own agent persons and credentials. A grant is (principal, scope,
-role). Principals: an account (a human, or a machine credential acting through its agent
-person's bound account), an **access group** (new entity, members are accounts, used only
+role). Principals: an account, a **machine credential** (P17: it holds only the grants
+naming it), an **access group** (new entity, members are accounts, used only
 by grants; service teams stay planning labels), or **organization members** (every current
 member). The effective role on a work package is the strongest grant on it, its project
 or its organization, held directly or through a group. Machine principals are capped at
@@ -93,7 +100,8 @@ Nesting would add ancestors to the `scope` CTE and nothing else.
 memberships do. A machine credential is not a subject: it acts as its agent person's bound
 account, which is a human member's account (`wbs-machine-credentials` A12), so the same
 rows serve the human and the machine, and the **machine cap** (P12) is what tells them
-apart.
+apart. _Overridden 2026-10-24 by P17 (awaits Dany's confirmation): a machine credential is a
+grant subject, and its bound account's grants no longer reach it._
 
 **P3. A package-only grant reveals its project's shell.** A principal whose only grant in
 a project is on one of its work packages may read that project's id and name, and nothing
@@ -182,7 +190,13 @@ collections (members, invitations, join requests, limits, domains, SSO connectio
 provisioning tokens, trusted issuers, compute providers, grants, access groups) included.
 A command batch names the first refused command's permission. Delegations keep today's
 `403 insufficient_scope` on administration routes; a machine principal's refusals come
-from the cap and read as `forbidden` with the permission.
+from the cap and read as `forbidden` with the permission. _Typed once (2026-10-24, review
+PM-6):_ `permission` is one shared `forbiddenRefusal` constant in `@wbs/contracts` whose
+field is a single `type.enumerated(...PERMISSIONS)`, and every 403 shape reuses that
+constant; no route declares its own literal subset of permissions. Per-route subsets would
+repeat the enumeration across the 86 `status: 403` declarations of `@wbs/contracts`, the
+cost `wbs-measure-budgets` D47 removed from the command refusals and
+`contracts-boot-memory.test.ts` bounds at 500 MB.
 
 **P11. Who grants what.** `org-super-admin` grants and revokes organization roles
 (`organization.manage_organization_roles`); `org-admin` grants and revokes project and
@@ -191,7 +205,10 @@ package roles at any scope and administers access groups (`organization.manage_a
 granter never binds a role whose level exceeds their own effective level at the target
 scope for that role's kind, evaluated without P5's restriction rule (the Kubernetes
 escalation rule, today's `mayAdministerMembership`). Revoking the last `org-super-admin` grant, or removing that
-member, is refused `409 last_super_admin` in the store's transaction. A member's removal
+member, is refused `409 last_super_admin` in the store's transaction. Removing a member needs
+`organization.manage_members`; removing one who holds an organization-role grant directly
+(`org-admin` or `org-super-admin`) also needs `organization.manage_organization_roles`, as
+revoking that grant does (review PM-11). A member's removal
 deletes their grants and group memberships in the same transaction, audited once.
 Invitations and join-request approvals carry an optional initial grant from the catalogue
 (`org-admin`, `org-viewer`, `project-contributor` or `project-viewer` at organization
@@ -200,10 +217,13 @@ the organization's creator, who is `org-super-admin`.
 
 **P12. Machine cap at check and at grant.** The evaluator applies `cap = 2` when the
 principal's `authentication.kind` is `machine` or `consent`, `5` otherwise:
-`MIN(MAX(level), cap)`. The cap holds through groups and the organization-members subject.
+`MIN(MAX(level), cap)`. A machine principal's only subject is its credential (P17), so
+groups and the organization-members subject never reach it; the cap holds over the
+credential's own grants.
 A grant write by a machine principal is refused `403 forbidden` naming the grant permission
-before any row is read, because every grant permission needs level 3 or more. There is no
-machine-specific subject to refuse (P2). `package.claim_for_others` needs level 3, which
+before any row is read, because every grant permission needs level 3 or more. A grant
+naming a machine credential as its subject is an ordinary grant write by a human granter
+(P17). `package.claim_for_others` needs level 3, which
 keeps A23's "no claim-admin bypass for a machine".
 
 **P13. One port, one query, one listing.** `@wbs/domain` gains the pure
@@ -247,6 +267,43 @@ gates `createProject` and `importProject` (today's names; `createWorkPackage` an
 `project.manage_packages` at the project the body names, adds `moveWorkPackage` at both
 projects and gates the new `/api/projects` family (permission-matrix.md).
 
+**P17. A machine credential is a grant subject.** _Added 2026-10-24 after the Fable review
+(PM-1); overrides P2; awaits Dany's confirmation._ E7 names machine principals as grantees
+and the proposal needs an agent confined to one engagement whatever its human holds, which
+P2's "the same rows serve the human and the machine" cannot express. A grant may name
+`subject_kind = 'machine_credential'` with `subject_id = machine_credential.id` (every
+credential source: API key, trusted-issuer OIDC, MCP consent). When `authentication.kind`
+is `machine` or `consent`, the evaluator's `subject` CTE is the single row
+`('machine_credential', :credential)`: the bound account's `user` row, its access groups
+and the organization-members subject are dropped, so the agent holds only its own grants.
+Membership is still read from the bound account (`403 not_a_member` once it leaves) and the
+A23 cap stays (`MIN(level, 2)`, P12). A new credential starts with no grants. Granting to
+or revoking from a credential needs the same permission as granting to or revoking from a
+person (P11) and may not bind a role above the granter's own effective role at that scope
+(no escalation); a role above contributor may be granted and reads as contributor, because
+the cap is evaluated, not stored. Revoking a credential, or the `deletePerson … cascade`
+that revokes it, deletes its grants in the same transaction with one `access_revoked` row
+each (origin `cascade`). Backfill: at migration time each unrevoked credential whose person
+is bound to a current member receives a copy of that account's backfilled grants capped at
+contributor (`org-super-admin` and `org-admin` become `project-contributor` at organization
+scope, matching A23's "acts as member"; `org-viewer`, `project-contributor` and
+`project-viewer` are copied unchanged; an owner's `package-manager` becomes
+`package-contributor` at that package), `origin = 'backfill'`, so dev agents and the fleet
+credential keep today's reach across the swap. `revoke-backfill` (P15) deletes the
+organization-scope `project-contributor` and `project-viewer` copies with the members'
+rows, so after it an agent sees nothing until a grant names its credential. The
+groups-less upstream token of `wbs-team-claims` D6b (`authentication.kind = 'upstream'`,
+`scopesOfRoles`) is not a machine credential: it acts as its linked account, with that
+account's grants, as it does today.
+
+**P18. Access roles are not renamed at runtime.** _Added 2026-10-24 after the Fable review
+(PM-4); awaits Dany's confirmation._ Dany's "rename the roles" (E7) is the vocabulary change
+this change already makes: `super_admin`, `admin`, `member` and `viewer` become
+`org-super-admin`, `org-admin`, `org-viewer`, `project-*` and `package-*`. Renaming a role
+at runtime is a non-goal: `access_role.id` stays the role's only name, with no display-name
+column and no rename route. Custom roles, a later change (P9), are where an organization
+would name its own.
+
 ## Tables
 
 All additive, one migration `add_access_grants` with `down.sql`; names are SQLite.
@@ -284,7 +341,8 @@ CREATE TABLE access_grant (
   organization_id text NOT NULL REFERENCES organization(id),
   scope_kind      text NOT NULL CHECK (scope_kind IN ('organization','project','work_package')),
   scope_id        text NOT NULL,
-  subject_kind    text NOT NULL CHECK (subject_kind IN ('user','group','organization_members')),
+  subject_kind    text NOT NULL CHECK (subject_kind IN ('user','group','organization_members',
+                                                       'machine_credential')),   -- P17
   subject_id      text NOT NULL,
   role_id         text NOT NULL REFERENCES access_role(id),
   origin          text NOT NULL CHECK (origin IN ('backfill','route','invitation','creation')),
@@ -307,7 +365,8 @@ Invariants the store checks in the grant's transaction (each with a negative):
 - A `user` subject is a current member (`organization_membership` row) of
   `organization_id`, else `409 not_a_member`; a `group` subject is a group of the
   organization, else `404 unknown_group`; an `organization_members` subject has
-  `subject_id = organization_id`, enforced by a trigger.
+  `subject_id = organization_id`, enforced by a trigger; a `machine_credential` subject is
+  an unrevoked credential of `organization_id`, else `404 unknown_credential` (P17).
 - A duplicate grant answers `409 already_granted` and writes nothing.
 - The granter's permission and level (P11); the last-super-admin rule (P11); the machine
   cap (P12).
@@ -318,8 +377,9 @@ Invariants the store checks in the grant's transaction (each with a negative):
 ## Permission vocabulary
 
 Twenty-one permissions over four evaluation kinds. The full inventory of every
-plan-command kind (54), every directory command (18 of those 54) and every route family
-(128 contract endpoints today, 150 after #698 and this change) with its permission is
+plan-command kind (61), every directory command (21 of those 61) and every route family
+(133 contract endpoints today, 155 after #698 and this change; counted at `0b1dddaa0`) with
+its permission is
 [permission-matrix.md](permission-matrix.md), which is the heart of this change and the
 source the tests enumerate.
 
@@ -338,7 +398,7 @@ source the tests enumerate.
 | `organization.recover_restricted`        | organization | 5         | org-super-admin                             |
 | `project.read`                           | project      | 1         | project-viewer and up, org-viewer and up    |
 | `project.manage_settings`                | project      | 3         | project-manager, org-admin, org-super-admin |
-| `project.manage_budgets`                 | project      | 3         | reserved for `wbs-measure-budgets`          |
+| `project.manage_budgets`                 | project      | 3         | project-manager, org-admin, org-super-admin |
 | `project.manage_dependencies`            | project      | 3         | reserved for cross-package dependencies     |
 | `project.manage_packages`                | project      | 3         | project-manager, org-admin, org-super-admin |
 | `project.grant`                          | project      | 3         | project-manager, org-admin, org-super-admin |
@@ -353,8 +413,11 @@ WBS table needs, the spaces and the project shells that lead to a package (P3) a
 list's subset.
 Organization-kind permissions consider organization roles only; project-kind consider
 organization and project roles; package-kind consider all three. `project.manage_budgets`
-and `project.manage_dependencies` are seeded names with no route behind them here, so a
-later change adds behaviour without renumbering.
+gates the live `setBudget` and `clearBudget` plan commands (`definitions.ts:244,257`; the
+budgets' behaviour stays `wbs-measure-budgets`'), checked at the batch's work package's
+project, which is the organization row only until #698 slice 2 (review PM-2).
+`project.manage_dependencies` is a seeded name with no route behind it here, so a later
+change adds behaviour without renumbering.
 
 ## The `may` port
 
@@ -420,20 +483,23 @@ switches every caller to `ScopeChain`. Every existing check becomes one call:
 | `isClaimAdmin(access)`                                                                             | `package.claim_for_others` at the package                                                                                                                                                           |
 | `maySwitchCapacityMode` and `roleMaySwitchCapacityMode`                                            | `organization.manage_capacity_mode`; delegations still refused                                                                                                                                      |
 | `machineCredentialReachOf`                                                                         | `every` when `organization.manage_directory` holds, else `own`; machines and delegations `none`                                                                                                     |
-| `scopesOfRoles` (`editor` for admins)                                                              | `editor` when the organization-kind level is 4 or more                                                                                                                                              |
+| `scopesOfRoles` (`editor` for admins)                                                              | `editor` when the organization-kind level is 4 or more; it serves the groups-less upstream token (`wbs-team-claims` D6b, authentication kind `upstream`), which the cap does not reach (P17)        |
+| `mayDefineMeasuresInOrganization` (measure definitions; plan import, `plan-import.feature.ts:212`) | `organization.manage_directory`                                                                                                                                                                     |
+| work package rank move's admin check (`project-rank.resource.ts:61`)                               | `organization.manage_spaces`                                                                                                                                                                        |
 | `organizationRoleOf` (A23 cap)                                                                     | the evaluator's `cap` (P12)                                                                                                                                                                         |
-| directory "every agent" visibility (`directory.resource.ts:1739`)                                  | `organization.manage_directory`                                                                                                                                                                     |
+| directory "every agent" reach (`directory.resource.ts:1753`, inside `machineCredentialReachOf`)    | `organization.manage_directory`                                                                                                                                                                     |
 | `super_admin` exceptions in `step.resource.ts`, `save-plan.ts`, `project.resource.ts`              | removed; the only recovery is the audited flag clear (P5)                                                                                                                                           |
 | store-side `super_admin` reads (domains, SSO, session policy, provisioning, shared-people restore) | `organization.manage_security` evaluated in the same transaction                                                                                                                                    |
 
 ### Effective level of one principal on one work package
 
 ```sql
-WITH subject(kind, id) AS (
-  SELECT 'user', :user
+WITH subject(kind, id) AS (   -- :machine = 1 for authentication kind machine or consent (P17)
+  SELECT 'machine_credential', :credential WHERE :machine = 1
+  UNION ALL SELECT 'user', :user WHERE :machine = 0
   UNION ALL SELECT 'group', group_id FROM access_group_member
-            WHERE organization_id = :org AND user_id = :user
-  UNION ALL SELECT 'organization_members', :org
+            WHERE organization_id = :org AND user_id = :user AND :machine = 0
+  UNION ALL SELECT 'organization_members', :org WHERE :machine = 0
 ),
 scope(kind, id, organization_wide) AS (VALUES
   ('organization', :org, 1), ('project', :project, 0), ('work_package', :work_package, 0))
@@ -462,7 +528,10 @@ organization targets bind `:restricted = 0` (only a work package carries the fla
 5 otherwise. SQLite's two-argument `MIN` is NULL when `MAX` is, and NULL is "invisible".
 Negatives (task 1.3): drop the kind filter and a `package-manager` grant at organization
 scope satisfies `project.manage_settings`; drop the P5 clause and an `org-viewer` reads a
-restricted package; drop the `CASE` and an `org-admin` writes one.
+restricted package; drop the `CASE` and an `org-admin` writes one; drop the `:machine = 0`
+guards and an `org-admin`'s agent writes a work package no grant of its credential names.
+`:user` stays the bound account for a machine principal, so the membership `EXISTS` holds
+for both kinds.
 
 ### Listing without N queries
 
@@ -487,7 +556,8 @@ WHERE wpo.organization_id = :org AND EXISTS (
 grants are read once; with any organization-scope grant the list is every unrestricted
 package plus the restricted ones a project or package grant reaches, or every restricted
 one for an `org-admin` or `org-super-admin` (P5). The statement runs from slice 3, after
-#698 slice 1 gives these names and slice 2 `work_package.project_id`. Spaces, roll-ups,
+#698 slice 1 gives these names and slice 2 `work_package.project_id`, so task 3.2 runs after
+#698 slice 2 (review PM-5). Spaces, roll-ups,
 person load, startable reads, work package rank and every other cross-package read filter
 through `readablePackageIds`, as `space-authorization` already demands. A project is in
 `GET /api/projects` when `project.read` holds at it, or as a shell (id and name) when one of
@@ -509,6 +579,8 @@ Routes, all under the organization, excluded from MCP tools like credential rout
 | `POST /api/organization/access-groups/:id/members` (`addGroupMember`)              | `organization.manage_access`; `409 not_a_member` for a non-member                      |
 | `DELETE /api/organization/access-groups/:id/members/:userId` (`removeGroupMember`) | `organization.manage_access`                                                           |
 
+`subjectKind` is `user`, `group`, `organization_members` or `machine_credential` (P17); a
+credential subject takes the same permission and escalation rule as a person.
 `PATCH /api/organization/members/:userId` (`changeMemberRole`) is removed; `listMembers`
 answers each member's organization-kind effective role (or none) and grant count instead
 of `role`. `GET /api/organization/members` opens to `organization.read` (P4). Grant
@@ -526,6 +598,9 @@ user, org-super-admin)`, `admin` → `org-admin`, `member` → `project-contribu
   `project_organization` when slice 1 precedes #698 slice 1, `work_package` and
   `work_package_organization` after it): `(work_package, id, owner_id, package-manager)`
   when the owner is a current member of that organization (P6).
+- For every unrevoked machine credential whose person is bound to a current member: a
+  copy of that account's rows above, capped at contributor (P17), with
+  `subject_kind = 'machine_credential'`.
 - The legacy organization's pre-activation accounts are members already
   (`organization-legacy-activation.ts`) and are covered by the first rule.
 - No project-scope row is written: no project entity exists at slice 1. #698 slice 2's
@@ -551,7 +626,9 @@ before any check is rewired).
   effective role and a grants drawer per member: scope, role, provenance (direct, group
   name, or "every member"), revoke; a grant form (scope picker over readable projects and
   packages, role by scope kind, subject: member, group, every member); an access groups
-  section (create, rename, delete, members). Refusals render the named permission.
+  section (create, rename, delete, members). The grant form's subject may also be one of the
+  organization's machine credentials, listed under its agent person (P17). Refusals render
+  the named permission.
 - A plain member with no grant sees an empty state naming the organization and "ask an
   administrator for access", with their own agent persons and credentials
   (`person-credentials.tsx`) still shown.
@@ -565,8 +642,8 @@ before any check is rewired).
 
 mcp-01's tools are unchanged: the grant and group routes join `EXCLUDED_PATHS` with the
 usual exposure test, and every existing tool is enforced in core through `authorize`. A
-delegation acts as its human with the human's grants; a consent credential as its agent
-with the cap. gw-01's `gatewayProjectAccess` and `gatewayBrowserProjectAccess` use
+delegation acts as its human with the human's grants; a consent credential as its
+credential subject, with only the grants naming it and the cap (P17). gw-01's `gatewayProjectAccess` and `gatewayBrowserProjectAccess` use
 `findReadablePackage`, so a socket subscription to an unreadable package is 404 as today's
 foreign one is.
 
@@ -598,7 +675,17 @@ a new-action row exists. The backfill is not audited (it is the migration ledger
 - "A member sees nothing" holds only after `revoke-backfill` runs per organization; dev
   keeps member reads and writes until Dany runs it (P15).
 - `owner_id` and `canEditProject` no longer decide access (P6).
-- Machine principals of a manager's agent act as contributors (they acted as members).
+- A machine credential no longer acts with its bound account's grants; it holds only the
+  grants naming it, capped at contributor (P17). The backfill copies its account's grants
+  capped at contributor, so nothing changes at the swap; after `revoke-backfill` an agent
+  sees nothing until a grant names its credential, an `org-admin`'s or `org-super-admin`'s
+  agent included (its copy was organization-scope `project-contributor`).
+- SCIM-provisioned members arrive with no grant, where today `scim-user.ts:368` inserts
+  `role: 'member'`, which writes every project (P11; review PM-9).
+- Lease renewal, `POST /api/claims/renew` and the renewal a committed agent batch performs
+  (`plan-commands.feature.ts:536`), moves only the leases in work packages the principal can
+  still read; a lease in a package whose grant was revoked is skipped and expires naturally
+  (review PM-7). Today renewal reaches every project on membership alone.
 - Every controller test that sets a membership role sets a grant instead; the fixtures'
   `role:` helper becomes `grants:`.
 
@@ -620,7 +707,8 @@ a new-action row exists. The backfill is not audited (it is the migration ledger
   per-organization grant version is the design if one does.
 - **The dependency on `wbs-work-packages`.** Slices 1 and 2 can land on today's tables
   (`project` scope rows stay empty until a project entity exists); slices 3 to 7 run after
-  #698 slice 1, and slice 3's project rules after its slice 2 (Context, "Order against
+  #698 slice 1, and slice 3's listing statement and project rules after its slice 2
+  (Context, "Order against
   #698"). If it slips, the `project` scope kind is a seeded CHECK value with no rows, which
   costs nothing.
 
