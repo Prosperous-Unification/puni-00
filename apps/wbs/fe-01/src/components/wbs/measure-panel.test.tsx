@@ -465,7 +465,12 @@ describe('review fixes of PR #680', () => {
     fireEvent.click(within(card).getByRole('button', { name: 'Edit' }));
     return card;
   };
-  const strictTokens = (remaining: number, exceeded: boolean, held?: number) => ({
+  const strictTokens = (
+    remaining: number,
+    exceeded: boolean,
+    held?: number,
+    holdPerAttempt = held,
+  ) => ({
     ...BASE_ROW,
     budgets: {
       tokens: {
@@ -474,7 +479,7 @@ describe('review fixes of PR #680', () => {
         source: 'stated' as const,
         remaining,
         exceeded,
-        ...(held === undefined ? {} : { held, holdPerAttempt: held }),
+        ...(held === undefined ? {} : { held, holdPerAttempt }),
       },
     },
   });
@@ -509,7 +514,7 @@ describe('review fixes of PR #680', () => {
     });
   });
 
-  itDom('warns at the cap and on holds, as the coordinator refuses', () => {
+  itDom('warns at the cap and on holds, as the write refuses the next attempt', () => {
     const { rerender } = render(panelWith(strictTokens(0, false)));
     let tokens = screen.getByRole('region', { name: 'Tokens' });
     expect(tokens.querySelector('[data-refusing-sentence]')).toHaveTextContent(
@@ -525,6 +530,14 @@ describe('review fixes of PR #680', () => {
     );
     expect(tokens).toHaveTextContent('600 of 1,000 · nothing left · 600 held for running attempts');
     expect(tokens).not.toHaveTextContent('over');
+
+    // 200 left under a 300 hold: the write refuses the next start (review S3-1).
+    rerender(panelWith(strictTokens(200, false, 0, 300)));
+    tokens = screen.getByRole('region', { name: 'Tokens' });
+    expect(tokens.querySelector('[data-refusing-sentence]')).toHaveTextContent(
+      'Less left than one attempt’s hold — the next attempt is refused here.',
+    );
+    expect(tokens.querySelector('[data-budget="strict"]')).toHaveAttribute('data-refusing', 'true');
 
     rerender(panelWith(strictTokens(1, false)));
     tokens = screen.getByRole('region', { name: 'Tokens' });

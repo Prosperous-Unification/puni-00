@@ -142,7 +142,7 @@ describe('the headroom read', () => {
     const onA = (answer.body as Headroom).steps.find(
       (step) => step.workItemId === a && step.stepId === dev,
     );
-    // P's stated strict budget is blocked: a coordinator refuses on it.
+    // P's stated strict budget is blocked: the write refuses a start on it.
     expect(onA?.budgets['cost']).toEqual({
       blocked: {
         strict: {

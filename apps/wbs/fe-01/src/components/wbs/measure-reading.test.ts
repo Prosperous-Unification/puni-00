@@ -261,8 +261,8 @@ describe('typed figures (review S3)', () => {
   });
 });
 
-describe('when the coordinator refuses (review S2-3)', () => {
-  const strict = (remaining: number, exceeded: boolean, held?: number) =>
+describe('when the write refuses the next attempt (review S2-3, S3-1)', () => {
+  const strict = (remaining: number, exceeded: boolean, held?: number, holdPerAttempt?: number) =>
     budgetReadingOf(
       {
         budgets: {
@@ -273,6 +273,7 @@ describe('when the coordinator refuses (review S2-3)', () => {
             remaining,
             exceeded,
             ...(held === undefined ? {} : { held }),
+            ...(holdPerAttempt === undefined ? {} : { holdPerAttempt }),
           },
         },
       },
@@ -284,6 +285,12 @@ describe('when the coordinator refuses (review S2-3)', () => {
     expect(strict(-300, false, 600)).toMatchObject({ spent: 700, refusing: true, exceeded: false });
     expect(strict(-200, true)).toMatchObject({ refusing: true, exceeded: true });
     expect(strict(1, false)).toMatchObject({ refusing: false });
+  });
+
+  it("refuses when less remains than one attempt's hold, as the write does", () => {
+    expect(strict(200, false, 0, 300)).toMatchObject({ remaining: 200, refusing: true });
+    expect(strict(300, false, 0, 300)).toMatchObject({ refusing: false });
+    expect(strict(200, false)).toMatchObject({ refusing: false });
   });
 
   it('never refuses on an advisory budget', () => {

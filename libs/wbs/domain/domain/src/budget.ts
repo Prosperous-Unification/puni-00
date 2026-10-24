@@ -113,8 +113,9 @@ export interface BudgetReading {
   spent: number;
   /**
    * The stated budget's allowance per running attempt of unknown usage, only
-   * where it states one (design D40). The headroom read answers it; the row
-   * read leaves it out, as it does `spent` (D49).
+   * where it states one (design D40). Both reads answer it (D60), so the
+   * panel can apply the write's refusal rule (D69); absent without a hold, a
+   * row's `budgets` keep their bytes (D49).
    */
   holdPerAttempt?: number;
   remaining: number;

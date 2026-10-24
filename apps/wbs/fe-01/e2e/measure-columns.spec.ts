@@ -327,7 +327,7 @@ test.describe('measure columns', () => {
     await capture(page, testInfo, 'desktop-panel-empty');
     await page.keyboard.press('Escape');
 
-    // Spent exactly to a strict cap: the coordinator refuses, though nothing
+    // Spent exactly to a strict cap: the write refuses the next attempt, though nothing
     // is exceeded; and a cost under one cent reads as itself, not $0.00.
     panel = await openPanel(page, '040');
     await expect(panel.locator('[data-refusing-sentence]')).toHaveText(

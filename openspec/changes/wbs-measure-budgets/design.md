@@ -325,7 +325,9 @@ estimates?}}` with that `{currency, rateCardDigest}` (D45's lag closed for reads
   there instead, and a kind whose figures are all unpriced names nothing (its absence is the
   answer, and a project with no priced figure skips the attachment entirely). `BudgetReading`
   gains `spent` (the subtree's facts) for the headroom read; the row read strips it, so a row's
-  `budgets` answer the bytes they did in slice 4.
+  `budgets` answer the bytes they did in slice 4. (Since D60 the row read also carries
+  `holdPerAttempt` where a hold is stated, which the panel needs for D69's rule; a budget without
+  a hold still answers those bytes.)
 - **D50 Headroom route.** `GET /api/projects/:id/budget-headroom` (MCP
   `getApiProjectsByIdBudget-headroom`, derived from the shape like every tool) serves
   `budgetHeadroomWithin` with an optional `team` query, admitted exactly as the startable read:
@@ -411,8 +413,9 @@ Assumptions added while fixing the review of PR #680 (slice 6):
   `holdPerAttempt` leaves the box empty, and a Save there clears the hold; that window closes with
   this release. Saved plans capture the row read, so a captured row with a hold carries one more
   field.
-- **D61 The panel warns where the coordinator refuses.** A strict budget reads `refusing` when its
-  `remaining <= 0` (the headroom read's rule, `budget-headroom-shapes.ts`), not when `exceeded`:
+- **D61 The panel warns where the write refuses.** A strict budget reads `refusing` when its
+  `remaining <= 0` (the headroom read's rule, `budget-headroom-shapes.ts`; since D69 also when
+  less remains than its `holdPerAttempt`), not when `exceeded`:
   spent exactly to the cap, or holds taking the rest, refuse the next attempt. The bar's colour and
   the sentence follow `refusing`; the "exceeded" badge stays for facts past the cap; holds are said
   as "nothing left · N held", never "over".
@@ -503,6 +506,9 @@ Decisions from the review fixes (PR A, 2026-10-24):
   start's refusal order). For each strict budget of the work item and its ancestors, nearest
   first then by key, it refuses `409 budget_exhausted` when `remaining <= 0` before the start
   (spent to the cap refuses even without a hold, as D61's panel warns) or below zero after it.
+  The panel shows the same rule (review S3-1): a strict budget reads `refusing` when
+  `remaining <= 0`, or when the row read's `holdPerAttempt` (D60) exceeds `remaining`, so
+  "200 remaining, hold 300" warns that the next attempt is refused there.
   A strict budget a rate-card mix blocks refuses too, as D52 reads it: the same code with
   `blocked: true` and `remaining: null`, not a second code. The body is
   `{workItemId, measure, remaining, hold, blocked}` beside the batch context; `hold` is the
@@ -510,7 +516,8 @@ Decisions from the review fixes (PR A, 2026-10-24):
   never refuse; facts are still never refused (proposal non-goal). `claimWorkItem` is not an
   admission point: a claim starts no attempt and holds nothing (D39), so refusing it would
   count a hold no running attempt makes; a batch that claims and starts is refused whole at
-  the start. The headroom read stays for display and ranking. Concurrency: the write
+  the start. A hold taken at claim time would be a separate decision: claims hold nothing today
+  (D39). The headroom read stays for display and ranking. Concurrency: the write
   coordinator admits one batch at a time and SQLite's unit of work is `BEGIN IMMEDIATE`, so the
   fold reads every earlier start's row; `budget-admission-race.db.test.ts` races starts in an
   `fc.asyncModelRun` model and fails seed 20261024 when the admission reads attempts from

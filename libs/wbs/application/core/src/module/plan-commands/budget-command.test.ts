@@ -609,7 +609,7 @@ describe('the headroom read', () => {
       // is blocked, this case read none for A; watched 2026-10-23.
       expect(onA?.budgets['tokens']?.strict).toMatchObject({ workItemId: A, remaining: 100 });
       // P's cost budget cannot be read: named on A's cost key, tokens untouched.
-      // P's stated strict budget is blocked: the coordinator refuses on it.
+      // P's stated strict budget is blocked: the write refuses a start on it.
       expect(onA?.budgets['cost']).toEqual({
         blocked: {
           strict: {
