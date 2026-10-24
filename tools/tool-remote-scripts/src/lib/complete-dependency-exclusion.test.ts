@@ -508,9 +508,16 @@ for (const fault of [
     const docker: typeof fixture.ports.docker = async (args, signal) => {
       if (args[0] === 'ps') {
         const names = await readdir(fixture.root);
+        // The original inode's archive may be listed first after rename; the oracle must keep the original path.
+        if (fault === 'attempt-parent')
+          names.sort(
+            (left, right) =>
+              Number(right.endsWith('.retained')) - Number(left.endsWith('.retained')),
+          );
         const name = names.find((entry) => entry.startsWith('dependency-activation-'));
         if (name !== undefined) {
-          attempt = join(fixture.root, name);
+          // Proof: retained-first listing retargeted the oracle to .retained.retained and failed ENOENT before this original-path latch.
+          attempt ??= join(fixture.root, name);
           if (
             !injected &&
             (fault === 'attempt-child' ||
