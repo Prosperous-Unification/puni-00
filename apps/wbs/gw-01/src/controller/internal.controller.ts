@@ -1,4 +1,4 @@
-import { InternalPushRequest } from '@wbs/contracts';
+import { InternalPushRequest, wsData, wsTransient } from '@wbs/contracts';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
@@ -25,11 +25,13 @@ export const internalController = (deps: InternalDeps) =>
       // Proof: appending :wrong to this lookup made the mounted backend→gateway
       // completion test time out on B delivery after its admitted roster (2026-10-23).
       const sockets = deps.subs.socketsFor(req.subscription);
-      const payload = JSON.stringify({
-        subscription: req.subscription,
-        seq: req.seq,
-        message: req.message,
-      });
+      // A push without `seq` is a transient announcement. It has no replay
+      // cursor; the browser rereads the claim state it names. The real-socket
+      // unsequenced push case in fan-out.integration.test.ts proves its shape.
+      const payload =
+        req.seq === undefined
+          ? wsTransient(req.subscription, req.message)
+          : wsData(req.subscription, req.seq, req.message);
       // Proof: removing this actual send made cross-project-delivery.controller.db.test.ts
       // receive only its admitted presence roster, then fail successor delivery (2026-10-23).
       // Proof: omitting await answers before the blocked recipient in delivery.integration.test.ts.

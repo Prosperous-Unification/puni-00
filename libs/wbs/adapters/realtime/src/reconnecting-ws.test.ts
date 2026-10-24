@@ -87,6 +87,7 @@ describe('createReconnectingWs', () => {
     const handle = createReconnectingWs({
       url: 'wss://wbs.test/ws',
       onFrame: () => undefined,
+      onTransient: () => undefined,
       onStateChange: () => undefined,
       subscriptions,
       websocketFactory: (url) => {
@@ -97,6 +98,55 @@ describe('createReconnectingWs', () => {
     await Promise.resolve();
 
     expect(opened).toEqual(['wss://wbs.test/ws']);
+    handle.close();
+  });
+
+  // `wbs-claim-display` C21: a transient announcement reaches `onTransient`,
+  // never `onFrame`, and the next resume asks from the same points.
+  it('hands a seq-less frame to onTransient and leaves the resume point alone', () => {
+    const storage = new Map<string, string>();
+    const subscriptions = new SubscriptionTracker({
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => {
+        storage.set(key, value);
+      },
+    });
+    subscriptions.update('project:a', 4);
+    const sent: string[] = [];
+    // A fake carrying only what the client calls: it sets the handlers and sends.
+    const socket = {
+      readyState: 1,
+      send: (frame: string) => sent.push(frame),
+      close: () => undefined,
+    } as unknown as WebSocket;
+    const frames: unknown[] = [];
+    const transients: unknown[] = [];
+    const handle = createReconnectingWs({
+      url: 'wss://wbs.test/ws',
+      onFrame: (frame) => frames.push(frame),
+      onTransient: (frame) => transients.push(frame),
+      onStateChange: () => undefined,
+      subscriptions,
+      websocketFactory: () => socket,
+      heartbeatIntervalMs: 60_000,
+    });
+    const deliver = (frame: unknown) => {
+      socket.onmessage?.(new MessageEvent('message', { data: JSON.stringify(frame) }));
+    };
+    socket.onopen?.(new Event('open'));
+    deliver({ subscription: 'project:a', message: { type: 'claims_changed' } });
+    deliver({ subscription: 'project:a', seq: 5, message: { type: 'tree_replaced' } });
+
+    expect(transients).toEqual([
+      { subscription: 'project:a', message: { type: 'claims_changed' } },
+    ]);
+    expect(frames).toEqual([
+      { subscription: 'project:a', seq: 5, message: { type: 'tree_replaced' } },
+    ]);
+    expect(subscriptions.snapshot()).toEqual({ 'project:a': 4 });
+    expect(() => {
+      deliver({ subscription: 'project:a', seq: 'five', message: {} });
+    }).toThrow();
     handle.close();
   });
 });

@@ -155,6 +155,7 @@ test('maps dormant v11 external import to conflict with its declaration path', a
       url: new URL('https://app.test/api/projects/import'),
       method: 'POST',
       headers: new Headers(),
+      signal: new AbortController().signal,
     },
   });
   expect(response).toEqual({
@@ -209,6 +210,7 @@ for (const [outcome, status, body] of [
         url: new URL('https://app.test/api/projects/import'),
         method: 'POST',
         headers: new Headers(),
+        signal: new AbortController().signal,
       },
     });
     expect(reply).toEqual({ ok: false, status, body });

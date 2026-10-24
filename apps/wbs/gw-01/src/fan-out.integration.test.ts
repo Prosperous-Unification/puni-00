@@ -115,6 +115,27 @@ describe('project events reach the sockets that asked for them', () => {
     for (const s of [ada, grace, linus]) s.socket.close();
   });
 
+  // `wbs-claim-display` C21: be-01 pushes a transient announcement with no
+  // sequence; the socket receives it without one.
+  it('delivers an unsequenced push without a sequence', async () => {
+    const subscription = `project:${crypto.randomUUID()}`;
+    const ada = await connect('ada', subscription);
+    await settle();
+
+    const res = await fetch(`http://localhost:${String(port)}/internal/push`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-internal-auth': INTERNAL_SECRET },
+      body: JSON.stringify({ subscription, message: { type: 'claims_changed' } }),
+    });
+    expect(res.status).toBe(202);
+    await settle();
+
+    expect(
+      ada.received.filter((m) => (m as { subscription?: string }).subscription === subscription),
+    ).toEqual([{ subscription, message: { type: 'claims_changed' } }]);
+    ada.socket.close();
+  });
+
   it('refuses a socket that asks for an unknown subscription', async () => {
     const stranger = await connect('mallory', 'internal:push');
     await settle();

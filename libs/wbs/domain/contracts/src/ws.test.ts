@@ -12,6 +12,8 @@ import {
   wsResumeAck,
   wsResumeDenied,
   wsSubscribe,
+  wsTransient,
+  WsTransientFrame,
   wsUnsubscribe,
   wsWho,
 } from './ws';
@@ -90,6 +92,21 @@ describe('the frames a builder writes', () => {
     const frame = parseOrThrow(WsFrame, parsed(wsData('project:a', 4, { hello: 'world' })));
 
     expect(frame).toEqual({ subscription: 'project:a', seq: 4, message: { hello: 'world' } });
+  });
+
+  // `wbs-claim-display` C21: a transient announcement is its own frame, with
+  // no sequence; neither frame parses as the other.
+  it('are transient frames the parser accepts, and only without a sequence', () => {
+    const built = parsed(wsTransient('project:a', { type: 'claims_changed' }));
+
+    expect(parseOrThrow(WsTransientFrame, built)).toEqual({
+      subscription: 'project:a',
+      message: { type: 'claims_changed' },
+    });
+    expect(() => parseOrThrow(WsFrame, built)).toThrow();
+    expect(() =>
+      parseOrThrow(WsTransientFrame, parsed(wsData('project:a', 4, { type: 'claims_changed' }))),
+    ).toThrow();
   });
 
   it('omit an absent optional field rather than sending it as null', () => {
