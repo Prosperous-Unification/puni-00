@@ -26,6 +26,256 @@ import { observeSolverProcess, type SolverProcess } from '../src/lib/solver-host
 const LABEL = 'club.bulletpoints.edge-init-fixture';
 const IMAGE = /^sha256:[a-f0-9]{64}$/;
 
+type FixtureDocker = (arguments_: readonly string[], timeout?: number) => Promise<string>;
+type FixtureFault =
+  | 'alias-drift'
+  | 'route-loss'
+  | 'public-probe-failed'
+  | 'restart-after-health'
+  | 'create-ack-lost'
+  | 'stop-ack-lost'
+  | 'rename-ack-lost'
+  | 'start-ack-lost';
+interface FaultEvidence {
+  injected: boolean;
+  failure: unknown;
+  effects: readonly string[];
+  original: NativeContainer;
+  candidate: NativeContainer;
+  originalId: string;
+  candidateId: string;
+  nonce: string;
+  network: string;
+  beforeRestart?: string;
+}
+
+/** Refuse retained nonce resources before entering a scope whose teardown may remove that nonce's objects. */
+export async function requireUnusedFixtureNamespace(
+  nonce: string,
+  run: FixtureDocker = docker,
+): Promise<void> {
+  const volumes = (await run(['volume', 'ls', '--quiet'])).split('\n');
+  // Proof: omitted volume/retained-label admission separately made namespace collision negatives succeed in edge-init.test.ts.
+  if (
+    ['registry', 'caddy-data', 'caddy-config'].some((suffix) =>
+      volumes.includes(`wbs-init-${nonce}-${suffix}`),
+    )
+  )
+    throw new InitRefusal('native-fixture-volume-collision');
+  for (const arguments_ of [
+    ['ps', '--all', '--quiet', '--filter', `label=${LABEL}=${nonce}`],
+    ['network', 'ls', '--quiet', '--filter', `label=${LABEL}=${nonce}`],
+    ['volume', 'ls', '--quiet', '--filter', `label=${LABEL}=${nonce}`],
+  ]) {
+    // Proof: label-absence omission admitted the retained-label collision without a refusal.
+    if ((await run(arguments_)) !== '') throw new InitRefusal('native-fixture-namespace-collision');
+  }
+}
+function fixtureResourceIdentity(
+  kind: 'network' | 'volume',
+  value: unknown,
+  nonce: string,
+): string {
+  // Proof: array-kind and record-count omissions separately admitted malformed native resource readbacks.
+  if (!Array.isArray(value) || value.length !== 1)
+    throw new InitRefusal('native-fixture-resource-inspection-refused');
+  const fields = readFields(value[0]);
+  const name = readString(fields['Name']);
+  const suffixes =
+    kind === 'network' ? ['net-0', 'net-1', 'net-2'] : ['registry', 'caddy-data', 'caddy-config'];
+  // Proof: separate name/label omissions admitted foreign cleanup or seeding targets; their zero-write assertions failed.
+  if (
+    !suffixes.some((suffix) => name === `wbs-init-${nonce}-${suffix}`) ||
+    readFields(fields['Labels'])[LABEL] !== nonce
+  )
+    throw new InitRefusal('native-fixture-resource-ownership-refused');
+  // Proof: replacing full-ID admission with string admission made network cleanup delete an abbreviated ID; its test failed.
+  return kind === 'network' ? readIdentity(fields['Id']) : name;
+}
+
+/** A previous owned attempt is still a collision; create's idempotent acknowledgement never grants permission to seed. */
+export async function createFixtureVolume(
+  name: string,
+  nonce: string,
+  image: string,
+  run: FixtureDocker = docker,
+): Promise<void> {
+  // Proof: input admission omission issued Docker requests for a foreign volume and an unpinned image; both negatives failed.
+  if (
+    !['registry', 'caddy-data', 'caddy-config'].some(
+      (suffix) => name === `wbs-init-${nonce}-${suffix}`,
+    ) ||
+    !IMAGE.test(image)
+  )
+    throw new InitRefusal('native-fixture-volume-input-refused');
+  const existing = (await run(['volume', 'ls', '--quiet'])).split('\n');
+  // Proof: absence omission seeded an existing correctly labelled volume; the collision zero-write negative failed.
+  if (existing.includes(name)) throw new InitRefusal('native-fixture-volume-collision');
+  const created = await run(['volume', 'create', '--label', `${LABEL}=${nonce}`, name]);
+  // Proof: omitted create-name or post-inspect-name equality separately let their seed-write negatives succeed.
+  if (created !== name) throw new InitRefusal('native-fixture-volume-create-unverified');
+  const identity = fixtureResourceIdentity(
+    'volume',
+    JSON.parse(await run(['volume', 'inspect', name])),
+    nonce,
+  );
+  if (identity !== name) throw new InitRefusal('native-fixture-volume-readback-unverified');
+  await run([
+    'run',
+    '--rm',
+    '--pull=never',
+    '--network=none',
+    '--name',
+    `wbs-init-${nonce}-seed`,
+    '--label',
+    `${LABEL}=${nonce}`,
+    '--entrypoint=/bin/sh',
+    '--mount',
+    `type=volume,source=${name},target=/seed`,
+    image,
+    '-c',
+    'printf fixture-marker > /seed/fixture-marker',
+  ]);
+}
+
+/** Resolve inventory abbreviations read-only, then bind the exact name, nonce label and full native identity before deletion. */
+export async function removeFixtureResource(
+  kind: 'network' | 'volume',
+  reference: string,
+  nonce: string,
+  run: FixtureDocker = docker,
+): Promise<void> {
+  const identity = fixtureResourceIdentity(
+    kind,
+    JSON.parse(await run([kind, 'inspect', reference])),
+    nonce,
+  );
+  await run([kind, 'rm', identity]);
+}
+
+/** Only the actual bounded client deadline, with unchanged PID/start/cgroup, proves stop did not escalate. */
+export async function verifyFixtureStopDeadline(
+  engine: Pick<EngineTransport, 'stop' | 'inspect'>,
+  before: NativeContainer,
+  nonce: string,
+  ports = { now: () => performance.now(), observeProcess: observeSolverProcess },
+): Promise<void> {
+  verifyFixtureOwnership(before, nonce);
+  const pid = before.state['Pid'];
+  // Proof: positive-PID omission admitted a PID-zero deadline proof in edge-init.test.ts.
+  if (typeof pid !== 'number' || pid < 1) throw new InitRefusal('native-fixture-stop-pid-invalid');
+  const process = await ports.observeProcess(pid);
+  const started = ports.now();
+  const failure: unknown = await engine.stop(before.id, 250).then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  const elapsed = ports.now() - started;
+  // Proof: reason, minimum-wait and maximum-wait omissions separately admitted status/early/late non-proofs.
+  if (
+    !(failure instanceof InitRefusal) ||
+    failure.reason !== 'engine-deadline-uncertain' ||
+    elapsed < 250 ||
+    elapsed > 1250
+  )
+    throw new InitRefusal('native-fixture-stop-deadline-unproved');
+  const retained = await engine.inspect(before.id, 10000);
+  // Proof: full-ID, PID, StartedAt and kernel-identity omissions separately admitted their substituted-process negatives.
+  if (
+    retained.id !== before.id ||
+    retained.state['Running'] !== true ||
+    retained.state['Pid'] !== pid ||
+    retained.state['StartedAt'] !== before.state['StartedAt'] ||
+    fingerprint(await ports.observeProcess(pid)) !== fingerprint(process)
+  )
+    throw new InitRefusal('native-fixture-stop-process-changed');
+}
+
+/** A deliberate native fault earns its proof only at its exact stage, transcript and independently observed state. */
+export function verifyFixtureFault(fault: FixtureFault, evidence: FaultEvidence): void {
+  const phase =
+    fault === 'alias-drift'
+      ? 'candidate-inert'
+      : fault === 'create-ack-lost'
+        ? 'before-create'
+        : fault === 'stop-ack-lost'
+          ? 'stop-uncertain'
+          : fault === 'rename-ack-lost'
+            ? 'rename-uncertain'
+            : fault === 'start-ack-lost'
+              ? 'start-uncertain'
+              : 'candidate-running-unhealthy';
+  // Proof: injection and phase omissions separately admitted omitted-injection and wrong-phase fault proofs.
+  if (!evidence.injected) throw new InitRefusal('native-fixture-fault-not-injected');
+  if (!(evidence.failure instanceof InitRefusal) || evidence.failure.reason !== phase)
+    throw new InitRefusal('native-fixture-fault-stage-unproved');
+  const { originalId, candidateId, nonce } = evidence;
+  readIdentity(originalId);
+  readIdentity(candidateId);
+  const originalName = `wbs-init-${nonce}-registry-fixture`;
+  const retainedName = `wbs-init-${nonce}-registry-original`;
+  const expected = ['create:registry'];
+  const stopped = !['alias-drift', 'create-ack-lost'].includes(fault);
+  const renamedOriginal = stopped && fault !== 'stop-ack-lost';
+  const started = renamedOriginal && fault !== 'rename-ack-lost';
+  if (stopped) expected.push(`stop:${originalId}`);
+  if (renamedOriginal) expected.push(`rename:${originalId}:${retainedName}`);
+  if (started) expected.push(`rename:${candidateId}:${originalName}`, `start:${candidateId}`);
+  if (fault === 'route-loss') expected.push(`disconnect:${evidence.network}:${candidateId}`);
+  if (fault === 'public-probe-failed') expected.push(`pause:${candidateId}`);
+  if (fault === 'restart-after-health') expected.push(`restart:${candidateId}`);
+  // Proof: transcript omission admitted the extra registry rename/start and unrelated Caddy-create transcript.
+  if (fingerprint(evidence.effects) !== fingerprint(expected))
+    throw new InitRefusal('native-fixture-fault-effects-unproved');
+  const { original, candidate } = evidence;
+  // Proof: independent name, Running and native Status omissions each admitted its wrong-state negative.
+  if (
+    original.id !== originalId ||
+    candidate.id !== candidateId ||
+    original.name !== `/${renamedOriginal ? retainedName : originalName}` ||
+    original.state['Running'] !== !stopped ||
+    (stopped && original.state['Pid'] !== 0) ||
+    candidate.name !== `/${started ? originalName : `wbs-init-${nonce}-registry`}` ||
+    candidate.state['Running'] !== started ||
+    (!started && candidate.state['Pid'] !== 0) ||
+    (started && (typeof candidate.state['Pid'] !== 'number' || candidate.state['Pid'] <= 0))
+  )
+    throw new InitRefusal('native-fixture-fault-state-unproved');
+  if (
+    original.state['Status'] !== (stopped ? 'exited' : 'running') ||
+    original.state['Paused'] !== false ||
+    original.state['Restarting'] !== false ||
+    original.state['Dead'] !== false ||
+    candidate.state['Status'] !==
+      (!started ? 'created' : fault === 'public-probe-failed' ? 'paused' : 'running') ||
+    candidate.state['Paused'] !== (fault === 'public-probe-failed') ||
+    candidate.state['Restarting'] !== false ||
+    candidate.state['Dead'] !== false
+  )
+    throw new InitRefusal('native-fixture-fault-native-state-unproved');
+  // Proof: alias, route and restart readback omissions separately admitted their uninjected-state negatives.
+  if (
+    fault === 'alias-drift' &&
+    !Object.values(candidate.networks)
+      .map(readFields)
+      .some(
+        (endpoint) =>
+          Array.isArray(endpoint['Aliases']) &&
+          endpoint['Aliases'].includes('unexpected-fixture-alias'),
+      )
+  )
+    throw new InitRefusal('native-fixture-alias-fault-unproved');
+  if (fault === 'route-loss' && Object.hasOwn(candidate.networks, evidence.network))
+    throw new InitRefusal('native-fixture-route-fault-unproved');
+  if (
+    fault === 'restart-after-health' &&
+    (evidence.beforeRestart === undefined ||
+      evidence.beforeRestart ===
+        fingerprint({ pid: candidate.state['Pid'], startedAt: candidate.state['StartedAt'] }))
+  )
+    throw new InitRefusal('native-fixture-restart-fault-unproved');
+}
+
 /** Fixture effects and cleanup require both an invocation-owned name and its independent nonce label. */
 export function verifyFixtureOwnership(container: NativeContainer, nonce: string): string {
   // Proof: separate label and name omissions each admitted a foreign fixture target; edge-init.test.ts failed.
@@ -225,14 +475,7 @@ async function cleanup(nonce: string): Promise<void> {
       .split('\n')
       .filter((name) => name !== '');
     for (const name of names) {
-      const raw: unknown = JSON.parse(await docker([kind, 'inspect', name]));
-      if (
-        !Array.isArray(raw) ||
-        raw.length !== 1 ||
-        readFields(readFields(raw[0])['Labels'])[LABEL] !== nonce
-      )
-        throw new InitRefusal('native-fixture-resource-ownership-refused');
-      await docker([kind, 'rm', name]);
+      await removeFixtureResource(kind === 'network' ? 'network' : 'volume', name, nonce);
     }
     if ((await docker([kind, 'ls', '--quiet', '--filter', `label=${LABEL}=${nonce}`])) !== '')
       throw new InitRefusal('native-fixture-resource-cleanup-unverified');
@@ -275,27 +518,12 @@ export async function runNativeInitAcceptance(): Promise<void> {
   const volumes = ['registry', 'caddy-data', 'caddy-config'].map((name) => `${prefix}-${name}`);
   let summary: { stage: string; receiptDirectory: string; sha256: string } | undefined;
   let failureCode: 'native-fixture-proof-failed' | 'native-fixture-receipt-failed' | undefined;
+  await requireUnusedFixtureNamespace(nonce);
   try {
     for (const network of networks)
       await docker(['network', 'create', '--label', `${LABEL}=${nonce}`, network]);
     for (const volume of volumes) {
-      await docker(['volume', 'create', '--label', `${LABEL}=${nonce}`, volume]);
-      await docker([
-        'run',
-        '--rm',
-        '--pull=never',
-        '--network=none',
-        '--name',
-        `${prefix}-seed`,
-        '--label',
-        `${LABEL}=${nonce}`,
-        '--entrypoint=/bin/sh',
-        '--mount',
-        `type=volume,source=${volume},target=/seed`,
-        caddyImage,
-        '-c',
-        'printf fixture-marker > /seed/fixture-marker',
-      ]);
+      await createFixtureVolume(volume, nonce, caddyImage);
     }
     const shared = [
       '--detach',
@@ -549,7 +777,9 @@ export async function runNativeInitAcceptance(): Promise<void> {
     for (const fault of faults) {
       const candidates: string[] = [];
       let candidateHealthRounds = 0;
-      const removals: string[] = [];
+      const transcript: string[] = [];
+      const injection = { fired: false };
+      let beforeRestart: string | undefined;
       const effects = {
         inspect: (id: string, timeout: number) => engine.inspect(id, timeout),
         create: async (
@@ -557,6 +787,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
           request: ReturnType<typeof constructCandidate>,
           timeout: number,
         ) => {
+          transcript.push(`create:${kind}`);
           if (kind !== 'registry') throw new InitRefusal('native-fixture-fault-expanded-targets');
           const input = structuredClone(request);
           if (fault === 'alias-drift') {
@@ -566,50 +797,77 @@ export async function runNativeInitAcceptance(): Promise<void> {
               ...endpoint,
               Aliases: ['unexpected-fixture-alias'],
             };
+            injection.fired = true;
           }
           const candidate = await engine.create(kind, input, timeout);
           candidates.push(candidate);
-          if (fault === 'create-ack-lost')
+          if (fault === 'create-ack-lost') {
+            injection.fired = true;
             throw new InitRefusal('native-fixture-acknowledgement-lost');
+          }
           return candidate;
         },
         stop: async (id: string, timeout: number) => {
+          transcript.push(`stop:${id}`);
           await engine.stop(id, timeout);
-          if (fault === 'stop-ack-lost')
+          if (fault === 'stop-ack-lost') {
+            injection.fired = true;
             throw new InitRefusal('native-fixture-acknowledgement-lost');
+          }
         },
         rename: async (id: string, name: string, timeout: number) => {
+          transcript.push(`rename:${id}:${name}`);
           await engine.rename(id, name, timeout);
-          if (fault === 'rename-ack-lost')
+          if (fault === 'rename-ack-lost') {
+            injection.fired = true;
             throw new InitRefusal('native-fixture-acknowledgement-lost');
+          }
         },
         start: async (id: string, timeout: number) => {
+          transcript.push(`start:${id}`);
           await engine.start(id, timeout);
-          if (fault === 'route-loss') await docker(['network', 'disconnect', networks[0], id]);
-          if (fault === 'start-ack-lost')
+          if (fault === 'route-loss') {
+            transcript.push(`disconnect:${networks[0]}:${id}`);
+            await docker(['network', 'disconnect', networks[0], id]);
+            injection.fired = true;
+          }
+          if (fault === 'start-ack-lost') {
+            injection.fired = true;
             throw new InitRefusal('native-fixture-acknowledgement-lost');
+          }
         },
         remove: async (id: string, timeout: number) => {
-          removals.push(id);
+          transcript.push(`remove:${id}`);
           await engine.remove(id, timeout);
         },
       };
       const faultObserver: HostObserver = {
         ...observer,
         health: async (kind, id, deadline) => {
-          if (id === candidates.at(0) && fault === 'public-probe-failed')
+          if (id === candidates.at(0) && fault === 'public-probe-failed') {
+            transcript.push(`pause:${id}`);
             await docker(['pause', id]);
+            injection.fired = true;
+          }
           await observer.health(kind, id, deadline);
           if (
             id === candidates.at(0) &&
             fault === 'restart-after-health' &&
             ++candidateHealthRounds === 1
-          )
+          ) {
+            const before = await engine.inspect(id, 10000);
+            beforeRestart = fingerprint({
+              pid: before.state['Pid'],
+              startedAt: before.state['StartedAt'],
+            });
+            transcript.push(`restart:${id}`);
             await docker(['restart', id]);
+            injection.fired = true;
+          }
         },
       };
       const faultReceipts = await PrivateReceipts.create(join(root, `receipts-${fault}`), nonce);
-      let failed = false;
+      let failure: unknown;
       try {
         await runInitAdoption(
           { nonce, targets, namespace: 'owned-fixture' },
@@ -618,22 +876,22 @@ export async function runNativeInitAcceptance(): Promise<void> {
           faultReceipts,
         );
       } catch (cause) {
-        if (!(cause instanceof InitRefusal)) throw cause;
-        failed = true;
+        failure = cause;
       }
       const candidate = candidates.at(0);
-      if (
-        !failed ||
-        removals.length !== 0 ||
-        candidate === undefined ||
-        (await engine.inspectAbsent(registry, 10000))
-      )
-        throw new InitRefusal('native-fixture-fault-retention-unproved');
-      if (
-        fault === 'alias-drift' &&
-        (await engine.inspect(registry, 10000)).state['Running'] !== true
-      )
-        throw new InitRefusal('native-fixture-before-stop-retention-unproved');
+      if (candidate === undefined) throw new InitRefusal('native-fixture-fault-candidate-absent');
+      verifyFixtureFault(fault, {
+        injected: injection.fired,
+        failure,
+        effects: transcript,
+        original: await engine.inspect(registry, 10000),
+        candidate: await engine.inspect(candidate, 10000),
+        originalId: registry,
+        candidateId: candidate,
+        nonce,
+        network: networks[0],
+        ...(beforeRestart === undefined ? {} : { beforeRestart }),
+      });
       // Disposable fixture restoration is explicit test setup; production has no corresponding recovery effect.
       verifyFixtureOwnership(await engine.inspect(candidate, 10000), nonce);
       await docker(['rm', '--force', '--volumes', candidate]);
@@ -678,20 +936,7 @@ export async function runNativeInitAcceptance(): Promise<void> {
     verifyFixtureOwnership(stubborn, nonce);
     await Bun.sleep(200);
     const stopEngine = new EngineTransport('/var/run/docker.sock', [term], nonce, 'owned-fixture');
-    let uncertain = false;
-    try {
-      await stopEngine.stop(term, 250);
-    } catch (cause) {
-      if (!(cause instanceof InitRefusal)) throw cause;
-      uncertain = true;
-    }
-    const retained = await stopEngine.inspect(term, 10000);
-    if (
-      !uncertain ||
-      retained.state['Running'] !== true ||
-      retained.state['Pid'] !== stubborn.state['Pid']
-    )
-      throw new InitRefusal('native-fixture-unbounded-stop-contract-unproved');
+    await verifyFixtureStopDeadline(stopEngine, stubborn, nonce);
     const report = {
       version: 1,
       status: 'passed',
