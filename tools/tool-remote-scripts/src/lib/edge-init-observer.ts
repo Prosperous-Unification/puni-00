@@ -7,7 +7,14 @@ import { isIP, type Socket } from 'node:net';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { requireInheritedEdgeLock } from './edge-admission';
-import { encodeOrderedEnv, fingerprint, InitRefusal, type NativeContainer } from './edge-init';
+import {
+  candidateInvariant,
+  encodeOrderedEnv,
+  fingerprint,
+  InitRefusal,
+  type NativeContainer,
+  projectInvariant,
+} from './edge-init';
 import {
   createLocalEngine,
   Deadline,
@@ -48,6 +55,52 @@ export interface SafeInitSummary {
   packetSha256: string;
   receiptDirectory: string;
   receiptSha256: string | null;
+  recovery?: {
+    scope: 'read-only-recovery-observation';
+    window: 'unexpired' | 'expired';
+    targets: readonly RecoveryTargetObservation[];
+  };
+}
+export interface RecoveryTargetObservation {
+  target: TargetKind;
+  class: RecoveryClass;
+  original: 'present' | 'absent';
+  candidate: 'present' | 'absent';
+  health: 'healthy' | 'unhealthy' | 'not-applicable-stopped' | 'not-applicable-edge-stopped';
+  probeApplicability: 'applicable' | 'not-applicable-edge-stopped';
+}
+type RecoveryClass =
+  | 'before-create'
+  | 'create-unacknowledged-no-candidate-observed'
+  | 'candidate-inert'
+  | 'original-stopped'
+  | 'original-renamed'
+  | 'candidate-renamed'
+  | 'candidate-running-original-retained'
+  | 'candidate-stopped-after-start'
+  | 'candidate-running-original-absent';
+interface OriginalProcessWitness {
+  pid: number;
+  startTime: string;
+  cgroup: string;
+  cgroupDevice: string;
+  cgroupInode: string;
+}
+interface AttemptInvariant {
+  target: TargetKind;
+  original: string;
+  originalInvariantSha256: string;
+  candidateInvariantSha256: string;
+  originalProcess: OriginalProcessWitness;
+}
+interface CandidateProcessProof {
+  target: TargetKind;
+  candidate: string | null;
+  processSha256: string | null;
+}
+interface ReceiptEvidence {
+  invariants: readonly AttemptInvariant[];
+  candidateProcesses: readonly CandidateProcessProof[];
 }
 /** Retains only validated attempt metadata and fixed stages after a prepared operation refuses. */
 export class InitObservationRefusal extends InitRefusal {
@@ -804,6 +857,8 @@ function decodeProcess(value: unknown): HostProcessIdentity {
   };
 }
 
+class ProbeMismatch extends InitRefusal {}
+
 interface ResponseBytes {
   headers: IncomingHttpHeaders;
   status: number;
@@ -891,7 +946,7 @@ export async function probeHttp(probe: HttpProbe, timeout: number): Promise<void
       response.headers['content-type'] !== probe.expectedContentType) ||
     sha(response.body) !== probe.expectedBodySha256
   )
-    refuse('probe-refused');
+    throw new ProbeMismatch('probe-refused');
 }
 
 /** Production alone constructs the local Engine and native observers; packet input cannot provide effects. */
@@ -900,8 +955,12 @@ export async function runProductionInitAdoption(
   mode: InitMode,
 ): Promise<SafeInitSummary> {
   try {
-    const packetBytes = await readPrivateFile(packetPath);
-    const packet = decodeInitPacket(parseJson(packetBytes));
+    const packetText = await readPrivateFile(packetPath);
+    const packetBytes = await readFile(packetPath);
+    if (!packetBytes.equals(Buffer.from(packetText, 'utf8'))) refuse('packet-bytes-invalid');
+    const packet = decodeInitPacket(
+      parseJson(new TextDecoder('utf-8', { fatal: true }).decode(packetBytes)),
+    );
     return await runPreparedPacket(packet, sha(packetBytes), mode, packetPath);
   } catch (cause) {
     if (cause instanceof InitObservationRefusal) throw cause;
@@ -926,15 +985,15 @@ async function runPreparedPacket(
     packet.targets.map((target) => target.id),
     packet.nonce,
   );
-  if (mode === 'inspect-recovery') return inspectRecovery(packet, packetSha256, engine);
   const deadline = new Deadline(120000);
-  await requireUnusedReceipts(packet.receiptDirectory);
+  if (mode !== 'inspect-recovery') await requireUnusedReceipts(packet.receiptDirectory);
   const pins = [
     packet.source,
     packet.bundle,
     packet.bun,
     packet.init,
     packet.daemon,
+    packet.registry.credentials,
     ...packet.provenance,
     packet.quiescence.operation,
     packet.quiescence.writerManifest,
@@ -979,6 +1038,14 @@ async function runPreparedPacket(
           writerFiles.forEach((file, index) => {
             if (file.sha256 !== manifest.members[index]?.sha256) refuse('writer-bytes-differ');
           });
+          const recheckHeld = async () => {
+            if (sha(await readPrivateFile(packetPath)) !== packetSha256)
+              refuse('packet-bytes-differ');
+            await recheck();
+            await recheckWriters();
+          };
+          if (mode === 'inspect-recovery')
+            return inspectRecovery(packet, packetSha256, engine, recheckHeld, deadline);
           const originals = await Promise.all(
             packet.targets.map((target) => engine.inspect(target.id, deadline.allocate(10000))),
           );
@@ -1023,15 +1090,36 @@ async function runPreparedPacket(
               receiptSha256: null,
             };
           await requireUnusedReceipts(packet.receiptDirectory);
+          const invariants = observer.attemptInvariants();
+          const candidateIds = new Map<TargetKind, string>();
           const receipts = await PrivateReceipts.create(packet.receiptDirectory, packet.nonce);
           let receiptSha256: string | null = null;
           try {
             await runInitAdoption(selection, engine, observer, {
               publish: async (receipt) => {
+                if (receipt.candidate !== undefined) {
+                  const previous = candidateIds.get(receipt.target);
+                  if (previous !== undefined && previous !== receipt.candidate)
+                    refuse('candidate-binding-differs');
+                  candidateIds.set(receipt.target, receipt.candidate);
+                }
                 receiptSha256 = await publishInitReceipt(
                   receipts,
                   receipt,
                   observer.sourceProof(receipt.target),
+                  packetSha256,
+                  {
+                    invariants,
+                    candidateProcesses: packet.targets.map((target) => {
+                      const candidate = candidateIds.get(target.kind) ?? null;
+                      return {
+                        target: target.kind,
+                        candidate,
+                        processSha256:
+                          candidate === null ? null : observer.candidateProcessSha256(candidate),
+                      };
+                    }),
+                  },
                 );
                 return receiptSha256;
               },
@@ -1126,7 +1214,7 @@ def init_proc(host,pid):
         require(metadata_key(executable)==metadata_key(os.fstat(descriptor))==metadata_key(host.metadata(base+'/exe')),'init executable changed')
     finally:os.close(descriptor)
     group_metadata=host.metadata('/sys/fs/cgroup'+group,False)
-    observed={'pid':pid,'startTime':ticks,'cgroup':group,'cgroupDevice':str(group_metadata.st_dev),'cgroupInode':str(group_metadata.st_ino),'status':status,'cmdline':cmdline,'namespaces':namespaces,'executableSha256':digestor.hexdigest(),'route':host.read(base+'/net/route',1048576).decode(),'ipv6Route':host.read(base+'/net/ipv6_route',1048576).decode(),'tcp':host.read(base+'/net/tcp',1048576).decode(),'tcp6':host.read(base+'/net/tcp6',1048576).decode()}
+    observed={'pid':pid,'startTime':ticks,'cgroup':group,'cgroupDevice':str(group_metadata.st_dev),'cgroupInode':str(group_metadata.st_ino),'status':status,'cmdline':cmdline,'namespaces':namespaces,'executableSha256':digestor.hexdigest(),'route':host.read(base+'/net/route',1048576).decode(),'fibTrie':host.read(base+'/net/fib_trie',1048576).decode(),'ifInet6':host.read(base+'/net/if_inet6',1048576).decode(),'ipv6Route':host.read(base+'/net/ipv6_route',1048576).decode(),'tcp':host.read(base+'/net/tcp',1048576).decode(),'tcp6':host.read(base+'/net/tcp6',1048576).decode()}
     # Proof: omitting start-tick comparison admitted injected PID reuse in the actual native-reader process fixture.
     require(parse_stat(host.read(base+'/stat',65536))[0]==ticks and parse_cgroup(host.read(base+'/cgroup',65536))==group,'init process changed')
     require(all(host.link(base+'/ns/'+name)==native['link'] and str(host.metadata(base+'/ns/'+name).st_dev)==native['device'] and str(host.metadata(base+'/ns/'+name).st_ino)==native['inode'] for name,native in namespaces.items()),'init namespace changed')
@@ -1256,8 +1344,21 @@ async function readNative(
   };
 }
 
+type ObserverEngine = Pick<
+  EngineTransport,
+  | 'inspect'
+  | 'inventory'
+  | 'inspectListed'
+  | 'inspectAbsent'
+  | 'version'
+  | 'info'
+  | 'image'
+  | 'network'
+  | 'volume'
+  | 'execCaddy'
+>;
+
 class ProductionObserver implements HostObserver {
-  private readonly expires: number;
   private readonly processes = new Map<
     string,
     {
@@ -1269,45 +1370,54 @@ class ProductionObserver implements HostObserver {
       namespacesSha256: string;
     }
   >();
+  private readonly candidateWitnesses = new Map<string, string>();
   private readonly active = new Map<TargetKind, string>();
   private readonly allocatedAddresses = new Set<string>();
   private readonly sourceProofs = new Map<TargetKind, ComposeProof>();
   constructor(
     private readonly packet: InitPacket,
-    private readonly engine: EngineTransport,
+    private readonly engine: ObserverEngine,
     private readonly recheck: () => Promise<void>,
     private readonly originals: readonly SelectedTarget[],
   ) {
-    this.expires = operationExpiry(
-      packet.quiescence.issuedAt,
-      packet.quiescence.expiresAt,
-      Date.now(),
-      performance.now(),
-    );
     for (const target of packet.targets) this.active.set(target.kind, target.id);
   }
   async admit(deadline: Deadline): Promise<void> {
-    if (this.expires - performance.now() < deadline.remaining() || deadline.remaining() < 40000)
+    await this.admitCurrent(deadline, false);
+  }
+  async admitReadOnly(deadline: Deadline): Promise<void> {
+    await this.admitCurrent(deadline, true);
+  }
+  private async admitCurrent(deadline: Deadline, readOnly: boolean): Promise<void> {
+    if (
+      !readOnly &&
+      (operationExpiry(
+        this.packet.quiescence.issuedAt,
+        this.packet.quiescence.expiresAt,
+        Date.now(),
+        performance.now(),
+      ) -
+        performance.now() <
+        deadline.remaining() ||
+        deadline.remaining() < 40000)
+    )
       refuse('operation-expired');
+    historicalWindow(this.packet.quiescence.issuedAt, this.packet.quiescence.expiresAt);
     const edge = await requireInheritedEdgeLock();
     if (
       edge.stateDirectory !== '/home/puni1/wbs/state' ||
-      edge.descriptor !== this.packet.quiescence.locks[0]?.descriptor
+      (!readOnly && edge.descriptor !== this.packet.quiescence.locks[0]?.descriptor)
     )
       refuse('edge-lock-differs');
-    await checkInheritedInitLocks(this.packet.quiescence.locks);
+    if (!readOnly) await checkInheritedInitLocks(this.packet.quiescence.locks);
     await this.recheck();
     const source = (await readPrivateOrPinned(this.packet.source)).trim();
     if (source !== this.packet.sourceSha) refuse('source-build-differs');
-    const proofs = await observeComposeDeclarations(
-      this.originals.map((selected) => ({
-        ...selected,
-        nativeSha256: this.expected(selected.kind).nativeSha256,
-        roster: this.expected(selected.kind).composeFiles,
-      })),
-      this.packet.provenance,
-    );
-    for (const proof of proofs) this.sourceProofs.set(proof.target, proof);
+    for (const target of this.packet.targets)
+      this.sourceProofs.set(
+        target.kind,
+        await readComposeRoster(target.kind, target.composeFiles, this.packet.provenance),
+      );
     if (
       sha(await readFile('/etc/machine-id')) !== this.packet.machineIdSha256 ||
       (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() !== this.packet.bootId
@@ -1394,6 +1504,90 @@ class ProductionObserver implements HostObserver {
     }
     await this.recheck();
   }
+  async recoveryAdmission(deadline: Deadline): Promise<void> {
+    await this.admitReadOnly(deadline);
+    await checkGraph(this.packet.caddy);
+    await this.backends(deadline);
+    await this.collect(deadline, true);
+  }
+  recoveryActive(kind: TargetKind, id: string): void {
+    this.active.set(kind, id);
+  }
+  async recoveryPresent(
+    kind: TargetKind,
+    observed: NativeContainer,
+    initialized: boolean,
+    deadline: Deadline,
+  ): Promise<void> {
+    const expected = this.expected(kind);
+    for (const endpoint of Object.values(observed.networks))
+      for (const field of ['IPAddress', 'GlobalIPv6Address']) {
+        const address = record(endpoint)[field];
+        if (typeof address === 'string' && address !== '') this.allocatedAddresses.add(address);
+      }
+    if (
+      observed.image !== expected.image ||
+      sha(encodeOrderedEnv(values(observed.config['Env'], (entry) => textKernel(entry), 1024))) !==
+        expected.envSha256 ||
+      fingerprint(await this.engine.image(expected.image, deadline.allocate(10000))) !==
+        expected.imageSha256
+    )
+      refuse('recovery-image-env-differs');
+    requireComposeLabelRoster(observed, expected.composeFiles);
+    await this.resources(expected, observed, deadline);
+    if (runningState(observed)) await this.process(expected, observed, initialized, deadline);
+    else {
+      if (
+        observed.sandboxId !== '' ||
+        observed.sandboxKey !== '' ||
+        Object.values(record(observed.ports)).some((entry) => entry !== null) ||
+        Object.values(observed.networks).some((entry) => {
+          const endpoint = record(entry);
+          return (
+            endpoint['EndpointID'] !== '' ||
+            endpoint['IPAddress'] !== '' ||
+            endpoint['GlobalIPv6Address'] !== ''
+          );
+        })
+      )
+        refuse('recovery-stopped-resource-not-released');
+    }
+  }
+  async recoveryTerminal(witness: OriginalProcessWitness, deadline: Deadline): Promise<void> {
+    const kernel = await readNative([witness.pid], [], [witness.cgroup], [], deadline);
+    const current = kernel.pids[0],
+      group = record(kernel.cgroups[0]);
+    if (
+      (current !== null && record(current)['startTime'] === witness.startTime) ||
+      (group['state'] !== 'empty' && group['state'] !== 'absent') ||
+      (group['state'] === 'empty' &&
+        (group['device'] !== witness.cgroupDevice || group['inode'] !== witness.cgroupInode))
+    )
+      refuse('recovery-original-process-not-terminal');
+  }
+  attemptInvariants(): readonly AttemptInvariant[] {
+    return this.originals.map((selected) => {
+      const witness = this.processes.get(selected.original.id);
+      if (witness === undefined) refuse('original-process-not-bound');
+      const { namespacesSha256: _namespaces, ...originalProcess } = witness;
+      return {
+        target: selected.kind,
+        original: selected.original.id,
+        originalInvariantSha256: fingerprint(projectInvariant(selected.original)),
+        candidateInvariantSha256: fingerprint(candidateInvariant(selected.original)),
+        originalProcess,
+      };
+    });
+  }
+  originalProcessWitness(id: string): OriginalProcessWitness {
+    const witness = this.processes.get(id);
+    if (witness === undefined) refuse('original-process-not-bound');
+    const { namespacesSha256: _namespaces, ...originalProcess } = witness;
+    return originalProcess;
+  }
+  candidateProcessSha256(id: string): string | null {
+    return this.candidateWitnesses.get(id) ?? null;
+  }
   sourceProof(kind: TargetKind): ComposeProof {
     const proof = this.sourceProofs.get(kind);
     if (proof === undefined) refuse('compose-proof-unavailable');
@@ -1402,7 +1596,7 @@ class ProductionObserver implements HostObserver {
   private expected(kind: TargetKind): TargetPin {
     return this.packet.targets[kind === 'registry' ? 0 : 1];
   }
-  private async collect(deadline: Deadline): Promise<void> {
+  private async collect(deadline: Deadline, readOnly = false): Promise<void> {
     const manifest = decodeWriterManifest(
       parseJson(await readPrivateOrPinned(this.packet.quiescence.writerManifest)),
     );
@@ -1446,7 +1640,8 @@ class ProductionObserver implements HostObserver {
         fingerprint(entry) !== fingerprint(internal.get(entry.pid) ?? null)
       )
         refuse('unowned-launcher-present');
-    await this.admit(deadline);
+    if (readOnly) await this.admitReadOnly(deadline);
+    else await this.admit(deadline);
   }
   async original(
     target: SelectedTarget,
@@ -1454,6 +1649,10 @@ class ProductionObserver implements HostObserver {
     deadline: Deadline,
   ): Promise<void> {
     const expected = this.expected(target.kind);
+    await observeComposeDeclarations(
+      [{ ...target, nativeSha256: expected.nativeSha256, roster: expected.composeFiles }],
+      this.packet.provenance,
+    );
     if (
       observed.id !== expected.id ||
       observed.image !== expected.image ||
@@ -1720,6 +1919,8 @@ class ProductionObserver implements HostObserver {
       (previous.pid !== pid ||
         previous.startTime !== startTime ||
         previous.cgroup !== cgroup ||
+        previous.cgroupDevice !== identity(native['cgroupDevice']) ||
+        previous.cgroupInode !== identity(native['cgroupInode']) ||
         previous.namespacesSha256 !== fingerprint(namespaces))
     )
       refuse('process-identity-drift');
@@ -1743,6 +1944,20 @@ class ProductionObserver implements HostObserver {
       after.restartCount !== 0
     )
       refuse('process-engine-drift');
+    if (initialized)
+      this.candidateWitnesses.set(
+        observed.id,
+        fingerprint({
+          id: observed.id,
+          pid,
+          startTime,
+          cgroup,
+          cgroupDevice: identity(native['cgroupDevice']),
+          cgroupInode: identity(native['cgroupInode']),
+          namespacesSha256: fingerprint(namespaces),
+          startedAt: observed.state['StartedAt'],
+        }),
+      );
     this.processes.set(observed.id, {
       pid,
       startTime,
@@ -2107,12 +2322,14 @@ export async function probeWebSocket(probe: WebSocketProbe, timeout: number): Pr
     let complete = false,
       upgraded = false;
     let ownedUpgrade: Pick<Socket, 'destroy'> | undefined;
-    const fail = () => {
+    const fail = (modeled = false) => {
       if (!complete) {
         complete = true;
         clearTimeout(timer);
         ownedUpgrade?.destroy();
-        reject(new InitRefusal('websocket-refused'));
+        reject(
+          modeled ? new ProbeMismatch('websocket-refused') : new InitRefusal('websocket-refused'),
+        );
       }
     };
     const client = requestHttps({
@@ -2141,10 +2358,17 @@ export async function probeWebSocket(probe: WebSocketProbe, timeout: number): Pr
       client.destroy();
       fail();
     }, timeout);
-    client.on('error', fail);
-    client.on('response', (response) => {
-      response.destroy();
+    client.on('error', () => {
       fail();
+    });
+    client.on('response', (response) => {
+      response.on('error', () => {
+        fail();
+      });
+      response.on('end', () => {
+        fail(response.complete);
+      });
+      response.resume();
     });
     client.on('upgrade', (response, socket, head) => {
       upgraded = true;
@@ -2163,12 +2387,14 @@ export async function probeWebSocket(probe: WebSocketProbe, timeout: number): Pr
         head.length !== 0
       ) {
         socket.destroy();
-        fail();
+        fail(true);
         return;
       }
       const mask = randomBytes(4),
         code = Buffer.from([0x03, 0xe8]);
-      socket.on('error', fail);
+      socket.on('error', () => {
+        fail();
+      });
       socket.on('close', () => {
         clearTimeout(timer);
         if (!complete) {
@@ -2228,7 +2454,7 @@ export async function probeRegistry(probe: RegistryProbe, deadline: Deadline): P
       health.headers['docker-distribution-api-version'] !== 'registry/2.0' ||
       sha(health.body) !== probe.v2BodySha256
     )
-      refuse('registry-probe-refused');
+      throw new ProbeMismatch('registry-probe-refused');
     const manifest = await readResponse(
       probe.address,
       'https',
@@ -2245,54 +2471,180 @@ export async function probeRegistry(probe: RegistryProbe, deadline: Deadline): P
       // Proof: omitting body hashing admitted wrong manifest bytes behind the expected digest header in the real registry fixture.
       'sha256:' + sha(manifest.body) !== probe.manifestDigest
     )
-      refuse('registry-probe-refused');
+      throw new ProbeMismatch('registry-probe-refused');
     await recheck();
   });
 }
 
-/** @internal */
+/** Requires unique usable defaults and their connected interface/address routes.
+ * Multiple defaults, even with different metrics, are unsupported rather than guessed.
+ * Proof: omitting default multiplicity, endpoint uniqueness, connected interface/address or kernel-local address checks
+ * independently admitted the corresponding IPv4/IPv6 kernel fixture fault. Unmatched eth9 defaults refuse.
+ * @internal
+ */
 export function resolveDefaultRoute(
   native: Record<string, unknown>,
   observed: NativeContainer,
 ): string {
-  const gateways: string[] = [];
   const route = textKernel(native['route']);
   if (!route.startsWith('Iface\tDestination\tGateway')) refuse('kernel-route-invalid');
-  for (const line of route.trimEnd().split('\n').slice(1)) {
-    const fields = line.trim().split(/\s+/);
-    if (fields.length !== 11) refuse('kernel-route-invalid');
-    if (fields[1] === '00000000' && fields[7] === '00000000') {
-      const hex = fields.at(2);
-      if (hex === undefined || !/^[a-fA-F0-9]{8}$/.test(hex)) refuse('kernel-route-invalid');
-      gateways.push(Buffer.from(hex, 'hex').reverse().join('.'));
-    }
-  }
-  for (const line of textKernel(native['ipv6Route']).trim().split('\n')) {
-    if (line === '') continue;
-    const fields = line.trim().split(/\s+/);
-    if (fields.length !== 10) refuse('kernel-route-invalid');
-    if (fields[0] === '0'.repeat(32) && fields[1] === '00' && fields[4] !== '0'.repeat(32)) {
-      const hex = fields.at(4);
-      if (hex === undefined || !/^[a-fA-F0-9]{32}$/.test(hex)) refuse('kernel-route-invalid');
-      gateways.push(hex.toLowerCase());
-    }
-  }
+  const ipv4 = route
+    .trimEnd()
+    .split('\n')
+    .slice(1)
+    .map((line) => {
+      const fields = line.trim().split(/\s+/);
+      if (
+        fields.length !== 11 ||
+        !/^[a-zA-Z0-9_.-]{1,15}$/.test(fields[0] ?? '') ||
+        ![1, 2, 7].every((index) => /^[a-fA-F0-9]{8}$/.test(fields[index] ?? '')) ||
+        !/^[a-fA-F0-9]{4}$/.test(fields[3] ?? '') ||
+        !/^[0-9]+$/.test(fields[6] ?? '')
+      )
+        refuse('kernel-route-invalid');
+      return {
+        interface: fields[0],
+        destination: fields[1],
+        gateway: fields[2],
+        mask: fields[7],
+        flags: Number.parseInt(fields[3] ?? '', 16),
+      };
+    });
+  const ipv6 = textKernel(native['ipv6Route'])
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const fields = line.trim().split(/\s+/);
+      if (
+        fields.length !== 10 ||
+        ![0, 2, 4].every((index) => /^[a-fA-F0-9]{32}$/.test(fields[index] ?? '')) ||
+        ![1, 3].every((index) => /^[a-fA-F0-9]{2}$/.test(fields[index] ?? '')) ||
+        ![5, 6, 7, 8].every((index) => /^[a-fA-F0-9]{8}$/.test(fields[index] ?? ''))
+      )
+        refuse('kernel-route-invalid');
+      return {
+        interface: fields[9],
+        destination: fields[0]?.toLowerCase(),
+        prefix: Number.parseInt(fields[1] ?? '', 16),
+        source: fields[2]?.toLowerCase(),
+        sourcePrefix: Number.parseInt(fields[3] ?? '', 16),
+        gateway: fields[4]?.toLowerCase(),
+        flags: Number.parseInt(fields[8] ?? '', 16),
+      };
+    });
+  const usable = (flags: number) => (flags & 1) === 1 && (flags & 0x200) === 0;
+  const defaults4 = ipv4.filter(
+    (entry) => usable(entry.flags) && entry.destination === '00000000' && entry.mask === '00000000',
+  );
+  const defaults6 = ipv6.filter(
+    (entry) => usable(entry.flags) && entry.destination === '0'.repeat(32) && entry.prefix === 0,
+  );
+  if (defaults4.length > 1 || defaults6.length > 1 || defaults4.length + defaults6.length === 0)
+    refuse('default-route-ambiguous');
+  if (defaults6.some((entry) => entry.source !== '0'.repeat(32) || entry.sourcePrefix !== 0))
+    refuse('default-route-ambiguous');
+  const local4 = new Set(
+    [
+      ...textKernel(native['fibTrie']).matchAll(/(?:\|--|\+--) ([0-9.]+)\s*\n\s*\/32 host LOCAL/g),
+    ].map((entry) => entry[1]),
+  );
+  const local6 = textKernel(native['ifInet6'])
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const fields = line.trim().split(/\s+/);
+      if (
+        fields.length !== 6 ||
+        !/^[a-fA-F0-9]{32}$/.test(fields[0] ?? '') ||
+        ![1, 2, 3, 4].every((index) => /^[a-fA-F0-9]+$/.test(fields[index] ?? ''))
+      )
+        refuse('kernel-route-invalid');
+      return { address: fields[0]?.toLowerCase(), interface: fields[5] };
+    });
   const networks = new Set<string>();
-  for (const endpoint of Object.values(observed.networks)) {
-    const fields = record(endpoint),
-      gateway = fields['Gateway'],
-      ipv6 = fields['IPv6Gateway'];
-    if (
-      (typeof gateway === 'string' && gateways.includes(gateway)) ||
-      (typeof ipv6 === 'string' && ipv6 !== '' && gateways.includes(expandIpv6(ipv6)))
-    )
-      networks.add(hash(fields['NetworkID']));
+  const ipv4Number = (hex: string) => Buffer.from(hex, 'hex').readUInt32LE();
+  const addressNumber = (address: string) => {
+    if (isIP(address) !== 4) refuse('kernel-route-invalid');
+    return address.split('.').reduce((number, octet) => number * 256 + Number(octet), 0);
+  };
+  for (const route of defaults4) {
+    const matched = Object.values(observed.networks).filter((endpoint) => {
+      const fields = record(endpoint),
+        gateway = fields['Gateway'],
+        address = fields['IPAddress'],
+        prefix = fields['IPPrefixLen'];
+      if (
+        typeof gateway !== 'string' ||
+        typeof address !== 'string' ||
+        !Number.isInteger(prefix) ||
+        typeof prefix !== 'number' ||
+        prefix < 1 ||
+        prefix > 32 ||
+        isIP(gateway) !== 4 ||
+        isIP(address) !== 4 ||
+        !local4.has(address) ||
+        addressNumber(gateway) !== ipv4Number(route.gateway)
+      )
+        return false;
+      const mask = (0xffffffff << (32 - prefix)) >>> 0;
+      return (
+        ipv4.filter(
+          (connected) =>
+            usable(connected.flags) &&
+            connected.interface === route.interface &&
+            connected.gateway === '00000000' &&
+            ipv4Number(connected.mask) === mask &&
+            ipv4Number(connected.destination) === (addressNumber(address) & mask) >>> 0 &&
+            (addressNumber(gateway) & mask) >>> 0 === (addressNumber(address) & mask) >>> 0,
+        ).length === 1
+      );
+    });
+    if (matched.length !== 1) refuse('default-route-ambiguous');
+    networks.add(hash(record(matched[0])['NetworkID']));
   }
-  if (networks.size !== 1 || gateways.length === 0) refuse('default-route-ambiguous');
+  for (const route of defaults6) {
+    const matched = Object.values(observed.networks).filter((endpoint) => {
+      const fields = record(endpoint),
+        gateway = fields['IPv6Gateway'],
+        address = fields['GlobalIPv6Address'],
+        prefix = fields['GlobalIPv6PrefixLen'];
+      if (
+        typeof gateway !== 'string' ||
+        typeof address !== 'string' ||
+        isIP(gateway) !== 6 ||
+        isIP(address) !== 6 ||
+        typeof prefix !== 'number' ||
+        !Number.isInteger(prefix) ||
+        prefix < 1 ||
+        prefix > 128 ||
+        expandIpv6(gateway) !== route.gateway ||
+        !local6.some(
+          (entry) => entry.address === expandIpv6(address) && entry.interface === route.interface,
+        )
+      )
+        return false;
+      const shift = BigInt(128 - prefix),
+        network = BigInt('0x' + expandIpv6(address)) >> shift;
+      return ipv6.some(
+        (connected) =>
+          usable(connected.flags) &&
+          connected.interface === route.interface &&
+          connected.gateway === '0'.repeat(32) &&
+          connected.prefix === prefix &&
+          BigInt('0x' + connected.destination) >> shift === network,
+      );
+    });
+    if (matched.length !== 1) refuse('default-route-ambiguous');
+    networks.add(hash(record(matched[0])['NetworkID']));
+  }
+  if (networks.size !== 1) refuse('default-route-ambiguous');
   const network = [...networks].at(0);
   if (network === undefined) refuse('default-route-ambiguous');
   return network;
 }
+
 function expandIpv6(address: string): string {
   if (isIP(address) !== 6 || address.includes('.')) refuse('ipv6-layout-unsupported');
   const parts = address.split('::');
@@ -2323,96 +2675,669 @@ function checkConnections(native: Record<string, unknown>, ports: readonly numbe
     }
 }
 
+function requireComposeLabelRoster(observed: NativeContainer, expected: readonly string[]): void {
+  const roster = text(record(observed.config['Labels'])['com.docker.compose.project.config_files'])
+    .split(',')
+    .map((entry) => path(entry));
+  if (new Set(roster).size !== roster.length || fingerprint(roster) !== fingerprint(expected))
+    refuse('compose-roster-differs');
+}
+function recoverySnapshot(observed: readonly NativeContainer[]): string {
+  return fingerprint(
+    observed
+      .map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        invariant: projectInvariant(entry),
+        state: Object.fromEntries(
+          [
+            'Status',
+            'Running',
+            'Paused',
+            'Restarting',
+            'Dead',
+            'Pid',
+            'StartedAt',
+            'FinishedAt',
+          ].map((key) => [key, entry.state[key]]),
+        ),
+        restartCount: entry.restartCount,
+        networks: entry.networks,
+        sandboxId: entry.sandboxId,
+        sandboxKey: entry.sandboxKey,
+        ports: entry.ports,
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id)),
+  );
+}
+async function recoveryInventory(
+  engine: EngineTransport,
+  deadline: Deadline,
+): Promise<NativeContainer[]> {
+  const entries = values(
+    await engine.inventory(deadline.allocate(10000)),
+    (entry) => record(entry),
+    4096,
+  );
+  const ids = entries.map((entry) => hash(entry['Id']));
+  if (new Set(ids).size !== ids.length) refuse('recovery-inventory-invalid');
+  return Promise.all(ids.map((id) => engine.inspectListed(id, deadline.allocate(10000))));
+}
 async function inspectRecovery(
   packet: InitPacket,
   packetSha256: string,
   engine: EngineTransport,
+  recheck: () => Promise<void>,
+  deadline: Deadline,
 ): Promise<SafeInitSummary> {
-  await requireInheritedEdgeLock();
-  const directory = await lstat(packet.receiptDirectory);
+  const history = await readRecoveryHistory(packet, packetSha256);
+  const initialEdge = await requireInheritedEdgeLock();
+  if (initialEdge.stateDirectory !== '/home/puni1/wbs/state') refuse('edge-lock-differs');
+  const inventory = await recoveryInventory(engine, deadline);
+  const bindings = new Map<
+    string,
+    {
+      id: string;
+      originalId: string;
+      candidateId: string | null;
+      nonce: string;
+      name: '/wbs-caddy-1';
+      invariantSha256: string;
+    }
+  >();
+  const readOnly: ObserverEngine = {
+    inspect: (id, timeout) => engine.inspectListed(id, timeout),
+    inspectListed: (id, timeout) => engine.inspectListed(id, timeout),
+    inventory: (timeout) => engine.inventory(timeout),
+    inspectAbsent: () => refuse('recovery-effects-unavailable'),
+    version: (timeout) => engine.version(timeout),
+    info: (timeout) => engine.info(timeout),
+    image: (id, timeout) => engine.image(id, timeout),
+    network: (id, timeout) => engine.network(id, timeout),
+    volume: (name, timeout) => engine.volume(name, timeout),
+    execCaddy: (id, command, timeout) => {
+      const binding = bindings.get(id);
+      if (binding === undefined) refuse('recovery-caddy-not-bound');
+      return engine.observeCaddyListed(binding, command, timeout);
+    },
+  };
+  const observer = new ProductionObserver(packet, readOnly, recheck, []);
+  const current = packet.targets.map((target) => {
+    const proof = history.invariants.find((entry) => entry.target === target.kind);
+    if (proof === undefined) refuse('recovery-invariant-missing');
+    const original = inventory.find((entry) => entry.id === target.id);
+    let candidateId = history.candidates.get(target.kind);
+    const temporary = `/wbs-init-${packet.nonce}-${target.kind}`;
+    const reserved = inventory.filter((entry) => entry.name === temporary);
+    if (candidateId === undefined && history.intents.get(target.kind)?.has('create-intended')) {
+      if (reserved.length > 1) refuse('recovery-reserved-name-ambiguous');
+      candidateId = reserved.at(0)?.id;
+    }
+    const candidate =
+      candidateId === undefined ? undefined : inventory.find((entry) => entry.id === candidateId);
+    const intents = history.intents.get(target.kind) ?? new Set<string>();
+    const classification = classifyRecoveryTarget(
+      target.kind,
+      packet.nonce,
+      original,
+      candidate,
+      intents,
+      history.candidates.has(target.kind),
+    );
+    if (
+      (original !== undefined &&
+        fingerprint(projectInvariant(original)) !== proof.originalInvariantSha256) ||
+      (candidate !== undefined &&
+        fingerprint(projectInvariant(candidate)) !== proof.candidateInvariantSha256)
+    )
+      refuse('recovery-invariant-differs');
+    const reference = candidate ?? original;
+    if (reference === undefined) refuse('recovery-target-missing');
+    const labels = record(reference.config['Labels']);
+    for (const entry of inventory) {
+      if (entry.id === original?.id || entry.id === candidate?.id) continue;
+      const other = record(entry.config['Labels']);
+      if (
+        [`/wbs-${target.kind}-1`, temporary, temporary + '-original'].includes(entry.name) ||
+        entry.name.startsWith(temporary + '-') ||
+        (other['com.docker.compose.project'] === labels['com.docker.compose.project'] &&
+          other['com.docker.compose.service'] === labels['com.docker.compose.service'])
+      )
+        refuse('recovery-conflicting-owner');
+    }
+    const serving =
+      candidate !== undefined && runningState(candidate)
+        ? candidate
+        : original !== undefined && runningState(original)
+          ? original
+          : undefined;
+    observer.recoveryActive(target.kind, serving?.id ?? reference.id);
+    return { target, proof, original, candidate, serving, classification };
+  });
+  if (
+    current[0]?.candidate?.id !== undefined &&
+    current[0].candidate.id === current[1]?.candidate?.id
+  )
+    refuse('recovery-crossed-candidate');
+  await observer.recoveryAdmission(deadline);
+  const edgeRunning = current.find((entry) => entry.target.kind === 'caddy')?.serving !== undefined;
+  const observations: RecoveryTargetObservation[] = [];
+  for (const entry of current) {
+    if (entry.original !== undefined) {
+      await observer.recoveryPresent(entry.target.kind, entry.original, false, deadline);
+      if (
+        runningState(entry.original) &&
+        fingerprint(observer.originalProcessWitness(entry.original.id)) !==
+          fingerprint(entry.proof.originalProcess)
+      )
+        refuse('recovery-original-witness-differs');
+    }
+    if (entry.candidate !== undefined)
+      await observer.recoveryPresent(entry.target.kind, entry.candidate, true, deadline);
+    if (entry.original === undefined || !runningState(entry.original))
+      await observer.recoveryTerminal(entry.proof.originalProcess, deadline);
+    if (
+      entry.candidate !== undefined &&
+      !runningState(entry.candidate) &&
+      entry.classification === 'candidate-stopped-after-start'
+    ) {
+      const cgroup = entry.proof.originalProcess.cgroup.replace(
+        entry.target.id,
+        entry.candidate.id,
+      );
+      const kernel = await readNative([], [], [cgroup], [], deadline);
+      const group = record(kernel.cgroups[0]);
+      if (group['state'] !== 'absent' && group['state'] !== 'empty')
+        refuse('recovery-candidate-process-not-terminal');
+    }
+    const candidateHash =
+      entry.candidate === undefined ? null : observer.candidateProcessSha256(entry.candidate.id);
+    const historicalProcess = history.processes.get(entry.target.kind);
+    if (
+      historicalProcess !== undefined &&
+      entry.candidate !== undefined &&
+      runningState(entry.candidate) &&
+      candidateHash !== historicalProcess
+    )
+      refuse('recovery-candidate-process-differs');
+    if (entry.target.kind === 'caddy' && entry.serving !== undefined)
+      bindings.set(entry.serving.id, {
+        id: entry.serving.id,
+        originalId: entry.target.id,
+        candidateId: entry.candidate?.id ?? null,
+        nonce: packet.nonce,
+        name: '/wbs-caddy-1',
+        invariantSha256:
+          entry.serving.id === entry.target.id
+            ? entry.proof.originalInvariantSha256
+            : entry.proof.candidateInvariantSha256,
+      });
+    let health: RecoveryTargetObservation['health'] =
+      entry.serving === undefined
+        ? 'not-applicable-stopped'
+        : edgeRunning
+          ? 'healthy'
+          : 'not-applicable-edge-stopped';
+    if (entry.serving !== undefined && edgeRunning) {
+      for (let round = 0; round < 3; round++) {
+        const native = await engine.inspectListed(entry.serving.id, deadline.allocate(10000));
+        await observer.recoveryPresent(
+          entry.target.kind,
+          native,
+          native.id !== entry.target.id,
+          deadline,
+        );
+        if (
+          history.processes.has(entry.target.kind) &&
+          native.id !== entry.target.id &&
+          observer.candidateProcessSha256(native.id) !== historicalProcess
+        )
+          refuse('recovery-candidate-process-differs');
+        if (Object.hasOwn(native.state, 'Health')) {
+          const status = record(native.state['Health'])['Status'];
+          if (status !== 'healthy' && status !== 'unhealthy')
+            refuse('recovery-health-state-unknown');
+          if (status === 'unhealthy') health = 'unhealthy';
+        }
+        try {
+          await observer.health(entry.target.kind, native.id, deadline);
+        } catch (cause) {
+          if (cause instanceof ProbeMismatch) health = 'unhealthy';
+          else throw cause;
+        }
+        if (round < 2) {
+          deadline.allocate(5000);
+          await Bun.sleep(5000);
+        }
+      }
+    }
+    observations.push({
+      target: entry.target.kind,
+      class: entry.classification,
+      original: entry.original === undefined ? 'absent' : 'present',
+      candidate: entry.candidate === undefined ? 'absent' : 'present',
+      health,
+      probeApplicability: edgeRunning ? 'applicable' : 'not-applicable-edge-stopped',
+    });
+  }
+  await observer.recoveryAdmission(deadline);
+  const after = await recoveryInventory(engine, deadline),
+    afterHistory = await readRecoveryHistory(packet, packetSha256),
+    afterEdge = await requireInheritedEdgeLock();
+  if (
+    recoverySnapshot(inventory) !== recoverySnapshot(after) ||
+    afterHistory.directorySha256 !== history.directorySha256 ||
+    afterEdge.descriptor !== initialEdge.descriptor ||
+    afterEdge.stateDirectory !== initialEdge.stateDirectory
+  )
+    refuse('recovery-current-state-unstable');
+  await recheck();
+  return {
+    attempt: packet.nonce,
+    stage: 'recovery-observed',
+    packetSha256,
+    receiptDirectory: packet.receiptDirectory,
+    receiptSha256: history.previous,
+    recovery: {
+      scope: 'read-only-recovery-observation',
+      window: historicalWindow(packet.quiescence.issuedAt, packet.quiescence.expiresAt),
+      targets: observations,
+    },
+  };
+}
+
+interface RecoveryHistory {
+  previous: string;
+  invariants: readonly AttemptInvariant[];
+  candidates: Map<TargetKind, string>;
+  processes: Map<TargetKind, string>;
+  intents: Map<TargetKind, Set<string>>;
+  directorySha256: string;
+}
+const RECOVERY_SUCCESS = [
+  ...(['registry', 'caddy'] as const).flatMap((target) =>
+    [
+      'create-intended',
+      'created',
+      'candidate-verified',
+      'stop-intended',
+      'original-stopped',
+      'rename-original-intended',
+      'rename-candidate-intended',
+      'start-intended',
+      'healthy',
+    ].map((stage) => ({ target, stage })),
+  ),
+  { target: 'caddy', stage: 'retention-point' },
+  { target: 'registry', stage: 'remove-intended' },
+  { target: 'registry', stage: 'original-absent' },
+  { target: 'caddy', stage: 'remove-intended' },
+  { target: 'caddy', stage: 'original-absent' },
+  { target: 'caddy', stage: 'complete' },
+];
+function historicalWindow(issuedAt: string, expiresAt: string): 'unexpired' | 'expired' {
+  const issued = Date.parse(issuedAt),
+    expiry = Date.parse(expiresAt);
+  if (
+    !Number.isFinite(issued) ||
+    !Number.isFinite(expiry) ||
+    new Date(issued).toISOString() !== issuedAt ||
+    new Date(expiry).toISOString() !== expiresAt ||
+    issued > Date.now() ||
+    expiry <= issued ||
+    expiry - issued > 1800000
+  )
+    refuse('recovery-window-invalid');
+  return expiry <= Date.now() ? 'expired' : 'unexpired';
+}
+function decodeAttemptInvariants(value: unknown, packet: InitPacket): readonly AttemptInvariant[] {
+  return values(
+    value,
+    (entry): AttemptInvariant => {
+      const fields = closed(entry, [
+        'target',
+        'original',
+        'originalInvariantSha256',
+        'candidateInvariantSha256',
+        'originalProcess',
+      ]);
+      const target = fields['target'];
+      if (target !== 'registry' && target !== 'caddy') refuse('recovery-invariant-invalid');
+      const expected = packet.targets[target === 'registry' ? 0 : 1];
+      const witness = closed(fields['originalProcess'], [
+        'pid',
+        'startTime',
+        'cgroup',
+        'cgroupDevice',
+        'cgroupInode',
+      ]);
+      const originalProcess = {
+        pid: integer(witness['pid'], 1),
+        startTime: identity(witness['startTime']),
+        cgroup: path(witness['cgroup']),
+        cgroupDevice: identity(witness['cgroupDevice']),
+        cgroupInode: identity(witness['cgroupInode']),
+      };
+      if (
+        fields['original'] !== expected.id ||
+        originalProcess.startTime !== expected.process.startTime ||
+        originalProcess.cgroup !== expected.process.cgroup
+      )
+        refuse('recovery-original-witness-differs');
+      return {
+        target,
+        original: expected.id,
+        originalInvariantSha256: hash(fields['originalInvariantSha256']),
+        candidateInvariantSha256: hash(fields['candidateInvariantSha256']),
+        originalProcess,
+      };
+    },
+    2,
+    2,
+  ).map((entry, index) => {
+    if (entry.target !== (index === 0 ? 'registry' : 'caddy'))
+      refuse('recovery-invariant-roster-invalid');
+    return entry;
+  });
+}
+function allowedFailure(position: number, target: TargetKind, stage: string): boolean {
+  const offset = target === 'registry' ? 0 : 9,
+    local = position - offset;
+  if (stage === 'before-create') return local === 0 || local === 1;
+  if (stage === 'candidate-inert') return local === 1 || local === 2;
+  if (stage === 'stop-uncertain') return local === 3 || local === 4;
+  if (stage === 'original-stopped') return local === 4 || local === 5;
+  if (stage === 'rename-uncertain') return local >= 5 && local <= 7;
+  if (stage === 'start-uncertain') return local === 7 || local === 8;
+  if (stage === 'candidate-running-unhealthy') return local === 8;
+  if (stage === 'healthy-original-retained')
+    return (
+      local === 8 ||
+      (target === 'caddy' && position === 18) ||
+      (position === 19 && target === 'registry')
+    );
+  if (stage === 'removal-uncertain')
+    return (
+      (target === 'registry' && (position === 19 || position === 20)) ||
+      (target === 'caddy' && (position === 21 || position === 22 || position === 23))
+    );
+  return false;
+}
+/** Validates the complete private v2 chain; grants no Engine capability. @internal */
+export async function readRecoveryHistory(
+  packet: InitPacket,
+  packetSha256: string,
+): Promise<RecoveryHistory> {
+  const directory = await lstat(packet.receiptDirectory, { bigint: true });
   if (
     !directory.isDirectory() ||
     directory.isSymbolicLink() ||
-    directory.uid !== 1000 ||
-    (directory.mode & 0o777) !== 0o700 ||
+    directory.uid !== 1000n ||
+    (directory.mode & 0o777n) !== 0o700n ||
     (await realpath(packet.receiptDirectory)) !== packet.receiptDirectory
   )
     refuse('recovery-directory-invalid');
   const names = (await readdir(packet.receiptDirectory)).sort();
   if (names.length === 0 || names.length > 128) refuse('recovery-roster-invalid');
-  const deadline = new Deadline(120000);
-  let previous: string | null = null;
-  const selected = new Set(packet.targets.map((target) => target.id));
-  const candidates = new Set<string>();
-  const sourceProofs = new Map<TargetKind, ComposeProof>();
+  const proofs = new Map<TargetKind, ComposeProof>();
   for (const target of packet.targets)
-    sourceProofs.set(
+    proofs.set(
       target.kind,
       await readComposeRoster(target.kind, target.composeFiles, packet.provenance),
     );
-  for (let index = 0; index < names.length; index++) {
-    const name = names[index];
+  let previous: string | null = null,
+    invariants: readonly AttemptInvariant[] | undefined,
+    position = 0,
+    failed = false;
+  const candidates = new Map<TargetKind, string>(),
+    processes = new Map<TargetKind, string>(),
+    intents = new Map<TargetKind, Set<string>>();
+  const fileIdentities: { path: string; identity: string }[] = [];
+  const fileIdentity = async (path: string) => {
+    const native = await lstat(path, { bigint: true });
+    return [
+      native.dev,
+      native.ino,
+      native.mode,
+      native.uid,
+      native.size,
+      native.mtimeNs,
+      native.ctimeNs,
+    ].join(':');
+  };
+  for (const [index, name] of names.entries()) {
     if (name !== String(index).padStart(4, '0') + '.json') refuse('recovery-roster-invalid');
-    const receipt = record(parseJson(await readPrivateFile(join(packet.receiptDirectory, name))));
+    const path = join(packet.receiptDirectory, name),
+      before = await fileIdentity(path);
+    const receipt = record(parseJson(await readPrivateFile(path)));
+    if ((await fileIdentity(path)) !== before) refuse('recovery-current-state-unstable');
+    fileIdentities.push({ path, identity: before });
+    // Proof: omitting the version comparison admitted a self-consistent version1 private chain.
+    if (receipt['format'] !== 'edge-init-receipt' || receipt['version'] !== 2)
+      refuse('recovery-evidence-insufficient');
     const hasCandidate = Object.hasOwn(receipt, 'candidate');
     closed(receipt, [
+      'format',
+      'version',
       'attempt',
       'previous',
       'stage',
       'target',
       'original',
       'remaining',
+      'packetSha256',
       'sourceRosterSha256',
       'literalInitSha256',
+      'invariants',
+      'candidateProcesses',
       ...(hasCandidate ? ['candidate'] : []),
     ]);
-    const kind = receipt['target'];
-    if (kind !== 'registry' && kind !== 'caddy') refuse('recovery-target-invalid');
-    const proof = sourceProofs.get(kind);
+    const target = receipt['target'];
+    if (target !== 'registry' && target !== 'caddy') refuse('recovery-target-invalid');
+    const proof = proofs.get(target);
     if (proof === undefined) refuse('recovery-source-proof-missing');
-    checkReceiptSources(receipt, proof);
+    checkReceiptSources(receipt, proof, packetSha256);
     if (
       receipt['attempt'] !== packet.nonce ||
       receipt['previous'] !== previous ||
-      receipt['original'] !== packet.targets[kind === 'registry' ? 0 : 1].id
+      receipt['original'] !== packet.targets[target === 'registry' ? 0 : 1].id
     )
       refuse('recovery-chain-invalid');
-    readRecoveryStage(receipt['stage']);
     integer(receipt['remaining'], 0, 300000);
+    const observedInvariants = decodeAttemptInvariants(receipt['invariants'], packet);
+    // Proof: omitting pair equality admitted a different immutable hash in a later self-consistent receipt.
+    if (invariants !== undefined && fingerprint(invariants) !== fingerprint(observedInvariants))
+      refuse('recovery-invariants-differ');
+    invariants = observedInvariants;
+    const stage = readRecoveryStage(receipt['stage']),
+      expected = RECOVERY_SUCCESS.at(position);
+    if (failed) refuse('recovery-stage-order-invalid');
+    // Proof: omitting success grammar admitted swapped created/verified stages with a valid hash chain.
+    if (stage === expected?.stage && target === expected.target) {
+      const reached = intents.get(target) ?? new Set<string>();
+      reached.add(stage);
+      intents.set(target, reached);
+      position++;
+    } else if (index === names.length - 1 && allowedFailure(position, target, stage)) failed = true;
+    else refuse('recovery-stage-order-invalid');
     if (hasCandidate) {
-      const id = hash(receipt['candidate']);
-      if (selected.has(id)) refuse('recovery-candidate-invalid');
-      candidates.add(id);
+      // Proof: omitting rebinding refusal admitted a self-consistent second registry candidate ID.
+      const candidate = hash(receipt['candidate']),
+        bound = candidates.get(target);
+      if (
+        packet.targets.some((entry) => entry.id === candidate) ||
+        (bound !== undefined && bound !== candidate) ||
+        [...candidates.entries()].some(([kind, id]) => kind !== target && id === candidate)
+      )
+        refuse('recovery-candidate-invalid');
+      candidates.set(target, candidate);
+    }
+    if (
+      (['create-intended', 'before-create'].includes(stage) && hasCandidate) ||
+      (stage !== 'create-intended' && stage !== 'before-create' && !hasCandidate) ||
+      (hasCandidate && !intents.get(target)?.has('create-intended'))
+    )
+      refuse('recovery-candidate-invalid');
+    const pair = values(
+      receipt['candidateProcesses'],
+      (entry) => closed(entry, ['target', 'candidate', 'processSha256']),
+      2,
+      2,
+    );
+    for (const [pairIndex, entry] of pair.entries()) {
+      const kind = pairIndex === 0 ? 'registry' : 'caddy';
+      if (entry['target'] !== kind || entry['candidate'] !== (candidates.get(kind) ?? null))
+        refuse('recovery-candidate-witness-invalid');
+      const witness = entry['processSha256'] === null ? null : hash(entry['processSha256']);
+      if (
+        (witness !== null &&
+          (!candidates.has(kind) || !intents.get(kind)?.has('start-intended'))) ||
+        // Proof: omitting monotonicity admitted a changed non-null running witness in the private chain.
+        (processes.has(kind) && processes.get(kind) !== witness)
+      )
+        refuse('recovery-candidate-process-differs');
+      if (witness !== null) processes.set(kind, witness);
+      if (intents.get(kind)?.has('healthy') && witness === null)
+        refuse('recovery-healthy-witness-missing');
     }
     previous = fingerprint(receipt);
   }
-  const listed = values(
-    await engine.inventory(deadline.allocate(10000)),
-    (entry) => record(entry),
-    4096,
-  );
-  const present = new Set(listed.map((entry) => hash(entry['Id'])));
-  for (const id of [...selected, ...candidates])
-    if (present.has(id)) {
-      const observed = await engine.inspectListed(id, deadline.allocate(10000));
-      if (
-        candidates.has(id) &&
-        ![
-          '/wbs-registry-1',
-          '/wbs-caddy-1',
-          `/wbs-init-${packet.nonce}-registry`,
-          `/wbs-init-${packet.nonce}-caddy`,
-        ].includes(observed.name)
-      )
-        refuse('recovery-name-differs');
-    }
-  return {
-    attempt: packet.nonce,
-    stage: 'recovery-inspected',
-    packetSha256,
-    receiptDirectory: packet.receiptDirectory,
-    receiptSha256: previous,
-  };
+  if (previous === null || invariants === undefined) refuse('recovery-evidence-insufficient');
+  const after = await lstat(packet.receiptDirectory, { bigint: true });
+  const directorySha256 = fingerprint({
+    device: String(directory.dev),
+    inode: String(directory.ino),
+    names,
+    previous,
+    fileIdentities,
+  });
+  for (const file of fileIdentities)
+    if ((await fileIdentity(file.path)) !== file.identity)
+      refuse('recovery-current-state-unstable');
+  if (
+    directory.dev !== after.dev ||
+    directory.ino !== after.ino ||
+    fingerprint(names) !== fingerprint((await readdir(packet.receiptDirectory)).sort())
+  )
+    refuse('recovery-current-state-unstable');
+  return { previous, invariants, candidates, processes, intents, directorySha256 };
+}
+function runningState(observed: NativeContainer): boolean {
+  if (
+    observed.state['Paused'] !== false ||
+    observed.state['Restarting'] !== false ||
+    observed.state['Dead'] !== false ||
+    observed.restartCount !== 0
+  )
+    refuse('recovery-runtime-invalid');
+  if (
+    observed.state['Running'] === true &&
+    observed.state['Status'] === 'running' &&
+    integer(observed.state['Pid'], 0) > 0 &&
+    observed.state['StartedAt'] !== '0001-01-01T00:00:00Z' &&
+    Number.isFinite(Date.parse(text(observed.state['StartedAt'])))
+  )
+    return true;
+  if (
+    observed.state['Running'] === false &&
+    observed.state['Pid'] === 0 &&
+    ['created', 'exited'].includes(text(observed.state['Status']))
+  )
+    return false;
+  refuse('recovery-runtime-invalid');
+}
+function requireInert(observed: NativeContainer): void {
+  if (
+    runningState(observed) ||
+    observed.state['Status'] !== 'created' ||
+    observed.state['StartedAt'] !== '0001-01-01T00:00:00Z' ||
+    observed.state['FinishedAt'] !== '0001-01-01T00:00:00Z' ||
+    observed.sandboxId !== '' ||
+    observed.sandboxKey !== '' ||
+    Object.values(record(observed.ports)).some((entry) => entry !== null) ||
+    Object.values(observed.networks).some((entry) => {
+      const endpoint = record(entry);
+      return (
+        endpoint['EndpointID'] !== '' ||
+        endpoint['IPAddress'] !== '' ||
+        endpoint['GlobalIPv6Address'] !== ''
+      );
+    })
+  )
+    refuse('recovery-candidate-not-inert');
+}
+/** Classifies only the nine stable current states explained by durable intents.
+ * @internal
+ */
+export function classifyRecoveryTarget(
+  kind: TargetKind,
+  nonce: string,
+  original: NativeContainer | undefined,
+  candidate: NativeContainer | undefined,
+  intents: ReadonlySet<string>,
+  recordedCandidate: boolean,
+): RecoveryClass {
+  const canonical = `/wbs-${kind}-1`,
+    temporary = `/wbs-init-${nonce}-${kind}`,
+    retained = temporary + '-original';
+  const has = (stage: string) => intents.has(stage);
+  if (candidate === undefined) {
+    if (
+      recordedCandidate ||
+      original?.name !== canonical ||
+      !runningState(original) ||
+      has('stop-intended')
+    )
+      refuse('recovery-current-state-unsupported');
+    return has('create-intended') ? 'create-unacknowledged-no-candidate-observed' : 'before-create';
+  }
+  if (!has('create-intended')) refuse('recovery-candidate-without-intent');
+  const candidateRunning = runningState(candidate);
+  if (original === undefined) {
+    // Proof: omitting durable removal intent admitted unexplained original absence in the nine-state classifier.
+    if (!has('remove-intended') || !candidateRunning || candidate.name !== canonical)
+      refuse('recovery-original-absence-unexplained');
+    return 'candidate-running-original-absent';
+  }
+  if (runningState(original)) {
+    if (original.name !== canonical || candidateRunning || candidate.name !== temporary)
+      refuse('recovery-current-state-unsupported');
+    requireInert(candidate);
+    return 'candidate-inert';
+  }
+  if (
+    original.state['Status'] !== 'exited' ||
+    original.state['StartedAt'] === '0001-01-01T00:00:00Z' ||
+    !Number.isFinite(Date.parse(text(original.state['StartedAt'])))
+  )
+    refuse('recovery-original-stop-invalid');
+  if (!has('stop-intended')) refuse('recovery-stop-without-intent');
+  if (original.name === canonical && candidate.name === temporary && !candidateRunning) {
+    requireInert(candidate);
+    return 'original-stopped';
+  }
+  if (original.name !== retained || !has('rename-original-intended'))
+    refuse('recovery-name-differs');
+  if (candidate.name === temporary && !candidateRunning) {
+    requireInert(candidate);
+    return 'original-renamed';
+  }
+  // Proof: omitting canonical target name admitted a running candidate under the other service name.
+  if (candidate.name !== canonical || !has('rename-candidate-intended'))
+    refuse('recovery-name-differs');
+  if (!candidateRunning && candidate.state['Status'] === 'created') {
+    requireInert(candidate);
+    return 'candidate-renamed';
+  }
+  if (!has('start-intended')) refuse('recovery-start-without-intent');
+  if (candidateRunning) return 'candidate-running-original-retained';
+  if (
+    candidate.state['Status'] !== 'exited' ||
+    candidate.state['StartedAt'] === '0001-01-01T00:00:00Z' ||
+    !Number.isFinite(Date.parse(text(candidate.state['StartedAt'])))
+  )
+    refuse('recovery-current-state-unsupported');
+  return 'candidate-stopped-after-start';
 }
 
 /** Rejects unknown trusted receipt stages before read-only recovery inspection.
@@ -2462,7 +3387,10 @@ interface ComposeProof {
   literalInitSha256: string;
 }
 /** Production publications carry required proofs of the freshly pinned installed declaration. */
-interface ProductionInitReceipt extends Receipt {
+interface ProductionInitReceipt extends Receipt, ReceiptEvidence {
+  format: 'edge-init-receipt';
+  version: 2;
+  packetSha256: string;
   sourceRosterSha256: string;
   literalInitSha256: string;
 }
@@ -2474,23 +3402,36 @@ export async function publishInitReceipt(
   writer: Pick<PrivateReceipts, 'publish'>,
   receipt: Receipt,
   proof: ComposeProof,
+  packetSha256: string,
+  evidence: ReceiptEvidence,
 ): Promise<string> {
   if (proof.target !== receipt.target) refuse('receipt-source-target-differs');
-  // Proof: omitting literal proof publication failed exact private receipt readback.
+  // Proof: independently omitting format/version, either evidence pair or packet hash failed exact private receipt readback;
+  // omitting literal source proof likewise failed its readback.
   const publication: ProductionInitReceipt = {
     ...receipt,
+    format: 'edge-init-receipt',
+    version: 2,
+    invariants: evidence.invariants,
+    candidateProcesses: evidence.candidateProcesses,
+    packetSha256: hash(packetSha256),
     sourceRosterSha256: hash(proof.sourceRosterSha256),
     literalInitSha256: hash(proof.literalInitSha256),
   };
   return writer.publish(publication);
 }
 
-/** Requires both persisted source hashes to equal the separately recomputed ordered roster proof.
+/** Requires the historical raw packet hash and both independently recomputed installed-source hashes.
  * @internal
  */
-export function checkReceiptSources(receipt: Record<string, unknown>, proof: ComposeProof): void {
+export function checkReceiptSources(
+  receipt: Record<string, unknown>,
+  proof: ComposeProof,
+  packetSha256: string,
+): void {
   if (
-    // Proof: independently omitting either comparison admitted wrong source metadata in production receipt recovery.
+    // Proof: independently omitting the packet or either source comparison admitted changed metadata in receipt recovery.
+    hash(receipt['packetSha256']) !== hash(packetSha256) ||
     hash(receipt['sourceRosterSha256']) !== proof.sourceRosterSha256 ||
     hash(receipt['literalInitSha256']) !== proof.literalInitSha256 ||
     receipt['target'] !== proof.target
