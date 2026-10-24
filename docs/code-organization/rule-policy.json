@@ -278,6 +278,10 @@
           },
           {
             "kind": "suffix",
+            "value": ".timer"
+          },
+          {
+            "kind": "suffix",
             "value": ".caddy"
           },
           {

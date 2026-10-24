@@ -93,6 +93,7 @@
         { "kind": "suffix", "value": ".example" },
         { "kind": "suffix", "value": ".sops" },
         { "kind": "suffix", "value": ".service" },
+        { "kind": "suffix", "value": ".timer" },
         { "kind": "suffix", "value": ".caddy" },
         { "kind": "suffix", "value": ".candidate" },
         { "kind": "suffix", "value": ".bootstrap" },

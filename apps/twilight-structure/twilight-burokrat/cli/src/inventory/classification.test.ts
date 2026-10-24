@@ -609,6 +609,66 @@ describe('entry classification production CLI', () => {
     ]);
   });
 
+  test.each([
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+    'docs/code-organization/rule-policy.json',
+    'apps/twilight-structure/twilight-burokrat/cli/src/contracts/fixtures/classification-policy.v1.json',
+  ])(
+    'classifies registry systemd units and refuses an omitted timer selector with %s',
+    async (policyPath) => {
+      const repository = createRepository();
+      const workspace = join(import.meta.dir, '../../../../../..');
+      const unitPaths = [
+        'infra/systemd/registry-backup/puni-registry-backup.service',
+        'infra/systemd/registry-backup/puni-registry-backup.timer',
+      ];
+      for (const path of unitPaths) write(repository, path, readFileSync(join(workspace, path)));
+      const revision = commitAll(repository);
+      interface Policy {
+        contentRules: {
+          contentClass: string;
+          include: { kind: string; value: string }[];
+        }[];
+      }
+      const envelope = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8')) as Policy & {
+        classificationPolicy?: Policy;
+      };
+      const classificationPolicy = envelope.classificationPolicy ?? envelope;
+      const invocation = await classify(
+        repository,
+        revision,
+        writePolicy(repository, classificationPolicy),
+      );
+      expect(invocation.exitCode, output(invocation)).toBe(0);
+      const classified = JSON.parse(standardOutput(invocation)) as {
+        entries: { path: string; classification: { contentClass: string } }[];
+      };
+      expect(
+        classified.entries.map(({ path, classification }) => [path, classification.contentClass]),
+      ).toEqual(unitPaths.map((path) => [path, 'config']));
+
+      const configRule = classificationPolicy.contentRules.find(
+        (rule) => rule.contentClass === 'config',
+      );
+      if (configRule === undefined) throw new Error('trusted config rule missing');
+      configRule.include = configRule.include.filter(
+        (selector) => selector.kind !== 'suffix' || selector.value !== '.timer',
+      );
+      const omitted = await classify(
+        repository,
+        revision,
+        writePolicy(repository, classificationPolicy),
+      );
+      // Proof: removing .timer from each shipped config rule makes this production CLI refuse
+      // the actual registry timer, while the unchanged .service selector still classifies its sibling.
+      expect(omitted.exitCode, output(omitted)).toBe(1);
+      expect(output(omitted)).toContain(
+        `ordinary content ${unitPaths[1]} matched 0 classification rules`,
+      );
+    },
+  );
+
   test.each(['policy.json', 'bootstrap-policy.json'])(
     'classifies fleet Containerfiles and package NOTICE with docs/wiki-policy/%s',
     async (policyName) => {
