@@ -18,7 +18,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-89 tools in all:
+90 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - the saved-reference delivery read, which observes public GitHub delivery without changing planning progress;
