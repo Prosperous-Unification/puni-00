@@ -26,6 +26,7 @@ import {
   listWorkItemTypes,
   patchProject,
   preflightRequest,
+  readClaimHistory,
   readProject,
   readProjectClaims,
   readTimezones,
@@ -192,6 +193,7 @@ const PROJECT_API_OPERATIONS = {
   listTimezones: 'getApiTimezones',
   listCalendarMarkers: 'getApiProjectsByIdCalendar-markers',
   readClaims: 'getApiProjectsByIdClaims',
+  readClaimHistory: 'getApiProjectsByIdClaim-history',
   createCalendarMarker: 'postApiProjectsByIdCalendar-markers',
   renameCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
   recolorCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
@@ -961,6 +963,24 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return reply.body;
+    };
+  }
+
+  const readClaimHistoryAnswer = answers.readClaimHistory;
+  if (readClaimHistoryAnswer !== undefined) {
+    checked.readClaimHistory = async (projectId) => {
+      const client = clientFromShapes([readClaimHistory], async () => ({
+        kind: 'json',
+        status: 200,
+        body: { events: await readClaimHistoryAnswer(projectId) },
+      }));
+      const reply = await client['getApiProjectsByIdClaim-history']({
+        params: { id: projectId },
+        query: {},
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body.events;
     };
   }
 

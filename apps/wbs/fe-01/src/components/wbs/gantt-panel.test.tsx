@@ -3919,6 +3919,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     // closed" — `notImplemented` makes the write audible instead.
     listCalendarMarkers: () => Promise.resolve([]),
     readClaims: () => Promise.resolve({ readAt: 0, claims: [] }),
+    readClaimHistory: () => Promise.resolve([]),
     createCalendarMarker: () => notImplemented('createCalendarMarker'),
     renameCalendarMarker: () => notImplemented('renameCalendarMarker'),
     recolorCalendarMarker: () => notImplemented('recolorCalendarMarker'),

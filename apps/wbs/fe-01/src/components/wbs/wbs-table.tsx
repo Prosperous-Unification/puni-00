@@ -19,6 +19,7 @@ import {
 
 import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
+import { ClaimsSheet } from './claims-sheet';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
 import { createDepLights, type DepLights } from './dep-light-store';
@@ -2436,6 +2437,17 @@ export function WbsTable({
       // beside the start date and the method it records. Above `md` the shelf
       // is in the app header and the sheet is not rendered at all.
       sheetExtras={{ view: sheetResetLayout, schedule: savedPlansShelf }}
+      claimsSheet={
+        <ClaimsSheet
+          claims={claims}
+          claimsMayBeStale={claimsMayBeStale}
+          treeGeneration={chartRead.generation}
+          readHistory={commands.readClaimHistory}
+          steps={steps}
+          zone={chartRead.timezone}
+          leaseClock={leaseClock}
+        />
+      }
     />
   );
 

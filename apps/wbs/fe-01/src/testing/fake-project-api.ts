@@ -15,6 +15,7 @@ import { byTreeOrder, treeOrder } from '@wbs/domain/tree-order';
 import type {
   AssumedAssigneeFlipView,
   CalendarMarkerView,
+  ClaimHistoryEventView,
   ClaimView,
   Days,
   EstimateMethod,
@@ -82,6 +83,8 @@ export function fakeProjectApi(): ProjectApi & {
   markers: CalendarMarkerView[];
   /** The claims this fake answers `readClaims` with; a test pushes what it needs. */
   claims: ClaimView[];
+  /** The claim history this fake answers `readClaimHistory` with, newest first. */
+  claimHistory: ClaimHistoryEventView[];
   stack: { undoable: boolean; redoable: boolean };
   stackCalls: ('undo' | 'redo')[];
   answerStackWith: (answer: UndoResult) => void;
@@ -150,6 +153,7 @@ export function fakeProjectApi(): ProjectApi & {
    */
   const markers: CalendarMarkerView[] = [];
   const claims: ClaimView[] = [];
+  const claimHistory: ClaimHistoryEventView[] = [];
   const typedDependencies: TypedDependencyView[] = [];
   let nextDependencyId = 0;
   /** Minted here when the caller names none, as be-01 mints one. */
@@ -439,6 +443,7 @@ export function fakeProjectApi(): ProjectApi & {
     rows,
     markers,
     claims,
+    claimHistory,
     stack,
     stackCalls,
     /** What the next undo or redo answers, for the refusals be-01 models. */
@@ -801,6 +806,7 @@ export function fakeProjectApi(): ProjectApi & {
         readAt: Date.now(),
         claims: claims.map((claim) => ({ ...claim, holder: { ...claim.holder } })),
       }),
+    readClaimHistory: () => Promise.resolve(structuredClone(claimHistory)),
     createCalendarMarker(_projectId, marker) {
       const id = marker.markerId ?? `marker-${String(nextMarkerId++)}`;
       const stored: CalendarMarkerView = {

@@ -129,13 +129,13 @@ reached `main` and deployed (C5), and gw-01 with the optional `seq` deploys no l
 
 ## 9. Claims sheet (fe-01; builds `wbs-claim-leases` 2.1, history row)
 
-- [ ] 9.1 Red: sheet tests: the toolbar button's count (absent at zero), held claims grouped
+- [x] 9.1 Red: sheet tests: the toolbar button's count (absent at zero), held claims grouped
       by holder then run with lease text, claims the tree lacks still listed, history rows
       with reasons, a history read failure rendered in place while the held list stays, the
       history re-read on a tree change while open and not on `claims_changed`; no claim or
       release control. Green. R5 fault: re-read history on `claims_changed` (the request-count
       assertion reddens); watched.
-- [ ] 9.2 The phone `Plan actions` sheet offers the Claims sheet — test: the phone sheet case.
+- [x] 9.2 The phone `Plan actions` sheet offers the Claims sheet — test: the phone sheet case.
 
 ## 10. Proof and record
 

@@ -136,8 +136,9 @@ failure in place. Neither SHALL reach the Error Boundary.
 
 ### Requirement: The Claims sheet lists who holds what
 
-fe-01 SHALL offer a Claims sheet from a toolbar button showing the number of claims held (no
-number at zero) and from the phone `Plan actions` sheet. It SHALL list the held claims grouped
+fe-01 SHALL offer a Claims sheet from a toolbar button showing the number of claims held and
+from the phone `Plan actions` sheet. The button SHALL be drawn only while a claim is held or the
+sheet is open (an unclaimed plan's toolbar is unchanged), and SHALL show no number at zero. It SHALL list the held claims grouped
 by holder, then run, each with number, name, step name or `subtree`, lease text and claim
 instant. It SHALL offer no claim or release control.
 
@@ -146,6 +147,16 @@ instant. It SHALL offer no claim or release control.
 - **WHEN** `codex` holds two steps under run `r-7` and `ada` holds one step
 - **THEN** the sheet lists `ada` with one claim and `codex` with run `r-7` and two claims, and
   the toolbar button reads 3
+
+#### Scenario: An unclaimed plan offers no Claims button
+
+- **WHEN** no claim is held in the project and the sheet is closed
+- **THEN** the toolbar draws no Claims button
+
+#### Scenario: The last claim goes while the sheet is open
+
+- **WHEN** the sheet is open and a claims read lists no claim
+- **THEN** the sheet stays open, says no claims are held, and its button shows no number
 
 ### Requirement: The Claims sheet says why claims went
 

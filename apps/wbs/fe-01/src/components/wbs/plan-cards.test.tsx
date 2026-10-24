@@ -2282,6 +2282,30 @@ describe('claims on a card (wbs-claim-display 7.1)', () => {
   });
 });
 
+describe('the Claims sheet on a phone (wbs-claim-display 9.2)', () => {
+  itDom('is offered on the Plan actions sheet, and opens over it', async () => {
+    const { api } = await claimedPlan();
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    openTheSheet();
+    const actions = await screen.findByRole('dialog', { name: 'Plan actions' });
+    const view = actions.querySelector<HTMLElement>('[data-sheet-group="View"]');
+    if (view === null) throw new Error('the sheet has no View group');
+    const offer = await within(view).findByRole('button', { name: 'Claims, 5 held' });
+
+    fireEvent.click(offer);
+
+    const sheet = await screen.findByRole('dialog', { name: 'Claims' });
+    expect(
+      [...sheet.querySelectorAll('[data-claims-holder]')].map((group) =>
+        group.getAttribute('data-claims-holder'),
+      ),
+    ).toEqual(['claire', 'codex', 'dana', 'eve', 'finn']);
+  });
+});
+
 describe('the trio behind a step’s figure, on a card', () => {
   const trioOnCard = (stepId: string): HTMLElement | null =>
     document.querySelector(`[data-step-trio="${stepId}"]`);

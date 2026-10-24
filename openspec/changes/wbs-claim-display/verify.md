@@ -852,3 +852,83 @@ wbs-contracts, wbs-core (+module), wbs-conformance, wbs-store-sqlite, wbs-store-
 wbs-be-01 (+module), wbs-mcp-01 pass; Burokrat `check-indexes working . HEAD` exit 0;
 `openspec validate --all --json` 280 of 280; `tool-devsync:test` 921 tests, target succeeded.
 Not run locally: the full be-01 and fe-01 suites (CI carries them).
+
+### Slice 9: Claims sheet (fe-01), 2026-10-24
+
+Branch `feat/wbs-claim-display-sheet` on `origin/feat/wbs-claim-history` at `167ab6f82` (#706,
+slice 8, which already holds main with slices 1–7). Commands ran with `env -u CLAUDECODE` and
+`TZ=UTC` from `apps/wbs/fe-01`. No contracts change: slice 8's `readClaimHistory` shape is
+used as it is.
+
+**Plumbing.** `ProjectApi.readClaimHistory` (`ClaimHistoryEventView`, `ClaimHistoryClaimView`)
+reads `GET /api/projects/:id/claim-history` at be-01's default bound through the shape list;
+`plan-refusal.ts` words its refusals exhaustively. It reaches the table as a bound project route
+of `PlanCommands` (`readClaimHistory`, beside `exportPlan`, the other read there), so no new
+runtime member. The fakes (`fake-project-api.ts`, the shape-checked `refusing-api.ts` boundary,
+`claims-fixture.ts` with `history` and `historyReads`) answer it.
+
+**9.1** `claims-sheet.tsx` (`ClaimsSheet`, `groupHeldClaims`): a `Claims` toolbar button with
+the held count, a right-side sheet (the whole screen on a phone) listing held claims grouped by
+holder (by name), then run (read order), each row number, name, step or `subtree`, lease text
+(the plan's lease clock against the read's own clock, C6) and since; claims the tree lacks are
+listed by the read's own number and name. Below, the recent claims and releases newest first,
+each naming who, `claimed` or `released`, the items (`a deleted person`, `a deleted item` for
+null) and the reason (`lease expired`, `credential revoked`). The history is read on open and on
+each change of the installed tree's generation while open, never on `claims_changed` and never
+while closed; its failure is said in place ("Claim history could not be read.", `Retry
+history`) with the held list kept; a failed claims read is said in place over the last claims.
+No claim or release control: the sheet's only button is its ✕. Ten cases in
+`claims-sheet.test.tsx`. Red before the green: 8 of 9 failed (no button, no dialog); the
+zero-claims case passed vacuously until its fault below.
+
+| R5 fault (watched)                                        | Observed                                                                                           |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| history reread on `claims_changed` (`claims` in the deps) | `rereads the history on a tree change while open, and not on claims_changed`: `expected 2 to be 1` |
+| `treeGeneration` dropped from the deps                    | same case, on the tree change: `expected 1 to be 2`                                                |
+| button drawn with no claim held                           | `is not drawn while no claim is held …`: `expected <button …> to be null`                          |
+| history failure answered as an empty list                 | `says the history could not be read in place …`: the sentence not found                            |
+| claims failure not said in the sheet                      | `says a failed claims read in place …`: `expected undefined to be 'Claims could not be read. …'`   |
+
+**9.2** The phone `Plan actions` sheet's View group carries the same button; it opens the Claims
+sheet over the actions sheet (its trigger is `aria-haspopup`, so the actions sheet stays, as
+Project settings does). Case `is offered on the Plan actions sheet, and opens over it` in
+`plan-cards.test.tsx`.
+
+| R5 fault (watched)             | Observed                                               |
+| ------------------------------ | ------------------------------------------------------ |
+| button left off the View group | the case found no `Claims, 5 held` button in the sheet |
+
+Deviations:
+
+- C16 amended: the button is drawn only while a claim is held or the sheet is open, not at zero
+  with no count. The design's Goal ("an unclaimed plan looks and costs exactly what it does
+  today") and `project-settings.spec.ts`' pinned 1280px toolbar width (1332.5px, no margin
+  left) both forbid a new control on an unclaimed plan's toolbar. The cost: with no claim held,
+  the history is reachable only through the MCP read. Spec delta and design updated, with two
+  scenarios.
+- The history read is a `PlanCommands` route rather than a new `ProjectRuntime` member, as
+  `exportPlan` is: a new runtime member would change the runtime's enumerated surface for one
+  sheet-local read.
+
+By eye (2026-10-24, Chromium 1440×900 and 390×844 at 2x, light and dark, a scratch Vite page
+over `claims-fixture.ts` with seven claims, one on a row the tree lacks, a 52-character run id,
+and five history acts including a batch and a deleted person and item; not committed): the
+button sits after `2 unestimated` with its count in the claim tint; the sheet lists the groups
+with the run ids in mono, long names truncated before the lease and since columns, the long run
+id wrapping inside the sheet (no horizontal overflow: scrollWidth equals clientWidth at both
+widths); the failed history reads one line with its retry. Fixed during review: browser-default
+list margins and indent (an empty band above each run's rows) and the kit's 90vh cap leaving the
+right sheet short of the bottom edge (`max-h-dvh`). Screenshots kept outside the repo.
+
+Results (fresh, 2026-10-24):
+
+- `nx run wbs-fe-01:typecheck` (with `typecheck:module`, `--skip-nx-cache`) succeeded.
+- eslint on the 14 changed TypeScript files: exit 0; Prettier written on them.
+- vitest over `src/components/wbs`, `src/modules`, `src/lib` and `src/testing`, serial: 156
+  files, 3560 pass (`claims-sheet.test.tsx` 10).
+- `apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`: exit 0.
+- `openspec validate --all --json`: 282 of 282.
+
+Not run locally: the full fe-01 suite, e2e and pixels (CI carries them; laptop RAM). No e2e
+plan holds a claim, so no e2e toolbar count or width moves and no pixels baseline is expected to
+change.

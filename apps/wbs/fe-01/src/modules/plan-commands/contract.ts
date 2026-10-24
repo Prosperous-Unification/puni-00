@@ -11,6 +11,7 @@ export const PROJECT_COMMAND_ROUTES = [
   'undo',
   'redo',
   'exportPlan',
+  'readClaimHistory',
   'setEstimateMethod',
   'setEstimateArithmetic',
   'setDepReach',

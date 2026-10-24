@@ -32,6 +32,7 @@ import {
   patchProject as patchProjectShape,
   type PlanDocument,
   type PlanDocumentRequest,
+  readClaimHistory as readClaimHistoryShape,
   readProject as readProjectShape,
   readProjectClaims as readProjectClaimsShape,
   readTimezones as readTimezonesShape,
@@ -1618,6 +1619,35 @@ export function checkClaimsRead(read: ClaimsRead): ClaimsRead {
 }
 
 /**
+ * One claim named by a **Claim history** entry (`wbs-claim-display` C14).
+ * `holder.name` and `item` are null for a person or work item deleted since:
+ * history outlives both. `stepId` is null for a subtree claim.
+ */
+export interface ClaimHistoryClaimView {
+  claimId: string;
+  workItemId: string;
+  stepId: string | null;
+  runId: string | null;
+  holder: { personId: string; name: string | null };
+  item: { number: string; numberIsFrozen: boolean; name: string } | null;
+}
+
+/**
+ * One claim or release as `GET /api/projects/:id/claim-history` answers it,
+ * newest first (C13): the acts of one batch share `eventId` and differ by
+ * `act`. `reason` says why a release happened: a release command, or the lease
+ * sweep's `lease_expired` or `credential_revoked`.
+ */
+export interface ClaimHistoryEventView {
+  eventId: string;
+  act: number;
+  at: number;
+  kind: 'claim' | 'release';
+  reason: 'claimed' | 'released' | 'lease_expired' | 'credential_revoked';
+  claims: ClaimHistoryClaimView[];
+}
+
+/**
  * A marker as a client asks for it, which is not the same shape as one that
  * exists.
  *
@@ -1736,6 +1766,12 @@ export interface ProjectApi {
    * folding claims into the tree would make every heartbeat a full plan read.
    */
   readClaims(projectId: string): Promise<ClaimsRead>;
+  /**
+   * The project's newest claims and releases, at be-01's default bound (50),
+   * newest first. Read by the Claims sheet alone, while it is open; not a plan
+   * resource, so no announcement rereads it (C13).
+   */
+  readClaimHistory(projectId: string): Promise<ClaimHistoryEventView[]>;
   /** Puts a marker on an absolute date, answering the one be-01 stored. */
   createCalendarMarker(
     projectId: string,
@@ -2101,6 +2137,7 @@ const WBS_SHAPES = [
   listWorkItemTypesShape,
   patchProjectShape,
   readProjectShape,
+  readClaimHistoryShape,
   readProjectClaimsShape,
   readTimezonesShape,
   recordProjectOpen,
@@ -2929,6 +2966,16 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
           }),
         ),
       );
+    },
+    async readClaimHistory(projectId) {
+      return jsonBody(
+        readClaimHistoryShape,
+        await client['getApiProjectsByIdClaim-history']({
+          params: { id: projectId },
+          query: {},
+          headers: auth(token),
+        }),
+      ).events;
     },
     async createCalendarMarker(projectId, marker) {
       const body = jsonBody(

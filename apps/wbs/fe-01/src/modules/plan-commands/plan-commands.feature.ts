@@ -17,6 +17,7 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     // failed `sends every project command to the project it was bound to, with the rest as
     // given` with `exportPlan: expected Promise{…} to be Promise{…}`.
     exportPlan: (...rest) => routes.exportPlan(projectId, ...rest),
+    readClaimHistory: (...rest) => routes.readClaimHistory(projectId, ...rest),
     setEstimateMethod: (...rest) => routes.setEstimateMethod(projectId, ...rest),
     setEstimateArithmetic: (...rest) => routes.setEstimateArithmetic(projectId, ...rest),
     setDepReach: (...rest) => routes.setDepReach(projectId, ...rest),
