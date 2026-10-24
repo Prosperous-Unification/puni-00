@@ -399,25 +399,38 @@ export function constructCandidate(container: NativeContainer): CandidateRequest
   };
 }
 
+export interface InvariantProjection {
+  image: string;
+  config: NativeFields;
+  host: NativeFields;
+  mounts: readonly unknown[];
+  endpoints: NativeFields;
+}
+/** Complete admitted immutable fields; lifecycle and generated endpoint metadata are checked separately. */
+export function projectInvariant(container: NativeContainer): InvariantProjection {
+  return {
+    image: container.image,
+    config: container.config,
+    host: container.host,
+    mounts: container.mounts,
+    endpoints: configuredEndpoints(container),
+  };
+}
+/** Expected replacement fields from the original; never use this to project an observed replacement. */
+export function candidateInvariant(original: NativeContainer): InvariantProjection {
+  const request = constructCandidate(original);
+  return {
+    image: original.image,
+    config: request.Config,
+    host: request.HostConfig,
+    mounts: original.mounts,
+    endpoints: request.NetworkingConfig.EndpointsConfig,
+  };
+}
+
 /** Compare independent stored fields; only inspected Mounts order and generated endpoint identity are excluded. */
 export function compareCandidate(original: NativeContainer, candidate: NativeContainer): void {
-  const expected = constructCandidate(original);
   // Proof: omission admitted all eleven Env/image/HostConfig/mount/endpoint drifts in edge-init.test.ts.
-  if (
-    fingerprint({
-      image: original.image,
-      config: expected.Config,
-      host: expected.HostConfig,
-      mounts: original.mounts,
-      endpoints: expected.NetworkingConfig.EndpointsConfig,
-    }) !==
-    fingerprint({
-      image: candidate.image,
-      config: candidate.config,
-      host: candidate.host,
-      mounts: candidate.mounts,
-      endpoints: configuredEndpoints(candidate),
-    })
-  )
+  if (fingerprint(candidateInvariant(original)) !== fingerprint(projectInvariant(candidate)))
     throw new InitRefusal('candidate-preservation-mismatch');
 }
