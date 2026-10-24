@@ -923,3 +923,9 @@ acceptance remains open; these corrections add no P2b/P3 activation or exposure 
 - [x] X7g: Correct source observer cancellation to join the entire owner-wrapped operation before returning; prove gated child/owner cleanup and private primary/join error retention (verify-source-observer-join.md).
 
 - [x] X7h: Use one full-entry native mount destination-set identity for all containers and Caddy ingress, with total ordinal ordering, canonical/unique targets and unchanged raw input; supersede X7d/X7e source-only ordering proofs while retaining raw-member and parked validation (verify-native-mount-identity.md).
+
+### Product process observer bounded source proofs
+
+- [x] Mechanically extract deterministic validation and receipt hashing; retain genuine private observer authority and deadlines. Verify fast negatives, watched independent omissions and genuine call-site/audit/terminal relationships. [Source evidence](verify-product-process-source.md).
+- [x] Complete frozen ordinary model composition and independent whole-observer source review: 97 outer tests and 16 ordered child cases; exact frozen hashes unchanged.
+- [ ] Complete native StageB, HTTP/collector coordination and full P2b/P3 acceptance; source/model success does not establish these.

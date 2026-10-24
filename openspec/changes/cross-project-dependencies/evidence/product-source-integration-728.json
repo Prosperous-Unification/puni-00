@@ -1,0 +1,41 @@
+{
+  "sourceSha": "7289166b473014d2cba8377aa685aeb174fb2c3c",
+  "exitCode": 0,
+  "finishEpoch": 1792834517.3122768,
+  "logSha256": "364bfe8675187af70be1d1fa16c18a50b0e28e6b5d1a94d385c8040b94bdc545",
+  "logBytes": 7395,
+  "freezeHashesUnchanged": true,
+  "orderedChildCases": [
+    "modeled raw IO reaches both role successes, stable binding, and mount refusal",
+    "modeled first binding refuses same-byte init executable object replacement",
+    "modeled first observation refuses application mount namespace mismatch",
+    "modeled first observation refuses init-argv drift",
+    "modeled first observation refuses init-cwd drift",
+    "modeled admitted init directory is retained and later cwd drift refuses",
+    "modeled listener inode owned by init is refused after successful binding",
+    "modeled three-process wrapper object replacement cannot rebind",
+    "modeled three-process wrapper allowed argv spelling cannot rebind",
+    "modeled lost exec reap prevents acceptance and all later effects",
+    "modeled retained private supervisor group prevents acceptance and later effects",
+    "modeled missing-done refuses privately and blocks later effects",
+    "modeled duplicate-done refuses privately and blocks later effects",
+    "modeled oversized-receipt refuses privately and blocks later effects",
+    "modeled private-stderr refuses privately and blocks later effects",
+    "modeled cleanup-failure refuses privately and blocks later effects"
+  ],
+  "childPass": 16,
+  "childAssertions": 2103,
+  "parentPass": 97,
+  "parentAssertions": 292,
+  "parentSeconds": 994.18,
+  "sourceApprovalConditionSatisfied": true,
+  "nativeAcceptance": false,
+  "runtimeHashes": {
+    "tools/tool-remote-scripts/src/lib/dependency-product-process.ts": "56d7b4c31d458ee38083b84c9d390b430219e2505a0a9762fd518305baac0005",
+    "tools/tool-remote-scripts/src/lib/dependency-product-validation.ts": "2c03db38242f7b3f08d0ff59dea9d0b1f43b2eb985836395ad6aad071dc3c8a3",
+    "tools/tool-remote-scripts/src/lib/product-host-proc.ts": "2991b08e8491e9816ab10f459cabe37f140daac07bc52056cf66793f81133ffa",
+    "tools/tool-remote-scripts/src/lib/docker-product-metadata.ts": "f2b957ac5109590b0e499fe1224725eda2407bce4eac803a6e4222ea02caea33",
+    "tools/tool-remote-scripts/src/lib/docker-exec.ts": "6a55cd0a508dea15745c8264afaafe93d5828e3e4209ba7dd955c0075686922f",
+    "tools/tool-remote-scripts/src/lib/mount-exec-program.ts": "84d4d74b819a4453b2b27200021f0a2e7086b7f2accdf20baeaaa5f2397199e4"
+  }
+}

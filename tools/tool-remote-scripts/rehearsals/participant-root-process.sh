@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Manual review artifact. Never called by a test, build, CI target or gate.
+# Invocation is reserved for separately reviewed root namespace authorization:
+#   /absolute/path/to/participant-root-process.sh --reviewed-local-namespace-rehearsal
+# Prerequisites: root, exact listed binaries, PID/mount/network namespace permission,
+# and a scratch /tmp filesystem. This script does not claim product-image admission.
 set -euo pipefail
+umask 077
 if [[ ${1-} != --reviewed-local-namespace-rehearsal || $# != 1 ]]; then
   echo 'requires explicit reviewed local namespace rehearsal invocation' >&2
   exit 64
@@ -13,7 +18,7 @@ for executable in /usr/bin/cc /usr/bin/unshare /usr/bin/timeout /usr/bin/setpriv
   [[ -x "$executable" ]] || { echo "required executable absent: $executable" >&2; exit 69; }
 done
 fixture_directory=$(mktemp -d /tmp/puni-participant-root-process.XXXXXXXX)
-chmod 755 "$fixture_directory"
+chmod 700 "$fixture_directory"
 namespace_supervisor=''
 cleanup() {
   local status=$?

@@ -1,0 +1,577 @@
+import { rejects } from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { afterEach, expect, mock, test } from 'bun:test';
+
+import { productProcessFixture } from '../fixtures/dependency-product-process';
+import { assertProductByteTransportFixture } from '../fixtures/product-byte-transport';
+import { roots } from '../fixtures/source-startup';
+import {
+  consumePreparedDependencyActivation,
+  prepareActivatedParticipantsUnderOwner,
+  releasePreparedDependencyActivation,
+} from './complete-dependency-exclusion';
+import type { FinalizedParticipantRestorationContext } from './dependency-participant-preparation';
+import { runDockerExec } from './docker-exec';
+import { withDependencyOwner } from './edge-ownership';
+import { GROUP_PROGRAM } from './mount-exec-program';
+
+interface Audit {
+  readonly nonce: string;
+  readonly cleanup: boolean;
+  readonly path: string;
+  readonly tokens: string[];
+  transportFailure: string | null;
+  localReturn: { readonly pid: number; readonly alive: boolean; readonly tokens: number } | null;
+}
+
+async function captureLocalTransportReturn(audit: Audit, pidPath: string): Promise<void> {
+  const pid = Number(await readFile(pidPath, 'utf8'));
+  let alive = true;
+  try {
+    process.kill(pid, 0);
+  } catch (cause) {
+    if (!(cause instanceof Error) || !('code' in cause) || cause.code !== 'ESRCH') throw cause;
+    alive = false;
+  }
+  audit.localReturn = { pid, alive, tokens: audit.tokens.length };
+}
+
+function assertLocalTransportSettled(audit: Audit): void {
+  const settlement = audit.localReturn;
+  if (settlement === null) throw new Error('local byte transport settlement evidence absent');
+  expect(Number.isSafeInteger(settlement.pid)).toBe(true);
+  expect(settlement.alive).toBe(false);
+  expect(settlement.tokens).toBe(audit.tokens.length);
+  expect(() => process.kill(settlement.pid, 0)).toThrow('No such process');
+}
+
+async function assertAuditContent(audit: Audit): Promise<void> {
+  const receiptSha256 = createHash('sha256')
+    .update(Buffer.from(audit.tokens.join('\0') + '\0'))
+    .digest('hex');
+  const expected = JSON.stringify({
+    nonce: audit.nonce,
+    session: { pid: '70001', ticks: '80001' },
+    done: true,
+    reaped: true,
+    receiptSha256,
+  });
+  expect(JSON.parse(await readFile(audit.path, 'utf8'))).toEqual({
+    responseSha256: createHash('sha256').update(expected).digest('hex'),
+  });
+}
+
+type Role = 'backend' | 'gateway';
+type Fault =
+  | 'none'
+  | 'host-map'
+  | 'mount'
+  | 'init-argv'
+  | 'init-cwd'
+  | 'init-object'
+  | 'wrapper-object'
+  | 'wrapper-argv'
+  | 'wrapper-cwd'
+  | 'listener-owner'
+  | 'missing-reap'
+  | 'retained-group'
+  | 'missing-done'
+  | 'duplicate-done'
+  | 'oversized-receipt'
+  | 'private-stderr'
+  | 'cleanup-failure';
+const current = { fault: 'none' as Fault, wrapper: false, execs: 0 };
+const clock = '2026-10-24 08:00:00.000000000 +0000';
+const metadata = (inode: string) => `2049:${inode}:123456|${clock}|${clock}`;
+const digest = (label: string) => createHash('sha256').update(label).digest('hex');
+const stat = (pid: number, parent: number, ticks: number) => {
+  const fields = Array.from({ length: 50 }, () => '1');
+  fields[0] = 'S';
+  fields[1] = String(parent);
+  fields[19] = String(ticks);
+  return `${String(pid)} (product) ${fields.join(' ')}`;
+};
+const host = (pid: number) => {
+  const inner = pid % 100;
+  const root = inner === 1;
+  const role = pid >= 50000 ? 'gateway' : 'backend';
+  return {
+    role,
+    inner,
+    parent: root ? 1 : pid - 1,
+    ticks: pid + 100000,
+  };
+};
+const status = (pid: number, inner: number, hostPid = false) =>
+  `Name:\tproduct\nTgid:\t${String(pid)}\nUid:\t0\t0\t0\t0\nNSpid:\t${hostPid ? `${String(pid)}\t` : ''}${String(inner)}\n`;
+
+// This isolated mock supplies independently constructed host proc bytes. Production uses the
+// real bounded file reader; neither the observer API nor its context receives a proc override.
+await mock.module('./product-host-proc', () => ({
+  readProductHostProc: (path: string) => {
+    const match = /^\/proc\/(4000[123]|5000[123])\/(stat|status|cgroup|uid_map|gid_map)$/.exec(
+      path,
+    );
+    if (match === null) throw new Error('modeled host proc path unsupported');
+    const pid = Number(match[1]);
+    const member = host(pid);
+    switch (match[2]) {
+      case 'stat':
+        return Promise.resolve(stat(pid, member.parent, member.ticks));
+      case 'status':
+        return Promise.resolve(status(pid, member.inner, true));
+      case 'cgroup':
+        return Promise.resolve(`0::/docker/${member.role}\n`);
+      case 'uid_map':
+        if (current.fault === 'host-map') return Promise.resolve('0 1000 4294967295\n');
+        return Promise.resolve('0 0 4294967295\n');
+      case 'gid_map':
+        return Promise.resolve('0 0 4294967295\n');
+      default:
+        throw new Error('modeled proc field unsupported');
+    }
+  },
+}));
+
+const { observeSelectedProductRole } = await import('./dependency-product-process');
+
+function feed(consume: (token: string) => boolean, ...tokens: string[]): boolean {
+  let acknowledged = false;
+  for (const token of tokens) acknowledged = consume(token) || acknowledged;
+  return acknowledged;
+}
+
+function processFrames(role: Role, label: 'before' | 'after'): string[] {
+  const rootPid = role === 'backend' ? 40001 : 50001;
+  const cwd = `/app/apps/wbs/${role === 'backend' ? 'be-01' : 'gw-01'}`;
+  const port = role === 'backend' ? '0C1C' : '0C80';
+  const namespace = { pid: 'pid:[101]', net: 'net:[102]', mnt: 'mnt:[103]' };
+  const process = (inner: number) => {
+    const root = inner === 1;
+    const wrapper = current.wrapper && inner === 2;
+    const argv = root
+      ? [
+          '/sbin/docker-init',
+          current.fault === 'init-argv' ? '--changed' : '--',
+          ...(role === 'gateway' ? ['/usr/local/bin/docker-entrypoint.sh'] : []),
+          'bun',
+          'run',
+          'src/main.ts',
+        ]
+      : current.fault === 'wrapper-argv' && wrapper
+        ? ['/usr/local/bin/bun', 'run', 'src/main.ts']
+        : current.wrapper && !wrapper
+          ? ['bun', 'src/main.ts']
+          : ['bun', 'run', 'src/main.ts'];
+    const executable = root ? '/sbin/docker-init' : '/usr/local/bin/bun';
+    const inode = root
+      ? current.fault === 'init-object'
+        ? '993'
+        : '991'
+      : wrapper && current.fault === 'wrapper-object'
+        ? '994'
+        : '992';
+    return [
+      'PROC',
+      String(inner),
+      stat(inner, root ? 0 : inner - 1, rootPid + inner + 100000 - 1),
+      status(inner, inner),
+      Buffer.from(`${argv.join('\0')}\0`).toString('base64'),
+      root
+        ? current.fault === 'init-cwd'
+          ? '/changed'
+          : cwd
+        : wrapper && current.fault === 'wrapper-cwd'
+          ? '/changed'
+          : cwd,
+      executable,
+      metadata(inode),
+      digest(`${role}-${root ? 'init' : 'bun'}`),
+      namespace.pid,
+      namespace.net,
+      current.fault === 'mount' && !root ? 'mnt:[999]' : namespace.mnt,
+    ];
+  };
+  const tcp = `  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n  0: 0100007F:${port} 00000000:0000 0A 00000000:00000000 00:00000000 00000000 0 0 12345\n`;
+  return [
+    'PASS',
+    label,
+    ...process(1),
+    ...(current.fault === 'listener-owner' ? ['FD', '1', '3', 'socket:[12345]'] : []),
+    ...process(2),
+    ...(current.wrapper ? process(3) : []),
+    ...(current.fault === 'listener-owner'
+      ? []
+      : ['FD', current.wrapper ? '3' : '2', '3', 'socket:[12345]']),
+    'SELF',
+    namespace.pid,
+    namespace.net,
+    namespace.mnt,
+    'TCP',
+    '4',
+    tcp,
+    'TCP',
+    '6',
+    '  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n',
+    'ADDR',
+    '1: lo inet 127.0.0.1/8 scope host lo\n',
+  ];
+}
+
+afterEach(async () => {
+  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
+  delete process.env['WBS_EDGE_STATE'];
+  current.fault = 'none';
+  current.wrapper = false;
+  current.execs = 0;
+});
+
+async function withModelContext(
+  inspect: (
+    context: FinalizedParticipantRestorationContext,
+    fixture: Awaited<ReturnType<typeof productProcessFixture>>,
+    audits: readonly Audit[],
+  ) => Promise<void>,
+): Promise<void> {
+  const fixture = await productProcessFixture();
+  const audits: Audit[] = [];
+  process.env['WBS_EDGE_STATE'] = fixture.root;
+  await withDependencyOwner(
+    fixture.request.owner,
+    async (owner) => {
+      const prepared = await prepareActivatedParticipantsUnderOwner(
+        owner,
+        fixture.request,
+        fixture.layouts,
+        performance.now() + 300000,
+        fixture.root,
+        fixture.ports,
+      );
+      try {
+        const context = await consumePreparedDependencyActivation(owner, prepared);
+        for (const [role, rootPid] of [
+          ['backend', 40001],
+          ['gateway', 50001],
+        ] as const) {
+          const container = role === 'backend' ? fixture.backend : fixture.gateway;
+          Object.assign(container.State, {
+            Running: true,
+            Status: 'running',
+            Pid: rootPid,
+            StartedAt: '2026-10-24T08:00:00Z',
+          });
+          fixture.setTop(
+            `PID PPID\n${String(rootPid)} 1\n${String(rootPid + 1)} ${String(rootPid)}\n${current.wrapper ? `${String(rootPid + 2)} ${String(rootPid + 1)}\n` : ''}`,
+            container.Id,
+          );
+        }
+        Object.assign(fixture.ports, {
+          execDocker: async (
+            args: readonly string[],
+            nonce: string,
+            receive: (token: string) => boolean,
+            signal?: AbortSignal,
+          ) => {
+            current.execs++;
+            const cleanup = args.includes(GROUP_PROGRAM);
+            const names = await readdir(fixture.root);
+            const intents = await Promise.all(
+              names
+                .filter((name) => name.endsWith('-intent.json'))
+                .map(async (name) => ({
+                  name,
+                  bytes: await readFile(join(fixture.root, name), 'utf8'),
+                })),
+            );
+            const intent = intents.find(({ bytes }) => bytes.includes(nonce));
+            if (intent === undefined) throw new Error('actual exec owner intent missing');
+            const audit: Audit = {
+              nonce,
+              cleanup,
+              path: join(fixture.root, intent.name.replace('-intent.json', '-readback.json')),
+              tokens: [],
+              transportFailure: null,
+              localReturn: null,
+            };
+            audits.push(audit);
+            const consume = (token: string) => {
+              audit.tokens.push(token);
+              return receive(token);
+            };
+            if (
+              (!cleanup && current.fault === 'private-stderr') ||
+              (cleanup && current.fault === 'cleanup-failure')
+            ) {
+              const directory = join(fixture.root, 'local-byte-transport');
+              await mkdir(directory);
+              const pidPath = join(directory, 'pid');
+              const role: Role = args.includes(fixture.backend.Id) ? 'backend' : 'gateway';
+              const receiptPath = join(directory, 'receipt');
+              await Bun.write(
+                receiptPath,
+                [
+                  'SESSION',
+                  nonce,
+                  '70001',
+                  '70001',
+                  '70001',
+                  '80001',
+                  ...(cleanup
+                    ? []
+                    : [...processFrames(role, 'before'), ...processFrames(role, 'after')]),
+                  'DONE',
+                  nonce,
+                  '2',
+                ].join('\0') + '\0',
+              );
+              await assertProductByteTransportFixture();
+              try {
+                await runDockerExec(
+                  ['--', nonce, receiptPath, pidPath, cleanup ? 'eof' : 'stderr'],
+                  nonce,
+                  consume,
+                  signal,
+                );
+              } catch (cause) {
+                audit.transportFailure =
+                  cause instanceof Error ? cause.message : 'non-error transport failure';
+                throw cause;
+              } finally {
+                await captureLocalTransportReturn(audit, pidPath);
+              }
+              throw new Error('incomplete local byte transport accepted');
+            }
+            feed(consume, 'SESSION', nonce, '70001', '70001', '70001', '80001');
+            let acknowledged: boolean;
+            if (cleanup) {
+              if (current.fault === 'retained-group')
+                feed(consume, 'MEMBER', '/proc/70001/stat', 'S', '80001');
+              acknowledged = feed(consume, 'DONE', nonce, '2');
+            } else {
+              const role: Role = args.includes(fixture.backend.Id) ? 'backend' : 'gateway';
+              if (current.fault === 'oversized-receipt')
+                feed(consume, 'PASS', 'before', 'X'.repeat(4 * 1024 * 1024 + 1));
+              feed(consume, ...processFrames(role, 'before'), ...processFrames(role, 'after'));
+              acknowledged =
+                current.fault === 'missing-done' ? false : feed(consume, 'DONE', nonce, '2');
+              if (current.fault === 'duplicate-done') feed(consume, 'DONE', nonce, '2');
+            }
+            if (acknowledged && (cleanup || current.fault !== 'missing-reap'))
+              feed(consume, 'REAPED', nonce);
+            return Promise.resolve();
+          },
+        });
+        await inspect(context, fixture, audits);
+      } finally {
+        releasePreparedDependencyActivation(owner, prepared);
+      }
+    },
+    fixture.root,
+  );
+}
+
+test('modeled raw IO reaches both role successes, stable binding, and mount refusal', async () => {
+  await withModelContext(async (context, fixture, audits) => {
+    current.fault = 'host-map';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(0);
+    current.fault = 'none';
+    const originalPath = fixture.backend.Path;
+    fixture.backend.Path = '/foreign';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(0);
+    fixture.backend.Path = originalPath;
+    const backend = await observeSelectedProductRole(context, 'backend');
+    const gateway = await observeSelectedProductRole(context, 'gateway');
+    expect(backend.process.pid).toBe(40002);
+    expect(gateway.process.pid).toBe(50002);
+    expect(backend.listeners[0]?.inode).toBe('12345');
+    expect(Object.isFrozen(backend.runtime.native)).toBe(true);
+    expect(Object.isFrozen(backend.process)).toBe(true);
+    expect(Object.isFrozen(backend.process.executable)).toBe(true);
+    expect(Object.isFrozen(backend.namespaces)).toBe(true);
+    expect(Object.isFrozen(backend.localAddresses)).toBe(true);
+    expect(Object.isFrozen(backend.listeners)).toBe(true);
+    expect(Object.isFrozen(backend.listeners[0])).toBe(true);
+    expect(Reflect.set(backend.process, 'pid', 99999)).toBe(false);
+    expect((await observeSelectedProductRole(context, 'backend')).process.pid).toBe(40002);
+    for (const audit of audits) await assertAuditContent(audit);
+    current.fault = 'mount';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(8);
+  });
+}, 300000);
+
+test('modeled first binding refuses same-byte init executable object replacement', async () => {
+  await withModelContext(async (context) => {
+    await observeSelectedProductRole(context, 'backend');
+    current.fault = 'init-object';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(4);
+  });
+}, 300000);
+
+test('modeled first observation refuses application mount namespace mismatch', async () => {
+  await withModelContext(async (context) => {
+    current.fault = 'mount';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(2);
+  });
+}, 300000);
+
+for (const fault of ['init-argv', 'init-cwd'] as const) {
+  test(`modeled first observation refuses ${fault} drift`, async () => {
+    await withModelContext(async (context) => {
+      current.fault = fault;
+      await rejects(observeSelectedProductRole(context, 'backend'), {
+        message: 'product process observation refused',
+      });
+      expect(current.execs).toBe(2);
+    });
+  }, 300000);
+}
+
+test('modeled admitted init directory is retained and later cwd drift refuses', async () => {
+  await withModelContext(async (context) => {
+    expect((await observeSelectedProductRole(context, 'backend')).process.pid).toBe(40002);
+    current.fault = 'init-cwd';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(4);
+  });
+}, 300000);
+
+test('modeled listener inode owned by init is refused after successful binding', async () => {
+  await withModelContext(async (context, fixture) => {
+    await observeSelectedProductRole(context, 'backend');
+    current.fault = 'listener-owner';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(4);
+    const requests = fixture.requests.length;
+    current.fault = 'none';
+    await rejects(observeSelectedProductRole(context, 'gateway'), {
+      message: 'product process observation refused',
+    });
+    expect(fixture.requests.length).toBe(requests);
+    expect(current.execs).toBe(4);
+  });
+}, 300000);
+
+test('modeled three-process wrapper object replacement cannot rebind', async () => {
+  current.wrapper = true;
+  await withModelContext(async (context) => {
+    expect((await observeSelectedProductRole(context, 'backend')).process.pid).toBe(40003);
+    current.fault = 'wrapper-object';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(4);
+  });
+}, 300000);
+
+test('modeled three-process wrapper allowed argv spelling cannot rebind', async () => {
+  current.wrapper = true;
+  await withModelContext(async (context) => {
+    expect((await observeSelectedProductRole(context, 'backend')).process.pid).toBe(40003);
+    current.fault = 'wrapper-argv';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(4);
+  });
+}, 300000);
+
+test('modeled lost exec reap prevents acceptance and all later effects', async () => {
+  await withModelContext(async (context) => {
+    current.fault = 'missing-reap';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(2);
+    await rejects(observeSelectedProductRole(context, 'gateway'));
+    expect(current.execs).toBe(2);
+  });
+}, 300000);
+
+test('modeled retained private supervisor group prevents acceptance and later effects', async () => {
+  await withModelContext(async (context) => {
+    current.fault = 'retained-group';
+    await rejects(observeSelectedProductRole(context, 'backend'), {
+      message: 'product process observation refused',
+    });
+    expect(current.execs).toBe(2);
+    await rejects(observeSelectedProductRole(context, 'gateway'));
+    expect(current.execs).toBe(2);
+  });
+}, 300000);
+
+for (const fault of [
+  'missing-done',
+  'duplicate-done',
+  'oversized-receipt',
+  'private-stderr',
+  'cleanup-failure',
+] as const) {
+  test(`modeled ${fault} refuses privately and blocks later effects`, async () => {
+    await withModelContext(async (context, fixture, audits) => {
+      current.fault = fault;
+      await rejects(observeSelectedProductRole(context, 'backend'), (cause: unknown) => {
+        expect(cause).toBeInstanceOf(Error);
+        if (cause instanceof Error) {
+          expect(cause.message).toBe('product process observation refused');
+          expect(cause.cause).toBeUndefined();
+          expect(String(cause)).not.toContain('PRIVATE_');
+        }
+        return true;
+      });
+      expect(current.execs).toBe(2);
+      const requests = fixture.requests.length;
+      current.fault = 'none';
+      await rejects(observeSelectedProductRole(context, 'gateway'));
+      expect(current.execs).toBe(2);
+      expect(fixture.requests.length).toBe(requests);
+      if (fault === 'cleanup-failure') {
+        const cleanup = audits.find((audit) => audit.cleanup);
+        if (cleanup === undefined) throw new Error('failed local cleanup transport audit absent');
+        // Proof: omitting production byte framing accepted ACK then truncated EOF; this assertion failed with transportFailure null.
+        assertLocalTransportSettled(cleanup);
+        expect(cleanup.transportFailure).toBe('exec receipt is incomplete');
+        await rejects(readFile(cleanup.path, 'utf8'), { code: 'ENOENT' });
+        expect(cleanup.tokens.slice(-3)).toEqual(['DONE', cleanup.nonce, '2']);
+        expect(cleanup.tokens).not.toContain('REAPED');
+      }
+      if (fault === 'private-stderr') {
+        const observe = audits.find((audit) => !audit.cleanup);
+        if (observe === undefined) throw new Error('failed local transport audit absent');
+        assertLocalTransportSettled(observe);
+        await rejects(readFile(observe.path, 'utf8'), { code: 'ENOENT' });
+        expect(observe.tokens.slice(0, 6)).toEqual([
+          'SESSION',
+          observe.nonce,
+          '70001',
+          '70001',
+          '70001',
+          '80001',
+        ]);
+        expect(observe.tokens.slice(-3)).toEqual(['DONE', observe.nonce, '2']);
+        expect(observe.tokens).not.toContain('REAPED');
+      }
+    });
+  }, 300000);
+}
