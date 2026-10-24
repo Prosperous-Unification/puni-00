@@ -52,6 +52,18 @@ describe('OptimizerTriggerBroadcaster', () => {
     // before `inner.publish` lets a throwing inner report a change that did not commit.
   });
 
+  // `wbs-claim-display` C4: a heartbeat moves a lease, never a schedule input.
+  it('schedules no optimization for claims_changed', async () => {
+    const inner = recordingBroadcaster();
+    const changed: string[] = [];
+    const broadcast = new OptimizerTriggerBroadcaster(inner, (projectId) => {
+      changed.push(projectId);
+    });
+    await broadcast.publish('p-1', { type: 'claims_changed' });
+    expect(inner.published).toEqual([{ projectId: 'p-1', event: { type: 'claims_changed' } }]);
+    expect(changed).toEqual([]);
+  });
+
   it('does not trigger when publication fails', async () => {
     const changed: string[] = [];
     const broadcast = new OptimizerTriggerBroadcaster(

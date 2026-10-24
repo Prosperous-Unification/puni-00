@@ -552,8 +552,31 @@ export class PlanCommandRunner {
             // every committed write, and not on a refused one`
             // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
             // watched 2026-10-23.
-            if (!('ok' in applied) && credential !== null && 'personId' in credential)
-              await graph.workItems.renewLeases(credential.personId);
+            if (!('ok' in applied) && credential !== null && 'personId' in credential) {
+              const renewal = await graph.workItems.renewLeases(credential.personId);
+              // The renewal moves the agent's leases in every project. Each
+              // moved project hears `claims_changed` through the collector, so
+              // only after the commit and never for a rolled-back batch
+              // (`wbs-claim-display` C19), except the batch's own project when
+              // the batch is dirty: its `tree_replaced` refreshes the claims.
+              // A batch that changed no row (empty, directory-only) announces
+              // no tree, so its own project hears `claims_changed` too.
+              // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23):
+              // with this loop removed, three announcing cases recorded none
+              // (8 pass, 3 fail); with the own-project filter removed, `announces
+              // once to each other project, none extra to its own` recorded the
+              // batch's project too (9/2); with the dirty test removed,
+              // `announces its own project for a batch that changed no row`
+              // recorded none (10/1); with the SQLite store answering its due
+              // projects before its write, `announces nothing when the batch
+              // rolls back` recorded one. Publishing through the outer
+              // broadcaster in place of the collector left every case green:
+              // nothing in a batch can fail after its renewal, so the
+              // collector's after-commit send has no negative here of its own.
+              for (const renewedProjectId of renewal.renewedProjectIds)
+                if (renewedProjectId !== projectId || !applied.dirty)
+                  await collector.publish(renewedProjectId, { type: 'claims_changed' });
+            }
             // A refusal rolls the unit of work back, so whatever this batch collected
             // describes writes that will not be there. Dropped rather than sent —
             // which is one `if`, because the collector is this batch's alone.
@@ -616,10 +639,29 @@ export class PlanCommandRunner {
   /**
    * Renews `personId`'s leases outside any batch: the heartbeat route's
    * write, through the public graph, which reads first and takes the write
-   * turn only when a lease is due (L4).
+   * turn only when a lease is due (L4). Once the renewal has committed and let
+   * go of the turn, it announces one type-only `claims_changed` to each
+   * project in which it moved a lease (`wbs-claim-display` C4); a renewal
+   * that moved nothing, or threw, announces nothing. A batch's own renewal
+   * is announced by the batch (C19). Each announcement is transient (C21).
+   *
+   * The projects are announced in turn: a publish that throws answers 500
+   * although the renewal committed, and leaves the later projects
+   * unannounced until their next heartbeat. In production it does not throw:
+   * the gateway broadcaster reports and swallows a failed transient push.
    */
-  renewLeases(personId: string): Promise<LeaseStanding> {
-    return this.opts.publicServices.workItems.renewLeases(personId);
+  async renewLeases(personId: string): Promise<LeaseStanding> {
+    const renewal = await this.opts.publicServices.workItems.renewLeases(personId);
+    // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23): with the
+    // SQLite store answering its due projects before its turn and not awaiting
+    // the write (announced before the commit), `announces nothing when the
+    // renewal rolls back` recorded one (7 pass, 4 fail); answering every
+    // project the person holds a lease in, moved or not (announced
+    // unconditionally), `announces nothing for a heartbeat within the minute,
+    // nor a refused one` recorded a second (4 pass, 7 fail).
+    for (const projectId of renewal.renewedProjectIds)
+      await this.opts.announcements.publish(projectId, { type: 'claims_changed' });
+    return renewal.standing;
   }
 
   undo(projectId: string, actorId: string): Promise<ScopedUndoOutcome> {
