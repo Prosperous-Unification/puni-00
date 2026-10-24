@@ -135,6 +135,23 @@ describe('a claim lease over HTTP', () => {
     });
   });
 
+  it('refuses a heartbeat carrying a body or a query as a typed 400, renewing nothing', async () => {
+    await claimAsAgent();
+    now = T + 2 * 60_000;
+    expect(await asAgent('POST', '/api/claims/renew', {})).toMatchObject({
+      status: 400,
+      body: { error: 'invalid_body' },
+    });
+    expect(await asAgent('POST', '/api/claims/renew?wait=1')).toMatchObject({
+      status: 400,
+      body: { error: 'invalid_query' },
+    });
+    expect(await asAgent('POST', '/api/claims/renew')).toMatchObject({
+      status: 200,
+      body: { leases: 2, leaseExpiresAt: now + CLAIM_LEASE_MS },
+    });
+  });
+
   // Proof: with the revoke route's `afterRevoke()` call removed, and again
   // with app.ts handing the route a no-op in place of `requestSweep`, the
   // claims were still held once the sweep settled (2 pass, 1 fail each);

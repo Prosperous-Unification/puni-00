@@ -39,7 +39,9 @@ expiry, or ended by revocation, SHALL NOT be renewed.
 `POST /api/claims/renew` SHALL renew the caller's pinned person's leases as a batch does and
 answer `{ leases, leaseExpiresAt }`: the leases in force and the earliest expiry, null when
 none. It SHALL read first and enter the write turn only when a lease is due. An unpinned
-caller SHALL be refused `403 not_pinned`.
+caller SHALL be refused `403 not_pinned`. It reads no input: a request carrying a body (even
+`{}`) SHALL be refused `400 invalid_body`, and one carrying a query string `400 invalid_query`,
+renewing nothing.
 
 #### Scenario: A heartbeat within the minute writes nothing
 
@@ -50,6 +52,12 @@ caller SHALL be refused `403 not_pinned`.
 
 - **WHEN** a browser session posts to `/api/claims/renew`
 - **THEN** it is refused `403 not_pinned` and nothing is written
+
+#### Scenario: A heartbeat carrying a body is refused, not failed
+
+- **WHEN** `codex` posts `{}` as `application/json` to `/api/claims/renew`
+- **THEN** it is refused `400 invalid_body`, no lease moves, and a body-less heartbeat after it
+  renews
 
 ### Requirement: The coordinator releases claims nobody renewed
 

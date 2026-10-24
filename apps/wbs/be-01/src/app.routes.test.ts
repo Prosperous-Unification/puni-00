@@ -1,5 +1,6 @@
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import {
+  bodyMediaFor,
   completeAuth0Link,
   completeOidcLogin,
   httpShapes,
@@ -8,6 +9,7 @@ import {
   type RequestPolicy,
   startAuth0Link,
   startOidcLogin,
+  validateSchema,
 } from '@wbs/contracts';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
@@ -552,6 +554,23 @@ function requestFor(shape: (typeof httpShapes)[number]): Request {
   });
 }
 
+/**
+ * The structurally valid request plus an undeclared query parameter, and, for
+ * a body-less write, an empty JSON object: input a raw client sends by habit.
+ */
+function strayInputRequests(shape: (typeof httpShapes)[number]): Request[] {
+  const valid = requestFor(shape);
+  const url = new URL(valid.url);
+  url.searchParams.append('stray', '1');
+  const strays = [new Request(url, valid)];
+  if (bodyMediaFor(shape).length === 0 && shape.method !== 'GET') {
+    const headers = new Headers(valid.headers);
+    headers.set('content-type', 'application/json');
+    strays.push(new Request(valid.url, { method: valid.method, headers, body: '{}' }));
+  }
+  return strays;
+}
+
 interface WireReply {
   status: number;
   contentType: string | null;
@@ -634,6 +653,36 @@ it('binds each shared HTTP shape once in every configuration that owns it', () =
       expect(endpoints.filter((endpoint) => endpoint.shape === shape)).toHaveLength(1);
     }
   }
+});
+
+/**
+ * The mount refuses every request-boundary failure through `refuse`, which
+ * throws (a 500) when the shape declares no refusal accepting `{ error: code }`.
+ * Every endpoint refuses a stray query and a stray or invalid body; a declared
+ * params schema adds `invalid_params`, and JSON media adds `invalid_json`. An
+ * endpoint with its own `classifyRequestFailure` answers through that instead.
+ * Proof: removing the 400 from `renewClaimLeases` made this audit list
+ * `postApiClaimsRenew invalid_body` and `invalid_query` (watched 2026-10-24).
+ */
+it('declares a refusal for every request-boundary failure the mount can raise', async () => {
+  const undeclared: string[] = [];
+  for (const endpoint of mountedEndpoints({ ...options(), oidc: oidcOptions() })) {
+    if (endpoint.classifyRequestFailure !== undefined) continue;
+    const { shape } = endpoint;
+    const codes = ['invalid_query', 'invalid_body'];
+    if (shape.params !== undefined) codes.push('invalid_params');
+    if (bodyMediaFor(shape).includes('application/json')) codes.push('invalid_json');
+    for (const code of codes) {
+      let declared = false;
+      for (const refusal of shape.refusals) {
+        if ('kind' in refusal) continue;
+        if ((await validateSchema(refusal.schema, { error: code })).issues === undefined)
+          declared = true;
+      }
+      if (!declared) undeclared.push(`${shape.operationId} ${code}`);
+    }
+  }
+  expect(undeclared).toEqual([]);
 });
 
 it('keeps OIDC health readiness live after the endpoint table is built', async () => {
@@ -805,6 +854,15 @@ describe('shared HTTP shape reachability through the production app', () => {
       let modeledNotFoundCount = 0;
 
       for (const shape of composition.shapes) {
+        // Proof: removing the 400 from `renewClaimLeases` made these stray probes
+        // list `postApiClaimsRenew` with status 500 for both (watched 2026-10-24).
+        for (const stray of strayInputRequests(shape)) {
+          const strayReply = await wireReply(await app.handle(stray));
+          expect({
+            operationId: shape.operationId,
+            serverError: strayReply.status >= 500 ? strayReply.status : null,
+          }).toEqual({ operationId: shape.operationId, serverError: null });
+        }
         const reply = await wireReply(await app.handle(requestFor(shape)));
         const refusal = boundaryError(reply);
         expect({

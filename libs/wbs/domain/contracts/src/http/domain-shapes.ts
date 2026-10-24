@@ -77,7 +77,9 @@ export const createDomainChallenge = defineEndpointShape({
     organizationContextRefusal,
     {
       status: 400,
-      schema: responseSchema(type({ error: "'invalid_json' | 'invalid_body' | 'invalid_domain'" })),
+      schema: responseSchema(
+        type({ error: "'invalid_json' | 'invalid_body' | 'invalid_query' | 'invalid_domain'" }),
+      ),
     },
     {
       status: 403,
@@ -105,7 +107,12 @@ export const verifyDomainClaim = defineEndpointShape({
     },
   ],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,
@@ -147,7 +154,12 @@ export const rotateDomainProof = defineEndpointShape({
     },
   ],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,
@@ -171,7 +183,12 @@ export const releaseDomainClaim = defineEndpointShape({
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,

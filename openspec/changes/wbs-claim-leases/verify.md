@@ -75,6 +75,32 @@ No new environment variable (L2): nothing to seed on dev or in any spawn fixture
 | heartbeat decides at the turn's instant     | instant read before the turn kept        | `does not renew a lease that ran out while the heartbeat waited for the turn` 10 pass, 1 fail  |
 | revocation in the model                     | revoke's lease ending removed            | model counterexample: claim, claim, revoke, claim                                              |
 
+### Heartbeat with a body (`fix/wbs-claims-renew-body`, 2026-10-24)
+
+A raw HTTP agent posting `-d '{}'` to `/api/claims/renew` was answered 500: the shape declared
+no body, so the mount refused the stray body `invalid_body` through `refuse`, which throws when
+the shape declares no refusal accepting `{ error: code }`. Every heartbeat failed and the
+agent's claims were reaped at 15 minutes. The shape now declares `400 invalid_body |
+invalid_query`, the convention of the other body-less writes (`recordProjectOpen`).
+
+Two audits in `apps/wbs/be-01/src/app.routes.test.ts` keep the class closed: every mounted
+endpoint without its own request-failure classifier declares a refusal for `invalid_query`,
+`invalid_body`, `invalid_params` (when it has params) and `invalid_json` (with JSON media); and
+the production-app reachability test sends each shape a stray query parameter and, to each
+body-less write, `{}`, expecting no 5xx. They found ten more endpoints answering 500, fixed
+here: `getHealth`, `getMetrics`, `postApiOrganizationDomainsChallenges`,
+`postInternalGatewayProjectAccess`, `postInternalGatewayProjectBrowserAccess` (stray query);
+`postApiOrganizationDomainsByIdVerify`, `postApiOrganizationDomainsByIdRotate`,
+`deleteApiOrganizationDomainsById`, `postApiOrganizationProvisioningTokensByIdRotate`,
+`deleteApiOrganizationProvisioningTokensById`, `deleteApiOrganizationMembersByUserId` (stray
+body).
+
+| Guard                                  | Fault                               | Observed                                                                                                                           |
+| -------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| renew declares `400`                   | refusal removed                     | `refuses a heartbeat carrying a body or a query as a typed 400` 500 instead of 400; the audit listed `postApiClaimsRenew` twice    |
+| stray-input probe                      | same                                | both reachability tests: `postApiClaimsRenew` `serverError: 500`                                                                   |
+| declaration audit, ten other endpoints | the five other shape files reverted | audit listed all eleven pairs; the probe printed 500 for each except `postInternalGatewayProjectAccess` (refused 401 before input) |
+
 ### Fresh results
 
 See the PR body for the command outputs of this slice's final head.

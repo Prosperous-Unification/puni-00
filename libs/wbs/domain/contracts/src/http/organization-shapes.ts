@@ -73,7 +73,10 @@ export const removeMember = defineEndpointShape({
   policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: memberParams,
   responses: [{ kind: 'empty', status: 204 }],
-  refusals,
+  refusals: [
+    ...refusals,
+    { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
+  ],
   document: { summary: 'Remove a member from the active organization.' },
 });
 

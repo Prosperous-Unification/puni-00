@@ -110,7 +110,12 @@ export const gatewayProjectAccess = defineEndpointShape({
   params: requestSchema(type({ projectId: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_body'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_body' | 'invalid_query'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     organizationRefusal,
@@ -133,7 +138,12 @@ export const gatewayBrowserProjectAccess = defineEndpointShape({
   params: requestSchema(type({ projectId: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_body'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_body' | 'invalid_query'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     organizationRefusal,

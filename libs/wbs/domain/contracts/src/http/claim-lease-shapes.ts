@@ -28,6 +28,11 @@ export const renewClaimLeases = defineEndpointShape({
     },
   ],
   refusals: [
+    // The heartbeat reads no input: a body or query string is refused, never ignored.
+    // Proof: without it, a raw agent's `-d '{}'` heartbeat answered 500 `no declared
+    // validation refusal` in claim-lease.controller.db.test.ts `refuses a heartbeat
+    // carrying a body or a query as a typed 400` (watched 2026-10-24).
+    { status: 400, schema: responseSchema(type({ error: "'invalid_body' | 'invalid_query'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     {
       status: 403,

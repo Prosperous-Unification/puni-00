@@ -108,7 +108,12 @@ export const rotateProvisioningToken = defineEndpointShape({
     },
   ],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     unauthenticated,
     organizationRefusal,
     organizationContextRefusal,
@@ -129,7 +134,12 @@ export const revokeProvisioningToken = defineEndpointShape({
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     unauthenticated,
     organizationRefusal,
     organizationContextRefusal,
