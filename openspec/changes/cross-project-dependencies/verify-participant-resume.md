@@ -155,3 +155,43 @@ restored native listener case after that refactor passes 1 test, 5 assertions,
 `/tmp/puni-product-process-split-ruling.md`; its new observer files and the manual
 rehearsal are reserved for the separately dispatched worker. No privilege grant is
 inferred from that split.
+
+## Source effective configuration before SQL
+
+The restart monitor now captures actual private configuration files by original
+independent size/hash pins before its emitter or irreversible SQL work, with the
+actual inherited container environment taking precedence. It retains fixed BE/GW/
+MCP/FE port and route associations, and rechecks them alongside original immutable
+inputs under the retained outer owner. It does not execute dotenv, expose private
+credentials or infer target identity from successful health. MCP/Vite's explicit
+application port defaults are modeled; BE/GW's actual schemas require PORT.
+
+Actual monitor/token-expiry replay passes 1 test, 4 assertions, 1.258s,
+`/tmp/puni-source-restoration-configuration-monitor-green.log`. Full genuine SQLite
+preparation with the role-config fixture passes 1 test, 130 assertions, 68.50s,
+`/tmp/puni-source-restoration-configuration-preparation.log`. Fenced-only activation
+still does not capture restart configuration or start participants.
+
+The actual preparation path refuses an independently pinned source GW pointing
+at prod before the activation shell is entered: 1 test, 38 assertions, 16.61s,
+`/tmp/puni-source-restoration-preflight-green.log`. Omitting only that target guard
+reaches the forbidden SQL shell and fails Expected 0 calls / Received 1 after
+16.52s, `/tmp/puni-source-restoration-preflight-watch.log`; source restored.
+The pinned-file negative catches a credential-only byte change despite unchanged
+role routes. Removing original size/hash checks fails at Missing expected
+rejection, `/tmp/puni-source-config-private-watch.log`; absent and unreadable
+private files both refuse. Inherited environment text must not be unquoted as
+though it came from dotenv: its quoted-target negative first failed with Missing
+expected exception and now passes. Final focused configuration selection: 12 pass,
+6 assertions, 150ms, `/tmp/puni-source-config-final-green.log`.
+
+Actual full source startup, the generated output roster, four live source role
+readiness and the privileged product native rehearsal remain UNVERIFIED. These
+configuration checks do not complete P2b-3 acceptance.
+
+Configured graph-loaded checks after this source slice: lint/typecheck/build,
+7 targets pass, 4 dependency cache hits, 18.5s,
+`/tmp/puni-source-restoration-configuration-static2.log`. The first configured run reported a lint failure without detailed diagnostics;
+scoped autofix was limited to changed files and the configured replay executed
+the changed project targets. Existing solver-restoration regression passes
+41 tests, 149 assertions, 3.25s, `/tmp/puni-source-config-solver-regression.log`.

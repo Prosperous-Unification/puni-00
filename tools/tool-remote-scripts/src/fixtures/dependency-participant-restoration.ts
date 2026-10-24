@@ -6,21 +6,29 @@ import {
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
 } from '../lib/docker';
 import { readFields } from '../lib/managed-cohort';
+import type { SourceConfigSlot } from '../lib/source-startup-manifest';
 import { completeActivationFixture } from './dependency-complete-activation';
+import { sourceRestorationConfiguration } from './source-restoration';
 
 /** Actual scratch stores/source pins with native emitter execution and full product image launch observations. */
 export async function participantActivationFixture(
   activate: readonly ('prod' | 'dev')[] = ['prod'],
+  configuration: Readonly<Record<SourceConfigSlot, string>> = sourceRestorationConfiguration,
 ) {
   const document =
     '{"openapi":"3.1.0","info":{"title":"native pinned participant emitter"},"paths":{}}\n';
-  const fixture = await completeActivationFixture(activate, undefined, async (root) => {
-    await mkdir(join(root, 'apps/wbs/be-01/src/openapi'), { recursive: true });
-    await writeFile(
-      join(root, 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts'),
-      `process.stdout.write(${JSON.stringify(document)});\n`,
-    );
-  });
+  const fixture = await completeActivationFixture(
+    activate,
+    undefined,
+    async (root) => {
+      await mkdir(join(root, 'apps/wbs/be-01/src/openapi'), { recursive: true });
+      await writeFile(
+        join(root, 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts'),
+        `process.stdout.write(${JSON.stringify(document)});\n`,
+      );
+    },
+    configuration,
+  );
   const backend = Object.assign(fixture.backend, { Path: 'bun', Args: ['run', 'src/main.ts'] });
   Object.assign(backend.Config, {
     Cmd: ['bun', 'run', 'src/main.ts'],

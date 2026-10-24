@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 
 import { sourceDatabaseFixture } from '../fixtures/source-database-binding';
+import { sourceRestorationConfiguration } from '../fixtures/source-restoration';
 import { roots } from '../fixtures/source-startup';
 import { withDependencyOwner } from './edge-ownership';
 import { readFields } from './managed-cohort';
@@ -35,6 +36,7 @@ test('source cold restart monitor outlives only its source token under the same 
         `process.stdout.write(${JSON.stringify(document)});\n`,
       );
     },
+    sourceRestorationConfiguration,
   );
   const runtimeReference = `registry/toolchain@sha256:${'a'.repeat(64)}`;
   let emissions = 0;
@@ -115,6 +117,12 @@ test('source cold restart monitor outlives only its source token under the same 
       );
       if (observation === undefined) throw new Error('original observation absent');
       await rejects(inspectSourceDevInputs(owner, observation));
+      expect(monitor.configuration.ports).toEqual({
+        backend: 3100,
+        gateway: 3200,
+        mcp: 3300,
+        frontend: 4200,
+      });
       await monitor.inspectCold();
       expect(emissions).toBe(1);
       return monitor;

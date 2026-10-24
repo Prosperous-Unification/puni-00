@@ -4,6 +4,10 @@ import { type FileHandle, lstat, open, readdir, readlink, realpath } from 'node:
 import { dirname, isAbsolute, join, posix, resolve } from 'node:path';
 
 import { envLayout } from './env';
+import {
+  decodeSourceRestorationConfiguration,
+  type SourceRestorationConfiguration,
+} from './source-restoration-configuration';
 
 export interface SourceDevPins {
   version: 1;
@@ -506,6 +510,36 @@ function assertDotenv(contents: string, slot: SourceConfigSlot): void {
     }
   }
   if (slot === 'backend' && !migration) fail();
+}
+/** Captures only exact pinned private role controls before activation; original tree monitors separately preserve every file identity throughout restoration. */
+export async function captureSourceRestorationConfiguration(
+  root: string,
+  manifest: SourceStartupManifest,
+  inherited: readonly string[],
+  deadline: number,
+): Promise<SourceRestorationConfiguration> {
+  try {
+    const ancestry = await captureAncestors(root);
+    const files = { backend: '', gateway: '', mcp: '', frontend: '' };
+    for (const [index, slot] of SLOTS.entries()) {
+      const path = CONFIGS.at(index);
+      const pin = manifest.configuration.find((candidate) => candidate.slot === slot);
+      if (path === undefined || pin === undefined) fail();
+      const observed = await readRegular(join(root, path), deadline, MAX_CONFIG, true, true);
+      // Proof: omitting original size/hash checks admitted a credential-only private config change; actual pinned-file test failed with Missing expected rejection.
+      if (
+        observed.sha256 !== pin.sha256 ||
+        observed.size !== pin.size ||
+        observed.contents === undefined
+      )
+        fail();
+      files[slot] = observed.contents;
+    }
+    await assertAncestors(ancestry);
+    return decodeSourceRestorationConfiguration(files, inherited);
+  } catch {
+    throw new Error('source pinned restoration configuration refused');
+  }
 }
 /** Validates fixed effective container controls privately, including ordered environment identity. */
 // Proof: ordered-env hash and forbidden-name checks omitted separately; effective environment test failed.

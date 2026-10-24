@@ -21,6 +21,7 @@ import { type SourceDevExclusion, withSourceDevExcluded } from '../lib/source-de
 import {
   createSourceStartupManifest,
   decodeSourceStartupManifest,
+  type SourceConfigSlot,
 } from '../lib/source-startup-manifest';
 import { sourceFixture } from './source-dev';
 import {
@@ -91,6 +92,7 @@ export async function sourceDatabaseFixture(
   nested = false,
   migrationsDirectory?: string,
   prepareSource?: (root: string) => Promise<void>,
+  roleConfiguration?: Readonly<Record<SourceConfigSlot, string>>,
 ) {
   const prepared = await artifact();
   if (prepareSource !== undefined) await prepareSource(prepared.root);
@@ -145,18 +147,34 @@ export async function sourceDatabaseFixture(
   await writeFile(devPath, 'dev scratch');
   const sourceRoot = join(layouts.dev.root, 'src');
   await cp(prepared.root, sourceRoot, { recursive: true, verbatimSymlinks: true });
-  for (const tier of ['be-01', 'gw-01', 'mcp-01', 'fe-01']) {
+  const roles = ['backend', 'gateway', 'mcp', 'frontend'] as const;
+  for (const [index, tier] of ['be-01', 'gw-01', 'mcp-01', 'fe-01'].entries()) {
+    const slot = roles.at(index);
+    if (slot === undefined) throw new Error('fixture source role absent');
     const path = join(sourceRoot, 'apps/wbs', tier, '.env');
-    await writeFile(path, tier === 'be-01' ? dotenv : 'MIGRATE_ON_STARTUP=false\n#\n');
+    await writeFile(
+      path,
+      roleConfiguration === undefined
+        ? tier === 'be-01'
+          ? dotenv
+          : 'MIGRATE_ON_STARTUP=false\n#\n'
+        : roleConfiguration[slot],
+    );
     await chmod(path, 0o600);
   }
   const original = decodeSourceStartupManifest(prepared.contents, prepared.pins);
   const manifest = {
     ...original,
     configuration: original.configuration.map((pin) =>
-      pin.slot === 'backend'
-        ? { slot: 'backend', size: Buffer.byteLength(dotenv), sha256: hash(dotenv) }
-        : pin,
+      roleConfiguration !== undefined
+        ? {
+            slot: pin.slot,
+            size: Buffer.byteLength(roleConfiguration[pin.slot]),
+            sha256: hash(roleConfiguration[pin.slot]),
+          }
+        : pin.slot === 'backend'
+          ? { slot: 'backend', size: Buffer.byteLength(dotenv), sha256: hash(dotenv) }
+          : pin,
     ),
   };
   const contents = JSON.stringify(manifest) + '\n';

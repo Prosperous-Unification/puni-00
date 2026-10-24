@@ -16,10 +16,12 @@ import {
   inspectSourceDevExclusion,
   type SourceDevExclusion,
 } from './source-dev-exclusion';
+import type { SourceRestorationConfiguration } from './source-restoration-configuration';
 import {
   assertSourceDeadline,
   assertSourceEnvironment,
   captureSourceRestartTree,
+  captureSourceRestorationConfiguration,
   captureSourceStartupTree,
   decodeSourceDevPins,
   decodeSourceStartupManifest,
@@ -47,6 +49,7 @@ export interface SourceDevInputObservation {
 /** Read-only source monitors remain bound to the original outer owner, never to a revived exclusion token. */
 export interface SourceDevRestartInputs {
   readonly openapiSha256: string;
+  readonly configuration: SourceRestorationConfiguration;
   inspectCold(): Promise<void>;
   inspectRunning(): Promise<void>;
 }
@@ -371,6 +374,19 @@ export async function observeSourceDevInputs(
     async function captureRestart(runtimeReference: string): Promise<SourceDevRestartInputs> {
       if (!/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(runtimeReference)) refuse();
       await recheck();
+      const assignments = member.config['Env'];
+      if (!Array.isArray(assignments)) refuse();
+      const inherited: string[] = [];
+      for (const assignment of assignments) {
+        if (typeof assignment !== 'string') refuse();
+        inherited.push(assignment);
+      }
+      const configuration = await captureSourceRestorationConfiguration(
+        `${layouts.dev.root}/src`,
+        manifest,
+        inherited,
+        deadline,
+      );
       const command = createRoleCommand(pins.runtimeImageId, `${layouts.dev.root}/src`, 'be-01');
       command[command.indexOf('--workdir') + 1] = '/src';
       command[command.length - 1] = 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts';
@@ -435,6 +451,16 @@ export async function observeSourceDevInputs(
           await inspectRestartRuntime();
           if (cold) await tree.inspectCold();
           else await tree.inspectRunning();
+          assertSame(
+            configuration,
+            await captureSourceRestorationConfiguration(
+              `${layouts.dev.root}/src`,
+              manifest,
+              inherited,
+              deadline,
+            ),
+            'source retained role configuration',
+          );
           await inspectRestartRuntime();
         } catch {
           return refuse();
@@ -443,6 +469,7 @@ export async function observeSourceDevInputs(
       await inspect(true);
       return Object.freeze({
         openapiSha256,
+        configuration,
         inspectCold: () => inspect(true),
         inspectRunning: () => inspect(false),
       });

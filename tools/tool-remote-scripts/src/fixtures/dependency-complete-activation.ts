@@ -15,6 +15,7 @@ import { readAuthorityCollector } from '../lib/installed-authority-transport';
 import { WRITER_MEMBERS } from '../lib/installed-writers';
 import { readFields, readIdentity } from '../lib/managed-cohort';
 import { SOLVER_EDGE_STATE } from '../lib/solver-host';
+import type { SourceConfigSlot } from '../lib/source-startup-manifest';
 import { createNamespaceFixture } from './namespace-audit';
 import { sourceDatabaseFixture } from './source-database-binding';
 
@@ -23,6 +24,7 @@ export async function completeActivationFixture(
   activate: readonly ('prod' | 'dev')[] = ['prod', 'dev'],
   preparedDirectory = migrationsDirectory,
   prepareSource?: (root: string) => Promise<void>,
+  roleConfiguration?: Readonly<Record<SourceConfigSlot, string>>,
 ) {
   const base = await sourceDatabaseFixture(
     undefined,
@@ -31,6 +33,7 @@ export async function completeActivationFixture(
     false,
     preparedDirectory,
     prepareSource,
+    roleConfiguration,
   );
   await writeFile(
     join(base.root, 'edge-policy.json'),
