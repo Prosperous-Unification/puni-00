@@ -2852,7 +2852,7 @@ export function PlanCards({
               */}
               <CardPriorityField row={row} bands={priorityBands} setPriority={setPriority} />
               {subtreeClaim !== null && (
-                <span data-card-subtree-claim={row.id} className="min-w-0 shrink">
+                <span data-card-subtree-claim={row.id} className="min-w-0 shrink overflow-hidden">
                   <ClaimChip drawn={subtreeClaim} form="full" tap />
                 </span>
               )}

@@ -1455,14 +1455,13 @@ export function WbsTable({
   });
   /** The plan's one lease clock (C6), which every chip reads; no chip owns a timer. */
   const leaseClock = useLeaseClock();
-  const { stepClaimOn, subtreeClaimOn, anyClaimOn, leasesRunning } = usePlanClaims({
+  const { stepClaimOn, subtreeClaimOn, anyClaimOn, leaseDeadlineOn } = usePlanClaims({
     claims,
     rows: flat,
     steps,
     zone: chartRead.timezone,
     leaseClock,
   });
-  useLeaseTicker(leaseClock, leasesRunning);
 
   /**
    * The work items one waits for, in the order it holds them.
@@ -1849,6 +1848,20 @@ export function WbsTable({
     [rowModel, search.visibleIds],
   );
   const shownRowIds = useMemo(() => shownRows.map((row) => row.original.id), [shownRows]);
+  /**
+   * When the plan's one lease ticker may stop: the latest lease end among the
+   * claims drawn on screen — rows the collapse and the filter leave, step
+   * columns not hidden (C6). The cards draw the same rows.
+   */
+  const leaseDeadline = useMemo(
+    () =>
+      leaseDeadlineOn(
+        new Set(shownRowIds),
+        new Set(steps.filter((step) => !hiddenColumnIds.includes(step.id)).map((step) => step.id)),
+      ),
+    [leaseDeadlineOn, shownRowIds, steps, hiddenColumnIds],
+  );
+  useLeaseTicker(leaseClock, leaseDeadline);
 
   const committedLogicalCells = useMemo(
     () =>

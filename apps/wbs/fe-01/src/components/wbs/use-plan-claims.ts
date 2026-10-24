@@ -15,22 +15,28 @@ export interface PlanClaims {
   subtreeClaimOn: (rowId: string) => DrawnClaim | null;
   /** Whether some drawn row holds a claim on this step, so its folded column keeps the slot. */
   anyClaimOn: (stepId: string) => boolean;
-  /** Whether any drawn claim holds a lease in force, so the plan's one ticker must run. */
-  leasesRunning: boolean;
+  /**
+   * The monotonic instant the plan's one ticker must run until: the latest
+   * lease end among the claims drawn on `rows` (the rows on screen, not the
+   * collapsed or filtered ones) and `steps` (the step columns not hidden), or
+   * null when none of them holds a lease that is not revoked.
+   */
+  leaseDeadlineOn: (rows: ReadonlySet<string>, steps: ReadonlySet<string>) => number | null;
 }
 
 interface ClaimIndex {
   steps: ReadonlyMap<string, ReadonlyMap<string, DrawnClaim>>;
   subtrees: ReadonlyMap<string, DrawnClaim>;
   claimedSteps: ReadonlySet<string>;
-  leasesRunning: boolean;
+  /** Claims with a lease nobody revoked, which a ticker may have to count down. */
+  leased: readonly DrawnClaim[];
 }
 
 const NO_CLAIMS: ClaimIndex = {
   steps: new Map(),
   subtrees: new Map(),
   claimedSteps: new Set(),
-  leasesRunning: false,
+  leased: [],
 };
 
 /**
@@ -62,7 +68,7 @@ export function indexClaims(
   const stepClaims = new Map<string, Map<string, DrawnClaim>>();
   const subtrees = new Map<string, DrawnClaim>();
   const claimedSteps = new Set<string>();
-  let leasesRunning = false;
+  const leased: DrawnClaim[] = [];
   for (const claim of installed.claims) {
     // Proof: a throwing lookup here (`no row w-not-yet`) made `draws nothing
     // for a claim on a row or step the tree lacks` find no row at all, the
@@ -81,7 +87,7 @@ export function indexClaims(
     // Proof: counting a revoked lease as running made `runs no timer while no
     // drawn claim holds a lease in force` fail on `expected 1 to be +0`;
     // watched 2026-10-24.
-    if (claim.leaseExpiresAt !== null && claim.leaseRevokedAt === null) leasesRunning = true;
+    if (claim.leaseExpiresAt !== null && claim.leaseRevokedAt === null) leased.push(drawn);
     if (claim.stepId === null) {
       subtrees.set(claim.workItemId, drawn);
       continue;
@@ -91,14 +97,40 @@ export function indexClaims(
     stepClaims.set(claim.workItemId, onRow);
     claimedSteps.add(claim.stepId);
   }
-  return { steps: stepClaims, subtrees, claimedSteps, leasesRunning };
+  return { steps: stepClaims, subtrees, claimedSteps, leased };
+}
+
+/**
+ * The latest monotonic instant at which a lease drawn on `rows` and `steps`
+ * ends, or null when none is drawn: `installedAt + (leaseExpiresAt − readAt)`,
+ * the instant `leaseViewOf` turns it to releasing.
+ */
+export function leaseDeadline(
+  leased: readonly DrawnClaim[],
+  rows: ReadonlySet<string>,
+  steps: ReadonlySet<string>,
+): number | null {
+  let latest: number | null = null;
+  for (const { claim, clock } of leased) {
+    // Proof: counting claims on rows off screen made `runs no timer for a lease
+    // drawn on no row on screen` fail on `expected 1 to be +0`; watched 2026-10-24.
+    if (!rows.has(claim.workItemId)) continue;
+    if (claim.stepId !== null && !steps.has(claim.stepId)) continue;
+    if (claim.leaseExpiresAt === null) continue;
+    const ends = clock.installedAt + (claim.leaseExpiresAt - clock.readAt);
+    if (latest === null || ends > latest) latest = ends;
+  }
+  return latest;
 }
 
 function parentOf(claim: ClaimView, byId: ReadonlyMap<string, ClaimView>): ClaimView | null {
   if (claim.parentClaimId === null) return null;
   const parent = byId.get(claim.parentClaimId);
-  // `readClaims` refuses a read whose parent is not listed, so this is a read
-  // that skipped its boundary.
+  // Unreachable from production: `checkClaimsRead` refuses, at the read's
+  // boundary, a read whose parent is not listed, so this names a read that
+  // skipped it. Proof: with this throw never taken, `refuses to index a delegated
+  // claim whose parent its read does not list` failed on `expected [Function]
+  // to throw an error`; watched 2026-10-24.
   if (parent === undefined) {
     throw new Error(`claim ${claim.claimId} names parent ${claim.parentClaimId}, not in its read`);
   }
@@ -133,5 +165,10 @@ export function usePlanClaims({
   );
   const subtreeClaimOn = useCallback((rowId: string) => index.subtrees.get(rowId) ?? null, [index]);
   const anyClaimOn = useCallback((stepId: string) => index.claimedSteps.has(stepId), [index]);
-  return { stepClaimOn, subtreeClaimOn, anyClaimOn, leasesRunning: index.leasesRunning };
+  const leaseDeadlineOn = useCallback(
+    (rows: ReadonlySet<string>, steps: ReadonlySet<string>) =>
+      leaseDeadline(index.leased, rows, steps),
+    [index],
+  );
+  return { stepClaimOn, subtreeClaimOn, anyClaimOn, leaseDeadlineOn };
 }

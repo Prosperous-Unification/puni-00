@@ -159,7 +159,10 @@ export function createPlanReading({
           onClaims: () => {
             // A transient announcement: claims alone, and never a sequence.
             // Proof: a handler that invalidates nothing left no claims invalidation in
-            // `reads claims alone for a claims announcement`; watched 2026-10-23.
+            // `reads claims alone for a claims announcement`; watched 2026-10-23. It
+            // also left `moves the chip to the renewed minutes once claims_changed
+            // is read` (`plan-claims.test.tsx`) at `lease 3 min left`; watched
+            // 2026-10-24.
             if (isLive()) void owner.invalidate({ resources: ['claims'] });
           },
           onConnectionChange: (connected) => {

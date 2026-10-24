@@ -1,7 +1,9 @@
-import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
+import { checkClaimsRead } from '@/lib/wbs-api';
+import type { OpenProjectStream } from '@/modules/project/contract';
 import { claimedPlan } from '@/testing/claims-fixture';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
@@ -9,7 +11,8 @@ import { projectServicesOf } from '@/testing/project-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { CLAIM_SLOT_PX } from './claim-chip';
-import { LEASE_TICK_MS } from './lease-clock';
+import { createLeaseClock, LEASE_TICK_MS } from './lease-clock';
+import { indexClaims } from './use-plan-claims';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -47,10 +50,6 @@ const chipsIn = (scope: Element): string[] =>
 
 const PAINT_SENTENCE =
   "Claimed by codex since 24 Oct 10:42, run r-7, under claire's claim on 010; lease 14 min left";
-
-/** Every `<col>`'s declared width, which is what the table's column widths are. */
-const columnWidths = (): string[] =>
-  [...document.querySelectorAll('col')].map((col) => (col as HTMLElement).style.width);
 
 function drawTable(api: Parameters<typeof projectServicesOf>[0]) {
   return render(
@@ -156,22 +155,47 @@ describe('a claimed step’s chip (wbs-claim-display 4.1)', () => {
     expect(empty?.style.width).toBe(`${String(CLAIM_SLOT_PX - 3)}px`);
   });
 
-  itDom('leaves an unclaimed plan exactly as it was: no slot, the same columns', async () => {
-    const claimed = await claimedPlan();
-    drawTable(claimed.api);
-    await waitFor(() => {
-      expect(chipsIn(rowFor('010.1'))).toEqual(['CO']);
-    });
-    const claimedWidths = columnWidths();
-    cleanup();
-
+  itDom('leaves an unclaimed plan exactly as it was: no slot, no claim room', async () => {
     const { api } = await claimedPlan([]);
     drawTable(api);
     await screen.findByLabelText('Name of 030');
 
     expect(document.querySelector('[data-folded-claim-slot]')).toBeNull();
     expect(document.querySelector('[data-subtree-claim]')).toBeNull();
-    expect(columnWidths()).toEqual(claimedWidths);
+    expect(document.querySelector('[data-by-claimed]')).toBeNull();
+    expect(screen.getByLabelText('Dev estimate for 030').getAttribute('placeholder')).toBe('o/r/p');
+  });
+
+  itDom('drops the o/r/p placeholder in a claimed column', async () => {
+    // Claire's subtree claim holds no step: Dev is claimed, QA is not.
+    const { api } = await claimedPlan(['c-claire', 'c-codex']);
+    drawTable(api);
+    await waitFor(() => {
+      expect(chipsIn(rowFor('010.1'))).toEqual(['CO']);
+    });
+
+    expect(screen.getByLabelText('Dev estimate for 030').getAttribute('placeholder')).toBeNull();
+    expect(screen.getByLabelText('QA estimate for 030').getAttribute('placeholder')).toBe('o/r/p');
+  });
+
+  itDom('puts a claimed by cell’s chip on its own line, under the picker', async () => {
+    const { api } = await claimedPlan();
+    drawTable(api);
+    await waitFor(() => {
+      expect(chipsIn(rowFor('020'))).toEqual(['EV', 'FI']);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unfold Dev estimates' }));
+
+    // The picker's row is the unclaimed cell's, so an assumed `(name)` keeps
+    // its room rather than ellipsizing to `(…`; jsdom lays nothing out, so
+    // Chromium's reading is in verify.md.
+    const cell = rowFor('020').querySelector('td[data-column="step-dev-assignee"]');
+    const line = cell?.querySelector('[data-by-claimed="step-dev"]');
+    expect(line?.querySelector('[data-claim-chip="c-eve"]')).not.toBeNull();
+    // Not a child of the picker's flex row: a line of its own beside it.
+    expect(line?.parentElement?.contains(cell?.querySelector('input') ?? null)).toBe(true);
+    expect((line?.parentElement as HTMLElement | null)?.style.display).not.toBe('flex');
   });
 });
 
@@ -322,5 +346,171 @@ describe('an unclaimed plan', () => {
     await screen.findByLabelText('Name of 010');
 
     expect(document.querySelector('[data-claim-chip]')).toBeNull();
+  });
+});
+
+describe('a renewal and a refused read (wbs-claim-display 6.1, C12)', () => {
+  itDom('moves the chip to the renewed minutes once claims_changed is read', async () => {
+    const { api } = await claimedPlan(['c-eve']);
+    // Eve's lease: 3.5 minutes on the first read, 14.5 after her heartbeat.
+    let minutes = 3.5;
+    const read = api.readClaims.bind(api);
+    api.readClaims = async (projectId) => {
+      const answer = await read(projectId);
+      return {
+        ...answer,
+        claims: answer.claims.map((claim) => ({
+          ...claim,
+          leaseExpiresAt: answer.readAt + minutes * 60_000,
+        })),
+      };
+    };
+    let announce: () => void = () => {
+      throw new Error('the plan never subscribed');
+    };
+    const subscribe: OpenProjectStream = (_projectId, handlers) => {
+      announce = handlers.onClaims;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        subscribe={subscribe}
+      />,
+    );
+    const chip = () => document.querySelector('[data-claim-chip="c-eve"]');
+    await waitFor(() => {
+      expect(chip()?.getAttribute('aria-label')).toContain('lease 3 min left');
+    });
+
+    minutes = 14.5;
+    act(() => {
+      announce();
+    });
+
+    await waitFor(() => {
+      expect(chip()?.getAttribute('aria-label')).toContain('lease 14 min left');
+    });
+  });
+
+  itDom('shows a read its boundary refuses as the claims notice, not a fault', async () => {
+    const { api, extra, ids } = await claimedPlan(['c-dana', 'c-twin']);
+    // A second claim on dana's step: be-01 cannot answer this, and the
+    // client's boundary refuses it.
+    extra.push({
+      claimId: 'c-twin',
+      workItemId: ids.prime,
+      stepId: 'step-dev',
+      holder: { personId: 'person-gil', name: 'gil' },
+      runId: null,
+      parentClaimId: null,
+      claimedAt: 0,
+      leaseExpiresAt: null,
+      leaseRevokedAt: null,
+    });
+    const read = api.readClaims.bind(api);
+    api.readClaims = async (projectId) => checkClaimsRead(await read(projectId));
+    drawTable(api);
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-stale-claims]')).not.toBeNull();
+    });
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '030']);
+    expect(document.querySelector('[data-stale-tree]')).toBeNull();
+    expect(document.querySelector('[data-claim-chip]')).toBeNull();
+    expect(document.querySelector('[data-app-fault]')).toBeNull();
+  });
+
+  it('refuses to index a delegated claim whose parent its read does not list', () => {
+    const orphan = {
+      claimId: 'c-orphan',
+      workItemId: 'w1',
+      number: '010',
+      numberIsFrozen: false,
+      name: 'Strip',
+      stepId: null,
+      holder: { personId: 'person-gil', name: 'gil' },
+      runId: null,
+      parentClaimId: 'c-gone',
+      claimedAt: 0,
+      leaseExpiresAt: null,
+      leaseRevokedAt: null,
+    };
+    expect(() =>
+      indexClaims(
+        { readAt: 0, installedAt: 0, claims: [orphan] },
+        [{ id: 'w1' }],
+        [],
+        null,
+        createLeaseClock(),
+      ),
+    ).toThrow('claim c-orphan names parent c-gone, not in its read');
+  });
+});
+
+describe('the lease ticker’s end (wbs-claim-display 6.2)', () => {
+  const fakeTheTicker = () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'performance'] });
+  };
+
+  itDom('runs no timer for a lease drawn on no row on screen', async () => {
+    fakeTheTicker();
+    const { api, extra, ids } = await claimedPlan(['c-hidden']);
+    extra.push({
+      claimId: 'c-hidden',
+      workItemId: ids.paint,
+      stepId: 'step-qa',
+      holder: { personId: 'person-gil', name: 'gil' },
+      runId: null,
+      parentClaimId: null,
+      claimedAt: 0,
+      leaseExpiresAt: Date.now() + 10 * 60_000,
+      leaseRevokedAt: null,
+    });
+    drawTable(api);
+    await waitFor(() => {
+      expect(chipsIn(rowFor('010.1'))).toEqual(['GI']);
+    });
+    expect(vi.getTimerCount()).toBe(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  itDom('stops ticking once the last drawn lease has ended', async () => {
+    fakeTheTicker();
+    // Eve's thirty seconds are the only lease.
+    const { api } = await claimedPlan(['c-eve']);
+    drawTable(api);
+    await waitFor(() => {
+      expect(chipsIn(rowFor('020'))).toEqual(['EV']);
+    });
+    expect(vi.getTimerCount()).toBe(1);
+
+    act(() => {
+      vi.advanceTimersByTime(3 * LEASE_TICK_MS);
+    });
+
+    expect(document.querySelector('[data-claim-chip="c-eve"]')?.getAttribute('data-lease')).toBe(
+      'releasing',
+    );
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  itDom('leaves no timer behind once the plan unmounts', async () => {
+    fakeTheTicker();
+    const { api } = await claimedPlan(['c-claire', 'c-codex']);
+    const { unmount } = drawTable(api);
+    await waitFor(() => {
+      expect(chipsIn(rowFor('010.1'))).toEqual(['CO']);
+    });
+    expect(vi.getTimerCount()).toBe(1);
+
+    unmount();
+
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

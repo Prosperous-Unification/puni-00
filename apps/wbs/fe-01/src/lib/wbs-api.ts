@@ -1602,7 +1602,8 @@ export function checkClaimsRead(read: ClaimsRead): ClaimsRead {
   for (const claim of read.claims) {
     const place = `${claim.workItemId}/${claim.stepId ?? 'subtree'}`;
     // Proof: this check removed, `refuses a claims read with two claims on one
-    // step` resolved instead of rejecting; watched 2026-10-24.
+    // step` resolved instead of rejecting, and the table's `shows a read its
+    // boundary refuses as the claims notice` drew no notice; watched 2026-10-24.
     if (places.has(place)) throw new Error(`claims read holds two claims on ${place}`);
     places.add(place);
     // Proof: this check removed, `refuses a claims read whose delegated claim

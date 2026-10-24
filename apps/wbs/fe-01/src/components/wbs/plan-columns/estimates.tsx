@@ -328,7 +328,14 @@ export function createEstimatesColumns({
                   // both read the same `options.length > 0`.
                   aria-activedescendant={options.length > 0 ? pickerOptionId(listId, 0) : undefined}
                   aria-autocomplete="list"
-                  placeholder="o/r/p"
+                  // No placeholder in a column that keeps the claim slot: the
+                  // box there is too narrow for `o/r/p`, which read `o.`.
+                  // Proof: kept unconditionally, `drops the o/r/p placeholder
+                  // in a claimed column` failed on `expected 'o/r/p' to be
+                  // null`; watched 2026-10-24.
+                  placeholder={
+                    reading.layout === 'folded' && reading.anyClaim ? undefined : 'o/r/p'
+                  }
                   aria-invalid={problem !== null}
                   // Every keystroke, so an `@` opens the people picker as
                   // it is typed. The estimate half is not read here and no
@@ -707,69 +714,76 @@ export function createEstimatesColumns({
                   // A flex row because the picker inside it is one now: the
                   // assumed name has to sit beside the box and shrink with
                   // it, rather than being pushed onto a line of its own.
-                  <span
-                    style={{
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      maxWidth: '100%',
-                      minWidth: 0,
-                    }}
-                  >
-                    <CreatablePicker
-                      label={`${step.name} assignee for ${row.original.number}`}
-                      placeholder="search"
-                      entries={row.original.readings.assigneeEntries}
-                      value={assigned ?? null}
-                      onChoose={(id) => {
-                        live.current.assignTo(row.original.id, step.id, id);
+                  <>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        maxWidth: '100%',
+                        minWidth: 0,
                       }}
-                      onCreate={(name) => {
-                        live.current.createPersonFor(row.original, step.id, name);
-                      }}
-                      onClear={() => {
-                        live.current.assignTo(row.original.id, step.id, null);
-                      }}
-                      gridCell={{
-                        dataCell: cellKey(row.original.id, `${step.id}-assignee`),
-                        onTabKey: (e) => {
-                          live.current.onTabKey(e, row.original.id, `${step.id}-assignee`);
-                        },
-                        onCommandKey: (e) => {
-                          live.current.onCommandKey(e, row.original, `${step.id}-assignee`);
-                        },
-                        onAltMove: (e) => {
-                          live.current.onAltMove(e, row.original, `${step.id}-assignee`);
-                        },
-                      }}
-                    />
-                    {assumed !== null && (
-                      <span
-                        data-assumed={step.id}
-                        data-fact="Only one person is assigned, so they are assumed to do this step too"
-                        style={{
-                          color: 'var(--muted-foreground)',
-                          marginLeft: 4,
-                          minWidth: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                    >
+                      <CreatablePicker
+                        label={`${step.name} assignee for ${row.original.number}`}
+                        placeholder="search"
+                        entries={row.original.readings.assigneeEntries}
+                        value={assigned ?? null}
+                        onChoose={(id) => {
+                          live.current.assignTo(row.original.id, step.id, id);
                         }}
-                      >
-                        ({nameOf(assumed)})
-                      </span>
-                    )}
-                    {doing?.outside != null && (
-                      <MismatchMark kind="assignee" note={doing.outside} />
-                    )}
+                        onCreate={(name) => {
+                          live.current.createPersonFor(row.original, step.id, name);
+                        }}
+                        onClear={() => {
+                          live.current.assignTo(row.original.id, step.id, null);
+                        }}
+                        gridCell={{
+                          dataCell: cellKey(row.original.id, `${step.id}-assignee`),
+                          onTabKey: (e) => {
+                            live.current.onTabKey(e, row.original.id, `${step.id}-assignee`);
+                          },
+                          onCommandKey: (e) => {
+                            live.current.onCommandKey(e, row.original, `${step.id}-assignee`);
+                          },
+                          onAltMove: (e) => {
+                            live.current.onAltMove(e, row.original, `${step.id}-assignee`);
+                          },
+                        }}
+                      />
+                      {assumed !== null && (
+                        <span
+                          data-assumed={step.id}
+                          data-fact="Only one person is assigned, so they are assumed to do this step too"
+                          style={{
+                            color: 'var(--muted-foreground)',
+                            marginLeft: 4,
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          ({nameOf(assumed)})
+                        </span>
+                      )}
+                      {doing?.outside != null && (
+                        <MismatchMark kind="assignee" note={doing.outside} />
+                      )}
+                    </span>
                     {reading.claim !== null && (
-                      // After the picker, with the lease's minutes or
-                      // `releasing` (C7): this column has the room the folded
-                      // cell does not.
-                      <span style={{ marginLeft: 4, flex: 'none', alignSelf: 'center' }}>
+                      // Under the picker, with the lease's minutes or `releasing`
+                      // (C7), on a line of its own: beside the picker and an
+                      // assumed name it squeezed the name to `(…` in 120px, and
+                      // the line above stays exactly the unclaimed cell's.
+                      // Proof: the chip put back inside the row above made `puts
+                      // a claimed by cell’s chip on its own line` fail on
+                      // `expected 'flex' not to be 'flex'`; there Chromium drew
+                      // `se (…` beside `EV releasing`. Watched 2026-10-24.
+                      <span data-by-claimed={step.id} style={{ display: 'block', marginTop: 2 }}>
                         <ClaimChip drawn={reading.claim} form="full" />
                       </span>
                     )}
-                  </span>
+                  </>
                 );
               },
             }),

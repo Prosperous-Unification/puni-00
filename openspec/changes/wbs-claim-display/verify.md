@@ -494,8 +494,10 @@ Deviations:
 - The ticker is a store carried in `DrawnClaim`, not a React context: a provider around the
   viewport re-indented about a thousand lines of `wbs-table.tsx`.
 - `CLAIM_SLOT_PX` is 30, not the narrower slot the design imagined: `WW` is a 27px chip at 10px
-  bold (Chromium, 2026-10-24). In a claimed column the folded trio box shrinks to about 18px, so
-  the trio yields to the card as it does for the assignee slot. Pixel budget per design Risks.
+  bold (Chromium, 2026-10-24). In a claimed column the folded trio box shrinks to about 18px. A
+  trio beside a drawn result is dropped whole to the card (`watchTrioFit`), but a box with no
+  result has no such yield, and its `o/r/p` placeholder read `o.`; the review round below drops
+  that placeholder in claimed columns. Pixel budget per design Risks.
 - By-eye review used a scratch Vite page (not committed) that draws the real table over
   `testing/claims-fixture.ts`, not the dev stack.
 
@@ -504,8 +506,9 @@ the repo): folded chips line up on the figures' baseline with the figures still 
 the subtree chip sits on the name's first line left of the notes marker; the unfolded `CO 14m`
 counted down to `13m` and `EV <1m` turned to a dashed, muted `EV releasing` 31 s later; the card
 and the instant fact card read the full sentence; phone chips sit right after the assignee and in
-the header. Seen and left: in the unfolded `by` cell an assumed name beside a releasing chip
-ellipsizes to `(…`; on a phone a long assignee name truncates beside the chip.
+the header. Seen and left: on a phone a long assignee name truncates beside the chip. (The
+unfolded `by` cell squeezed an assumed name to `(…` beside a releasing chip; the review round
+below fixed it.)
 
 Results (fresh, 2026-10-24):
 
@@ -521,3 +524,50 @@ another Bun: 1.4.2 != 1.4.4`).
 Not run locally: the full fe-01 suite, the Auckland zoned run, e2e and pixels (CI carries them;
 laptop RAM). No e2e spec names claims or counts claim marks, and an unclaimed plan adds no
 element, so no pixels baseline is expected to move.
+
+**Review round (Fable, PR #704 at `91ab8593f`, no S1).**
+
+- S2-1 **Merge order: #704 lands after #693.** Until be-01 publishes `claims_changed` on a
+  heartbeat (#693), nothing rereads claims when a lease is renewed, so a healthy heartbeating
+  agent's chip counts down to a false `releasing` until some tree change rereads them. New case
+  for the scenario "A renewal moves the display": a chip at `lease 3 min left` reads `lease 14
+min left` after the stream's claims announcement and its covering claims read.
+- S2-2 The unfolded `by` cell's chip moved out of the picker's flex row onto a line of its own
+  under it, so the row above is exactly the unclaimed cell's. Chromium, 1440×900, after 31 s:
+  `search (Vad…` on the first line (the same ellipsis an unclaimed long assumed name has, 43 of
+  121px shown) and `EV releasing` under it, no `(…`; `CO 13m` under `ada ×`. A claimed row is
+  one chip-line taller while the step is unfolded.
+- S2-3 A folded column that keeps the claim slot draws no `o/r/p` placeholder (Chromium: the
+  `030` boxes of claimed Dev and QA read `null`); an unclaimed column keeps it.
+- S3:
+  - A read `checkClaimsRead` refuses, driven through the table: the claims notice, no plan
+    stale alert, no chip, no fault.
+  - `parentOf`'s throw names the boundary that makes it unreachable, with a unit negative on
+    `indexClaims`.
+  - The `columnWidths()` assertion, which could not fail (no claim reaches `<col>`), is gone;
+    the unclaimed case now also asserts no claimed `by` line and the `o/r/p` placeholder.
+  - The ticker now runs until the latest lease end among claims drawn on screen: rows the
+    collapse and filter leave (`shownRows`), step columns not hidden. The tick that reaches it is
+    the last, so the last chip turns to releasing and no timer remains.
+  - No timer remains after the table unmounts.
+  - The phone header's subtree chip clips (`overflow-hidden`) rather than pushing past a long
+    priority.
+- Left as notes, unchanged: tick granularity, the per-read row rebuild, the `subtree` key.
+
+| R5 fault (watched)                           | Observed                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| plan feed `onClaims` invalidates nothing     | `moves the chip to the renewed minutes …`: aria-label still `lease 3 min left`             |
+| by-cell chip back inside the picker's row    | `puts a claimed by cell’s chip on its own line …`: `expected 'flex' not to be 'flex'`      |
+| `o/r/p` placeholder kept in a claimed column | `drops the o/r/p placeholder in a claimed column`: `expected 'o/r/p' to be null`           |
+| `checkClaimsRead` duplicate check removed    | `shows a read its boundary refuses as the claims notice …`: `expected null not to be null` |
+| `parentOf` throw never taken                 | `refuses to index a delegated claim …`: `expected [Function] to throw an error`            |
+| lease deadline counts rows off screen        | `runs no timer for a lease drawn on no row on screen`: `expected 1 to be +0`               |
+| ticker never stops at the deadline           | `stops ticking once the last drawn lease has ended`: `expected 1 to be +0`                 |
+| ticker cleanup does not clear its timer      | `leaves no timer behind once the plan unmounts`: `expected 1 to be +0`                     |
+
+Screenshots re-shot: `desktop-light.png`, `desktop-light-right.png`,
+`desktop-{light,dark}-unfolded-after-31s.png`.
+
+Results after the round (fresh, 2026-10-24): `nx run wbs-fe-01:typecheck --skip-nx-cache`
+succeeded; eslint on the changed files exit 0; vitest over the same six trees, serial: 173 files,
+3692 pass (`plan-claims.test.tsx` 21).

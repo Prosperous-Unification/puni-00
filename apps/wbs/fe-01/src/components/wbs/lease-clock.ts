@@ -58,28 +58,38 @@ export function useLeaseNow(clock: LeaseClock): number {
 
 /**
  * The plan's one lease ticker (`wbs-claim-display` C6): ticks `clock` every
- * {@link LEASE_TICK_MS} while `running` and the page is visible, and runs no
- * timer at all otherwise. Becoming visible again ticks at once, so a tab left
- * in the background does not show a lease as it stood when it was hidden.
+ * {@link LEASE_TICK_MS} while the page is visible and a drawn lease has not yet
+ * ended, and runs no timer at all otherwise. The tick that reaches `deadline`
+ * is the last: it turns the last chip to releasing. Becoming visible again
+ * ticks at once, so a tab left in the background does not show a lease as it
+ * stood when it was hidden.
  *
  * @param clock The plan's lease clock, from {@link useLeaseClock}.
- * @param running Whether any drawn claim holds a lease in force.
+ * @param deadline The monotonic instant the latest drawn lease ends, or null
+ *   when no drawn claim holds a lease.
  */
-export function useLeaseTicker(clock: LeaseClock, running: boolean): void {
+export function useLeaseTicker(clock: LeaseClock, deadline: number | null): void {
   useEffect(() => {
     // Proof: this return removed, `runs no timer while no drawn claim holds a
     // lease in force` failed on `expected 1 to be +0`; watched 2026-10-24.
-    if (!running) return;
+    if (deadline === null) return;
     let timer: ReturnType<typeof setInterval> | null = null;
-    const start = (): void => {
-      if (timer !== null) return;
-      clock.tick();
-      timer = setInterval(clock.tick, LEASE_TICK_MS);
-    };
     const stop = (): void => {
       if (timer === null) return;
       clearInterval(timer);
       timer = null;
+    };
+    const tick = (): void => {
+      clock.tick();
+      // Proof: never stopping here left `stops ticking once the last drawn
+      // lease has ended` at one timer, expected none; watched 2026-10-24.
+      if (clock.now() >= deadline) stop();
+    };
+    const start = (): void => {
+      if (timer !== null) return;
+      clock.tick();
+      if (clock.now() >= deadline) return;
+      timer = setInterval(tick, LEASE_TICK_MS);
     };
     // Proof: starting regardless of visibility made `stops the ticker while the
     // page is hidden, and resumes when it shows` fail on `expected 1 to be +0`;
@@ -92,7 +102,9 @@ export function useLeaseTicker(clock: LeaseClock, running: boolean): void {
     document.addEventListener('visibilitychange', follow);
     return () => {
       document.removeEventListener('visibilitychange', follow);
+      // Proof: this stop removed, `leaves no timer behind once the plan
+      // unmounts` failed on `expected 1 to be +0`; watched 2026-10-24.
       stop();
     };
-  }, [clock, running]);
+  }, [clock, deadline]);
 }
