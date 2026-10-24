@@ -16,5 +16,5 @@
 
 ## 4. Review and handoff
 
-- [ ] 4.1 Run focused tests, fault proofs, lint, typecheck, relevant infrastructure checks, OpenSpec validation and the canonical host gate on the final implementation SHA; obtain independent review and resolve material findings before completion.
-- [ ] 4.2 Record commands, outcomes, revisions, rollback commands and operational limits in verify.md and the registry runbook; link from the platform documentation. Leave product migration unchecked in the original k3s-platform roadmap.
+- [x] 4.1 Run focused tests, fault proofs, lint, typecheck, relevant infrastructure checks, OpenSpec validation and the canonical host gate on the final implementation SHA; obtain independent review and resolve material findings before completion.
+- [x] 4.2 Record commands, outcomes, revisions, rollback commands and operational limits in verify.md and the registry runbook; link from the platform documentation. Leave product migration unchecked in the original k3s-platform roadmap.
