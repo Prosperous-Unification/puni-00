@@ -70,6 +70,7 @@ import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import { type Connection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
+import { PlanEventRepository } from '@wbs/store-sqlite/plan-event';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -468,6 +469,7 @@ export class OrganizationHarness {
         priorityBands: inMemoryPriorityBands(),
         subtrees: new SubtreeRepository(db, OPEN),
         journal: new CommandJournalRepository(db, OPEN),
+        planEvents: new PlanEventRepository(db, OPEN),
         broadcast: recordingBroadcaster(),
       }),
     };

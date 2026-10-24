@@ -162,6 +162,7 @@ import {
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
+import type { PlanEventStore } from '../../ports/plan-event-store';
 import type {
   IdentifiedSlice,
   PlanOptimization,
@@ -232,6 +233,13 @@ import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 import { type BudgetHeadroom, findBudgetHeadroom } from './budget-headroom';
 import { withBudgets } from './budget-read';
+import {
+  CLAIM_HISTORY_COMMANDS,
+  CLAIM_HISTORY_KINDS,
+  type ClaimHistoryEvent,
+  decodeClaimEvents,
+  nameClaimHistory,
+} from './claim-history';
 import {
   type Claimed,
   type ClaimInput,
@@ -1237,6 +1245,12 @@ export interface WorkItemServiceOptions {
    * exists to keep out of this repo.
    */
   journal: CommandJournalStore;
+  /**
+   * The project's plan events, read by {@link WorkItemService.claimHistoryWithin}
+   * (`wbs-claim-display` C13). Optional only for fixtures that predate the
+   * claim history: without it that read throws rather than answering.
+   */
+  planEvents?: Pick<PlanEventStore, 'listFor'>;
   broadcast: Broadcaster;
   /**
    * Who may write a project through this service: `CREATOR_ADMISSION`
@@ -2137,6 +2151,58 @@ export class WorkItemService {
     if (observed.kind === 'not_found') return null;
     if (observed.kind === 'access_refused') return observed;
     return findProjectClaims({ ...observed, readAt: this.clock.now() });
+  }
+
+  /**
+   * The newest `limit` claim and release acts of a project
+   * (`wbs-claim-display` C13, C14): its `claim` and `release` plan events and
+   * the acts of the `batch` events that claimed or released, admitted as the tree read is: `null` for a
+   * project the caller may not read, refused alike with an absent one. Each
+   * stored command is decoded with the journal's decoder
+   * ({@link decodeClaimEvents}); holders and work items are named as the plan
+   * holds them now, `null` once deleted ({@link nameClaimHistory}). Undo and
+   * redo write no plan event, so neither is listed.
+   *
+   * @throws when this service was built without plan events, or a stored
+   * event does not decode: corrupt history fails the read whole.
+   */
+  async claimHistoryWithin(
+    projectId: string,
+    access: ResourceAccess,
+    limit: number,
+  ): Promise<ClaimHistoryEvent[] | null> {
+    // Proof: with this admission removed, `refuses a stranger exactly as the
+    // tree read does` (claim-history-organization.controller.db.test.ts)
+    // failed: the foreign and absent projects were read (5 pass, 1 fail);
+    // watched 2026-10-24.
+    if (!(await this.admits(projectId, access))) return null;
+    const { planEvents } = this.opts;
+    if (planEvents === undefined)
+      throw new Error('this work-item service was built without plan events');
+    // Proof: with the kinds left out, `lists no undo, redo or other command`
+    // (claim-history.test.ts) failed on the `estimate` event; watched 2026-10-24.
+    // The batches that claimed or released beside other commands are kept by
+    // the store, before its limit, so non-claim batches never use up a place.
+    // Proof: with batches read as a kind and filtered here after the store's
+    // limit, `finds a claim batch under newer batches that claim nothing`
+    // (claim-history.test.ts) answered nothing; watched 2026-10-24.
+    const events = await planEvents.listFor(projectId, {
+      kinds: CLAIM_HISTORY_KINDS,
+      batchesHolding: CLAIM_HISTORY_COMMANDS,
+      limit,
+    });
+    // Every kept event yields at least one act, so the first `limit` acts are
+    // exactly the newest `limit`.
+    // Proof: with this cut removed, `lists a batch that released one claim and
+    // took another as two acts` (claim-history.test.ts) answered two acts for
+    // `limit` 1; watched 2026-10-24.
+    const decoded = decodeClaimEvents(events).slice(0, limit);
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const names = await this.personNamesWithin(
+      access,
+      decoded.flatMap(({ claims }) => claims.map(({ personId }) => personId)),
+    );
+    return nameClaimHistory(decoded, rows, names);
   }
 
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */

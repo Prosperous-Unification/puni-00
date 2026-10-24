@@ -103,6 +103,9 @@ const hostRequirements = () => {
     }),
     subtreeStore: DiBag.createProvider(() => stores.subtrees, { factoryReturnKind: 'sync-value' }),
     journalStore: DiBag.createProvider(() => stores.journal, { factoryReturnKind: 'sync-value' }),
+    planEventStore: DiBag.createProvider(() => stores.planEvents, {
+      factoryReturnKind: 'sync-value',
+    }),
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),

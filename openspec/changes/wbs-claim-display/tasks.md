@@ -109,15 +109,23 @@ reached `main` and deployed (C5), and gw-01 with the optional `seq` deploys no l
 
 ## 8. Claim history read (be-01)
 
-- [ ] 8.1 Red: `claim-history.test.ts` in core: claim, release and reap events newest first,
+- [x] 8.1 Red: `claim-history.test.ts` in core: claim, release and reap events newest first,
       reasons `claimed`, `released`, `lease_expired`, `credential_revoked`, deleted holder
       and item read `null`, undo and redo entries absent, `limit` default 50 and bound 100,
       an undecodable stored command fails the read. Green: decode with the journal's own
       decoder. R5 faults: skip an undecodable event (the corrupt case reddens); read the reason
       from the label; watched.
-- [ ] 8.2 Contract `readClaimHistory`, route, policy as the tree read, `limit` refused outside
+- [x] 8.2 Contract `readClaimHistory`, route, policy as the tree read, `limit` refused outside
       1 to 100 as `400 invalid_query`, MCP tool `getApiProjectsByIdClaim-history` by
       derivation — test: route tests and the tool count moving by one.
+- [x] 8.3 Review of #706 (S1-1): claims and releases inside a multi-command batch.
+      `PlanEventFilter.batchesHolding` keeps a `batch` event whose stored command holds
+      `add_claims` or `remove_claims` at any depth (`json_tree` on SQLite), before the limit;
+      each such step is one entry with an `act` index; conformance case
+      `planEvents.listFor:batches-limit` (also pins the limit and its refusal of 0, -1, 1.5).
+      R5 faults: batch clause removed per store; text match in place of `json_tree`; batches
+      filtered after the store limit; post-expansion cut removed; both-in-one-step and zero-act
+      checks skipped; `before` matched; a be-01 batch through `POST /commands`; watched.
 
 ## 9. Claims sheet (fe-01; builds `wbs-claim-leases` 2.1, history row)
 

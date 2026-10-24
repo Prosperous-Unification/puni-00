@@ -171,6 +171,21 @@ describe('the plan’s history, against a real database', () => {
     ]);
   });
 
+  it('answers at most the limit, newest first, after the other filters', async () => {
+    write('set', 1_000);
+    write('renamed', 2_000, { kind: 'patch' });
+    write('cleared', 3_000, { kind: 'clear_estimate' });
+    write('reset', 4_000);
+
+    expect(
+      (await events.listFor('p1', { kinds: ['estimate', 'clear_estimate'], limit: 2 })).map(
+        (each) => each.id,
+      ),
+    ).toEqual(['reset', 'cleared']);
+    expect((await events.listFor('p1', { limit: 1 })).map((each) => each.id)).toEqual(['reset']);
+    expect(await events.listFor('p1', { limit: 9 })).toHaveLength(4);
+  });
+
   it('hands back the two commands parsed, not the text they are stored as', async () => {
     write('a', 1_000);
 

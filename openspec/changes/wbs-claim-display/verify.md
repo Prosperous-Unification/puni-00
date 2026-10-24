@@ -701,3 +701,154 @@ Screenshots re-shot: `desktop-light.png`, `desktop-light-right.png`,
 Results after the round (fresh, 2026-10-24): `nx run wbs-fe-01:typecheck --skip-nx-cache`
 succeeded; eslint on the changed files exit 0; vitest over the same six trees, serial: 173 files,
 3692 pass (`plan-claims.test.tsx` 21).
+
+### Slice 8: claim history read (be-01), 2026-10-24
+
+Branch `feat/wbs-claim-history` on `origin/main` at `e763aa1a3` (slices 1 and 2 merged as
+`76575e668`; slices 3 to 7 are open PRs and not in this branch). Commands ran with
+`env -u CLAUDECODE` from the worktree.
+
+**8.1** `claim-history.ts` in the work-item module: `decodeClaimEvents` decodes each stored
+`after` with the journal's `readCommand` (batches walked, so a claim that also assigned lists its
+`add_claims`), `nameClaimHistory` names holders and items as the plan holds them now, and
+`claimHistoryLimitOf` reads the `limit` query. `WorkItemService.claimHistoryWithin` admits as the
+tree read does, reads `listFor(projectId, { kinds: ['claim', 'release'], limit })`, then the rows
+and the holders' names through the caller's access. `PlanEventFilter` gains `limit`: SQLite adds
+`LIMIT`, the memory twin slices. Eight cases in `claim-history.test.ts` over the memory source and
+the real batch runner: claim, release, lease reap and credential reap newest first with their
+reasons and the stored event ids; a release of an item named `x (lease expired)` reads
+`released`; a deleted holder and item read `null`; a claim's undo and redo and a `setEstimate`
+add nothing; 120 events answer the newest 50 and 100; the limit grammar; four corrupt events
+(unknown command, no command, a `claim` whose command claims nothing, an unknown reap reason) each
+fail the read naming the event; an absent project reads `null`. Red: the seven service cases
+failed (`claimHistoryWithin` is not a function) before the green; the limit grammar case passed
+with the helper alone. SQLite `plan-event.db.test.ts` gains `answers at most the limit, newest
+first, after the other filters`.
+
+| R5 fault (watched)                                                 | Observed                                                    |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| undecodable event skipped (`flatMap` with an empty catch)          | corrupt-history case fails (7/1)                            |
+| reason read off the label before the stored reason                 | `reads a release named like a reap …` fails (7/1)           |
+| unknown reap reason read as `released`                             | corrupt-history case fails (7/1)                            |
+| "names no claim" check removed                                     | corrupt-history case fails (7/1)                            |
+| `limit` maximum check removed                                      | limit grammar case fails (7/1)                              |
+| memory store ignores `limit`                                       | `answers the newest events up to the limit` fails (7/1)     |
+| SQLite store ignores `limit`                                       | SQLite `answers at most the limit …` fails (7/1)            |
+| `kinds` filter dropped from the service's read                     | `lists no undo, redo or other command` fails (7/1)          |
+| deleted holder named by its id instead of `null`                   | `names a holder and an item deleted since as null` (7/1)    |
+| `planEvents` dropped from `servicesOver` / from the module mapping | every service case throws `built without plan events` (1/7) |
+
+**8.2** `readClaimHistory` (`GET /api/projects/:id/claim-history`,
+`getApiProjectsByIdClaim-history`) in `claim-history-shapes.ts`, bound beside the claims read
+in `work-item.routes.ts`: a repeated key or a `limit` outside 1 to 100 is `400 invalid_query`
+before access is resolved; then `organizations.resolve`, then the service (`404 not_found` for a
+foreign or absent project). Inventory entry, `app.routes.test.ts` operation lists, the MCP pin
+list and README (87 to 88 tools; `counts them the same way the document does` failed 87 against
+88 until the README moved). `claim-history-organization.controller.db.test.ts` (6 cases): a
+member and a viewer read the same newest-first list with `lease_expired`, `released` and
+`claimed`, a deleted holder and item `null`, and no foreign event; 60 events answer 50, 2 and 60;
+`limit=0`, `101`, `ten`, empty and repeated are refused; a stranger, a foreign or absent project
+and an unbound session are refused exactly as the tree read; a removed member is refused as the
+tree read refuses them; an undecodable stored command answers 500. The organization harness's
+work-item service now gets `PlanEventRepository`.
+
+| R5 fault (watched)                                    | Observed                                                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `organization-resource` policy dropped from the shape | `covers every mounted organization mutation` and `refuses a stale expected organization …` fail |
+| repeated-key check removed                            | limit refusal case fails (5/1)                                                                  |
+| `limit === null` refusal removed                      | limit refusal case fails (5/1)                                                                  |
+| read with legacy access, access unresolved            | listing, stranger and removed-member cases fail (3/3)                                           |
+| service admission removed                             | stranger case fails (5/1)                                                                       |
+
+Deviations and limits:
+
+- Placement: the read lives in the work-item resource, not in `plan-history`. It needs the
+  admission, rows and access-scoped names that `WorkItemService` already owns
+  (`admits`, `personNamesWithin`), and `plan-history` is a closed feature module under
+  `module-boundaries.test.ts`. The resource gains an optional `planEvents` option (read-only
+  `listFor`), throwing when absent, as `claims` does; `servicesOver` passes the scope's store.
+- The admission is the tree read's `admits` after `organizations.resolve`; unlike the claims read
+  it rechecks nothing inside one observation, so a member removed between admission and the event
+  read is answered. History rows are append-only and the plan history read takes the same stance;
+  the spec now says "refused alike at admission" (review S3-6).
+- The first round left claims and releases inside a multi-command batch unlisted; the review
+  round below closes that gap (S1-1).
+- An undone claim stays listed as claimed (design Risks); the held claims are the truth.
+
+Results (fresh, 2026-10-24): core `claim-history`, `module-boundaries` (15) and the
+`module/work-item`, `module/plan-commands`, `module/plan-history`, `module/plan-event` and `http`
+suites 446 pass; store-memory 193 pass; store-sqlite `plan-event`, `command-journal`, `changes`
+and source conformance 91 pass; be-01 `claim-history-organization` (6),
+`project-claims-organization`, `app.routes`, `organization-context`, `claim-lease`,
+`claim-identity`, `saved-plan-organization` 52 pass and `history.controller` 8 pass; contracts
+496 pass; mcp-01 516 pass; typecheck wbs-contracts, wbs-core (+module), wbs-store-sqlite,
+wbs-store-memory, wbs-be-01 (+module), wbs-mcp-01 pass; lint of the same six projects pass;
+Burokrat `check-indexes working . HEAD` exit 0; `openspec validate --all --json` 280 of 280;
+`tool-devsync:test` 921 tests, target succeeded. Not run locally: the full be-01 and fe-01
+suites (CI carries them).
+
+**Review round (Fable, #706).** Decision on the batch gap: filter in the store by the stored
+command, no migration.
+
+- S1-1: `PlanEventFilter.batchesHolding` widens a non-empty `kinds` with the `batch` events whose
+  stored `after` holds an object whose `do` names `add_claims` or `remove_claims` at any depth:
+  SQLite `kind = 'batch' AND EXISTS (SELECT 1 FROM json_tree(after) …)` before `LIMIT`, the memory
+  twin `holdsCommand`. The decoder splits a batch into one act per top-level step holding either
+  (a step holding both, or a kept batch with no act, fails the read naming the event), listed
+  last step first with an `act` index; acts of one batch share `eventId`, a lone event is act 0.
+  The service cuts the acts to `limit` (each kept event yields at least one). Contract field
+  `act`, description and MCP README wording; spec scenarios "A claim inside a batch is listed"
+  and "A batch releasing one claim and claiming another lists two events"; C13 note in the
+  proposal and design; task 8.3. New conformance case `planEvents.listFor:batches-limit`
+  (registered in the manifest, certification and existing-case lists) pins the batch clause, a
+  nested batch, a batch that only mentions `add_claims` in text, the limit after the filter, and
+  the refusal of limit 0, -1 and 1.5. New core cases: a claim beside `setEstimate` in one batch;
+  a batch releasing `090` and claiming `080.1` as two acts, and `limit` 1 answering only the
+  newest act; a claim batch found under three newer batches that claim nothing with `limit` 1; a
+  batch deleting a claimed item lists nothing (its `before` holds `add_claims`); two corrupt
+  batches. `claim-history-batch.controller.db.test.ts` runs `claimWorkItem` beside `setProgress`
+  through `POST /commands` on be-01's production composition (`openComposedWith`), so it also
+  proves `json_tree` in the SQLite build be-01 runs.
+- S3-1: the SQLite limit Proof now cites `plan-event.db.test.ts` and the case's full name.
+- S3-2: both stores throw for a limit that is not a whole number of at least 1
+  (`checkPlanEventLimit`), pinned in the conformance case.
+- S3-3: `claimHistoryLimitOf` is gone; `limitOf(raw, bounds = PAGE_LIMIT)` in
+  `service/list-query.ts` reads the claim history's `limit` with `CLAIM_HISTORY_LIMIT`.
+- S3-4: `item` is `null` only when the row is gone; a row present with no number throws. No fault
+  reaches that line: `deriveNumbers` already throws for a row no root reaches ("work items
+  unreachable from any root"), which the case "fails the read for a row the tree cannot number,
+  never reading it as deleted" pins. The line narrows the map's answer as `project-claims.ts` and
+  `person-work.ts` do; its comment says so instead of claiming a watched negative.
+- S3-5: kept as is (optional `planEvents`, production wiring proven).
+- S3-6: spec wording "refused alike at admission".
+
+| R5 fault (watched)                                                       | Observed                                                                        |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| SQLite batch clause removed                                              | SQLite certification fails `batches-limit` (74/1); be-01 batch case fails (0/1) |
+| memory batch clause removed                                              | memory certification fails `batches-limit` (74/1); four core batch cases (10/4) |
+| SQLite `LIKE '%add_claims%'` in place of `json_tree`                     | SQLite certification fails `batches-limit` (74/1)                               |
+| memory text match (`JSON.stringify(…).includes`) before the walk         | memory certification fails `batches-limit` (74/1)                               |
+| SQLite limit check removed                                               | SQLite certification fails `batches-limit` (74/1)                               |
+| memory limit check removed                                               | memory certification fails `batches-limit` (74/1)                               |
+| batches read as a kind and filtered in the service after the store limit | `finds a claim batch under newer batches that claim nothing` (13/1)             |
+| post-expansion cut removed                                               | `lists a batch that … as two acts` answers two acts for limit 1 (13/1)          |
+| both-in-one-step check skipped                                           | `fails the read on a batch it cannot split into acts` (13/1)                    |
+| zero-act batch check skipped                                             | same case (13/1)                                                                |
+| memory matches `before` as well as `after`                               | `lists nothing for a batch that deleted a claimed item` (13/1)                  |
+| `kinds` dropped from the service's read (rewatched)                      | undo/redo, newer-batches and deleted-item cases (11/3)                          |
+
+A text-match fault on the escaped serialised `"do":"add_claims"` did not redden the memory case:
+JSON escapes the quotes inside the stored string, so that spelling cannot match it; the
+watched text fault matches the bare command name instead.
+
+Results after the review round (fresh, 2026-10-24): core `module-boundaries`, `list-query` and
+the `module/work-item` (claim history 14), `module/plan-commands`, `module/plan-history`,
+`module/plan-event` and `http` suites 456 pass; conformance 35 pass; store-memory 193 pass;
+store-sqlite `plan-event`, `command-journal`, `changes` and source conformance 91 pass; be-01
+`claim-history-batch` (1), `claim-history-organization` (6), `project-claims-organization`,
+`app.routes`, `organization-context`, `claim-lease`, `claim-identity`, `saved-plan-organization`
+and `history.controller` 61 pass; contracts 496 pass; mcp-01 516 pass; typecheck and lint of
+wbs-contracts, wbs-core (+module), wbs-conformance, wbs-store-sqlite, wbs-store-memory,
+wbs-be-01 (+module), wbs-mcp-01 pass; Burokrat `check-indexes working . HEAD` exit 0;
+`openspec validate --all --json` 280 of 280; `tool-devsync:test` 921 tests, target succeeded.
+Not run locally: the full be-01 and fe-01 suites (CI carries them).
