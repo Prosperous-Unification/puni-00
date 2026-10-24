@@ -2,10 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import { syntheticContainer as container } from '../../test/edge-init-fixture';
 import {
+  candidateInvariant,
   compareCandidate,
   constructCandidate,
   encodeOrderedEnv,
   parseNativeContainer,
+  projectInvariant,
 } from './edge-init';
 
 const image = `sha256:${'b'.repeat(64)}`;
@@ -20,6 +22,39 @@ function candidate() {
 }
 
 describe('Init-only native preservation', () => {
+  test('shares the complete invariant projection without rewriting an observed candidate', () => {
+    const raw = container();
+    const original = parseNativeContainer(raw);
+    const expected = {
+      image,
+      config: raw.Config,
+      host: raw.HostConfig,
+      mounts: raw.Mounts,
+      endpoints: {
+        ['c'.repeat(64)]: {
+          Aliases: ['registry'],
+          IPAMConfig: null,
+          Links: null,
+          DriverOpts: null,
+          GwPriority: 0,
+        },
+      },
+    };
+    expect(projectInvariant(original)).toEqual(expected);
+    expect(candidateInvariant(original)).toEqual({
+      ...expected,
+      config: { ...raw.Config, Image: image },
+      host: { ...raw.HostConfig, Init: true },
+    });
+    const observed = candidate();
+    observed.HostConfig.Init = false;
+    observed.Config.Image = 'wrong:spelling';
+    expect(projectInvariant(parseNativeContainer(observed))).toEqual({
+      ...expected,
+      config: { ...raw.Config, Image: 'wrong:spelling' },
+      host: { ...raw.HostConfig, Init: false },
+    });
+  });
   test('constructs from observed values, retaining hostname, null entrypoint and ordered nondefault Env', () => {
     const request = constructCandidate(parseNativeContainer(container()));
     expect(request.Config).toEqual({ ...container().Config, Image: image });

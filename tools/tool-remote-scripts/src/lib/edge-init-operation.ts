@@ -11,6 +11,7 @@ import {
   InitRefusal,
   type NativeContainer,
   parseNativeContainer,
+  projectInvariant,
 } from './edge-init';
 import { readFields, readIdentity } from './managed-cohort';
 
@@ -122,9 +123,20 @@ export class PrivateReceipts {
   }
 }
 
+export interface CaddyReadBinding {
+  id: string;
+  originalId: string;
+  candidateId: string | null;
+  nonce: string;
+  name: '/wbs-caddy-1';
+  invariantSha256: string;
+}
+
 /** Internal local socket injection is for owned native fixtures and Unix-socket tests only; CLI has no override. */
 export class EngineTransport {
   private readonly ids: Set<string>;
+  private readonly originals: ReadonlySet<string>;
+  private readonly originalCaddyId: string | undefined;
   private readonly readIds = new Set<string>();
   private readonly caddyIds = new Set<string>();
   constructor(
@@ -134,7 +146,9 @@ export class EngineTransport {
     private readonly namespace: 'production' | 'owned-fixture' = 'production',
   ) {
     this.ids = new Set(ids.map(readIdentity));
+    this.originals = new Set(this.ids);
     const caddy = ids.at(1);
+    this.originalCaddyId = caddy;
     if (caddy !== undefined) this.caddyIds.add(caddy);
     if (!/^[a-z0-9-]{1,64}$/.test(nonce)) throw new InitRefusal('attempt-invalid');
   }
@@ -243,13 +257,14 @@ export class EngineTransport {
       throw new InitRefusal('volume-name-invalid');
     return this.call('GET', `/volumes/${name}`, timeout, 200);
   }
-  async inventory(timeout: number): Promise<unknown> {
+  async inventory(timeout: number): Promise<unknown[]> {
     const listing = await this.call('GET', '/containers/json?all=1', timeout, 200);
     if (!Array.isArray(listing) || listing.length > 65536)
       throw new InitRefusal('container-list-invalid');
+    const entries: unknown[] = listing;
     this.readIds.clear();
-    for (const raw of listing as unknown[]) this.readIds.add(readIdentity(readFields(raw)['Id']));
-    return listing;
+    for (const raw of entries) this.readIds.add(readIdentity(readFields(raw)['Id']));
+    return entries;
   }
   async inspectListed(id: string, timeout: number): Promise<NativeContainer> {
     if (!this.readIds.has(readIdentity(id))) throw new InitRefusal('unlisted-container');
@@ -274,6 +289,13 @@ export class EngineTransport {
     // Proof: Caddy-roster omission reached a registry Exec request; the real Unix-socket discovery test failed.
     if (!this.caddyIds.has(id) || !['adapt', 'live'].includes(command))
       throw new InitRefusal('unselected-caddy-exec');
+    return this.runCaddyExec(id, command, timeout);
+  }
+  private async runCaddyExec(
+    id: string,
+    command: 'adapt' | 'live',
+    timeout: number,
+  ): Promise<string> {
     const expires = performance.now() + timeout;
     const remaining = () => {
       const milliseconds = Math.floor(expires - performance.now());
@@ -338,6 +360,94 @@ export class EngineTransport {
     } catch {
       throw new InitRefusal('exec-utf8-invalid');
     }
+  }
+  /** Fixed read-only Exec for receipt-bound serving Caddy; never enrolls a listed ID for effects or ordinary Exec. */
+  async observeCaddyListed(
+    binding: CaddyReadBinding,
+    command: 'adapt' | 'live',
+    timeout: number,
+  ): Promise<string> {
+    const fields = readFields(binding);
+    const keys = Object.keys(fields);
+    // Proof: closed-binding omission admitted the extra-field Unix-socket negative.
+    if (
+      keys.length !== 6 ||
+      keys.some(
+        (key) =>
+          !['id', 'originalId', 'candidateId', 'nonce', 'name', 'invariantSha256'].includes(key),
+      )
+    )
+      throw new InitRefusal('caddy-read-binding-invalid');
+    readIdentity(binding.id);
+    readIdentity(binding.originalId);
+    if (binding.candidateId !== null) readIdentity(binding.candidateId);
+    // Proof: attempt-binding omission allowed another nonce to issue the fixed Exec in its selected negative.
+    if (
+      this.originalCaddyId === undefined ||
+      binding.originalId !== this.originalCaddyId ||
+      binding.nonce !== this.nonce ||
+      fields['name'] !== '/wbs-caddy-1' ||
+      (binding.candidateId !== null && this.originals.has(binding.candidateId)) ||
+      (binding.id !== this.originalCaddyId && binding.id !== binding.candidateId) ||
+      typeof binding.invariantSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(binding.invariantSha256) ||
+      !['adapt', 'live'].includes(command)
+    )
+      throw new InitRefusal('caddy-read-binding-invalid');
+    // Proof: budget admission omission admitted the over-ceiling observation negative.
+    if (!Number.isSafeInteger(timeout) || timeout <= 0 || timeout > 10000)
+      throw new InitRefusal('caddy-read-budget-invalid');
+    const selected = { ...binding };
+    const expires = performance.now() + timeout;
+    const remaining = () => {
+      const milliseconds = Math.floor(expires - performance.now());
+      if (milliseconds <= 0) throw new InitRefusal('caddy-read-deadline-uncertain');
+      return milliseconds;
+    };
+    // Proof: replacing the remaining budget with a fresh timeout admitted the delayed seven-read negative.
+    // Injecting roster promotion here made the post-read mutation refusal negative fail.
+    const before = await this.observeCaddyIdentity(selected, remaining);
+    const output = await this.runCaddyExec(selected.id, command, remaining());
+    const after = await this.observeCaddyIdentity(selected, remaining);
+    // Proof: omission admitted a changed PID after Exec in the real Unix-socket observation test.
+    if (after !== before) throw new InitRefusal('caddy-read-process-changed');
+    remaining();
+    return output;
+  }
+  private async observeCaddyIdentity(
+    binding: CaddyReadBinding,
+    remaining: () => number,
+  ): Promise<string> {
+    const listing = await this.inventory(remaining());
+    const ids = new Set<string>();
+    const owners: string[] = [];
+    for (const raw of listing) {
+      const fields = readFields(raw),
+        id = readIdentity(fields['Id']),
+        names: unknown = fields['Names'];
+      // Proof: duplicate-ID and canonical-owner omissions separately admitted their ambiguous-inventory negatives.
+      if (
+        ids.has(id) ||
+        !Array.isArray(names) ||
+        names.some((name: unknown) => typeof name !== 'string')
+      )
+        throw new InitRefusal('caddy-read-inventory-ambiguous');
+      ids.add(id);
+      if (names.includes(binding.name)) owners.push(id);
+    }
+    if (owners.length !== 1 || owners[0] !== binding.id)
+      throw new InitRefusal('caddy-read-name-unbound');
+    const observed = await this.inspectListed(binding.id, remaining());
+    // Proof: full-ID, name, role and immutable-hash omissions separately admitted their selected native readback negatives.
+    if (
+      observed.id !== binding.id ||
+      observed.name !== binding.name ||
+      readFields(observed.config['Labels'])['com.docker.compose.service'] !== 'caddy' ||
+      fingerprint(projectInvariant(observed)) !== binding.invariantSha256
+    )
+      throw new InitRefusal('caddy-read-invariant-differs');
+    // Proof: replacing the running-state check with an unchecked identity admitted the paused-container negative.
+    return checkRunning(observed);
   }
   async create(kind: TargetKind, candidate: CandidateRequest, timeout: number): Promise<string> {
     const name = `wbs-init-${this.nonce}-${kind}`;
