@@ -936,3 +936,5 @@ acceptance remains open; these corrections add no P2b/P3 activation or exposure 
 - [x] Reconcile strict response validation with tolerant archival import, Navigator's ordinary7–11 reader and connected schedule2 integrity.
 - [x] Capture definitions with measures/budgets on one snapshot and present connected figures without live rereads; retain transactional attempt admission and combined undo payloads.
 - [x] Complete combined source verification and independent finite source review; evidence in [verify-main-measures.md](verify-main-measures.md).
+
+- [x] Reconcile published claim history from fresh main without weakening connected prerequisites, journal decoding or client admission; [verification](verify-main-claims.md).

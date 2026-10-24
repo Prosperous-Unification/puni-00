@@ -38,18 +38,23 @@ export function hasRepeatedKey(url: URL): boolean {
 }
 
 /**
- * The `limit` of a paged read: absent is {@link PAGE_LIMIT}'s default, a whole
- * number from 1 to its maximum is itself, anything else null.
+ * The `limit` query of a bounded read: absent is `bounds.default`, a whole
+ * number from 1 to `bounds.max` is itself (leading zeros allowed), anything
+ * else null. `bounds` is {@link PAGE_LIMIT} for a paged read.
  *
  * Proof, observed 2026-09-29: with the maximum check removed, `refuses every
  * value outside the grammar` in `list-query.test.ts` received a parsed query
- * instead of null for `limit=201`.
+ * instead of null for `limit=201`; on 2026-10-24 the same fault made the claim
+ * history's `reads a limit from 1 to 100, …` (claim-history.test.ts) read 101.
  */
-export function limitOf(raw: string | undefined): number | null {
-  if (raw === undefined) return PAGE_LIMIT.default;
+export function limitOf(
+  raw: string | undefined,
+  bounds: { readonly default: number; readonly max: number } = PAGE_LIMIT,
+): number | null {
+  if (raw === undefined) return bounds.default;
   if (!/^[0-9]{1,7}$/.test(raw)) return null;
   const limit = Number(raw);
-  return limit < 1 || limit > PAGE_LIMIT.max ? null : limit;
+  return limit < 1 || limit > bounds.max ? null : limit;
 }
 
 /** The trimmed search text, or null when it is empty or longer than 200 characters. */

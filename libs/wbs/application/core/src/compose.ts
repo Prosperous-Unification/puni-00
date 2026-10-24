@@ -226,6 +226,10 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       // Proof: inactive substitution hid deleted authority in the mounted production command reread test.
       externalDependencyAuthoring: stores.externalDependencyAuthoring,
       dependencyContext: shared.dependencyContext,
+      // Proof: with this line removed, every service case of
+      // claim-history.test.ts threw `built without plan events` (1 pass,
+      // 7 fail); watched 2026-10-24.
+      planEvents: stores.planEvents,
       broadcast,
       admission,
       scheduler,

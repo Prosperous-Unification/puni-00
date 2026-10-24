@@ -10,6 +10,7 @@ import {
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
   readBudgetHeadroom,
+  readClaimHistory,
   readPersonWork,
   readProjectClaims,
   readProjectResources,
@@ -30,6 +31,7 @@ import type {
   WholeBatchRefusal,
 } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
+import { CLAIM_HISTORY_LIMIT } from '../module/work-item/claim-history';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
@@ -38,7 +40,7 @@ import type { RefusedOrganizationAccess } from '../ports/organization-access';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
-import { hasRepeatedKey, pageQueryOf } from '../service/list-query';
+import { hasRepeatedKey, limitOf, pageQueryOf } from '../service/list-query';
 import type { PlanCommand } from '../service/plan-command';
 import { pageWorkItems, slicesByWorkItem, workItemPageQueryOf } from '../service/work-item-page';
 import { BadCapacity } from './capacity-body';
@@ -877,6 +879,36 @@ export function workItemRoutes(
         if (claims === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if ('kind' in claims) return organizationRefusal(claims.refusal);
         return { ok: true, status: 200, body: claims };
+      },
+    ),
+    bind(
+      readClaimHistory,
+      async ({
+        params,
+        query,
+        request,
+        principal,
+      }): Promise<HttpReply<typeof readClaimHistory>> => {
+        // A repeated `limit` would otherwise be read as its last value.
+        // Proof: with this check removed, `refuses a limit outside 1 to 100 and
+        // a repeated one` (claim-history-organization.controller.db.test.ts)
+        // answered 200 for `limit=5&limit=6`; watched 2026-10-24.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        const limit = limitOf(query.limit, CLAIM_HISTORY_LIMIT);
+        // Proof: with this refusal removed, the same case answered `limit=0`
+        // with 200; watched 2026-10-24.
+        if (limit === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        // Proof: reading with legacy access, unresolved, failed `refuses a
+        // stranger exactly as the tree read does` and `refuses a removed
+        // member alike with the tree read`
+        // (claim-history-organization.controller.db.test.ts, 3 pass, 3 fail);
+        // watched 2026-10-24.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const events = await workItems.claimHistoryWithin(params.id, resolved.access, limit);
+        if (events === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        return { ok: true, status: 200, body: { events } };
       },
     ),
     bind(

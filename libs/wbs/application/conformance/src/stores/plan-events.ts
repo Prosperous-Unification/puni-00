@@ -309,6 +309,71 @@ async function readJournals(
   ]);
 }
 
+/** One plan event of project A recorded through the journal, its `after` as given. */
+function batchRecord(
+  seed: SeededPlan,
+  id: string,
+  kind: string,
+  createdAt: number,
+  after: unknown,
+): HistoryRecord {
+  return {
+    entry: {
+      id: `journal-${id}`,
+      projectId: seed.projectIds[0],
+      userId: seed.ownerIds[0],
+      kind,
+      payload: { label: id, forward: after },
+      inverse: { do: 'noop' },
+      preconditions: { expected: {}, from: {} },
+      createdAt,
+    },
+    event: {
+      id,
+      projectId: seed.projectIds[0],
+      userId: seed.ownerIds[0],
+      kind,
+      label: id,
+      workItemId: null,
+      stepId: null,
+      before: { do: 'noop' },
+      after,
+      createdAt,
+    },
+  };
+}
+
+/**
+ * Claim and release events, a nested claim-bearing batch, a batch holding
+ * none, a batch whose text merely mentions `add_claims` and a
+ * release-bearing batch, oldest first.
+ */
+function batchRecords(seed: SeededPlan): readonly HistoryRecord[] {
+  return [
+    batchRecord(seed, 'e-claim', 'claim', 10, { do: 'add_claims' }),
+    batchRecord(seed, 'e-nested', 'batch', 20, {
+      do: 'batch',
+      steps: [
+        { do: 'batch', steps: [{ do: 'add_claims' }, { do: 'assign' }] },
+        { do: 'set_estimate' },
+      ],
+    }),
+    batchRecord(seed, 'e-other', 'batch', 30, {
+      do: 'batch',
+      steps: [{ do: 'set_estimate' }, { do: 'rename' }],
+    }),
+    batchRecord(seed, 'e-text', 'batch', 40, {
+      do: 'batch',
+      steps: [{ do: 'rename', name: '{"do":"add_claims"}' }, { do: 'set_estimate' }],
+    }),
+    batchRecord(seed, 'e-release', 'release', 50, { do: 'remove_claims' }),
+    batchRecord(seed, 'e-released', 'batch', 60, {
+      do: 'batch',
+      steps: [{ do: 'set_estimate' }, { do: 'remove_claims' }],
+    }),
+  ];
+}
+
 /** Shared project-history filtering, ordering and strict-retention cases. */
 export function planEventRegistrations(open: OpenCase<'planEvents'>): readonly CaseRegistration[] {
   return [
@@ -359,6 +424,44 @@ export function planEventRegistrations(open: OpenCase<'planEvents'>): readonly C
         a99,
       ]);
       expect(await port.listFor(seed.projectIds[1], {})).toEqual([b101, b100, b99]);
+    }),
+    storeCase('planEvents', 'planEvents.listFor:batches-limit', open, async (fixture) => {
+      const { port, seed, journalAppender } = fixture;
+      for (const record of batchRecords(seed))
+        await journalAppender.append(structuredClone(record.entry), structuredClone(record.event));
+      const ids = async (filter: Parameters<PlanEventStore['listFor']>[1]) =>
+        (await port.listFor(seed.projectIds[0], filter)).map(({ id }) => id);
+      const claims = {
+        kinds: ['claim', 'release'],
+        batchesHolding: ['add_claims', 'remove_claims'],
+      } as const;
+      expect({
+        kindsAlone: await ids({ kinds: ['claim', 'release'] }),
+        withBatches: await ids(claims),
+        limited: await ids({ ...claims, limit: 3 }),
+        one: await ids({ limit: 1 }),
+        tooMany: await ids({ ...claims, limit: 9 }),
+        // `kinds` empty keeps every kind; the batch clause only widens a list.
+        unfiltered: await ids({ batchesHolding: ['add_claims'] }),
+      }).toEqual({
+        kindsAlone: ['e-release', 'e-claim'],
+        withBatches: ['e-released', 'e-release', 'e-nested', 'e-claim'],
+        limited: ['e-released', 'e-release', 'e-nested'],
+        one: ['e-released'],
+        tooMany: ['e-released', 'e-release', 'e-nested', 'e-claim'],
+        unfiltered: ['e-released', 'e-release', 'e-text', 'e-other', 'e-nested', 'e-claim'],
+      });
+      for (const limit of [0, -1, 1.5])
+        expect({
+          limit,
+          refused: await ids({ limit }).then(
+            () => false,
+            () => true,
+          ),
+        }).toEqual({
+          limit,
+          refused: true,
+        });
     }),
     storeCase('planEvents', 'planEvents.pruneOlderThan:strict-cutoff', open, async (fixture) => {
       const { port, seed } = fixture;

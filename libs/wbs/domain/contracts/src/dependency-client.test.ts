@@ -73,6 +73,9 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiProjectsByIdAddressReferences',
       'getApiProjectsByIdBudget-headroom',
       'getApiProjectsByIdCalendar-markers',
+      // Proof: exempting this id made the mounted connected history read
+      // admit a missing semantics claim with 200 instead of 409 (2026-10-24).
+      'getApiProjectsByIdClaim-history',
       // Proof: temporarily exempting this exact claim operation moved it out of
       // the protected matrix and failed this test (2026-10-24 CI repair).
       'getApiProjectsByIdClaims',

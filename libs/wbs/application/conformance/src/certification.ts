@@ -126,6 +126,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'eventLog.pruneBeyond',
   'eventLog.pruneBeyond:empty-sequence',
   'planEvents.listFor:filters-order',
+  'planEvents.listFor:batches-limit',
   'planEvents.pruneOlderThan:strict-cutoff',
   'subtrees.insertSubtree:complete-copy',
   'subtrees.insertSubtree:late-failure',

@@ -97,7 +97,11 @@ export const CASE_MANIFEST = {
     'eventLog.pruneBeyond',
     'eventLog.pruneBeyond:empty-sequence',
   ],
-  planEvents: ['planEvents.listFor:filters-order', 'planEvents.pruneOlderThan:strict-cutoff'],
+  planEvents: [
+    'planEvents.listFor:filters-order',
+    'planEvents.listFor:batches-limit',
+    'planEvents.pruneOlderThan:strict-cutoff',
+  ],
   steps: ['steps.add', 'steps.rename', 'steps.rename:unknown'],
   workItems: [
     'workItems.listByIds:labels-scope',

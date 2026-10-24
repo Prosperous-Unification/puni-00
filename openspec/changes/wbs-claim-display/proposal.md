@@ -82,6 +82,10 @@ Claim chip, Releasing claim, Claim history (in `CONTEXT.md`).
 | C20 | Claims obligations never hold the stream acknowledgment.                                                                            |
 | C21 | `claims_changed` is transient: pushed live unsequenced, never logged or replayed; fe-01 rereads claims on every resume.             |
 
+C13 note (review of #706): the history also lists claims and releases run inside a
+multi-command batch, which the journal records as one `batch` plan event; the store keeps those
+batches by their stored command (`json_tree` on SQLite) before the limit, with no migration.
+
 ## Impact
 
 `@wbs/contracts` (two reads, one event), `@wbs/core` (claims and claim-history features, the

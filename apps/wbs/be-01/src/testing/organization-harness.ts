@@ -84,6 +84,7 @@ import type { Connection } from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection as openAddressConnection } from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
+import { PlanEventRepository } from '@wbs/store-sqlite/plan-event';
 import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -548,6 +549,7 @@ export class OrganizationHarness {
         priorityBands: inMemoryPriorityBands(),
         subtrees: new SubtreeRepository(db, OPEN),
         journal: new CommandJournalRepository(db, OPEN),
+        planEvents: new PlanEventRepository(db, OPEN),
         broadcast: recordingBroadcaster(),
       }),
     };

@@ -6,10 +6,13 @@ import {
   StepMeasureRepository,
   StepNodeAttemptRepository,
 } from '@wbs/store-sqlite';
+import { openConnection } from '@wbs/store-sqlite/db';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
+import { admitDependencyClient } from '../runtime/dependency-client';
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
@@ -1386,4 +1389,131 @@ test('connected attempt admission refuses an exhausted strict budget inside its 
   expect(
     harness.sqlite.query('SELECT * FROM step_measure WHERE work_item_id=?').all(target.workItemId),
   ).toEqual([]);
+});
+
+test('connected claim history decodes priced batch journals and retains original claim acts after undo', async () => {
+  let requiresAdmission = false;
+  const { remote, target } = await open({
+    syntheticExternalCommands: true,
+    admitDependencyClient: (claim) => {
+      if (!requiresAdmission) return null;
+      const connection = openConnection(harness.databasePath());
+      try {
+        return admitDependencyClient(connection.db, CAPABLE_BACKEND_DEPENDENCY_CAPABILITY, claim);
+      } finally {
+        connection.close();
+      }
+    },
+  });
+  harness.sqlite
+    .query(
+      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) SELECT ?,id,'done',1 FROM step WHERE project_id=?",
+    )
+    .run(remote.workItemId, remote.projectId);
+  harness.sqlite
+    .query(
+      "INSERT INTO person(id,name,kind,account_id) VALUES ('history-person','Root holder','agent',?)",
+    )
+    .run(harness.userId('ada'));
+  harness.sqlite.run(
+    "INSERT INTO person_organization(resource_id,organization_id,name) VALUES ('history-person','org-a','Local holder')",
+  );
+  const send = (commands: readonly unknown[]) =>
+    harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, { commands });
+  expect(
+    (
+      await send([
+        {
+          kind: 'setMeasure',
+          workItemId: target.workItemId,
+          stepId: target.stepId,
+          metric: 'cost',
+          value: 30,
+          rateCardDigest: 'history-card',
+        },
+        {
+          kind: 'addTypedDependency',
+          predecessor: {
+            projectId: remote.projectId,
+            workItemId: remote.workItemId,
+            scope: 'node',
+            stepId: remote.stepId,
+          },
+          successor: { workItemId: target.workItemId, scope: 'node', stepId: target.stepId },
+          type: 'FS',
+        },
+        {
+          kind: 'claimWorkItem',
+          workItemId: target.workItemId,
+          personId: 'history-person',
+          steps: [target.stepId],
+          runId: 'connected-history',
+        },
+      ])
+    ).status,
+  ).toBe(200);
+  const read = () => harness.call('ada', 'GET', `/api/projects/${target.projectId}/claim-history`);
+  expect(await read()).toMatchObject({
+    status: 200,
+    body: {
+      events: [
+        {
+          kind: 'claim',
+          reason: 'claimed',
+          claims: [
+            {
+              workItemId: target.workItemId,
+              stepId: target.stepId,
+              runId: 'connected-history',
+              holder: { personId: 'history-person', name: 'Local holder' },
+              item: { name: 'Target row' },
+            },
+          ],
+        },
+      ],
+    },
+  });
+  expect(
+    (
+      await send([
+        {
+          kind: 'releaseWorkItem',
+          workItemId: target.workItemId,
+          personId: 'history-person',
+          steps: [target.stepId],
+        },
+      ])
+    ).status,
+  ).toBe(200);
+  const beforeUndo = await read();
+  expect(beforeUndo).toMatchObject({
+    status: 200,
+    body: {
+      events: [
+        { kind: 'release', reason: 'released' },
+        { kind: 'claim', reason: 'claimed' },
+      ],
+    },
+  });
+  expect((await harness.call('ada', 'POST', `/api/projects/${target.projectId}/undo`)).status).toBe(
+    200,
+  );
+  expect(await read()).toEqual(beforeUndo);
+  requiresAdmission = true;
+  const compatible = await harness.app.handle(
+    new Request(`http://localhost/api/projects/${target.projectId}/claim-history`, {
+      headers: {
+        authorization: `Bearer ${harness.token('ada')}`,
+        'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
+      },
+    }),
+  );
+  expect(compatible.status).toBe(200);
+  const incompatible = await harness.app.handle(
+    new Request(`http://localhost/api/projects/${target.projectId}/claim-history`, {
+      headers: { authorization: `Bearer ${harness.token('ada')}` },
+    }),
+  );
+  expect(incompatible.status).toBe(409);
+  expect(await incompatible.json()).toMatchObject({ error: 'client_dependency_incompatible' });
 });
