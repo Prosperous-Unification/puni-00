@@ -155,8 +155,9 @@ The plan table SHALL offer estimate, fact and variance columns for every measure
 visible by default only where `showByDefault` is set, with toggles persisted per browser and
 project beside the remembered layout and forgotten by its reset; headers SHALL carry the unit and money the currency;
 absence SHALL render as absence. A measure panel per work item SHALL list every definition
-with expected, fact, variance and budget. The export SHALL gain a version carrying definitions,
-estimates, facts and budgets; importing an older version SHALL seed the defaults and map
+with expected, fact, variance and budget. Every export SHALL be the version carrying the
+budget factor, definitions, estimates, facts and budgets, each list empty when the plan holds
+none, and Twilight Navigator, Burokrat and Dash SHALL read it; importing an older version SHALL seed the defaults and map
 legacy metrics; saved plan compare SHALL show changes in any measure.
 
 #### Scenario: A fresh user sees time only
@@ -171,3 +172,16 @@ legacy metrics; saved plan compare SHALL show changes in any measure.
 - **WHEN** an export without measure definitions is imported
 - **THEN** the five defaults are seeded, legacy token and hours facts map onto them, and the
   plan reads as before
+
+#### Scenario: A plan without measures exports version 11
+
+- **WHEN** a plan with no fact in a defined measure, no three-point trio, no stated budget and a
+  budget factor of 1 is exported
+- **THEN** the document is version 11 with `settings.budgetFactor` 1 and the four measure lists
+  empty, and a version-10 file still imports onto the seeded definitions
+
+#### Scenario: Twilight reads version 11
+
+- **WHEN** Twilight Navigator reads a version-11 export
+- **THEN** it derives the same tasks as the equivalent version-10 file and records
+  `planDocumentVersion: 11`, which Burokrat and Dash accept

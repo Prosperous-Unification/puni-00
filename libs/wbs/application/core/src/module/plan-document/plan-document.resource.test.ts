@@ -27,9 +27,7 @@ const PROJECT: Project & { timezone: string } = {
   optimizationEnabled: true,
   scheduleEngine: 'optimized',
   scheduleObjective: 'time',
-  // The default: a factor other than 1 is data version 10 cannot carry, so
-  // these legacy-shape fixtures export version 10 (design D63); the version-11
-  // cases below state 1.5.
+  // The default factor; the measure cases below state 1.5 (design D67).
   budgetFactor: 1,
   timezone: 'Europe/Kyiv',
 };
@@ -326,9 +324,13 @@ test('preserves the existing JSON export fields', async () => {
     stepBlockages,
     resourceCapacities,
     demands,
+    measureDefinitions,
+    measureFacts,
+    measureEstimates,
+    budgets,
     ...existing
   } = exported;
-  // The budget factor is left out of this version's document (`wbs-measure-budgets` D38).
+  // The budget factor travels in `settings`, never in the embedded project (design D63, D71).
   const { budgetFactor: _factor, ...exportedProject } = PROJECT;
   expect(existing).toEqual<unknown>({
     project: exportedProject,
@@ -342,6 +344,8 @@ test('preserves the existing JSON export fields', async () => {
     demands: [],
     resources: [],
   });
+  // A plan with no measures writes the four lists empty (design D71).
+  expect([measureDefinitions, measureFacts, measureEstimates, budgets]).toEqual([[], [], [], []]);
   expect(existing.workItems[0]?.deadline).toBe('2026-09-18');
   expect(existing.optimization).toEqual(TREE.optimization);
   expect({ document, settings, capacity, calendarMarkers, names, stepNodes }).toBeDefined();
@@ -352,7 +356,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 10,
+    version: 11,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -368,6 +372,7 @@ test('JSON export is a versioned plan document and settings says what project sa
     scheduleEngine: PROJECT.scheduleEngine,
     scheduleObjective: PROJECT.scheduleObjective,
     timezone: 'Europe/Kyiv',
+    budgetFactor: PROJECT.budgetFactor,
   });
   expect(exported.capacity).toEqual([{ teamId: 'team-capacity', size: 4 }]);
   expect(exported.calendarMarkers).toEqual([
@@ -509,7 +514,7 @@ test('the current export keeps SS and FF types from the trusted tree', async () 
   expect(exported).toMatchObject({
     ok: true,
     value: {
-      document: { version: 10 },
+      document: { version: 11 },
       typedDependencies: [
         { id: 'start-link', type: 'SS' },
         { id: 'finish-link', type: 'FF' },
@@ -700,7 +705,7 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
 
 test('version 6 carries each row’s readiness and hold, and earlier versions read as nothing said', async () => {
   const exported = structuredClone(await exportDocument());
-  expect(exported.document.version).toBe(10);
+  expect(exported.document.version).toBe(11);
   const row = exported.workItems.find(
     (each) => !exported.workItems.some((c) => c.parentId === each.id),
   );
@@ -933,7 +938,7 @@ test('version 8 keeps minute step units and refuses missing or unknown written u
   const tree = structuredClone(TREE);
   tree.steps = tree.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
   const document = await exportDocument(tree);
-  expect(document.document.version).toBe(10);
+  expect(document.document.version).toBe(11);
   const classified = await classifyPlanDocument(document);
   expect(classified.ok).toBe(true);
   if (!classified.ok) throw new Error('minute document refused');
@@ -967,7 +972,7 @@ test('v9 exports detached direct blockage facts and excludes row aliases', async
   const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
   expect(exported.ok).toBe(true);
   if (!exported.ok) return;
-  expect(exported.value.document.version).toBe(10);
+  expect(exported.value.document.version).toBe(11);
   expect(Reflect.get(exported.value, 'stepBlockages')).toEqual([
     { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
   ]);
@@ -1310,23 +1315,50 @@ test('v9 sparse pair identities never alias at colons', () => {
   ).toEqual({ ok: false, error: 'unsupported_step_parallelism' });
 });
 
+/**
+ * A version-11 export with what version 11 adds taken off (the factor in
+ * `settings` and the four measure lists, each empty here) and its version read
+ * as `version`: what the export wrote before design D71 for a plan without
+ * measures. The v9 and v10 goldens hash this, so they now pin that version 11
+ * changed nothing else.
+ */
+function withoutVersion11(exported: PlanDocument, version: number): Record<string, unknown> {
+  const { budgetFactor, ...settings } = exported.settings;
+  expect({
+    budgetFactor,
+    lists: [
+      exported.measureDefinitions,
+      exported.measureFacts,
+      exported.measureEstimates,
+      exported.budgets,
+    ],
+  }).toEqual({ budgetFactor: 1, lists: [[], [], [], []] });
+  const added = new Set(['measureDefinitions', 'measureFacts', 'measureEstimates', 'budgets']);
+  // Key order is part of the bytes, so every other field keeps its place.
+  return Object.fromEntries(
+    Object.entries<unknown>(exported)
+      .filter(([key]) => !added.has(key))
+      .map(([key, value]): [string, unknown] => {
+        if (key === 'settings') return [key, settings];
+        if (key === 'document') return [key, { ...exported.document, version }];
+        return [key, value];
+      }),
+  );
+}
+
 test('v9 zero-fact export retains canonical bytes', async () => {
-  // Version 10 adds three lists and changes nothing else: a plan that states no
-  // resource facts, with those lists taken off and its version read as 9, is
-  // the v9 golden byte for byte.
-  const exported = structuredClone(await exportDocument());
-  const { resources, ...directoryBefore } = exported.directory;
+  // Versions 10 and 11 add lists and the factor and change nothing else: a
+  // plan that states no resource facts and no measures, with those taken off
+  // and its version read as 9, is the v9 golden byte for byte.
+  const exported = withoutVersion11(structuredClone(await exportDocument()), 9);
+  const { resources, ...directoryBefore } = exported['directory'] as PlanDocument['directory'];
   const { resourceCapacities, demands, ...rest } = exported;
   expect({ resources, resourceCapacities, demands }).toEqual({
     resources: [],
     resourceCapacities: [],
     demands: [],
   });
-  const bytes = JSON.stringify({
-    ...rest,
-    document: { ...rest.document, version: 9 },
-    directory: directoryBefore,
-  });
+  const bytes = JSON.stringify({ ...rest, directory: directoryBefore });
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
     '016181aa4021ca4b8b400feac0780e135635c49d149f2fd13e655015ceb1e6e5',
   );
@@ -1391,7 +1423,7 @@ async function exportWithResources(): Promise<PlanDocument> {
 
 test('exports only the resources its capacities and demands name (wbs-resources)', async () => {
   const exported = await exportWithResources();
-  expect(exported.document.version).toBe(10);
+  expect(exported.document.version).toBe(11);
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.directory.resources).toEqual([
     { id: 'resource-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
@@ -1408,7 +1440,7 @@ test('exports only the resources its capacities and demands name (wbs-resources)
 });
 
 test('v10 resources export retains canonical bytes', async () => {
-  const bytes = JSON.stringify(await exportWithResources());
+  const bytes = JSON.stringify(withoutVersion11(await exportWithResources(), 10));
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
     'f2308a55167653345d85178e2253675097c1ee00956f34c4df933da06163fa4a',
   );
@@ -1635,7 +1667,7 @@ test('exports version 11 with every measure the plan holds', async () => {
     version: exported.document.version,
     factor: exported.settings.budgetFactor,
     rowMeasures: exported.workItems[0]?.measures,
-    definitions: exported.measureDefinitions?.map(({ key }) => key),
+    definitions: exported.measureDefinitions.map(({ key }) => key),
     facts: exported.measureFacts,
     estimates: exported.measureEstimates,
     budgets: exported.budgets,
@@ -1687,7 +1719,7 @@ test('exports version 11 with every measure the plan holds', async () => {
     ],
   });
   // A definition travels whole but for the organization's id.
-  expect(exported.measureDefinitions?.at(2)).toEqual({
+  expect(exported.measureDefinitions.at(2)).toEqual({
     key: 'gpu_minutes',
     name: 'GPU minutes',
     unit: 'minutes',
@@ -1723,7 +1755,10 @@ test('a factor other than 1 alone exports version 11 with empty measure lists', 
   }).toEqual({ version: 11, factor: 1.5, lists: [[], [], [], []] });
 });
 
-test('a plan whose measures are all legacy exports version 10 without the factor', async () => {
+// Proof: with the export's version put back on `measures !== null ||
+// budgetFactor !== 1 ? 11 : 10` (design D63's dual rule), this case and eight
+// more read version 10 (80 pass, 9 fail); watched 2026-10-24.
+test('a plan whose measures are all legacy exports version 11 with empty lists (design D71)', async () => {
   const legacyOnly = {
     ...MEASURE_FACTS,
     measureEstimatesOf: async () =>
@@ -1733,10 +1768,24 @@ test('a plan whose measures are all legacy exports version 10 without the factor
     budgetsOf: () => Promise.resolve([]),
   };
   const exported = await exportWithMeasures(PROJECT, legacyOnly);
-  expect(exported.document.version).toBe(10);
-  expect(exported.settings).not.toHaveProperty('budgetFactor');
-  for (const key of ['measureDefinitions', 'measureFacts', 'measureEstimates', 'budgets'])
-    expect(exported).not.toHaveProperty(key);
+  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect({
+    version: exported.document.version,
+    factor: exported.settings.budgetFactor,
+    lists: [
+      exported.measureDefinitions,
+      exported.measureFacts,
+      exported.measureEstimates,
+      exported.budgets,
+    ],
+  }).toEqual({ version: 11, factor: 1, lists: [[], [], [], []] });
+});
+
+test('a plan without measures exports canonical version-11 bytes', async () => {
+  const bytes = JSON.stringify(await exportDocument());
+  expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
+    'f8ed917417cae0509dc4fb4d1f5faacc49c246a2e108ebee04b638e045590a64',
+  );
 });
 
 // Proof: with the four readings kept in `documentWorkItems`, this case
@@ -1816,19 +1865,19 @@ test('refuses a version-11 file with a malformed measure entry or factor', async
     ],
     [
       'measureDefinitions[0]',
-      (file: PlanDocument) => Reflect.set(file.measureDefinitions?.[0] ?? {}, 'kind', 'weight'),
+      (file: PlanDocument) => Reflect.set(file.measureDefinitions.at(0) ?? {}, 'kind', 'weight'),
     ],
     [
       'measureFacts[0]',
       (file: PlanDocument) =>
-        Reflect.set(file.measureFacts?.[0] ?? {}, 'basis', { currency: 'USD' }),
+        Reflect.set(file.measureFacts.at(0) ?? {}, 'basis', { currency: 'USD' }),
     ],
     [
       'measureEstimates[0]',
       (file: PlanDocument) =>
-        Reflect.set(file.measureEstimates?.[0] ?? {}, 'pessimistic', Number.POSITIVE_INFINITY),
+        Reflect.set(file.measureEstimates.at(0) ?? {}, 'pessimistic', Number.POSITIVE_INFINITY),
     ],
-    ['budgets[0]', (file: PlanDocument) => Reflect.set(file.budgets?.[0] ?? {}, 'policy', 'hard')],
+    ['budgets[0]', (file: PlanDocument) => Reflect.set(file.budgets.at(0) ?? {}, 'policy', 'hard')],
     ['budgets', (file: PlanDocument) => Reflect.deleteProperty(file, 'budgets')],
     ['measureFacts', (file: PlanDocument) => Reflect.set(file, 'measureFacts', {})],
   ] as const) {

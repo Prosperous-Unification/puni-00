@@ -140,7 +140,7 @@ describe('the Plan document module', () => {
     if (!exported.ok) throw new Error('export refused');
     expect(exported.value.document).toEqual({
       format: 'wbs-plan',
-      version: 10,
+      version: 11,
       exportedAt: '2026-09-24T09:00:00.000Z',
     });
     expect(exported.value.calendarMarkers).toEqual([

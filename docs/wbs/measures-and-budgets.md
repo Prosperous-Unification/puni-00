@@ -44,10 +44,9 @@ and the decisions (D1–D72) in its
 
 ## Export, import and saved plans
 
-- A plan holding a fact in a defined measure, a three-point trio, a stated budget or a factor
-  other than 1 exports as plan document **version 11**, which carries the definitions those
-  name, the facts and trios with their basis, the budgets and the factor. Any other plan
-  exports version 10, byte for byte as before (design D63).
+- Every plan exports as plan document **version 11**: the budget factor, the definitions its
+  figures name, the facts and trios with their basis, and the budgets, each list empty when there
+  are none (design D71, superseding D63's version-10 fallback).
 - Importing version 11 matches each definition by key and never remaps: a held definition of
   another shape refuses the import, writing nothing, and a missing one is defined, which only an
   admin's import may do (design D70); an unpriced money fact or trio is refused
@@ -58,8 +57,7 @@ and the decisions (D1–D72) in its
   is the legacy organization, which owns the imported project, so a plan's own export
   re-imports; only with no legacy organization does the import match the seeded four and
   refuse any other definition `unknown_measure` (design D65).
-- Twilight Navigator, Burokrat and Dash refuse a version-11 file until they admit it, a
-  tracked follow-up (design D63).
+- Twilight Navigator, Burokrat and Dash read version 11 (design D71).
 - Saved plans capture trios, budgets, bases and the factor (plan input schema 9), so compare
   names a change in any of them (design D66).
 

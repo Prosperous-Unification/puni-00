@@ -19,7 +19,6 @@ import {
   documentTypedDependencyRequest,
   documentV4TypedDependencyRequest,
   type ImportedAttempt,
-  LEGACY_PLAN_DOCUMENT_VERSION,
   PLAN_DOCUMENT_VERSION,
   type PlanDocument,
   planDocumentHeaderRequest,
@@ -192,10 +191,10 @@ export class PlanDocumentService {
       this.options.resourceFacts.demandsOf(project.id),
     ]);
     const measureFacts = this.options.measureFacts;
-    // Proof: with these four read as empty, the isolated `round-trips a
-    // version-11 plan byte for byte into an organization lacking a measure`
-    // (measure-export.controller.db.test.ts) exported version 10; watched
-    // 2026-10-23.
+    // Proof: with the facts, trios and budgets read as empty, the isolated
+    // `round-trips a version-11 plan byte for byte into an organization lacking
+    // a measure` and four more cases of measure-export.controller.db.test.ts
+    // exported empty lists (4 pass, 5 fail); watched 2026-10-24.
     const [definitions, facts, estimates, budgets] = await Promise.all([
       measureFacts.measureDefinitionsOf(project.id),
       measureFacts.measuresOf(project.id),
@@ -297,10 +296,11 @@ function buildDocument(
   // test receive a TypeError from .map instead of the named trusted-state error.
   if (tree.typedDependencies === undefined)
     throw new Error(`project "${project.id}" tree was read without typed dependencies`);
-  // The factor travels in `settings` at version 11 only (design D63); the
-  // embedded project never carries it, so version 10 keeps its bytes.
-  // Proof: with the factor left in, `v9 zero-fact export retains canonical
-  // bytes` (plan-document.resource.test.ts) read other bytes; watched 2026-10-23.
+  // The factor travels in `settings` (design D63, D71); the embedded project
+  // never carries it, so it is written once.
+  // Proof: with the factor left in the project, `preserves the existing JSON
+  // export fields` and the four canonical-bytes cases
+  // (plan-document.resource.test.ts) failed (84 pass, 5 fail); watched 2026-10-24.
   const { budgetFactor, ...exported } = project;
   const measures = documentMeasures(tree, reads.measures);
   const settings = {
@@ -319,15 +319,7 @@ function buildDocument(
     scheduleObjective: project.scheduleObjective,
     timezone: project.timezone,
   };
-  // Version 11 only when the plan holds something version 10 cannot carry
-  // (design D63): a plan without measures exports the bytes it always did.
-  // Proof: with this test made `true`, `v10 resources export retains canonical
-  // bytes` and `v9 zero-fact export retains canonical bytes`
-  // (plan-document.resource.test.ts) read version 11 and other bytes; with it
-  // made `false`, `exports version 11 with every measure the plan holds` read
-  // version 10; both watched 2026-10-23.
-  const carriesMeasures = measures !== null || budgetFactor !== 1;
-  const base: PlanDocument = {
+  return {
     project: exported,
     ...tree,
     workItems: documentWorkItems(tree, closure.people),
@@ -350,10 +342,16 @@ function buildDocument(
     stepNodes: spellStepNodes(tree),
     document: {
       format: 'wbs-plan',
-      version: carriesMeasures ? PLAN_DOCUMENT_VERSION : LEGACY_PLAN_DOCUMENT_VERSION,
+      // Every plan, measures or none (design D71).
+      // Proof: with D63's `measures !== null || budgetFactor !== 1 ? 11 : 10`
+      // back here, `a plan whose measures are all legacy exports version 11 with
+      // empty lists (design D71)` and eight more cases of
+      // plan-document.resource.test.ts read version 10 (80 pass, 9 fail);
+      // watched 2026-10-24.
+      version: PLAN_DOCUMENT_VERSION,
       exportedAt: new Date(exportedAt).toISOString(),
     },
-    settings: carriesMeasures ? { ...settings, budgetFactor } : settings,
+    settings: { ...settings, budgetFactor },
     capacity: tree.teamCapacities.map(({ serviceTeamId, size }) => ({
       teamId: serviceTeamId,
       size,
@@ -380,10 +378,7 @@ function buildDocument(
       people: closure.people.map(exportedPerson),
       resources: referencedResources(reads.resources),
     },
-  };
-  if (!carriesMeasures) return base;
-  return {
-    ...base,
+    // Every list is written, empty when the plan holds none (design D71).
     measureDefinitions: measures?.definitions ?? [],
     measureFacts: measures?.facts ?? [],
     measureEstimates: measures?.estimates ?? [],

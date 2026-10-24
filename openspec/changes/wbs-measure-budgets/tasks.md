@@ -56,7 +56,8 @@
       and legacy import; negative: drop the version bump and compare misses a measure change.
 - [x] 4.5 CONTEXT.md terms and the WBS docs; `check-indexes` green — test: docs check.
 
-Follow-up outside this change (design D63; tracked as WBS item 060.2 in project PUNI budgeting):
-Twilight Navigator, Burokrat and Dash admit plan document version 11 — each must read a
-version-11 export, with a negative that drops 11 from its admitted versions. They refuse
-version 11 loudly until then.
+- [x] 4.6 Twilight admits plan document version 11 and the export always writes it (design
+      D71; the WBS 060.2 follow-up): Navigator `plan-reference.ts`, Burokrat
+      `navigator-records.ts`, Dash `record-progress` through Burokrat's record — test: the v11
+      fixture `plan-export.v11.json` read by each; negative: drop 11 from the admitted versions
+      and each refuses it; watched.

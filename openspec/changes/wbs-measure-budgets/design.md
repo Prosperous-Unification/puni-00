@@ -424,7 +424,8 @@ Assumptions added while fixing the review of PR #680 (slice 6):
 
 Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading closest to D1–D8:
 
-- **D63 Version 11, written only when it carries something.** The plan document gains version
+- **D63 Version 11, written only when it carries something** (dual-version rule superseded by
+  D71: every export is version 11). The plan document gains version
   11: `settings.budgetFactor`, `measureDefinitions` (every field but the id, for the keys its
   figures name, in list order), `measureFacts` (facts in defined measures with their `basis`),
   `measureEstimates` (every trio but the single-point tokens trios, with `basis`) and `budgets`
@@ -481,7 +482,9 @@ Assumptions added while implementing slice 7 (tasks 4.4, 4.5), each the reading 
 - **D67 Golden fixtures state the default factor.** The core export fixture's project had
   `budgetFactor: 1.5` to prove slice 4's strip; under D63 that factor is version-11 data, so the
   legacy-shape fixtures state 1 and the version-11 cases state 1.5. The v9 and v10 golden
-  hashes (`016181aa…`, `f2308a55…`) are unchanged; version 11 adds its own (`62708699…`).
+  hashes (`016181aa…`, `f2308a55…`) are unchanged; version 11 adds its own (`62708699…`). Since
+  D71 the v9 and v10 hashes pin a version-11 export with its additions removed (factor 1, four
+  empty lists), and a plain version-11 golden (`f8ed9174…`) stands beside them.
 
 Decisions from the review fixes (PR A, 2026-10-24):
 
@@ -521,8 +524,17 @@ Decisions from the review fixes (PR A, 2026-10-24):
   Legacy access carries no role, and every legacy caller already writes the whole directory, so
   it keeps writing definitions. A definition changes what every project's figures mean, an
   organization act like ranking projects.
-- **D71 Always version 11** (placeholder). Whether the export writes version 11 for every plan,
-  retiring D63's conditional, follows once Navigator, Burokrat and Dash admit it (task 4.6).
+- **D71 Always version 11** (Dany, 2026-10-24: no users, no compatibility burden; supersedes
+  D63's dual-version rule). The export writes plan document version 11 for every plan:
+  `settings.budgetFactor` and the four lists `measureDefinitions`, `measureFacts`,
+  `measureEstimates` and `budgets`, each empty when the plan holds none.
+  `LEGACY_PLAN_DOCUMENT_VERSION` and the conditional that chose 10 are gone, and the response
+  shape requires the version-11 fields. Import still reads versions 1–10 exactly as before
+  (D65). Twilight Navigator (`NAVIGATOR_PLAN_DOCUMENT_VERSIONS` `[7, 8, 9, 10, 11]`, converting
+  7–10 to the version-11 shape with empty measures), Burokrat (`planDocumentVersion`
+  `6 | 7 | 8 | 9 | 10 | 11`) and Dash (through Burokrat's record) admit 11, each tested against
+  the fixture `plan-export.v11.json`, with a negative that drops 11 and 12 refused as the
+  future version (task 4.6 closed).
 - **D72 Rollback is the pre-deploy backup** (Dany, 2026-10-24: no users yet). Once a fact in a
   defined measure (D23), a three-point trio (D28), a priced figure or a stated budget (D44)
   exists, `down.sql` refuses, and the older image answers 500 on work items holding a fact in a

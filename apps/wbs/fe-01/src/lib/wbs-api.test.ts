@@ -158,7 +158,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 10, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 11, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     stepBlockages: [],
     settings: {
@@ -174,6 +174,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
       scheduleEngine: PROJECT.scheduleEngine,
       scheduleObjective: PROJECT.scheduleObjective,
       timezone: 'Europe/Kyiv',
+      budgetFactor: 1,
     },
     capacity: [],
     resourceCapacities: [],
@@ -188,6 +189,10 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
       externalSystems: [],
       resources: [],
     },
+    measureDefinitions: [],
+    measureFacts: [],
+    measureEstimates: [],
+    budgets: [],
   };
 };
 
