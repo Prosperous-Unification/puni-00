@@ -13,6 +13,11 @@ export {
 } from './stores/directory';
 export * from './stores/history-batch';
 export {
+  CONFORMANCE_MEASURE_ORGANIZATIONS,
+  isMeasureDefinitionCase,
+} from './stores/measure-definitions';
+export { isMeasureFactCase, seedMeasureFactCase } from './stores/measure-facts';
+export {
   LIMITS_FIXTURE,
   type LimitsSideTables,
   seedOrganizationLimits,

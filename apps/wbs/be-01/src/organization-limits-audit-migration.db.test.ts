@@ -10,6 +10,11 @@ import { afterEach, describe, expect, it } from 'bun:test';
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
+const MEASURE = '20261023140000_add_measure';
+/** The measure-keyed facts, which reverse first over legacy facts alone. */
+const MEASURE_FACTS = '20261023150000_key_step_measure';
+const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 /** The two compute-provider migrations newer than the limits, which reverse first. */
 const COMPUTE_PROVIDERS =
@@ -110,7 +115,7 @@ describe(LIMITS_AUDIT, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}\n`,
+      `rolled back: ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}\n`,
     );
     expect(auditRows(dbPath)).toEqual([
       { action: 'session_policy_changed', subject_kind: 'session_policy' },

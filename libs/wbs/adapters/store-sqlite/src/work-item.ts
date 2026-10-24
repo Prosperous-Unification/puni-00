@@ -40,6 +40,7 @@ import {
   workItemType,
   workItemWorkItemType,
 } from './schema';
+import { basisColumns, factCondition, storedColumnsOf } from './step-measure';
 
 /**
  * The not-before pair as the row will stand: what the patch names, and what the
@@ -1146,9 +1147,24 @@ export class SubtreeRepository implements SubtreeStore {
         // it in every metric. The rule runs through the collection rather than
         // around it, because the metric is in the key. See
         // {@link SubtreeCopy.measures}.
+        // A defined measure's fact is written as its definition's id, a legacy
+        // one under its name (`storedColumnsOf`), as `StepMeasureRepository.set` does,
+        // and a priced fact with its basis (`wbs-measure-budgets` design D65).
+        // Proof: with the basis columns left out, `round-trips a version-11 plan
+        // byte for byte into an organization lacking a measure` and `undo of a
+        // delete puts a priced fact back with its basis`
+        // (measure-export.controller.db.test.ts) read the cost fact unpriced;
+        // watched 2026-10-23.
         if (copy.measures.length > 0)
           tx.insert(stepMeasure)
-            .values(copy.measures.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+            .values(
+              copy.measures.map(({ basis, ...each }) => ({
+                ...each,
+                ...storedColumnsOf(tx, each),
+                ...basisColumns(basis),
+                ...auditOnCreate(stamp),
+              })),
+            )
             .run();
         if (copy.assignments.length > 0)
           tx.insert(assignment)
@@ -1211,15 +1227,8 @@ export class SubtreeRepository implements SubtreeStore {
         // handed it: an hours fact it has held since before the delete, gone
         // because a token estimate came home.
         for (const taken of copy.removedMeasures) {
-          tx.delete(stepMeasure)
-            .where(
-              and(
-                eq(stepMeasure.workItemId, taken.workItemId),
-                eq(stepMeasure.stepId, taken.stepId),
-                eq(stepMeasure.metric, taken.metric),
-              ),
-            )
-            .run();
+          const named = factCondition(tx, taken.workItemId, taken.stepId, taken.metric);
+          if (named !== undefined) tx.delete(stepMeasure).where(named).run();
         }
         bumpWorkItems(
           tx,

@@ -32,6 +32,7 @@ import {
   assignment,
   claim,
   estimate,
+  measureEstimate,
   step,
   stepBlockage,
   stepMeasure,
@@ -297,10 +298,19 @@ export class StepRepository implements StepStore {
     // counting one step's rows without it would be a scan. Nothing owed here:
     // the index has shipped with the table since
     // `20260821140000_add_role_measure`.
-    const measured = await this.db
-      .select({ workItemId: stepMeasure.workItemId })
-      .from(stepMeasure)
-      .where(eq(stepMeasure.stepId, stepId));
+    const measured = [
+      ...(await this.db
+        .select({ workItemId: stepMeasure.workItemId })
+        .from(stepMeasure)
+        .where(eq(stepMeasure.stepId, stepId))),
+      // And the trios in other measures, counted with the facts as figures
+      // that are not days; a single-point tokens trio is its legacy row above
+      // and is not counted twice (`wbs-measure-budgets` design D28).
+      ...(await this.db
+        .select({ workItemId: measureEstimate.workItemId })
+        .from(measureEstimate)
+        .where(and(eq(measureEstimate.stepId, stepId), eq(measureEstimate.singlePoint, false)))),
+    ];
     // Read through `step_node_attempt_by_step`, for `actual_by_step`'s reason.
     const attempted = await this.db
       .select({ workItemId: stepNodeAttempt.workItemId })
@@ -481,11 +491,28 @@ export class StepRepository implements StepStore {
         // `in_use`. Rows, not pairs — a pair holding a token estimate and an hours
         // fact is two statements, and the number a person is shown before
         // consenting has to be the number of statements that go.
-        const measured = tx
-          .select({ workItemId: stepMeasure.workItemId })
-          .from(stepMeasure)
-          .where(inArray(stepMeasure.stepId, stepInProject))
-          .all();
+        const measured = [
+          ...tx
+            .select({ workItemId: stepMeasure.workItemId })
+            .from(stepMeasure)
+            .where(inArray(stepMeasure.stepId, stepInProject))
+            .all(),
+          // The trios in other measures with them, a single-point tokens trio
+          // being its legacy row above (design D28).
+          // Proof: with this count left out, `refuses removing a step holding
+          // only a three-point trio, and takes it with a confirmed cascade`
+          // (step.db.test.ts) removed the step unconfirmed; watched 2026-10-23.
+          ...tx
+            .select({ workItemId: measureEstimate.workItemId })
+            .from(measureEstimate)
+            .where(
+              and(
+                inArray(measureEstimate.stepId, stepInProject),
+                eq(measureEstimate.singlePoint, false),
+              ),
+            )
+            .all(),
+        ];
         // And the attempts, counted for the recorded days' reason: an attempt
         // is history of work that ran (ADR 0045), and a step holding one and
         // nothing else is `in_use`.
@@ -545,6 +572,9 @@ export class StepRepository implements StepStore {
         // a confirmed cascade — the exact failure the estimates' delete was added
         // for in 2026-08-08, one table later.
         tx.delete(stepMeasure).where(inArray(stepMeasure.stepId, stepInProject)).run();
+        // And the trios: `measure_estimate.step_id` carries no cascade either;
+        // the single-point ones went with their legacy rows just above.
+        tx.delete(measureEstimate).where(inArray(measureEstimate.stepId, stepInProject)).run();
         // Explicit once more: `step_node_attempt.step_id` carries no cascade
         // either, so the step delete below would hit its foreign key.
         tx.delete(stepNodeAttempt).where(inArray(stepNodeAttempt.stepId, stepInProject)).run();

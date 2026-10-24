@@ -1,6 +1,13 @@
 import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
-import type { LeaseStanding, ResourceUnits, WorkItemStatus } from '@wbs/domain';
+import type {
+  BudgetExhausted,
+  LeaseStanding,
+  MeasureDefinition,
+  MixedRateCards,
+  ResourceUnits,
+  WorkItemStatus,
+} from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
@@ -29,7 +36,12 @@ import type {
   RemoveResourceOutcome,
 } from '../directory/directory.resource';
 import type { NamedClaimHolder, NamedOccupancyHolder, PlainClaimReason } from '../work-item/claims';
-import type { Collected, UndoOutcome, WorkItemOutcome } from '../work-item/work-item.resource';
+import type {
+  BudgetExhaustedOutcome,
+  Collected,
+  UndoOutcome,
+  WorkItemOutcome,
+} from '../work-item/work-item.resource';
 import type {
   CommandAdmission,
   CommandDecision,
@@ -71,6 +83,8 @@ interface CommandEntities {
   patchWorkItemType: WorkItemType;
   createResource: Resource;
   patchResource: Resource;
+  createMeasure: MeasureDefinition;
+  patchMeasure: MeasureDefinition;
 }
 type EntityKind = keyof CommandEntities;
 type PlainKind = Exclude<PlanCommandKind, EntityKind>;
@@ -118,6 +132,8 @@ export type Refusal =
       detail: { nodes: { workItemId: string; stepId: string }[] };
     }
   | { reason: 'taken'; detail: { name: string } }
+  /** A sum across two rate cards (`wbs-measure-budgets` D44), both named, null unpriced. */
+  | { reason: 'mixed_rate_cards'; detail: { bases: MixedRateCards } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } }
   /** A resource removal's refusal also counts what names it (`wbs-resources` R8). */
   | { reason: 'in_use'; detail: { usage: DirectoryUsage; counts: ResourceUsageCounts } }
@@ -164,7 +180,9 @@ export type Refusal =
   | {
       reason: 'capacity_limit';
       detail: { resourceId: string; cap: number; declared: number; asked: number };
-    };
+    }
+  /** A start a strict budget refuses (`wbs-measure-budgets` D69). */
+  | { reason: 'budget_exhausted'; detail: BudgetExhausted };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
@@ -179,6 +197,7 @@ export type ServiceRefusal =
       holders: readonly NamedClaimHolder[];
     }
   | Extract<WorkItemOutcome<never>, { ok: false }>
+  | BudgetExhaustedOutcome
   | { ok: false; reason: PlainReason }
   | {
       ok: false;

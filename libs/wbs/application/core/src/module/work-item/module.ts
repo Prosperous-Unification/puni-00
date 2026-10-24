@@ -1,6 +1,7 @@
 import { DiBag } from 'di-bag';
 
 import type { ActualStore } from '../../ports/actual-store';
+import type { BudgetStore } from '../../ports/budget-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
 import type { ClaimStore } from '../../ports/claim-store';
@@ -11,6 +12,7 @@ import type { DependencyStore } from '../../ports/dependency-store';
 import type { DirectoryStore } from '../../ports/directory-store';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore } from '../../ports/estimate-store';
+import type { MeasureEstimateStore } from '../../ports/measure-estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
@@ -55,6 +57,8 @@ export const workItemModule = DiBag.createBuilder()
         estimateStore,
         actualStore,
         measureStore,
+        measureEstimateStore,
+        budgetStore,
         progressStore,
         attemptStore,
         blockageStore,
@@ -82,6 +86,8 @@ export const workItemModule = DiBag.createBuilder()
         estimateStore: EstimateStore;
         actualStore: ActualStore;
         measureStore: MeasureStore;
+        measureEstimateStore: MeasureEstimateStore;
+        budgetStore: BudgetStore;
         progressStore: StepProgressStore;
         attemptStore: StepNodeAttemptStore;
         blockageStore: StepBlockageStore;
@@ -110,6 +116,8 @@ export const workItemModule = DiBag.createBuilder()
         estimates: estimateStore,
         actuals: actualStore,
         measures: measureStore,
+        measureEstimates: measureEstimateStore,
+        budgets: budgetStore,
         progress: progressStore,
         attempts: attemptStore,
         blockages: blockageStore,

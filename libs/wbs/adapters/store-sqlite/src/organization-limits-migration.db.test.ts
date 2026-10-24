@@ -14,6 +14,13 @@ const MIGRATION = '20261022130000_add_organization_limits';
 /** The newer audit widening, which reverses first in its own transaction. */
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const CLAIM_LEASE = '20261023100000_add_claim_lease';
+/** The newer measure definitions, which reverse first over seeded rows alone. */
+const MEASURE = '20261023140000_add_measure';
+/** The measure-keyed facts, which reverse first over legacy facts alone. */
+const MEASURE_FACTS = '20261023150000_key_step_measure';
+/** The measure estimates, which reverse first over single-point token trios alone. */
+const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
+const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 /** The newer compute-provider migrations, which reverse before the limits ones. */
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
@@ -106,13 +113,26 @@ describe(MIGRATION, () => {
     ).toEqual(
       before.filter(
         ({ name }) =>
-          ![LIMITS_AUDIT, RESOURCE_PROVIDER, PROVIDER_AUDIT, CLAIM_LEASE].includes(name),
+          ![
+            LIMITS_AUDIT,
+            RESOURCE_PROVIDER,
+            PROVIDER_AUDIT,
+            CLAIM_LEASE,
+            MEASURE,
+            MEASURE_FACTS,
+            MEASURE_ESTIMATES,
+            WORK_ITEM_BUDGETS,
+          ].includes(name),
       ),
     );
   });
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      WORK_ITEM_BUDGETS,
+      MEASURE_ESTIMATES,
+      MEASURE_FACTS,
+      MEASURE,
       CLAIM_LEASE,
       PROVIDER_AUDIT,
       RESOURCE_PROVIDER,

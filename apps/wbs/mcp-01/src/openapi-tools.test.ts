@@ -367,6 +367,10 @@ describe('toolsFromDocument, on the generated document', () => {
       'setStepBlocked',
       'setMeasure',
       'clearMeasure',
+      'setMeasureEstimate',
+      'clearMeasureEstimate',
+      'setBudget',
+      'clearBudget',
       'setAssignee',
       // `wbs-resources` R7: one more batch kind; the tool count does not move for it.
       'assignSubtree',
@@ -407,6 +411,9 @@ describe('toolsFromDocument, on the generated document', () => {
       'createResource',
       'patchResource',
       'deleteResource',
+      'createMeasure',
+      'patchMeasure',
+      'deleteMeasure',
     ];
     const emittedKinds = list.items.anyOf.map((variant) => variant.properties.kind.const);
     const emittedCounts = Object.fromEntries(

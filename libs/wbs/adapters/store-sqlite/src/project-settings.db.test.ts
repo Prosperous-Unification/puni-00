@@ -202,6 +202,10 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261023170000_add_work_item_budget',
+        '20261023160000_add_measure_estimate',
+        '20261023150000_key_step_measure',
+        '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
@@ -256,7 +260,13 @@ describe('the project settings migration', () => {
       ]);
       // `timezone` goes with `_add_step_node_attempts`, rolled back above it.
       expect(projectColumns(db.path)).toEqual(
-        migrated.filter((name) => !ADDED_COLUMNS.includes(name as never) && name !== 'timezone'),
+        // `budget_factor` goes with `_add_work_item_budget`, rolled back above it too.
+        migrated.filter(
+          (name) =>
+            !ADDED_COLUMNS.includes(name as never) &&
+            name !== 'timezone' &&
+            name !== 'budget_factor',
+        ),
       );
     } finally {
       db.cleanup();
@@ -285,6 +295,10 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261023170000_add_work_item_budget',
+        '20261023160000_add_measure_estimate',
+        '20261023150000_key_step_measure',
+        '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
@@ -410,6 +424,10 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261023170000_add_work_item_budget',
+        '20261023160000_add_measure_estimate',
+        '20261023150000_key_step_measure',
+        '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',

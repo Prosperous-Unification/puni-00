@@ -169,7 +169,10 @@ export function verifyScheduleLink(
  * forward only").
  */
 // Proof: omitting schema8 refused the real save/read module regression (regression-first.txt), 2026-10-17.
-export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
+// Proof: omitting schema 9 made `saved plan compare names a change in a trio, a
+// budget, a basis and the factor` (measure-export.controller.db.test.ts) answer
+// 501 unsupported_body_version; watched 2026-10-23.
+export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1];
 
 /**
