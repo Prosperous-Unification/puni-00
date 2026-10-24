@@ -24,6 +24,7 @@ import { ActionsMenu, type MenuAction } from './actions-menu';
 import { type AttemptActions, AttemptsSection } from './attempts-section';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
+import { ClaimChip, type DrawnClaim } from './claim-chip';
 import { DEADLINE_EFFECT_HINT } from './column-hints';
 import {
   type PickableEntry,
@@ -162,6 +163,14 @@ export interface PlanCardsProps {
   /** What the `@` list in one box is offering, or nothing while it is closed. */
   mentionOptions: (row: TreeRow, stepId: string) => PickerOption[];
   assigneeOn: (row: TreeRow, stepId: string) => CardAssignee | null;
+  /**
+   * The step claim drawn beside this step's assignee, the table's own
+   * (`wbs-claim-display` C17). Absent, as a suite drawing the cards for
+   * something else leaves it, the cards draw no chips.
+   */
+  stepClaimOn?: (row: TreeRow, stepId: string) => DrawnClaim | null;
+  /** The subtree claim drawn in this card's header, the table's Name-cell chip. */
+  subtreeClaimOn?: (row: TreeRow) => DrawnClaim | null;
   /**
    * A leaf node's reading and attempts, for its step line's `Attempts`
    * details (`step-node-attempts` D7): `null` on a parent and from an older
@@ -2693,6 +2702,8 @@ export function PlanCards({
   leaveEstimate,
   mentionOptions,
   assigneeOn,
+  stepClaimOn,
+  subtreeClaimOn,
   attemptsOn,
   attemptActionsOn,
   setStepBlocked,
@@ -2767,6 +2778,10 @@ export function PlanCards({
         const slack = cardSlackOf(row, showDay);
         const mismatches = cardMismatchesOf(row, steps, nonOwner, assigneeOn);
         const typedWaits = typedWaitsFor?.(row) ?? [];
+        // Proof: no chip read here made `draws a subtree claim’s chip in its
+        // card’s header` fail on `expected [] to deeply equal [ 'CL14m' ]`;
+        // watched 2026-10-24.
+        const subtreeClaim = subtreeClaimOn?.(row) ?? null;
         const offered = offering.has(row.id);
         const folds = !offered;
         // The same emptiness each field's own trigger reads; it only decides
@@ -2836,6 +2851,11 @@ export function PlanCards({
                 separate attributes.
               */}
               <CardPriorityField row={row} bands={priorityBands} setPriority={setPriority} />
+              {subtreeClaim !== null && (
+                <span data-card-subtree-claim={row.id} className="min-w-0 shrink overflow-hidden">
+                  <ClaimChip drawn={subtreeClaim} form="full" tap />
+                </span>
+              )}
               <span data-final-total className="text-muted-foreground ml-auto text-sm">
                 {showDay(row.finalTotal)} d
               </span>
@@ -2876,6 +2896,10 @@ export function PlanCards({
               const options = mentionOptions(row, step.id);
               const listId = `card-mention-${row.id}-${step.id}`;
               const assignee = assigneeOn(row, step.id);
+              // Proof: no chip read here made `draws a step’s chip beside its
+              // assignee` fail on `expected [] to deeply equal [ 'CO14m' ]`;
+              // watched 2026-10-24.
+              const claim = stepClaimOn?.(row, step.id) ?? null;
               const trio = cardTrioOf(row, step, showDay);
               // The table's folded cell, on the face a phone reads: the box
               // holds the trio shorthand and the figure the estimate method
@@ -3008,6 +3032,11 @@ export function PlanCards({
                         }`}
                       >
                         {assignee.assumed ? `(${assignee.name})` : assignee.name}
+                      </span>
+                    )}
+                    {claim !== null && (
+                      <span data-card-claim={step.id} className="shrink-0">
+                        <ClaimChip drawn={claim} form="full" tap />
                       </span>
                     )}
                     {options.length > 0 && (

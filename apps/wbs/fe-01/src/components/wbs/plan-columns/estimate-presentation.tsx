@@ -2,6 +2,7 @@ import type { EstimateRule } from '@wbs/domain/estimate';
 
 import type { StepView } from '@/lib/wbs-api';
 
+import { CLAIM_SLOT_PX, ClaimChip } from '../claim-chip';
 import { PickerList } from '../creatable-picker';
 import { cellIn } from '../editable-grid';
 import { POINTS } from '../estimate-draft';
@@ -309,6 +310,30 @@ export function EstimatePresentation({
                       native tooltip.
                     */}
       {doing?.outside != null && <MismatchMark kind="assignee" note={doing.outside} carded />}
+      {reading.layout === 'folded' && reading.anyClaim && (
+        // The claim slot, beside the assignee's (`wbs-claim-display` C7): kept
+        // on every row of a column where some drawn row holds a claim, so the
+        // figures stay lined up, and on no row of any other column, so an
+        // unclaimed plan pays nothing. The chip shows initials only; the step
+        // card below says the rest.
+        // Proof: the slot kept whatever `anyClaim` says made `reserves no claim
+        // slot in a column nobody holds a claim in` and `leaves an unclaimed
+        // plan exactly as it was` fail on `expected <span …(3)></span> to be
+        // null`; watched 2026-10-24.
+        <span
+          data-folded-claim-slot={step.id}
+          aria-hidden={reading.claim === null ? 'true' : undefined}
+          style={{
+            marginLeft: 3,
+            flex: 'none',
+            width: CLAIM_SLOT_PX - 3,
+            display: 'inline-flex',
+            justifyContent: 'flex-start',
+          }}
+        >
+          {reading.claim !== null && <ClaimChip drawn={reading.claim} form="initials" />}
+        </span>
+      )}
       {options.length > 0 && (
         <PickerList
           id={listId}
@@ -380,6 +405,7 @@ export function EstimatePresentation({
           allowancePercent={step.allowancePercent}
           rule={rule}
           doing={doing}
+          claim={reading.claim}
           problem={problem}
           typing={typing}
           node={reading.node}

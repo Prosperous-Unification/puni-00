@@ -9,6 +9,7 @@ import type {
 } from '@/lib/wbs-api';
 import type { PlanRead } from '@/lib/wbs-api';
 
+import type { DrawnClaim } from './claim-chip';
 import { type PickableEntry, type PickerOption } from './creatable-picker';
 import { type PickerEntry } from './dep-picker';
 import type { DependsEntry } from './depends-card';
@@ -23,6 +24,10 @@ import { type TreeRow } from './wbs-rows';
 export interface FoldedEstimateReadings {
   layout: 'folded';
   anyAssignee: boolean;
+  /** Whether some drawn row holds a claim on this step, so this cell keeps the claim slot. */
+  anyClaim: boolean;
+  /** The step claim this cell draws a chip for, or null. */
+  claim: DrawnClaim | null;
   combinedProblem: string | null;
   combinedValue: string;
   doing: CardAssignee | null;
@@ -36,6 +41,8 @@ export interface FoldedEstimateReadings {
 export interface UnfoldedEstimateReadings {
   layout: 'unfolded';
   anyAssignee: boolean;
+  /** The step claim the `by` cell draws a chip for, or null. */
+  claim: DrawnClaim | null;
   doing: CardAssignee | null;
   estimateValues: Record<'optimistic' | 'realistic' | 'pessimistic', string>;
   trioProblem: TrioProblem | null;
@@ -71,6 +78,8 @@ export interface PlanRowReadings {
   assigneeEntries: PickableEntry[];
   estimateReadings: ReadonlyMap<string, EstimateReadings>;
   stepNodes: ReadonlyMap<string, NonNullable<PlanRead['stepNodes']>[number]> | null;
+  /** The subtree claim the Name cell draws a chip for, or null. */
+  subtreeClaim: DrawnClaim | null;
   hasSchedule: boolean;
   finish: PrintedDay;
   nonOwnerNote: string | null;
