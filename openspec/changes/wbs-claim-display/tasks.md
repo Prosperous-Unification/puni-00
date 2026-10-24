@@ -49,35 +49,35 @@
 
 ## 4. Step claim chip (fe-01; builds `wbs-team-claims` 1.7, steps)
 
-- [ ] 4.1 Red: table rendering tests with a claim-shaped read: folded chip with the holder's
+- [x] 4.1 Red: table rendering tests with a claim-shaped read: folded chip with the holder's
       initials beside the assignee slot, unfolded chip after the picker, card claim line
       (holder, run, instant), chip accessible name, no slot in a column without a claim, an
       unclaimed plan's column widths equal today's. Green: `CLAIM_SLOT_PX` and the chip. R5
       faults: reserve the slot unconditionally (the width case reddens); drop the accessible
       name; watched.
-- [ ] 4.2 Red: a claim on a work item or step the installed tree lacks draws nothing and does
+- [x] 4.2 Red: a claim on a work item or step the installed tree lacks draws nothing and does
       not throw. R5 fault: look the row up with a throwing accessor; watched.
 
 ## 5. Subtree claim chip (fe-01; builds `wbs-team-claims` 1.7, subtrees)
 
-- [ ] 5.1 Red: a subtree claim's chip in its row's Name cell, none on the leaves under it, none
+- [x] 5.1 Red: a subtree claim's chip in its row's Name cell, none on the leaves under it, none
       on a collapsed ancestor; a delegated step claim's card names the parent's holder and
       number. Green. R5 fault: inherit the chip down the tree; watched.
 
 ## 6. Lease display (fe-01; builds `wbs-claim-leases` 2.1, chip)
 
-- [ ] 6.1 Red: `claim-lease-view.test.ts`, a pure function of (lease end, revocation, `readAt`,
+- [x] 6.1 Red: `claim-lease-view.test.ts`, a pure function of (lease end, revocation, `readAt`,
       install instant, now): minutes rounded down, `<1m`, releasing at exactly the end,
       revoked reads releasing with its cause, no lease reads nothing; a property that the
       browser's wall clock never changes the answer. Green. R5 fault: `Date.now()` in place of
       the server instant (the clock-ahead case reddens); `<` for `<=` at the end; watched.
-- [ ] 6.2 Red: one table-level ticker at 15 s while a leased claim is drawn and the page is
+- [x] 6.2 Red: one table-level ticker at 15 s while a leased claim is drawn and the page is
       visible, none otherwise — test with fake timers and a visibility toggle. R5 fault: a
       timer per chip (the count assertion reddens); watched.
 
 ## 7. Phone cards (fe-01)
 
-- [ ] 7.1 Red: `plan-cards` tests: a step chip beside the card's step assignee, a subtree chip
+- [x] 7.1 Red: `plan-cards` tests: a step chip beside the card's step assignee, a subtree chip
       in the header, the same lease text. Green.
 
 ## 8. Claim history read (be-01)

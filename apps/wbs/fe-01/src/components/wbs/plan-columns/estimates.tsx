@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { type StepView } from '@/lib/wbs-api';
 
 import { CellInput } from '../cell-input';
+import { ClaimChip } from '../claim-chip';
 import { STEP_FINAL_HINT } from '../column-hints';
 import { CreatablePicker, pickerOptionId } from '../creatable-picker';
 import { minuteCharge, showDuration } from '../duration-words';
@@ -759,6 +760,14 @@ export function createEstimatesColumns({
                     )}
                     {doing?.outside != null && (
                       <MismatchMark kind="assignee" note={doing.outside} />
+                    )}
+                    {reading.claim !== null && (
+                      // After the picker, with the lease's minutes or
+                      // `releasing` (C7): this column has the room the folded
+                      // cell does not.
+                      <span style={{ marginLeft: 4, flex: 'none', alignSelf: 'center' }}>
+                        <ClaimChip drawn={reading.claim} form="full" />
+                      </span>
                     )}
                   </span>
                 );
