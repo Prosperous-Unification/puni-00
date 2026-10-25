@@ -197,12 +197,27 @@ describe('dev deployment preflight', () => {
     request.compose.services = {};
     await expectRefusal(request, /topology/);
   });
-  it('refuses shared project or public container network', async () => {
+  it('refuses a shared project', async () => {
     const request = await fixture();
     request.compose.name = 'observability';
     await expectRefusal(request, /topology/);
-    request.compose.name = 'puni-dev-observability';
+  });
+  it('refuses a public dev network with the project unchanged', async () => {
+    const request = await fixture();
     request.compose.networks['dev'].internal = false;
     await expectRefusal(request, /topology/);
   });
+  it('refuses additional networks even when all services remain on dev', async () => {
+    const request = await fixture();
+    request.compose.networks['shared'] = { internal: false };
+    await expectRefusal(request, /topology/);
+  });
+  it.each([[], ['shared'], ['dev', 'shared']])(
+    'refuses unapproved service network membership %j',
+    async (...networks: string[]) => {
+      const request = await fixture();
+      request.compose.services['elasticsearch'].networks = networks;
+      await expectRefusal(request, /topology/);
+    },
+  );
 });

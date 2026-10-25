@@ -144,7 +144,8 @@ export function renderDevCompose(
  * Checks a freshly collected host snapshot and required local input files without
  * runtime mutation. The caller collects capacity/port observations on h3mon;
  * this function does not attest that the supplied snapshot came from that host.
- * A successful shape assessment deliberately leaves binary validation pending.
+ * Only the internal dev network is approved, with every service attached solely
+ * to it. A successful shape assessment deliberately leaves binary validation pending.
  */
 export async function preflightDevDeployment(
   request: DevPreflight,
@@ -167,13 +168,20 @@ export async function preflightDevDeployment(
   // Proof: removing this throw failed missing-service and shared-project/network negatives.
   if (
     request.compose.name !== 'puni-dev-observability' ||
+    // Proof: forcing this predicate false failed the independent public-dev-network negative.
     !request.compose.networks['dev'].internal ||
+    // Proof: forcing this predicate false failed the independent additional-networks negative.
+    Object.keys(request.compose.networks).length !== 1 ||
     serviceNames !== 'alertmanager,collector,elasticsearch,gateway,kibana,prometheus'
   ) {
     throw new Error('topology must use the isolated named dev project and all six services');
   }
   let memoryBytes = 0;
   for (const [name, service] of Object.entries(request.compose.services)) {
+    // Proof: removing this throw failed all three unapproved-membership negatives.
+    if (service.networks.length !== 1 || service.networks[0] !== 'dev') {
+      throw new Error(`${name} topology must use only the isolated dev network`);
+    }
     // Proof: removing this throw failed the memory/CPU/PID and log-bounds negatives.
     if (
       ![service.mem_limit, service.cpus, service.pids_limit].every(
