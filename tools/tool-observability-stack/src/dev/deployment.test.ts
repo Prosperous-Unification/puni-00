@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { type DevPreflight, preflightDevDeployment, renderDevCompose } from './deployment';
+import { renderDevGrafana } from './grafana';
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -243,3 +244,72 @@ it.each([{ external: true }, { name: 'shared-network' }, { driver: 'host' }])(
     await expectRefusal(request, /topology/);
   },
 );
+
+describe('Grafana query network exception', () => {
+  const query = {
+    id: 'a8c94b425b03ae71d4d5a72cd6947310ee97431358f7e62b4e0cdbb29bd10311',
+    name: 'h3mon-observability_query',
+    driver: 'bridge',
+    internal: false,
+    occupiedAliases: [] as string[],
+  };
+  async function connected() {
+    const request = await fixture();
+    const overlay = renderDevGrafana().composeOverlay;
+    Object.assign(request.compose.networks, overlay.networks);
+    request.compose.services['prometheus'].networks = overlay.services.prometheus.networks;
+    return { ...request, queryNetwork: structuredClone(query) };
+  }
+  it('permits only the captured existing query network for Prometheus', async () => {
+    const request = await connected();
+    expect((await preflightDevDeployment(request)).phase).toBe('shape-validated');
+  });
+  it.each(['id', 'name', 'driver', 'internal', 'occupiedAliases'] as const)(
+    'refuses changed query network %s',
+    async (field) => {
+      const request = await connected();
+      Object.assign(request.queryNetwork, {
+        [field]:
+          field === 'internal'
+            ? true
+            : field === 'occupiedAliases'
+              ? ['puni-dev-prometheus']
+              : 'changed',
+      });
+      await expectRefusal(request, /query network/);
+    },
+  );
+  it('refuses absent query network inspection', async () => {
+    const request = await connected();
+    await expectRefusal({ ...request, queryNetwork: undefined }, /query network/);
+  });
+  it('refuses changed external network declaration', async () => {
+    const request = await connected();
+    request.compose.networks['grafana-query'].name = 'other';
+    await expectRefusal(request, /topology/);
+  });
+  it('refuses changed query alias', async () => {
+    const request = await connected();
+    request.compose.services['prometheus'].networks = {
+      dev: {},
+      'grafana-query': { aliases: ['prometheus'] },
+    };
+    await expectRefusal(request, /topology/);
+  });
+  it('refuses sharing collector on the approved network', async () => {
+    const request = await connected();
+    request.compose.services['collector'].networks = {
+      dev: {},
+      'grafana-query': { aliases: ['puni-dev-prometheus'] },
+    };
+    await expectRefusal(request, /topology/);
+  });
+  it.each(['--web.enable-admin-api', '--web.enable-lifecycle'])(
+    'refuses privileged Prometheus flag %s',
+    async (flag) => {
+      const request = await connected();
+      request.compose.services['prometheus'].command?.push(flag);
+      await expectRefusal(request, /query APIs/);
+    },
+  );
+});

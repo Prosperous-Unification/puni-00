@@ -25,13 +25,16 @@ export interface DevService {
   pids_limit: number;
   logging: { driver: string; options: Record<string, string> };
   ports: { host_ip: string; published: string; target: number }[];
-  networks: string[];
+  networks: string[] | Record<string, { aliases?: string[] }>;
   volumes: string[];
 }
 export interface DevCompose {
   name: string;
   services: Record<string, DevService>;
-  networks: Record<string, { driver: string; internal: boolean }>;
+  networks: Record<
+    string,
+    { driver?: string; internal?: boolean; external?: boolean; name?: string }
+  >;
   volumes: Record<string, Record<string, never>>;
 }
 export interface DevPreflight {
@@ -46,6 +49,13 @@ export interface DevPreflight {
     occupiedPorts: number[];
   };
   compose: DevCompose;
+  queryNetwork?: {
+    id: string;
+    name: string;
+    driver: string;
+    internal: boolean;
+    occupiedAliases: string[];
+  };
 }
 const mib = 1024 ** 2;
 const gib = 1024 ** 3;
@@ -173,8 +183,8 @@ export function renderDevCompose(
  * Checks a freshly collected host snapshot and required local input files without
  * runtime mutation. The caller collects capacity/port observations on h3mon;
  * this function does not attest that the supplied snapshot came from that host.
- * Only the dedicated project bridge is approved, with every service attached solely
- * to it. Outbound traffic is permitted so Docker can publish the loopback APIs. A successful shape assessment deliberately leaves binary validation pending.
+ * Only Prometheus may additionally join the inspected existing Grafana query bridge
+ * with its unique Puni alias. Every other service stays solely on the project bridge. Outbound traffic is permitted so Docker can publish the loopback APIs. A successful shape assessment deliberately leaves binary validation pending.
  */
 export async function preflightDevDeployment(
   request: DevPreflight,
@@ -193,6 +203,24 @@ export async function preflightDevDeployment(
   ) {
     throw new Error('capacity snapshot must be current within 60 seconds');
   }
+  const sharedQuery = Object.entries(request.compose.networks).find(
+    ([name]) => name === 'grafana-query',
+  )?.[1];
+  if (sharedQuery !== undefined) {
+    const inspected = request.queryNetwork;
+    // Proof: each changed identity/driver/internal/alias and absent-inspection negative fails when this guard is removed.
+    if (
+      inspected?.id !== 'a8c94b425b03ae71d4d5a72cd6947310ee97431358f7e62b4e0cdbb29bd10311' ||
+      inspected.name !== 'h3mon-observability_query' ||
+      inspected.driver !== 'bridge' ||
+      !Object.is(inspected.internal, false) ||
+      inspected.occupiedAliases.includes('puni-dev-prometheus')
+    ) {
+      throw new Error(
+        'query network must match inspected existing Grafana bridge with an unused alias',
+      );
+    }
+  }
   const serviceNames = Object.keys(request.compose.services).sort().join(',');
   // Proof: removing this throw failed missing-service and shared-project/network negatives.
   if (
@@ -204,7 +232,11 @@ export async function preflightDevDeployment(
     // Proof: bypassing this predicate independently admitted external=true and a shared network name.
     Object.keys(request.compose.networks['dev']).sort().join(',') !== 'driver,internal' ||
     // Proof: forcing this predicate false failed the independent additional-networks negative.
-    Object.keys(request.compose.networks).length !== 1 ||
+    (sharedQuery === undefined
+      ? Object.keys(request.compose.networks).length !== 1
+      : Object.keys(request.compose.networks).sort().join(',') !== 'dev,grafana-query' ||
+        JSON.stringify(sharedQuery) !==
+          JSON.stringify({ external: true, name: 'h3mon-observability_query' })) ||
     serviceNames !== 'alertmanager,collector,elasticsearch,gateway,kibana,prometheus'
   ) {
     throw new Error('topology must use the isolated named dev project and all six services');
@@ -212,7 +244,17 @@ export async function preflightDevDeployment(
   let memoryBytes = 0;
   for (const [name, service] of Object.entries(request.compose.services)) {
     // Proof: removing this throw failed all three unapproved-membership negatives.
-    if (service.networks.length !== 1 || service.networks[0] !== 'dev') {
+    const privateOnly =
+      Array.isArray(service.networks) &&
+      service.networks.length === 1 &&
+      service.networks[0] === 'dev';
+    const queryOnly =
+      sharedQuery !== undefined &&
+      name === 'prometheus' &&
+      JSON.stringify(service.networks) ===
+        JSON.stringify({ dev: {}, 'grafana-query': { aliases: ['puni-dev-prometheus'] } });
+    // Proof: removing membership guard admits changed alias or collector sharing the query network.
+    if (sharedQuery !== undefined && name === 'prometheus' ? !queryOnly : !privateOnly) {
       throw new Error(`${name} topology must use only the isolated dev network`);
     }
     // Proof: removing this throw failed the memory/CPU/PID and log-bounds negatives.
@@ -225,6 +267,13 @@ export async function preflightDevDeployment(
       !/^[1-9][0-9]*$/.test(service.logging.options['max-file'])
     ) {
       throw new Error(`${name} requires finite resource and log bounds`);
+    }
+    // Proof: removing this guard admits each privileged Prometheus flag in query APIs negatives.
+    if (
+      name === 'prometheus' &&
+      service.command?.some((flag) => /^--web\.enable-(admin-api|lifecycle)(=|$)/.test(flag))
+    ) {
+      throw new Error('Prometheus must expose query APIs without admin or lifecycle APIs');
     }
     memoryBytes += service.mem_limit;
     for (const port of service.ports) {
