@@ -136,6 +136,8 @@ if (import.meta.main) {
     );
     const directory = join(process.cwd(), '.superpowers/evaluation-private');
     mkdirSync(directory, { recursive: true, mode: 0o700 });
+    // Proof: bypassing this gate made missing, unreadable, malformed, failed and different-SHA
+    // receipts reach fake inference in the full host-entry tests; the passing receipt is a positive control.
     if (mode === 'full') {
       const pilot: unknown = JSON.parse(readFileSync(join(directory, 'pilot.json'), 'utf8'));
       if (!isRecord(pilot) || pilot['sha'] !== sha || pilot['passed'] !== true)
