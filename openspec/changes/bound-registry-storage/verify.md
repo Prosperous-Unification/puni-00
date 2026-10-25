@@ -1,7 +1,7 @@
 ## Verification status
 
 Implementation in progress, 2026-10-25. Policy, journal, physical-storage, capacity/fencing, publication and manifest-census slices have independent
-review approval. Deployment code review passed; its corrected native smoke remains queued. These receipts do not establish live capacity enforcement,
+review approval. Deployment code review and corrected native smoke/Caddy checks passed. These receipts do not establish live capacity enforcement,
 retirement, notifications or readiness for product adoption. Production has not
 been migrated by this change. Remaining task checkboxes are authoritative.
 
@@ -353,9 +353,9 @@ historical warning-bearing output remains intact. Public implementation range is
 `9efd6665e..044baa74a`; private fleet remains `b7e234415`. Full product build,
 installed-authority SSH, full host gate and production activation are not claimed.
 
-## Deployment integration checkpoint — native proof pending
+## Deployment integration — reviewed code and native checks complete
 
-Task 3.2 remains open. Initial implementation commits are public
+Task 3.2 is complete for its reviewed implementation and scoped proofs. Initial implementation commits are public
 `89fd22613838abf43d2c9598f19171f315593e93`, private website
 `1a3cc1139e9d115945a7c5dccb8febf483911595`, and private fleet
 `58831dbb4c62d8d5b425f2423592dd171599bf38`. Independent review found four
@@ -373,9 +373,9 @@ removal boundaries. Initial static-check failures were corrected and the affecte
 checks passed. No activation approval or installed-proof claim follows from this
 code review.
 
-Read-only manifest census implementation may proceed from these reviewed
-contracts while the parent-owned smoke proof remains queued. Task 3.2 stays open;
-all outstanding evidence remains required before final integration and activation.
+Read-only manifest census proceeded from the reviewed contracts while the native
+smoke was queued. The corrected proof has now passed; final installed integration
+and activation evidence remain required under Task 5.2.
 
 The configured public test targets passed: fleet **770 pass, 2 skip, 0 fail**
 and deploy **846 pass, 0 fail**, using
@@ -383,7 +383,8 @@ and deploy **846 pass, 0 fail**, using
 The exact remote-script source command from its project directory,
 `bun test src --preload ../test/scratch/preload.ts --timeout=10000`, passed
 **804 tests, 2 skips, 0 failures**. Its separate `test:caddy` dependency was
-not run in this slice. The fleet skips are opt-in native restic cases; the
+initially unrun; the parent later ran its exact pinned-container command successfully
+as recorded below. The fleet skips are opt-in native restic cases; the
 remote-script skips are opt-in native Docker solver-cleanup cases. Public
 lint/typecheck/build completed all 16 tasks; private website checks completed
 all five tasks, and private fleet test/lint/typecheck completed all three.
@@ -403,11 +404,27 @@ cleanup-hook failures after asynchronous Docker removal. The replay fixture was
 corrected, and bounded checked cleanup convergence preceded the passing private
 rerun. Neither original command is counted as green.
 
-The corrected native Compose success/failure/cancellation proof is still queued
-under the canonical h4 heavy lock. An earlier invocation swallowed a failing
-`find` status and is not accepted as complete cleanup proof. The queued artifact
-has reviewed behavioral equivalence to the committed functions, not exact final
-bundle identity. Task 5.2 still requires the exact-revision installed proof,
+The corrected native Compose proof passed under the canonical h4 heavy lock
+on Docker 29.1.3: success, intentional failure and SIGTERM cancellation each left
+no smoke container or `.registry-smoke-*` snapshot. The fixture used 336484 bytes;
+root free was 121681129472 bytes. The newly introduced 42863256-byte Bun image,
+exact network and directory were removed, and a separate read-only audit confirmed
+the fixture, network, containers and image absent. A prior three-hour lock wait
+expired with native 75 before payload; its two hash-verified transport files were
+removed before one longer-budget attempt. An earlier invocation swallowed a
+failing `find` status and remains unaccepted as complete cleanup proof. The passed
+artifact has reviewed behavioral equivalence to the committed functions; a fresh
+diff of all three source modules against reviewed commit 7f6c436dc was empty.
+This is scoped function behavior, not exact final installed bundle identity.
+
+The parent also ran `bun run tools/tool-remote-scripts/caddy/run.ts` with `CI=1`
+through the actual pinned Caddy 2.10.2 container: **2 pass, 0 fail, 78 assertions**,
+exit 0, on local Docker 29.7.2 and Bun 1.4.4. A transparent Docker audit wrapper
+recorded only the fixture's commands and executed the real CLI with unchanged
+arguments. Exact container creation/cleanup events and the scratch directory were
+verified; the borrowed pinned image was preserved. The pinned image declares no
+anonymous volumes. This closes the earlier separate dependency gap; it does not
+replace the final canonical host gate. Task 5.2 still requires the exact-revision installed proof,
 authenticated SSH reader transport, actual global Docker ownership census,
 compatible catalog rollout and full canonical host gate. No live product pins,
 registry storage, cleanup service or protection enrollment changed in this slice.
@@ -459,8 +476,8 @@ extraction-created anonymous Docker volume was attributed to the exact stopped
 fixture container, checked unused/empty and normally removed. No shared prune or
 production storage operation occurred. Task 4.2 still owns fenced execution,
 verified backup, partial-deletion recovery and runtime identity adapters. The
-full host gate and installed/live proofs remain pending. Task 3.2 remains open for
-its parent-owned corrected native smoke.
+full host gate and installed/live proofs remain pending. Task 3.2 has its corrected native
+smoke and Caddy receipts; final installed proofs remain pending.
 
 ## Checks and unverified work
 

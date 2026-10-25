@@ -63,7 +63,7 @@ failure retains candidate ownership`, `no release success before bundle receipt`
       `copy refuses admission before POST`, `single-tier publication is not a complete
 multi-tier release`; negatives: fail the third upload, exceed reservation and
       remove the admission call from the production publisher.
-- [ ] 3.2 Integrate image protection into `tools/tool-deploy/src/k8s/release.ts`,
+- [x] 3.2 Integrate image protection into `tools/tool-deploy/src/k8s/release.ts`,
       its journal and tests, and the Compose executor plus remote swap scripts found
       through `docs/runbook-prod-deploy.md`. Provide registered adapters for desired
       Flux revisions, scaled-to-zero workloads, active/idle colours, solver images,
