@@ -1,14 +1,14 @@
 ## Delivery boundary
 
-This is the implementation plan, not an implementation report. Every checkbox
-remains open. Read [the design](design.md) and [requirements](specs/registry-storage-lifecycle/spec.md)
+This is the implementation plan. Checkboxes record independently reviewed slices;
+live readiness still requires the final activation and verification receipts. Read [the design](design.md) and [requirements](specs/registry-storage-lifecycle/spec.md)
 before implementation. New filenames below are proposed ownership boundaries;
 read each existing caller and its tests before changing behavior. No live deletion
 is permitted merely because planning validation passes.
 
 ## 1. Policy and durable ownership
 
-- [ ] 1.1 Implement pure budget and retention planning in new
+- [x] 1.1 Implement pure budget and retention planning in new
       `tools/tool-fleet/src/registry-policy.ts` and `registry-policy.test.ts`.
       Inputs: validated capacity/inodes, publication envelopes, release bundles,
       protections and receipt times. Output: admission/refusal or an exact retirement
@@ -133,8 +133,8 @@ protected owners`; negatives: dead monitor, rejected notification, full alert
 
 This validates the design documents only. `verify.md` is intentionally deferred
 until implementation, as required by the schema's verify instructions. The change
-is not ready to archive; all eleven implementation slices remain open, and the
-new delta spec has not been synced into the implemented main specs.
+was not ready to archive at design handoff: all eleven implementation slices were
+open, and the delta spec had not been synced into the implemented main specs.
 
 - `openspec validate bound-registry-storage --strict --json`: one change valid,
   no issues. The first run rejected five oversized requirement paragraphs; they

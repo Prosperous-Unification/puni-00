@@ -16,12 +16,12 @@ Default policy: 50 GiB maximum registry storage; warning at 70%, cleanup at 80%,
 publication cutoff at 90%; newest ten successful release bundles per product and
 seven days for unpromoted artifacts. Image protections override age and count.
 
-This delivery is the design and implementation plan. Runtime activation remains
-unchecked until the implementation and failure proofs pass.
+Implementation and staged activation are authorized. Runtime readiness remains
+unverified until the implementation, failure proofs and activation checks pass.
 
 ## Non-Goals
 
-Migrating products now; deleting existing images now; changing the public platform
+Migrating products now; deleting protected or unowned images; changing the public platform
 source pin; introducing a new registry product; claiming host build caches are
 bounded by the registry limit; eliminating maintenance downtime.
 
