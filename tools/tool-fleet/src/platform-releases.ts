@@ -225,6 +225,12 @@ const ElasticsearchValues = type({
         containers: ElasticContainer.array().exactlyLength(1),
         initContainers: type({
           name: "'prepare-s3-trust'",
+          // Proof: optional fields or widened quantities admitted absent/incomplete/zero/negative init bounds (platform.test.ts).
+          resources: {
+            requests: { cpu: "'100m'", memory: "'128Mi'", '+': 'reject' },
+            limits: { cpu: "'500m'", memory: "'256Mi'", '+': 'reject' },
+            '+': 'reject',
+          },
           image: 'string>0',
           command: type(["'bash'", "'-ec'", 'string>0']),
           env: type({ name: "'S3_TRUST_MODE'", value: "'system-roots'", '+': 'reject' })

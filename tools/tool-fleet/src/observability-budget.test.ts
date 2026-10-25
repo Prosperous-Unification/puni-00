@@ -211,3 +211,10 @@ it('overlap accounts every preserved Docker limit and reports the capacity block
   expect(budget.overlap.admitted).toBe(false);
   expect(budget.overlap.shortfallMiB).toBeGreaterThan(0);
 });
+
+it('conservatively budgets the Java trust init alongside the Elasticsearch process', async () => {
+  const budget = await assessObservabilityBudget(root);
+  expect(budget.platformRequestsMiB['observability/elastic/base/elasticsearch.yaml']).toBe(
+    4096 + 128,
+  );
+});

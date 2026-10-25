@@ -45,6 +45,10 @@ spec:
             initContainers:
               - name: prepare-s3-trust
                 image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+                # Pinned init peak observed 87.4 MiB; both trust modes completed at 500m/256Mi as UID 1000.
+                resources:
+                  requests: { cpu: 100m, memory: 128Mi }
+                  limits: { cpu: 500m, memory: 256Mi }
                 command:
                   - bash
                   - -ec

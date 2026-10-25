@@ -29,7 +29,7 @@ const ObjectStoreWorkload = type({
  */
 export function assertBackupTransport(manifests: readonly PlatformManifest[]): void {
   const fingerprints = {
-    Deployment: '5ccf0633be09a661e830da29d5f901720d67ed213159d1e7ba5b33093ceae714',
+    Deployment: 'f5c20225a7058b48791d76a939d757b047a1bbab0567b99883522af826069b77',
     Job: '6136853647dcbf02d197b82ffc28e7ac2bf30b29c2b505a1919edac801e2680b',
   };
   const seen = new Set<string>();

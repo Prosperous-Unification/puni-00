@@ -5,6 +5,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 import { parse, stringify } from 'yaml';
 
+import { assessObservabilityBudget } from './observability-budget';
 import { validatePlatform } from './platform';
 
 const repositoryRoot = join(import.meta.dir, '../../..');
@@ -1163,4 +1164,64 @@ describe('backup TLS platform boundary', () => {
     await removeExternalSecret(root, 'platform-local', 'object-store-ca');
     expect(validatePlatform(root)).rejects.toThrow(/consumes Secret puni-backup\/object-store-ca/);
   });
+});
+
+describe('bounded Elasticsearch trust init', () => {
+  for (const fault of [
+    'absent',
+    'missing-cpu-request',
+    'missing-memory-limit',
+    'zero-cpu-request',
+    'zero-memory-request',
+    'invalid-cpu-limit',
+    'invalid-memory-limit',
+  ]) {
+    it(`refuses ${fault} Java init bounds`, async () => {
+      const root = await mutablePlatform();
+      const path = join(root, 'infra/platform/observability/elastic/base/elasticsearch.yaml');
+      const release = parse(await readFile(path, 'utf8')) as {
+        spec: {
+          values: {
+            nodeSets: [
+              {
+                podTemplate: {
+                  spec: {
+                    initContainers: [
+                      {
+                        resources?: {
+                          requests: { cpu?: string; memory: string };
+                          limits: { cpu: string; memory?: string };
+                        };
+                      },
+                    ];
+                  };
+                };
+              },
+            ];
+          };
+        };
+      };
+      const init = release.spec.values.nodeSets[0].podTemplate.spec.initContainers[0];
+      if (fault === 'absent') delete init.resources;
+      else {
+        init.resources = {
+          requests: { cpu: '100m', memory: '128Mi' },
+          limits: { cpu: '500m', memory: '256Mi' },
+        };
+        if (fault === 'missing-cpu-request') delete init.resources.requests.cpu;
+        if (fault === 'missing-memory-limit') delete init.resources.limits.memory;
+        if (fault === 'zero-cpu-request') init.resources.requests.cpu = '0';
+        if (fault === 'zero-memory-request') init.resources.requests.memory = '0Mi';
+        if (fault === 'invalid-cpu-limit') init.resources.limits.cpu = '-1';
+        if (fault === 'invalid-memory-limit') init.resources.limits.memory = '-1Mi';
+      }
+      await writeFile(path, stringify(release));
+      // Keep derived bytes current so this negative reaches the actual resource schema.
+      await writeFile(
+        join(root, 'infra/platform/observability/base/coexistence.json'),
+        JSON.stringify(await assessObservabilityBudget(root)),
+      );
+      expect(validatePlatform(root)).rejects.toThrow(/elasticsearch values are invalid/);
+    });
+  }
 });

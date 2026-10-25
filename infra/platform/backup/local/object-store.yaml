@@ -59,11 +59,12 @@ spec:
             - secretRef: { name: object-store-root }
           ports: [{ name: s3, containerPort: 9000 }]
           readinessProbe:
+            # Proof: restoring Service DNS fails with no Ready route; the pinned loopback probe succeeds (backup-tls.test.ts).
             exec:
               command:
                 - sh
                 - -ec
-                - timeout 4 sh -ec 'mc alias set store https://object-store.puni-backup.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; mc ready store'
+                - timeout 4 sh -ec 'mc alias set store https://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; mc ready store'
             timeoutSeconds: 5
           resources:
             requests: { cpu: 50m, memory: 256Mi }

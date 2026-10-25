@@ -6,7 +6,12 @@ import { parseAllDocuments } from 'yaml';
 /** Guaranteed memory requests/limits shared with the application workload generator. */
 export const applicationMiB = { collector: 512, gateway: 1024, metricsProxy: 128 } as const;
 
-/** Measured 2026-10-25: MemTotal15977380KiB; Docker limits, never RSS, from the same host receipt. This is planning evidence, not live admission. */
+/**
+ * Measured 2026-10-25: MemTotal15977380KiB; preserved Docker limits, never RSS.
+ * Conservatively sums every authored application and init memory request, including serial
+ * init containers that Kubernetes can schedule using a maximum instead of this sum.
+ * This source planning allowance is not live scheduler admission or observed concurrent usage.
+ */
 export async function assessObservabilityBudget(root: string) {
   const preservedDockerMiB = {
     mlflow: 512,
@@ -77,7 +82,10 @@ function sumMemoryRequests(value: unknown): number {
       // Proof: removing this branch changes the malformed-memory production negative into an unrelated null access.
       if (match === null) throw new Error('observability memory request must be explicit Mi or Gi');
       total += Number(match[1]) * (match[2] === 'Gi' ? 1024 : 1);
-    } else total += sumMemoryRequests(child);
+    } else {
+      // Proof: excluding initContainers lost 128 MiB in the production budget (observability-budget.test.ts).
+      total += sumMemoryRequests(child);
+    }
   }
   return total;
 }

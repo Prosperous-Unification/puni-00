@@ -114,6 +114,36 @@ describe('backup transport contract', () => {
       expect((await runTrustBoundary(kind, 'none')).exitCode).toBe(91);
     });
   }
+  it('executes readiness without a Ready Service route', async () => {
+    const directory = await scratchAsync('backup-readiness-route-');
+    await writeFile(
+      join(directory, 'mc'),
+      `#!/bin/sh
+set -eu
+if [ "$1 $2" = 'alias set' ]; then
+  [ "$4" = 'https://127.0.0.1:9000' ] || { echo 'Service has no Ready endpoints' >&2; exit 42; }
+  [ "$5" = 'fixture-user' ] && [ "$6" = 'fixture-password' ] || exit 43
+elif [ "$1 $2" != 'ready store' ]; then
+  exit 44
+fi
+`,
+      { mode: 0o755 },
+    );
+    const command = (await objectContainer('Deployment')).readinessProbe?.exec.command;
+    if (command === undefined) throw new Error('Shipped readiness command absent');
+    const searchPath = process.env['PATH'];
+    if (searchPath === undefined) throw new Error('Test PATH absent');
+    const execution = Bun.spawnSync(command, {
+      env: {
+        ...process.env,
+        PATH: `${directory}:${searchPath}`,
+        MINIO_ROOT_USER: 'fixture-user',
+        MINIO_ROOT_PASSWORD: 'fixture-password',
+      },
+    });
+    expect(execution.stderr.toString()).toBe('');
+    expect(execution.exitCode).toBe(0);
+  });
   it('readiness verifies the configured CA with a bounded client', async () => {
     const probe = (await objectContainer('Deployment')).readinessProbe;
     expect(probe?.exec.command.join(' ')).toContain('timeout');
