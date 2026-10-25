@@ -35,7 +35,7 @@ function fixture(
     clientLimit?: number;
     clientSourceLimit?: number;
     clientTtlMs?: number;
-    activeClientTtlMs?: number;
+    provenClientTtlMs?: number;
     grantLimit?: number;
     provenClientSourceLimit?: number;
     sessionLimit?: number;
@@ -459,7 +459,7 @@ describe('McpOAuthServer', () => {
   });
 
   // Proof: counting promoted clients in the source bucket makes shared
-  // connector egress hit the anonymous cap for up to 24 hours.
+  // connector egress hit the anonymous cap for as long as each proven client lives (30 days).
   it('removes a proven client from its anonymous source partition', async () => {
     const { oauth } = fixture({ clientLimit: 2, clientSourceLimit: 1 });
     const verifier = 'v'.repeat(43);
@@ -502,7 +502,7 @@ describe('McpOAuthServer', () => {
   // anonymous clients, then lets both promote and exceed the authenticated cap.
   it('reserves proven-source capacity before consuming a token grant', async () => {
     const { advance, oauth } = fixture({
-      activeClientTtlMs: 1_000,
+      provenClientTtlMs: 1_000,
       clientLimit: 3,
       clientSourceLimit: 2,
       provenClientSourceLimit: 1,
@@ -3090,6 +3090,10 @@ describe('registered clients across a restart', () => {
       get oauth() {
         return current.oauth;
       },
+      get store() {
+        return store;
+      },
+      path,
       restart: () => {
         store.close();
         store = new McpSessionStore(path, [key]);
@@ -3233,6 +3237,224 @@ describe('registered clients across a restart', () => {
     server.advance(600_001);
     const expired = await server.oauth.response(new Request(authorizeUrl(clientId)));
     expect(await expired?.json()).toEqual(INVALID_CLIENT);
+    server.close();
+  });
+
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  /** An upstream that issues a refresh token, so the family outlives the 5-minute access token. */
+  const refreshable = {
+    exchange: () =>
+      Promise.resolve({
+        accessToken: 'upstream-okta-token',
+        expiresIn: 300,
+        refreshToken: 'upstream-refresh-token',
+      }),
+    refresh: () =>
+      Promise.resolve({
+        accessToken: 'upstream-okta-token',
+        expiresIn: 300,
+        refreshToken: 'upstream-refresh-token',
+      }),
+  };
+
+  async function signIn(oauth: McpOAuthServer, clientId: string): Promise<string> {
+    const verifier = 'v'.repeat(43);
+    const { response } = await completedAuthorization(oauth, verifier, clientId);
+    const code = new URL(response.headers.get('location') ?? '').searchParams.get('code');
+    const issued = await tokenResponse(oauth, clientId, code ?? '', verifier);
+    expect(issued.status).toBe(200);
+    return ((await issued.json()) as { refresh_token: string }).refresh_token;
+  }
+
+  async function refreshed(
+    oauth: McpOAuthServer,
+    clientId: string,
+    refreshToken: string,
+  ): Promise<string> {
+    const response = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: clientId,
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(response?.status).toBe(200);
+    return ((await response?.json()) as { refresh_token: string }).refresh_token;
+  }
+
+  // The combined regression test for the failure seen on dev.
+  // Proof: 2026-10-25, the pre-fix oauth.ts (24 h promotion, refresh not renewing the client)
+  // made this authorization answer 400 invalid_client instead of 302.
+  it('authorizes a client 25 h after its code exchange when it refreshed since, across a restart', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const refreshToken = await signIn(server.oauth, clientId);
+    server.advance(13 * HOUR);
+    await refreshed(server.oauth, clientId, refreshToken);
+    server.restart();
+    server.advance(12 * HOUR);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, restoring the 24 h promotion lifetime (PROVEN_CLIENT_TTL_MS = 86_400_000)
+  // made this authorization answer 400 invalid_client instead of 302.
+  it('authorizes a client 25 h after its code exchange without a refresh, across a restart', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    await signIn(server.oauth, clientId);
+    server.restart();
+    server.advance(25 * HOUR);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, passing `now` as the client expiry to consumeRefresh left the stored expiry
+  // at the exchange's 30 days; a 24 h or a 2 * REFRESH_ABSOLUTE_MS lifetime failed it as well.
+  it('renews the client at each refresh, so it outlives a lapsed family for re-authorization', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const exchangedAt = 1_700_000_000_000;
+    const first = await signIn(server.oauth, clientId);
+    expect(server.store.client(clientId, exchangedAt)?.expiresAt).toBe(exchangedAt + 30 * DAY);
+    server.advance(13 * DAY);
+    const second = await refreshed(server.oauth, clientId, first);
+    expect(server.store.client(clientId, exchangedAt)?.expiresAt).toBe(exchangedAt + 43 * DAY);
+    server.restart();
+    server.advance(13 * DAY);
+    await refreshed(server.oauth, clientId, second);
+    // The family's absolute 30 days end at day 30; the client, last used at day 26, lives to day 56.
+    server.advance(24 * DAY);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, a proven lifetime of 2 * REFRESH_ABSOLUTE_MS made this authorization
+  // answer 302 instead of invalid_client; dropping the cleanup sweep kept the expired row.
+  it('deletes an expired proven client with no live family and answers invalid_client', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    await signIn(server.oauth, clientId);
+    server.restart();
+    server.advance(30 * DAY + 1);
+
+    const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+    expect(server.store.clientsFromSource('unknown', 0)).toEqual([]);
+    server.close();
+  });
+
+  function refreshRequest(clientId: string, refreshToken: string): Request {
+    return new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+      body: new URLSearchParams({
+        client_id: clientId,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      method: 'POST',
+    });
+  }
+
+  function storedExpiry(path: string, clientId: string): unknown {
+    const db = new Database(path, { strict: true });
+    try {
+      return db
+        .query<{ expires_at: unknown }, [string]>(
+          'SELECT expires_at FROM mcp_client WHERE client_id = ?',
+        )
+        .get(clientId)?.expires_at;
+    } finally {
+      db.close();
+    }
+  }
+
+  // Proof: 2026-10-25, renewing the client after consumeRefresh committed (the first version of
+  // this fix) made the retry answer 400 invalid_grant: the consumed token read as a replay.
+  it('rolls back the whole refresh when the client renewal fails, so the retry still refreshes', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const refreshToken = await signIn(server.oauth, clientId);
+    server.advance(60_000);
+    const planted = new Database(server.path, { strict: true });
+    planted.run('CREATE TABLE renewal_fault (armed INTEGER)');
+    planted.run('INSERT INTO renewal_fault VALUES (1)');
+    planted.run(`CREATE TRIGGER renewal_fails BEFORE UPDATE OF expires_at ON mcp_client
+      WHEN EXISTS (SELECT 1 FROM renewal_fault) BEGIN SELECT RAISE(ABORT, 'disk full'); END`);
+
+    expect(server.oauth.response(refreshRequest(clientId, refreshToken))).rejects.toThrow(
+      /disk full/,
+    );
+    planted.run('DELETE FROM renewal_fault');
+    planted.close();
+
+    const retried = await server.oauth.response(refreshRequest(clientId, refreshToken));
+    expect(retried?.status).toBe(200);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, dropping `expires_at > ?` from the store's client renewal moved the planted
+  // expired row 30 d forward (stored 1702592060000, not 1700000030000).
+  it('does not revive an expired, unswept client through a refresh', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const refreshToken = await signIn(server.oauth, clientId);
+    server.advance(60_000);
+    const expiredAt = 1_700_000_000_000 + 30_000;
+    const planted = new Database(server.path, { strict: true });
+    planted
+      .query('UPDATE mcp_client SET expires_at = ? WHERE client_id = ?')
+      .run(expiredAt, clientId);
+    planted.close();
+
+    // A family from before the 30 d lifetime can outlive its client; it still refreshes.
+    expect((await server.oauth.response(refreshRequest(clientId, refreshToken)))?.status).toBe(200);
+    expect(storedExpiry(server.path, clientId)).toBe(expiredAt);
+    const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, renewing the client at the top of refreshGrant (before any token check)
+  // changed the stored expiry on each of these refused refreshes.
+  it('renews a client only on a successful refresh', async () => {
+    const server = restartable(refreshable);
+    const exchangedAt = 1_700_000_000_000;
+    const first = await register(server.oauth);
+    const firstToken = await signIn(server.oauth, first);
+    const second = await register(server.oauth);
+    const secondToken = await signIn(server.oauth, second);
+    const unchanged = () => {
+      expect(server.store.client(first, exchangedAt)?.expiresAt).toBe(exchangedAt + 30 * DAY);
+      expect(server.store.client(second, exchangedAt)?.expiresAt).toBe(exchangedAt + 30 * DAY);
+    };
+    server.advance(60_000);
+
+    const refused = async (clientId: string, refreshToken: string) => {
+      const response = await server.oauth.response(refreshRequest(clientId, refreshToken));
+      expect(response?.status).toBe(400);
+      unchanged();
+    };
+    await refused(first, 'not-a-refresh-token');
+    await refused(second, firstToken);
+    const family = server.store.familyForRefreshToken(secondToken);
+    if (family === null) throw new Error('the second sign-in stored no family');
+    server.store.revokeFamily(family.familyId, exchangedAt + 60_000);
+    await refused(second, secondToken);
+    server.advance(15 * DAY);
+    await refused(first, firstToken);
     server.close();
   });
 });
