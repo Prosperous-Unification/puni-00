@@ -666,4 +666,44 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     expect(runtime.list()[0].state).toBe('released');
     runtime.close();
   }, 60000);
+  test('worktree-only reflog and private-ref commits remain recoverable after source pruning', () => {
+    const { config, base } = fixture(2);
+    const source = repository(base);
+    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    for (const preservation of ['reflog', 'private-ref']) {
+      const use = runtime.create({ ...request, kind: 'git_worktree', source });
+      writeFileSync(join(use.locator, 'detached-source'), `unique committed ${preservation} work`);
+      expect(Bun.spawnSync(['git', '-C', use.locator, 'add', '.']).exitCode).toBe(0);
+      expect(
+        Bun.spawnSync(['git', '-C', use.locator, 'commit', '-m', 'detached work']).exitCode,
+      ).toBe(0);
+      const commit = Bun.spawnSync(['git', '-C', use.locator, 'rev-parse', 'HEAD'])
+        .stdout.toString()
+        .trim();
+      expect(Bun.spawnSync(['git', '-C', use.locator, 'reset', '--hard', 'HEAD^']).exitCode).toBe(
+        0,
+      );
+      if (preservation === 'private-ref') {
+        expect(
+          Bun.spawnSync(['git', '-C', use.locator, 'update-ref', 'refs/worktree/keep', commit])
+            .exitCode,
+        ).toBe(0);
+        expect(
+          Bun.spawnSync(['git', '-C', use.locator, 'reflog', 'expire', '--expire=now', '--all'])
+            .exitCode,
+        ).toBe(0);
+      }
+      runtime.requestCleanup(use.id, use.revision, use.incarnation, 'done');
+      runtime.sweep();
+      expect(runtime.inspect(use.id).state).toBe('released');
+      expect(
+        Bun.spawnSync(['git', '-C', source, 'reflog', 'expire', '--expire=now', '--all']).exitCode,
+      ).toBe(0);
+      expect(Bun.spawnSync(['git', '-C', source, 'gc', '--prune=now']).exitCode).toBe(0);
+      const recovery = Bun.spawnSync(['git', '-C', source, 'show', `${commit}:detached-source`]);
+      expect(recovery.exitCode).toBe(0);
+      expect(recovery.stdout.toString()).toBe(`unique committed ${preservation} work`);
+    }
+    runtime.close();
+  });
 }

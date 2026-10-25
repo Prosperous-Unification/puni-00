@@ -133,7 +133,11 @@ independently by the watcher; only identity-proven orphan groups are terminated.
 ## Generated files, preserved source, and shared blocks
 
 A clean worktree's HEAD is pinned and verified in the stable repository at
-`refs/dash-recovery/<use-id>` before `git worktree remove`. Required source is not archived by
+`refs/dash-recovery/<use-id>` before `git worktree remove`. Worktree-only reflog commits and
+private worktree/bisect/rewritten refs are additionally pinned at
+`refs/dash-recovery/<use-id>-<object-id>` in one atomic Git ref transaction. More than 1024
+orphan reflog commits or 1024 private refs blocks cleanup for owner review, without truncating
+required preservation. Required source is not archived by
 this initial provider: staged, unstaged, untracked or unknown ignored files cause retention
 with responsible owner, reason and a review date. Recovery refs remain in the stable source;
 Dash does not prune them or claim their objects were reclaimed.

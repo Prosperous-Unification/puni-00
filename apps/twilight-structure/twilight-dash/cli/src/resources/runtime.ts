@@ -255,8 +255,9 @@ function signalOwnedGroup(identity: ProcessIdentity, signal: NodeJS.Signals): vo
 function samePath(path: string, parent: string): boolean {
   return path === parent || path.startsWith(`${parent}/`);
 }
-function git(arguments_: string[]): string {
+function git(arguments_: string[], input?: string): string {
   const execution = Bun.spawnSync(['git', ...arguments_], {
+    stdin: input === undefined ? 'ignore' : Buffer.from(input),
     env: {
       ...process.env,
       GIT_CONFIG_NOSYSTEM: '1',
@@ -840,8 +841,60 @@ export class ResourceRuntime {
       return false;
     }
     const commit = git(['-C', use.locator, 'rev-parse', 'HEAD']);
-    git(['-C', use.request.source, 'update-ref', `refs/dash-recovery/${use.id}`, commit]);
-    if (git(['-C', use.request.source, 'rev-parse', `refs/dash-recovery/${use.id}`]) !== commit)
+    // Per-worktree refs and logs disappear during worktree removal. Preserve their reachable
+    // objects too; common repository refs/logs alone cannot recover detached reset commits.
+    // Proof: without these refs, `worktree-only reflog and private-ref commits remain
+    // recoverable after source pruning` failed git show with exit 128 after real gc --prune=now.
+    const orphaned = git([
+      '-C',
+      use.locator,
+      'rev-list',
+      '--max-count=1025',
+      '--reflog',
+      '--single-worktree',
+      '--not',
+      '--all',
+    ])
+      .split('\n')
+      .filter(Boolean);
+    const privateRefs = git([
+      '-C',
+      use.locator,
+      'for-each-ref',
+      '--count=1025',
+      '--format=%(objectname)',
+      'refs/worktree/',
+      'refs/bisect/',
+      'refs/rewritten/',
+    ])
+      .split('\n')
+      .filter(Boolean);
+    if (orphaned.length >= 1025 || privateRefs.length >= 1025)
+      throw new Error(
+        'worktree preservation exceeds bounded history budget; owner review required',
+      );
+    const objects = [...new Set([commit, ...orphaned, ...privateRefs])];
+    if (objects.some((object) => !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(object)))
+      throw new Error('Git preservation object identity malformed');
+    const refs = objects.map((object) => ({
+      name: `refs/dash-recovery/${use.id}-${object}`,
+      object,
+    }));
+    refs.push({ name: `refs/dash-recovery/${use.id}`, object: commit });
+    git(
+      ['-C', use.request.source, '-c', 'core.hooksPath=/dev/null', 'update-ref', '--stdin'],
+      `start\n${refs.map((ref) => `update ${ref.name} ${ref.object}`).join('\n')}\nprepare\ncommit\n`,
+    );
+    const verified = git([
+      '-C',
+      use.request.source,
+      'rev-parse',
+      ...refs.map((ref) => ref.name),
+    ]).split('\n');
+    if (
+      verified.length !== refs.length ||
+      refs.some((ref, index) => verified[index] !== ref.object)
+    )
       throw new Error('Git preservation verification failed');
     return true;
   }
