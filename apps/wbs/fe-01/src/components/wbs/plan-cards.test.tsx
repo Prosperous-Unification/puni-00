@@ -2281,10 +2281,11 @@ describe('claims on a card (wbs-claim-display 7.1)', () => {
     expect(chips(cardOf('010'))).toEqual(['CL14m']);
   });
 
-  itDom('keeps the card’s total on one line beside a subtree chip', async () => {
-    // At 375 px `CL 14m` pushed `16 d` onto two lines (swarm rehearsal,
-    // 2026-10-25). jsdom lays nothing out: this pins the total as the part
-    // that neither wraps nor shrinks; the 375 px screenshot shows it holds.
+  itDom('keeps the card’s total on one line, the subtree chip on its own', async () => {
+    // At 375 px `CL 14m` pushed `16 d` onto two lines, and kept beside it the
+    // chip clipped itself (swarm rehearsal, 2026-10-25). jsdom lays nothing
+    // out: this pins the total as the part that neither wraps nor shrinks and
+    // the chip on a line of its own; the 375 px screenshots show it holds.
     const { api } = await claimedPlan();
     widthIs(PHONE, PHONE_TALL);
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
@@ -2297,6 +2298,11 @@ describe('claims on a card (wbs-claim-display 7.1)', () => {
     expect(header?.querySelector('[data-final-total]')).toHaveClass(
       'shrink-0',
       'whitespace-nowrap',
+    );
+    expect(header).toHaveClass('flex-wrap');
+    expect(header?.querySelector('[data-card-subtree-claim]')).toHaveClass(
+      'order-last',
+      'basis-full',
     );
   });
 });

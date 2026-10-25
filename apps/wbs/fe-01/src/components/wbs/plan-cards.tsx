@@ -2850,7 +2850,7 @@ export function PlanCards({
             }}
             className="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
           >
-            <header className="flex items-center gap-2">
+            <header className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {expandable && (
                 <button
                   type="button"
@@ -2879,15 +2879,22 @@ export function PlanCards({
                 separate attributes.
               */}
               <CardPriorityField row={row} bands={priorityBands} setPriority={setPriority} />
+              {/*
+                A subtree claim's chip takes its own line under the number: on a
+                375px phone the toggle, number, priority, chip, total and menu
+                do not fit one, and the chip squeezed in either clipped itself
+                or broke the total over two lines (swarm rehearsal, 2026-10-25).
+              */}
               {subtreeClaim !== null && (
-                <span data-card-subtree-claim={row.id} className="min-w-0 shrink overflow-hidden">
+                <span data-card-subtree-claim={row.id} className="order-last basis-full">
                   <ClaimChip drawn={subtreeClaim} form="full" tap />
                 </span>
               )}
               {/*
-                Never wraps: a lease chip beside it once broke `16 d` over two
-                lines. Proof: 2026-10-25, without `shrink-0 whitespace-nowrap`
-                `keeps the card’s total on one line beside a subtree chip` failed.
+                Never wraps or shrinks. Proof: 2026-10-25, without `shrink-0
+                whitespace-nowrap` or with the chip back on the number's line,
+                `keeps the card’s total on one line, the subtree chip on its own`
+                failed.
               */}
               <span
                 data-final-total
