@@ -9,7 +9,9 @@
     "source-participant-profile.ts",
     "source-participant-profile.test.ts",
     "source-stageb-channel.ts",
-    "source-stageb-channel.test.ts"
+    "source-stageb-channel.test.ts",
+    "source-stageb-journal.ts",
+    "source-stageb-journal.test.ts"
   ],
   "references": []
 }
