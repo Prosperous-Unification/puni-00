@@ -133,3 +133,63 @@ operation identity, product, owner, exact root references and the authority's
 completion time. The journal is the durable authority; these local files are
 caller outputs. Managed upload continuations stay on the enrolled origin and
 HTTP redirects are refused.
+
+## Verified inventory and retirement plans — staged integration
+
+`tools/tool-fleet/src/registry-inventory.ts` supplies read-only census and planning
+contracts. `collectRegistryInventory` consumes the canonical journal, verified
+runtime/storage identity, managed HTTP endpoint and the existing installed consumer
+reader ports. The caller must hold the operation authority and provide independently
+verified registry/storage IDs, node, PVC UID, mount identity, exact Distribution image
+digest and executable SHA256. Supplying strings is not proof of the installed runtime.
+Task8 owns fencing, backup, execution and revalidation; these functions perform no
+production deletion or garbage collection.
+
+The census hashes physical global content and validates every revision link and
+every extant manifest's complete dependency closure, including untagged index
+children. API catalog/tag pages must agree with physical metadata; digest reads
+must agree with storage bytes. Repository revision identity remains distinct from
+shared blob identity. Unknown revisions, unsupported artifacts/referrers, unreadable
+or malformed links, missing required dependencies, changed storage and incomplete
+consumer/history evidence refuse planning. Unresolved upload files refuse; this
+census does not reconcile abandoned publication or staging ownership.
+
+Pinned Distribution2.8.3 returns unordered full tag lists even with `n=100`; page
+size and ordering therefore cannot prove completeness. Link pagination is bounded,
+restricted to the same origin/collection and independently checked against storage.
+Native manifest deletion leaves empty revision-digest directories; offline GC leaves
+empty global hash-shard directories. Valid historical tag-index and obsolete
+repository layer links may outlive their content. They are metadata, not runtime
+roots. Every current tag and every dependency of an extant revision still requires
+valid content. Present orphan global content is hashed and listed separately; that
+list grants no deletion authority.
+
+Every validated consumer report's `references` remains a protection, including
+history-role recovery references and global Docker-host references. Active history
+`historySha256`, ordered releases and `currentReferences` must agree with authority
+history, but those evidence fields create no extra permanent roots.
+
+`planRegistryRetirement` returns exact `retireRevisions` pairs and shared
+`retireBlobs` accounting. It binds the journal revision, ownership/source evidence,
+physical census, filesystem identity and runtime identities. Capacity heartbeats
+that leave obligations and revision unchanged do not invalidate a plan.
+`assertRegistryPlan` requires a fresh complete census and exact recomputation before
+Task8 can use the plan inside its exclusive fence. An inventory altered or reconstructed
+by a caller loses its verification capability. Plans remain JSON serializable;
+verification capabilities do not.
+
+The disposable native proof runs with the amd64 binary extracted from
+`registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278`
+(executable SHA256 `8be11cd37a7d43b87e2a2ad11eb5d14dc64d15a040a37485e7e1cbb4c6c9dd37`):
+
+```sh
+bun tools/tool-fleet/src/registry-inventory.native.ts /absolute/owned/path/registry
+```
+
+It creates only owned loopback synthetic storage under `/tmp/task7-census-*`, checks
+root reserve and fixture allocation, exercises real catalog pagination and unordered
+tags, injects missing dependency/corruption/truncation faults, retags and deletes one
+owned revision, runs offline GC, then verifies remaining content and cleanup. Failed
+fixtures retain their evidence and print their exact path. Consumer sources and
+capacity inputs are synthetic; this proof does not certify installed readers,
+production storage, publication admission, backup or destructive maintenance.

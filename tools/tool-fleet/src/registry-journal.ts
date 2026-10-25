@@ -854,7 +854,10 @@ async function verifyImages(
 }
 
 /** Every registered source must report from its configured reader at this authority revision. */
-async function collectConsumers(journal: RegistryJournal, ports: RegistryJournalPorts) {
+async function collectConsumers(
+  journal: RegistryJournal,
+  ports: Pick<RegistryJournalPorts, 'verifyConsumers' | 'collectConsumers'>,
+) {
   if (ports.verifyConsumers === undefined)
     throw new Error('Installed consumer universe is unavailable');
   await ports.verifyConsumers(journal.consumers, journal.enrollment.registryId);
@@ -1724,4 +1727,35 @@ export function assertConsumerUniverse(
     )
       throw new Error('Installed environment omits actual consumer coverage');
   }
+}
+
+/** Reconcile every installed source and active environment before read-only retirement planning.
+ * History is agreement evidence; every report.references entry remains a consumer/recovery root.
+ * Callers must retain the common authority fence and revalidate before executing any plan. */
+export async function reconcileRegistryConsumers(
+  journal: RegistryJournal,
+  ports: Pick<RegistryJournalPorts, 'verifyConsumers' | 'collectConsumers'>,
+): Promise<RegistryConsumerReport[]> {
+  const reports = await collectConsumers(journal, ports);
+  for (const environment of journal.environments.filter(
+    (environment) => environment.retiredAt === null,
+  )) {
+    requireActualConsumers(journal, environment.environment, environment.owner);
+    requireCurrentHistory(journal, environment, reports);
+    const current = environment.releases.at(0);
+    const expected =
+      current === undefined ? [] : requireBundle(journal, current, environment.product).references;
+    for (const source of journal.consumers.filter(
+      (source) => source.environment === environment.environment && source.role === 'history',
+    )) {
+      const report = reports.find((report) => report.id === source.id);
+      // Proof: removing current-reference agreement admitted contradictory history provenance in registry-inventory.test.
+      if (
+        report?.currentReferences === undefined ||
+        !matchReferences(report.currentReferences, expected)
+      )
+        throw new Error('Environment current evidence differs from acknowledged authority history');
+    }
+  }
+  return reports;
 }

@@ -174,7 +174,7 @@ async function copyLegacyImage(
 }
 
 /** Managed HTTP rejects redirects and limits received error diagnostics to 64 KiB. */
-async function requestManaged(
+export async function requestRegistry(
   endpoint: RegistryEndpoint,
   path: string,
   init: Omit<RequestInit, 'headers'> & { readonly headers?: Record<string, string> } = {},
@@ -206,7 +206,7 @@ export async function snapshotImage(
     reference: string,
   ): Promise<{ digest: string; mediaType: string; size: number }> => {
     const response = await requireOk(
-      await requestManaged(source, `/v2/${repository}/manifests/${reference}`, {
+      await requestRegistry(source, `/v2/${repository}/manifests/${reference}`, {
         headers: { accept: manifestTypes.join(', ') },
       }),
       'Reading source image manifest',
@@ -236,7 +236,7 @@ export async function snapshotImage(
         if (!/^sha256:[0-9a-f]{64}$/.test(blob.digest))
           throw new Error('Invalid source blob digest');
         const response = await requireOk(
-          await requestManaged(source, `/v2/${repository}/blobs/${blob.digest}`),
+          await requestRegistry(source, `/v2/${repository}/blobs/${blob.digest}`),
           'Reading source blob',
         );
         await Bun.write(join(directory, 'blobs/sha256', blob.digest.slice(7)), response);
@@ -351,7 +351,7 @@ export async function uploadArtifact(
     if (content.isManifest) {
       const reference = content.digest === artifact.digest ? artifact.reference : content.digest;
       const stored = await requireOk(
-        await requestManaged(target, `/v2/${artifact.repository}/manifests/${reference}`, {
+        await requestRegistry(target, `/v2/${artifact.repository}/manifests/${reference}`, {
           method: 'PUT',
           body: bytes,
           headers: { 'content-type': content.mediaType },
@@ -363,7 +363,7 @@ export async function uploadArtifact(
         throw new Error('Target manifest differs from admitted digest');
     } else {
       const upload = await requireOk(
-        await requestManaged(target, `/v2/${artifact.repository}/blobs/uploads/`, {
+        await requestRegistry(target, `/v2/${artifact.repository}/blobs/uploads/`, {
           method: 'POST',
         }),
         'Starting admitted blob upload',
@@ -376,7 +376,7 @@ export async function uploadArtifact(
         throw new Error('Registry upload redirected outside enrolled authority');
       url.searchParams.set('digest', content.digest);
       await requireOk(
-        await requestManaged(target, url.toString(), {
+        await requestRegistry(target, url.toString(), {
           method: 'PUT',
           body: bytes,
           headers: { 'content-type': 'application/octet-stream' },
@@ -388,7 +388,7 @@ export async function uploadArtifact(
   }
   for (const content of artifact.contents) {
     const response = await requireOk(
-      await requestManaged(
+      await requestRegistry(
         target,
         `/v2/${artifact.repository}/${content.isManifest ? 'manifests' : 'blobs'}/${content.digest}`,
         { headers: { accept: manifestTypes.join(', ') } },
