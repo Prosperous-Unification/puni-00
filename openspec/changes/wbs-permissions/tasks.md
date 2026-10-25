@@ -83,8 +83,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 - [ ] 2.1 `authorize(decisions, principal, scope, permission)` in `@wbs/core` with the
       P10 answers; `resolve` answers membership, `delegated` and the cap
-      (`OrganizationScope.role` stays for the old helpers until 2.4); `scopesOfRoles`
-      reads the organization-kind level — test: `authorize.test.ts` (not_found, forbidden-with-permission, ok) and the
+      (`OrganizationScope.role` stays for the old helpers until 2.4); `scopesOfRoles` is left to `wbs-machine-credentials` slice 4 (#731), which deletes it, so no rewiring here whichever lands first — test: `authorize.test.ts` (not_found, forbidden-with-permission, ok) and the
       existing `authentication.feature` tests with grants; negative: answer `forbidden`
       where the level is null and the "invisible is 404" controller case leaks; watched.
 - [ ] 2.2 Rewire the work-package sites, old helpers kept: batches
