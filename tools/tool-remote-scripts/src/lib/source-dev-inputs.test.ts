@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
+import { controlDeadlineClock } from '../fixtures/controlled-deadline-clock';
 import { sourceFixture } from '../fixtures/source-dev';
 import { prepareImageProbe, runImageIdentity, runImageProbe } from '../fixtures/source-image-probe';
 import { artifact, roots } from '../fixtures/source-startup';
@@ -861,90 +862,127 @@ test('shorter observation deadline aborts the source token read and returns no e
   });
 });
 
+// Proof: an expired pre-target observation now reports its actual early outcome
+// instead of awaiting an unreachable target. An abort-race substitution made all
+// four held-runner at-return assertions fail; restoring joined reads passed.
 for (const [operation, completion] of [
   ['image', 'complete'],
   ['role', 'complete'],
   ['image', 'failed'],
   ['role', 'failed'],
 ] as const) {
-  test(`aborted ${operation} read joins ${completion} runner and owner boundary before refusing evidence`, async () => {
-    const f = await fixture();
-    await f.scoped(async (owner, token) => {
-      let release: (() => void) | undefined;
-      let aborted: (() => void) | undefined;
-      const reachedAbort = new Promise<void>((resolve) => {
-        aborted = resolve;
-      });
-      let settled = false;
-      let runnerSettled = false;
-      let targetedArgs: string[] = [];
-      const docker = async (args: string[], signal?: AbortSignal) => {
-        const target =
-          operation === 'image'
-            ? args[0] === 'image'
-            : args[0] === 'run' && args.includes('--workdir');
-        if (!target) return f.docker(args, signal);
-        targetedArgs = args;
-        return new Promise<string>((resolve, reject) => {
-          release = () => {
-            runnerSettled = true;
-            if (completion === 'failed') reject(new Error('SECRET_SENTINEL'));
-            else resolve(operation === 'image' ? f.source.Image : '{}');
-          };
-          signal?.addEventListener(
-            'abort',
-            () => {
-              aborted?.();
-            },
-            { once: true },
-          );
-        });
-      };
-      const pending = observeSourceDevInputs(
-        owner,
-        f.layouts,
-        token,
-        f.pins,
-        f.prepared.contents,
-        docker,
-        performance.now() + 500,
-      ).finally(() => {
-        settled = true;
-      });
-      // Attach immediately so a broken early-return implementation cannot leak rejection.
-      const refused = rejects(pending);
+  test.serial(
+    `aborted ${operation} read joins ${completion} runner and owner boundary before refusing evidence`,
+    async () => {
+      const f = await fixture();
+      const clock = controlDeadlineClock();
       try {
-        await reachedAbort;
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        expect(settled).toBe(false);
-        expect(runnerSettled).toBe(false);
+        await f.scoped(async (owner, token) => {
+          let release: (() => void) | undefined;
+          let entered: (() => void) | undefined;
+          const reachedTarget = new Promise<void>((resolve) => {
+            entered = resolve;
+          });
+          let aborted = false;
+          let settled = false;
+          let runnerSettled = false;
+          let targetedArgs: string[] = [];
+          const docker = async (args: string[], signal?: AbortSignal) => {
+            const target =
+              operation === 'image'
+                ? args[0] === 'image'
+                : args[0] === 'run' && args.includes('--workdir');
+            if (!target) return f.docker(args, signal);
+            targetedArgs = args;
+            return new Promise<string>((resolve, reject) => {
+              release = () => {
+                runnerSettled = true;
+                if (completion === 'failed') reject(new Error('SECRET_SENTINEL'));
+                else resolve(operation === 'image' ? f.source.Image : '{}');
+              };
+              signal?.addEventListener(
+                'abort',
+                () => {
+                  aborted = true;
+                },
+                { once: true },
+              );
+              entered?.();
+            });
+          };
+          const deadline = performance.now() + 500;
+          const pending = observeSourceDevInputs(
+            owner,
+            f.layouts,
+            token,
+            f.pins,
+            f.prepared.contents,
+            docker,
+            deadline,
+          ).finally(() => {
+            settled = true;
+          });
+          // Attach immediately so a broken early-return implementation cannot leak rejection.
+          const refused = rejects(pending);
+          try {
+            const entry = await Promise.race([
+              reachedTarget.then(() => ({ kind: 'target' as const })),
+              pending.then(
+                () => ({ kind: 'early-success' as const }),
+                (cause: unknown) => ({ kind: 'early-refusal' as const, cause }),
+              ),
+            ]);
+            if (entry.kind !== 'target')
+              throw new Error(`observer settled before ${operation} target`, {
+                cause: entry.kind === 'early-refusal' ? entry.cause : undefined,
+              });
+            expect(
+              clock
+                .timers()
+                .some(
+                  (timer) => timer.at === deadline && timer.origin.includes('readSourceDocker'),
+                ),
+            ).toBe(true);
+            await clock.advance(deadline);
+            expect(aborted).toBe(true);
+            await clock.turn();
+            expect(settled).toBe(false);
+            expect(runnerSettled).toBe(false);
+          } finally {
+            release?.();
+            await refused;
+          }
+          expect(runnerSettled).toBe(true);
+          const { readdir, readFile } = await import('node:fs/promises');
+          const retained = await readdir(f.layouts.prod.stateDir);
+          const intents = await Promise.all(
+            retained
+              .filter((name) => name.endsWith('-intent.json'))
+              .map(async (name) => ({
+                name,
+                contents: JSON.parse(
+                  await readFile(join(f.layouts.prod.stateDir, name), 'utf8'),
+                ) as {
+                  args: unknown;
+                },
+              })),
+          );
+          const intent = intents
+            .filter(
+              ({ contents }) => JSON.stringify(contents.args) === JSON.stringify(targetedArgs),
+            )
+            .sort((left, right) => left.name.localeCompare(right.name))
+            .at(-1);
+          expect(intent).toBeDefined();
+          expect(
+            retained.includes(intent?.name.replace('-intent.json', '-readback.json') ?? ''),
+          ).toBe(completion === 'complete');
+        });
       } finally {
-        release?.();
-        await refused;
+        clock.restore();
       }
-      expect(runnerSettled).toBe(true);
-      const { readdir, readFile } = await import('node:fs/promises');
-      const retained = await readdir(f.layouts.prod.stateDir);
-      const intents = await Promise.all(
-        retained
-          .filter((name) => name.endsWith('-intent.json'))
-          .map(async (name) => ({
-            name,
-            contents: JSON.parse(await readFile(join(f.layouts.prod.stateDir, name), 'utf8')) as {
-              args: unknown;
-            },
-          })),
-      );
-      const intent = intents
-        .filter(({ contents }) => JSON.stringify(contents.args) === JSON.stringify(targetedArgs))
-        .sort((left, right) => left.name.localeCompare(right.name))
-        .at(-1);
-      expect(intent).toBeDefined();
-      expect(retained.includes(intent?.name.replace('-intent.json', '-readback.json') ?? '')).toBe(
-        completion === 'complete',
-      );
-    });
-  });
+    },
+  );
 }
 
 test('successive independently recognized source mount permutations preserve complete inventory identity', async () => {

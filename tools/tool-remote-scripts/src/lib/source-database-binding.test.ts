@@ -283,16 +283,50 @@ test('refuses actual fenced production database outside canonical production dat
   });
 });
 
-test('waits for real stalled native Docker CLI fixture abort and settlement at the shared deadline', async () => {
+async function deadlineChild(fault?: 'missing-timer' | 'missing-abort') {
   const f = await sourceDatabaseFixture();
   const cli = `${f.root}/cli`;
   await mkdir(cli);
-  await writeFile(`${cli}/docker`, '#!/bin/sh\nexec /bin/sleep 60\n', { mode: 0o755 });
+  await writeFile(
+    `${cli}/docker`,
+    '#!/bin/sh\nprintf launched > "$SOURCE_DEADLINE_LAUNCHED"\nexec /bin/sleep 60\n',
+    { mode: 0o755 },
+  );
+  const preload: string[] = [];
+  if (fault !== undefined) {
+    const path = `${cli}/deadline-fault.ts`;
+    const needle =
+      fault === 'missing-timer'
+        ? 'const timer = setTimeout(expire, remaining);'
+        : 'controller.abort();';
+    const replacement =
+      fault === 'missing-timer' ? 'const timer = undefined;' : '/* original abort omitted */';
+    await writeFile(
+      path,
+      `
+      import { plugin } from 'bun';
+      import { readFileSync } from 'node:fs';
+      plugin({ name: 'ordinary-deadline-control', setup(build) {
+        build.onLoad({ filter: /[/]source-dev-exclusion[.]ts$/ }, (args) => {
+          const source = readFileSync(args.path, 'utf8');
+          const needle = ${JSON.stringify(needle)};
+          if (source.split(needle).length !== 2) throw new Error('deadline fault target differs');
+          return { contents: source.replace(needle, ${JSON.stringify(replacement)}), loader: 'ts' };
+        });
+      } });
+    `,
+    );
+    preload.push('--preload', path);
+  }
   // Bun resolves executable search paths at process startup; only this child receives the fixture CLI.
   const child = Bun.spawn(
-    [process.execPath, `${import.meta.dir}/../fixtures/source-database-deadline.ts`],
+    [process.execPath, ...preload, `${import.meta.dir}/../fixtures/source-database-deadline.ts`],
     {
-      env: { ...process.env, PATH: `${cli}:${String(process.env['PATH'])}` },
+      env: {
+        ...process.env,
+        PATH: `${cli}:${String(process.env['PATH'])}`,
+        SOURCE_DEADLINE_LAUNCHED: `${cli}/started`,
+      },
       stdout: 'pipe',
       stderr: 'pipe',
     },
@@ -302,10 +336,43 @@ test('waits for real stalled native Docker CLI fixture abort and settlement at t
     new Response(child.stderr).text(),
     child.exited,
   ]);
-  expect(code).toBe(0);
-  expect(stderr).toBe('');
-  expect(JSON.parse(stdout)).toEqual({ started: true, settled: true, aborted: true });
+  return { stdout, stderr, code };
+}
+
+test('waits for real stalled Docker CLI fixture abort and settlement at the controlled shared logical deadline', async () => {
+  expect(await deadlineChild()).toEqual({
+    code: 0,
+    stderr: '',
+    stdout: JSON.stringify({ started: true, settled: true, aborted: true }) + '\n',
+  });
 });
+
+for (const fault of ['missing-timer', 'missing-abort'] as const) {
+  test(`failed logical deadline ${fault} joins the owned CLI without satisfying original abort proof`, async () => {
+    const child = await deadlineChild(fault);
+    expect(child.code).toBe(1);
+    expect(child.stderr).toContain(
+      fault === 'missing-timer'
+        ? 'original shared observation deadline timer absent'
+        : 'original shared observation deadline did not abort',
+    );
+    const observed: unknown = JSON.parse(child.stdout);
+    expect(observed).toMatchObject({
+      started: true,
+      settled: true,
+      aborted: false,
+    });
+    if (
+      typeof observed !== 'object' ||
+      observed === null ||
+      !('cleanupElapsedMs' in observed) ||
+      typeof observed.cleanupElapsedMs !== 'number'
+    )
+      throw new Error(`cleanup timing absent: ${child.stdout}`);
+    expect(observed.cleanupElapsedMs).toBeGreaterThanOrEqual(0);
+    expect(observed.cleanupElapsedMs).toBeLessThan(1000);
+  });
+}
 
 for (const fault of [
   'same-byte-dotenv-replacement',
