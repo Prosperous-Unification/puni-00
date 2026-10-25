@@ -314,14 +314,21 @@ _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
 A named kind of work defined once in an organization's step catalogue and bound, per work
 item type or for every type, at the organization, a space or a project; a leaf's steps are
 the bindings along its chain, and each work package keeps its own unit and allowance per
-step. A definition, not an occurrence: its work within one leaf is a **step node**.
+step. A definition, not an occurrence: its work within one leaf is a **step node**. Its
+**default estimate unit** seeds a package's unit; the effective unit is the package's.
 _Avoid_: discipline, type, category, phase
 
 **Step binding**:
 One statement that one step applies, at one scope (organization, space or project), to work
 items of one work item type or of every type. Bindings add along the chain and never hide an
-inherited step.
+inherited step. An every-type binding reaches typed leaves too; an untyped leaf is one that
+resolves only every-type bindings.
 _Avoid_: step assignment, step rule, step override
+
+**Default estimate unit**:
+The estimate unit a catalogue step proposes, copied into a work package's own row when the
+step first reaches that package; changing it later changes no package.
+_Avoid_: step unit, effective unit (which is the package's)
 
 **Step code**:
 A step's short, immutable name for references, unique within its organization's catalogue — `dev`, `qa`,
@@ -334,7 +341,8 @@ _Avoid_: slug, step key, step id (which is the stored identity)
 **Step node**:
 One leaf work item's occurrence of one step — the addressable unit that carries that
 pair's estimate, actual, measures, progress, assignment and dependencies. It exists for every
-leaf and step whether or not anything is stored for it, and a parent has none. Not a work item:
+leaf and every step that leaf resolves, whether or not anything is stored for it, and a
+parent has none. Not a work item:
 no tree position, title, type or number of its own ([ADR
 0031](docs/adr/0031-a-step-node-is-a-pair-not-a-work-item.md)).
 _Avoid_: sub-item, step item, task, cell (which is only its table drawing)
@@ -383,21 +391,21 @@ the current address revision.
 _Avoid_: node id, path, step code alone as the canonical form
 
 **Step graph**:
-The ordering edges between one leaf's step nodes that come from the project's steps rather
-than from an authored dependency — today, finish-to-start in step order. Its edges are
+The ordering edges between one leaf's step nodes that come from that leaf's resolved step
+order rather than from an authored dependency — today, finish-to-start in step order. Its edges are
 **workflow** edges, told apart from **authored** and **legacy** ones.
 _Avoid_: internal dependencies, step chain (which is today's only shape of it), workflow (the future configurable definition)
 
 **Work-item boundary**:
-The single zero-time scheduling point a leaf has in a project with no steps, so whole-scope
+The single zero-time scheduling point a leaf has when it resolves no steps, so whole-scope
 dependencies still have something to join. Never a step node and never addressable by a
 step reference.
 _Avoid_: synthetic step, null step node
 
 **Step order**:
-The order a project works its steps in — `Dev` before `QA` before whatever was added
-after them. One order for the whole project, held per step, and the order every list of
-them is read in.
+The order a leaf works its resolved steps in — `Dev` before `QA` before whatever was
+added after them — set by each scope's binding positions, organization before space before
+project. Every list of a leaf's steps is read in it.
 _Avoid_: phase order, role order, sequence, priority
 
 **Assumed assignee**:
@@ -406,8 +414,10 @@ for. Read from the assignments rather than stored, so a second one ends the assu
 _Avoid_: default assignee, implicit owner, cover
 
 **Step usage**:
-What a step's removal would take with it: the estimates and assignments that hold it, and
-the work items whose assumed assignee it would change.
+What a step's removal from a leaf would take with it: the estimates, actuals, progress,
+measures, measure estimates, attempts and issued attempt numbers, assignments, claims,
+dependencies, blockages and parallelism overrides on that step node, and the work items whose
+assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
 **Directory**:
