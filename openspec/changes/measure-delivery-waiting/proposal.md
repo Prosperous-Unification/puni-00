@@ -1,12 +1,12 @@
 ## Why
 
-Verification and dev deployment still impose substantial waits after docs-only selection, affected-module checks and parallel CI jobs were introduced. Retained examples show a 72m21s workspace job and 45m26s across two host-lock waits, but neither establishes a current, comparable baseline. Manual inspection cannot sustain a system that improves itself. Observation must run autonomously, distinguish execution, scheduling, retry and deployment delay, and demonstrate whether a proposed fix helped.
+Verification and dev deployment still impose substantial waits despite docs-only and affected-module checks. Historical examples show a 72m21s CI job and 45m26s of lock waits, not a comparable baseline. Puni needs to observe its own development automatically and prove whether fixes helped.
 
 ## What Changes
 
-Continuously collect and retain source-attributed receipts through a restart-safe, bounded observer; no UI visit or manual command is required. Reuse delivery identities and retry accounting; add explicit timing bases, collection coverage and workload context. Collect CI job/step observations and host gate/dev deployment intervals through dedicated adapters. Preserve failures, cancellation, supersession and incomplete observations.
+First prove the workflow on dev while developing Puni through Puni. Continuously collect and retain source-attributed receipts through a restart-safe, bounded observer; no UI visit or manual command is required. Reuse delivery identities and retry accounting; add explicit timing bases, collection coverage and workload context. Collect CI job/step observations and host gate/dev deployment intervals through dedicated adapters. Preserve failures, cancellation, supersession and incomplete observations.
 
-Publish reports and deduplicated findings through existing OpenTelemetry, Elastic/Kibana and Prometheus/Alertmanager adapters. Track observer health separately. Freeze comparable baselines, detect delays/regressions, and reevaluate linked fixes as observations arrive; unsupported improvement claims remain inconclusive. Publish the measurement implementation and the subsequent evidence-selected fix as separate reviewable PRs.
+Publish reports and deduplicated findings through existing OpenTelemetry, Elastic/Kibana, Prometheus/Alertmanager and Grafana integrations. Track observer health separately. Freeze comparable baselines, detect delays/regressions, and reevaluate linked fixes as observations arrive; unsupported improvement claims remain inconclusive. Publish the measurement implementation and the subsequent evidence-selected fix as separate reviewable PRs.
 
 ## Non-Goals
 
@@ -14,7 +14,7 @@ No scheduler redesign, new runner fleet, increased parallelism, test sharding or
 
 ## Constraints
 
-Provider-neutral concepts; GitHub and existing Puni host/dev scripts are first sources. Reuse the existing telemetry transport, search, dashboards and alert routing; local state is limited to checkpoints, bounded buffering and pinned comparison evidence. Preserve stable gate/pixels verdicts, fast docs checks, affected selection, tenant isolation, progress semantics and existing host locks. Collect without triggering tests or deployment. Distinguish unknown from zero and overlapping work from elapsed time. User approval is required before every merge.
+Provider-neutral concepts; GitHub and Puni dev are first sources. Production rollout is a separate future plan, not a prerequisite for dev observation. Reuse the existing telemetry transport, search, dashboards and alert routing; local state is limited to checkpoints, bounded buffering and pinned comparison evidence. Preserve stable gate/pixels verdicts, fast docs checks, affected selection, tenant isolation, progress semantics and existing host locks. Collect without triggering tests or deployment. Distinguish unknown from zero and overlapping work from elapsed time. User approval is required before every merge.
 
 ## Capabilities
 

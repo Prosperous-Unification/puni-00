@@ -210,3 +210,17 @@ Delivery alerts SHALL use existing Prometheus/Alertmanager rules and routes. Cen
 
 - **WHEN** an event carries a secret-shaped attribute or a query requests evidence outside the authorized scope
 - **THEN** the attribute is removed/redacted before export and the unauthorized query returns no foreign evidence; receipt IDs are not introduced as Prometheus labels
+
+### Requirement: Prove the first feedback loop in dev
+
+The first usable workflow SHALL observe actual Puni development and dev deployment without requiring production activation or Victoria retirement. It SHALL retain the organization-scoped work reference, change/CI identity and exact-revision dev health evidence. Environment SHALL constrain comparisons and queries; dev evidence SHALL NOT certify production readiness. Grafana SHALL remain the metrics dashboard surface.
+
+#### Scenario: Production rollout remains planned
+
+- **WHEN** production activation is deferred but an authorized dev telemetry destination is available
+- **THEN** the observer collects a real Puni change and its dev deployment automatically and publishes the scoped report/finding without waiting for production rollout
+
+#### Scenario: Dev evidence is offered as production evidence
+
+- **WHEN** a comparison or health proof mixes dev and production environments
+- **THEN** the validator refuses the unsupported claim instead of treating a healthy dev revision as production readiness

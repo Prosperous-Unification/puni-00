@@ -16,6 +16,16 @@ The [planning evidence](../../../docs/findings/delivery-waiting-baseline.md) rec
 
 ## Decisions
 
+### Dev-first use of Puni
+
+The immediate target is the development environment used to develop Puni itself. Keep Grafana as the metrics dashboard and Kibana as the log/trace investigation surface. [Production rollout PR #733](https://github.com/Prosperous-Unification/puni-00/pull/733) remains a separate future plan; its activation, HA choices and Victoria retirement do not block the dev measurement slice.
+
+First demonstrate a real Puni change using an existing organization-scoped WBS reference: automatic CI observations, the merged revision, exact-revision dev health and a timing report/finding. Use normal development activity to collect comparable evidence. Preserve current progress semantics and do not create extra full test runs or deployments simply to populate a dashboard. Capture a development bottleneck, propose a bounded fix and let subsequent dev observations evaluate it.
+
+Verify the dev telemetry destination independently of production. Reuse the selected OTel/Elastic/Prometheus configuration and existing Grafana; if no usable dev destination exists, prepare a bounded dev-only setup using the existing local/dev infrastructure profiles with separate state and access. It is an explicit implementation prerequisite for the dev slice, not a requirement to activate the full production platform. Missing dev ingestion remains visible and cannot be replaced by a production-readiness claim or a silent backend change. Shared-host capacity and normal deployment authorization still apply; current Victoria/MLflow service remains intact.
+
+Environment identity is mandatory for cohort matching, backend query scope and health proofs. Dev observations may inform the later production design, but cannot prove production availability, capacity or recovery. Fixture/lab results and actual dev outcomes remain distinguishable.
+
 ### Receipt and report boundary
 
 Add pure receipt validation and report/comparison functions under `libs/shared/domain/delivery/src/`. Keep transport and filesystem code outside that module. A receipt envelope carries version, identity, scope, revision and optional parent run/attempt/execution identity, observedAt, source reference/hash, named phase, outcome, interval endpoints, basis, clock domain and coverage reasons. Unknown fields use explicit null/reason states. Intervals from one process also retain monotonic elapsed time; cross-source wall-clock deltas declare precision and clock assumptions. Do not fabricate a parent link from timestamps or a matching branch name.
@@ -83,7 +93,7 @@ Host emission performs bounded local writes only, with no network under the lock
 | Deployment latency     | Exact merged revision timestamp to matching served-health proof; merge timestamp absent means unknown                                  |
 | Poller / deploy phases | First target observation, attempt start, build/install/restart and health boundaries where known; nested/overlapping intervals labeled |
 
-Use immutable context manifests: event, selection mode, target/test inventory digest, required-verdict contract, source/lock/toolchain, resource class, concurrency and cache mode. A comparison names the intended treatment and permits only its declared context differences. Same-workload replay is preferable; observational matched cohorts remain explicitly observational. A docs-only run is never a baseline for an application run. Separate first attempts and retries in display while keeping both in totals and outcome counts.
+Use immutable context manifests: environment, event, selection mode, target/test inventory digest, required-verdict contract, source/lock/toolchain, resource class, concurrency and cache mode. A comparison names the intended treatment and permits only its declared context differences. Same-workload replay is preferable; observational matched cohorts remain explicitly observational. A docs-only run is never a baseline for an application run. Separate first attempts and retries in display while keeping both in totals and outcome counts.
 
 Start with five matched baseline/candidate pairs per chosen workload stratum. Predeclare the primary metric and a material-reduction rule before candidate measurements: median paired reduction must exceed both 10% of baseline median and twice the baseline median absolute deviation. This is an operational screening rule, not a statistical significance claim. Show every sample, sample count, spread, median and failure/cancellation/censoring counts. Fewer pairs, absent context, incomplete chosen intervals or unresolved censoring make the claim inconclusive; show descriptive measurements anyway. Do not print p95 from this small sample. Real-world deployment incidence may make five matched pairs slow to obtain; report that limitation instead of generating gratuitous deployments.
 
@@ -104,7 +114,7 @@ A repair worker can read findings and register a proposed fix identity plus its 
 ### Delivery sequence
 
 1. Planning PR: intent, specification, design, tasks, retained historical evidence. No behavior changes. Await approval before merge.
-2. Measurement PR: receipt/report model, autonomous observer, existing-stack exporters/query adapter/dashboard/alerts, host emission, deduplicated findings and automatic comparison, focused safety proofs and a real Puni report generated without a UI visit or manual collection. Can be prepared autonomously; installation/merge follows separate authorization. Preserve pre-instrumentation samples and measure observation overhead independently.
+2. Dev measurement PR: verify or prepare a bounded dev telemetry destination independently of production rollout; receipt/report model, autonomous observer, existing-stack exporters/query adapter/dashboard/alerts, host emission, deduplicated findings and automatic comparison, focused safety proofs and a real Puni report generated without a UI visit or manual collection. Can be prepared autonomously; installation/merge follows separate authorization. Preserve pre-instrumentation samples and measure observation overhead independently.
 3. Optimization PR: select one bounded fix from the current report, open its own packet, preserve baseline manifests, and run the declared comparison. No preselected fleet/scheduler/test change. Record no-gain findings as readily as improvements. Await approval before merge.
 
 ## Risks / Trade-offs
@@ -117,7 +127,7 @@ A repair worker can read findings and register a proposed fix identity plus its 
 
 ## Migration Plan
 
-No application database or version 1 API migration. Initialize separate versioned observer state and checkpoints explicitly. Add receipt files alongside existing operational state; never replace lock tickets or last-proven markers. Apply delivery mappings and panels additively through existing platform jobs. Verify the enrolled environment's actual OTLP path, storage, query authorization and metric/alert route before claiming rollout complete. Do not change secrets or activate production as part of this plan. Roll back collection by disabling its observer/emitter and reverting only delivery-specific stack configuration while retaining prior bundles; delivery behavior must remain unchanged. Deploy instrumentation and enable its observer/health timers on dev only after the measurement PR is approved and merged and installation is authorized. A disabled timer or unperformed restart/outage acceptance remains an incomplete rollout, not autonomous observation.
+No application database or version 1 API migration. Initialize separate versioned observer state and checkpoints explicitly. Add receipt files alongside existing operational state; never replace lock tickets or last-proven markers. Apply delivery mappings and panels additively through existing platform jobs. Verify the enrolled environment's actual OTLP path, storage, query authorization and metric/alert route before claiming rollout complete. Do not change secrets or activate production as part of this plan. Roll back collection by disabling its observer/emitter and reverting only delivery-specific stack configuration while retaining prior bundles; delivery behavior must remain unchanged. Deploy instrumentation and enable its observer/health timers on dev only after the measurement PR is approved and merged and installation is authorized. A disabled timer or unperformed restart/outage acceptance remains an incomplete dev rollout, not autonomous observation. Production rollout stays a separate future operation informed by this dev evidence.
 
 ## Open Questions
 
