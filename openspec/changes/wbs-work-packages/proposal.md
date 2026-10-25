@@ -17,31 +17,33 @@ deploy; after the first tenant, a compatibility layer forever.
 
 **A project is the engagement** (slice 2)
 
-- To: `project(organization_id, name)`; every work package has exactly one project; each
-  organization has one default project, the target when none is named; `createProject`,
-  `patchProject`, `deleteProject`, `moveWorkPackage` with typed refusals; plan document 13.
+- To: `project(organization_id, name)`; every work package has one project, named on create
+  and import (`422 project_required`); project commands and `moveWorkPackage` with typed
+  refusals; no owner; plan document 13.
 
-**Settings inherit; spaces group projects, persons and teams** (slice 3a)
+**Settings inherit; spaces are the organization's structure** (slice 3a)
 
-- To: a setting catalogue resolving organization → space → project → work package with
-  provenance; timezone, calendar markers and PERT weights overridable at the work package;
-  budget factor and a work item type allow-list fixed at the project.
+- To: a project in one space or none; a setting catalogue resolving organization → space →
+  project → work package with provenance; timezone, calendar markers and the work item type
+  allow-list settable at space; budget factor fixed at the project.
 
-**Steps are project entities** (slice 3b), re-keyed by code in their own window.
+**Steps** (slice 3b) wait for the separate `wbs-step-catalogue` design.
 
-**Dev cleanup and regrouping** (before slice 2's window) are a runbook, not a migration.
+**Dev cleanup and regrouping** (before slice 2) are a runbook, not a migration.
 
 ## Non-Goals
 
-Per-project access (`wbs-permissions`); any space-level override; budgets
+Per-project access (`wbs-permissions`); space-scope grants; nested spaces; calendar date
+ranges (`wbs-calendar-ranges`); budgets
 (`wbs-measure-budgets`, merged); cross-work-package dependencies themselves
 (`feat/cross-project-dependencies` rebases onto these names); keeping any old name, route
 or document version alive.
 
 ## Constraints
 
-- Slice 1 renames under a migration-lint waiver; later slices rebuild tables. Each ships in
-  a stop-the-world window with a verified backup as the rollback.
+- Slices 1, 2 and 3a are a documented exception to the additive-migration rule: explicit
+  waivers, the application stopped, a backup report proving source, snapshot and ledger,
+  the snapshot as rollback.
 - Ids stay stable; one project per work package, one organization per project; no
   per-project access invented.
 - The rename is a rerunnable script under `tools/`; residuals are listed. Old
@@ -51,7 +53,7 @@ or document version alive.
 
 ### New Capabilities
 
-- `work-packages`: rename, projects, default project, moves, settings, steps, spaces.
+- `work-packages`: rename, projects, moves, settings, steps, spaces.
 
 ### Modified Capabilities
 
@@ -59,15 +61,13 @@ None by delta; ten synced specs are edited in place in the slice 1 PR (E29).
 
 ## Domain Terms
 
-Work package, Project, Default project, Space, Space membership, Project settings, Setting
-provenance.
+Work package, Project, Space, Space membership, Project settings, Setting provenance.
 
 ## Decisions Recorded
 
-No ADR. E1 to E9 are the owner's; E10 onward are assumed, overrulable by id; E30 awaits
-Dany.
+E1 to E9 are Dany's; E10 onward assumed, overrulable by id; E47 to E49 await Dany. ADR
+0061 supersedes ADR 0033.
 
 ## Impact
 
-Every `@wbs/*` library, be-01, gw-01, mcp-01, fe-01, twilight-navigator, docs, the dev
-database.
+Every `@wbs/*` library, be-01, gw-01, mcp-01, fe-01, twilight-navigator, docs, dev data.
