@@ -18,6 +18,7 @@ import { resourceRuntimeEvent } from '@wbs/contracts';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
+import { termIgnoringChild } from './process-tree.test.fixture';
 import { loadResourceConfiguration, ResourceRuntime, type ResourceUse } from './runtime';
 
 if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
@@ -706,4 +707,170 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     }
     runtime.close();
   });
+  test('clean tracked Git hardlinks keep the worktree and capacity charged', () => {
+    const { config, base } = fixture(1);
+    const source = repository(base);
+    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const use = runtime.create({ ...request, kind: 'git_worktree', source });
+    const outside = join(base, 'outside-hardlink');
+    linkSync(join(use.locator, 'canary'), outside);
+    expect(
+      Bun.spawnSync(['git', '-C', use.locator, 'status', '--porcelain']).stdout.toString(),
+    ).toBe('');
+    runtime.requestCleanup(use.id, use.revision, use.incarnation, 'done');
+    runtime.sweep();
+    expect(runtime.inspect(use.id).state).toBe('blocked');
+    expect(runtime.inspect(use.id).releasedDiskUnits).toBe(0);
+    expect(runtime.inspect(use.id).releasedWorkspaceUnits).toBe(0);
+    expect(existsSync(use.locator)).toBe(true);
+    expect(readFileSync(outside, 'utf8')).toBe('durable source');
+    expect(readFileSync(join(source, 'canary'), 'utf8')).toBe('durable source');
+    expect(() => runtime.create(request)).toThrow('capacity');
+    runtime.close();
+  });
+
+  test('cancellation drains a TERM-ignoring same-session child after its leader exits', async () => {
+    const { config, base } = fixture(1);
+    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const use = runtime.create(request);
+    const ready = join(base, 'child-ready');
+    const abort = new AbortController();
+    const unrelated = Bun.spawn(['/bin/sleep', '30']);
+    try {
+      const running = runtime.run(
+        use.id,
+        ['python3', '-c', termIgnoringChild, ready],
+        abort.signal,
+      );
+      for (let attempt = 0; attempt < 200 && !existsSync(ready); attempt++) await Bun.sleep(10);
+      expect(existsSync(ready)).toBe(true);
+      abort.abort();
+      await running;
+      expect(runtime.inspect(use.id).outcome).toBe('cancelled');
+      expect(runtime.inspect(use.id).state).toBe('released');
+      expect(unrelated.exitCode).toBeNull();
+      expect(unrelated.signalCode).toBeNull();
+    } finally {
+      unrelated.kill();
+      await unrelated.exited;
+      runtime.close();
+    }
+  }, 60000);
+
+  test('restarted cleanup drains durable child identities after orphan leader exit and ignores stale PIDs', async () => {
+    const { config, base, root } = fixture(1);
+    let runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const requestPath = join(base, 'request.json');
+    writeFileSync(requestPath, JSON.stringify(request));
+    const ready = join(base, 'child-ready');
+    const unrelated = Bun.spawn(['/bin/sleep', '30']);
+    const controller = Bun.spawn(
+      [
+        process.execPath,
+        join(import.meta.dir, 'testing-process.test.fixture.ts'),
+        config,
+        requestPath,
+        'tree',
+        ready,
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    try {
+      for (let attempt = 0; attempt < 600 && !existsSync(ready); attempt++) await Bun.sleep(10);
+      expect(existsSync(ready)).toBe(true);
+      controller.kill('SIGKILL');
+      await controller.exited;
+      runtime.sweep();
+      await Bun.sleep(100);
+      const use = runtime.list()[0];
+      expect(use.state).toBe('blocked');
+      runtime.close();
+      const db = new Database(join(root, '.dash', 'resources.sqlite'));
+      const snapshot = JSON.parse(
+        db
+          .query<{ snapshot: string }, [string]>('SELECT snapshot FROM uses WHERE id=?')
+          .get(use.id)!.snapshot,
+      ) as ResourceUse & { descendants: { pid: number; boot: string; start: string }[] };
+      expect(Array.isArray(snapshot.descendants)).toBe(true);
+      snapshot.descendants.push({
+        pid: unrelated.pid,
+        boot: readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(),
+        start: '0',
+      });
+      db.query('UPDATE uses SET snapshot=? WHERE id=?').run(JSON.stringify(snapshot), use.id);
+      db.close();
+      runtime = ResourceRuntime.open(loadResourceConfiguration(config), clock);
+      now += 60000;
+      runtime.sweep();
+      await Bun.sleep(100);
+      now += 60000;
+      runtime.sweep();
+      expect(runtime.inspect(use.id).state).toBe('released');
+      expect(unrelated.exitCode).toBeNull();
+      expect(unrelated.signalCode).toBeNull();
+    } finally {
+      if (controller.exitCode === null) controller.kill('SIGKILL');
+      await controller.exited;
+      unrelated.kill();
+      await unrelated.exited;
+      runtime.close();
+    }
+  }, 60000);
+
+  test('unknown surviving child identities stay blocked until exact evidence is restored', async () => {
+    const { config, base, root } = fixture(1);
+    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const requestPath = join(base, 'request.json');
+    writeFileSync(requestPath, JSON.stringify(request));
+    const ready = join(base, 'child-ready');
+    const controller = Bun.spawn(
+      [
+        process.execPath,
+        join(import.meta.dir, 'testing-process.test.fixture.ts'),
+        config,
+        requestPath,
+        'tree',
+        ready,
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    try {
+      for (let attempt = 0; attempt < 600 && !existsSync(ready); attempt++) await Bun.sleep(10);
+      expect(existsSync(ready)).toBe(true);
+      controller.kill('SIGKILL');
+      await controller.exited;
+      runtime.sweep();
+      await Bun.sleep(100);
+      const use = runtime.list()[0];
+      const proven = use.descendants;
+      expect(proven.length).toBeGreaterThan(0);
+      const db = new Database(join(root, '.dash', 'resources.sqlite'));
+      const unknown = {
+        ...use,
+        descendants: proven.map((identity) => ({ ...identity, start: '0' })),
+      };
+      db.query('UPDATE uses SET snapshot=? WHERE id=?').run(JSON.stringify(unknown), use.id);
+      db.close();
+      now += 60000;
+      runtime.sweep();
+      expect(runtime.inspect(use.id).state).toBe('blocked');
+      expect(existsSync(`/proc/${readFileSync(ready, 'utf8').trim()}`)).toBe(true);
+      const restoration = new Database(join(root, '.dash', 'resources.sqlite'));
+      const latest = runtime.inspect(use.id);
+      restoration
+        .query('UPDATE uses SET snapshot=? WHERE id=?')
+        .run(JSON.stringify({ ...latest, descendants: proven }), use.id);
+      restoration.close();
+      now += 60000;
+      runtime.sweep();
+      await Bun.sleep(100);
+      now += 60000;
+      runtime.sweep();
+      expect(runtime.inspect(use.id).state).toBe('released');
+    } finally {
+      if (controller.exitCode === null) controller.kill('SIGKILL');
+      await controller.exited;
+      runtime.close();
+    }
+  }, 60000);
 }

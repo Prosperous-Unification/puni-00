@@ -24,7 +24,8 @@ Admission preflights `/proc` identity, descriptors, cwd, mappings and mount evid
 laptop user owns protected/unreadable processes, it refuses with an actionable dedicated-user
 message. Cleanup likewise records a charged blocker on inconclusive inspection. `inspect`
 remains available for diagnosis. Linux `/proc`, `/etc/machine-id`, `git`, `python3`, and Bun are
-required. Nothing here installs a system service or adopts/deletes existing laptop data.
+required. Managed process draining also requires Python/kernel support for
+`os.pidfd_open` and `signal.pidfd_send_signal`; missing support fails closed. Nothing here installs a system service or adopts/deletes existing laptop data.
 
 ## Enroll one root
 
@@ -114,8 +115,12 @@ Dash reserves and persists intent before creation. It starts the command behind 
 FD gate, persists Linux boot/PID/start identity before releasing that gate, preserves command
 stdin/stdout/stderr, and records actual success/failure/cancellation separately from cleanup.
 The CLI returns the command's exit code even when cleanup is blocked. Inspect the emitted use
-snapshot for its independent cleanup state. Cancellation signals only the identity-proven
-owned group, escalating after five seconds if that leader still matches.
+snapshot for its independent cleanup state. Cancellation persists boot/PID/start identities for observed children before sending TERM.
+It signals individual identity-verified processes through Linux pidfds and keeps five-second
+KILL escalation active even when the leader has already exited. Restart cleanup resumes from
+those durable identities. Session membership alone cannot authorize a signal: if no exact
+known live member can establish the session, unknown survivors remain blocked and charged.
+More than 4096 remembered descendants also requires owner review instead of truncating proof.
 
 `DASH_RESOURCE_USE_ID` and `DASH_RESOURCE_ROOT` are available to the command. A child/review
 request sets `parentId` to the parent use ID; `dependencies` lists other use IDs whose storage
@@ -147,7 +152,9 @@ Dash does not prune them or claim their objects were reclaimed.
 Tracked files under a named directory block deletion. Unknown ignored directories remain
 retained. Deletion never follows symlinks, including links to source outside the root.
 
-Shared hardlinks remain charged and block automatic cleanup. Bun's normal hardlink backend
+Shared hardlinks remain charged and block automatic cleanup for every provider, including
+clean tracked Git worktree files. Complete no-follow storage inspection precedes both
+preparation and deletion; the Git removal command does not bypass that inspection. Bun's normal hardlink backend
 can produce these: the existing repository's `arktype/package.json` and
 `@types/node/package.json` each had 77 links when inspected. In managed disposable worktrees,
 use **`bun install --backend=copyfile`** with `disposablePaths: ["node_modules"]` to produce

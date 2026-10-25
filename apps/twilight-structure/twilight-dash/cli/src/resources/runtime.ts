@@ -86,6 +86,8 @@ export interface ResourceUse {
   ino: number | null;
   creator: ProcessIdentity;
   process: ProcessIdentity | null;
+  descendants: ProcessIdentity[];
+  drainRequestedAt: number | null;
   launchDeadline: number | null;
   startedAt: number | null;
   endedAt: number | null;
@@ -118,6 +120,8 @@ const ResourceUseShape = type({
   ino: 'number | null',
   creator: ProcessIdentityShape,
   process: ProcessIdentityShape.or('null'),
+  descendants: ProcessIdentityShape.array(),
+  drainRequestedAt: 'number | null',
   launchDeadline: 'number | null',
   startedAt: 'number | null',
   endedAt: 'number | null',
@@ -243,14 +247,80 @@ function ownedGroupAlive(identity: ProcessIdentity): boolean {
   }
   return false;
 }
-/** Signal only a leader whose boot/start identity still matches; exit races are harmless. */
-function signalOwnedGroup(identity: ProcessIdentity, signal: NodeJS.Signals): void {
-  if (!alive(identity)) return;
+/** Read one process/session observation without accepting a recycled PID as the stored identity. */
+function sessionOf(identity: ProcessIdentity): string | null {
+  if (!alive(identity)) return null;
   try {
-    process.kill(-identity.pid, signal);
+    const stat = readFileSync(`/proc/${String(identity.pid)}/stat`, 'utf8');
+    const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+    return fields[0] !== 'Z' && fields[19] === identity.start ? (fields[3] ?? null) : null;
   } catch (cause) {
-    if (!isMissing(cause)) throw new Error('owned process signal refused', { cause });
+    if (isMissing(cause)) return null;
+    throw new Error('process session inspection unavailable', { cause });
   }
+}
+/** Add session members only while an exact previously known identity brackets the observation. */
+function captureDescendants(use: ResourceUse): ProcessIdentity[] {
+  const leader = use.process;
+  if (leader === null) return use.descendants;
+  const witnesses = [leader, ...use.descendants].filter(
+    (identity) => sessionOf(identity) === String(leader.pid),
+  );
+  // Proof: removing both witness checks made the unknown-child regression adopt and kill
+  // an identity it could not prove (runtime-review-round1-mutations/session-witness.log).
+  if (witnesses.length === 0) return use.descendants;
+  const observed: ProcessIdentity[] = [];
+  for (const pid of readdirSync('/proc').filter((name) => /^\d+$/.test(name))) {
+    try {
+      if (statSync(`/proc/${pid}`).uid !== process.getuid?.()) continue;
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      const start = fields[19];
+      if (fields[0] !== 'Z' && fields[3] === String(leader.pid) && Number(pid) !== leader.pid) {
+        if (!start) throw new Error('descendant identity malformed');
+        observed.push({ pid: Number(pid), boot: leader.boot, start });
+      }
+    } catch (cause) {
+      if (!isMissing(cause)) throw new Error('descendant inspection unavailable', { cause });
+    }
+  }
+  if (!witnesses.some((identity) => sessionOf(identity) === String(leader.pid)))
+    return use.descendants;
+  const unique = new Map(
+    [...use.descendants, ...observed].map((identity) => [
+      `${identity.boot}:${String(identity.pid)}:${identity.start}`,
+      identity,
+    ]),
+  );
+  if (unique.size > 4096)
+    throw new Error('owned descendant evidence exceeds bounded inspection budget');
+  return [...unique.values()];
+}
+/** pidfds bind signals to kernel process identities across the final check/send race. */
+const signalProcesses = String.raw`
+import os,signal,sys,json
+identities=json.load(sys.stdin)
+boot=open('/proc/sys/kernel/random/boot_id').read().strip()
+def matches(identity):
+ try:
+  stat=open('/proc/'+str(identity['pid'])+'/stat').read()
+  fields=stat[stat.rfind(')')+2:].split(' ')
+  # Proof: skipping start identity killed the unrelated live-PID canary (pid-start-identity.log).
+  return fields[0]!='Z' and fields[19]==identity['start'] and boot==identity['boot']
+ except (FileNotFoundError,ProcessLookupError): return False
+for identity in identities:
+ if not matches(identity): continue
+ try: descriptor=os.pidfd_open(identity['pid'])
+ except ProcessLookupError: continue
+ try:
+  if matches(identity):
+   try: signal.pidfd_send_signal(descriptor,getattr(signal,sys.argv[1]))
+   except ProcessLookupError: pass
+ finally: os.close(descriptor)
+`;
+/** A known survivor or an unknown member of the original session still prevents release. */
+function ownedProcessesAlive(use: ResourceUse): boolean {
+  return (use.process !== null && ownedGroupAlive(use.process)) || use.descendants.some(alive);
 }
 function samePath(path: string, parent: string): boolean {
   return path === parent || path.startsWith(`${parent}/`);
@@ -318,7 +388,8 @@ function inspectHolds(locator: string): void {
 /** Descriptor-relative removal never follows a symlink, crosses a mount, or accepts a replacement inode. */
 const removeDirectory = String.raw`
 import os,sys,stat
-root,name,dev,ino=sys.argv[1:]
+root,name,dev,ino=sys.argv[1:5]
+remove=len(sys.argv)<6 or sys.argv[5]!="inspect"
 flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW
 parent=os.open(root,flags)
 fd=os.open(name,flags,dir_fd=parent)
@@ -335,15 +406,16 @@ def erase(directory):
    erase(child)
    after=os.stat(name,dir_fd=directory,follow_symlinks=False)
    if (after.st_dev,after.st_ino)!=(opened.st_dev,opened.st_ino): raise RuntimeError('identity changed')
-   os.rmdir(name,dir_fd=directory);os.close(child)
+   if remove: os.rmdir(name,dir_fd=directory)
+   os.close(child)
   else:
    # Proof: bypassing this guard released shared hardlinked storage (shared-hardlink.log).
    if not stat.S_ISLNK(before.st_mode) and before.st_nlink>1: raise RuntimeError('shared hardlink')
-   os.unlink(name,dir_fd=directory)
+   if remove: os.unlink(name,dir_fd=directory)
 erase(fd)
 after=os.stat(name,dir_fd=parent,follow_symlinks=False)
 if (after.st_dev,after.st_ino)!=(s.st_dev,s.st_ino): raise RuntimeError('identity changed')
-os.rmdir(name,dir_fd=parent)
+if remove: os.rmdir(name,dir_fd=parent)
 os.close(fd);os.close(parent)
 `;
 
@@ -591,6 +663,8 @@ export class ResourceRuntime {
         ino: null,
         creator,
         process: null,
+        descendants: [],
+        drainRequestedAt: null,
         launchDeadline: this.clock.read() + 60000,
         startedAt: null,
         endedAt: null,
@@ -785,6 +859,8 @@ export class ResourceRuntime {
       use.cleanupAttempts >= 6
         ? null
         : this.clock.read() + Math.min(60000, 1000 * 2 ** (use.cleanupAttempts - 1));
+    if (use.nextRetryAt !== null && use.drainRequestedAt !== null)
+      use.nextRetryAt = Math.min(use.nextRetryAt, use.drainRequestedAt + 5000);
     if (use.nextRetryAt === null)
       use.reason += '; automatic retry budget exhausted; operator retry required';
     this.event(use, 'blocked');
@@ -898,7 +974,89 @@ export class ResourceRuntime {
       throw new Error('Git preservation verification failed');
     return true;
   }
+  /** Every provider must prove storage is unshared, including clean tracked Git files. */
+  private checkStorage(use: ResourceUse): void {
+    // Proof: without this universal preflight, `clean tracked Git hardlinks keep the worktree
+    // and capacity charged` observed released reservations while the outside hardlink survived.
+    const inspection = Bun.spawnSync(
+      [
+        'python3',
+        '-c',
+        removeDirectory,
+        this.configuration.root,
+        use.id,
+        String(use.dev),
+        String(use.ino),
+        'inspect',
+      ],
+      { stdout: 'pipe', stderr: 'pipe', timeout: 30000, killSignal: 'SIGKILL' },
+    );
+    if (inspection.exitCode !== 0)
+      throw new Error(
+        'shared storage inspection refused; hardlinks, mounts or unreadable entries remain charged',
+      );
+  }
+  /** Persist exact child identities before signaling; never signal an unproven numeric group ID. */
+  private beginDrain(id: string, signal: 'SIGTERM' | 'SIGKILL'): void {
+    const use = this.transaction(() => {
+      const current = this.inspect(id);
+      current.descendants = captureDescendants(current);
+      current.drainRequestedAt ??= this.clock.read();
+      this.save(current);
+      return current;
+    });
+    const identities = use.process === null ? use.descendants : [use.process, ...use.descendants];
+    const delivery = Bun.spawnSync(['python3', '-c', signalProcesses, signal], {
+      stdin: Buffer.from(JSON.stringify(identities)),
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 30000,
+      killSignal: 'SIGKILL',
+    });
+    if (delivery.exitCode !== 0)
+      throw new Error('owned process pidfd signaling refused; processes remain charged');
+  }
+  /** Cancellation waits for the entire proven tree, keeping escalation alive after leader exit. */
+  private async finishDrain(id: string): Promise<void> {
+    // Proof: returning at leader completion stranded the TERM-ignoring child and failed
+    // cancellation cleanup (runtime-review-round1-mutations/leader-exit-escalation.log).
+    const deadline = new AbortController();
+    const timer = setTimeout(() => {
+      deadline.abort();
+    }, 5000);
+    try {
+      while (!deadline.signal.aborted && ownedProcessesAlive(this.inspect(id))) await Bun.sleep(25);
+      if (ownedProcessesAlive(this.inspect(id))) {
+        this.beginDrain(id, 'SIGKILL');
+        await Bun.sleep(100);
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   private cleanup(id: string): void {
+    const snapshot = this.inspect(id);
+    if (
+      snapshot.process !== null &&
+      (!alive(snapshot.creator) || snapshot.drainRequestedAt !== null)
+    ) {
+      try {
+        this.beginDrain(
+          id,
+          snapshot.drainRequestedAt !== null &&
+            this.clock.read() - snapshot.drainRequestedAt >= 5000
+            ? 'SIGKILL'
+            : 'SIGTERM',
+        );
+      } catch (cause) {
+        this.transaction(() => {
+          const use = this.inspect(id);
+          use.cleanupAttempts += 1;
+          this.block(use, cause);
+        });
+        return;
+      }
+    }
     // Only a complete preservation/ownership preflight may commit an effect intent.
     const generation = this.transaction(() => {
       const use = this.inspect(id);
@@ -906,10 +1064,7 @@ export class ResourceRuntime {
       use.cleanupAttempts += 1;
       use.cleanupGeneration += 1;
       try {
-        if (use.process !== null && !alive(use.creator))
-          signalOwnedGroup(use.process, use.cleanupAttempts < 2 ? 'SIGTERM' : 'SIGKILL');
-        if (use.process !== null && ownedGroupAlive(use.process))
-          throw new Error('owned command remains live');
+        if (ownedProcessesAlive(use)) throw new Error('owned command remains live');
         inspectHolds(use.locator);
         this.checkDependencies(use);
         const present = this.checkTarget(use);
@@ -917,6 +1072,7 @@ export class ResourceRuntime {
         if (!present && use.dev !== null && !use.deleteIntent)
           throw new Error('resource absence has no persisted deletion intent');
         if (present) {
+          this.checkStorage(use);
           if (!this.preserve(use)) return null;
           use.deleteIntent = true;
         }
@@ -932,14 +1088,14 @@ export class ResourceRuntime {
       const use = this.inspect(id);
       if (use.state === 'released' || use.cleanupGeneration !== generation) return;
       try {
-        if (use.process !== null && ownedGroupAlive(use.process))
-          throw new Error('owned command remains live');
+        if (ownedProcessesAlive(use)) throw new Error('owned command remains live');
         inspectHolds(use.locator);
         this.checkDependencies(use);
         const present = this.checkTarget(use);
         // Proof: bypassing absence provenance released a moved resource (unproven-absence.log).
         if (!present && use.dev !== null && !use.deleteIntent)
           throw new Error('resource absence has no persisted deletion intent');
+        if (present) this.checkStorage(use);
         if (present && use.request.source !== undefined) {
           if (!this.preserve(use)) return;
           this.checkTarget(use);
@@ -1031,13 +1187,11 @@ export class ResourceRuntime {
     gate.on('error', (cause) => {
       if (!cancelled) child.emit('error', cause);
     });
-    let escalation: ReturnType<typeof setTimeout> | undefined;
+    const cancellation: { draining: Promise<void> | null } = { draining: null };
     const cancel = (): void => {
       cancelled = true;
-      signalOwnedGroup(identity, 'SIGTERM');
-      escalation = setTimeout(() => {
-        signalOwnedGroup(identity, 'SIGKILL');
-      }, 5000);
+      this.beginDrain(id, 'SIGTERM');
+      cancellation.draining = this.finishDrain(id);
     };
     signal?.addEventListener('abort', cancel, { once: true });
     if (signal?.aborted) cancel();
@@ -1050,10 +1204,10 @@ export class ResourceRuntime {
         current.endedAt = this.clock.read();
         this.enqueue(current, current.revision, current.incarnation, 'owned command ended');
       });
+      if (cancellation.draining !== null) await cancellation.draining;
       this.sweep();
       return code;
     } finally {
-      if (escalation !== undefined) clearTimeout(escalation);
       signal?.removeEventListener('abort', cancel);
     }
   }

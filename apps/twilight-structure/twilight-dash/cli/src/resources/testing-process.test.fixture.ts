@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { termIgnoringChild } from './process-tree.test.fixture';
 import { type CreationRequest, loadResourceConfiguration, ResourceRuntime } from './runtime';
 const [config, requestPath] = process.argv.slice(2);
 if (!config || !requestPath) throw new Error('fixture configuration and request required');
@@ -9,6 +10,11 @@ const runtime = ResourceRuntime.open(loadResourceConfiguration(config), {
 try {
   const use = runtime.create(JSON.parse(readFileSync(requestPath, 'utf8')) as CreationRequest);
   process.stdout.write(`${JSON.stringify(use)}\n`);
+  if (process.argv[4] === 'tree') {
+    const ready = process.argv[5];
+    if (!ready) throw new Error('tree readiness file required');
+    await runtime.run(use.id, ['python3', '-c', termIgnoringChild, ready]);
+  }
   if (process.argv[4] === 'stdin')
     process.exitCode = await runtime.run(use.id, [
       '/bin/sh',
