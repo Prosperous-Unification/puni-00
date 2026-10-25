@@ -81,23 +81,23 @@ lease sweep SHALL free the units for every project at once.
 - **WHEN** A's 16 GB claim's lease runs out and the sweep releases it
 - **THEN** B's next startable read shows 16 free and B's claim of 16 is applied
 
-### Requirement: Units held elsewhere are an organization fact; holders follow the reader's access
+### Requirement: Units held of a shared resource are an organization fact; holders follow the reader's access
 
-For a resource with a directory capacity, every reader of a project that uses it SHALL see the
-units held by projects it may not read, as one `elsewhere: { units }` per resource in
-`resources_exhausted`, the startable read and the project resources read, carrying no claim
-count, project id, project name, person, run or work item. Holders in projects the reader may
-read SHALL be named in full and carry `projectId`. A machine principal SHALL be judged by its
-own grants.
+For a resource with a directory capacity, each shortage of `resources_exhausted` and each
+holder list of the startable read SHALL name in full, with `projectId`, every holder in a
+project the reader may read, and SHALL fold holders in projects it may not read into one
+`hiddenHolders: { units }`, carrying no claim count, project id, project name, person, run or
+work item. Whether the reader may read a project SHALL be answered by one port predicate,
+`mayReadProjectWithin`.
 
 #### Scenario: A reader without access to A
 
 - **WHEN** a principal that may read B but not A is refused for `host ram` held by A
-- **THEN** the refusal carries `elsewhere: { units: 16 }` and none of A's project, person,
-  run or work item ids appear anywhere in the body
+- **THEN** the shortage carries `hiddenHolders: { units: 16 }` and none of A's project,
+  person, run or work item ids appear anywhere in the body
 
 #### Scenario: An organization member reads both
 
 - **WHEN** a member who may read A and B is refused for the same resource
-- **THEN** A's holder is named with person, run, work item and `projectId`, and `elsewhere`
-  carries 0 units
+- **THEN** A's holder is named with person, run, work item and `projectId`, and
+  `hiddenHolders` carries 0 units

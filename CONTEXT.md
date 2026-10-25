@@ -674,8 +674,9 @@ startable read, never by a schedule.
 _Avoid_: Lease, hold, lock, allocation
 
 **Occupancy scope**:
-Which leaves' occupancy a claim on a resource is counted against: the project's own, or every
-project of the organization when the resource states a directory capacity.
+The widest set of leaves a claim's units of a resource are counted against. A claim is always
+counted against its project's leaves, and also against every project of the organization when
+the resource states a directory capacity.
 _Avoid_: Visibility, tenancy
 
 **Compute provider**:

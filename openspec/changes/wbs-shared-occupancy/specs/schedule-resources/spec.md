@@ -5,14 +5,15 @@
 Each resource's pool size SHALL be its effective pool size: the project capacity clamped to
 the directory capacity when both are stated, the directory capacity when only it is stated
 and the project demands the resource, else the project capacity; one function SHALL compute
-it for every schedule input (live, saved-plan capture, chain snapshot, saved-plan schedule,
-publication guard) and a directory capacity of 0 SHALL clamp the pool to 0. The Fast engine
+it for every schedule input, live or saved, and a directory capacity of 0 SHALL clamp the pool
+to 0. A saved plan SHALL capture the directory capacities on its snapshot and schedule from
+them, so it keeps the clamp it was captured under. The Fast engine
 SHALL treat each demanded resource with an effective pool size as a pool: every
 block of a leaf acquires the leaf's demanded units on each such pool at its start and
 releases them at its finish, acquired together with its team slots at one instant through
 the joint window. The CP-SAT engine SHALL add one cumulative constraint per such resource
 with demand equal to the units. Demands and effective pool sizes SHALL enter the canonical schedule
-input and its hash (`resourceCapacities`, already hashed, so no contract bump). A plan with no demands SHALL produce a
+input and its hash. A plan with no demands SHALL produce a
 byte-identical schedule to the previous contract (golden corpus no-op proof). An
 `exclusive` resource with capacity 1 SHALL serialise its demanders. A schedule SHALL read no
 claim, no occupancy and no other project's plan.
@@ -44,7 +45,8 @@ claim, no occupancy and no other project's plan.
 #### Scenario: A saved plan and the live plan agree
 
 - **WHEN** a plan with a clamped pool is captured as a saved plan
-- **THEN** the saved plan's schedule hash equals the live schedule hash
+- **THEN** the saved plan's schedule hash equals the live schedule hash, and after the
+  directory capacity changes the saved plan's hash stays as captured
 
 #### Scenario: No directory capacity, same hash
 

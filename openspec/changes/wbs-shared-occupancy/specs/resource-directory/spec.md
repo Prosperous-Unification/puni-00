@@ -22,17 +22,33 @@ project resources read SHALL carry `directoryCapacity` (a number or null).
 
 ### Requirement: Only an organization admin sets a directory capacity
 
-Only an organization admin or super-admin SHALL send `setDirectoryCapacity`; any other caller,
-a machine credential and an MCP consent delegation SHALL be refused `forbidden`. A resource
-with no organization SHALL be refused `legacy_resource`. The command SHALL NOT enter the plan
-journal, the plan export or the plan document, and SHALL write one `organization_audit` row,
-action `directory_capacity_changed` on subject kind `resource`, with the units before and
-after.
+`setDirectoryCapacity { resourceId, units | null, confirm?: true }` SHALL be accepted on
+`POST /api/directory/commands` and on `POST /api/projects/:id/commands`, in all-or-none
+batches, and only from an organization admin or super-admin acting in their own session; any
+other role, a machine credential and an MCP consent delegation of any role SHALL be refused
+`forbidden`. A resource with no organization SHALL be refused `organization_required`.
 
 #### Scenario: A member or an agent may not
 
 - **WHEN** a member, or a machine credential of an admin's agent, sends the command
 - **THEN** it is refused `forbidden` and the directory capacity is unchanged
+
+#### Scenario: An admin's MCP delegation may not
+
+- **WHEN** an MCP client acting under an admin's consent delegation sends the command on
+  either route
+- **THEN** it is refused `forbidden` and the directory capacity is unchanged
+
+#### Scenario: A legacy resource
+
+- **WHEN** an admin states a directory capacity for a resource with no organization row
+- **THEN** it is refused `organization_required`
+
+### Requirement: A directory capacity write is audited, not journalled
+
+`setDirectoryCapacity` SHALL NOT enter the plan journal, the plan export or the plan document,
+and SHALL write one `organization_audit` row, action `directory_capacity_changed` on subject
+kind `resource`, with the units before and after.
 
 #### Scenario: The write is audited, not journalled
 
@@ -40,23 +56,38 @@ after.
 - **THEN** one audit row records `directory_capacity_changed` from `null` to 16 and no
   project's journal moves
 
-#### Scenario: A legacy resource
+### Requirement: A directory capacity write announces to the projects that use the resource
 
-- **WHEN** an admin states a directory capacity for a resource with no organization row
-- **THEN** it is refused `legacy_resource`
+Every applied `setDirectoryCapacity` SHALL publish `directory_changed` to each project of the
+organization that demands the resource on some leaf or states a capacity for it, after the
+write commits, so their event sequences move and cached roll-ups and open plans recompute.
+
+#### Scenario: A space roll-up follows the clamp
+
+- **WHEN** project A states 32 GB of `host ram`, its space roll-up has been read, and an admin
+  states a directory capacity of 16
+- **THEN** A receives `directory_changed` and the next roll-up read serves the dates scheduled
+  against 16
 
 ### Requirement: Lowering or clearing a directory capacity is previewed
 
-`setDirectoryCapacity` with `dryRun: true` SHALL write nothing and answer the projects that use
-the resource (each readable project named, the others as one count), the units each holds, the
-free units the change would leave and any refusal the change would meet. Lowering below the
-units held SHALL release nothing: held units stay held and new claims are refused until they
-drain.
+`POST /api/organization/resources/:resourceId/directory-capacity/preview` with body
+`{ units: number | null }` SHALL, for an organization admin or super-admin in their own
+session only, write nothing and answer `{ resourceId, before, after, projects, hiddenProjects,
+free, refusal }`: each project the caller may read that uses the resource with the units it
+holds, the others as `{ count, units }`, the free units after the change, and the refusal the
+write would meet or null.
 
 #### Scenario: Preview of a lowering
 
 - **WHEN** A holds 8 and B holds 6 of a directory capacity of 16 and an admin previews 10
-- **THEN** the answer lists A with 8 and B with 6 and free `-4`, and nothing is written
+- **THEN** the answer lists A with 8 and B with 6, `free: -4` and `refusal: null`, and
+  nothing is written
+
+### Requirement: Lowering a directory capacity strands nothing
+
+Lowering a directory capacity below the units held SHALL release nothing: held units stay held
+and new claims are refused until they drain.
 
 #### Scenario: Lowering strands nothing
 
@@ -66,22 +97,30 @@ drain.
 
 ### Requirement: An admin sees who holds a shared resource and who may release it
 
-The directory resource read SHALL give an organization admin, per project of the
-organization, the units held of a resource with a directory capacity and each holding claim
-(person, run, work item, claimed at, lease expiry or none), and SHALL say that the claimant's
-bound account or an organization admin may release it. A member SHALL be refused `forbidden`.
+`GET /api/organization/resources/:resourceId/occupancy` SHALL answer an organization admin or
+super-admin in their own session, per project of the organization, the units held of the
+resource and each holding claim (claim, person, run, work item, claimed at, lease expiry or
+null) with `releasableBy`: `claimant_or_admin` in an unrestricted project, `claimant` in a
+restricted one. Any other caller SHALL be refused `forbidden`.
 
 #### Scenario: A human claim with no lease blocks a swarm
 
-- **WHEN** a person's claim in A holds 16 GB with no lease and an admin reads the resource
-- **THEN** the read names A, the person, the work item and `leaseExpiresAt: null`, with the
-  admin allowed to release it, and the admin's release frees 16 for every project
+- **WHEN** a person's claim in unrestricted project A holds 16 GB with no lease and an admin
+  reads the resource's occupancy
+- **THEN** the read names A, the person, the work item, `leaseExpiresAt: null` and
+  `releasableBy: claimant_or_admin`, and the admin's release frees 16 for every project
+
+#### Scenario: A restricted project's claim
+
+- **WHEN** the same claim sits in a restricted project the admin did not create
+- **THEN** the read says `releasableBy: claimant`, and the admin's release is refused
 
 ### Requirement: Removal and rollback account for a directory capacity
 
 `deleteResource`'s `in_use` counts SHALL include a stated directory capacity and its cascade
-SHALL drop it. The migration adding the table SHALL be additive with a `down.sql` refusing
-while any directory capacity is stated; the migration widening `organization_audit` SHALL
+SHALL drop it. The migration adding the table SHALL be additive, with the CHECK
+`typeof(units) = 'integer' AND units >= 0`, and a `down.sql` refusing while any directory
+capacity is stated; the migration widening `organization_audit` SHALL
 carry its whole vocabulary and refuse rollback while a row uses the new values.
 
 #### Scenario: Rollback refuses over a stated capacity

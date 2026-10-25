@@ -9,7 +9,7 @@ organization's persons of kind `agent`), `concurrentClaims` (its bound claims: d
 `capacityUnits`, one entry `{ resourceId, name, unitLabel, units }` per resource of the
 organization with a stated directory capacity or at least one stated project capacity, `units`
 being the directory capacity where one is stated, else the sum of stated capacities over the
-organization's projects, in resource-id order, with `source: 'directory' | 'projects'`. Limits and usage SHALL be
+organization's projects, in resource-id order, each entry carrying `countedFrom: 'directory' | 'projects'`. Limits and usage SHALL be
 read in one transaction. A `member` or `viewer` SHALL be refused `403 forbidden`; a
 delegation or a machine principal `403 insufficient_scope`; before activation
 `403 no_active_organization`. Usage SHALL count rows of the active organization only.
@@ -40,7 +40,7 @@ delegation or a machine principal `403 insufficient_scope`; before activation
 #### Scenario: A directory capacity is the usage
 
 - **WHEN** `host ram` states a directory capacity of 16 and two projects state 16 each
-- **THEN** `capacityUnits` carries `{ host ram, units: 16, source: 'directory' }`
+- **THEN** `capacityUnits` carries `{ host ram, units: 16, countedFrom: 'directory' }`
 
 ### Requirement: Stating more capacity units of a resource than the cap allows is refused
 
@@ -83,19 +83,20 @@ capacities (`setCapacity`) SHALL NOT be counted or capped.
 
 ### Requirement: The cap bounds a directory capacity and its clearing
 
-`setDirectoryCapacity` SHALL be refused `capacity_limit`, naming the resource, the cap and the
-asked units, when the asked units exceed the organization's `maxCapacityUnitsPerResource`.
+`setDirectoryCapacity` SHALL be refused `capacity_limit` with `{ resourceId, cap, declared: 0,
+asked: units }` when the asked units exceed the organization's `maxCapacityUnitsPerResource`.
 Clearing a directory capacity whose resource's project capacities sum above the cap SHALL be
-refused `capacity_limit` naming the sum unless the command carries `confirm: true`; confirmed,
+refused `capacity_limit` with `{ resourceId, cap, declared: <that sum>, asked: 0 }` unless the
+command carries `confirm: true`; confirmed,
 nothing is reclaimed and later raises are checked against the sum as before.
 
 #### Scenario: Above the cap
 
 - **WHEN** the cap is 64 and an admin states a directory capacity of 65
-- **THEN** the command is refused `capacity_limit` naming cap 64 and asked 65
+- **THEN** the command is refused `capacity_limit` with `declared: 0, asked: 65` and cap 64
 
 #### Scenario: Clearing would leave the sum above the cap
 
 - **WHEN** the cap is 64, the directory capacity is 16 and three projects state 32 each
-- **THEN** clearing it is refused `capacity_limit` naming the sum 96, and clearing with
+- **THEN** clearing it is refused `capacity_limit` with `declared: 96, asked: 0`, and clearing with
   `confirm: true` is applied
