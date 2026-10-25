@@ -95,3 +95,38 @@ Prettier accepted the project declaration and formatted this receipt; strict val
 lint run was needed. Exact local logs: `/tmp/puni-gate-input-oracle-red.log`,
 `/tmp/puni-gate-input-oracle-green.log`, `/tmp/puni-gate-input-workspace-targets.log` and
 `/tmp/puni-gate-input-hash-receipt.json`. Hosted CI and the canonical full gate remain separate.
+
+### Committed target selector synchronization, 2026-10-25
+
+The earlier test-input addition is now copied into the existing `check.tool-dagger.test`
+`expectedConfiguration.inputs` in both `docs/wiki-policy/relationships.json` and
+`relationships.bootstrap.json`. These facts pin the complete static-extractor configuration;
+this is exact snapshot synchronization, not a new authority rule. Each file adds only
+`{workspaceRoot}/bin/h2puni-gate.sh` after the existing `with-heavy-lock.sh` input.
+
+Proof: the exact four CI failures were reproduced through existing production tests (0 pass,
+4 fail, 84 assertions), then passed after the two additions (4 pass, 98 assertions, 40.43s):
+both committed-target-facts comparisons and pilot-policy's observe-lint positive and stale
+Burokrat-command refusal. The latter again reaches its intended `check.wiki-cli.test` mismatch
+instead of being intercepted by stale `check.tool-dagger.test` configuration.
+
+Each pin was independently omitted: its named committed-target-facts comparison failed while
+the other passed (1 pass, 1 fail). Restoring both pins passed both comparisons. No test, static
+extractor, canonical authority comparison, cache flag or policy was changed. Structural
+comparison permits only the single input insertion in each target fact: full facts remain 15,
+bootstrap facts remain 7, both edge arrays remain empty and every other field is identical;
+`cache:true` remains unchanged.
+
+The focused command used the configured target's trusted-module environment:
+`TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-gate-wait-env-main/node_modules bun test --preload
+./tools/test/scratch/preload.ts apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts
+apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --timeout=60000 -t
+'matches what the static extractor reads|pins exact pre-index tuples|refuses a stale Burokrat test command'`.
+An initial local replay without that environment hit the separate trusted-runtime-modules
+requirement and was superseded by the configured RED/GREEN runs above.
+
+Local receipts: `/tmp/puni-gate-authority-four-red-configured.log`,
+`/tmp/puni-gate-authority-four-green.log`, `/tmp/puni-gate-authority-structural-audit.json`,
+`/tmp/puni-gate-authority-omission-receipt.json` and `/tmp/puni-gate-authority-restored.log`.
+No TypeScript or runtime source changed. Hosted CI, canonical full gates and publication
+remain separate checks; no commit or public action was performed by this source actor.
