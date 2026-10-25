@@ -74,13 +74,14 @@ project-viewer)` and member V holds nothing else
   `404 not_found` and leaves U's accepted; a non-member account cannot be added to G
   (`409 not_a_member`)
 
-#### Scenario: The strongest grant wins across scopes
+#### Scenario: Grants add up across scopes
 
 - **WHEN** U holds `(organization A, project-viewer)` through the members subject,
   `(project P, project-contributor)` directly and `(work package W of P,
 package-manager)` through group G
-- **THEN** U's effective role at W is manager with provenance listing all three grants,
-  at another package of P contributor, and at a package of another project viewer; a
+- **THEN** U's effective set at W is the union of the three roles' sets with provenance
+  per permission, at another package of P the union of the first two, and at a package of
+  another project `project-viewer`'s set; a
   `PATCH /api/work-packages/W` is accepted and the same patch on P's other package is
   refused `403 forbidden` naming `package.manage_settings`
 
@@ -314,13 +315,17 @@ the same for the grant it removes; a `machine_credential` subject SHALL need the
 person. Removing a member SHALL need `organization.manage_members`, and removing one who
 holds an organization-role grant directly SHALL also need
 `organization.manage_organization_roles`. A granter SHALL NOT bind a role whose permission set is not a
-subset of their own effective set at the target scope (`wbs-custom-permissions` CP5),
-evaluated without the restricted rule. The store SHALL refuse
+subset of their grant-comparison set at the target scope (`wbs-custom-permissions` CP5,
+CP13), evaluated without the restricted rule. Adding or removing an access group member
+and deleting a group SHALL take the same rule for every grant naming the group, and a
+grant to the organization members subject SHALL need
+`organization.manage_organization_roles` (CP13). The store SHALL refuse
 `409 role_scope_mismatch` for a role above its scope kind, `409 not_a_member` for a
 non-member subject, `404 unknown_group` for a foreign group, `404 unknown_credential` for
 a foreign or revoked credential, `409 already_granted` for a
-duplicate and `409 last_super_admin` for a revoke or removal that would leave the
-organization without an `org-super-admin`, each inside the grant's transaction. Every
+duplicate and `409 last_super_admin` for any write that would leave no current member
+holding the built-in `org-super-admin` through a direct user grant (CP14), each inside
+the write's transaction. Every
 grant, revoke and access-group act SHALL write one `organization_audit` row in the same
 transaction (`access_granted`, `access_revoked`, `access_group_created`,
 `access_group_renamed`, `access_group_deleted`, `access_group_member_added`,
@@ -357,7 +362,8 @@ package-viewer)`
 
 #### Scenario: The last super-admin
 
-- **WHEN** the only `org-super-admin` grant of A is revoked, or its holder removed
+- **WHEN** the only direct `org-super-admin` user grant of A is revoked, or its holder
+  removed, while group G of current members also holds `org-super-admin`
 - **THEN** the store refuses `409 last_super_admin` and the grant and membership remain
 
 #### Scenario: Audit cannot be written

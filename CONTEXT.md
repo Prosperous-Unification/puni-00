@@ -45,11 +45,11 @@ account or a machine principal.
 _Avoid_: user (alone), actor, identity, caller
 
 **Access grant**:
-One statement that a principal holds one access role at one grant scope of an organization. Grants add up and the strongest wins; nothing subtracts.
+One statement that a principal holds one access role at one grant scope of an organization. Grants add up; nothing subtracts.
 _Avoid_: permission (what a role implies), ACL entry, share, binding, role assignment
 
 **Access role**:
-A named set of permissions over one object kind (organization, project, work package), either built-in or custom. Code checks whether a permission is in the set, never the role's name.
+A named set of permissions over one object kind and the kinds beneath it (organization, project, work package), either built-in or custom. An ordinary decision asks whether a permission is in the set, never the role's name; the restricted work package rule and the last super-admin rule are the only ones that name built-in roles.
 _Avoid_: role (alone), policy, rung, scope
 
 **Built-in access role**:
@@ -68,9 +68,9 @@ _Avoid_: team, group (alone), user group, IdP group
 The organization, project or work package an access grant names; a grant at a scope reaches every object beneath it, including ones created later. Not the admitted turn's **Scope** below.
 _Avoid_: scope (alone), target, resource, level
 
-**Effective role**:
-The strongest access role a principal holds at one grant scope through every grant that reaches it, direct, via an access group or via the organization members subject, after the machine cap; null means the object is invisible to them.
-_Avoid_: permissions, computed role, access level
+**Effective permissions**:
+The permissions a principal holds at one grant scope, each with the grants it came from: the union over every grant that reaches the scope, direct, via an access group or via the organization members subject, after the machine cap. The object is invisible to them unless its read permission is among them.
+_Avoid_: effective role, strongest role, computed role, access level
 
 **Organization members subject**:
 The grant subject that stands for every current member of the organization, resolved at check time; how "every member may view every project" is one row.
@@ -82,7 +82,7 @@ credential, never those of its agent person's bound account, under the machine c
 _Avoid_: bot, service account, machine user, agent account
 
 **Machine cap**:
-The ceiling of contributor applied to every effective role of a machine principal, whatever its credential's grants name and whatever its bound account holds.
+The fixed permission boundary a machine principal's effective permissions are intersected with (the permissions the contributor roles hold), whatever its credential's grants name and whatever its bound account holds.
 _Avoid_: role cap, scope narrowing, member cap
 
 **Active organization**:
