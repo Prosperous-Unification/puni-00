@@ -770,8 +770,9 @@ What landed:
   scenario "The directory row names the instance for a member"; `resource-directory` names
   `provider` on the project resources read; design P12 says where the chip lives.
 
-Assumed (overrulable): naming the instance's kind and name to members and viewers is acceptable;
-the locator stays admin-only. Slice 5's review listed this as the "later refinement".
+Confirmed by Dany on 2026-10-25 (assumed when this slice shipped): naming the instance's kind
+and name to members and viewers is acceptable; the locator stays admin-only. Slice 5's review
+listed this as the "later refinement".
 
 Commands (fresh, `env -u CLAUDECODE`): `compute-provider.controller.db.test.ts` 27 pass; be-01
 `boot.db.test.ts`, `app.routes.test.ts`, the controller test and the resource tests: 6 files,
@@ -788,6 +789,7 @@ Eye review (same stack and seed as `wbs-resources` 3.4): `05-resources-{admin,me
 in `resource-facet-shots/`. Page errors 0, overflow 0 px. The chip sits on the name line and
 wraps under the name at 375. An admin sees the chip and the select naming the same instance on
 separate lines; kept, since the chip is what the row reads as and the select is the editor.
+Dany confirmed on 2026-10-25 that an admin keeps both the chip and the picker.
 
 ### Task 5.3 review fixes (Fable review of #720, 2026-10-25)
 
