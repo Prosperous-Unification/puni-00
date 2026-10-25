@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import type { ProposalStatus, SubmissionView } from '@website/contracts';
+import type { ProposalStatus, ScopingReply, SubmissionView } from '@website/contracts';
 import { Database } from 'bun:sqlite';
 
 import { busyTimeoutMilliseconds } from './checked-database';
@@ -10,6 +10,7 @@ import {
   admitConversationOperation,
   completeConversationOperation,
   completeDeclinedConversationOperation,
+  completeScopingConversationOperation,
   type ConversationAdmission,
   type ConversationAdmissionRequest,
   conversationAllowance,
@@ -72,6 +73,7 @@ export { openMaintenanceDatabase } from './checked-database';
 export type {
   ConversationAdmission,
   ConversationAdmissionRequest,
+  ConversationContext,
   ConversationOperationRecord,
   ConversationPricing,
   ConversationRecord,
@@ -272,6 +274,16 @@ export class WebsiteStore {
     truncated: boolean,
   ): boolean {
     return completeConversationOperation(this.database, id, reply, actualMicroUsd, now, truncated);
+  }
+
+  /** See {@link completeScopingConversationOperation}. */
+  completeScopingConversationOperation(
+    id: string,
+    reply: ScopingReply | null,
+    actualMicroUsd: number,
+    now: number,
+  ): boolean {
+    return completeScopingConversationOperation(this.database, id, reply, actualMicroUsd, now);
   }
 
   /** See {@link completeDeclinedConversationOperation}. */

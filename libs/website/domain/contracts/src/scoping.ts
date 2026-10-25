@@ -443,3 +443,17 @@ export function parseScopingAnswerRequest(input: unknown): ScopingParse<ScopingA
     };
   return { kind: 'valid', value: { message: parsed.value.message } };
 }
+
+/** Readable legacy-compatible transcript; question text remains in history after its controls change. */
+export function scopingReplyText(reply: ScopingReply): string {
+  return reply.nextQuestionId === null
+    ? reply.message
+    : `${reply.message}\n\n${getScopingQuestion(reply.nextQuestionId).label}`;
+}
+
+/** An unusable model envelope whose provider usage was nevertheless known and settled. */
+export type ReplyFailure = 'invalid_scoping_reply';
+
+/** Fixed manual path for unusable output; never includes unchecked model content. */
+export const invalidScopingReplyText =
+  'The reply could not be confirmed. You can send another message or edit your brief and request human review.';

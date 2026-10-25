@@ -288,3 +288,46 @@ test('selected stopped attempts retain their raw retry payload and reject malfor
     InvalidConversation,
   );
 });
+
+test('reply failure survives refresh and completed failure is not a stopped retry', () => {
+  const view = {
+    stage: 'clarify',
+    turns: [],
+    visitorTurnsRemaining: 7,
+    visitorTurnLimit: 8,
+    brief: '',
+    description: 'Opening',
+    csrfToken: 'a'.repeat(64),
+    provider: 'openrouter',
+    exhaustedReason: null,
+    challenge: null,
+    initialOperation: {
+      state: 'completed',
+      idempotencyKey: 'initial:draft',
+      truncated: false,
+      replyFailure: 'invalid_scoping_reply',
+    },
+    latestOperation: {
+      state: 'completed',
+      idempotencyKey: 'initial:draft',
+      truncated: false,
+      replyFailure: 'invalid_scoping_reply',
+      message: 'Opening',
+      answer: null,
+    },
+  };
+  const conversation = parseConversation(view);
+  expect(conversation.latestOperation).toMatchObject({ replyFailure: 'invalid_scoping_reply' });
+  expect(conversation.initialOperation).toMatchObject({ replyFailure: 'invalid_scoping_reply' });
+  expect(selectStoppedAttempt(conversation)).toBeNull();
+  for (const replyFailure of ['other', 1, false, undefined])
+    expect(() =>
+      parseConversation({ ...view, initialOperation: { ...view.initialOperation, replyFailure } }),
+    ).toThrow(InvalidConversation);
+  expect(() =>
+    parseConversation({
+      ...view,
+      initialOperation: { ...view.initialOperation, state: 'unknown' },
+    }),
+  ).toThrow(InvalidConversation);
+});

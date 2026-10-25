@@ -16,7 +16,8 @@
       "inputs": [
         "default",
         "^production",
-        "{workspaceRoot}/openspec/changes/build-ai-chat-harness/system-prompt.md"
+        "{workspaceRoot}/openspec/changes/build-ai-chat-harness/system-prompt.md",
+        "{workspaceRoot}/openspec/changes/conversion-scoping/system-prompt.md"
       ],
       "executor": "nx:run-commands",
       "options": {

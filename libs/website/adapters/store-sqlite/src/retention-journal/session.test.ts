@@ -695,6 +695,18 @@ test('restoring a pre-erasure snapshot clears scoping references and candidates 
       "UPDATE conversation_operation SET initial = 0, request_json = ? WHERE id = 'scoping-op'",
     )
     .run(JSON.stringify({ message: 'SECRET raw retry explanation' }));
+  database
+    .query(
+      "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, settled_micro_usd, settlement, created_at, reply_version, reply) VALUES ('scoping-completed', 'scoping-talk', 'completed-key', 'source', 'completed-hash', 'SECRET completed message', 0, 'clarify', 'puni-scoping-v1', 'completed', '1970-01-01', 500, 50, 'usage', 3, 1, ?)",
+    )
+    .run(
+      JSON.stringify({
+        version: 1,
+        message: 'SECRET structured prose',
+        nextQuestionId: null,
+        brief: 'SECRET structured brief',
+      }),
+    );
   database.run(`VACUUM INTO '${snapshotPath}'`);
   const session = await openRetentionJournal(database, remote, options());
   fenceSubject(database, subject('req-3'));
@@ -728,6 +740,25 @@ test('restoring a pre-erasure snapshot clears scoping references and candidates 
       reply_version: 1,
       request_json: null,
     });
+    expect(
+      restored
+        .query(
+          "SELECT reply, reply_version, settled_micro_usd FROM conversation_operation WHERE id = 'scoping-completed'",
+        )
+        .get(),
+    ).toEqual({ reply: '', reply_version: 1, settled_micro_usd: 50 });
+    expect(() =>
+      restored
+        .query("UPDATE conversation_operation SET reply = ? WHERE id = 'scoping-completed'")
+        .run(
+          JSON.stringify({
+            version: 1,
+            message: 'SECRET restored envelope',
+            nextQuestionId: null,
+            brief: null,
+          }),
+        ),
+    ).toThrow('fenced');
     expect(() => restored.run("UPDATE draft_scoping SET candidate_brief = 'SECRET late'")).toThrow(
       'fenced',
     );

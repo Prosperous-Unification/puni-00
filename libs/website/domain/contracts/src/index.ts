@@ -1,5 +1,5 @@
 import type { BrowserChallenge } from './browser-check';
-import type { QuestionId, ScopingAnswerRequest, StartingChoiceId } from './scoping';
+import type { QuestionId, ReplyFailure, ScopingAnswerRequest, StartingChoiceId } from './scoping';
 
 export type ProposalStatus = 'submitted' | 'reviewing' | 'contacted' | 'closed';
 
@@ -55,6 +55,8 @@ export type ConversationExhaustedReason =
   'turns' | 'conversation_spend' | 'source_spend' | 'site_spend';
 
 export interface ConversationOperationView {
+  /** Present on scoping-aware backends; completed accounting can still carry unusable output. */
+  replyFailure?: ReplyFailure | null;
   state: 'not-started' | 'inflight' | 'completed' | 'unknown';
   idempotencyKey: string;
   truncated: boolean;

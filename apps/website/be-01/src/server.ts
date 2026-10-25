@@ -45,7 +45,11 @@ import {
   replayReply,
   streamConfirmedReply,
 } from './conversation/stream';
-import { providerDeclineReply, salesPromptVersion } from './conversation/system-prompt';
+import {
+  providerDeclineReply,
+  salesPromptVersion,
+  scopingPromptVersion,
+} from './conversation/system-prompt';
 import {
   deliverAlert,
   FloodCounter,
@@ -703,7 +707,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     admitted: Exclude<ConversationAdmission, { kind: 'started' }>,
     provider: ReturnType<typeof selectConversationProvider>['kind'],
   ): Response {
-    if (admitted.kind === 'completed') return replayReply(admitted.reply);
+    if (admitted.kind === 'completed')
+      return replayReply(admitted.reply, admitted.replyVersion, admitted.replyFailure);
     if (admitted.kind === 'exhausted') {
       const reason = admitted.reason;
       const code =
@@ -909,12 +914,14 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           state: initialRecord?.state ?? 'not-started',
           idempotencyKey: initialKey,
           truncated: initialRecord?.truncated ?? false,
+          replyFailure: initialRecord?.replyFailure ?? null,
         },
         latestOperation: latest
           ? {
               state: latest.state,
               idempotencyKey: latest.idempotencyKey,
               truncated: latest.truncated,
+              replyFailure: latest.replyFailure,
               message: latest.message,
               answer: latest.answer,
             }
@@ -1005,10 +1012,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         provider.kind === 'paid'
           ? {
               kind: 'paid',
-              price: (history, stage) =>
+              price: (history, stage, context) =>
                 priceConversationRequest(
                   // Proof: pricing only the first 1,500 characters failed the mounted long-answer exact reservation assertion against the captured complete outbound request.
-                  composeConversationRequest(history, message, stage),
+                  composeConversationRequest(history, message, stage, context),
                   provider.rates,
                   // Proof: pricing with the 400-token default failed the reasoning-effort reservation test.
                   conversationReplyTokens,
@@ -1026,7 +1033,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         initial,
         automatic,
         answer: normalizedAnswer,
-        promptVersion: salesPromptVersion,
+        promptVersion: draft.scoping.version === 1 ? scopingPromptVersion : salesPromptVersion,
         pricing,
         browserCheck,
         now,
@@ -1049,7 +1056,12 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (provider.kind !== 'paid')
         throw new Error('Unavailable provider admitted a new conversation operation');
       noteSiteSpend(now);
-      const outbound = composeConversationRequest(admitted.history, message, admitted.stage);
+      const outbound = composeConversationRequest(
+        admitted.history,
+        message,
+        admitted.stage,
+        admitted.context,
+      );
       const response = streamConfirmedReply({
         pin: {
           key: String(config.openRouterKey),
@@ -1061,6 +1073,18 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         rates: provider.rates,
         system: outbound.system,
         messages: outbound.messages,
+        structured:
+          admitted.context.scoping.version === 1
+            ? {
+                complete: (reply, actualMicroUsd) =>
+                  store.completeScopingConversationOperation(
+                    admitted.id,
+                    reply,
+                    actualMicroUsd,
+                    Date.now(),
+                  ),
+              }
+            : undefined,
         maxCompletionTokens: conversationReplyTokens,
         operationId: admitted.id,
         aborts: conversationAborts,

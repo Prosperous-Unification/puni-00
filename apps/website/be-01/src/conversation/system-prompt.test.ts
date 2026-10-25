@@ -8,6 +8,8 @@ import {
   providerDeclineReply,
   salesPromptVersion,
   salesSystemPrompt,
+  scopingPromptVersion,
+  scopingSystemPrompt,
   stageHint,
 } from './system-prompt';
 
@@ -36,4 +38,16 @@ test('each stage hint equals its row in the reviewed document', () => {
 test('the provider decline equals the reviewed document and carries no price, date or marker', () => {
   expect(promptDocument).toContain(`> ${providerDeclineReply}\n`);
   expect(providerDeclineReply).not.toMatch(/[$€£\d[\]]/);
+});
+
+test('the separately versioned scoping prompt equals its reviewed source', () => {
+  const document = readFileSync(
+    join(import.meta.dir, '../../../../../openspec/changes/conversion-scoping/system-prompt.md'),
+    'utf8',
+  );
+  const block = /```text\n([\s\S]*?)\n```/.exec(document)?.[1];
+  if (block === undefined) throw new Error('Missing prompt block');
+  // Proof: changing the source to "You were PUNI" failed this equality.
+  expect(scopingSystemPrompt).toBe(block);
+  expect(document).toContain(scopingPromptVersion);
 });

@@ -43,6 +43,7 @@ export type ConversationExhaustedReason =
   'turns' | 'conversation_spend' | 'source_spend' | 'site_spend';
 
 export interface ConversationOperation {
+  replyFailure?: 'invalid_scoping_reply' | null;
   state: 'not-started' | 'inflight' | 'completed' | 'unknown';
   idempotencyKey: string;
   truncated: boolean;
@@ -196,8 +197,20 @@ function parseOperation(value: unknown, field: string): ConversationOperation | 
     typeof value.truncated !== 'boolean'
   )
     throw new InvalidConversation(field);
+  const state = pickOne(value.state, operationStates, field);
+  let failure: { replyFailure?: 'invalid_scoping_reply' | null } = {};
+  if ('replyFailure' in value) {
+    // Proof: bypassing this guard accepted unknown codes and an unknown-state failure after refresh.
+    if (
+      value.replyFailure !== null &&
+      (value.replyFailure !== 'invalid_scoping_reply' || state !== 'completed')
+    )
+      throw new InvalidConversation(`${field}.replyFailure`);
+    failure = { replyFailure: value.replyFailure };
+  }
   return {
-    state: pickOne(value.state, operationStates, field),
+    ...failure,
+    state,
     idempotencyKey: value.idempotencyKey,
     truncated: value.truncated,
   };

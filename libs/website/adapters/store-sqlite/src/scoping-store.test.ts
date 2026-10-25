@@ -294,7 +294,10 @@ test('migration upgrades legacy and downgrade preserves canonical legacy draft',
   expect(database.query('SELECT scoping_version FROM intake_draft').get()).toEqual({
     scoping_version: null,
   });
-  database.run(readFileSync(join(migration.directory, 'down.sql'), 'utf8'));
+  for (const newer of websiteMigrations()
+    .filter(({ name }) => name >= '011')
+    .toReversed())
+    database.run(readFileSync(join(newer.directory, 'down.sql'), 'utf8'));
   expect(database.query('SELECT brief FROM intake_draft').get()).toEqual({ brief: 'Saved edit' });
   database.close();
 });

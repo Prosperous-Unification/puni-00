@@ -757,6 +757,7 @@ test('GET /conversation reads only the claimed draft and reports the disabled pr
       state: 'not-started',
       idempotencyKey: expect.stringMatching(/^initial:[0-9a-f-]{36}$/) as unknown as string,
       truncated: false,
+      replyFailure: null,
     },
     latestOperation: null,
     exhaustedReason: null,

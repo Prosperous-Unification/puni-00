@@ -45,6 +45,38 @@ Use the pinned endpoint's structured-output support through the installed adapte
 
 The model selects relevant questions and writes judgment; the server checks the response, owns actions and budgets, and derives lifecycle state. Semantic correctness is evaluated with scenarios, not claimed from JSON validation. Pass the starting choice, current question/answer context, visitor corrections, references and existing brief as untrusted conversation context. Never promote these to system instructions. The prompt must answer concerns before resuming, avoid already answered questions, and state what still needs inspection. Help me choose offers examples without inventing a project.
 
+### Settlement and compatibility
+
+Migration 013 adds only `conversation_operation.reply_failure`, a nullable enum constrained to
+`invalid_scoping_reply` on completed usage-settled rows with null `reply_version`. Completed
+means accounting finished, not necessarily a useful AI answer. Known malformed/truncated
+output settles actual provider usage, stores fixed manual-path prose and no model content,
+and captures no brief or question. GET operation records expose `replyFailure`; live and replay
+streams carry `data-reply-failure` with `{code: "invalid_scoping_reply"}` after the fixed prose.
+Same-key replay repeats this failure without a paid call; continuation needs a fresh explicit
+message or manual review. Missing/invalid usage, including refusals, remains unknown at the
+full reservation. Explicit reported zero remains zero. There is no repair call.
+
+Valid envelopes use `reply_version = 1` in the existing reply column. The settlement immediate
+transaction also applies the scoping state and saves readable assistant prose plus the catalogue
+question text. Old frontends therefore receive readable turns. New controls must use that
+existing visible question once, then refresh GET after finish to obtain current question/revision
+and candidate; replay renders historical prose without applying an old question. References,
+declined email and visitor edits made during inference survive settlement. Only a first candidate
+can fill a still-empty canonical brief. The first valid candidate per conversation counts once
+in the funnel, independently of the legacy third-turn stage; retention still makes old counts a
+lower bound.
+
+Admission returns one transactional context snapshot (history, canonical brief, scoping state,
+visitor turn count). Pricing and provider messages use that same snapshot and schema. The
+catalogue is privileged static prompt text; visitor material is serialized only as a user message.
+The configured completion cap is shared by reservation and provider request, including reasoning.
+
+No new retained text column is introduced. Existing reply/turn erasure and fences cover valid
+envelopes and fallback prose; failure metadata survives only as accounting. Additive migration
+does not make a pre-scoping backend rollback compatible: release must keep a backend that
+understands request payloads, reply versions and failures. This slice performs no rollout.
+
 ### Intake, answers and correction
 
 Extend `POST /intakes` with optional `startingChoice` and explicit `startConversation`. Either valid typed text or a starting choice is required. With only a choice, derive the visible description from its reviewed label. With both, preserve typed description unchanged and retain the choice separately. Defaults for absent new fields are a documented legacy protocol, not recovery from malformed values. Existing clients remain manual-start.

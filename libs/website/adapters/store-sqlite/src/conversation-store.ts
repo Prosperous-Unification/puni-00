@@ -4,13 +4,18 @@ import {
   type ConversationReplyStage,
   type ConversationState,
   deriveReplyStage,
+  invalidScopingReplyText,
   parseScopingAnswerRequest,
+  readScopingReply,
+  type ReplyFailure,
   type ScopingAnswerRequest,
+  type ScopingReply,
+  scopingReplyText,
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
 import { sweepAdmissionCounts, tripInferencePause } from './guardrail-store';
-import { readDraftScoping } from './scoping-store';
+import { applyScopingReply, type DraftScoping, readDraftScoping } from './scoping-store';
 
 export interface ConversationTurn {
   role: 'user' | 'assistant';
@@ -32,6 +37,7 @@ export interface ConversationOperationRecord {
   truncated: boolean;
   message: string;
   answer: ScopingAnswerRequest | null;
+  replyFailure: ReplyFailure | null;
 }
 
 /**
@@ -49,6 +55,13 @@ export const conversationAllowance = {
   siteUnsettledCalls: 4,
 } as const;
 
+/** A coherent admission snapshot priced and sent unchanged; edits during inference affect only settlement. */
+export interface ConversationContext {
+  scoping: DraftScoping;
+  brief: string;
+  visitorTurns: number;
+}
+
 /**
  * How a new operation may start: `closed` admits none (replays and refusals still answer),
  * `free` starts one without a reservation (loopback demo), `paid` prices the exact history and
@@ -57,7 +70,14 @@ export const conversationAllowance = {
 export type ConversationPricing =
   | { kind: 'closed' }
   | { kind: 'free' }
-  | { kind: 'paid'; price(history: ConversationTurn[], stage: ConversationReplyStage): number };
+  | {
+      kind: 'paid';
+      price(
+        history: ConversationTurn[],
+        stage: ConversationReplyStage,
+        context: ConversationContext,
+      ): number;
+    };
 
 export interface ConversationAdmissionRequest {
   claimHash: string;
@@ -88,8 +108,9 @@ export type ConversationAdmission =
       stage: ConversationReplyStage;
       /** The model's context for this reply, see {@link listModelContext}. */
       history: ConversationTurn[];
+      context: ConversationContext;
     }
-  | { kind: 'completed'; reply: string }
+  | { kind: 'completed'; reply: string; replyVersion: 1 | null; replyFailure: ReplyFailure | null }
   | { kind: 'exhausted'; reason: ConversationExhaustedReason }
   /** Paid inference is paused; `openedPauseId` names the pause this admission opened, if any. */
   | { kind: 'paused'; openedPauseId: string | null }
@@ -121,6 +142,9 @@ interface OperationRow {
   body_hash: string;
   state: ConversationOperationState;
   reply: string | null;
+  reply_version: 1 | null;
+  reply_failure: unknown;
+  settlement: string | null;
 }
 
 /**
@@ -225,6 +249,9 @@ function toOperationRecord(row: {
   initial: number;
   request_json: string | null;
   scoping_version: number | null;
+  reply_failure: unknown;
+  reply_version: 1 | null;
+  settlement: string | null;
 }): ConversationOperationRecord {
   let answer: ScopingAnswerRequest | null = null;
   if (row.request_json !== null) {
@@ -247,6 +274,7 @@ function toOperationRecord(row: {
     truncated: row.truncated === 1,
     message: row.message,
     answer,
+    replyFailure: readReplyFailure(row),
   };
 }
 
@@ -267,10 +295,13 @@ export function findConversationOperation(
         initial: number;
         request_json: string | null;
         scoping_version: number | null;
+        reply_failure: unknown;
+        reply_version: 1 | null;
+        settlement: string | null;
       },
       [string, string]
     >(
-      'SELECT step.id, step.idempotency_key, step.state, step.truncated, step.message, step.initial, step.request_json, draft.scoping_version FROM conversation_operation AS step JOIN conversation AS talk ON talk.id = step.conversation_id JOIN intake_draft AS draft ON draft.id = talk.draft_id WHERE step.conversation_id = ? AND step.idempotency_key = ? ORDER BY step.rowid DESC LIMIT 1',
+      'SELECT step.id, step.idempotency_key, step.state, step.truncated, step.message, step.initial, step.request_json, draft.scoping_version, step.reply_failure, step.reply_version, step.settlement FROM conversation_operation AS step JOIN conversation AS talk ON talk.id = step.conversation_id JOIN intake_draft AS draft ON draft.id = talk.draft_id WHERE step.conversation_id = ? AND step.idempotency_key = ? ORDER BY step.rowid DESC LIMIT 1',
     )
     .get(conversationId, idempotencyKey);
   return row ? toOperationRecord(row) : null;
@@ -291,10 +322,13 @@ export function findLatestConversationOperation(
         initial: number;
         request_json: string | null;
         scoping_version: number | null;
+        reply_failure: unknown;
+        reply_version: 1 | null;
+        settlement: string | null;
       },
       [string]
     >(
-      'SELECT step.id, step.idempotency_key, step.state, step.truncated, step.message, step.initial, step.request_json, draft.scoping_version FROM conversation_operation AS step JOIN conversation AS talk ON talk.id = step.conversation_id JOIN intake_draft AS draft ON draft.id = talk.draft_id WHERE step.conversation_id = ? ORDER BY step.created_at DESC, step.rowid DESC LIMIT 1',
+      'SELECT step.id, step.idempotency_key, step.state, step.truncated, step.message, step.initial, step.request_json, draft.scoping_version, step.reply_failure, step.reply_version, step.settlement FROM conversation_operation AS step JOIN conversation AS talk ON talk.id = step.conversation_id JOIN intake_draft AS draft ON draft.id = talk.draft_id WHERE step.conversation_id = ? ORDER BY step.created_at DESC, step.rowid DESC LIMIT 1',
     )
     .get(conversationId);
   return row ? toOperationRecord(row) : null;
@@ -358,6 +392,7 @@ function refuseReservation(
     'site spend',
   ).total;
   const pause = tripInferencePause(database, siteSpend, reservedMicroUsd, now);
+  // Proof: bypassing this pause admitted the structured reservation at the 80 percent site threshold.
   if (pause) return { kind: 'paused', ...pause };
   if (siteSpend + reservedMicroUsd > conversationAllowance.siteDayMicroUsd)
     return exhaust(database, conversation.id, 'site_spend');
@@ -404,13 +439,14 @@ export function admitConversationOperation(
           {
             id: string;
             description: string;
+            brief: string;
             scoping_version: unknown;
             start_conversation: unknown;
             starting_choice: unknown;
           },
           [string, number]
         >(
-          'SELECT id, description, scoping_version, start_conversation, starting_choice FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
+          'SELECT id, description, brief, scoping_version, start_conversation, starting_choice FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
         )
         .get(request.claimHash, request.now);
       if (!draft) return { kind: 'draft_unavailable' };
@@ -456,7 +492,7 @@ export function admitConversationOperation(
       const visitorTurns = countVisitorTurns(database, conversation.id);
       const existing = database
         .query<OperationRow, [string, string]>(
-          'SELECT id, body_hash, state, reply FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
+          'SELECT id, body_hash, state, reply, reply_version, reply_failure, settlement FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
         )
         .get(conversation.id, request.idempotencyKey);
       if (existing) {
@@ -468,7 +504,13 @@ export function admitConversationOperation(
             return { kind: 'turn_limit' };
           if (existing.reply === null)
             throw new Error('Completed conversation operation has no reply');
-          return { kind: 'completed', reply: existing.reply };
+          if (existing.reply_version === 1) readScopingReply(existing.reply);
+          return {
+            kind: 'completed',
+            reply: existing.reply,
+            replyVersion: existing.reply_version,
+            replyFailure: readReplyFailure(existing),
+          };
         }
       }
       // Proof: moving this refusal before lookup broke completed turn/spend replay and conflicts; omitting it made fresh exhausted requests throw in those same fixtures.
@@ -508,9 +550,10 @@ export function admitConversationOperation(
         throw new Error('Missing normalized conversation answer');
       const stage = deriveReplyStage(visitorTurns);
       const history = listModelContext(database, conversation.id);
+      const context = { scoping, brief: draft.brief, visitorTurns };
       let reservedMicroUsd: number | null = null;
       if (request.pricing.kind === 'paid') {
-        reservedMicroUsd = request.pricing.price(history, stage);
+        reservedMicroUsd = request.pricing.price(history, stage, context);
         if (!Number.isSafeInteger(reservedMicroUsd) || reservedMicroUsd <= 0)
           throw new Error('Conversation reservation must be a positive integer of micro-USD');
         const refusal = refuseReservation(
@@ -520,6 +563,7 @@ export function admitConversationOperation(
           reservedMicroUsd,
           request.now,
         );
+        // Proof: removing this admission refusal failed structured reservation participates in conversation ceiling.
         if (refusal) return refusal;
       }
       const id = crypto.randomUUID();
@@ -543,7 +587,7 @@ export function admitConversationOperation(
           // Proof: storing null here failed mounted selected Retry after remount.
           request.answer ? JSON.stringify(request.answer) : null,
         );
-      return { kind: 'started', id, conversationId: conversation.id, stage, history };
+      return { kind: 'started', id, conversationId: conversation.id, stage, history, context };
     })
     .immediate();
 }
@@ -588,6 +632,45 @@ export function completeDeclinedConversationOperation(
   return settleConversationOperation(database, id, reply, actualMicroUsd, now, false, refusal);
 }
 
+/** Validated envelope, readable turns and current scoping state settle in one immediate transaction. */
+export function completeScopingConversationOperation(
+  database: Database,
+  id: string,
+  reply: ScopingReply | null,
+  actualMicroUsd: number,
+  now: number,
+): boolean {
+  return settleConversationOperation(
+    database,
+    id,
+    reply === null ? invalidScopingReplyText : JSON.stringify(reply),
+    actualMicroUsd,
+    now,
+    false,
+    null,
+    reply === null ? { kind: 'invalid' } : { kind: 'valid', reply },
+  );
+}
+
+/** Rejects corrupt failure metadata even when a database was restored without its constraints. */
+function readReplyFailure(row: {
+  reply_failure: unknown;
+  state: ConversationOperationState;
+  settlement: string | null;
+  reply_version: 1 | null;
+}): ReplyFailure | null {
+  if (row.reply_failure === null) return null;
+  // Proof: bypassing this reader accepted each corrupt failure row with SQLite CHECK enforcement disabled.
+  if (
+    row.reply_failure !== 'invalid_scoping_reply' ||
+    row.state !== 'completed' ||
+    row.settlement !== 'usage' ||
+    row.reply_version !== null
+  )
+    throw new Error('Malformed conversation reply failure');
+  return row.reply_failure;
+}
+
 function settleConversationOperation(
   database: Database,
   id: string,
@@ -596,6 +679,7 @@ function settleConversationOperation(
   now: number,
   truncated: boolean,
   refusal: ConversationRefusal | null,
+  structured?: { kind: 'valid'; reply: ScopingReply } | { kind: 'invalid' },
 ): boolean {
   return database
     .transaction(() => {
@@ -624,18 +708,37 @@ function settleConversationOperation(
       // Only the assistant reply is parsed, so brief markers in visitor text never reach the draft.
       // Proof: parsing `operation.message` here stored the visitor's injected brief in the markers-in-visitor-text test.
       // Proof: capturing a declined reply stored the decline as the draft brief in the brief-stage refusal test.
-      const capture = operation.stage === 'brief' && refusal === null ? captureBrief(reply) : null;
+      const draft = database
+        .query<{ id: string }, [string, number]>(
+          'SELECT id FROM intake_draft WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND expires_at > ?',
+        )
+        .get(operation.conversation_id, now);
+      // Proof: bypassing this guard completed known-invalid replies after expiry, consumption and missing ownership.
+      if (!draft) return false;
+      if (
+        structured?.kind === 'valid' &&
+        !applyScopingReply(database, draft.id, structured.reply, now)
+      )
+        return false;
+      const prose = structured?.kind === 'valid' ? scopingReplyText(structured.reply) : reply;
+      const capture =
+        !structured && operation.stage === 'brief' && refusal === null ? captureBrief(reply) : null;
       const settled = database
         .query(
-          "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ?, refusal = ? WHERE id = ? AND state = 'inflight'",
+          "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ?, refusal = ?, reply_version = ?, reply_failure = ? WHERE id = ? AND state = 'inflight'",
         )
         .run(
           reply,
           truncated ? 1 : 0,
           actualMicroUsd,
           overrun ? 1 : 0,
-          capture?.kind ?? null,
+          // Proof: marking every structured outcome as captured failed all mounted known-invalid envelope cases.
+          structured?.kind === 'valid' && structured.reply.brief !== null
+            ? 'marked'
+            : (capture?.kind ?? null),
           refusal,
+          structured?.kind === 'valid' ? 1 : null,
+          structured?.kind === 'invalid' ? 'invalid_scoping_reply' : null,
           id,
         );
       if (settled.changes !== 1) throw new Error('Conversation completion was not atomic');
@@ -649,7 +752,7 @@ function settleConversationOperation(
         operation.message,
         now,
       );
-      insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'assistant', reply, now + 1);
+      insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'assistant', prose, now + 1);
       // Proof: storing the raw reply for an `empty` capture failed the empty-marked-body test.
       // Proof: removing the version predicate captured Legacy model candidate in the versioned-draft fixture.
       if (capture && capture.kind !== 'empty')

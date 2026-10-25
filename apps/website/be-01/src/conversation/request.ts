@@ -5,9 +5,11 @@ import {
   parseScopingAnswerRequest,
   resolveScopingAnswer,
 } from '@website/contracts';
+import type { ConversationContext } from '@website/store-sqlite';
 
+import { scopingReplySchema } from './scoping-reply';
 import type { ChatMessage, ProviderRates } from './stream';
-import { composeSystemText } from './system-prompt';
+import { composeScopingSystemText, composeSystemText } from './system-prompt';
 
 /**
  * Completion tokens per conversation reply when `OPENROUTER_MAX_COMPLETION_TOKENS` is unset. A
@@ -42,6 +44,7 @@ export function parseConversationAnswer(input: Record<string, unknown>) {
 export interface ConversationRequest {
   system: string;
   messages: ChatMessage[];
+  schema?: typeof scopingReplySchema;
 }
 
 /**
@@ -67,7 +70,18 @@ export function composeConversationRequest(
   history: ChatMessage[],
   message: string,
   stage: ConversationReplyStage,
+  context?: ConversationContext,
 ): ConversationRequest {
+  if (context?.scoping.version === 1)
+    return {
+      system: composeScopingSystemText(context.visitorTurns === 7),
+      messages: [
+        ...trimHistory(history),
+        { role: 'user', content: `Untrusted current scoping context: ${JSON.stringify(context)}` },
+        { role: 'user', content: message },
+      ],
+      schema: scopingReplySchema,
+    };
   return {
     system: composeSystemText(stage),
     messages: [...trimHistory(history), { role: 'user', content: message }],
@@ -84,11 +98,14 @@ export function priceConversationRequest(
   rates: ProviderRates,
   replyTokens: number,
 ): number {
+  // Proof: omitting schema bytes failed structured admission snapshot against the captured outbound schema.
   const inputTokensBound =
     Buffer.byteLength(
       JSON.stringify([{ role: 'system', content: request.system }, ...request.messages]),
       'utf8',
-    ) + 2_000;
+    ) +
+    (request.schema ? Buffer.byteLength(JSON.stringify(request.schema), 'utf8') : 0) +
+    2_000;
   return Math.ceil(
     inputTokensBound * rates.inputUsdPerMillion + replyTokens * rates.outputUsdPerMillion,
   );

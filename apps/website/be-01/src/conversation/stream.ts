@@ -1,12 +1,23 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { replyReplacePart } from '@website/contracts';
+import {
+  invalidScopingReplyText,
+  readScopingReply,
+  type ReplyFailure,
+  replyReplacePart,
+  type ScopingReply,
+  scopingReplyText,
+} from '@website/contracts';
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
+  defaultSettingsMiddleware,
   streamText,
   toUIMessageStream,
   type UIMessageChunk,
+  wrapLanguageModel,
 } from 'ai';
+
+import { parseProviderScopingReply, scopingReplySchema } from './scoping-reply';
 
 export type ProviderFetch = (input: string, init: RequestInit) => Response | Promise<Response>;
 
@@ -128,13 +139,19 @@ export function providerRouting(provider: string, rates: ProviderRates) {
 }
 
 /** Streams a saved reply back as one text part, with no provider call. */
-export function replayReply(reply: string): Response {
+export function replayReply(
+  reply: string,
+  replyVersion: 1 | null = null,
+  replyFailure: ReplyFailure | null = null,
+): Response {
+  const prose = replyVersion === 1 ? scopingReplyText(readScopingReply(reply)) : reply;
   const stream = createUIMessageStream({
     execute: ({ writer }) => {
       const id = crypto.randomUUID();
       writer.write({ type: 'text-start', id });
-      writer.write({ type: 'text-delta', id, delta: reply });
+      writer.write({ type: 'text-delta', id, delta: prose });
       writer.write({ type: 'text-end', id });
+      if (replyFailure) writer.write({ type: 'data-reply-failure', data: { code: replyFailure } });
     },
   });
   return createUIMessageStreamResponse({ stream });
@@ -166,6 +183,8 @@ export interface ConfirmedReplyOptions {
   aborts: Map<string, AbortController>;
   /** Commits the reply and settled usage; false leaves the operation to be marked unknown. */
   complete(reply: string, actualMicroUsd: number, truncated: boolean): boolean;
+  /** Buffers a version-1 envelope; null settles a known invalid envelope with the fixed manual path. */
+  structured?: { complete(reply: ScopingReply | null, actualMicroUsd: number): boolean };
   /** Settles an operation whose final usage is unknown; see the store's ceiling settlement. */
   markUnknown(): void;
   /** Told of each provider failure (5xx, timeout, non-refusal stream error), not of a stop. */
@@ -187,7 +206,7 @@ export interface ConfirmedReplyOptions {
  * A timeout, abort, browser disconnect, provider or stream error, missing raw usage, an empty or
  * oversized reply, or a refused completion marks the operation unknown and ends the stream with an
  * error chunk. A provider refusal ({@link ProviderRefusal}) instead completes with the decline
- * reply at the provider-reported usage, or 0 when it reported none, and streams that reply with
+ * reply at the provider-reported usage; missing refusal usage settles the reserved ceiling. It streams a confirmed decline with
  * a `stop` finish; the refusal's own error chunk is never forwarded. Partial text may already
  * have streamed before the refusal, so the decline is sent as a `data-reply-replace` part
  * ({@link replyReplacePart}) after every open text part is ended: the replacement supersedes the
@@ -237,12 +256,23 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const decline = options.decline;
   let refusal: ProviderRefusal | null = null;
   let declined = false;
+  let confirmedText: string | null = null;
+  let replyFailure: ReplyFailure | null = null;
   /** The last raw usage seen; a refusal's usage can ride the error chunk the SDK does not parse. */
   let rawUsage: unknown = undefined;
   const inputRate = options.rates.inputUsdPerMillion;
   const outputRate = options.rates.outputUsdPerMillion;
   const streamed = streamText({
-    model: openrouter.chat(options.pin.model),
+    model: options.structured
+      ? wrapLanguageModel({
+          model: openrouter.chat(options.pin.model),
+          middleware: defaultSettingsMiddleware({
+            settings: {
+              responseFormat: { type: 'json', schema: scopingReplySchema, name: 'scoping_reply' },
+            },
+          }),
+        })
+      : openrouter.chat(options.pin.model),
     system: options.system,
     messages: options.messages,
     maxRetries: 0,
@@ -266,7 +296,9 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     },
     providerOptions: {
       openrouter: {
+        ...(options.structured ? { structuredOutputs: { strict: true } } : {}),
         provider: providerRouting(options.pin.provider, options.rates),
+        // Proof: raising only this provider cap by 100 failed the mounted structured 700-token contract.
         max_completion_tokens: options.maxCompletionTokens,
         // Proof: removing this spread failed the mounted reasoning-effort conversation test.
         ...reasoningRequest(options.pin.reasoningEffort),
@@ -279,15 +311,38 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
         if (refusal) {
           // Proof: dropping the raw fallback settled 0 in the usage-on-the-error-chunk refusal test.
           const reported = readFinalUsage(finalStep.usage.raw ?? rawUsage);
-          // A refusal is settled at what the provider reported; it reports nothing for a pre-check block.
-          const actualMicroUsd = reported
-            ? Math.ceil(reported.promptTokens * inputRate + reported.completionTokens * outputRate)
-            : 0;
+          // Proof: settling absent refusal usage at zero failed structured accounting refusal missing usage.
+          if (!reported) {
+            options.markUnknown();
+            return;
+          }
+          const actualMicroUsd = Math.ceil(
+            reported.promptTokens * inputRate + reported.completionTokens * outputRate,
+          );
           declined = decline.complete(refusal, actualMicroUsd);
           if (!declined) options.markUnknown();
           return;
         }
         const usage = readFinalUsage(finalStep.usage.raw);
+        if (options.structured) {
+          if (!usage) {
+            options.markUnknown();
+            return;
+          }
+          const parsed = parseProviderScopingReply(text, finishReason !== 'stop');
+          // Proof: fixed 400-token settlement and subtracting 600 reasoning tokens each failed structured accounting reasoning included once.
+          const actualMicroUsd = Math.ceil(
+            usage.promptTokens * inputRate + usage.completionTokens * outputRate,
+          );
+          const reply = parsed.kind === 'valid' ? parsed.value : null;
+          if (!options.structured.complete(reply, actualMicroUsd)) {
+            options.markUnknown();
+            return;
+          }
+          confirmedText = reply === null ? invalidScopingReplyText : scopingReplyText(reply);
+          replyFailure = reply === null ? 'invalid_scoping_reply' : null;
+          return;
+        }
         if (
           !usage ||
           !['stop', 'length'].includes(finishReason) ||
@@ -303,6 +358,10 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
         );
         if (!options.complete(text.trim(), actualMicroUsd, finishReason === 'length'))
           options.markUnknown();
+      } catch (error) {
+        // Proof: omitting ceiling settlement left the injected failed-turn operation inflight.
+        options.markUnknown();
+        throw error;
       } finally {
         release();
       }
@@ -337,6 +396,11 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
             // Proof: removing this fence published SECRET LATE REPLY in the cleanup-before-polling-tick test.
             if (!options.canContinue()) abort.abort();
             if (abort.signal.aborted) continue;
+            // Proof: removing this buffer published SECRET UNCOMMITTED when the turn insert rolled back.
+            if (options.structured) {
+              if (chunk.type === 'finish') finishChunk = chunk;
+              continue;
+            }
             if (chunk.type === 'text-start') openTextIds.add(chunk.id);
             else if (chunk.type === 'text-end') openTextIds.delete(chunk.id);
             if (chunk.type === 'finish') finishChunk = chunk;
@@ -347,6 +411,24 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           await completion.promise;
           if (connected) {
             if (
+              options.structured &&
+              !abort.signal.aborted &&
+              options.canContinue() &&
+              options.isCompleted() &&
+              (confirmedText !== null || declined)
+            ) {
+              const id = options.operationId;
+              controller.enqueue({ type: 'text-start', id });
+              controller.enqueue({
+                type: 'text-delta',
+                id,
+                delta: declined ? decline.reply : String(confirmedText),
+              });
+              controller.enqueue({ type: 'text-end', id });
+              if (replyFailure)
+                controller.enqueue({ type: 'data-reply-failure', data: { code: replyFailure } });
+              controller.enqueue({ type: 'finish', finishReason: 'stop' });
+            } else if (
               !abort.signal.aborted &&
               options.canContinue() &&
               declined &&

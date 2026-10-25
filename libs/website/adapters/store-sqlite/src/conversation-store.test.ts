@@ -241,6 +241,8 @@ test('admission replays, conflicts, refuses in-flight and orders the initial ope
   expect(store.completeConversationOperation(first.id, 'Who uses it?', 900, day, false)).toBe(true);
   expect(store.admitConversationOperation(initial)).toEqual({
     kind: 'completed',
+    replyVersion: null,
+    replyFailure: null,
     reply: 'Who uses it?',
   });
   expect(
@@ -341,7 +343,7 @@ test('a closed provider admits no new conversation or operation but still replay
     store.admitConversationOperation(
       ask('claim-1', 'key-claim-1-1', 'message 1', { initial: true, pricing: closed }),
     ),
-  ).toEqual({ kind: 'completed', reply: 'reply 1' });
+  ).toEqual({ kind: 'completed', reply: 'reply 1', replyVersion: null, replyFailure: null });
   expect(
     store.admitConversationOperation(ask('claim-1', 'new-key-1', 'More', { pricing: closed })),
   ).toEqual({ kind: 'provider_unavailable' });
@@ -1074,10 +1076,14 @@ for (const exhaustion of ['turns', 'conversation_spend'] as const)
     const state = store.findDraft('replay-claim', day);
     expect(store.admitConversationOperation(initial)).toEqual({
       kind: 'completed',
+      replyVersion: null,
+      replyFailure: null,
       reply: 'Initial reply',
     });
     expect(store.admitConversationOperation(selection)).toEqual({
       kind: 'completed',
+      replyVersion: null,
+      replyFailure: null,
       reply: 'Selected reply',
     });
     expect(
