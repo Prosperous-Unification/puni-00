@@ -77,6 +77,7 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
     encodeRefusal,
     MODEL_COMMAND,
     MODEL_MANIFEST_TRACE,
+    MANIFEST_CONTEXTS,
     modelChildEnvironment,
     consumeManifestTrace,
   } = await import('./model-manifest-observer');
@@ -91,9 +92,121 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
     await mock.module('node:fs/promises', () => original);
   });
 
-  test('observer inert child scrubs polluted ambient selection and guards the exact full command', () => {
+  const expectedContexts = [
+    [MODEL_MANIFEST_TRACE, '^modeled ', 3, 'full-model'],
+    [
+      'readiness-none-v1',
+      '^readiness actual HTTP and full observer brackets: none$',
+      1,
+      'readiness-none',
+    ],
+    [
+      'readiness-after-health-v1',
+      '^readiness actual HTTP and full observer brackets: after-health$',
+      1,
+      'readiness-after-health',
+    ],
+    [
+      'readiness-after-capability-v1',
+      '^readiness actual HTTP and full observer brackets: after-capability$',
+      1,
+      'readiness-after-capability',
+    ],
+    [
+      'barrier-pre-evidence-v1',
+      '^readiness retained state barrier: pre-evidence$',
+      1,
+      'barrier-pre-evidence',
+    ],
+    [
+      'barrier-pre-artifact-v1',
+      '^readiness retained state barrier: pre-artifact$',
+      1,
+      'barrier-pre-artifact',
+    ],
+    [
+      'barrier-pre-stores-v1',
+      '^readiness retained state barrier: pre-stores$',
+      1,
+      'barrier-pre-stores',
+    ],
+    [
+      'barrier-post-evidence-v1',
+      '^readiness retained state barrier: post-evidence$',
+      1,
+      'barrier-post-evidence',
+    ],
+    [
+      'barrier-post-artifact-v1',
+      '^readiness retained state barrier: post-artifact$',
+      1,
+      'barrier-post-artifact',
+    ],
+    [
+      'barrier-post-stores-v1',
+      '^readiness retained state barrier: post-stores$',
+      1,
+      'barrier-post-stores',
+    ],
+    [
+      'barrier-post-ingress-v1',
+      '^readiness retained state barrier: post-ingress$',
+      1,
+      'barrier-post-ingress',
+    ],
+    [
+      'barrier-post-context-v1',
+      '^readiness retained state barrier: post-context$',
+      1,
+      'barrier-post-context',
+    ],
+  ] as const;
+
+  test('observer inert child admits all twelve exact context commands and rejects every mismatch', () => {
     const key = 'PUNI_TEST_MODEL_MANIFEST_TRACE';
-    for (const inherited of [MODEL_MANIFEST_TRACE, 'unknown', '']) {
+    expect(Object.keys(MANIFEST_CONTEXTS)).toEqual(expectedContexts.map(([context]) => context));
+    for (const [context, filter, limit, label] of expectedContexts) {
+      const configuration = MANIFEST_CONTEXTS[context];
+      const command = [
+        process.execPath,
+        'test',
+        'test/dependency-product-process-model-child.test.ts',
+        '-t',
+        filter,
+        '--preload',
+        '../test/scratch/preload.ts',
+        '--timeout=300000',
+      ];
+      expect(JSON.stringify(configuration.command)).toBe(JSON.stringify(command));
+      expect(configuration.limit).toBe(limit);
+      expect(configuration.label).toBe(label);
+      expect(observeConstructions(context, () => Promise.resolve(undefined)).inspect().limit).toBe(
+        limit,
+      );
+      expect(modelChildEnvironment(command, {}, context)[key]).toBe(context);
+      for (const [other] of expectedContexts) {
+        if (other !== context)
+          expect(() => {
+            modelChildEnvironment(command, {}, other);
+          }).toThrow('source observer command selection invalid');
+      }
+      for (let index = 0; index < command.length; index++) {
+        const changed = [...command];
+        changed[index] = 'invalid-owned-token';
+        expect(() => {
+          modelChildEnvironment(changed, {}, context);
+        }).toThrow('source observer command selection invalid');
+      }
+    }
+    for (const invalid of ['', 'unknown'])
+      expect(() => {
+        Reflect.apply(modelChildEnvironment, undefined, [MODEL_COMMAND, {}, invalid]);
+      }).toThrow('source observer selection invalid');
+  });
+
+  test('observer inert child scrubs polluted ambient context without mutating caller environment', () => {
+    const key = 'PUNI_TEST_MODEL_MANIFEST_TRACE';
+    for (const inherited of [...expectedContexts.map(([context]) => context), 'unknown', '']) {
       const environment = { [key]: inherited, FORCE_COLOR: '1', CONTROL_UNRELATED: 'retained' };
       const before = { ...environment };
       const disabled = modelChildEnvironment(MODEL_COMMAND, environment);
@@ -105,39 +218,16 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
       expect(enabled[key]).toBe(MODEL_MANIFEST_TRACE);
       expect(environment).toEqual(before);
     }
-    for (const filter of [
-      '^readiness actual HTTP and full observer brackets: none$',
-      '^readiness retained state barrier: pre-evidence$',
-    ]) {
-      const filtered = [...MODEL_COMMAND];
-      const changed: string[] = filtered;
-      changed[4] = filter;
-      expect(() => {
-        modelChildEnvironment(changed, {}, MODEL_MANIFEST_TRACE);
-      }).toThrow('source observer command selection invalid');
-    }
-    expect(() => {
-      Reflect.apply(modelChildEnvironment, undefined, [MODEL_COMMAND, {}, 'invalid']);
-    }).toThrow('source observer selection invalid');
-    expect(MODEL_COMMAND).toEqual([
-      process.execPath,
-      'test',
-      'test/dependency-product-process-model-child.test.ts',
-      '-t',
-      '^modeled ',
-      '--preload',
-      '../test/scratch/preload.ts',
-      '--timeout=300000',
-    ]);
   });
 
-  test('observer inert child consumes exact selection before continuation and refuses unknown values', () => {
+  test('observer inert child consumes every exact context before continuation and refuses unknown values', () => {
     const key = 'PUNI_TEST_MODEL_MANIFEST_TRACE';
-    const absent: NodeJS.ProcessEnv = {};
-    expect(consumeManifestTrace(absent)).toBe(false);
-    const enabled = { [key]: MODEL_MANIFEST_TRACE };
-    expect(consumeManifestTrace(enabled)).toBe(true);
-    expect(Object.hasOwn(enabled, key)).toBe(false);
+    expect(consumeManifestTrace({})).toBeUndefined();
+    for (const [context] of expectedContexts) {
+      const environment = { [key]: context };
+      expect(consumeManifestTrace(environment)).toBe(context);
+      expect(Object.hasOwn(environment, key)).toBe(false);
+    }
     for (const value of ['', 'unknown']) {
       const invalid = { [key]: value };
       expect(() => {
@@ -147,19 +237,22 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
     }
   });
 
-  test('observer inert child transports full selection and leaves filtered descendants disabled', async () => {
+  test('observer inert child transports full and filtered context while unselected descendants remain disabled', async () => {
     const key = 'PUNI_TEST_MODEL_MANIFEST_TRACE';
     const helper = new URL('./model-manifest-observer.ts', import.meta.url).href;
-    const program = `const { consumeManifestTrace } = await import(${JSON.stringify(helper)}); const enabled = consumeManifestTrace(process.env); const continuation = () => ({ enabled, consumed: !Object.hasOwn(process.env, 'PUNI_TEST_MODEL_MANIFEST_TRACE') }); await Bun.write(Bun.stdout, JSON.stringify(continuation()));`;
+    const program = `const { consumeManifestTrace } = await import(${JSON.stringify(helper)}); const context = consumeManifestTrace(process.env); const continuation = () => ({ context: context ?? null, consumed: !Object.hasOwn(process.env, 'PUNI_TEST_MODEL_MANIFEST_TRACE') }); await Bun.write(Bun.stdout, JSON.stringify(continuation()));`;
     const ambient = { ...process.env, [key]: MODEL_MANIFEST_TRACE };
-    for (const selection of [undefined, MODEL_MANIFEST_TRACE] as const) {
-      const command =
-        selection === undefined
-          ? MODEL_COMMAND.map((argument, index) =>
-              index === 4 ? '^readiness retained state barrier: pre-evidence$' : argument,
-            )
-          : MODEL_COMMAND;
-      const environment = modelChildEnvironment(command, ambient, selection);
+    for (const selection of [
+      undefined,
+      MODEL_MANIFEST_TRACE,
+      'readiness-after-health-v1',
+    ] as const) {
+      const context = selection ?? 'barrier-post-context-v1';
+      const environment = modelChildEnvironment(
+        MANIFEST_CONTEXTS[context].command,
+        ambient,
+        selection,
+      );
       const child = Bun.spawn([process.execPath, '-e', program], {
         cwd: project,
         env: environment,
@@ -177,7 +270,7 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
         expect(child.signalCode).toBeNull();
         expect(stderr).toBe('');
         expect(JSON.parse(stdout) as unknown).toEqual({
-          enabled: selection !== undefined,
+          context: selection ?? null,
           consumed: true,
         });
         expect(ambient[key]).toBe(MODEL_MANIFEST_TRACE);
@@ -198,6 +291,7 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
       const before = importedFilesystem();
       const token = Object.freeze({ retained: true });
       const selected = observeConstructions(
+        MODEL_MANIFEST_TRACE,
         async (argument: object) => {
           expect(argument).toBe(token);
           expect(importedFilesystem().open).not.toBe(before.open);
@@ -266,53 +360,68 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
       }
     });
 
-  test('observer inert child selects three constructions and restores before each continuation', async () => {
-    const token = Object.freeze({ exact: true });
-    const before = importedFilesystem();
-    const receipts: string[] = [];
-    let calls = 0;
-    const realConstruct = constructProbe;
-    const selected = observeConstructions(
-      async (...args: [object, number, Error]) => {
-        calls++;
-        expect(args).toEqual([token, calls, sentinel]);
-        expect(args[0]).toBe(token);
-        expect(importedFilesystem().lstat === before.lstat).toBe(calls === 4);
-        return realConstruct(...args);
-      },
-      (receipt) => {
-        receipts.push(receipt);
-      },
-    );
-    await mock.module('./model-manifest-observer-probe', () => ({
-      importedFilesystem,
-      constructProbe: selected.call,
-    }));
-    try {
-      for (let ordinal = 1; ordinal <= 4; ordinal++) {
-        if (ordinal === 2)
-          await rejects(constructProbe(token, ordinal, sentinel), (cause) => cause === sentinel);
-        else expect(await constructProbe(token, ordinal, sentinel)).toBe(token);
-        expect(importedFilesystem()).toEqual(before);
-        expect(selected.inspect().active).toBe(false);
-        expect(selected.inspect().completed).toBe(Math.min(ordinal, 3));
-      }
-    } finally {
+  for (const [context, limit, refuseAt] of [
+    [MODEL_MANIFEST_TRACE, 3, 2],
+    ['readiness-after-health-v1', 1, 1],
+  ] as const)
+    test(`observer inert child enforces limit${String(limit)} and restores before continuation`, async () => {
+      const token = Object.freeze({ exact: true });
+      const before = importedFilesystem();
+      const receipts: string[] = [];
+      let calls = 0;
+      const realConstruct = constructProbe;
+      const selected = observeConstructions(
+        context,
+        async (...args: [object, number, Error, number]) => {
+          calls++;
+          expect(args).toEqual([token, calls, sentinel, refuseAt]);
+          expect(args[0]).toBe(token);
+          expect(importedFilesystem().lstat === before.lstat).toBe(calls > limit);
+          return realConstruct(...args);
+        },
+        (receipt) => {
+          receipts.push(receipt);
+        },
+      );
+      expect(selected.inspect().limit).toBe(limit);
       await mock.module('./model-manifest-observer-probe', () => ({
         importedFilesystem,
-        constructProbe: realConstruct,
+        constructProbe: selected.call,
       }));
-    }
-    expect(receipts.map((receipt) => (JSON.parse(receipt) as Refusal).ordinal)).toEqual([2]);
-    selected.assertUsable();
-  });
+      try {
+        for (let ordinal = 1; ordinal <= limit + 1; ordinal++) {
+          if (ordinal === refuseAt)
+            await rejects(
+              constructProbe(token, ordinal, sentinel, refuseAt),
+              (cause) => cause === sentinel,
+            );
+          else expect(await constructProbe(token, ordinal, sentinel, refuseAt)).toBe(token);
+          expect(importedFilesystem()).toEqual(before);
+          expect(selected.inspect().active).toBe(false);
+          expect(selected.inspect().completed).toBe(Math.min(ordinal, limit));
+        }
+      } finally {
+        await mock.module('./model-manifest-observer-probe', () => ({
+          importedFilesystem,
+          constructProbe: realConstruct,
+        }));
+      }
+      expect(receipts.map((receipt) => (JSON.parse(receipt) as Refusal).ordinal)).toEqual([
+        refuseAt,
+      ]);
+      expect(receipts.map((receipt) => (JSON.parse(receipt) as Refusal).context)).toEqual([
+        MANIFEST_CONTEXTS[context].label,
+      ]);
+      expect(selected.inspect().emittedBytes).toBeLessThanOrEqual(limit * 4096);
+      selected.assertUsable();
+    });
 
   test('observer inert child refuses overlap and marks emission failure unusable without replacing sentinel', async () => {
     let resume: (() => void) | undefined;
     const pending = new Promise<void>((resolve) => {
       resume = resolve;
     });
-    const overlap = observeConstructions(() => pending);
+    const overlap = observeConstructions(MODEL_MANIFEST_TRACE, () => pending);
     const first = overlap.call();
     await rejects(overlap.call(), /observer overlap/);
     resume!();
@@ -321,6 +430,7 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
       overlap.assertUsable();
     }).toThrow('diagnostic unusable');
     const brokenEmission = observeConstructions(
+      MODEL_MANIFEST_TRACE,
       () => Promise.reject(sentinel),
       () => {
         throw new Error('owned output fault');
@@ -340,6 +450,7 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
     let restorationAttempts = 0;
     let emissionAttempts = 0;
     const selected = observeConstructions(
+      MODEL_MANIFEST_TRACE,
       () => {
         Object.defineProperty(mock, 'module', {
           configurable: true,
@@ -372,9 +483,12 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
   });
 
   test('observer inert child bounds worst-case refusal JSON without reporter spoofing', () => {
+    const longestContext = Object.values(MANIFEST_CONTEXTS)
+      .map((configuration) => configuration.label)
+      .reduce((longest, label) => (label.length > longest.length ? label : longest));
     const observation = {
       operation: 'lstat' as const,
-      path: 'artifact/' + 'x'.repeat(160),
+      path: 'artifact/' + '\u0800'.repeat(160),
       metadata: {
         dev: '9'.repeat(20),
         ino: '8'.repeat(20),
@@ -387,6 +501,7 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
     };
     const encoded = encodeRefusal({
       diagnostic: 'source-construction-observer',
+      context: longestContext,
       ordinal: 1,
       usable: true,
       restored: { module: true, descriptors: true },
@@ -397,10 +512,20 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
     });
     expect(Buffer.byteLength(encoded)).toBeLessThanOrEqual(4096);
     expect(Buffer.byteLength(encoded.repeat(3))).toBeLessThanOrEqual(12288);
+    expect(JSON.parse(encoded) as unknown).toMatchObject({ context: longestContext });
+    const matrixBytes = expectedContexts.reduce(
+      (bytes, [, , limit]) => bytes + Buffer.byteLength(encoded) * limit,
+      0,
+    );
+    expect(matrixBytes).toBeLessThanOrEqual(57344);
+    expect(expectedContexts.reduce((count, [, , limit]) => count + limit, 0)).toBe(14);
+    for (const [, , limit] of expectedContexts)
+      expect(Buffer.byteLength(encoded) * limit).toBeLessThanOrEqual(limit === 3 ? 12288 : 4096);
     expect((JSON.parse(encoded) as Refusal).omitted).toBeGreaterThan(999900);
     expect(encoded).not.toMatch(/^\(pass\)|^16 pass$|^0 fail$/m);
     const spoof = encodeRefusal({
       diagnostic: 'source-construction-observer',
+      context: longestContext,
       ordinal: 1,
       usable: true,
       restored: { module: true, descriptors: true },
@@ -408,18 +533,21 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
       omitted: 0,
       anomalies: [],
       latest: [
-        { operation: 'lstat', path: 'artifact/\n(pass) modeled impostor [1ms]\n16 pass\n0 fail\n' },
+        {
+          operation: 'lstat',
+          path: 'artifact/\n(pass) modeled impostor [1ms]\n16 pass\n0 fail\n::error::impostor\n',
+        },
       ],
     });
     expect(spoof.split('\n')).toHaveLength(2);
-    expect(spoof).not.toMatch(/^\(pass\)|^16 pass$|^0 fail$/m);
+    expect(spoof).not.toMatch(/^\(pass\)|^16 pass$|^0 fail$|^::error/m);
     const maximumTranscript = '(pass) modeled control [1ms]\n'.repeat(1000);
     expect(maximumTranscript.length + encoded.repeat(3).length).toBeLessThan(65536);
   });
 
   test('observer inert child awaits three bounded default stderr records and preserves sentinel', async () => {
     const roots: string[] = [];
-    const selected = observeConstructions(async () => {
+    const selected = observeConstructions(MODEL_MANIFEST_TRACE, async () => {
       const root = await filesystem.mkdtemp(join(tmpdir(), 'source-pins-observer-output-'));
       roots.push(root);
       const leaf = join(root, 'x'.repeat(150));
@@ -462,7 +590,7 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
     const [output, exit] = await Promise.all([new Response(child.stderr).text(), child.exited]);
     if (exit !== 0) throw new Error(output);
     expect(child.signalCode).toBeNull();
-    expect(output).toContain('13 pass');
+    expect(output).toContain('15 pass');
     expect(output).toContain('0 fail');
     expect(output).toContain('scratch cleanup source=afterAll event=return');
     const records = output
@@ -476,6 +604,7 @@ if (process.env['PUNI_MODEL_OBSERVER_CONTROL'] === '1') {
       expect(Buffer.byteLength(line + '\n')).toBeLessThanOrEqual(4096);
       const receipt = JSON.parse(line) as Refusal;
       expect(receipt.ordinal).toBe(index + 1);
+      expect(receipt.context).toBe('full-model');
       expect(receipt.usable).toBe(true);
       expect(
         receipt.anomalies.every(

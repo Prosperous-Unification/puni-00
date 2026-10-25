@@ -4,6 +4,11 @@ import { lstat, mkdtemp, open } from 'node:fs/promises';
 export const importedFilesystem = () => ({ lstat, mkdtemp, open });
 
 /** An inert module export exercises the same captured-function wrapper as the model child. */
-export function constructProbe(token: object, ordinal: number, refusal: Error): Promise<object> {
-  return ordinal === 2 ? Promise.reject(refusal) : Promise.resolve(token);
+export function constructProbe(
+  token: object,
+  ordinal: number,
+  refusal: Error,
+  refuseAt: number,
+): Promise<object> {
+  return ordinal === refuseAt ? Promise.reject(refusal) : Promise.resolve(token);
 }

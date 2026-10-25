@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 import {
+  type ManifestContext,
   MODEL_COMMAND,
   MODEL_MANIFEST_TRACE,
   modelChildEnvironment,
@@ -24,7 +25,7 @@ async function runModelChild(
   deadlineMs: number,
   project: string,
   environment?: NodeJS.ProcessEnv,
-  diagnosticSelection?: typeof MODEL_MANIFEST_TRACE,
+  diagnosticSelection?: ManifestContext,
 ): Promise<{
   readonly exit: number;
   readonly expired: boolean;
@@ -236,6 +237,7 @@ for (const fault of ['none', 'after-health', 'after-capability'] as const)
         childWork,
         project,
         fixture.environment,
+        `readiness-${fault}-v1`,
       );
       process.stderr.write(child.output);
       expect(child.expired).toBe(false);
@@ -298,6 +300,7 @@ for (const fault of [
         childWork,
         project,
         fixture.environment,
+        `barrier-${fault}-v1`,
       );
       process.stderr.write(child.output);
       expect(child.expired).toBe(false);

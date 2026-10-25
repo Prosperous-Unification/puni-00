@@ -6,7 +6,6 @@ import { mock } from 'bun:test';
 
 const captured = { ...filesystem };
 const RECORD_BYTES = 4096;
-const TOTAL_BYTES = 3 * RECORD_BYTES;
 const RING_LENGTH = 32;
 const ANOMALY_LENGTH = 4;
 export const MODEL_MANIFEST_TRACE = 'full-model-first-three-v1';
@@ -22,26 +21,98 @@ export const MODEL_COMMAND = [
   '--timeout=300000',
 ] as const;
 
-function readSelection(selection: unknown): typeof MODEL_MANIFEST_TRACE | undefined {
-  if (selection === undefined || selection === MODEL_MANIFEST_TRACE) return selection;
+function commandForFilter(filter: string): readonly string[] {
+  return MODEL_COMMAND.map((argument, index) => (index === 4 ? filter : argument));
+}
+
+export const MANIFEST_CONTEXTS = {
+  [MODEL_MANIFEST_TRACE]: { command: MODEL_COMMAND, limit: 3, label: 'full-model' },
+  'readiness-none-v1': {
+    command: commandForFilter('^readiness actual HTTP and full observer brackets: none$'),
+    limit: 1,
+    label: 'readiness-none',
+  },
+  'readiness-after-health-v1': {
+    command: commandForFilter('^readiness actual HTTP and full observer brackets: after-health$'),
+    limit: 1,
+    label: 'readiness-after-health',
+  },
+  'readiness-after-capability-v1': {
+    command: commandForFilter(
+      '^readiness actual HTTP and full observer brackets: after-capability$',
+    ),
+    limit: 1,
+    label: 'readiness-after-capability',
+  },
+  'barrier-pre-evidence-v1': {
+    command: commandForFilter('^readiness retained state barrier: pre-evidence$'),
+    limit: 1,
+    label: 'barrier-pre-evidence',
+  },
+  'barrier-pre-artifact-v1': {
+    command: commandForFilter('^readiness retained state barrier: pre-artifact$'),
+    limit: 1,
+    label: 'barrier-pre-artifact',
+  },
+  'barrier-pre-stores-v1': {
+    command: commandForFilter('^readiness retained state barrier: pre-stores$'),
+    limit: 1,
+    label: 'barrier-pre-stores',
+  },
+  'barrier-post-evidence-v1': {
+    command: commandForFilter('^readiness retained state barrier: post-evidence$'),
+    limit: 1,
+    label: 'barrier-post-evidence',
+  },
+  'barrier-post-artifact-v1': {
+    command: commandForFilter('^readiness retained state barrier: post-artifact$'),
+    limit: 1,
+    label: 'barrier-post-artifact',
+  },
+  'barrier-post-stores-v1': {
+    command: commandForFilter('^readiness retained state barrier: post-stores$'),
+    limit: 1,
+    label: 'barrier-post-stores',
+  },
+  'barrier-post-ingress-v1': {
+    command: commandForFilter('^readiness retained state barrier: post-ingress$'),
+    limit: 1,
+    label: 'barrier-post-ingress',
+  },
+  'barrier-post-context-v1': {
+    command: commandForFilter('^readiness retained state barrier: post-context$'),
+    limit: 1,
+    label: 'barrier-post-context',
+  },
+} as const;
+export type ManifestContext = keyof typeof MANIFEST_CONTEXTS;
+type ContextLabel = (typeof MANIFEST_CONTEXTS)[ManifestContext]['label'];
+
+function isManifestContext(selection: string): selection is ManifestContext {
+  return Object.hasOwn(MANIFEST_CONTEXTS, selection);
+}
+
+function readSelection(selection: unknown): ManifestContext | undefined {
+  if (selection === undefined) return undefined;
+  if (typeof selection === 'string' && isManifestContext(selection)) return selection;
   throw new Error('source observer selection invalid');
 }
 
-/** Scrubs inherited selection from every child; only the exact full-model call may opt in. */
+/** Scrubs inherited selection from every child; only an exact closed context-command pair may opt in. */
 export function modelChildEnvironment(
   command: readonly string[],
   environment: NodeJS.ProcessEnv,
-  selection?: typeof MODEL_MANIFEST_TRACE,
+  selection?: ManifestContext,
 ): NodeJS.ProcessEnv {
   const copied: NodeJS.ProcessEnv = { ...environment, FORCE_COLOR: '0' };
   // Proof: omitting this scrub failed polluted-ambient and filtered-descendant inert controls.
   delete copied['PUNI_TEST_MODEL_MANIFEST_TRACE'];
   const requested = readSelection(selection);
   if (requested !== undefined) {
-    // Proof: omitting this guard admitted a readiness filter; exact-full-command inert control failed.
+    // Proof: omitting this guard admitted a mismatched context-command pair; all-context selector control failed.
     if (
-      command.length !== MODEL_COMMAND.length ||
-      command.some((argument, index) => argument !== MODEL_COMMAND[index])
+      command.length !== MANIFEST_CONTEXTS[requested].command.length ||
+      command.some((argument, index) => argument !== MANIFEST_CONTEXTS[requested].command[index])
     )
       throw new Error('source observer command selection invalid');
     copied[TRACE_KEY] = requested;
@@ -50,12 +121,10 @@ export function modelChildEnvironment(
 }
 
 /** Consumes test selection before fixture imports, so no descendant inherits the observer marker. */
-export function consumeManifestTrace(environment: NodeJS.ProcessEnv): boolean {
+export function consumeManifestTrace(environment: NodeJS.ProcessEnv): ManifestContext | undefined {
   const selection = environment[TRACE_KEY];
   delete environment['PUNI_TEST_MODEL_MANIFEST_TRACE'];
-  if (selection === undefined) return false;
-  if (selection === MODEL_MANIFEST_TRACE) return true;
-  throw new Error('source observer selection invalid');
+  return readSelection(selection);
 }
 const METADATA_KEYS = ['dev', 'ino', 'mode', 'nlink', 'size', 'mtimeMs', 'ctimeMs'] as const;
 type Operation =
@@ -72,6 +141,7 @@ interface Restoration {
 }
 export interface Refusal {
   diagnostic: 'source-construction-observer';
+  context: ContextLabel;
   ordinal: number;
   usable: boolean;
   restored: Restoration;
@@ -278,13 +348,15 @@ async function observeFilesystem() {
 }
 
 /**
- * Observes only the first three actual constructor calls, restoring before their callers resume.
+ * Observes the selected closed context's constructor allowance, restoring before callers resume.
  * A refusal keeps the identical error primary; diagnostic failure makes the separate control state unusable.
  */
 export function observeConstructions<Args extends unknown[], Value>(
+  context: ManifestContext,
   construct: (...args: Args) => Promise<Value>,
   emit: (receipt: string) => void | Promise<void> = emitReceipt,
 ) {
+  const configuration = MANIFEST_CONTEXTS[context];
   let ordinal = 0;
   let active = false;
   let usable = true;
@@ -292,7 +364,16 @@ export function observeConstructions<Args extends unknown[], Value>(
   let observations = 0;
   let completed = 0;
   return {
-    inspect: () => ({ ordinal, active, usable, emittedBytes, observations, completed }),
+    inspect: () => ({
+      ordinal,
+      active,
+      usable,
+      emittedBytes,
+      observations,
+      completed,
+      limit: configuration.limit,
+      context: configuration.label,
+    }),
     assertUsable: (): void => {
       if (!usable || active) throw new Error('source construction diagnostic unusable');
     },
@@ -302,7 +383,8 @@ export function observeConstructions<Args extends unknown[], Value>(
         usable = false;
         throw new Error('source construction observer overlap');
       }
-      if (selected > 3) return construct(...args);
+      // Proof: replacing the context limit with3 failed the one-constructor inert forwarding control.
+      if (selected > configuration.limit) return construct(...args);
       active = true;
       let observer: Awaited<ReturnType<typeof observeFilesystem>>;
       try {
@@ -333,6 +415,7 @@ export function observeConstructions<Args extends unknown[], Value>(
         try {
           const receipt = encodeRefusal({
             diagnostic: 'source-construction-observer',
+            context: configuration.label,
             ordinal: selected,
             usable,
             restored: restoration,
@@ -342,7 +425,8 @@ export function observeConstructions<Args extends unknown[], Value>(
             latest: snapshot.ring,
           });
           emittedBytes += Buffer.byteLength(receipt);
-          if (emittedBytes > TOTAL_BYTES) throw new Error('source observer total bound exceeded');
+          if (emittedBytes > configuration.limit * RECORD_BYTES)
+            throw new Error('source observer total bound exceeded');
           await emit(receipt);
         } catch {
           usable = false;
