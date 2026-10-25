@@ -7649,3 +7649,7 @@ This passed20 tests/110 assertions in10.23s. No runtime source, Docker packaging
 production exclusion or fixture-membership requirement changed. The published
 10e5 host gate remains on its own source; these focused results do not replace a
 new corrected-head CI or host gate, and approve no architectural main merge.
+
+## Integration reconciliation and bounded acceptance — 2026-10-25
+
+See [the frozen fixture, main reconciliation, staged-arrangement and one-attempt CI evidence](verify-integration-20261025.md). Parent tasks and architectural main merge remain open; diagnostic success is instrumented non-reproduction, not a manifest-race fix.
