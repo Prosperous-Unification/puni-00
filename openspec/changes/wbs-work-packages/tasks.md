@@ -12,8 +12,8 @@
       saved-plan input 9) lands first; `feat/cross-project-dependencies` renumbers after.
       Satisfied 2026-10-24: #663 merged (`1bb1cb392`); `main` at `0b1dddaa0` has
       `PLAN_DOCUMENT_VERSION = 11` and `CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 9`.
-- [ ] 0.3 Dany confirms or overrules E47, E48 and E49 (the Codex review's product-owner
-      questions, answered by planner assumptions). Every task below follows design.md's
+- [x] 0.3 E47, E48 and E49 settled 2026-10-25 (the Codex review's product-owner questions;
+      E48 by Dany's rule, E47 and E49 by adopting the recommendation). Every task below follows design.md's
       "Dependency graph" (E41): a task merges only after every row it depends on.
 
 ## 1. The rename (slice 1, `feat/wbs-work-packages-1`)

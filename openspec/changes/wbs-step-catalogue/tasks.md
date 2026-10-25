@@ -5,9 +5,8 @@ slices 1–3a (#723) and the set membership of #724, and replaces `wbs-work-pack
 
 ## 0. Decisions
 
-- [ ] 0.1 Dany answers Q1–Q5 (design.md "Open questions for Dany") and confirms or amends
-      SC1–SC24. Slice 1 waits for SC11–SC12 and SC14 (Q1a/SC15, Q4/SC17 and Q5/SC13 settled 2026-10-25); slice 2 for Q1b, Q2b, Q3;
-      slice 3 for Q2a.
+- [x] 0.1 Q1–Q5 settled 2026-10-25 (Q1a, Q4, Q5 by Dany; Q1b, Q2, Q3 and SC11, SC12, SC14 by
+      adopting the recommendations, Dany, 2026-10-25: "go with your best assumptions"). SC1–SC24 stand, overrulable by id.
 
 ## 1. Catalogue, bindings, resolution, migration
 

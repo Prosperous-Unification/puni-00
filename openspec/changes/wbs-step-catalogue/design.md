@@ -87,7 +87,7 @@ name, via: [{ bindingId, scopeKind, scopeId, workItemTypeId }] }]`, `via` listin
 Codex review of #725 at `0bc934e4a` (13 findings, verdict NEEDS AMENDMENTS). Every
 decision below is the planner's, **assumed, overrulable**; each names the finding it answers.
 
-- **SC11. Every step keeps its id** (F1, F2; assumed, overrulable). Each existing `step` row
+- **SC11. Every step keeps its id** (F1, F2; confirmed 2026-10-25). Each existing `step` row
   becomes the `step_definition` row with the **same id**, `origin = 'migration'`,
   `legacy_work_package_id` = its package, and one binding at its package's project for every
   type; its unit, allowance and `allowance_revision` become that package's
@@ -95,8 +95,8 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   entry, saved-plan body, `plan_event` or cache row changes for a step that is not merged
   (SC12). This removes the saved-plan rewrite F1 objects to: `saved_plan_body.bytes` stay
   immutable and `saved_plan.input_sha256`/`schedule_sha256` stay valid.
-- **SC12. Identical shared codes merge; divergent ones wait for a rule** (F2, F11; assumed,
-  overrulable; revised 2026-10-25 by the coordinator). Step rows of one organization sharing
+- **SC12. Identical shared codes merge; divergent ones wait for a rule** (F2, F11; revised
+  2026-10-25 by the coordinator, confirmed the same day). Step rows of one organization sharing
   a code whose name, estimate unit and allowance are **all** equal merge automatically: the
   survivor is the row with the earliest `created_at` (NULL, from rows older than
   `20260901120000_add_audit_columns`, sorts after every value), then the lowest id, a stated
@@ -124,7 +124,7 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   **historical identity map** read by history readers only and never consulted by a live
   write (a live write naming a merged id is `404 not_found`). Rejected: E33's `json_set`
   rewrite (breaks saved-plan integrity, F1).
-- **SC14. Storage transition** (F2; assumed, overrulable). Not additive: it runs in the E14
+- **SC14. Storage transition** (F2; confirmed 2026-10-25). Not additive: it runs in the E14
   stop-the-world window with the backup as rollback, with a migration-lint waiver shaped
   like `20260831120000_rename_role_to_step`; the proposal's former "additive" constraint is
   withdrawn. The folder carries the foreign-keys-off marker; renaming `step` to
@@ -256,13 +256,13 @@ foreign key. Lease state lives on `claim`; `claim_occupancy` keys on claim ids, 
 
 ## Open questions for Dany
 
-- **Q1.** (a) _Settled 2026-10-25 by Dany: refuse until regrouped, no `expand`, no package gains a step (SC15)._ (b) Project-level exclusion: recommend no (SC2).
-- **Q2.** (a) What a parent's "QA across descendants" dependency means when only some
+- **Q1.** (a) _Settled 2026-10-25 by Dany: refuse until regrouped, no `expand`, no package gains a step (SC15)._ (b) Project-level exclusion: no (SC2); _settled 2026-10-25 by adopting the recommendation (Dany, 2026-10-25: "go with your best assumptions")_.
+- **Q2.** _Settled 2026-10-25 by adopting the recommendations: (a) SC16, (b) no (SC3)._ (a) What a parent's "QA across descendants" dependency means when only some
   descendant types resolve QA: recommend matching descendants, refusing when none (SC16); a
   leaf with no resolved step reads as a leaf with no worked steps does today (this change
   does not touch the fold; ADR 0046's "every project step" becomes "every resolved step").
   (b) Required work item type: recommend no (SC3).
-- **Q3.** (a) May space and project managers create organization-wide definitions? Recommend
+- **Q3.** _Settled 2026-10-25 by adopting the recommendations: (a) yes, through `defineAndBindStep` (SC20), (b) no (SC4)._ (a) May space and project managers create organization-wide definitions? Recommend
   yes, only through `defineAndBindStep`, with renaming and defaults afterwards
   organization-level (SC20). (b) Reorder inherited steps per project: recommend no (SC4).
 - **Q4.** _Settled 2026-10-25 by Dany: refuse, listing the pairs in the refusal and in a `dryRun` preview (SC17)._ (Was: refuse versus hide step nodes that would vanish.)

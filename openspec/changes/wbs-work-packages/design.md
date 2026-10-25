@@ -660,7 +660,8 @@ wbs-work-packages` refused six of them, because a MODIFIED block cannot rename a
 
 The Codex design review of #723 (F1–F11) led to these planner decisions; Dany overrules any
 of them by id. E47, E48 and E49 answer the review's three product-owner questions with
-planner assumptions and **await Dany**.
+planner assumptions; all three were settled on 2026-10-25 (E48 by Dany's rule, E47 and E49
+by adopting the recommendation).
 
 - **E36. The windows are an exception to the additive rule, behind a writer barrier** (F1).
   `AGENTS.md` keeps forward migrations additive so that blue and green can share SQLite in
@@ -899,13 +900,13 @@ planner assumptions and **await Dany**.
   distinct pairs. The spec's scenarios cover several packages per pair, equal positions
   across spaces, equal positions and timestamps within one space, a project with no
   memberships, the renumbering and the report's completeness.
-- **E47. Awaits Dany (review Q1): the migration chooses the kept space by itself.** E46's
+- **E47. Settled 2026-10-25 by adopting the recommendation (review Q1): the migration chooses the kept space by itself.** E46's
   order decides without a mapping file, so slice 3a's migration stays runnable unattended.
   `space_project_dropped`, printed in `verify.md`, lets Dany re-home a project by hand
   afterwards (remove it from its space, then `POST /api/spaces/:id/projects`). Rejected
   alternative: stopping the migration until an explicit mapping is supplied.
 - **E48. Settled by Dany 2026-10-25 (review Q2): inherited changes apply at once; a change that would break existing work lists what breaks, and is refused until that is cleared.** Resolution happens at read and nothing is cached. So a settings write at the organization, a space or a project, a project entering or leaving a space, and a space deletion each change every resolved value beneath them immediately. After the commit, each affected work package gets `work_package_settings_changed` and the optimizer's ordinary re-plan trigger. Saved plans keep their captured inputs and show the new values as `settings` differences on compare. Any of those writes that would leave a work item carrying a type outside its work package's resolved `allowedWorkItemTypes` is refused with `409 types_in_use { count, workItems }` and changes nothing: `workItems` lists each such work item (`id`, `name`, `typeId`, `workPackageId`, `projectId`), the first 200 by project, package and rank, with `count` the total, so a person or an agent sees exactly what to re-type and where. Dany (2026-10-25): "if changing configs breaks smth - must list what will be broken before change can happen". Preview: every one of those writes accepts `dryRun: true` in its body; it runs the same code in a transaction that is rolled back and answers `200 { wouldRefuse: 'types_in_use', count, workItems }` or `200 { wouldRefuse: null, affectedWorkPackages }` (the packages that would receive `work_package_settings_changed`), under the same permission as the write and never writing or announcing. The same shape covers the move's own `type_not_allowed_in_project { typeIds }`. Nothing is grandfathered. Rejected: a separate preview route per write (two code paths whose answers can drift) and a count-only refusal (the caller must hunt for the items).
-- **E49. Awaits Dany (review Q3): the combined create succeeds only as a whole.** The
+- **E49. Settled 2026-10-25 by adopting the recommendation (review Q3): the combined create succeeds only as a whole.** The
   create succeeds only when the project, the package, both creator grants and their audit
   rows commit together (E41); otherwise nothing is written. Where the owner was displayed,
   the creator is shown (`createdByName`, E40).
@@ -1084,7 +1085,8 @@ day.
 - Assumed on 2026-10-25 and overrulable by id: the combined create's route shape (E30);
   `timezone`, `calendarMarkers` and `allowedWorkItemTypes` also writable at the organization
   (E18); the kept-space rule and `space_project_dropped` (E23, E46).
-- Awaiting Dany: E47 (the migration picks the kept space by itself), E48 (inherited changes
+- Settled 2026-10-25 (E48 by Dany's rule, E47 and E49 by adopting the recommendation): E47
+  (the migration picks the kept space by itself), E48 (inherited changes
   apply at once; a narrowing that existing work violates is refused) and E49 (the combined
   create succeeds only as a whole; the creator is displayed where the owner was).
 - _Settled 2026-10-25 after the Codex review (F11):_ the matrix rows for the space and
