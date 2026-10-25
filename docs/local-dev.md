@@ -111,6 +111,20 @@ session token in `__Host-wbs_access`, the `__Host-wbs_organization` cookie that
 `{ source: 'api_key', name, personId }`. The answer carries the key once; the agent sends it as
 `Authorization: Bearer`. Lease timing has no knob: claims hold for the real 15 minutes.
 
+Caps come from the test defaults (50 agent persons, 200 concurrent claims, 10,000 units per
+resource). To show or change them, point `organization-limits-cli.ts` at the database path the
+server prints on start. The CLI reads the deployment defaults from the environment and exits 1
+with a `ValidationError` without all three, even for `show`, so set them to the same numbers:
+
+```bash
+DB_PATH=<printed database path> ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50 \
+  ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200 \
+  ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000 \
+  bun apps/wbs/be-01/src/organization-limits-cli.ts show --organization org-local
+```
+
+`set` and `reset` rehearse unless given `--apply`: [organization limits](runbook-organization-activation.md#organization-limits-after-activation).
+
 ## Tests / lint / typecheck
 
 ```bash
