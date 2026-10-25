@@ -126,10 +126,12 @@ export class ClaimRepository implements ClaimStore {
   async organizationOccupancyOf(
     resourceIds: readonly string[],
   ): Promise<OrganizationOccupancyRow[]> {
+    await Promise.resolve();
     if (resourceIds.length === 0) return [];
-    // The same corrupt-state refusal as the units read (S3-8 of the review).
-    await this.organizationUnitsOf(resourceIds);
-    return this.db
+    // One read: the project's organization is left-joined, so a row whose
+    // project belongs to none is seen here and thrown on, as the units read
+    // throws (review S3-8), and a row of another organization is skipped.
+    const rows = this.db
       .select({
         claimId: claimOccupancy.claimId,
         workItemId: claim.workItemId,
@@ -139,21 +141,29 @@ export class ClaimRepository implements ClaimStore {
         units: claimOccupancy.units,
         projectId: workItem.projectId,
         organizationId: projectOrganization.organizationId,
+        owner: resourceOrganization.organizationId,
       })
       .from(claimOccupancy)
       .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
-      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
       .innerJoin(
         resourceOrganization,
-        and(
-          eq(resourceOrganization.resourceId, claimOccupancy.resourceId),
-          eq(resourceOrganization.organizationId, projectOrganization.organizationId),
-        ),
+        eq(resourceOrganization.resourceId, claimOccupancy.resourceId),
       )
+      .leftJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
       .where(inArray(claimOccupancy.resourceId, [...resourceIds]))
       .orderBy(asc(claim.workItemId), asc(claimOccupancy.resourceId), asc(claimOccupancy.claimId))
       .all();
+    return rows.flatMap(({ owner, organizationId, ...row }) => {
+      // Proof: with this throw removed (the row skipped instead), the holder
+      // read of `throws on a holder in a project of no organization`
+      // (shared-occupancy.db.test.ts) answered it; watched 2026-10-25.
+      if (organizationId === null)
+        throw new Error(
+          `resource ${row.resourceId} is held in a project of no organization: corrupt trusted state`,
+        );
+      return organizationId === owner ? [{ ...row, organizationId }] : [];
+    });
   }
 
   /**
@@ -168,6 +178,10 @@ export class ClaimRepository implements ClaimStore {
    * Proof: with the throw removed, `throws on a holder in a project of no
    * organization` (shared-occupancy.db.test.ts) answered the units without it,
    * on SQLite; watched 2026-10-25.
+   * Proof: with the per-leaf `MAX(co.units)` made `SUM`, every claim row of
+   * a leaf (one per step) counted again: shared-occupancy.db.test.ts went
+   * 23 pass, 9 fail with the race test, both one-process orders among them;
+   * watched 2026-10-25.
    */
   async organizationUnitsOf(resourceIds: readonly string[]): Promise<ResourceUnits[]> {
     await Promise.resolve();

@@ -107,11 +107,16 @@ async function rollBack(root: string, dbPath: string, to: string) {
 // Proof: with the two folders stamped 20261025100000 and 20261025100100
 // (their first stamps, below #735's), this failed on the index of
 // AUDIT_WIDENING; watched 2026-10-25.
-it('is stamped after every folder that existed when it was written, colliding with none', () => {
+//
+// Deliberately the newest two, not merely after RESOURCE_RUNTIME: until this
+// change merges, a migration landing on main first makes this fail at merge
+// time, and the fix is to restamp these two above it (verify.md, "Merge-time
+// restamp").
+it('is the newest pair of folders, after #735, colliding with none', () => {
   const names = readdirSync(MIGRATIONS).sort();
   expect(duplicateMigrationStamps(names)).toEqual([]);
   expect(names.indexOf(AUDIT_WIDENING)).toBe(names.indexOf(RESOURCE_RUNTIME) + 1);
-  expect(names.indexOf(DIRECTORY_CAPACITY)).toBe(names.indexOf(AUDIT_WIDENING) + 1);
+  expect(names.slice(-2)).toEqual([AUDIT_WIDENING, DIRECTORY_CAPACITY]);
 });
 
 /** The audit vocabulary widening (`wbs-shared-occupancy` task 1.0). */

@@ -4003,7 +4003,7 @@ export class WorkItemService {
       organizationOccupied,
     });
     if (decided.kind === 'refused')
-      return this.refusedWithHolders(decided.refusal, id, access, nameOf);
+      return this.refusedWithHolders(decided.refusal, id, projectId, access, nameOf);
     if (decided.kind === 'alreadyHeld') {
       const held = near.filter(
         (each) =>
@@ -4486,8 +4486,9 @@ export class WorkItemService {
   }
 
   /**
-   * The stated directory capacities among `resourceIds` and every occupancy
-   * row of their organizations (`wbs-shared-occupancy` S4), read through this
+   * The stated directory capacities among `resourceIds` and the units every
+   * leaf of their organizations holds of each, summed per resource
+   * (`ClaimStore.organizationUnitsOf`, `wbs-shared-occupancy` S4), read through this
    * graph's stores: inside a batch, on the batch's own connection after it
    * took its write turn, so a concurrent batch of another project is ordered
    * before or after it and an earlier claim of this batch is seen. Nothing is
@@ -4523,6 +4524,7 @@ export class WorkItemService {
   private async refusedWithHolders(
     refusal: ClaimRefusal,
     workItemId: string,
+    projectId: string,
     access: ResourceAccess,
     nameOf: ReadonlyMap<string, string>,
   ): Promise<ClaimRefusalOutcome> {
@@ -4537,10 +4539,14 @@ export class WorkItemService {
       occupancyByResource(rows.filter((row) => row.workItemId !== workItemId)).map((each) => [
         each.resourceId,
         each.holders.map((holder) => {
-          const projectId = projectOf.get(holder.workItemId);
-          if (projectId === undefined)
+          const held = projectOf.get(holder.workItemId);
+          if (held === undefined)
             throw new Error(`holder ${holder.workItemId} has no project in its own read`);
-          return { ...holder, projectId };
+          // Named only for another project's holder (`OccupancyHolder.projectId`).
+          // Proof: with the asking project's id kept too, `names a holder's
+          // project only when it is another project` (shared-occupancy.db.test.ts)
+          // failed on both stores; watched 2026-10-25.
+          return held === projectId ? holder : { ...holder, projectId: held };
         }),
       ]),
     );

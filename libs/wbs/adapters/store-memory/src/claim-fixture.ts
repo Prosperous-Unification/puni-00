@@ -99,9 +99,12 @@ export function inMemoryClaims(
         compare(left.id, right.id),
     );
   };
-  const organizationRowsOf = (
+  // Async, so a corrupt row rejects as SQLite's read does rather than throwing
+  // before the caller holds a promise.
+  const organizationRowsOf = async (
     resourceIds: readonly string[],
   ): Promise<OrganizationOccupancyRow[]> => {
+    await Promise.resolve();
     const asked = new Set(resourceIds);
     const byId = new Map(table.rows.map((claim) => [claim.id, claim]));
     const rows = table.occupancy.flatMap(({ claimId, resourceId, units }) => {
@@ -138,13 +141,11 @@ export function inMemoryClaims(
         },
       ];
     });
-    return Promise.resolve(
-      rows.sort(
-        (left, right) =>
-          compare(left.workItemId, right.workItemId) ||
-          compare(left.resourceId, right.resourceId) ||
-          compare(left.claimId, right.claimId),
-      ),
+    return rows.sort(
+      (left, right) =>
+        compare(left.workItemId, right.workItemId) ||
+        compare(left.resourceId, right.resourceId) ||
+        compare(left.claimId, right.claimId),
     );
   };
   return {

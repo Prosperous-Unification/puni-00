@@ -181,7 +181,7 @@ the one check, all or nothing. A release or lease sweep in A frees units for B.
 Dany).** That change commits to: no change to WBS claim occupancy (proposal line 23); WBS holding
 no competing capacity ledger (proposal line 32); claim occupancy retaining its current
 semantics (design line 34); scheduling hashes intact (design line 42); WBS's project-scoped
-occupancy unchanged (design lines 184 to 185); claim occupancy and schedule inputs keeping
+occupancy unchanged (design lines 185 to 186, as amended); claim occupancy and schedule inputs keeping
 their semantics (`resource-release` spec lines 126 to 127). For resources with a directory
 capacity, this change alters occupancy's scope and the clamped schedule input, so it
 supersedes those six sentences. `wbs-resource-release` landed first (#735), so this change

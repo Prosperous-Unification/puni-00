@@ -43,6 +43,12 @@ interface Opened {
   readonly isMemory: boolean;
   /** Puts both projects and both resources in {@link ORG}, as no port can. */
   readonly own: (projectIds: readonly string[], resourceIds: readonly string[]) => void;
+  /**
+   * SQLite only: makes `accountId` an admin of {@link ORG}, `personIds` its
+   * persons, and activates the deployment, so a test can read and claim under
+   * scoped access. Absent on the memory twin, which admits no scoped batch.
+   */
+  readonly activate?: (accountId: string, personIds: readonly string[]) => void;
   readonly dispose: () => void;
 }
 
@@ -71,8 +77,35 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
       runMigrations(dbPath, MIGRATIONS);
       activateTestStepBlockages(dbPath);
       return {
-        source: openSqliteSource({ dbPath }),
+        // Caps far above the fixture: a scoped claim counts them, never reaches them.
+        source: openSqliteSource({
+          dbPath,
+          organizationDefaultLimits: {
+            maxAgentPersons: 1_000,
+            maxConcurrentClaims: 1_000,
+            maxCapacityUnitsPerResource: 1_000,
+          },
+        }),
         isMemory: false,
+        activate: (accountId, personIds) => {
+          const sqlite = openDatabase(dbPath);
+          try {
+            sqlite.run(
+              "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, 'admin', 1)",
+              [ORG, accountId],
+            );
+            for (const id of personIds)
+              sqlite.run(
+                'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+                [id, ORG, id],
+              );
+            sqlite.run(
+              "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+            );
+          } finally {
+            sqlite.close();
+          }
+        },
         own: (projectIds, resourceIds) => {
           const sqlite = openDatabase(dbPath);
           try {
@@ -231,6 +264,7 @@ async function seeded(store: (typeof STORES)[number]) {
     source,
     graph,
     opened,
+    people,
     runner,
     projects: { a, b },
     leaf,
@@ -284,6 +318,74 @@ for (const store of STORES) {
       }
     });
 
+    // Review S3-5 (second pass): a holder's project is named only when it is
+    // another project's, as `OccupancyHolder.projectId` says.
+    it('names a holder’s project only when it is another project', async () => {
+      const { run, claim, leaf, projects, state, close } = await seeded(store);
+      try {
+        await state(RAM, 16);
+        await run(0, [
+          { kind: 'setDemand', workItemId: leaf(0, 0), resourceId: RAM, units: 10 },
+          { kind: 'setDemand', workItemId: leaf(0, 1), resourceId: RAM, units: 4 },
+        ]);
+        await run(1, [{ kind: 'setDemand', workItemId: leaf(1, 0), resourceId: RAM, units: 6 }]);
+        expect(await run(0, [claim(0, 0, 'a0')])).toMatchObject({ ok: true });
+        expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
+        const refused = await run(0, [claim(0, 1, 'a1')]);
+        if (refused.ok || !('reason' in refused) || refused.reason !== 'resources_exhausted')
+          throw new Error(`expected resources_exhausted: ${JSON.stringify(refused)}`);
+        const { holders } = refused.detail;
+        // Ordered by work item: A's leaves were minted before B's.
+        expect(holders.map(({ personId, projectId }) => ({ personId, projectId }))).toEqual([
+          { personId: 'a0', projectId: undefined },
+          { personId: 'b0', projectId: projects.b },
+        ]);
+      } finally {
+        await close();
+      }
+    });
+
+    // Proof: with `findStartableWork` given empty organization inputs, this
+    // failed beside its legacy twin (26 pass, 3 fail); watched 2026-10-25.
+    if (store.name === 'sqlite')
+      it('agrees with the claim across projects under scoped access', async () => {
+        const { opened, graph, runner, people, projects, run, leaf, state, close } =
+          await seeded(store);
+        try {
+          if (opened.activate === undefined) throw new Error('only SQLite activates');
+          await state(RAM, 16);
+          for (const project of [0, 1] as const)
+            await run(project, [
+              { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
+            ]);
+          opened.activate(F, people);
+          const admin = {
+            kind: 'scoped',
+            scope: { organizationId: ORG, userId: F, role: 'admin' },
+          } as const;
+          const claimIn = (projectId: string, workItemId: string, personId: string) =>
+            runner.runWithin(
+              projectId,
+              F,
+              [{ kind: 'claimWorkItem', workItemId, personId }],
+              admin,
+              null,
+            );
+          expect(await claimIn(projects.a, leaf(0, 0), 'a0')).toMatchObject({ ok: true });
+          const startable = await graph.workItems.startableWithin(projects.b, admin, null);
+          if (startable === null || 'kind' in startable) throw new Error('the read was refused');
+          expect(startable.leaves.map(({ workItemId }) => workItemId)).not.toContain(leaf(1, 0));
+          const unfit = startable.doesNotFit.find((each) => each.workItemId === leaf(1, 0));
+          expect(unfit?.exhausted).toMatchObject({ free: 0, scope: 'organization' });
+          expect(await claimIn(projects.b, leaf(1, 0), 'b0')).toMatchObject({
+            ok: false,
+            reason: 'resources_exhausted',
+          });
+        } finally {
+          await close();
+        }
+      });
+
     // Review S3-8: after activation every project has its organization row,
     // so an owned resource held in a project of none is corrupt, not skipped.
     it('throws on a holder in a project of no organization', async () => {
@@ -328,6 +430,13 @@ for (const store of STORES) {
         expect(written).toBe('written');
         expect(
           await source.stores.claims.organizationUnitsOf([RAM]).then(
+            () => 'answered',
+            (error: unknown) => String(error),
+          ),
+        ).toContain('held in a project of no organization');
+        // The holder read refuses alike: a refusal never names a corrupt row.
+        expect(
+          await source.stores.claims.organizationOccupancyOf([RAM]).then(
             () => 'answered',
             (error: unknown) => String(error),
           ),

@@ -275,7 +275,7 @@ passed).
 - **S2-1 done.** `removeResource` keeps #735's `(usage.outstandingUses ?? 0) > 0` refusal
   under cascade and counts `usage.directoryCapacity !== null` as in use; contracts
   `http/shapes.ts` imports both; mcp-01 README says 101 tools. The six superseded sentences
-  of `wbs-resource-release` (proposal 23 and 32, design 34, 42 and 184 to 185, spec 126 to 127) carry pointers to S9 (the spec sentence an explicit exception); S9's inventory and
+  of `wbs-resource-release` (proposal 23 and 32, design 34, 42 and 185 to 186, spec 126 to 127) carry pointers to S9 (the spec sentence an explicit exception); S9's inventory and
   the design's "not on `main`" are corrected; task 0.2 stays open.
 - **S2-2 done (the fit half of 5.1).** `startableWithin` reads the same directory
   capacities and organization units as the claim, over every demanded resource, and reads
@@ -365,3 +365,65 @@ saved-plan capture boundary fault` timed out alone (5,947 ms). Neither touches t
   over 40), which predates this change.
 - `openspec validate --all --json` → `{ items: 293, passed: 293, failed: 0 }`.
 - Migration lint over every `.sql` the branch changes → exit 0. Prettier → clean.
+
+## Second review pass (Fable, at `28fdece33`), addressed 2026-10-25
+
+No S1 or S2. The S3s:
+
+- **Merge-time restamp (1).** `is the newest pair of folders, after #735, colliding with none`
+  now asserts that `20261025140000_…` and `20261025140100_…` are the last two folders in
+  `apps/wbs/be-01/drizzle`. Until this change merges, a migration that lands on `main` first
+  fails this test at merge time; the fix is to restamp these two above it and follow every
+  pinned list, as the #735 merge did. Proof: with an empty folder `20261026000000_probe_newer`
+  added, it failed (8 pass, 1 fail).
+- **Holder `projectId` (3).** `refusedWithHolders` names a holder's project only when it is
+  not the asking project, as `OccupancyHolder.projectId` says. Test: `names a holder’s
+project only when it is another project` (both stores). Proof: with the asking project's id
+  kept, it failed on both stores (27 pass, 2 fail).
+- **JSDoc (4).** `organizationOccupancyFor` now says it answers units per resource.
+- **Scoped startable (5).** `agrees with the claim across projects under scoped access`
+  (SQLite; the memory source admits no scoped batch). Proof: with `findStartableWork` given
+  empty organization inputs, it failed beside its legacy twin (26 pass, 3 fail).
+- **One holder read (6).** SQLite's `organizationOccupancyOf` left-joins the project's
+  organization in its own query and throws on a row of no organization, instead of calling
+  the units read first; the memory twin's read is async so it rejects alike. The orphan case
+  now asserts both reads. Proof: with the rows read's throw replaced by a skip, it failed on
+  both stores (27 pass, 2 fail).
+- **Docs and the MAX proof (7).** Task 0.2 says six sentences; S9's line numbers read design
+  lines 185 to 186 as amended, in design.md and here. `organizationUnitsOf` carries a Proof:
+  with its per-leaf `MAX(co.units)` made `SUM`, `shared-occupancy.db.test.ts` with the race
+  test went 23 pass, 9 fail, both one-process race orders among them (Fable saw 7 on its
+  run).
+- **Memory occupancies (8).** Not a defect: the fixture directory holds no claims, and the
+  bound source (`memory-stores.ts`) overrides `usageOfResource` and `removeResource` with the
+  occupying leaves, which the memory certification's `directory.removeResource:in-use-cascade`
+  proves; a comment at `occupancies: 0` now says so.
+
+**3.5, for Dany to choose (2).** Fable's second pass measured the query itself inside the
+write turn: about 2 ms at 1,000 occupancy rows and about 20 ms at 10,000, and the index
+`claim_occupancy (resource_id, claim_id)` does not help (21 ms at 10,000), since the cost is
+the rows folded, not finding them. At 200 runs per side the p99 bound is noise: p99 is the
+second-slowest batch, which is why the six runs above crossed 5 ms twice while the p50 delta
+stayed at 2.5 ms. Two ways to close it, left open for Dany:
+
+1. Measure at least 2,000 runs per side, so p99 rests on twenty samples.
+2. Amend the rule to a p50 delta (at most 5 ms) plus a p99 ratio (at most 1.25).
+
+Past about 5,000 holders of one resource neither holds: the fix then is a per-resource total
+maintained with each claim and release, read in O(1) inside the turn.
+
+Commands this pass:
+
+- `bun test libs/wbs/adapters/store-sqlite/src/shared-occupancy.db.test.ts
+apps/wbs/be-01/src/directory-capacity-migration.db.test.ts` → 38 pass, 0 fail; after (6),
+  `shared-occupancy.db.test.ts` → 29 pass, 0 fail.
+- `store-sqlite/src/testing/source-conformance.db.test.ts` → 73 pass, 2 fail, both `timed out
+after 5000ms` at load average 15 to 20 (`reinjects capacity and priority-band …`, `Task
+6.3 …`); unrelated to this change, and 75/0 at load 5 in the first pass.
+- Targeted suites after the type narrowing: `shared-occupancy`, the cross-project race, the
+  memory certification, `module/directory/directory-capacity.test.ts`, the directory
+  capacity controller and migration tests → 131 pass, 0 fail.
+- `bunx nx run-many -t typecheck lint -p wbs-store-sqlite wbs-store-memory --skip-nx-cache`
+  and the same for `wbs-core wbs-be-01` → exit 0.
+- `check-indexes working . HEAD` → exit 0; `openspec validate --all --json` → 293/293;
+  Prettier clean. No migration changed this pass.

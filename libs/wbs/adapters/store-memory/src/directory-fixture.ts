@@ -717,6 +717,10 @@ function resourceUsageOf(tables: MemoryResourceTables, resourceId: string) {
       .filter((each) => each.resourceId === resourceId)
       .map(({ projectId, units }) => ({ projectId, units }))
       .sort((left, right) => left.projectId.localeCompare(right.projectId)),
+    // This directory holds no claims; the bound source (`memory-stores.ts`)
+    // answers the occupying leaves in `usageOfResource` and `removeResource`,
+    // which the memory certification's `directory.removeResource:in-use-cascade`
+    // proves (the stage held by a claim alone answers in_use).
     occupancies: 0,
     // The memory twin holds no provider instance (`compute-providers` P3).
     providerId: null,
