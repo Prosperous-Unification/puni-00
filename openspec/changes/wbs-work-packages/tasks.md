@@ -215,7 +215,7 @@
       throughout, roll-ups folded per project with work package rows beneath). Green:
       `<merge-date>100100_space_holds_projects_people_teams`, store, routes, contracts,
       mcp-01's README count raised (WP-10), the runbook step printing `space_project_dropped`
-      into `verify.md`, and the ADR superseding ADR 0033 in part (one space or none). R5
+      into `verify.md`, and the code following ADR 0061 (one space or none; written in planning). R5
       faults: the dropped-membership insert removed (the multi-space fixture's report
       assertion fails); the cross-organization trigger dropped; the `project_in_other_space`
       check removed (the second add silently moves the project); the organization scope on

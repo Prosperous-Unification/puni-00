@@ -65,7 +65,7 @@ Work package, Project, Space, Space membership, Project settings, Setting proven
 ## Decisions Recorded
 
 E1 to E9 are Dany's; E10 onward assumed, overrulable by id; Dany revised several and
-withdrew E34 on 2026-10-25. Slice 3a supersedes ADR 0033 in part.
+withdrew E34 on 2026-10-25. ADR 0061 supersedes ADR 0033.
 
 ## Impact
 

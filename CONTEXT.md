@@ -180,7 +180,7 @@ _Avoid_: claim row, active claim, slot
 ### Spaces
 
 **Space**:
-An organizational unit of the organization, such as a department or a team, that holds projects, persons and teams and carries settings resolved by the projects beneath it. It grants nothing, and deleting it deletes no project.
+An organizational unit of the organization, a department or a team of people, that holds projects and persons and carries settings resolved by the projects beneath it. It grants nothing, and deleting it deletes no project.
 _Avoid_: portfolio, program, folder, workspace
 
 **Space membership**:
@@ -408,8 +408,8 @@ _Avoid_: roster, address book, org chart, users
 A team work can be labelled with, unique by name across the directory: a label on the work,
 never a constraint on who may be assigned it. How many may be at work at once is a per-project
 [Capacity](openspec/changes/archive/2026-08-30-capacity-per-project/specs/wbs-domain/spec.md),
-not a property of the team. It may belong to a space, but it is not one: a space is a unit of
-the organization that holds projects, a service team is a label on the work.
+not a property of the team. It is a label on the work, not an organizational unit; a
+department or a team of people is a space. A service team may be linked to a space.
 _Avoid_: department, squad, group
 
 **Service**:

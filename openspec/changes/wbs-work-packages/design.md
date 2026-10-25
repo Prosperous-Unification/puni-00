@@ -152,7 +152,8 @@ was also "a space-level override of anything", now allowed where E18 says._
   sense (E24). Prose that names the engagement ("a client project") is a hand decision.
   _Exclusions added 2026-10-24 after the Fable review:_ (WP-2) **identifiers already in the
   new sense**, which `wbs-permissions` slices 1–2 land before this slice 1: the
-  `ScopeChain { organizationId, spaceIds, projectId, workPackageId? }` value type and every
+  `ScopeChain { organizationId, spaceId, projectId, workPackageId? }` value type (`spaceId`
+  nullable since 2026-10-25, E24) and every
   read of its `projectId`, the permission ids `organization.create_project` and `project.*`
   (`project.read`, `project.manage_packages`, …), the project role names, the access target
   `{ kind: 'project'; chain }` and grant rows whose scope kind is `project`, plus anything
@@ -344,11 +345,14 @@ updated_at, created_by)` PK `(scope_kind, scope_id, key)`, `scope_kind` CHECK ov
   Reads: `GET /api/work-packages/:id/settings`, `GET /api/projects/:id/settings`,
   `GET /api/spaces/:id/settings` and `GET /api/organization/settings` answer every
   catalogue key resolved with provenance (the last two added 2026-10-25 for the space
-  level);
+  level; their permissions are `wbs-permissions` P19, which adds `organization.manage_settings`
+  and so raises that change's permission count by one, to 28 once #724 lands (#724 says
+  "27 at the time of writing");
   writes: `PATCH …/settings { key: value | null }` where `null` clears the override (back to
   inherited). _Shared chain type, added 2026-10-24 after review:_ this change and
   `wbs-permissions` use one `ScopeChain` value type in `@wbs/domain`, `{ organizationId,
-spaceIds, projectId, workPackageId? }`, defined by whichever change lands first (expected:
+spaceId, projectId, workPackageId? }` (`spaceId: string | null` since 2026-10-25, E24; was
+  `spaceIds`), defined by whichever change lands first (expected:
   `wbs-permissions` slice 1); `resolveSetting(chain, key)` (nearest wins, provenance
   `{ level, id }`) and `effectiveRoleAt(chain)` (strongest wins) both take it, so the chain
   is built once per request and never twice with different rules. Rejected: nullable columns
@@ -479,9 +483,9 @@ organization_id, position)`, a report table the migration keeps and the slice 3a
   project's space and answers `409 project_in_other_space { spaceId }` while it sits in
   another (remove it there first, so no move is silent), `DELETE …/:projectId` sets none,
   `POST …/:projectId/move` reorders within the space. Deleting a space returns its projects
-  to none in the same transaction; a space still owns nothing. ADR 0033 ("A space is a lens",
-  many spaces per project) is superseded in part; slice 3a adds the superseding ADR (task
-  4.5). `GET /api/spaces/:id/roll-ups` answers one row
+  to none in the same transaction; a space still owns nothing. [ADR 0061](../../../docs/adr/0061-a-space-is-an-organizational-unit.md)
+  (written 2026-10-25) supersedes ADR 0033 ("A space is a lens", many spaces per
+  project). `GET /api/spaces/:id/roll-ups` answers one row
   per project folded from its work packages' roll-ups (earliest start, latest finish, summed
   days and counts, folded status) with the work package rows beneath; `in-progress` keeps its
   meaning over the space's projects' work packages; the `all` space is the caller's projects,
@@ -495,10 +499,12 @@ organization_id, position)`, a report table the migration keeps and the slice 3a
   spaces": a project could sit in many spaces, `chain.spaceIds` was the set, the space step
   was inert, and two spaces with different values were to resolve with a named ambiguity
   refusal. With one space or none that rule is moot and gone, and so is the "no home space
-  column" rule (`project.space_id` is that column, E23)._ `ScopeChain.spaceIds` keeps its
-  list shape and holds zero or one id in this change. Spaces stay flat; nesting is additive
-  later (the list gains the space's ancestors, nearest first) with no change to the type or
-  to `resolveSetting`'s walk. `CONTEXT.md` terms that keep the word in its new sense:
+  column" rule (`project.space_id` is that column, E23)._ _Revised again 2026-10-25 with
+  `wbs-permissions` P14: was "`ScopeChain.spaceIds` keeps its list shape and holds zero or
+  one id"._ `ScopeChain.spaceId: string | null` holds the project's one space, null for an
+  organization-level project, and `resolveSetting` skips the space level when it is null.
+  Spaces stay flat; nesting is additive later: the slot widens to the space's ancestors,
+  nearest first, and the walk gains those levels without changing what it does today. `CONTEXT.md` terms that keep the word in its new sense:
   **Project**, **Project roll-up**, **Project settings**, **All projects**; **Project rank**,
   **Project entry** and **Project timezone** become work package terms; the owner terms go
   (E25).
@@ -599,6 +605,10 @@ wbs-work-packages` refused six of them, because a MODIFIED block cannot rename a
 - **E31. Persons and teams belong to spaces** (resolves WP-9; moved out of E1). A person or
   team may belong to one or several spaces (new, cheap link). The link carries no authority,
   capacity or scheduling effect (E1); its storage and routes are E23's.
+- **E35. There is no persons-team entity** (resolved 2026-10-25 by the planner, not a
+  question for Dany). WBS has no team of persons: `/api/teams` are **Service teams**, labels
+  on work, and `space_team` links a service team to a space. Dany's "departments and teams"
+  are both spaces; a team of people is a space that holds persons.
 - **E33. The step lift rewrites stored JSON once; no alias table** (session decision
   2026-10-24, on the Fable re-check of #714). Slice 3b's migration rewrites step ids in
   `command_journal.payload`/`inverse` and saved-plan input bodies with `json_set`, refusing
