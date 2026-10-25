@@ -639,8 +639,11 @@ wbs-work-packages` refused six of them, because a MODIFIED block cannot rename a
   question for Dany). WBS has no team of persons: `/api/teams` are **Service teams**, labels
   on work, and `space_team` links a service team to a space. Dany's "departments and teams"
   are both spaces; a team of people is a space that holds persons.
-- **E33. The step lift rewrites stored JSON once; no alias table** (session decision
-  2026-10-24, on the Fable re-check of #714). Slice 3b's migration rewrites step ids in
+- **E33. Superseded by `wbs-step-catalogue` SC11–SC13 (Dany, 2026-10-25).** Every step keeps
+  its id, only operator-ruled or identical shared codes merge, and merged ids are translated
+  on read through `step_identity_history`; stored JSON is never rewritten. Was: the step lift
+  rewrites stored JSON once; no alias table (session decision 2026-10-24, on the Fable
+  re-check of #714). Slice 3b's migration rewrites step ids in
   `command_journal.payload`/`inverse` and saved-plan input bodies with `json_set`, refusing
   on an unrecognised payload shape naming the row; the permanent `step_lift_alias` table is
   rejected as the compatibility layer the Non-Goals forbid. Detail in E21.

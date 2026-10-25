@@ -68,7 +68,7 @@ boundary**, **Step usage** amended; **Step binding**, **Default estimate unit** 
 
 ## Decisions Recorded
 
-SC1–SC24 assumed by the planner; Q1–Q5 await Dany. No ADR yet; SC13 revises E33.
+SC1–SC24 assumed by the planner; Q1–Q4 await Dany; Q5 settled 2026-10-25 (SC13 confirmed, supersedes E33). No ADR yet.
 
 ## Impact
 

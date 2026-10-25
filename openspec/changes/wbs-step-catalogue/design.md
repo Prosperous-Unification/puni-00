@@ -113,8 +113,7 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   Codes are unique per package today (`step_project_code`), so the map is injective per
   package and no per-work-item key collides; a fact whose work item lies in another package
   than its step's is a `foreign_package_fact` report row and refuses.
-- **SC13. History is translated on read, never rewritten** (F1; assumed, overrulable;
-  **awaits Dany (revises E33)**). Historical readers translate an old id through
+- **SC13. History is translated on read, never rewritten** (F1; **settled by Dany 2026-10-25, "ok go SC13"; supersedes E33**). Historical readers translate an old id through
   `step_identity_history` after the integrity check, on read only, and never write
   translated bytes back: saved-plan input and schedule bodies (slice keys included), journal
   `payload`, `inverse` and `preconditions` (`estimateUnits` keys, `moveProgress`, and
@@ -277,8 +276,7 @@ foreign key. Lease state lives on `claim`; `claim_occupancy` keys on claim ids, 
   yes, only through `defineAndBindStep`, with renaming and defaults afterwards
   organization-level (SC20). (b) Reorder inherited steps per project: recommend no (SC4).
 - **Q4.** Refuse versus hide step nodes that would vanish: recommend refuse (SC7, SC17).
-- **Q5.** The historical identity map revises E33's rejection of an alias table: confirm
-  (SC13).
+- **Q5.** _Settled 2026-10-25 by Dany: SC13 confirmed, E33 superseded._ (Was: the historical identity map revises E33's rejection of an alias table: confirm.)
 
 ## Risks / Trade-offs
 
