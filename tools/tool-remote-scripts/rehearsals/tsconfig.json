@@ -7,7 +7,9 @@
   "include": [
     "isolated-ci-*.ts",
     "source-participant-profile.ts",
-    "source-participant-profile.test.ts"
+    "source-participant-profile.test.ts",
+    "source-stageb-channel.ts",
+    "source-stageb-channel.test.ts"
   ],
   "references": []
 }
