@@ -2280,6 +2280,25 @@ describe('claims on a card (wbs-claim-display 7.1)', () => {
     expect(chips(cardOf('010.1').querySelector('header'))).toEqual([]);
     expect(chips(cardOf('010'))).toEqual(['CL14m']);
   });
+
+  itDom('keeps the card’s total on one line beside a subtree chip', async () => {
+    // At 375 px `CL 14m` pushed `16 d` onto two lines (swarm rehearsal,
+    // 2026-10-25). jsdom lays nothing out: this pins the total as the part
+    // that neither wraps nor shrinks; the 375 px screenshot shows it holds.
+    const { api } = await claimedPlan();
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    const header = cardOf('010').querySelector('header');
+    await waitFor(() => {
+      expect(chips(header)).toEqual(['CL14m']);
+    });
+    expect(header?.querySelector('[data-final-total]')).toHaveClass(
+      'shrink-0',
+      'whitespace-nowrap',
+    );
+  });
 });
 
 describe('the Claims sheet on a phone (wbs-claim-display 9.2)', () => {

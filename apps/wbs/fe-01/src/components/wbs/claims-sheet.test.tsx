@@ -180,7 +180,7 @@ describe('the Claims toolbar button (wbs-claim-display 9.1, C16)', () => {
     expect(claimsButton()?.querySelector('[data-claims-count]')).toBeNull();
     const sheet = await openTheSheet();
     await waitFor(() => {
-      expect(historyRows(sheet)).toEqual(['24 Oct 10:47dana released030 Prime · Devlease expired']);
+      expect(historyRows(sheet)).toEqual(['24 Oct 10:47dana’s lease expired030 Prime · Dev']);
     });
     expect(within(sheet).getByText('No claims are held.')).toBeInTheDocument();
   });
@@ -218,6 +218,29 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
       },
       { holder: 'dana', runs: [{ run: '', rows: ['030Prime · Devsince 24 Oct 10:42'] }] },
     ]);
+  });
+
+  itDom('truncates a held claim’s item name before its step', async () => {
+    // A phone cut `Unit test shards · D…`, so a leaf's Dev and QA rows read
+    // the same (swarm rehearsal, 2026-10-25). jsdom lays nothing out: this
+    // pins which part gives way; the 375 px screenshot shows it does.
+    const { api } = await claimedPlan(['c-codex', 'c-claire']);
+    drawTable(api);
+
+    const sheet = await openTheSheet();
+
+    const row = await waitFor(() => {
+      const found = sheet.querySelector<HTMLElement>('[data-held-claim="c-codex"]');
+      if (found === null) throw new Error('no held row yet');
+      return found;
+    });
+    const name = row.querySelector('[data-held-name]');
+    const step = row.querySelector('[data-held-step]');
+    expect(name?.textContent).toBe('Paint');
+    expect(name).toHaveClass('min-w-0', 'truncate');
+    expect(step?.textContent).toBe(' · Dev');
+    expect(step).toHaveClass('shrink-0');
+    expect(step?.parentElement).toBe(name?.parentElement);
   });
 
   itDom('lists a claim on a row the tree does not hold yet, by its read’s own words', async () => {
@@ -305,10 +328,50 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
 
     await waitFor(() => {
       expect(historyRows(sheet)).toEqual([
-        '24 Oct 10:46codex released010.1 Paint · Devlease expired',
-        '24 Oct 10:45finn released020 Sand · QAcredential revoked',
+        '24 Oct 10:46codex’s lease expired010.1 Paint · Dev',
+        '24 Oct 10:45finn’s credential was revoked020 Sand · QA',
         '24 Oct 10:44a deleted person released 2 items– a deleted item– 010.1 Paint · QA',
         '24 Oct 10:42codex claimed010.1 Paint · Dev',
+      ]);
+    });
+  });
+
+  itDom('words a swept release by its reason, never as the holder releasing', async () => {
+    // The swarm rehearsal of 2026-10-25 read `w2 released 2 items` for leases
+    // the coordinator's sweep reaped.
+    const { api, history, ids } = await claimedPlan(['c-dana']);
+    const item = { number: '010.1', numberIsFrozen: false, name: 'Paint' };
+    const claim = (claimId: string, name: string | null, stepId: string) => ({
+      claimId,
+      workItemId: ids.paint,
+      stepId,
+      runId: null,
+      holder: { personId: `person-${String(name)}`, name },
+      item,
+    });
+    history.push(
+      event('e4', CLAIMED_AT + 4 * MINUTE, 'release', 'credential_revoked', [
+        claim('c-5', 'finn', 'step-dev'),
+        claim('c-6', 'gil', 'step-qa'),
+      ]),
+      event('e3', CLAIMED_AT + 3 * MINUTE, 'release', 'lease_expired', [
+        claim('c-3', 'w2', 'step-dev'),
+        claim('c-4', 'w2', 'step-qa'),
+      ]),
+      event('e2', CLAIMED_AT + 2 * MINUTE, 'release', 'lease_expired', [
+        claim('c-1', 'w2', 'step-dev'),
+        claim('c-2', null, 'step-qa'),
+      ]),
+    );
+    drawTable(api);
+
+    const sheet = await openTheSheet();
+
+    await waitFor(() => {
+      expect(historyRows(sheet)).toEqual([
+        '24 Oct 10:46The credentials of finn, gil were revoked, releasing 2 items– 010.1 Paint · Dev– 010.1 Paint · QA',
+        '24 Oct 10:45w2’s lease expired, releasing 2 items– 010.1 Paint · Dev– 010.1 Paint · QA',
+        '24 Oct 10:44The leases of w2, a deleted person expired, releasing 2 items– 010.1 Paint · Dev– 010.1 Paint · QA',
       ]);
     });
   });

@@ -2884,7 +2884,15 @@ export function PlanCards({
                   <ClaimChip drawn={subtreeClaim} form="full" tap />
                 </span>
               )}
-              <span data-final-total className="text-muted-foreground ml-auto text-sm">
+              {/*
+                Never wraps: a lease chip beside it once broke `16 d` over two
+                lines. Proof: 2026-10-25, without `shrink-0 whitespace-nowrap`
+                `keeps the card’s total on one line beside a subtree chip` failed.
+              */}
+              <span
+                data-final-total
+                className="text-muted-foreground ml-auto shrink-0 text-sm whitespace-nowrap"
+              >
                 {showDay(row.finalTotal)} d
               </span>
               {rowActions !== undefined && (

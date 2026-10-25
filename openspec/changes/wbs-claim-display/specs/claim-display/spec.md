@@ -170,14 +170,15 @@ claim instant. It SHALL offer no claim or release control.
 
 Below the held claims, the Claims sheet SHALL list the claim history read's events newest
 first, each naming who, which items and the reason (`claimed`, `released`, `lease expired`,
-`credential revoked`). It SHALL read the claim history when opened and again on each tree
+`credential revoked`). A release the sweep made SHALL be worded by its reason (`codex’s lease
+expired`, `finn’s credential was revoked`), never as the holder releasing. It SHALL read the claim history when opened and again on each tree
 change while open, and not on `claims_changed`.
 
 #### Scenario: A reaped claim says why
 
 - **WHEN** the sweep releases `codex`'s claim on `080.25` while the sheet is open
-- **THEN** the claim leaves the held list and the history's newest row reads `codex` released
-  `080.25` because its lease expired
+- **THEN** the claim leaves the held list and the history's newest row reads `codex’s lease
+expired` over `080.25`, never `codex released`
 
 #### Scenario: The history cannot be read
 

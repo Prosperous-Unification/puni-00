@@ -1,6 +1,7 @@
 import { Button } from '@ui/saas-01';
 import { useEffect, useId, useMemo, useState } from 'react';
 
+import { unreachable } from '@/lib/http';
 import type { InstalledClaims } from '@/lib/plan-refresh';
 import type {
   ClaimHistoryClaimView,
@@ -47,13 +48,6 @@ type HistoryState =
   | { kind: 'reading'; events: readonly ClaimHistoryEventView[] | null }
   | { kind: 'read'; events: readonly ClaimHistoryEventView[] }
   | { kind: 'failed' };
-
-const REASON_WORDS: Readonly<Record<ClaimHistoryEventView['reason'], string | null>> = {
-  claimed: null,
-  released: null,
-  lease_expired: 'lease expired',
-  credential_revoked: 'credential revoked',
-};
 
 /**
  * Whether the plan offers the Claims sheet: once any claims read installed in
@@ -360,10 +354,21 @@ function HeldClaimRow({
       className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-2 text-sm"
     >
       <span className="text-muted-foreground font-mono text-xs tabular-nums">{claim.number}</span>
-      <span className="min-w-0 truncate">
-        <span>{claim.name}</span>
-        <span className="text-muted-foreground"> · </span>
-        <span className="text-muted-foreground">{step}</span>
+      {/*
+        The item's name gives way first: a leaf's Dev and QA rows differ only in
+        the step, so on a phone the step stays whole (up to most of the line)
+        and the name truncates (swarm rehearsal, 2026-10-25). Proof: 2026-10-25,
+        with `shrink-0` dropped from the step, `truncates a held claim’s item
+        name before its step` failed.
+      */}
+      <span className="flex min-w-0 items-baseline">
+        <span data-held-name className="min-w-0 truncate">
+          {claim.name}
+        </span>
+        <span data-held-step className="text-muted-foreground max-w-[60%] shrink-0 truncate">
+          <span className="whitespace-pre"> · </span>
+          {step}
+        </span>
       </span>
       <span className="text-muted-foreground flex gap-2 text-xs whitespace-nowrap tabular-nums">
         {lease !== null && (
@@ -380,10 +385,68 @@ function HeldClaimRow({
   );
 }
 
-/** The names of the people one history entry names, a deleted one said as such. */
-function whoWords(claims: readonly ClaimHistoryClaimView[]): string {
-  const names = [...new Set(claims.map((claim) => claim.holder.name ?? 'a deleted person'))];
-  return names.join(', ');
+/** The names of the people one history entry names, once each, a deleted one said as such. */
+function holderNames(claims: readonly ClaimHistoryClaimView[]): string[] {
+  return [...new Set(claims.map((claim) => claim.holder.name ?? 'a deleted person'))];
+}
+
+/**
+ * One history entry's first line, worded by its reason (`wbs-claim-display`
+ * "The Claims sheet says why claims went"): `codex claimed`, `codex released
+ * 2 items`, and for the sweep's reaps, which the holder did not do, `codex’s
+ * lease expired` or `finn’s credential was revoked`, `, releasing 2 items`
+ * when there are several. The swarm rehearsal of 2026-10-25 read a reap as
+ * `w2 released 2 items`, with the reason only in small print below.
+ *
+ * Proof: 2026-10-25, a lease expiry worded `codex released` failed `words a
+ * swept release by its reason, never as the holder releasing`, `lists the
+ * recent claims and releases…` and `stays, with no number, when the last
+ * claim is reaped…`.
+ *
+ * @throws Through {@link unreachable} on a reason the contract does not have.
+ */
+function HistoryHeadline({ entry }: { entry: ClaimHistoryEventView }) {
+  const names = holderNames(entry.claims);
+  const who = <span className="font-medium">{names.join(', ')}</span>;
+  const many = entry.claims.length > 1 ? ` ${String(entry.claims.length)} items` : '';
+  const releasing = many === '' ? '' : `, releasing${many}`;
+  const one = names.length === 1;
+  switch (entry.reason) {
+    case 'claimed':
+      return (
+        <>
+          {who} claimed{many}
+        </>
+      );
+    case 'released':
+      return (
+        <>
+          {who} released{many}
+        </>
+      );
+    case 'lease_expired':
+      return one ? (
+        <>
+          {who}’s lease expired{releasing}
+        </>
+      ) : (
+        <>
+          The leases of {who} expired{releasing}
+        </>
+      );
+    case 'credential_revoked':
+      return one ? (
+        <>
+          {who}’s credential was revoked{releasing}
+        </>
+      ) : (
+        <>
+          The credentials of {who} were revoked{releasing}
+        </>
+      );
+    default:
+      return unreachable(entry.reason);
+  }
 }
 
 /** One claim of a history entry: `010.1 Paint · Dev`, or `a deleted item`. */
@@ -440,7 +503,6 @@ function ClaimHistoryList({
       data-claim-history-rereading={history.kind === 'reading' ? '' : undefined}
     >
       {history.events.map((entry) => {
-        const reason = REASON_WORDS[entry.reason];
         const when = sinceWords(entry.at, zone);
         return (
           <li
@@ -452,10 +514,8 @@ function ClaimHistoryList({
               {when ?? ''}
             </span>
             <span className="flex min-w-0 flex-col">
-              <span>
-                <span className="font-medium">{whoWords(entry.claims)}</span>{' '}
-                {entry.kind === 'claim' ? 'claimed' : 'released'}
-                {entry.claims.length > 1 && ` ${String(entry.claims.length)} items`}
+              <span data-claim-history-reason={entry.reason}>
+                <HistoryHeadline entry={entry} />
               </span>
               {entry.claims.length === 1 ? (
                 <span className="text-muted-foreground truncate">
@@ -470,11 +530,6 @@ function ClaimHistoryList({
                     </li>
                   ))}
                 </ul>
-              )}
-              {reason !== null && (
-                <span data-claim-history-reason className="text-xs font-medium">
-                  {reason}
-                </span>
               )}
             </span>
           </li>
