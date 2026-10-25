@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { type } from 'arktype';
 
 import type { Toolchain } from './contracts';
@@ -165,23 +167,94 @@ const ElasticContainer = type({
   name: "'elasticsearch'",
   env: Env,
   resources: Resources,
+  volumeMounts: type([
+    {
+      name: "'s3-trust'",
+      mountPath: "'/usr/share/elasticsearch/config/s3-trust'",
+      readOnly: 'true',
+      '+': 'reject',
+    },
+    {
+      name: "'s3-trust'",
+      mountPath: "'/usr/share/elasticsearch/config/jvm.options.d/s3.options'",
+      subPath: "'s3.options'",
+      readOnly: 'true',
+      '+': 'reject',
+    },
+  ]),
   '+': 'reject',
 });
 const ElasticsearchValues = type({
   fullnameOverride: "'elasticsearch'",
   version: 'string>0',
   image: 'string>0',
-  secureSettings: type({ secretName: 'string>0', '+': 'reject' }).array(),
+  // Proof: widening the projected access key admitted ca.crt into the keystore (platform.test.ts).
+  secureSettings: type({
+    secretName: "'elastic-s3-credentials'",
+    entries: type([
+      { key: "'s3.client.default.access_key'", '+': 'reject' },
+      { key: "'s3.client.default.secret_key'", '+': 'reject' },
+    ]),
+    '+': 'reject',
+  })
+    .array()
+    .exactlyLength(1),
   volumeClaimDeletePolicy: "'DeleteOnScaledownOnly'",
   nodeSets: type({
     name: 'string>0',
     count: 'number.integer>0',
     // Elasticsearch settings cannot select a container image.
-    config: 'Record<string, string | number | boolean>',
+    config: {
+      'node.store.allow_mmap': 'false',
+      's3.client.default.endpoint': 'string>0',
+      // Proof: widening this field admitted the plaintext snapshot mutation (platform.test.ts).
+      's3.client.default.protocol': "'https'",
+      's3.client.default.path_style_access': 'true',
+      '+': 'reject',
+    },
     podTemplate: {
       spec: {
         nodeSelector: ObservabilityNode,
+        securityContext: {
+          runAsUser: '1000',
+          runAsGroup: '1000',
+          fsGroup: '1000',
+          runAsNonRoot: 'true',
+          '+': 'reject',
+        },
         containers: ElasticContainer.array().exactlyLength(1),
+        initContainers: type({
+          name: "'prepare-s3-trust'",
+          image: 'string>0',
+          command: type(["'bash'", "'-ec'", 'string>0']),
+          env: type({ name: "'S3_TRUST_MODE'", value: "'system-roots'", '+': 'reject' })
+            .array()
+            .exactlyLength(1),
+          volumeMounts: type([
+            {
+              name: "'s3-trust'",
+              mountPath: "'/usr/share/elasticsearch/config/s3-trust'",
+              '+': 'reject',
+            },
+            {
+              name: "'s3-credentials'",
+              mountPath: "'/s3-credentials'",
+              readOnly: 'true',
+              '+': 'reject',
+            },
+          ]),
+          '+': 'reject',
+        })
+          .array()
+          .exactlyLength(1),
+        volumes: type([
+          { name: "'s3-trust'", emptyDir: { '+': 'reject' }, '+': 'reject' },
+          {
+            name: "'s3-credentials'",
+            secret: { secretName: "'elastic-s3-credentials'", defaultMode: '292', '+': 'reject' },
+            '+': 'reject',
+          },
+        ]),
         '+': 'reject',
       },
       '+': 'reject',
@@ -413,6 +486,21 @@ const OtelValues = type({
   '+': 'reject',
 });
 
+// Proof: widening the endpoint or deleting unknown keys admitted HTTP and insecureSkipTLSVerify.
+const VeleroConfig = type({
+  region: 'string>0',
+  s3ForcePathStyle: "'true'",
+  s3Url: /^https:\/\/[^\s]+$/,
+  '+': 'reject',
+});
+const VeleroLocation = type({
+  name: "'default'",
+  provider: "'aws'",
+  bucket: "'puni-velero'",
+  default: 'true',
+  config: VeleroConfig,
+  '+': 'reject',
+});
 const VeleroValues = type({
   image: ImageValues,
   upgradeCRDs: 'false',
@@ -433,12 +521,32 @@ const VeleroValues = type({
     uploaderType: "'kopia'",
     defaultVolumesToFsBackup: 'false',
     // Storage locations name buckets and endpoints only.
-    backupStorageLocation: 'object[]',
+    backupStorageLocation: VeleroLocation.array().atMostLength(1),
     '+': 'reject',
   },
   resources: Resources,
   nodeAgent: { resources: Resources, tolerations: TolerateAll, '+': 'reject' },
   metrics: { serviceMonitor: { enabled: 'true', '+': 'reject' }, '+': 'reject' },
+  // Proof: widening kind admitted a Deployment through extraObjects (platform.test.ts).
+  'extraObjects?': type({
+    apiVersion: "'velero.io/v1'",
+    kind: "'BackupStorageLocation'",
+    metadata: { name: "'default'", namespace: "'puni-backup'", '+': 'reject' },
+    spec: {
+      provider: "'aws'",
+      default: 'true',
+      objectStorage: {
+        bucket: "'puni-velero'",
+        caCertRef: { name: "'object-store-ca'", key: "'ca.crt'", '+': 'reject' },
+        '+': 'reject',
+      },
+      config: VeleroConfig,
+      '+': 'reject',
+    },
+    '+': 'reject',
+  })
+    .array()
+    .exactlyLength(1),
   // Backup schedules select namespaces and volumes, never images.
   schedules: 'Record<string, object>',
   '+': 'reject',
@@ -475,6 +583,18 @@ const hcloudCsiReferences = (values: unknown) => {
 
 const elasticsearchReferences = (values: unknown) => {
   const parsed = decode('elasticsearch', ElasticsearchValues, values);
+  for (const node of parsed.nodeSets) {
+    // Proof: removing this pin accepted an init with private-CA validation disabled (platform.test.ts).
+    if (
+      createHash('sha256')
+        .update(JSON.stringify(node.podTemplate.spec.initContainers[0].command))
+        .digest('hex') !== '691658bb7c580b458ff990834f7a05a3edb95c3c3cc2d80cf6517f3d72d38c8f'
+    )
+      throw new Error('Elasticsearch trust executable differs');
+    // Proof: removing this guard accepted an unpinned trust-init image (platform.test.ts).
+    if (node.podTemplate.spec.initContainers[0].image !== parsed.image)
+      throw new Error('Elasticsearch trust init image differs from its pinned node image');
+  }
   return elasticReferences('elasticsearch', parsed.version, parsed.image);
 };
 
@@ -487,6 +607,9 @@ const otelReferences = (values: unknown) => {
 
 const veleroReferences = (values: unknown) => {
   const parsed = decode('velero', VeleroValues, values);
+  // Proof: removing this guard admitted two effective default BSLs (platform.test.ts).
+  if (parsed.configuration.backupStorageLocation.length + (parsed.extraObjects?.length ?? 0) !== 1)
+    throw new Error('Velero requires exactly one default backup storage location');
   return {
     server: imageReference(parsed.image.repository, parsed.image.tag, parsed.image.digest),
     pluginAws: parsed.initContainers[0].image,

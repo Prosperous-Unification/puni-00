@@ -21,6 +21,9 @@ spec:
     image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
     secureSettings:
       - secretName: elastic-s3-credentials
+        entries:
+          - { key: s3.client.default.access_key }
+          - { key: s3.client.default.secret_key }
     volumeClaimDeletePolicy: DeleteOnScaledownOnly
     nodeSets:
       - name: default
@@ -34,11 +37,63 @@ spec:
           spec:
             nodeSelector:
               puni.dev/capability-observability: 'true'
+            securityContext:
+              runAsUser: 1000
+              runAsGroup: 1000
+              fsGroup: 1000
+              runAsNonRoot: true
+            initContainers:
+              - name: prepare-s3-trust
+                image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+                command:
+                  - bash
+                  - -ec
+                  - |
+                    # Proof: replacing this copy with touch accepted missing/unreadable bundled roots (backup-tls.test.ts).
+                    cp "/usr/share/elasticsearch/jdk/lib/security/cacerts" /usr/share/elasticsearch/config/s3-trust/cacerts
+                    chmod u+w /usr/share/elasticsearch/config/s3-trust/cacerts
+                    case "$S3_TRUST_MODE" in
+                      system-roots) ;;
+                      system-roots-plus-ca)
+                        # Proof: each removed file guard lost its distinct CA refusal (backup-tls.test.ts).
+                        path=/s3-credentials/ca.crt
+                        [ -e "$path" ] || { echo "missing TLS input: $path" >&2; exit 1; }
+                        [ -r "$path" ] || { echo "unreadable TLS input: $path" >&2; exit 1; }
+                        [ -s "$path" ] || { echo "empty TLS input: $path" >&2; exit 1; }
+                        # Proof: removing the parse refusal lost the malformed-CA diagnostic (backup-tls.test.ts).
+                        "/usr/share/elasticsearch/jdk/bin/keytool" -printcert -file "$path" >/dev/null || { echo "malformed TLS input: $path" >&2; exit 1; }
+                        "/usr/share/elasticsearch/jdk/bin/keytool" -importcert -noprompt -alias puni-s3-ca -file "$path" -keystore /usr/share/elasticsearch/config/s3-trust/cacerts -storepass changeit
+                        ;;
+                      # Proof: removing this branch accepted the unknown trust mode (backup-tls.test.ts).
+                      *) echo "invalid S3_TRUST_MODE" >&2; exit 1 ;;
+                    esac
+                    printf '%s\n' '-Djavax.net.ssl.trustStore=/usr/share/elasticsearch/config/s3-trust/cacerts' '-Djavax.net.ssl.trustStorePassword=changeit' > /usr/share/elasticsearch/config/s3-trust/s3.options
+                env:
+                  - { name: S3_TRUST_MODE, value: system-roots }
+                volumeMounts:
+                  - { name: s3-trust, mountPath: /usr/share/elasticsearch/config/s3-trust }
+                  - { name: s3-credentials, mountPath: /s3-credentials, readOnly: true }
+            volumes:
+              - { name: s3-trust, emptyDir: {} }
+              - name: s3-credentials
+                secret: { secretName: elastic-s3-credentials, defaultMode: 292 }
             containers:
               - name: elasticsearch
                 env:
                   - name: ES_JAVA_OPTS
                     value: -Xms2g -Xmx2g
+                volumeMounts:
+                  - {
+                      name: s3-trust,
+                      mountPath: /usr/share/elasticsearch/config/s3-trust,
+                      readOnly: true,
+                    }
+                  - {
+                      name: s3-trust,
+                      mountPath: /usr/share/elasticsearch/config/jvm.options.d/s3.options,
+                      subPath: s3.options,
+                      readOnly: true,
+                    }
                 resources:
                   requests: { cpu: 500m, memory: 4Gi }
                   limits: { cpu: '2', memory: 4Gi }

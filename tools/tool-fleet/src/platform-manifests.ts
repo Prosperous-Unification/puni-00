@@ -413,7 +413,8 @@ function collectSecretNames(value: unknown, found: Set<string>): void {
     ) {
       found.add(entry);
     } else if (
-      (key === 'secretKeyRef' || key === 'secretRef') &&
+      // Proof: removing caCertRef dropped the CA-only reference (platform-backup-tls.test.ts).
+      (key === 'secretKeyRef' || key === 'secretRef' || key === 'caCertRef') &&
       typeof entry === 'object' &&
       entry !== null &&
       'name' in entry &&

@@ -11,10 +11,11 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { createServer } from 'node:net';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { type } from 'arktype';
 
+import { createBackupIdentity, provisionBackupIdentity } from './backup-identity';
 import { readToolchain } from './contracts';
 import { executeCreationAttempt } from './creation-journal';
 import { executeDirectCreation } from './creation-receipts';
@@ -638,6 +639,16 @@ async function preparePlatformObjectStore(
   for (const cluster of clusters) {
     for (const node of objectStoreNodes(cluster)) {
       importObjectStore(archive, lock, cluster.name, node, tools.k3d);
+    }
+    if (cluster.role === 'platform') {
+      const identity = await createBackupIdentity(join(dirname(cluster.kubeconfig), 'backup-tls'));
+      await provisionBackupIdentity(identity, (arguments_, input) =>
+        run(
+          tools.kubectl,
+          ['--kubeconfig', cluster.kubeconfig, '--context', cluster.context, ...arguments_],
+          { input },
+        ),
+      );
     }
   }
 }

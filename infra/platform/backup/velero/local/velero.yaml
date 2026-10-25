@@ -35,15 +35,23 @@ spec:
     configuration:
       uploaderType: kopia
       defaultVolumesToFsBackup: false
-      backupStorageLocation:
-        - name: default
+      backupStorageLocation: []
+    extraObjects:
+      - apiVersion: velero.io/v1
+        kind: BackupStorageLocation
+        metadata:
+          name: default
+          namespace: puni-backup
+        spec:
           provider: aws
-          bucket: puni-velero
           default: true
+          objectStorage:
+            bucket: puni-velero
+            caCertRef: { name: object-store-ca, key: ca.crt }
           config:
             region: local
             s3ForcePathStyle: 'true'
-            s3Url: http://object-store.puni-backup.svc:9000
+            s3Url: https://object-store.puni-backup.svc:9000
     resources:
       requests: { cpu: 100m, memory: 128Mi }
       limits: { cpu: '1', memory: 512Mi }

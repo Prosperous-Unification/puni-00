@@ -38,12 +38,33 @@ spec:
         - name: minio
           image: docker.io/puni-local/object-store:RELEASE.2025-09-07T16-13-09Z@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
           imagePullPolicy: Never
-          args: [server, /data]
+          command:
+            - sh
+            - -ec
+            - |
+              # Proof: removing this refusal let the ambient-bypass negative enter mc (backup-tls.test.ts).
+              [ "${MC_INSECURE+x}" != x ] || { echo "certificate bypass is forbidden" >&2; exit 1; }
+              # Proof: removing each file guard changed its missing/unreadable/empty refusal (backup-tls.test.ts).
+              for path in /object-store-tls/public.crt /object-store-tls/private.key /object-store-ca/ca.crt; do
+                [ -e "$path" ] || { echo "missing TLS input: $path" >&2; exit 1; }
+                [ -r "$path" ] || { echo "unreadable TLS input: $path" >&2; exit 1; }
+                [ -s "$path" ] || { echo "empty TLS input: $path" >&2; exit 1; }
+              done
+              mkdir -p "$MC_CONFIG_DIR/certs/CAs"
+              cp /object-store-ca/ca.crt "$MC_CONFIG_DIR/certs/CAs/ca.crt"
+              exec minio server --certs-dir /object-store-tls /data
+          env:
+            - { name: MC_CONFIG_DIR, value: /tmp/mc }
           envFrom:
             - secretRef: { name: object-store-root }
           ports: [{ name: s3, containerPort: 9000 }]
           readinessProbe:
-            httpGet: { path: /minio/health/ready, port: s3 }
+            exec:
+              command:
+                - sh
+                - -ec
+                - timeout 4 sh -ec 'mc alias set store https://object-store.puni-backup.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; mc ready store'
+            timeoutSeconds: 5
           resources:
             requests: { cpu: 50m, memory: 256Mi }
             limits: { cpu: '1', memory: 512Mi }
@@ -52,9 +73,20 @@ spec:
             capabilities: { drop: [ALL] }
           volumeMounts:
             - { name: data, mountPath: /data }
+            - { name: tls, mountPath: /object-store-tls, readOnly: true }
+            - { name: ca, mountPath: /object-store-ca, readOnly: true }
       volumes:
         - name: data
           persistentVolumeClaim: { claimName: object-store }
+        - name: tls
+          secret:
+            secretName: object-store-tls
+            defaultMode: 288
+            items:
+              - { key: tls.crt, path: public.crt }
+              - { key: tls.key, path: private.key }
+        - name: ca
+          secret: { secretName: object-store-ca, defaultMode: 292 }
 ---
 apiVersion: v1
 kind: Service
@@ -92,7 +124,17 @@ spec:
             # Proof: injected mc exit 42 returned success when -e was removed (object-store-buckets.test.ts).
             - -ec
             - |
-              mc alias set store http://object-store.puni-backup.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              # Proof: removing this refusal let the ambient-bypass negative enter mc (backup-tls.test.ts).
+              [ "${MC_INSECURE+x}" != x ] || { echo "certificate bypass is forbidden" >&2; exit 1; }
+              # Proof: removing each file guard changed its missing/unreadable/empty refusal (backup-tls.test.ts).
+              for path in /object-store-ca/ca.crt; do
+                [ -e "$path" ] || { echo "missing TLS input: $path" >&2; exit 1; }
+                [ -r "$path" ] || { echo "unreadable TLS input: $path" >&2; exit 1; }
+                [ -s "$path" ] || { echo "empty TLS input: $path" >&2; exit 1; }
+              done
+              mkdir -p "$MC_CONFIG_DIR/certs/CAs"
+              cp /object-store-ca/ca.crt "$MC_CONFIG_DIR/certs/CAs/ca.crt"
+              mc alias set store https://object-store.puni-backup.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
               # Replaced versions expire after 30 days; current objects follow each tool's retention.
               echo '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":30}}]}' > /tmp/lifecycle.json
               for bucket in puni-velero puni-es-snapshots puni-sqlite puni-etcd; do
@@ -116,5 +158,10 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: { drop: [ALL] }
-          volumeMounts: [{ name: tmp, mountPath: /tmp }]
-      volumes: [{ name: tmp, emptyDir: {} }]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: ca, mountPath: /object-store-ca, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        - name: ca
+          secret: { secretName: object-store-ca, defaultMode: 292 }

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
-import { parse } from 'yaml';
+import { parse, stringify } from 'yaml';
 
 import { validatePlatform } from './platform';
 
@@ -1053,4 +1053,114 @@ describe('OTLP effective queue and destination', () => {
       expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
     });
   }
+});
+
+describe('backup TLS platform boundary', () => {
+  for (const [path, before, after, diagnostic] of [
+    [
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
+      's3.client.default.protocol: https',
+      's3.client.default.protocol: http',
+      /elasticsearch values are invalid/,
+    ],
+    [
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
+      'name: prepare-s3-trust\n                image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540',
+      'name: prepare-s3-trust\n                image: unknown:latest',
+      /trust init image/,
+    ],
+    [
+      'infra/platform/backup/velero/local/velero.yaml',
+      's3Url: https://',
+      's3Url: http://',
+      /velero values are invalid/,
+    ],
+    [
+      'infra/platform/backup/velero/local/velero.yaml',
+      'kind: BackupStorageLocation',
+      'kind: Deployment',
+      /velero values are invalid/,
+    ],
+    [
+      'infra/platform/backup/velero/local/velero.yaml',
+      "s3ForcePathStyle: 'true'",
+      "s3ForcePathStyle: 'true'\n            insecureSkipTLSVerify: 'true'",
+      /velero values are invalid/,
+    ],
+  ] as const) {
+    it(`refuses backup transport mutation ${before}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(diagnostic);
+    });
+  }
+  for (const [before, after] of [
+    ['mc alias set store https://', 'mc alias set store http://'],
+    ['          command:', '          missingCommand:'],
+    ['exec minio server --certs-dir /object-store-tls /data', 'exec minio server /data'],
+    ['mc ready store', 'mc --insecure ready store'],
+    ['name: MC_CONFIG_DIR, value: /tmp/mc', 'name: MC_INSECURE, value: true'],
+    [
+      'secretName: object-store-ca, defaultMode: 292',
+      'secretName: object-store-ca, defaultMode: 292, optional: true',
+    ],
+  ]) {
+    it(`refuses object-store TLS mutation ${before}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(
+        root,
+        'infra/platform/backup/local/object-store.yaml',
+        before,
+        after,
+      );
+      expect(validatePlatform(root)).rejects.toThrow(/object-store TLS contract/);
+    });
+  }
+  it('refuses an Elasticsearch init that omits private CA validation', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
+      'system-roots-plus-ca)',
+      'system-roots-plus-ca-disabled)',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/Elasticsearch trust executable/);
+  });
+  it('refuses two effective default Velero backup locations', async () => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+    const release = parse(await readFile(path, 'utf8')) as {
+      spec: { values: { configuration: { backupStorageLocation: object[] } } };
+    };
+    release.spec.values.configuration.backupStorageLocation = [
+      {
+        name: 'default',
+        provider: 'aws',
+        bucket: 'puni-velero',
+        default: true,
+        config: {
+          region: 'local',
+          s3ForcePathStyle: 'true',
+          s3Url: 'https://object-store.puni-backup.svc:9000',
+        },
+      },
+    ];
+    await writeFile(path, stringify(release));
+    expect(validatePlatform(root)).rejects.toThrow(/exactly one default backup storage location/);
+  });
+  it('refuses adding the private CA to Elasticsearch secure settings', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
+      'key: s3.client.default.access_key',
+      'key: ca.crt',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/elasticsearch values are invalid/);
+  });
+  it('requires the Velero CA Secret in local closure', async () => {
+    const root = await mutablePlatform();
+    await removeExternalSecret(root, 'platform-local', 'object-store-ca');
+    expect(validatePlatform(root)).rejects.toThrow(/consumes Secret puni-backup\/object-store-ca/);
+  });
 });

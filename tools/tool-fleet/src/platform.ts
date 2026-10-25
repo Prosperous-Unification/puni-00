@@ -7,6 +7,7 @@ import { parse, parseDocument, stringify } from 'yaml';
 
 import { purposeCapabilities, readToolchain } from './contracts';
 import { assertObservability } from './observability';
+import { assertBackupTransport } from './platform-backup-tls';
 import {
   assertEncryptedSecrets,
   assertLockedWorkloadImages,
@@ -492,7 +493,11 @@ export async function validatePlatform(root: string): Promise<{
                 '/spec/values/nodeSets/0/config/s3.client.default.endpoint',
                 'object-store.puni-backup.svc:9000',
               ],
-              ['/spec/values/nodeSets/0/config/s3.client.default.protocol', 'http'],
+              ['/spec/values/nodeSets/0/config/s3.client.default.protocol', 'https'],
+              [
+                '/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value',
+                'system-roots-plus-ca',
+              ],
               [
                 '/spec/values/nodeSets/0/podTemplate/spec/containers/0/env/0/value',
                 '-Xms1g -Xmx1g',
@@ -608,6 +613,7 @@ export async function validatePlatform(root: string): Promise<{
   const workloadImages = assertLockedWorkloadImages(manifests, toolchain);
   const secrets = assertEncryptedSecrets(manifests);
   assertRegistryTransport(manifests);
+  assertBackupTransport(manifests);
   assertRetainedClaims(manifests);
   assertTrustedWorkloadImages(manifests);
   assertTrustedPolicyScope(manifests);
