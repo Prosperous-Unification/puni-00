@@ -79,7 +79,7 @@ async function restrictProject() {
   return fixture;
 }
 
-function verifiedConsent(harness: OrganizationHarness) {
+function stubConsent(harness: OrganizationHarness) {
   // Consumer seam only: cryptography and consent-family verification are outside this test.
   const authentication: CredentialAuthentication = {
     kind: 'consent',
@@ -140,7 +140,7 @@ describe('runtime principal role cap', () => {
     });
     test(`refuses verified consent restricted-project ${operation} for its correctly pinned noncreator super-admin`, async () => {
       const { harness, projectId, acquisition, history } = await restrictProject();
-      const token = verifiedConsent(harness);
+      const token = stubConsent(harness);
       const before = history();
       const answer =
         operation === 'read'
@@ -173,7 +173,7 @@ describe('runtime principal role cap', () => {
                   issuedBy: harness.userId('super'),
                 })
               ).key
-            : verifiedConsent(harness);
+            : stubConsent(harness);
         const before = history();
         expect(
           await harness.callWith(
