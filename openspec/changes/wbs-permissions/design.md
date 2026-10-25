@@ -333,6 +333,23 @@ under `organization.manage_spaces`_). Project settings stay `project.manage_sett
 writes both the creator's `project-manager` grant and, for the first work package, their
 `package-manager` grant (P6), in the same transaction.
 
+**P20. Super-admin is the top of one organization, and there is no scope above the
+organization.** _Added 2026-10-25 from Dany's remark on CP14 ("is super-admin a role above
+all other roles and orgs? initially it is just me … maybe other roles above org levels"),
+assumed and overrulable by id._ `org-super-admin` is an organization-scope grant: the highest
+role inside that organization (the only one holding `organization.manage_organization_roles`
+and `organization.manage_security`), created for the organization's creator by onboarding
+(`onboarding.ts` writes the `super_admin` membership today; the backfill turns it into the
+grant), and reaching nothing in any other organization. CP14's invariant is per organization.
+The scope kinds stay `organization`, `project` and `work_package`: no `platform` scope, no
+role that spans organizations and no row of the matrix for one. What PUNI's own operators do
+across organizations stays an operator CLI on the host (`organization-limits-cli.ts`,
+`revoke-backfill`, the window scripts), audited as `operator:<os login>`, never a web
+principal. If a cross-organization role is ever wanted, it is a new scope kind with its own
+design and matrix rows, not a widening of `org-super-admin`. Rejected: a global super-admin
+(one compromised login reaching every tenant; nothing in the product needs it while PUNI's
+fleets are tenants like any other, `wbs-machine-credentials` A18).
+
 ## Tables
 
 All additive, one migration `add_access_grants` with `down.sql`; names are SQLite.
