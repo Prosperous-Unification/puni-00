@@ -262,6 +262,18 @@ session-capacity refusal preserves the valid grant for retry until its five-
 minute expiry. Claude users share Anthropic's forwarding egress, so a burst
 above the per-source limits can return 429 until the oldest state expires;
 a proven client holds its per-source slot for 30 days after its last use.
+Revoking a family does not free its client's slot, and the 100-client proven
+per-source cap is shared by every claude.ai user behind one Anthropic egress
+address. A client unused for 30 days answers `invalid_client`, as do clients
+swept before the 30-day lifetime shipped once their families lapse; the remedy
+is to remove and re-add the connector, which registers a new client.
+
+Before prod or outside users, choose how the proven cap scales: a per-subject
+cap, evicting proven clients with no live family least recently used first,
+releasing a client when its last family is revoked, or not counting proven
+clients in the per-source check. Tombstones that keep an expired client's id,
+source and redirect URIs, so authorization can re-admit it through the caps,
+would make that step unnecessary (follow-up).
 
 Before cutover, the absent `/home/puni1/wbs-dev/state/mcp-exposure` marker makes
 the MCP public probe skip. Cutover atomically writes `enabled` to that mode-600

@@ -292,6 +292,12 @@ export class McpSessionStore {
     return row === null ? null : this.familyOf(row);
   }
 
+  /**
+   * Consumes `token` for `successor` and a new session in one transaction, which also renews the
+   * family's client to at least `clientExpiresAt` (a live client only; an expired, unswept one
+   * stays expired). Any failure, the renewal's included, rolls all of it back, so the caller can
+   * retry with the same token instead of reading as a replay.
+   */
   consumeRefresh(
     token: string,
     clientId: string,
@@ -300,6 +306,7 @@ export class McpSessionStore {
     sessionExpiresAt: number,
     idleExpiresAt: number,
     now: number,
+    clientExpiresAt: number,
   ): RefreshOutcome {
     const transactionOutcome = this.db.transaction(() => {
       const digest = digestOf(token);
@@ -340,6 +347,10 @@ export class McpSessionStore {
         familyId,
         Math.min(sessionExpiresAt, Number(row['absolute_expires_at'])),
       );
+      // Proof: 2026-10-25, running this renewal after the transaction committed made `rolls back
+      // the whole refresh when the client renewal fails, so the retry still refreshes`
+      // (oauth.test.ts) answer the retry 400 invalid_grant: the consumed token read as a replay.
+      this.renewClient(clientId, clientExpiresAt, now);
       return {
         outcome: 'row' as const,
         row: { ...row, idle_expires_at: boundedIdle },
@@ -591,21 +602,41 @@ export class McpSessionStore {
   /**
    * Moves the client's sliding lifetime forward to `expiresAt`, never back, so an extension
    * computed before a concurrent promotion (another process) cannot shorten the promoted
-   * lifetime. A vanished client stays absent.
+   * lifetime. A vanished client stays absent, and a client already expired at `now` but not yet
+   * swept stays expired: reviving it would bypass the registration caps.
    */
-  extendClient(clientId: string, expiresAt: number): void {
+  extendClient(clientId: string, expiresAt: number, now: number): void {
     // Proof: 2026-10-21, `SET expires_at = ?` without MAX failed `never shortens a lifetime
     // when an extension follows a promotion` (store-migrations.test.ts).
+    this.renewClient(clientId, expiresAt, now);
+  }
+
+  /**
+   * Marks the client proven after a code exchange and sets its lifetime to `expiresAt`. A client
+   * already proven only moves forward (MAX): a process still running the former 24 h lifetime
+   * (blue and green mid-swap) cannot shorten a lifetime the other process granted. The first
+   * promotion sets it outright, replacing the unproven authorization-flow lifetime.
+   */
+  promoteClient(clientId: string, expiresAt: number): void {
+    // Proof: 2026-10-25, `SET expires_at = ?` failed `never shortens a lifetime when a shorter
+    // promotion follows a longer one` (store-migrations.test.ts).
     this.db
-      .query('UPDATE mcp_client SET expires_at = MAX(expires_at, ?) WHERE client_id = ?')
+      .query(
+        `UPDATE mcp_client SET
+          expires_at = CASE WHEN proven = 1 THEN MAX(expires_at, ?1) ELSE ?1 END, proven = 1
+        WHERE client_id = ?2`,
+      )
       .run(expiresAt, clientId);
   }
 
-  /** Marks the client proven after a code exchange and sets its proven lifetime to `expiresAt`. */
-  promoteClient(clientId: string, expiresAt: number): void {
+  private renewClient(clientId: string, expiresAt: number, now: number): void {
+    // Proof: 2026-10-25, dropping `expires_at > ?` failed `does not revive an expired, unswept
+    // client through a refresh` (oauth.test.ts): the planted expired row was moved 30 d forward.
     this.db
-      .query('UPDATE mcp_client SET proven = 1, expires_at = ? WHERE client_id = ?')
-      .run(expiresAt, clientId);
+      .query(
+        'UPDATE mcp_client SET expires_at = MAX(expires_at, ?) WHERE client_id = ? AND expires_at > ?',
+      )
+      .run(expiresAt, clientId, now);
   }
 
   /** Deletes every client whose lifetime ended at or before `now`. */
