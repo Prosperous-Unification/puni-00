@@ -1,12 +1,20 @@
 ## ADDED Requirements
 
-Every scenario below runs on the same fixture unless its GIVEN says otherwise: a project in
-mode `by_step` under the deployment default policy and no topics, steps `Design` (phase
-`planning`) and `Dev` (phase `implementation`), a leaf `L` under parent `P` with a running
-attempt 1 on each step executed by person `A`, no done statement, no hold, no skip and no
-blockage on either node, two reviewer accounts with addresses, and a submitting agent
-credential pinned to `A`. "The six facts" means every fact stated; a scenario that names some
-facts means the rest are `false`, except `reversible`, which is `true` unless named.
+### Requirement: Question scenarios share one fixture
+
+Every question scenario SHALL run on this fixture unless its GIVEN says otherwise: a project
+in mode `by_step` under the deployment default policy and no topics; steps `Design` (phase
+`planning`) and `Dev` (phase `implementation`); a leaf `L` under parent `P`, in an
+unrestricted work package, with a running attempt 1 on each step executed by person `A`; no
+done statement, no hold, no skip and no blockage on either node; two reviewer accounts with
+addresses and `package.read`; a user `R` with `package.write`; and a submitting `machine`
+credential pinned to `A`. A scenario that names some facts means the rest are `false`,
+except `reversible`, which is `true` unless named.
+
+#### Scenario: the fixture is what every scenario starts from
+
+- **WHEN** any scenario below runs without its own GIVEN
+- **THEN** it starts from exactly this state
 
 ### Requirement: A question is submitted against a step node and disposed of by the plan
 
@@ -15,21 +23,21 @@ the attempt number of that node's running attempt, a kind (`decision`, or `block
 cause of `authorization`, `external` or `missing_input`), the question text, a proposed
 answer, all six risk facts (`reversible`, `outward`, `spends`, `touchesProduction`,
 `destructive`, `changesAccess`, each `true` or `false`), and zero or more topics from the
-project's effective policy. The command SHALL be accepted only from the attempt's executor:
-an agent credential (`machine` or `consent`) pinned to the executor person, or a user whose
-bound persons include it. It SHALL compute the disposition inside its own write from the
-effective policy, the step's phase and the facts, SHALL store the question with the basis
-that produced the disposition, the principal as submitter and the executor person, and SHALL
-answer the disposition. A submission missing any fact, naming an unknown topic, a cause
-without `blocker`, a parent work item, an attempt that is not the node's running one, a node
-that already holds an unresolved blocked question, or coming from anyone but the executor
-SHALL be refused as a typed 4xx and SHALL write nothing. The command SHALL NOT enter the
-command journal.
+project's effective policy. The command SHALL be accepted only from the attempt's executor
+by the claim identity rule: an agent credential pinned to the executor person, an upstream
+credential whose pin is the executor, or an unpinned user whose bound persons include the
+executor. It SHALL compute the disposition inside its own write from the effective policy,
+the step's phase and the facts, SHALL store the question with the basis that produced the
+disposition, the principal as submitter and the executor person, and SHALL answer the
+disposition. A submission missing any fact, naming an unknown topic, a cause without
+`blocker`, a parent work item, an attempt that is not the node's running one, an attempt
+with no executor, a node that already holds an unresolved blocked question, or coming from
+anyone but the executor SHALL be refused as a typed 4xx and SHALL write nothing. The command
+SHALL NOT enter the command journal.
 
 #### Scenario: a complete submission is stored with its disposition
 
-- **WHEN** `submitQuestion` on `L`/`Dev` attempt 1 carries a `decision` with the six facts
-  `reversible: true` and the rest `false`
+- **WHEN** `submitQuestion` on `L`/`Dev` attempt 1 carries a `decision` with `reversible: true`
 - **THEN** the response reads `disposition: 'queued'`, the question lists on the node with
   attempt number 1, submitter kind `machine`, executor `A` and a basis, and the node's reading
   is unchanged
@@ -51,10 +59,23 @@ command journal.
 - **WHEN** `submitQuestion` names attempt 1
 - **THEN** the command is refused with `attempt_not_running`
 
+#### Scenario: an executor-less attempt cannot raise a question
+
+- **GIVEN** `L`/`Dev` whose running attempt has no executor
+- **WHEN** `R` submits on it
+- **THEN** the command is refused with `attempt_has_no_executor`
+
 #### Scenario: only the executor submits
 
 - **GIVEN** an agent credential pinned to person `B`
 - **WHEN** it submits on `L`/`Dev` attempt 1
+- **THEN** the command is refused with `forbidden`
+
+#### Scenario: an upstream pin is honoured over the account's other persons
+
+- **GIVEN** account `U` bound to `A` and `B`, an upstream credential of `U` pinned to `B`, and
+  `L`/`Dev` attempt 1 executed by `A`
+- **WHEN** that credential submits
 - **THEN** the command is refused with `forbidden`
 
 #### Scenario: a consent credential is recorded as itself
@@ -124,7 +145,8 @@ The `resolveQuestion` command, carrying the answer and optionally wrong facts, S
 them and the reviewer, SHALL refuse `blockage_changed` when the node's blockage is no longer
 the one the question wrote, and otherwise SHALL remove the blockage in the same write. Resolve
 SHALL be accepted only from a principal holding `package.write` at the leaf's work package,
-never from an agent credential, and only on a blocked question without a verdict.
+never from an agent credential whatever its own grants hold, and only on a blocked question
+without a verdict.
 
 #### Scenario: blocking stops the attempt and the node
 
@@ -155,22 +177,22 @@ never from an agent credential, and only on a blocked question without a verdict
 
 #### Scenario: resolving removes the owned blockage
 
-- **GIVEN** that blocked question and a user with `package.write`
-- **WHEN** the user resolves it with an answer
+- **GIVEN** that blocked question
+- **WHEN** `R` resolves it with an answer
 - **THEN** the question reads `resolved` with the answer, the node holds no step blockage and
   no longer reads `blocked`, and the answer is readable on the question
 
 #### Scenario: a replaced blockage refuses resolve
 
-- **GIVEN** that blocked question, and the node's blockage replaced by replay with a later
-  instant
-- **WHEN** the question is resolved
+- **GIVEN** that blocked question, and the node's blockage row rewritten through the store
+  with a later instant, as an outgoing writer would
+- **WHEN** `R` resolves the question
 - **THEN** it is refused with `blockage_changed` and nothing changes
 
 #### Scenario: an agent credential cannot resolve
 
-- **GIVEN** that blocked question and a `consent` credential whose account holds
-  `package.write`
+- **GIVEN** that blocked question and a `consent` credential whose own grants hold
+  `package.write` at the package
 - **WHEN** it resolves
 - **THEN** the command is refused with `forbidden` and the blockage stays
 
@@ -208,23 +230,24 @@ write, create one work item as a sibling of the question's leaf (the same parent
 none for a top-level leaf), titled from the question, carrying the question, the proposed
 answer and the real answer in its body, holding the leaf's priority as it is at review time,
 and SHALL record that work item's id on the question. The verdict SHALL NOT enter the command
-journal; the follow-up's creation SHALL enter it as an ordinary creation, whose undo deletes
-the follow-up and leaves the verdict. A deleted follow-up SHALL leave the question reading
-`follow_up_deleted`. A second review SHALL be refused `question_already_reviewed`.
+journal; the follow-up's creation SHALL enter it as an ordinary creation. Whether the
+follow-up exists SHALL be derived on read from its id: the question reads `follow_up_deleted`
+while no work item has that id, and reads it again once a redo restores the row. A second
+review SHALL be refused `question_already_reviewed`.
 
 #### Scenario: an overturn creates the follow-up beside the leaf
 
-- **GIVEN** a queued question on `L`, `L` at priority 2, a user with `package.write`
-- **WHEN** the user overturns it with an answer
+- **GIVEN** a queued question on `L`, `L` at priority 2
+- **WHEN** `R` overturns it with an answer
 - **THEN** one new work item sits under `P` beside `L`, at priority 2, with a body holding the
   question and the answer, the question names it, and the journal holds one creation entry
 
-#### Scenario: undoing the creation keeps the verdict
+#### Scenario: undo and redo of the creation leave the verdict alone
 
 - **GIVEN** that overturn
-- **WHEN** the user undoes the creation
-- **THEN** the follow-up is gone, the question still reads `overturned` and reports
-  `follow_up_deleted`
+- **WHEN** `R` undoes the creation and then redoes it
+- **THEN** after the undo the question reads `overturned` and `follow_up_deleted`, and after
+  the redo it reads `overturned` and names the restored follow-up
 
 #### Scenario: a top-level leaf's follow-up is top-level
 
@@ -235,7 +258,7 @@ the follow-up and leaves the verdict. A deleted follow-up SHALL leave the questi
 #### Scenario: a wrong fact is counted apart from a wrong answer
 
 - **GIVEN** a queued question declaring `outward: false`
-- **WHEN** a user accepts it and marks `outward` wrong
+- **WHEN** `R` accepts it and marks `outward` wrong
 - **THEN** the question reads `accepted` with `outward` among its wrong facts, and the
   project's counts show a wrong-fact rate of 1 and an overturn rate of 0
 
@@ -296,17 +319,21 @@ A project SHALL hold a list of reviewer accounts, each with a channel and addres
 empty list no notice SHALL be written. A notice SHALL be written per reviewer when a question
 opens `blocked` or `notified` (`opened`), once when a `blocked` question passes the unanswered
 age unresolved (`aged`), and once per project, reviewer and day at the digest hour in the
-project's timezone when the digest is on and the project holds any unreviewed question
-(`digest`, carrying the count, the oldest age and the top three by question priority). A
-reviewer without an address SHALL make the notice `undeliverable` at write time; address
-absence SHALL NOT change review authority. A delivery worker SHALL lease due notices, each
-lease naming the expected attempt number; a report SHALL be accepted only with the live token
-and the expected number; a report identical to one recorded SHALL answer the recorded
-outcome; the same number and token with a different outcome SHALL be refused
-`report_conflict`; any other token or number SHALL be refused `lease_lost`; none of the
-refusals SHALL change the notice. A failed attempt SHALL reschedule on 1, 5, 30 and 120
-minutes and the notice SHALL be `failed` after the fifth attempt. A lease that expires
-unreported SHALL count as a failed attempt. Delivery is at least once.
+project's timezone when the digest is on and the project holds any unreviewed question the
+reviewer may read (`digest`, carrying the count, the oldest age and the top three by question
+priority). A reviewer without an address SHALL make the notice `undeliverable` with reason
+`no_address`; a reviewer without `package.read` at the question's package SHALL make it
+`undeliverable` with reason `no_access`; neither changes review authority. A notice's text
+SHALL carry the question id, the project and the leaf's number, never the question text. A
+lease pass SHALL first close every expired lease by recording `lost` for its attempt number
+as a failed attempt, then lease due notices, each lease naming the expected attempt number.
+A report SHALL be judged against recorded reports first: a report identical to one recorded
+SHALL answer the recorded outcome; a report whose number and token were closed as `lost`,
+whose token is not the live one, or whose number is not the expected one SHALL be refused
+`lease_lost`; the live token with the expected number but a different outcome from a recorded
+one SHALL be refused `report_conflict`; otherwise it SHALL be recorded. No refusal SHALL
+change the notice. A failed attempt SHALL reschedule on 1, 5, 30 and 120 minutes and the
+notice SHALL be `failed` after the fifth attempt. Delivery is at least once.
 
 #### Scenario: a failed attempt reschedules with its error
 
@@ -322,27 +349,35 @@ unreported SHALL count as a failed attempt. Delivery is at least once.
 
 #### Scenario: a repeated report answers the recorded outcome
 
-- **GIVEN** attempt 1 reported `error` and then re-leased for attempt 2
-- **WHEN** the same attempt 1 report arrives again with its old token
+- **GIVEN** attempt 1 reported `error` with token `T`, then re-leased for attempt 2
+- **WHEN** the same attempt 1 report arrives again with `T`
 - **THEN** the answer is the recorded outcome and the notice is unchanged
 
 #### Scenario: a conflicting repeat is refused
 
-- **GIVEN** attempt 1 reported `error`
+- **GIVEN** attempt 1 reported `error` with the live token
 - **WHEN** attempt 1 is reported `ok` with the same token
 - **THEN** it is refused with `report_conflict` and the notice is unchanged
 
-#### Scenario: a stale token cannot report
+#### Scenario: a late report against a lost lease is refused
 
-- **GIVEN** a notice whose lease expired and was leased again
-- **WHEN** the old token reports attempt 2
-- **THEN** it is refused with `lease_lost` and the notice is unchanged
+- **GIVEN** a notice leased for attempt 1 with token `T`, the lease expired, and a lease pass
+  that recorded `lost` for attempt 1
+- **WHEN** `T` reports attempt 1 `ok`
+- **THEN** it is refused with `lease_lost`, the notice is unchanged, and the worker stops
+  handling it
 
 #### Scenario: an expired lease counts as a failure
 
 - **GIVEN** a notice leased for attempt 1 whose lease expired unreported
 - **WHEN** the next lease pass runs
-- **THEN** the notice holds a report `lost` for attempt 1 and is due for attempt 2
+- **THEN** the notice holds a report `lost` for attempt 1 and is due for attempt 2 in 1 minute
+
+#### Scenario: a reviewer without access gets no content
+
+- **GIVEN** a reviewer whose `package.read` at `L`'s package was revoked
+- **WHEN** a question on `L` opens `notified`
+- **THEN** that reviewer's notice is `undeliverable` with reason `no_access`
 
 #### Scenario: aged fires once under concurrent sweeps
 
@@ -356,22 +391,31 @@ unreported SHALL count as a failed attempt. Delivery is at least once.
 - **WHEN** the sweep runs again today
 - **THEN** no second digest exists for that reviewer
 
-### Requirement: Question priority and counts are derived on read
+### Requirement: Question priority, counts and visibility are derived on read
 
-The review queue SHALL list a project's unreviewed questions by question priority: the leaf's
-priority ascending with absent last, then downstream reach descending, then submitted instant
+A question SHALL be readable only by a principal holding `package.read` at its leaf's work
+package; reading one without it SHALL be refused `forbidden`. The review queue SHALL list the
+readable unreviewed questions of a project by question priority: the leaf's priority
+ascending with absent last, then downstream reach descending, then submitted instant
 ascending, where downstream reach is the number of distinct step nodes reachable from the
 question's node over successor dependency edges, deduplicated, whose reading is neither done
-nor skipped. Nothing of this order SHALL be stored. The project SHALL report, overall and per
-submitter: unnoticed (`queued` or `notified`, no verdict, older than the effective unnoticed
-age), overturn rate (`overturned` over accepted plus overturned, absent when none),
-wrong-fact rate (verdicts with at least one wrong fact over all verdicts, absent when none),
-and blocked time (sum over blocked questions of resolve instant or now minus submit instant).
+nor skipped. Nothing of this order SHALL be stored. The project SHALL report over the readable
+questions, overall and per submitter: unnoticed (`queued` or `notified`, no verdict, older
+than the effective unnoticed age), overturn rate (`overturned` over accepted plus overturned,
+absent when none), wrong-fact rate (verdicts with at least one wrong fact over all verdicts,
+absent when none), and blocked time (sum over blocked questions of resolve instant or now
+minus submit instant).
+
+#### Scenario: a diamond counts each node once
+
+- **GIVEN** a node whose two successors both lead to one further not-done node, all not done
+- **WHEN** its question's reach is read
+- **THEN** reach is 3
 
 #### Scenario: the bigger reach sorts first among equals
 
-- **GIVEN** two queued questions on leaves at priority 1; one node reaches three distinct
-  not-done successors through a diamond, the other none
+- **GIVEN** two queued questions on leaves at priority 1, one with reach 3 and one with
+  reach 0
 - **WHEN** the queue is read
 - **THEN** the question with reach 3 is first
 
@@ -394,14 +438,22 @@ and blocked time (sum over blocked questions of resolve instant or now minus sub
 - **WHEN** the counts are read
 - **THEN** overturn rate and wrong-fact rate are absent, not zero
 
-### Requirement: Questions survive every structural operation of the new writer
+#### Scenario: a restricted package hides its questions
+
+- **GIVEN** a second work package restricted to `R` alone holding a queued question, and a
+  project viewer without `package.read` there
+- **WHEN** the viewer reads the queue and the counts
+- **THEN** neither includes that question, and reading it by id is refused `forbidden`
+
+### Requirement: Nothing of the new writer deletes a question or hands one down
 
 No command SHALL delete a question. The work-item delete command and its replay SHALL refuse
 `work_item_holds_questions` when the item or any descendant holds a question; work package
 and space deletion SHALL check the same closure. `removeAttempt` and its replay SHALL refuse
-`attempt_holds_questions`. A first-child hand-down, its undo and its redo SHALL carry attempts
-holding questions by key update, never by delete and restore, refusing `stale_history` when
-the attempt set no longer matches the entry.
+`attempt_holds_questions`. Confirmed step removal, with or without cascade, SHALL refuse
+`step_holds_questions` inside its transaction before any deletion when any attempt on the step
+holds a question. Creating a first child under a leaf that holds any question, or moving a
+row under it, and the replays of either, SHALL be refused `leaf_holds_questions`.
 
 #### Scenario: a parent above a question cannot be deleted
 
@@ -409,12 +461,23 @@ the attempt set no longer matches the entry.
 - **WHEN** `P` is deleted
 - **THEN** the command is refused with `work_item_holds_questions`
 
-#### Scenario: hand-down and its undo keep the question on its attempt
+#### Scenario: a step with questions cannot be removed
 
-- **GIVEN** `L` with attempt 1 holding a question
-- **WHEN** `L` gains its first child, then the creation is undone
-- **THEN** after the hand-down the question lists on the child's node with attempt 1, and
-  after the undo it lists on `L`'s node with attempt 1
+- **GIVEN** `L`/`Dev` attempt 1 holding an accepted question
+- **WHEN** `Dev` is removed with cascade confirmed
+- **THEN** the command is refused with `step_holds_questions` and every attempt on `Dev` stays
+
+#### Scenario: a question-holding leaf cannot gain a first child
+
+- **GIVEN** `L` holding a queued question
+- **WHEN** a child is created under `L`
+- **THEN** the command is refused with `leaf_holds_questions`
+
+#### Scenario: nothing can be moved under a question-holding leaf
+
+- **GIVEN** `L` holding a queued question, no claim and no typed dependency, and a sibling `S`
+- **WHEN** `S` is moved under `L`
+- **THEN** the command is refused with `leaf_holds_questions` and `S` stays where it was
 
 #### Scenario: a mounted partial index refuses a second unresolved blocked question
 
@@ -431,10 +494,11 @@ be derived too and SHALL be refused `forbidden` for an agent credential by the s
 #### Scenario: an agent reads the answer after resolve
 
 - **GIVEN** a resolved question
-- **WHEN** a `machine` credential's caller reads it over MCP
+- **WHEN** a `machine` credential's caller holding `package.read` reads it over MCP
 - **THEN** the response carries the reviewer's answer
 
 #### Scenario: an agent credential cannot review
 
-- **WHEN** a `machine` credential's caller calls the review tool
+- **GIVEN** a `machine` credential whose own grants hold `package.write` at the package
+- **WHEN** its caller calls the review tool
 - **THEN** the call is refused with `forbidden`
