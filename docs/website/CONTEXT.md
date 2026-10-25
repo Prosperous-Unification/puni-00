@@ -26,6 +26,18 @@ _Avoid_: WBS work item, project
 A bounded exchange that helps a prospect clarify the problem, users, workflows, constraints and first useful release.
 _Avoid_: Delivery agent
 
+**Starting choice**:
+One of the six invitations through which a visitor expresses what they want help with, including help choosing a direction.
+_Avoid_: Product category
+
+**Suggested answer**:
+A selectable response to the current scoping question, offered alongside the visitor's own words and an uncertainty option.
+_Avoid_: Required answer
+
+**Request reference**:
+An optional example, link or description supplied by a visitor, together with what they want to borrow, change or avoid.
+_Avoid_: Inspected source
+
 **Request brief**:
 The editable summary of a software request that can be reviewed apart from any conversation.
 _Avoid_: Transcript, specification

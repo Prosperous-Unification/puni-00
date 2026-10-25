@@ -24,6 +24,10 @@ Manual submission does not require a visitor account. Build is a live chat bound
 
 ## Planning and evidence
 
+- [Site revamp plan](site-revamp-plan.md): coordinated release for the conversion questionnaire, model-cost controls, five services, privacy, proposed GA4 measurement, About direction and first blog post; links the two implementation workstreams and their release dependencies.
+- [Interactive conversation map](prototypes/conversation-map.html): standalone browser graph and walkthrough of the six starters, suggested answers, uncertainty paths and request/email handoff; a local design prototype with no real AI or submission.
+- [Landing page UI brief](landing-ui-brief.md): premium hero direction, proposed copy, selectable starters, prompt-to-chat handoff and design review criteria for the next UI session.
+- [Conversion funnel options](conversion-funnel-options.md), [research and limitations](conversion-research.md), and [acquisition experiments](acquisition-experiments.md): proposed prompt-to-chat questions, email handoff, online traffic strategy and content plan; discussion drafts, not changes to the current product contract.
 - [WBS](https://dev.wbs.bulletpoints.club/): select **PUNI platform plan**, project `558ec5c7-f561-4181-9d9b-055b06bc9796`. Existing website `060`, intake `080.12` and deployment `110` carry the work; WBS product `040`/`050` remain separate.
 - [Intent](../../openspec/changes/puni-website-funnel/proposal.md), [technical design](../../openspec/changes/puni-website-funnel/design.md), [implementation slices](../../openspec/changes/puni-website-funnel/tasks.md), and [verification](../../openspec/changes/puni-website-funnel/verify.md).
 - [WBS work-item mapping](../../openspec/changes/puni-website-funnel/evidence/wbs-mapping.md) and [verified write receipt](../../openspec/changes/puni-website-funnel/evidence/wbs-verification.json).
