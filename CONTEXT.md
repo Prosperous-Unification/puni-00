@@ -656,6 +656,11 @@ How many units of one resource one project's plan may use, a fact about the pair
 same unstated and remembered states as a team's capacity.
 _Avoid_: Quota, limit, size
 
+**Directory capacity**:
+How many units of one resource exist for every project of its organization, stated on the
+resource; the number shared occupancy is counted against. Unstated, a resource has none.
+_Avoid_: Total, pool size, quota, share
+
 **Demand**:
 The units of one resource one work item states it needs while any of its steps runs. Plan data:
 levelled by the engines, acquired by a claim, and not inherited down the tree.
@@ -667,6 +672,11 @@ of the leaf's units, the leaf holds the largest copy, a later claim may raise it
 that claim lowers it, and the last release frees it. Clockless; read by the claim path and the
 startable read, never by a schedule.
 _Avoid_: Lease, hold, lock, allocation
+
+**Occupancy scope**:
+Which leaves' occupancy a claim on a resource is counted against: the project's own, or every
+project of the organization when the resource states a directory capacity.
+_Avoid_: Visibility, tenancy
 
 **Compute provider**:
 A kind of thing Twilight Dash can measure a resource on and run an agent against: a tenant's
