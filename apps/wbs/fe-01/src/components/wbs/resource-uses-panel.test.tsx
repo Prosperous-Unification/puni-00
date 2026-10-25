@@ -61,10 +61,15 @@ const eventOf = (revision: number) => ({
   ownerPersonId: null,
   reviewAt: null,
 });
-function mount(projectId = 'p1', shown = true) {
+function mount(projectId = 'p1', shown = true, onBusyChange?: (busy: boolean) => void) {
   return renderBare(
     <OrganizationResourcesProvider scope={scope}>
-      <ResourceUsesPanel projectId={projectId} shown={shown} onDirtyChange={() => undefined} />
+      <ResourceUsesPanel
+        projectId={projectId}
+        shown={shown}
+        onDirtyChange={() => undefined}
+        onBusyChange={onBusyChange}
+      />
     </OrganizationResourcesProvider>,
   );
 }
@@ -167,7 +172,8 @@ describe('reported resource uses', () => {
       ],
       [EVENT]: [() => answer(409, { error: 'conflict' })],
     });
-    mount();
+    const onBusyChange = vi.fn();
+    mount('p1', true, onBusyChange);
     const row = await screen.findByRole('listitem', { name: /Scratch disk.*Compile/ });
     fireEvent.click(within(row).getByRole('button', { name: 'Request cleanup' }));
     fireEvent.change(within(row).getByLabelText('Reason'), { target: { value: 'done' } });
@@ -175,8 +181,45 @@ describe('reported resource uses', () => {
     expect(await within(row).findByRole('alert')).toHaveTextContent(/conflict/i);
     await waitFor(() => {
       expect(sent.filter((request) => request.route === LIST)).toHaveLength(2);
+      expect(within(row).getByText('Blocked')).toBeDefined();
+      expect(within(row).getByRole('button', { name: 'Send report' })).toBeEnabled();
+      expect(onBusyChange).toHaveBeenLastCalledWith(false);
     });
-    expect(within(row).getByText('Blocked')).toBeDefined();
+  });
+
+  it('keeps Cancel unavailable until a refused write returns', async () => {
+    let finishWrite: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        const route = `${init?.method ?? 'GET'} ${new URL(url, 'http://wbs.test').pathname}`;
+        if (route === LIST)
+          return Promise.resolve(answer(200, { uses: [useOf()], nextCursor: null }));
+        if (route === EVENT)
+          return new Promise<Response>((resolve) => {
+            finishWrite = resolve;
+          });
+        return Promise.reject(new Error(`unexpected ${route}`));
+      }),
+    );
+    mount();
+    const row = await screen.findByRole('listitem', { name: /Scratch disk.*Compile/ });
+    fireEvent.click(within(row).getByRole('button', { name: 'Request cleanup' }));
+    fireEvent.change(within(row).getByLabelText('Reason'), { target: { value: 'Job done' } });
+    fireEvent.click(within(row).getByRole('button', { name: 'Send report' }));
+    await waitFor(() => {
+      expect(finishWrite).toBeDefined();
+    });
+    const cancel = within(row).getByRole('button', { name: 'Cancel' });
+    expect(cancel).toBeDisabled();
+    fireEvent.click(cancel);
+    await act(async () => {
+      finishWrite?.(answer(403, { error: 'forbidden' }));
+      await Promise.resolve();
+    });
+    expect(within(row).getByRole('alert')).toHaveTextContent(
+      'Your role cannot change this resource use',
+    );
   });
 
   it('paginates history with actor, reason and evidence', async () => {
@@ -218,6 +261,57 @@ describe('reported resource uses', () => {
     expect(
       sent.find((request) => request.route === LIST && request.search?.includes('after-u1')),
     ).toBeDefined();
+  });
+
+  it('keeps loaded uses when a later page fails and retries the same cursor', async () => {
+    const sent = stubServer({
+      [LIST]: [
+        () => answer(200, { uses: [useOf()], nextCursor: 'after-u1' }),
+        () => answer(503, { error: 'resource_tracking_unavailable' }),
+        () =>
+          answer(200, {
+            uses: [useOf({ id: 'u2', resourceName: 'Staging slot' })],
+            nextCursor: null,
+          }),
+      ],
+    });
+    mount();
+    expect(await screen.findByRole('listitem', { name: /Scratch disk.*Compile/ })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'More resource uses' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /More resource uses could not be read/,
+    );
+    expect(screen.getByRole('listitem', { name: /Scratch disk.*Compile/ })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry resource uses page' }));
+    expect(await screen.findByRole('listitem', { name: /Staging slot.*Compile/ })).toBeDefined();
+    expect(
+      sent.filter((request) => request.route === LIST && request.search?.includes('after-u1')),
+    ).toHaveLength(2);
+  });
+
+  it('keeps loaded history when a later page fails and retries the same cursor', async () => {
+    const sent = stubServer({
+      [LIST]: [() => answer(200, { uses: [useOf()], nextCursor: null })],
+      [HISTORY]: [
+        () => answer(200, { events: [eventOf(1)], nextCursor: 'after-e1' }),
+        () => answer(503, { error: 'resource_tracking_unavailable' }),
+        () => answer(200, { events: [eventOf(2)], nextCursor: null }),
+      ],
+    });
+    mount();
+    const row = await screen.findByRole('listitem', { name: /Scratch disk.*Compile/ });
+    fireEvent.click(within(row).getByRole('button', { name: 'Show history' }));
+    expect(await within(row).findByText('Reason 1')).toBeDefined();
+    fireEvent.click(within(row).getByRole('button', { name: 'More history' }));
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      /More history could not be read/,
+    );
+    expect(within(row).getByText('Reason 1')).toBeDefined();
+    fireEvent.click(within(row).getByRole('button', { name: 'Retry history page' }));
+    expect(await within(row).findByText('Reason 2')).toBeDefined();
+    expect(
+      sent.filter((request) => request.route === HISTORY && request.search?.includes('after-e1')),
+    ).toHaveLength(2);
   });
 
   it('ignores an old project response after switching projects', async () => {
@@ -426,9 +520,44 @@ describe('reported resource uses', () => {
     expect(await within(row).findByText('Cleanup request queued for Dash')).toBeDefined();
     expect(within(row).getByText('Active')).toBeDefined();
     expect(within(row).queryByText('Release verified')).toBeNull();
+    expect(within(row).queryByRole('button', { name: 'Retry cleanup' })).toBeNull();
     expect(sent.find((request) => request.route === EVENT)?.body).toMatchObject({
       kind: 'cleanup_requested',
       expectedRevision: 1,
+    });
+  });
+
+  it('closes an open cleanup form when a conflict reread finds a queued managed request', async () => {
+    const managed = useOf({
+      source: 'runtime',
+      runtimeId: 'dash-host-a',
+      runtimeRevision: 3,
+      incarnation: 'inc-7',
+      pendingCleanupRequest: false,
+      reclaimedBytes: null,
+    });
+    const sent = stubServer({
+      [LIST]: [
+        () => answer(200, { uses: [managed], nextCursor: null }),
+        () =>
+          answer(200, {
+            uses: [{ ...managed, pendingCleanupRequest: true, revision: 2 }],
+            nextCursor: null,
+          }),
+      ],
+      [EVENT]: [() => answer(409, { error: 'conflict' })],
+    });
+    mount();
+    const row = await screen.findByRole('listitem', { name: /Scratch disk.*Compile/ });
+    fireEvent.click(within(row).getByRole('button', { name: 'Request cleanup' }));
+    fireEvent.change(within(row).getByLabelText('Reason'), { target: { value: 'Job done' } });
+    fireEvent.click(within(row).getByRole('button', { name: 'Send cleanup request' }));
+    await waitFor(() => {
+      expect(sent.filter((request) => request.route === LIST)).toHaveLength(2);
+    });
+    expect(await within(row).findByText('Cleanup request queued for Dash')).toBeDefined();
+    await waitFor(() => {
+      expect(within(row).queryByRole('button', { name: 'Send cleanup request' })).toBeNull();
     });
   });
 

@@ -6,7 +6,7 @@ import {
   listResourceUses,
   readResourceUseHistory,
 } from '@wbs/contracts';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { failureMessage } from '@/lib/http';
 import { useResourceClient, useResourceScope } from '@/runtime/organization-resources';
@@ -39,11 +39,17 @@ type ListView =
       scopeKey: string;
       uses: readonly Use[];
       nextCursor: string | null;
+      pageError: string | null;
     };
 type HistoryView =
   | { kind: 'loading' }
   | { kind: 'failure'; message: string }
-  | { kind: 'ready'; events: readonly HistoryEvent[]; nextCursor: string | null };
+  | {
+      kind: 'ready';
+      events: readonly HistoryEvent[];
+      nextCursor: string | null;
+      pageError: string | null;
+    };
 
 // Proof: changing cleanup_pending to 'Release reported' failed `treats cleanup request as pending, not released` on the missing pending label (watched 2026-10-25).
 const status: Record<Use['state'], string> = {
@@ -104,6 +110,7 @@ export function ResourceUsesPanel({
   const scopeKey =
     scope.organization.kind === 'legacy' ? 'legacy' : scope.organization.organizationId;
   const generation = useRef(0);
+  const writeGeneration = useRef(0);
   const [list, setList] = useState<ListView>({ kind: 'loading', projectId, scopeKey });
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeForm, setActiveForm] = useState<string | null>(null);
@@ -144,16 +151,23 @@ export function ResourceUsesPanel({
               ? [...previous.uses, ...reply.body.uses]
               : reply.body.uses,
           nextCursor: reply.body.nextCursor,
+          pageError: null,
         }));
-      } else if (reply.kind === 'refusal') {
-        setList({ kind: 'failure', projectId, scopeKey, message: refusal(reply.body.error) });
-      } else if (reply.failure.code !== 'cancelled') {
-        setList({
-          kind: 'failure',
-          projectId,
-          scopeKey,
-          message: `Resource uses could not be read. ${failureMessage(reply.failure)}`,
-        });
+      } else {
+        if (reply.kind === 'failure' && reply.failure.code === 'cancelled') return;
+        const message =
+          reply.kind === 'refusal'
+            ? refusal(reply.body.error)
+            : `Resource uses could not be read. ${failureMessage(reply.failure)}`;
+        // Proof: replacing this preserved page with a failure view failed `keeps loaded uses when a later page fails`: the first page disappeared (watched 2026-10-25).
+        setList((previous) =>
+          append &&
+          previous.kind === 'ready' &&
+          previous.projectId === projectId &&
+          previous.scopeKey === scopeKey
+            ? { ...previous, pageError: `More resource uses could not be read. ${message}` }
+            : { kind: 'failure', projectId, scopeKey, message },
+        );
       }
     },
     [client, projectId, scopeKey],
@@ -170,6 +184,7 @@ export function ResourceUsesPanel({
   );
 
   useEffect(() => {
+    writeGeneration.current++;
     setActiveForm(null);
     setBusy(false);
     setPeople(null);
@@ -229,6 +244,7 @@ export function ResourceUsesPanel({
   ): Promise<string | null> {
     setBusy(true);
     const version = generation.current;
+    const writeVersion = ++writeGeneration.current;
     try {
       const reply = await client.postApiProjectsByIdResourceUsesByUseIdEvents({
         params: { id: projectId, useId: use.id },
@@ -245,7 +261,8 @@ export function ResourceUsesPanel({
       }
       return reply.failure.code === 'cancelled' ? null : failureMessage(reply.failure);
     } finally {
-      if (version === generation.current) setBusy(false);
+      // Proof: tying busy cleanup to the read generation failed `shows conflict and rereads current revision`: a 409 reread left Send disabled and onBusyChange(true) (watched 2026-10-25).
+      if (writeVersion === writeGeneration.current) setBusy(false);
     }
   }
 
@@ -309,6 +326,11 @@ export function ResourceUsesPanel({
               ))}
             </ul>
           )}
+          {current.pageError !== null && (
+            <p role="alert" className="text-destructive m-0 text-sm">
+              {current.pageError}
+            </p>
+          )}
           {current.nextCursor !== null && (
             <Button
               type="button"
@@ -321,7 +343,11 @@ export function ResourceUsesPanel({
                 void read(current.nextCursor, true, version);
               }}
             >
-              {loadingMore ? 'Loading…' : 'More resource uses'}
+              {loadingMore
+                ? 'Loading…'
+                : current.pageError !== null
+                  ? 'Retry resource uses page'
+                  : 'More resource uses'}
             </Button>
           )}
         </>
@@ -440,27 +466,46 @@ function UseRow({
             ? [...previous.events, ...reply.body.events]
             : reply.body.events,
         nextCursor: reply.body.nextCursor,
+        pageError: null,
       }));
-    } else
-      setHistory({
-        kind: 'failure',
-        message:
-          reply.kind === 'refusal' ? refusal(reply.body.error) : failureMessage(reply.failure),
-      });
+    } else {
+      if (reply.kind === 'failure' && reply.failure.code === 'cancelled') return;
+      const message =
+        reply.kind === 'refusal' ? refusal(reply.body.error) : failureMessage(reply.failure);
+      // Proof: replacing the ready history on a later failure failed `keeps loaded history when a later page fails`: the first event disappeared (watched 2026-10-25).
+      setHistory((previous) =>
+        cursor !== null && previous?.kind === 'ready'
+          ? { ...previous, pageError: `More history could not be read. ${message}` }
+          : { kind: 'failure', message },
+      );
+    }
   }
   // Proof: replacing the runtime branch with the reported offers failed `offers only a cleanup retry for a managed pending use`: Retain and Report release appeared (watched 2026-10-25).
-  const allowed: readonly Kind[] =
-    use.source === 'runtime'
-      ? use.state === 'release_verified' || use.state === 'release_reported'
-        ? []
-        : ['cleanup_requested']
-      : use.state === 'active'
-        ? ['cleanup_requested', 'retained']
-        : use.state === 'cleanup_pending'
-          ? ['cleanup_blocked', 'retained', 'release_reported']
-          : use.state === 'blocked' || use.state === 'retained'
-            ? ['cleanup_requested']
-            : [];
+  // Proof: ignoring pendingCleanupRequest failed `queues cleanup for a managed use without claiming cleanup happened`: a guaranteed-conflict Retry cleanup remained offered (watched 2026-10-25).
+  const allowed = useMemo<readonly Kind[]>(
+    () =>
+      use.source === 'runtime'
+        ? use.pendingCleanupRequest ||
+          use.state === 'release_verified' ||
+          use.state === 'release_reported'
+          ? []
+          : ['cleanup_requested']
+        : use.state === 'active'
+          ? ['cleanup_requested', 'retained']
+          : use.state === 'cleanup_pending'
+            ? ['cleanup_blocked', 'retained', 'release_reported']
+            : use.state === 'blocked' || use.state === 'retained'
+              ? ['cleanup_requested']
+              : [],
+    [use.source, use.pendingCleanupRequest, use.state],
+  );
+  useEffect(() => {
+    // Proof: without this reconciliation `closes an open cleanup form when a conflict reread finds a queued managed request` left a Send button over the server's queued flag (watched 2026-10-25).
+    if (kind !== null && !allowed.includes(kind)) {
+      setKind(null);
+      onChoose(false);
+    }
+  }, [kind, allowed, onChoose]);
   const label: Record<Kind, string> = {
     cleanup_requested:
       use.source === 'runtime'
@@ -616,6 +661,8 @@ function UseRow({
             <Button
               type="button"
               variant="outline"
+              // Proof: allowing Cancel during a pending write failed `keeps Cancel unavailable until a refused write returns`: a delayed 403 would be hidden with the form (watched 2026-10-25).
+              disabled={busy}
               onClick={() => {
                 setKind(null);
                 onChoose(false);
@@ -660,6 +707,11 @@ function UseRow({
               </li>
             ))}
           </ol>
+          {history.pageError !== null && (
+            <p role="alert" className="text-destructive m-0">
+              {history.pageError}
+            </p>
+          )}
           {history.nextCursor !== null && (
             <Button
               type="button"
@@ -671,7 +723,7 @@ function UseRow({
                 void loadHistory(history.nextCursor);
               }}
             >
-              More history
+              {history.pageError !== null ? 'Retry history page' : 'More history'}
             </Button>
           )}
         </div>
