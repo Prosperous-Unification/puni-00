@@ -845,6 +845,31 @@ function resourcesReadSentence(
 }
 
 /**
+ * The instance that fulfils a directory resource, by kind and name
+ * (`compute-providers` task 5.3): `SSH host · h4claw`. Every reader sees it,
+ * since the resources read names the instance for all of them; its locator
+ * stays on the admin-only instances list.
+ */
+function ProviderChip({ kind, name }: { kind: ComputeProvider['kind']; name: string }) {
+  const kindName = providerKindName(kind);
+  return (
+    <span
+      data-provider-chip=""
+      title={`Fulfilled by the compute provider ${name} (${kindName})`}
+      className="border-border bg-muted/40 inline-flex max-w-full min-w-0 items-baseline gap-1 rounded-full border px-2 py-0.5 text-xs"
+    >
+      {/* Named in text, not `aria-label`: a generic span may not carry a name (ARIA 1.2). */}
+      <span className="sr-only">Compute provider: </span>
+      <span className="text-muted-foreground shrink-0">{kindName}</span>
+      <span aria-hidden="true" className="text-muted-foreground">
+        ·
+      </span>
+      <span className="truncate font-medium">{name}</span>
+    </span>
+  );
+}
+
+/**
  * One resource: its declared number, the instance that fulfils it, and that
  * instance's latest report as {@link readReport} reads it at `now`.
  *
@@ -948,6 +973,9 @@ export function ResourceRow({
               {resource.kind === 'exclusive' ? 'Exclusive — one at a time' : 'Divisible'}
               {resource.unitLabel === '' ? '' : ` · ${resource.unitLabel}`}
             </span>
+            {resource.provider !== undefined && (
+              <ProviderChip kind={resource.provider.kind} name={resource.provider.name} />
+            )}
           </span>
           <span className="text-sm tabular-nums">
             {declared === null ? (
@@ -1119,9 +1147,9 @@ export function ResourceRow({
             </>
           ) : resource.providerId === null ? (
             <span className="text-muted-foreground">No compute provider</span>
-          ) : (
-            // Unnamed: only an admin reads the instances, and the resources read
-            // carries the id alone.
+          ) : resource.provider !== undefined ? null : (
+            // Unnamed: a read without `provider` (an outgoing be-01 mid-swap)
+            // carries the id alone, which only an admin's instances list names.
             <span
               className="text-muted-foreground"
               title={`Compute provider ${resource.providerId}`}

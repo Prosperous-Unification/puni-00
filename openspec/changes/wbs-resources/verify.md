@@ -1211,3 +1211,75 @@ project-settings-modal, `src/testing`, plan-commands and #718's `playwright-conf
 15 files, 616 pass; `nx run-many -t lint typecheck` (be-01, fe-01, contracts, core, with
 `typecheck:module`) exit 0; `openspec validate --all --json` exit 0; Burokrat `check-indexes`
 exit 0. Full fe-01 / be-01 suites and the h2puni gate not re-run (gate pending).
+
+## Task 3.4 (facet): the plan filters by resource (2026-10-25)
+
+Branch `feat/wbs-resource-facet` from main `830e774d2`. fe-01 only for this half; the sentence
+half was done on `feat/wbs-resource-levelling`.
+
+### What shipped
+
+- `tree-search.ts`: `RowFacets.resourceIds`, `FilterCriteria.resourceIds`, `NO_FACETS`, the
+  facet test in `isFiltering`, the predicate (OR within, AND across, ancestors kept, no subtree),
+  `FilterLabels.resourceName` and the phrase `resource <name> or <name>` in `filterWords` (so the
+  on-screen export's Scope line and an unnamed saved view say it).
+- `use-plan-filter.ts`: a row's `resourceIds` are its **own** demands on a leaf and nothing on a
+  parent (a parent's stored demand charges nothing, `plan-columns/resources.tsx`); names come
+  from the rows' demands, i.e. the tree read's `demandedResources`; `facetResources` is the
+  leaves' resources plus whatever is ticked; the Filters badge counts it. A ticked resource no
+  leaf demands any more reads `a resource this plan has not loaded`.
+- `plan-toolbar.tsx`: a `Resource` group before `Assignee`; like every group it is not drawn
+  when the plan offers nothing (a plan with no demands).
+- `remembered-layout.ts`: a saved view stores `resourceIds`; absent (every view saved before) is
+  asking nothing, a non-list drops that view alone. There is no URL encoding of filters (by
+  design, `usePlanFilterState`), so saved views are the only round trip.
+- Delta: `specs/schedule-resources/spec.md` drops "facet deferred" and adds "The plan filters by
+  the resource a leaf demands" with three scenarios.
+
+### Commands and results (fresh, `env -u CLAUDECODE`)
+
+- fe-01 DOM suites, one worker, UTC: `plan-filter`, `tree-search`, `resources-panel`,
+  `plan-toolbar`, `resource-demand-panel`, `project-settings-modal`: 6 files, 250 tests pass.
+- `wbs-fe-01` node tier (`vitest.node.config.ts`): 85 files, 1049 tests pass.
+- `bunx nx run-many -t typecheck -p wbs-contracts wbs-core wbs-store-sqlite wbs-be-01 wbs-fe-01
+--skip-nx-cache --parallel=1`: succeeded (fe-01 `typecheck:module` included).
+- `bunx nx run-many -t lint -p` the same five `--skip-nx-cache --parallel=1`
+  (`NODE_OPTIONS=--max-old-space-size=8192`): succeeded.
+- `bunx openspec validate --all --json`: 285 of 285 passed. Burokrat `check-indexes working .
+HEAD` (output redirected): exit 0.
+- Not run: the full `wbs-fe-01:test` target (every DOM suite plus the Auckland run) and
+  `bun run e2e`, for the laptop RAM cap; CI runs both. No e2e or pixels fixture states a
+  demand, so the Resource group never appears there: no hard-coded count and no baseline moves.
+
+### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Fault injected                                                   | Observed failing test                                                                                 |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| the `resourceIds` predicate line removed from `narrowTree`       | the three narrowing cases of `the resource facet narrows like every other facet`                      |
+| the leaf test removed (a parent's own demand made a facet value) | `offers the resources the leaves demand, by name, and never a parent’s own` (`disk` offered)          |
+| `isAbsentOrStringArray(claimed['resourceIds'])` removed          | `drops a saved view whose resources are not a list, keeping the rest` (both views offered)            |
+| `facets.resourceIds.length` dropped from `facetsChosen`          | `keeps the leaves demanding a ticked resource and the rows that place them` (`Filters (1)` not shown) |
+
+### Eye review (Playwright Chromium, local activated organization per docs/local-dev.md)
+
+be-01 `activated-organization-server.ts` on 7300, gw-01 on 7301, fe-01 Vite on 7400; seeded over
+the routes (a `Release train` plan of two parents and four leaves, four resources, three provider
+instances, demands on three leaves and one parent, a `No demands yet` plan). Screenshots in the
+coordinator's scratch `resource-facet-shots/`:
+`01-facet-panel-{1280,375}-{light,dark}`, `02-facet-staging-ticked-…`, `03-narrowed-…`,
+`04-no-demands-panel-1280-light`. Page errors 0 and horizontal overflow 0 px in every shot.
+The group lists `builder agent slots`, `h2puni ram`, `h4claw tmp disk`, `staging` and not the
+parent-only demand; ticking `staging` leaves `020 Deploy` and `020.1 Smoke on staging` (marked),
+`Filters (1)`, `2 of 6`; on a phone the group sits inside the Plan actions sheet unchanged. The
+plan without demands shows no Resource group. Nothing changed after review.
+
+### Task 3.4 review fixes (Fable review of #720, 2026-10-25)
+
+- `resourceNames` and its JSDoc sit above `filterLabels`, so `filterLabels` keeps its own doc.
+  The hook doc says seven facet lists.
+- The spec now says what the code does: a ticked resource the tree read no longer names reads
+  `a resource this plan has not loaded`, and a resource still stated on a parent keeps its
+  name. In both cases it narrows to nothing when no leaf demands it.
+- **Known gap (S3 10), follow-up:** the Resources column is hidden by default. After narrowing
+  by resource, the reader therefore cannot see on the row why it matched. Showing the column
+  while the facet is ticked was not done.

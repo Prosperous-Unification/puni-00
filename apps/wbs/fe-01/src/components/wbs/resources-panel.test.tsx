@@ -86,6 +86,12 @@ function mount(onChanged: () => Promise<void> = () => Promise.resolve()) {
 }
 
 const row = (name: string) => screen.findByRole('listitem', { name });
+/** A row's provider chip, found by the words a screen reader reads from it. */
+const chipIn = (scope: HTMLElement, words: string) =>
+  within(scope).getByText(
+    (_content, node) =>
+      node?.hasAttribute('data-provider-chip') === true && node.textContent === words,
+  );
 const plans = (sent: ReturnType<typeof stubServer>) =>
   sent.filter((request) => request.route === PLAN).map((request) => request.body);
 
@@ -196,7 +202,45 @@ describe('resources section states', () => {
     expect(within(disk).queryByRole('button', { name: /Adopt/ })).toBeNull();
   });
 
-  it('shows a member each reference unnamed, with no picker and no adopt', async () => {
+  it('names the instance on the row for a member, with no picker and no adopt', async () => {
+    stubServer({
+      [READ]: [
+        readOf(
+          [resourceOf({ provider: { kind: 'ssh_host', name: 'h2puni' }, report: measured() })],
+          [{ resourceId: 'r1', units: 12 }],
+        ),
+      ],
+      [PROVIDERS]: [() => answer(403, { error: 'forbidden' })],
+      [STARTABLE]: [startableOf({ resourceId: 'r1', capacity: 12, occupied: 0, free: 12 })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(chipIn(ram, 'Compute provider: SSH host·h2puni')).toBeDefined();
+    expect(within(ram).queryByText('Fulfilled by a compute provider')).toBeNull();
+    expect(within(ram).queryByRole('combobox')).toBeNull();
+    expect(within(ram).queryByRole('button', { name: /Adopt/ })).toBeNull();
+  });
+
+  it('shows the chip to an admin beside the picker, and none on a resource without one', async () => {
+    stubServer({
+      [READ]: [
+        readOf([
+          resourceOf({ provider: { kind: 'docker', name: 'builder' }, providerId: 'cp-2' }),
+          resourceOf({ id: 'r2', name: 'worktrees', unitLabel: '', providerId: null }),
+        ]),
+      ],
+      [PROVIDERS]: [providersOf(h2puni, builder)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(chipIn(ram, 'Compute provider: Docker·builder')).toBeDefined();
+    expect(within(ram).getByLabelText('Compute provider of h2puni ram')).toHaveValue('cp-2');
+    const worktrees = await row('worktrees');
+    expect(worktrees.querySelector('[data-provider-chip]')).toBeNull();
+  });
+
+  it('shows a member each reference unnamed while the read names no instance', async () => {
+    // The swap window: an outgoing be-01 answers `providerId` without `provider`.
     stubServer({
       [READ]: [readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 12 }])],
       [PROVIDERS]: [() => answer(403, { error: 'forbidden' })],
