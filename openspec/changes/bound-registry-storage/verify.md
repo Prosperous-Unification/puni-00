@@ -496,19 +496,25 @@ and independent recovery receipts remain pending. Earlier registry activation ev
 This is a requirement-level checkpoint, not a completion claim. Every row still
 needs final integrated and live evidence before the goal can be marked complete.
 The slice receipts above are narrower evidence and do not substitute for that audit.
+All seventeen current delta requirements are listed, including the four installed
+workflow and consumer-completion contracts added during deployment integration.
 
-| Requirement                                     | Current evidence and remaining work                                                       |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Enforced registry storage boundary              | Physical fixtures and scoped review passed; production provisioning/startup pending.      |
-| Publication admission and pressure response     | Authority/supervisor and publication/copy proofs reviewed; live activation pending.       |
-| Protect images before referring to them         | Publication and deployment code reviewed; native and installed proofs pending.            |
-| Complete trusted consumer inventory             | Adapter code reviewed; installed readers and complete native registry census pending.     |
-| Release-aware retirement eligibility            | Policy and bound census/plans reviewed; serialized execution and live retirement pending. |
-| Complete image dependency closure               | Complete census/closure code and native proof reviewed; live integration pending.         |
-| Serialized recoverable maintenance              | Durable authority reviewed; coordinated backup/delete/GC/recovery integration pending.    |
-| Bounded backup lifecycle                        | Budget, retention and isolated post-prune restore pending.                                |
-| Proven monitoring and adoption                  | Real alert destination/delivery, missed-check proof and staged adoption pending.          |
-| Physical backup accounting                      | Provider version/multipart census and budget admission pending.                           |
-| Early pressure response                         | Threshold policy reviewed; periodic service/retirement/notification integration pending.  |
-| Per-environment rollback coverage               | History/protection code reviewed; native and installed proof pending.                     |
-| Independent journal capacity and durable fences | Independent journal/HTTP fence proofs and parser review passed; live activation pending.  |
+| Requirement                                             | Current evidence and remaining work                                                                                                                                                             |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enforced registry storage boundary                      | Physical fixtures and scoped review passed; production provisioning/startup pending.                                                                                                            |
+| Publication admission and pressure response             | Authority/supervisor and publication/copy proofs reviewed; live activation pending.                                                                                                             |
+| Protect images before referring to them                 | Publication and deployment code reviewed; native and installed proofs pending.                                                                                                                  |
+| Complete trusted consumer inventory                     | Adapter code reviewed; installed readers and complete native registry census pending.                                                                                                           |
+| Release-aware retirement eligibility                    | Policy and bound census/plans reviewed; serialized execution and live retirement pending.                                                                                                       |
+| Complete image dependency closure                       | Complete census/closure code and native proof reviewed; live integration pending.                                                                                                               |
+| Serialized recoverable maintenance                      | Durable authority reviewed; coordinated backup/delete/GC/recovery integration pending.                                                                                                          |
+| Bounded backup lifecycle                                | Budget, retention and isolated post-prune restore pending.                                                                                                                                      |
+| Proven monitoring and adoption                          | Real alert destination/delivery, missed-check proof and staged adoption pending.                                                                                                                |
+| Physical backup accounting                              | Provider version/multipart census and budget admission pending.                                                                                                                                 |
+| Early pressure response                                 | Threshold policy reviewed; periodic service/retirement/notification integration pending.                                                                                                        |
+| Per-environment rollback coverage                       | History/protection code reviewed; native and installed proof pending.                                                                                                                           |
+| Independent journal capacity and durable fences         | Independent journal/HTTP fence proofs and parser review passed; live activation pending.                                                                                                        |
+| Mandatory installed selection and compatible artifacts  | Catalog and artifact boundaries reviewed in deployment slice; actual installed catalogs, all entrypoints and private Bun compatibility still require exact-revision proof.                      |
+| Source-proved owning history and authenticated repair   | Owning-history and authenticated resume code reviewed; live initialization/transfer and lost-owner-persistence repair remain unverified.                                                        |
+| Registry-wide Docker coverage and environment ownership | Registry/global and Compose projection code reviewed; complete installed SSH/UID/catalog census, including stopped containers and shared-environment retirement, pending.                       |
+| Consumer completion precedes promotion                  | First-start/release/Compose/private completion code reviewed and smoke behavior exercised; exact installed smoke, locked retries and downstream private Flux/runtime completion proofs pending. |
