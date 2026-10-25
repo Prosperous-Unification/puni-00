@@ -34,6 +34,7 @@ import {
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
 import { matchesRefreshAuthority, type McpRefreshAuthorityReader } from './refresh-authority';
 import {
+  type ClientCensus,
   type ConsentBinding,
   type CredentialBinding,
   type FamilyRecord,
@@ -73,13 +74,15 @@ const UNPROVEN_CLIENT_TTL_MS = 600_000;
  * since this lifetime shipped (idle 14 d, absolute 30 d from its exchange) and keeps 16 or more
  * days past a lapsed family's idle expiry for a fresh authorization with the same `client_id`.
  * A family from before then can outlive its client, whose row was already swept at 24 h; and a
- * client unused for 30 d still answers `invalid_client`, which only removing and re-adding the
- * connector cures. Connectors such as Claude Code
- * cache the `client_id` indefinitely and do not re-register on the browser `invalid_client`, so a
- * client that expires while its connector still holds it breaks every later sign-in; the former
- * 24 h promotion lifetime, which refresh never renewed, did exactly that on dev.
+ * client unused for 30 d is swept. Connectors such as Claude Code cache the `client_id`
+ * indefinitely and do not re-register on the browser `invalid_client`, so a client that expires
+ * while its connector still holds it broke every later sign-in; the former 24 h promotion
+ * lifetime, which refresh never renewed, did exactly that on dev. Authorization now re-admits
+ * such a swept id ({@link McpOAuthServer.readmitClient}).
  */
 const PROVEN_CLIENT_TTL_MS = REFRESH_ABSOLUTE_MS;
+/** Bytes of entropy in each id the default `random` issues, `client_id` included. */
+const ISSUED_ID_BYTES = 32;
 const MAX_AUTHORIZATION_QUERY_BYTES = 2_048;
 const MAX_STATE_BYTES = 512;
 const MAX_REDIRECT_URIS = 10;
@@ -273,7 +276,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.groupsClaim = options.groupsClaim ?? 'wbs_groups';
     this.groupPrefix = options.groupPrefix ?? 'dev';
     this.now = options.now ?? Date.now;
-    this.random = options.random ?? (() => randomBytes(32).toString('base64url'));
+    this.random = options.random ?? (() => randomBytes(ISSUED_ID_BYTES).toString('base64url'));
     const keys: NonNullable<Options['signingKeys']> = options.signingKeys ?? generateSigningKeys();
     this.privateKey = keys.privateKey;
     this.publicKey = keys.publicKey;
@@ -562,22 +565,8 @@ export class McpOAuthServer implements McpOAuthHandler {
     const client = this.store.admitClient(
       source,
       issuedAt,
-      ({ total, fromSource }) => {
-        const provenFromSource = fromSource.filter((candidate) => this.countsAsProven(candidate));
-        return (
-          total < this.clientLimit &&
-          fromSource.length - provenFromSource.length < this.clientSourceLimit &&
-          provenFromSource.length < this.provenClientSourceLimit
-        );
-      },
-      () => ({
-        clientId: this.random(),
-        source,
-        redirectUris,
-        proven: false,
-        expiresAt: issuedAt + this.clientTtlMs,
-        unprovenExpiresAt: issuedAt + this.clientTtlMs * 2,
-      }),
+      (census) => this.admitsUnprovenClient(census),
+      () => this.unprovenClient(this.random(), source, redirectUris, issuedAt),
     );
     if (client === null) return protocolError('temporarily_unavailable', undefined, 429);
     return Response.json(
@@ -593,13 +582,92 @@ export class McpOAuthServer implements McpOAuthHandler {
     );
   }
 
+  /** Whether the registration caps admit one more unproven client into `census`. */
+  private admitsUnprovenClient({ total, fromSource }: ClientCensus): boolean {
+    const provenFromSource = fromSource.filter((candidate) => this.countsAsProven(candidate));
+    return (
+      total < this.clientLimit &&
+      fromSource.length - provenFromSource.length < this.clientSourceLimit &&
+      provenFromSource.length < this.provenClientSourceLimit
+    );
+  }
+
+  private unprovenClient(
+    clientId: string,
+    source: string,
+    redirectUris: readonly string[],
+    issuedAt: number,
+  ): RegisteredClient {
+    return {
+      clientId,
+      source,
+      redirectUris,
+      proven: false,
+      expiresAt: issuedAt + this.clientTtlMs,
+      unprovenExpiresAt: issuedAt + this.clientTtlMs * 2,
+    };
+  }
+
+  /**
+   * Re-admits a well-formed authorization's absent `client_id` as a fresh unproven client, so a
+   * connector that cached an id mcp-01 already swept signs in again instead of being stuck.
+   * Claude Code caches its registered `client_id` indefinitely and does not re-register when
+   * authorization answers the browser `invalid_client`; before this, only removing and re-adding
+   * the connector cured a swept client.
+   *
+   * Only an id of the shape the default `random` issues ({@link isIssuedIdShape}) with a
+   * `redirect_uri` `/register` itself would keep ({@link isMalformedRedirect},
+   * {@link isListedRedirect}) qualifies, and it passes the same caps as `/register`, with the
+   * request's source, `redirect_uri` as its only callback, and unproven lifetimes. This is no
+   * weaker than open dynamic registration: the client is public
+   * (`token_endpoint_auth_method: none`), so its id is an identifier, never a secret, and
+   * anyone may already register a fresh one; PKCE still binds each code to the verifier of the
+   * flow that started it; the callback is checked against today's allowlist; and the caps still
+   * bound how many clients one source can hold. Choosing the id value is the only thing added.
+   *
+   * A live client is never touched: the store returns a live row of that id unchanged instead
+   * of re-admitting (also when a second process admitted it first), and the normal checks then
+   * apply to it. Someone who learns another connector's swept id can re-admit it first with
+   * another listed callback; that connector's authorization then answers `invalid_request` until
+   * the unproven client expires (at most twice the unproven lifetime); repeating that keeps the
+   * connector no worse off than the permanent `invalid_client` it got before, and codes still
+   * only reach the callback and verifier of the flow that asked for them.
+   *
+   * @returns the live client, `'refused'` when the caps refuse, or `null` when the request does
+   * not qualify.
+   */
+  private readmitClient(
+    request: Request,
+    clientId: string,
+    redirectUri: string,
+  ): RegisteredClient | 'refused' | null {
+    // Proof: 2026-10-25, dropping this check made every `keeps invalid_client for a swept client
+    // whose id is …` case and `answers invalid_client with a re-register hint for an unknown
+    // client_id` answer 302 instead of 400 (oauth.test.ts).
+    if (!isIssuedIdShape(clientId)) return null;
+    // Proof: 2026-10-25, dropping this check stored a client for every `keeps invalid_client for
+    // a swept client with the unlisted or malformed redirect …` case (oauth.test.ts), which then
+    // answered 302 for the planted-query and oversized loopbacks and invalid_request for the rest.
+    if (isMalformedRedirect(redirectUri) || !isListedRedirect(redirectUri)) return null;
+    const now = this.now();
+    const source = sourceOf(request);
+    // Proof: 2026-10-25, admitting with `() => true` made `re-admits a swept client only within
+    // the per-source unproven cap` (oauth.test.ts) answer 302 instead of 429.
+    const client = this.store.readmitClient(
+      this.unprovenClient(clientId, source, [redirectUri], now),
+      now,
+      (census) => this.admitsUnprovenClient(census),
+    );
+    return client ?? 'refused';
+  }
+
   private async authorize(request: Request, url: URL): Promise<Response> {
     const params = url.searchParams;
     const clientId = params.get('client_id') ?? '';
     const redirectUri = params.get('redirect_uri') ?? '';
     const challenge = params.get('code_challenge') ?? '';
     this.cleanup();
-    const client = this.store.client(clientId, this.now());
+    const stored = this.store.client(clientId, this.now());
     const scope = params.get('scope') ?? 'wbs:read';
     const scopes = scope.split(' ').filter(Boolean);
     const state = params.get('state');
@@ -623,7 +691,10 @@ export class McpOAuthServer implements McpOAuthHandler {
     // authorization of a registered client` fail.
     // RFC 6749 §4.1.2.1 forbids redirecting for an unknown client, so this answers the browser
     // directly. `invalid_client` is the token-endpoint code (RFC 6749 §5.2), reused here because
-    // no redirect is allowed; whether a client re-registers on seeing it is unobserved.
+    // no redirect is allowed; Claude Code does not re-register on seeing it, which is why an
+    // absent id that qualifies is re-admitted first.
+    const client = stored ?? this.readmitClient(request, clientId, redirectUri);
+    if (client === 'refused') return protocolError('temporarily_unavailable', undefined, 429);
     if (client === null) {
       return protocolError(
         'invalid_client',
@@ -1851,6 +1922,17 @@ function isMalformedRedirect(value: unknown): boolean {
     // carries …` for every planted and percent-encoded response field (oauth.test.ts).
     RESPONSE_FIELDS.some((field) => url.searchParams.has(field))
   );
+}
+
+/**
+ * Whether `value` has the exact shape of an id the default `random` issues: the canonical
+ * unpadded base64url of {@link ISSUED_ID_BYTES} bytes, so 43 characters whose last one carries
+ * two zero bits. Ids an injected `random` (tests) issues do not have it.
+ */
+function isIssuedIdShape(value: string): boolean {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(value)) return false;
+  const decoded = Buffer.from(value, 'base64url');
+  return decoded.length === ISSUED_ID_BYTES && decoded.toString('base64url') === value;
 }
 
 /**

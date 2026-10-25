@@ -539,35 +539,79 @@ export class McpSessionStore {
   ): RegisteredClient | null {
     return this.db
       .transaction(() => {
-        const total = this.db
-          .query<{ n: number }, [number]>(
-            'SELECT COUNT(*) AS n FROM mcp_client WHERE expires_at > ?',
-          )
-          .get(now)?.n;
-        if (total === undefined) throw new Error('MCP client count returned no row');
-        // Proof: 2026-10-21, a census of `total: 0` failed `counts clients registered before the
-        // restart against the global and source limits` and `refuses registration at capacity
-        // without evicting a live connector`; an empty `fromSource` failed the same restart case
-        // and `keeps a promoted client proven and counted across the restart` (oauth.test.ts).
-        if (!admits({ total, fromSource: this.clientsFromSource(source, now) })) return null;
+        if (!admits(this.clientCensus(source, now))) return null;
         const client = create();
-        // Proof: 2026-10-21, deleting every mcp_client row when the store opened made
-        // `authorizes and exchanges a code for a client registered before the restart`
-        // (oauth.test.ts) answer 400 instead of 302: the restart forgot the client (#607).
-        this.db
-          .query(
-            `INSERT INTO mcp_client (
+        this.insertClient(client);
+        return client;
+      })
+      .immediate();
+  }
+
+  private clientCensus(source: string, now: number): ClientCensus {
+    const total = this.db
+      .query<{ n: number }, [number]>('SELECT COUNT(*) AS n FROM mcp_client WHERE expires_at > ?')
+      .get(now)?.n;
+    if (total === undefined) throw new Error('MCP client count returned no row');
+    // Proof: 2026-10-21, a census of `total: 0` failed `counts clients registered before the
+    // restart against the global and source limits` and `refuses registration at capacity
+    // without evicting a live connector`; an empty `fromSource` failed the same restart case
+    // and `keeps a promoted client proven and counted across the restart` (oauth.test.ts).
+    return { total, fromSource: this.clientsFromSource(source, now) };
+  }
+
+  private insertClient(client: RegisteredClient): void {
+    // Proof: 2026-10-21, deleting every mcp_client row when the store opened made
+    // `authorizes and exchanges a code for a client registered before the restart`
+    // (oauth.test.ts) answer 400 instead of 302: the restart forgot the client (#607).
+    this.db
+      .query(
+        `INSERT INTO mcp_client (
           client_id, source, redirect_uris, proven, expires_at, unproven_expires_at
         ) VALUES (?, ?, ?, ?, ?, ?)`,
-          )
-          .run(
-            client.clientId,
-            client.source,
-            JSON.stringify(client.redirectUris),
-            client.proven ? 1 : 0,
-            client.expiresAt,
-            client.unprovenExpiresAt,
-          );
+      )
+      .run(
+        client.clientId,
+        client.source,
+        JSON.stringify(client.redirectUris),
+        client.proven ? 1 : 0,
+        client.expiresAt,
+        client.unprovenExpiresAt,
+      );
+  }
+
+  /**
+   * Admits `client` again under the `client_id` it already carries, against the same census and
+   * `admits` as {@link admitClient} in one IMMEDIATE transaction. A row of that id that expired
+   * at or before `now` is swept first, exactly as {@link deleteExpiredClients} would. A live row
+   * of that id is never replaced or altered: it is returned as found, so a second process
+   * (blue and green share the store) that read the id as absent before the first one admitted
+   * it continues with the first one's client. The IMMEDIATE write lock serializes the two, so
+   * the later one sees the row instead of violating the primary key.
+   *
+   * @returns the admitted or already live client, or `null` when `admits` refused.
+   */
+  readmitClient(
+    client: RegisteredClient,
+    now: number,
+    admits: (census: ClientCensus) => boolean,
+  ): RegisteredClient | null {
+    return this.db
+      .transaction(() => {
+        // Proof: 2026-10-25, a no-op here failed `re-admits over an expired row of the same id
+        // that no sweep removed yet` (oauth.test.ts): the planted expired row came back.
+        this.db
+          .query('DELETE FROM mcp_client WHERE client_id = ? AND expires_at <= ?')
+          .run(client.clientId, now);
+        // Proof: 2026-10-25, dropping this read failed `continues with the client another
+        // process re-admitted first, unchanged` and, with authorization re-admitting before its
+        // stored read, `never re-admits or alters a live client` (oauth.test.ts), each with
+        // `UNIQUE constraint failed: mcp_client.client_id`.
+        const live = this.db
+          .query('SELECT * FROM mcp_client WHERE client_id = ?')
+          .get(client.clientId) as Row | null;
+        if (live !== null) return clientOf(live);
+        if (!admits(this.clientCensus(client.source, now))) return null;
+        this.insertClient(client);
         return client;
       })
       .immediate();
