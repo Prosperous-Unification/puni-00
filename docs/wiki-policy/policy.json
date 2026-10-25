@@ -4910,6 +4910,15 @@
           "kind": "external",
           "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
         }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/i2-guard-preserving-proofs-20261025.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
+        }
       }
     ],
     "gitlinkBoundaries": [],

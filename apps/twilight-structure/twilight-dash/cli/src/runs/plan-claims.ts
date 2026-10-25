@@ -200,15 +200,20 @@ export function claimAcceptTransition(
     (intent) => intent.commandId === command.intent.commandId,
   );
   if (
+    // Proof: I2-B removed only retained-intent absence rejection for a canonically re-keyed, re-digested unretained intent; 'I2-B control' threw 'canonical JSON cannot carry undefined' from canonicalJson(undefined) instead of identity_conflict. Rows stayed unchanged; refusal-contract only; exact restoration passed.
     retained === undefined ||
     // Proof: F231 removed this submitted-intent comparison; 'review guard claim acceptance rejects different submitted intent' received applied instead of identity_conflict. Exact restoration passed.
     !equalRecords(retained, command.intent) ||
+    // Proof: I2-C changed only the consumed claiming intent's localOwner.ownerId after real history/attempt validation, then removed this equality; 'I2-C negative' received applied instead of identity_conflict. Dependency-fault proof only; exact restoration passed.
     !equalRecords(checkpoint.intent, retained)
   )
     return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: I2-D replaced only the consumed pendingCommandId with null after real scope reconstruction, then removed this correspondence; 'I2-D negative' received applied instead of state_conflict. Dependency-fault proof only; exact restoration passed.
   if (facts.scope.pendingCommandId !== retained.commandId)
     return { kind: 'refused', reason: 'state_conflict' };
   const { operation } = readRuntimeRequest(retained.canonicalRequest);
+  // Proof: I2-E parsed the real retained request, substituted schema-valid authority output at this consumption, then removed this whole compound predicate; 'I2-E negative' received applied instead of state_conflict. Dependency-fault proof only; exact restoration passed.
+  // Proof: I2-F parsed the real retained request, substituted schema-valid write output at this consumption, then removed only the nonclaim-action arm, retaining the authority arm; 'I2-F negative' received applied instead of state_conflict. Dependency-fault proof only; exact restoration passed.
   if ('kind' in operation || operation.action.kind !== 'claim')
     return { kind: 'refused', reason: 'state_conflict' };
   const acceptance: RuntimeAcceptance = {

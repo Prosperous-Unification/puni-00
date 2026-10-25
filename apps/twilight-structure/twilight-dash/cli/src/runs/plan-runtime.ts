@@ -265,7 +265,7 @@ export function planRuntimeStage(
   // Proof: F52 ignored the pinned request ledger; 'canonical bytes and supported' failed and exact restoration passed.
   if (snapshot.pin.ledgerId !== operation.expectedLedgerId)
     return { kind: 'refused', reason: 'authority_conflict' };
-  // Proof: F39 allowed unsupported claim/write staging; 'canonical bytes and supported authority' failed and exact restoration passed.
+  // Proof: I2-A removed the early authority refusal, then this late refusal; 'I2-A negative' received applied instead of state_conflict. Conditional late-barrier proof only; exact restoration passed.
   if (!('kind' in operation)) return { kind: 'refused', reason: 'state_conflict' };
   // Proof: F04 removed staging revision comparison; 'one pending command' failed and exact restoration passed.
   if (snapshot.revision !== guard.expectedRevision)
@@ -339,6 +339,7 @@ export function planRuntimeAcceptance(
   if (snapshot.pendingCommandId !== retained.commandId)
     return { kind: 'refused', reason: 'state_conflict' };
   const { operation } = readRuntimeRequest(retained.canonicalRequest);
+  // Proof: I2-G substituted a schema-valid claim only at this final authority decode, then removed this diagnostic; 'I2-G negative' received 'invalid run store integer' instead of 'runtime accepted operation is not authority'. Both threw with unchanged rows; exact restoration passed.
   if (!('kind' in operation)) throw new Error('runtime accepted operation is not authority');
   // Proof: F58 omitted checked receiver generation increment before persistence; 'receiver generation overflow' failed and exact restoration passed.
   if (operation.expectedGeneration !== null) addInteger(operation.expectedGeneration, 1);
