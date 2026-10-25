@@ -24,10 +24,9 @@ project resources read SHALL carry `directoryCapacity` (a number or null).
 
 `setDirectoryCapacity { resourceId, units | null, confirm?: true }` SHALL be accepted on
 `POST /api/directory/commands` and on `POST /api/projects/:id/commands`, in all-or-none
-batches, and only from an organization admin or super-admin, in a browser session or an MCP
-session consented as themselves; any other role, a machine credential and an MCP consent
-delegation acting as an agent person SHALL be refused `forbidden`, whatever their account's
-role. A resource with no organization SHALL be refused `organization_required`.
+batches, and only from an organization admin or super-admin acting as themselves. Any other
+role and any agent SHALL be refused `forbidden`. A resource with no organization SHALL be
+refused `organization_required`.
 
 #### Scenario: A member or an agent may not
 
