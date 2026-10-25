@@ -517,3 +517,123 @@ test('dispatch rejects hidden symbol content before the vendor sink', async () =
   expect(() => f.analytics.dispatch(hidden)).toThrow();
   expect(f.sent.map((sent) => sent.name)).toEqual(['page_view']);
 });
+
+test.each([
+  ['dev.puni.dev', '/', 'home', 'PUNI'],
+  ['dev.puni.dev', '/services', 'services', 'PUNI services'],
+  ['dev.puni.dev', '/services/product-discovery', 'product-discovery', 'PUNI product discovery'],
+  ['dev.puni.dev', '/services/software-design', 'software-design', 'PUNI software design'],
+  [
+    'dev.puni.dev',
+    '/services/software-development',
+    'software-development',
+    'PUNI software development',
+  ],
+  [
+    'dev.puni.dev',
+    '/services/launch-app-or-website',
+    'launch-app-or-website',
+    'Launch an app or website',
+  ],
+  ['dev.puni.dev', '/services/improve-app', 'improve-app', 'Improve an existing app'],
+  [
+    'dev.puni.dev',
+    '/services/build-something-similar',
+    'build-something-similar',
+    'Build something similar',
+  ],
+  ['dev.puni.dev', '/services/ai-assistant', 'ai-assistant', 'Set up a personal AI assistant'],
+  [
+    'dev.puni.dev',
+    '/services/automate-workflows',
+    'automate-workflows',
+    'Automate workflows with AI',
+  ],
+  ['dev.puni.dev', '/blog', 'blog', 'PUNI journal'],
+  ['dev.puni.dev', '/privacy', 'privacy', 'PUNI privacy'],
+  [
+    'dev.puni.dev',
+    '/blog/a-clearer-first-step-for-software-requests',
+    'a-clearer-first-step-for-software-requests',
+    'A clearer first step for software requests',
+  ],
+  ['dev.app.puni.dev', '/', 'build', 'Build with PUNI'],
+  ['dev.app.puni.dev', '/manual', 'manual', 'Request PUNI help'],
+] as const)(
+  'canonical and directory routes retain fixed metadata: %s%s',
+  async (host, path, id, title) => {
+    const config = configureAnalytics(dev, href);
+    const canonical = `https://${host}${path}`;
+    const expected = {
+      page_id: id,
+      page_location: canonical,
+      page_title: title,
+      page_referrer: 'https://search.example',
+      campaign_source: '',
+      campaign_medium: '',
+      campaign_name: '',
+    };
+    for (const alias of path === '/' ? [canonical] : [canonical, `${canonical}/`]) {
+      const location = `${alias}?email=route-secret@example.test&utm_campaign=route-secret#route-secret`;
+      expect(
+        resolvePage(config, location, 'https://search.example/private?email=route-secret#secret'),
+      ).toEqual(expected);
+      const f = fixture();
+      f.setLocation(location);
+      f.analytics.accept();
+      await f.complete();
+      expect(f.initializations).toEqual([expected]);
+      expect(f.sent).toEqual([{ name: 'page_view', parameters: expected }]);
+      f.setLocation(canonical);
+      f.analytics.navigate();
+      f.setLocation(alias);
+      f.analytics.navigate();
+      expect(f.sent).toHaveLength(1);
+    }
+  },
+);
+
+test.each([
+  ['dev.puni.dev', '//'],
+  ['dev.puni.dev', '///'],
+  ['dev.app.puni.dev', '//'],
+  ['dev.puni.dev', '/services//'],
+  ['dev.puni.dev', '/services///'],
+  ['dev.puni.dev', '/services%2f'],
+  ['dev.puni.dev', '/services%2F'],
+  ['dev.puni.dev', '/services/%2f'],
+  ['dev.puni.dev', '/%2F'],
+  ['dev.puni.dev', '/services//software-design/'],
+  ['dev.puni.dev', '/services/unapproved-slug/'],
+  ['dev.puni.dev', '/unknown-secret/'],
+  ['dev.puni.dev', '/operator/'],
+  ['dev.app.puni.dev', '/operator/'],
+  ['dev.app.puni.dev', '/operator/inbox/'],
+  ['dev.app.puni.dev', '/manual//'],
+  ['dev.app.puni.dev', '/manual%2f'],
+  ['dev.app.puni.dev', '/manual/%2F'],
+  ['dev.app.puni.dev', '/privacy/'],
+  ['dev.puni.dev', '/manual/'],
+] as const)('unsupported directory routes remain unmeasured: %s%s', (host, path) => {
+  const location = `https://${host}${path}?email=route-secret@example.test#private`;
+  expect(resolvePage(configureAnalytics(dev, href), location, '')).toBeNull();
+  const f = fixture();
+  f.setLocation(location);
+  f.analytics.accept();
+  expect(f.analytics.getState()).toEqual({ status: 'disabled' });
+  expect(f.initializations).toEqual([]);
+  expect(f.sent).toEqual([]);
+  expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('dropped');
+});
+
+test('directory aliases do not relax approved host validation', () => {
+  const config = configureAnalytics(dev, href);
+  for (const location of [
+    'https://evil.example/services/',
+    'https://puni.dev/services/',
+    'http://dev.puni.dev/services/',
+    'https://dev.puni.dev:444/services/',
+    'https://user:secret@dev.puni.dev/services/',
+  ])
+    expect(() => resolvePage(config, location, '')).toThrow('Unapproved analytics host');
+});

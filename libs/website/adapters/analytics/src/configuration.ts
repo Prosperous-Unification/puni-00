@@ -91,7 +91,10 @@ function assertHost(configuration: AnalyticsConfiguration, url: URL): void {
     throw new Error('Unapproved analytics host');
 }
 
-/** Unknown public paths and operator paths disable measurement; query/hash never enter a location. */
+/**
+ * Registered non-root pages accept one trailing slash; emitted paths always come from the registry.
+ * Unknown public paths and operator paths disable measurement; query/hash never enter a location.
+ */
 export function resolvePage(
   configuration: AnalyticsConfiguration,
   href: string,
@@ -101,8 +104,12 @@ export function resolvePage(
   const url = new URL(href);
   assertHost(configuration, url);
   const surface = url.hostname === configuration.hosts[0] ? 'site' : 'app';
+  // Proof: collapsing repeated trailing slashes measured /services//, /services/// and /manual//
+  // in unsupported directory routes through the real resolver; restoring exact alias matching passed.
   const registered = Object.entries(analyticsPages).find(
-    ([, page]) => page.surface === surface && page.path === url.pathname,
+    ([, page]) =>
+      page.surface === surface &&
+      (page.path === url.pathname || (page.path !== '/' && `${page.path}/` === url.pathname)),
   );
   // Proof: replacing unknown routes with Home measured an operator navigation in initialization-and-navigation.
   if (!registered) return null;
