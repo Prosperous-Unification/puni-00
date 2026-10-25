@@ -157,6 +157,7 @@ describe('MCP store migrations', () => {
         NOW + 60_000,
         NOW + 120_000,
         NOW,
+        NOW,
       ).outcome,
     ).toBe('ok');
     expect(store.familyForSession('legacy-session-2', NOW)?.credentialEpoch).toBe(0);
@@ -469,6 +470,7 @@ describe('MCP credential bindings', () => {
       NOW + 60_000,
       NOW + 120_000,
       NOW,
+      NOW,
     );
     expect(store.familyForSession('session-2', NOW)?.binding).toEqual(BOUND);
     store.close();
@@ -573,6 +575,7 @@ describe('MCP credential bindings', () => {
         'session-2',
         NOW + 60_000,
         NOW + 120_000,
+        NOW,
         NOW,
       ),
     ).toEqual({ outcome: 'invalid' });
@@ -730,6 +733,7 @@ describe('MCP family-person migration', () => {
       'claire-session-2',
       NOW + 60_000,
       NOW + 120_000,
+      NOW,
       NOW,
     );
     expect(store.familyForSession('claire-session-2', NOW)?.consent).toEqual(CLAIRE);
@@ -958,8 +962,17 @@ describe('MCP registered-client migration', () => {
     const store = new McpSessionStore(':memory:', [KEY]);
     admit(store, client('client-a', NOW + 1_000));
     store.promoteClient('client-a', NOW + 86_400_000);
-    store.extendClient('client-a', NOW + 600_000);
+    store.extendClient('client-a', NOW + 600_000, NOW);
     expect(store.client('client-a', NOW)?.expiresAt).toBe(NOW + 86_400_000);
+    store.close();
+  });
+
+  it('never shortens a lifetime when a shorter promotion follows a longer one', () => {
+    const store = new McpSessionStore(':memory:', [KEY]);
+    admit(store, client('client-a', NOW + 1_000));
+    store.promoteClient('client-a', NOW + 30 * 86_400_000);
+    store.promoteClient('client-a', NOW + 86_400_000);
+    expect(store.client('client-a', NOW)?.expiresAt).toBe(NOW + 30 * 86_400_000);
     store.close();
   });
 
