@@ -11,37 +11,49 @@ carry the person, the run id and the parent claim given. For each step it claims
 state the step `in_progress` when its progress is unstated. All of this SHALL happen in the
 batch's transaction as one journal entry whose undo removes exactly the rows it wrote and the
 progress it stated, with preconditions naming the work item's revision. The claim SHALL NOT
-read or write assignments.
+read or write assignments unless `assign: true` is given (`wbs-resources`), in which case it
+SHALL set the claimant as the assignee of every step it claims in the same journal entry, and
+go through the same calendar preflight as `setAssignee`. It MAY carry `resources` (each at
+least the declared units) to hold in place of the leaf's declared demand.
 
-It SHALL refuse with a typed 4xx naming the command's position in the batch when any of
-these holds, checked in this order:
+It SHALL refuse with a typed 4xx naming the command's position in the batch at the first of
+these that holds, in this order (the order of `definitions.ts`):
 
 - `person_not_bound`: the person is not bound to the caller's account and the caller holds
   neither `admin` nor `super_admin` in the project's organization;
 - `credential_not_for_person`: the caller's credential is pinned to a person other than the
   claimant, and the claim is not a delegated claim under a claim of the pinned person;
-- `run_mismatch`: the caller is a machine grant with a run (`wbs-mcp-agent-surface` M15) and
-  `runId` names another run;
+- `run_mismatch`: the caller is a machine grant with a run (`wbs-mcp-agent-surface` M15), the
+  claimant **is** its pinned person, and `runId` names another run;
 - `parent_claim_unknown`, `parent_claim_foreign`, `parent_claim_not_ancestor`: the named
   parent claim is absent or released; or it was written by another account; or the caller is
-  pinned and the parent's holder is an `agent`-kind person other than the caller's pinned
-  person (a holder that is the pinned person, or a `person`-kind person of the caller's
-  account, is admitted); or it does not sit on a strict ancestor of the work item;
+  pinned, its pinned person is on no claim of the parent's chain, and the parent's holder is
+  not a `person`-kind person bound to the caller's account; or it does not sit on a strict
+  ancestor of the work item;
+- `steps_on_subtree`, `resources_on_subtree`: `steps` or `resources` are named on a non-leaf;
 - `item_done`: the work item's derived status is `done`;
+- `no_steps`: the project defines no steps;
 - `not_startable` (leaf only): the derived status is `blocked`, `on_hold` or
   `blocked_by_proxy`; the refusal carries the status read;
 - `step_done`: a named step's progress is `done`;
 - `already_claimed`: a step it would take holds a claim; the refusal carries each holder's
   person id, name and run id;
+- `below_declared_demand`, `below_held_occupancy`, `resources_exhausted`: the occupancy
+  refusals of `resource-occupancy` (`wbs-resources`);
 - `inside_subtree_claim`: an ancestor holds a subtree claim whose person is not the claimant
   and which is not on the given parent claim's chain; the refusal carries the holder;
 - `overlaps_subtree_claim` (non-leaf only): a descendant holds a subtree claim of another
-  person that is not a delegated claim of the claimant's chain. An ancestor's subtree claim
-  is already refused as `inside_subtree_claim` by the previous check.
+  person that is not a delegated claim of the claimant's chain;
+- `claim_limit`, last, carrying `cap` and `current`: the batch would add a bound claim
+  (`organization-limits`) and the organization already holds `maxConcurrentClaims` of them,
+  counted in the batch's transaction. A claim answering `alreadyHeld: true` is never refused
+  by it, and a redo of a claim or an undo of a release re-checks it, answering `stale_undo`
+  whose detail begins `claim_limit:`.
 
 Before that order, the command parser SHALL refuse `steps_must_name_a_step` for an empty
-`steps` list, and the decision SHALL refuse `steps_on_subtree` when `steps` are named on a
-non-leaf (for claim and release alike) and `no_steps` when the project defines no steps.
+`steps` list. When the caller is a machine grant with a run and the claimant is its pinned
+person, the claim's `runId` SHALL be that run; for any other claimant, `runId` is taken as
+given.
 
 A claim whose every step is already held by the same person and run SHALL succeed, write
 nothing and answer `alreadyHeld: true`.
@@ -149,14 +161,88 @@ when claims sit on more than one deleted row, or when the parent holds a claim i
 - **THEN** exactly the claim rows it wrote are removed and exactly the progress it stated
   is unstated
 
+#### Scenario: A claim without assign leaves assignments alone
+
+- **WHEN** `claimWorkItem` is applied without `assign`
+- **THEN** no assignment row changes
+
+#### Scenario: The cap is the last reason
+
+- **WHEN** a batch claims a leaf inside another person's subtree claim while the
+  organization holds its cap of bound claims
+- **THEN** the batch is refused `inside_subtree_claim`, and after that holder releases the
+  subtree the same batch is refused `claim_limit`
+
+#### Scenario: A redo at the cap
+
+- **WHEN** a claim's journal entry was undone, another agent then took the last bound claim
+  of the cap, and the entry is redone
+- **THEN** the redo is refused `stale_undo` with detail beginning `claim_limit:` and nothing
+  is written
+
 #### Scenario: A worker claims under its own delegated claim
 
 - **WHEN** lead agent A, holding a subtree claim, writes a delegated subtree claim for agent B,
   and B, pinned, claims a step under that delegated claim
 - **THEN** B's claim is admitted
 
+#### Scenario: Nested delegation
+
+- **WHEN** B, pinned, holds a delegated subtree claim under A's, and pinned agent C claims
+  under a delegated claim B wrote for C
+- **THEN** C's claim is admitted, because C is on the parent's chain
+
 #### Scenario: A worker claims directly under the lead's claim
 
 - **WHEN** pinned agent B of the same account names lead agent A's subtree claim as its
-  `parentClaim`
+  `parentClaim`, without a delegated claim of its own
 - **THEN** the claim is refused `parent_claim_foreign`
+
+#### Scenario: An opted-in lead writes a worker's delegated claim
+
+- **WHEN** lead A, a grant with run `a`, claims for worker B with B's `runId: 'b'` under A's
+  subtree claim
+- **THEN** the claim is admitted with run `b`, not refused `run_mismatch`, and B can later
+  release it
+
+### Requirement: A release gives steps back and cascades through delegated claims
+
+The command registry SHALL offer `releaseWorkItem`, addressing a work item and a person, with
+optional `steps`. On a leaf it SHALL remove that person's claims on the named steps, or on
+every step when none is named. On a non-leaf it SHALL remove that person's subtree claim and
+every claim that names it as parent, transitively. Progress SHALL NOT change. It SHALL be
+one undoable journal entry. It SHALL refuse `not_claimed_by` when the person holds no claim
+it would remove, and `person_not_bound` and `credential_not_for_person` under the rules of
+`claimWorkItem`. When the caller is a machine grant with a run and the person **is** its pinned
+person, it SHALL remove only that person's claims of that run, and SHALL refuse `run_mismatch`
+when the person holds claims on the item only under other runs; a release of another person's
+claim (a lead releasing a worker's delegated claim) is judged as without a run.
+
+#### Scenario: A holder releases a half-done leaf
+
+- **WHEN** the holder claims `Impl` (progress `done`) and `Review` (progress `in_progress`)
+  and applies `releaseWorkItem` naming no steps
+- **THEN** both claim rows are removed and both progress rows stay as they were
+
+#### Scenario: Releasing a subtree takes the delegated claims with it
+
+- **WHEN** `claire` holds a subtree claim on `080` with delegated claims on `080.25` and
+  `080.26` by two workers, and `releaseWorkItem` on `080` for `claire` is applied
+- **THEN** all three claims are gone in one journal entry and undo restores all three
+
+#### Scenario: Releasing what one does not hold
+
+- **WHEN** `releaseWorkItem` names a person holding no claim on the work item
+- **THEN** the batch is refused `not_claimed_by`
+
+#### Scenario: A leaf held under two runs
+
+- **WHEN** person P holds `Impl` under run `a` and `Review` under run `b`, and a grant with run
+  `a` releases the leaf for P naming no steps
+- **THEN** only the run `a` claim is removed
+
+#### Scenario: Releasing only another run's claims
+
+- **WHEN** P holds claims on the item only under run `b` and a grant with run `a` releases it
+  for P
+- **THEN** the batch is refused `run_mismatch`

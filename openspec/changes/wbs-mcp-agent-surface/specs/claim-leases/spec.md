@@ -43,8 +43,8 @@ renewing nothing.
 
 #### Scenario: A no-run heartbeat renews every run
 
-- **WHEN** `codex` holds leases under runs `a` and `b` and heartbeats with its raw API key
-  identity (no run)
+- **WHEN** `codex` holds leases under runs `a` and `b` and heartbeats under a grant whose
+  token was issued without `wbs_run`
 - **THEN** both runs' leases are renewed
 
 #### Scenario: A session heartbeat is refused

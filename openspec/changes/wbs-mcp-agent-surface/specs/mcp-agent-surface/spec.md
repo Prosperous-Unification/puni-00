@@ -346,11 +346,10 @@ API key today. A run SHALL never be defaulted from the token's `jti`.
 
 ### Requirement: An opted-in run scopes renewal, claims and release
 
-With a run, a claim SHALL take that run as its `runId`. A command naming another `runId`, or a
-`releaseWorkItem` of a claim of the caller's own pinned person under another run, SHALL be
-refused `run_mismatch`; a release of another person's delegated claim is judged as today. Renewal, by
-`postApiClaimsRenew` or by a committed batch, SHALL renew only that person's leases of that
-run. Undo SHALL stay per person.
+With a run, a claim **for the caller's pinned person** SHALL take that run as its `runId`,
+and naming another `runId` for that person SHALL be refused `run_mismatch`. A claim for another
+person keeps its given `runId`. Release, renewal and undo follow the MODIFIED `claim-leases`
+and `plan-command-registry` requirements; undo SHALL stay per person.
 
 #### Scenario: Two processes on one credential
 
@@ -366,6 +365,12 @@ run. Undo SHALL stay per person.
 
 - **WHEN** lead agent A, with run `a`, releases the delegated claim it wrote for worker B
 - **THEN** the release is judged as today (D6, D8), not refused `run_mismatch`
+
+#### Scenario: A lead writes a worker's delegated claim with the worker's run
+
+- **WHEN** lead A, a grant with run `a`, claims for worker B with `runId: 'b'` under A's
+  subtree claim, and B (run `b`) later releases it
+- **THEN** both are admitted
 
 #### Scenario: A forged run id
 

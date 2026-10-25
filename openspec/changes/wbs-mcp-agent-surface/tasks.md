@@ -20,15 +20,19 @@
   - (e) M9: the cut.
   - (f) M15: opt-in run scoping.
   - (g) M16: the `parent_claim_foreign` rule, which **reverses part of `wbs-team-claims` D7**
-    for pinned callers (a worker can no longer claim directly under another agent's claim; D6
-    delegation still works).
+    for pinned callers, and with it the `wbs-machine-credentials` scenario "A delegated claim
+    keeps working". For claire fleets, `claire` writes a delegated claim for `claire-worker`
+    before the worker claims under it; D6 and nested delegation still work.
 - [ ] 0.3 Preconditions:
   - #731 is merged;
   - undo per person is merged; it is in progress on branch `fix/wbs-undo-per-person` (PR
     number to follow), and slice 6 waits for it;
-  - `wbs-machine-credentials`, `wbs-claim-leases` and `wbs-team-claims` are archived before
-    this change, because its `machine-credentials`, `claim-leases` and `plan-command-registry`
-    requirements are MODIFIED deltas of theirs.
+  - `wbs-machine-credentials`, `wbs-claim-leases`, `wbs-team-claims`, `wbs-resources` and
+    `wbs-organization-limits` are archived before this change. Its `machine-credentials`,
+    `claim-leases` and `plan-command-registry` requirements are MODIFIED deltas built on their
+    merged text; the claim requirement is modified by the last three.
+  - `wbs-permissions`' copy of the machine-token requirement takes the same scenario change
+    as this change's machine-credentials delta (M16).
 
 ## 1. be-01: the machine grant
 
@@ -57,10 +61,16 @@
     **current grant `kid`** and the delegation key's material; the "grant signed with the
     delegation key" scenario admits;
   - add a `jti` consume, and "A reused Kubernetes token" reddens;
-  - drop the audit unique index, or the `coalesce` in it, and three issuances in one run and
-    day, **and three no-run issuances**, each write three rows;
-  - write with `INSERT OR IGNORE` instead of `ON CONFLICT … DO NOTHING`, and an injected CHECK
-    violation is silently skipped instead of thrown.
+  - drop the audit unique index, or the `coalesce` in it, or use `date(created_at)` instead of
+    `created_at / 86400000`, and three issuances in one run and day, **and three no-run
+    issuances**, each write three rows. The test runs at a **real-epoch timestamp**
+    (2026-10-26), because a small fake clock hides the day bug;
+  - write with `INSERT OR IGNORE`, or an untargeted `ON CONFLICT DO NOTHING`, instead of the
+    targeted `ON CONFLICT (…) WHERE action = 'machine_token_issued' DO NOTHING`. An injected
+    CHECK violation, or a primary-key collision, is then silently skipped instead of thrown;
+  - drop the 256-runs-per-day cap, and a 257th run is admitted;
+  - answer a missing secret with `unknown_grant_key`, and mcp-01's fault test sees a
+    re-fetch instead of a reported fault.
 
 - [ ] 1.3 The grant verifier and exact audience dispatch in `identity.ts`, with constant-time
       secret admission. Tests: "A grant without the secret", "Revocation at the next call",
@@ -104,16 +114,27 @@
     meaning;
   - refuse a lead's release of a worker's delegated claim with `run_mismatch`, and "A lead
     releases a worker's delegated claim" reddens;
+  - stamp the run on every claim the principal writes, not only on claims for its pinned
+    person, and "A lead writes a worker's delegated claim with the worker's run" reddens
+    (the shape `swarm-rehearsal.boot.db.test.ts` 249–255 uses);
+  - release every run's claims, and "A leaf held under two runs" reddens;
   - accept a command's `runId` over the grant's, and "forged run id" reddens.
 
 - [ ] 1.7 `parent_claim_foreign` for pinned callers (M16, the `plan-command-registry` MODIFIED
-      delta), judged on stored data: the parent's holder `personId` and its person kind.
-      Tests:
+      delta). The decision gains the `ClaimRequest` input `parentHolder: { kind, accountId }`,
+      read with the parent claim. The rule refuses when the pinned person holds no claim on
+      the parent's chain and the holder is not a `person`-kind person bound to the caller's
+      account. Tests:
   - "A worker claims under its own delegated claim" (admitted, D6);
+  - "Nested delegation" (admitted through the chain);
   - "A worker claims directly under the lead's claim" (refused);
-  - a pinned agent under a human's subtree claim of the same account (admitted).
+  - a pinned agent under a human's subtree claim of the same account (admitted);
+  - under a human bound to another account (refused);
+  - the machine-credentials delta's reversed "A delegated claim keeps working" pair.
 
-  Negative: keep the account-only comparison, and the direct claim is admitted.
+  Negatives:
+  - keep the account-only comparison, and the direct claim is admitted;
+  - check only the immediate parent, and "Nested delegation" is refused.
 
 ## 2. mcp-01: the token endpoint
 
@@ -159,25 +180,31 @@
   - no dynamic-registration request is made;
   - a second `headersHelper` run within the cache window issues no token, and one with
     another `wbs_run` or issuer does (the cache key);
-  - a cache file with mode `0644` is refused.
+  - a cache file with mode `0644`, a directory with mode `0755`, a file owned by another uid,
+    and a symlinked file or directory are each refused;
+  - **a re-run within 30 s of serving an entry (the 401 retry) issues a new token**. Negative:
+    always serve the cache, and the re-run returns the rejected token;
+  - a `429` with `Retry-After: 2` waits 2 s and retries once.
 
 ## 3. mcp-01: `/mcp` admission
 
 - [ ] 3.1 M13: remove the upstream fallback after activation. Tests: "An Auth0 token on /mcp"
       and "Markers disagree". Negative: restore the fallback.
 - [ ] 3.2 Machine tokens: no store reads, and the grant sent with the secret. Revocation per
-      design.md M3: a `machine_credential_refused` tool error, the rest of a batch not sent,
-      the per-replica refused set, then HTTP 401 on later requests. Tests: the second-replica
+      design.md M3: a `machine_credential_refused` tool error for each call served after the
+      revocation commits, the per-replica refused set (for `unknown_identity` only), then
+      HTTP 401 on later requests. Tests: the second-replica
       scenario, both revocation scenarios, re-fetch at expiry, and `/refresh` and `/revoke`.
       Negatives:
   - forward the access token;
   - read the epoch;
-  - reuse the first call's admission for a batch's later calls (no reread), and a call served
-    after the revocation commit succeeds;
+  - inject a per-`jti` admission cache into be-01's grant verifier (so it skips the
+    credential reread for a grant it has admitted), and a call served after the revocation
+    commit succeeds;
   - skip the refused set, and the next request answers 200;
   - put a secret mismatch into the refused set, and a token stays refused after the secret is
     fixed;
-  - map an unknown-`kid` `invalid_token` to a tool error, and the rotation test (with
+  - map `unknown_grant_key` to a tool error, and the rotation test (with
     `_PREVIOUS` dropped early) sees no HTTP 401, so the helper is not re-run.
 - [ ] 3.3 Only if Dany chooses M1 (ii), and only after slice 7: raw keys. Negative: inject
       "mcp-01 answers from the cache without calling be-01 on the tool call", and watch the
