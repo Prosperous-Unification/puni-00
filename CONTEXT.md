@@ -1024,6 +1024,98 @@ _Avoid_: step hold, step status, failed attempt
 The durable identity of the attended decision that admitted direct step blockage writers.
 _Avoid_: Activation acknowledgment, enable flag
 
+**Question**:
+An audited record, beside one step node and the attempt that raised it, of one thing the
+plan did not settle: what was asked, the agent's proposed answer, its declared risk facts and
+topics, the disposition the policy gave it and, later, the reviewer's verdict. Never deleted
+([ADR 0059](docs/adr/0059-a-question-is-a-satellite-fact-judged-by-the-plan.md)).
+_Avoid_: assumption (a disposition), ticket, issue, decision log, open point, needs-Dany
+
+**Question kind**:
+What a question is: a `decision` the plan left open, or a `blocker` the agent could not pass
+on its own, with a cause — `authorization`, `external` or `missing_input`.
+_Avoid_: type, category, severity
+
+**Risk fact**:
+One of six predicates an agent declares, each true or false and none absent, about what acting
+on its proposed answer would do: reversible, outward, spends, touches production, destructive,
+changes access. Judged by the policy, checked by the reviewer; a wrong fact is counted apart
+from a wrong answer.
+_Avoid_: risk level, risk class, impact, tag
+
+**Topic**:
+A name on a project's list of things its reviewers own — product, pricing, naming,
+architecture — with, per phase, whether a question on it is pushed to them. Decides notice,
+never permission.
+_Avoid_: area, domain, label, reserved topic, owner flag
+
+**Disposition**:
+What the policy answered when a question was submitted: `queued` (the agent proceeds on its
+proposed answer, the question waits for review), `notified` (the same, and the reviewers are
+told at once) or `blocked` (the agent may not proceed; the node carries a step blockage until a
+reviewer answers). Computed by the plan, never chosen by the agent, and kept with the policy
+version that produced it.
+_Avoid_: assumed, auto-resolved, outcome, verdict (which is the review's), status
+
+**Review**:
+A reviewer's verdict on a question: `accepted`, `overturned` with the real answer, or, for a
+blocked question, `resolved` with the answer. Overturning creates one follow-up work item
+under the same leaf; resolving removes the step blockage in the same act.
+_Avoid_: validation, approval, resolution (for the record), closing
+
+**Follow-up work item**:
+The work item an overturned question creates under the same leaf, carrying the reviewer's
+answer, so a wrong assumption becomes planned work and not a note.
+_Avoid_: revert task, correction, fix-up, comment
+
+**Question policy**:
+What a project uses to dispose of questions: a mode, a profile per phase, its topics, the hard
+gates and its notice settings. A project without its own holds the organization's; an
+organization without its own holds the deployment default.
+_Avoid_: autonomy level, assumption config, agent freedom, rules
+
+**Policy mode**:
+Whether a project disposes of questions `by_step` (each step's phase picks the profile) or
+`offline` (every question the hard gates allow is queued and none is notified; a hard-gated
+one still blocks and still reaches the reviewers).
+_Avoid_: strictness, autonomy dial, away mode, blocker factor
+
+**Step phase**:
+A step definition's word for which profile its nodes' questions are judged under: `planning` or
+`implementation`. Every step is `implementation` until the project says otherwise.
+_Avoid_: stage, step kind, step type, period
+
+**Phase profile**:
+The part of a policy for one phase: which risk facts block, which notify, and which topics
+push. The planning profile is the stricter one so that questions arrive while they are cheap.
+_Avoid_: ruleset, level, preset
+
+**Hard gate**:
+A risk fact that blocks under every mode and profile and that no project can lift: spends,
+touches production, destructive, changes access. What acting would do cannot be reviewed after.
+_Avoid_: safety rule, forbidden action, always-block list
+
+**Reviewer**:
+A person a project names to answer its questions and receive its notices; the project's owner
+until the project names someone.
+_Avoid_: author, approver, admin (which is a role), owner (which is a different fact)
+
+**Notice**:
+One row written for one reviewer when a question needs them — opened, aged past the
+unanswered age, or in the daily digest — and delivered to that reviewer's channel address by an
+adapter, with every delivery attempt and its last error kept on the row.
+_Avoid_: notification, alert, push, message, event
+
+**Question priority**:
+Where a question sorts in the review queue, read and never stored: its work item's priority,
+then the count of not-done step nodes whose startability waits on its node, then its age.
+_Avoid_: urgency, score, rank (which is the project's), weight
+
+**Unnoticed question**:
+A queued or notified question still without a review after the policy's unnoticed age. Counted
+per project and per agent beside the overturn rate, the wrong-fact rate and blocked time.
+_Avoid_: stale, forgotten, overdue, backlog
+
 **Waiting**:
 A node reading: a node with no statement and no running attempt whose every predecessor
 node in the step graph reads done, and which has at least one. Work handed to it and not
