@@ -17,7 +17,7 @@ import { writeMcpStoreFixture } from './mcp-store-fixture';
  * second organization holding a new account, `/__fixture/remove-member`
  * removes one account's membership, `/__fixture/agent` adds an agent person
  * to dany's organization bound to an account or to nobody, its root name its
- * id as activation leaves it and its local name `name`,
+ * id as scoped access creates it and its local name `name`,
  * `/__fixture/revoke-consent` revokes a person's live consent credentials as
  * the revoke route does, and `/__fixture/consents` lists the consent
  * credentials (`wbs-machine-credentials` A20).

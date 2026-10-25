@@ -27,8 +27,9 @@ export class ConsentCredentialRepository implements ConsentCredentials {
 
   async agentsBoundTo(userId: string, organizationId: string): Promise<readonly ConsentAgent[]> {
     await Promise.resolve();
-    // The organization-local name, as `GET /api/people` reads it: activation
-    // leaves the root `person.name` holding the person id.
+    // The organization-local name, as `GET /api/people` reads it: under scoped
+    // access the root `person.name` is opaque (the id for people created after
+    // activation, stale after a rename).
     // Proof: reading `person.name` here, `lists only the agents bound to the
     // token's account` in `mcp-delegation.boot.db.test.ts` got `root-claire`
     // and `root-zeta` in id order, and `offers dany's agents at consent` in

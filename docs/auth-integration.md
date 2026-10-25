@@ -419,8 +419,9 @@ docker exec be-01-<colour> bun run src/link-credential-cli.ts --unlink \
 
 A headless fleet calls be-01 over HTTP, with an API key (`wbs_mk_…`, minted by
 `POST /api/organization/machine-credentials`) or with a linked OIDC credential
-as above. Neither works on mcp-01's `/mcp`: mcp-01 accepts only the access
-tokens its own OAuth server issued, so a `wbs_mk_` key there is `401
+as above. Neither works on mcp-01's `/mcp`: mcp-01 accepts only a JWT its own
+OAuth server issued (standalone, the deployed mode) or its trusted gateway
+verified, so a `wbs_mk_` key there is `401
 invalid_token` (observed in the 2026-10-25 swarm rehearsal). An MCP agent
 exists only through a human's consent: the human signs in to the connector and
 picks an agent bound to their account, which mints an `mcp_consent` credential
