@@ -36,9 +36,9 @@ Keep `src/dev/` as the compatibility adapter for the current Compose rollout unt
 
 The existing cluster IDs identify deployment targets, not application environments. Do not rename `platform-production`, repurpose `platform-local` as persistent dev, or relabel incoming application records merely to make a renderer accept them.
 
-### Failure isolation and placement proposal
+### Failure isolation and placement
 
-Default proposal: separate dev and production service/store instances built from the same definitions. This isolates destructive dev rehearsals from production telemetry. The user was offered this choice against one shared instance; the final deployment topology is not yet approved. No provisioning or migration depends on an unanswered choice.
+The user selected separate dev and production service/store instances built from the same definitions. This isolates dev experiments and failure rehearsals from production telemetry. Namespace, storage, credential and source-admission boundaries are instance-specific; the common configuration and lifecycle contracts remain shared. A valid dev identity must be refused by production ingest/query routes even when it reaches their private listeners; different Secret names alone do not prove distinct authority.
 
 Separate instances do not imply new machines automatically. They can share a cluster only after scoped namespace/RBAC/network/storage ownership and coexistence capacity are proven. Cluster-scoped ECK/Prometheus operators and CRDs have one reconciler owner. Refactor controller ownership explicitly before adding another namespaced instance; do not install the full kube-prometheus-stack chart twice with its operator/CRD defaults. Keep host/cluster metrics scoped by their actual source rather than duplicating them under fabricated application environments.
 
@@ -84,6 +84,6 @@ The Kubernetes path currently lacks proven trace behavior, and completing it req
 
 ## Open Questions
 
-- User choice: separate instances from shared definitions versus a shared observability instance. Separate instances are the recommendation; no live changes depend on an unanswered choice.
+- Separate service/store instances are approved. Physical placement and shared-controller ownership still require the authorized inventory below.
 - Read-only cluster inventory is blocked by h4claw sudo authorization. Required observations are cluster identity, nodes/capacity, Flux/controller ownership and readiness, namespace/storage bindings and credential key metadata without values.
 - Persistent dev placement and the exact namespace/controller plan depend on that inventory. No new cluster, credentials, production mutation or capacity purchase is authorized implicitly.

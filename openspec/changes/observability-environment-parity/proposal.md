@@ -34,7 +34,7 @@ None. Preserve the existing distinction between application environment and plat
 
 ## Decisions Recorded
 
-None yet. Runtime placement and failure isolation are being resolved before implementation; no new topology has been applied.
+The user selected separate dev and production service/store instances built from shared definitions. Physical placement requires verified ownership and capacity; no new topology has been applied.
 
 ## Impact
 

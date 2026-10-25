@@ -53,6 +53,12 @@ Every persistent environment SHALL enforce authenticated private access, query-v
 - **THEN** the request is refused through the real deployed route
 - **AND** a valid identity succeeds through the same route
 
+#### Scenario: A dev identity cannot access the production instance
+
+- **WHEN** a valid dev client identity reaches a production ingest or query listener
+- **THEN** production refuses that identity
+- **AND** each instance accepts its own authorized identity through the same tested route
+
 #### Scenario: A restarted process preserves history
 
 - **WHEN** a collector or store process is terminated in an isolated authorized rehearsal
