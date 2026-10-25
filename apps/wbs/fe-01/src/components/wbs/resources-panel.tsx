@@ -46,15 +46,17 @@ type ProviderChoice =
 /**
  * What claims hold of each stated resource right now, off the startable read
  * (`wbs-resources` R6): `read` with capacity, occupied and free units per
- * stated resource, or `unavailable` when that read failed. Optional on
- * purpose: the declared numbers stand without it, and the section says the
- * holdings are missing rather than showing none.
+ * stated resource; `unreported` from a be-01 whose startable read carries no
+ * `resources` (an outgoing one mid-swap); `unavailable` when that read failed.
+ * Optional on purpose: the declared numbers stand without it, and the section
+ * says the holdings are missing rather than showing none.
  */
 type Occupancy =
   | {
       readonly kind: 'read';
       readonly byResource: ReadonlyMap<string, { occupied: number; free: number }>;
     }
+  | { readonly kind: 'unreported' }
   | { readonly kind: 'unavailable' };
 
 type View =
@@ -213,18 +215,23 @@ export function ResourcesPanel({
       // entries failed `says the holdings are missing when the startable read
       // fails` on `Unable to find an element with the text: What claims hold…`:
       // the section said nothing was missing.
+      // Proof: 2026-10-25, reading an absent `resources` as an empty list
+      // failed `says a server that reports no holdings`: the rows read as if
+      // nothing were held, with no word about it.
       const occupancy: Occupancy =
-        startable.kind === 'success'
-          ? {
-              kind: 'read',
-              byResource: new Map(
-                (startable.body.resources ?? []).map((each) => [
-                  each.resourceId,
-                  { occupied: each.occupied, free: each.free },
-                ]),
-              ),
-            }
-          : { kind: 'unavailable' };
+        startable.kind === 'success' && startable.body.resources === undefined
+          ? { kind: 'unreported' }
+          : startable.kind === 'success'
+            ? {
+                kind: 'read',
+                byResource: new Map(
+                  (startable.body.resources ?? []).map((each) => [
+                    each.resourceId,
+                    { occupied: each.occupied, free: each.free },
+                  ]),
+                ),
+              }
+            : { kind: 'unavailable' };
       setNow(Date.now());
       setView({
         kind: 'ready',
@@ -396,10 +403,29 @@ export function ResourcesPanel({
     );
   }
 
-  async function remove(resource: ProjectResource, cascade: boolean) {
-    setRemoval(null);
+  /**
+   * One step of removing a resource. `ask` only opens the confirm, which says
+   * the removal cannot be undone. `confirm` sends the plain delete; be-01
+   * refuses one still in use `in_use` with the counts and the projects using
+   * it, which the row then shows. `cascade` re-checks first: it sends the
+   * plain delete again and sends `cascade` only when be-01 answers the usage
+   * that was shown, so nothing added since the reader looked is taken with it
+   * unseen. be-01 has no conditional cascade, so a use landing between the two
+   * requests is the one window left.
+   */
+  async function remove(resource: ProjectResource, step: 'ask' | 'confirm' | 'cascade') {
+    // Proof: 2026-10-25, with `ask` sending the delete at once, `removes an
+    // unused resource only after a confirm naming its provider link` failed:
+    // one click removed it, with no word that it cannot be undone.
+    if (step === 'ask') {
+      setRemoval({ resourceId: resource.id, stage: 'confirm' });
+      return;
+    }
+    const shown =
+      removal?.resourceId === resource.id && removal.stage === 'in_use' ? removal : null;
+    const answered: { inUse: InUse | null } = { inUse: null };
     const removed = await directory(
-      { kind: 'deleteResource', resourceId: resource.id, ...(cascade ? { cascade: true } : {}) },
+      { kind: 'deleteResource', resourceId: resource.id },
       resource.name,
       (refusal) => {
         // Proof: 2026-10-25, with this arm answering false, `names what still
@@ -407,27 +433,52 @@ export function ResourcesPanel({
         // `Unable to find role="alert"` in the row: only the generic sentence
         // stood below the list, with no counts and no confirm.
         if (refusal.error !== 'in_use' || refusal.counts === undefined) return false;
-        setRemoval({ resourceId: resource.id, counts: refusal.counts });
+        answered.inUse = { counts: refusal.counts, usage: refusal.usage };
         return true;
       },
     );
-    if (removed) setRemoval(null);
+    if (removed) {
+      setRemoval(null);
+      return;
+    }
+    const inUse = answered.inUse;
+    if (inUse === null) return;
+    if (step === 'cascade' && shown !== null && sameUse(shown, inUse)) {
+      if (
+        await directory(
+          { kind: 'deleteResource', resourceId: resource.id, cascade: true },
+          resource.name,
+        )
+      )
+        setRemoval(null);
+      return;
+    }
+    // Proof: 2026-10-25, with the cascade sent without this re-check, `asks
+    // again when what uses a resource changed since it was shown` failed: it
+    // sent `cascade: true` over the newly added demand.
+    setRemoval({
+      resourceId: resource.id,
+      stage: 'in_use',
+      ...inUse,
+      changed: step === 'cascade',
+    });
   }
 
   function stateCapacity(resource: ProjectResource, typed: string): Promise<boolean> {
     const trimmed = typed.trim();
-    const units = trimmed === '' ? null : Number(trimmed);
     // Proof: 2026-10-25, without this check `says a capacity that is not a
     // number in place` failed on `Unable to find role="alert"`: `NaN` went out
-    // as JSON `null`, which clears the statement to unstated.
-    if (units !== null && !Number.isFinite(units)) {
+    // as JSON `null`, which clears the statement to unstated. With
+    // `Number.isFinite` in place of the digits test, the same case's `0x10`
+    // went out as 16; watched 2026-10-25.
+    if (trimmed !== '' && !/^\d+$/.test(trimmed)) {
       setMessage(
         `The declared capacity of ${resource.name} is a whole number, or blank for unstated.`,
       );
       return Promise.resolve(false);
     }
     setAdoption(null);
-    return setCapacity(resource, units);
+    return setCapacity(resource, trimmed === '' ? null : Number(trimmed));
   }
 
   return (
@@ -489,6 +540,11 @@ export function ResourcesPanel({
           What claims hold right now could not be read; the declared numbers below are current.
         </p>
       )}
+      {view.kind === 'ready' && view.occupancy.kind === 'unreported' && (
+        <p data-occupancy="unreported" className="text-muted-foreground m-0 text-sm">
+          This server does not report what claims hold; the declared numbers below are current.
+        </p>
+      )}
       {view.kind === 'ready' &&
         (view.resources.length === 0 ? (
           <p className="m-0 text-sm">
@@ -507,7 +563,7 @@ export function ResourcesPanel({
                 declared={view.declared.get(resource.id) ?? null}
                 held={
                   view.occupancy.kind === 'read'
-                    ? (view.occupancy.byResource.get(resource.id) ?? null)
+                    ? (view.occupancy.byResource.get(resource.id) ?? 'not_reported')
                     : null
                 }
                 providers={view.providers}
@@ -533,8 +589,9 @@ export function ResourcesPanel({
                 }}
                 removal={removal?.resourceId === resource.id ? removal : null}
                 onRename={(name, unitLabel) => rename(resource, name, unitLabel)}
-                onRemove={(cascade) => {
-                  observe(remove(resource, cascade), 'removal');
+                projectId={projectId}
+                onRemove={(step) => {
+                  observe(remove(resource, step), 'removal');
                 }}
                 onKeep={() => {
                   setRemoval(null);
@@ -563,10 +620,47 @@ interface ResourceDraft {
 
 const EMPTY_DRAFT: ResourceDraft = { name: '', kind: 'divisible', unitLabel: '' };
 
-/** A refused removal's counts, shown with a confirm that removes them too. */
-interface Removal {
-  readonly resourceId: string;
-  readonly counts: { demands: number; capacities: number; occupancies: number };
+type InUseRefusal = Extract<BatchRefusal, { error: 'in_use' }>;
+
+/** What uses a resource, as be-01's `in_use` refusal names it. */
+interface InUse {
+  readonly counts: NonNullable<InUseRefusal['counts']>;
+  readonly usage: InUseRefusal['usage'];
+}
+
+/**
+ * A removal under way on one row: the plain confirm (`confirm`), or what be-01
+ * said still uses it (`in_use`), `changed` when that differs from what the
+ * reader was shown before.
+ */
+type Removal =
+  | { readonly resourceId: string; readonly stage: 'confirm' }
+  | (InUse & { readonly resourceId: string; readonly stage: 'in_use'; readonly changed: boolean });
+
+/** Whether two `in_use` answers name the same uses. */
+function sameUse(left: InUse, right: InUse): boolean {
+  return (
+    JSON.stringify([left.counts, left.usage.projects]) ===
+    JSON.stringify([right.counts, right.usage.projects])
+  );
+}
+
+/**
+ * Where a resource is used, by project: `this project (2 work items)` first,
+ * then each other project by name. Empty when no work item uses it.
+ */
+export function usagePlaces(usage: InUse['usage'], projectId: string): string {
+  const items = (count: number) => `${String(count)} work item${count === 1 ? '' : 's'}`;
+  const places = [...usage.projects]
+    .sort((left, right) => Number(right.id === projectId) - Number(left.id === projectId))
+    .map((project) =>
+      project.id === projectId
+        ? `this project (${items(project.workItems.length)})`
+        : `“${project.name}” (${items(project.workItems.length)})`,
+    );
+  return places.length <= 1
+    ? (places[0] ?? '')
+    : `${places.slice(0, -1).join(', ')} and ${places.at(-1) ?? ''}`;
 }
 
 /**
@@ -588,7 +682,7 @@ function directoryRefusalSentence(refusal: BatchRefusal): string | null {
 }
 
 /** `2 demands, 1 capacity and 0 claims`, the counts a removal would take with it. */
-export function usageWords(counts: Removal['counts']): string {
+export function usageWords(counts: InUse['counts']): string {
   const each = (count: number, one: string, many: string) =>
     `${String(count)} ${count === 1 ? one : many}`;
   return `${each(counts.demands, 'demand', 'demands')}, ${each(counts.capacities, 'capacity', 'capacities')} and ${each(counts.occupancies, 'claim holding it', 'claims holding it')}`;
@@ -736,6 +830,7 @@ export function ResourceRow({
   onUndo,
   onProvider,
   removal = null,
+  projectId = '',
   onRename,
   onRemove,
   onKeep,
@@ -743,8 +838,11 @@ export function ResourceRow({
 }: {
   resource: ProjectResource;
   declared: number | null;
-  /** What claims of this project hold of it now, against its stated capacity; null when unstated or unread. */
-  held?: { occupied: number; free: number } | null;
+  /**
+   * What claims of this project hold of it now, against its stated capacity;
+   * `not_reported` when the read lists no line for it; null when unread.
+   */
+  held?: { occupied: number; free: number } | 'not_reported' | null;
   providers: ProviderChoice;
   now: number;
   busy: boolean;
@@ -752,12 +850,14 @@ export function ResourceRow({
   onAdopt: (units: number) => void;
   onUndo: (adoption: Adoption) => void;
   onProvider: (providerId: string | null) => void;
-  /** A removal be-01 refused for what still uses this resource, or null. */
+  /** A removal under way on this row, or null. */
   removal?: Removal | null;
+  /** The project whose settings show the row, named `this project` in the usage. */
+  projectId?: string;
   /** Renames the resource or changes its unit label; answers whether it landed. */
   onRename?: (name: string, unitLabel: string) => Promise<boolean>;
   /** Removes the resource; `cascade` takes what still uses it with it. */
-  onRemove?: (cascade: boolean) => void;
+  onRemove?: (step: 'ask' | 'confirm' | 'cascade') => void;
   onKeep?: () => void;
   /** States this project's capacity from the typed box, blank for unstated. */
   onCapacity?: (typed: string) => Promise<boolean>;
@@ -765,6 +865,33 @@ export function ResourceRow({
   const isAdmin = providers.kind === 'named';
   const [editing, setEditing] = useState<{ name: string; unitLabel: string } | null>(null);
   const editIds = useId();
+  const editButton = useRef<HTMLButtonElement>(null);
+  const removeButton = useRef<HTMLButtonElement>(null);
+  const keepButton = useRef<HTMLButtonElement>(null);
+  const nameBox = useRef<HTMLInputElement>(null);
+  /**
+   * Where the keyboard goes once the control it was on unmounts: the edit
+   * form's name, the Edit button after the form closes, Remove after a removal
+   * is kept. A removal opening takes it to Keep, the harmless answer.
+   */
+  const [focusAfter, setFocusAfter] = useState<'name' | 'edit' | 'remove' | null>(null);
+  useEffect(() => {
+    const target =
+      focusAfter === 'name'
+        ? nameBox.current
+        : focusAfter === 'edit'
+          ? editButton.current
+          : focusAfter === 'remove'
+            ? removeButton.current
+            : null;
+    if (target === null) return;
+    target.focus();
+    setFocusAfter(null);
+  }, [focusAfter, editing, removal]);
+  const removalStage = removal?.stage ?? null;
+  useEffect(() => {
+    if (removalStage !== null) keepButton.current?.focus();
+  }, [removalStage]);
   const [capacity, setCapacity] = useState<string | null>(null);
   const reading =
     resource.providerId === null ? null : readReport(resource.report, resource.unitLabel, now);
@@ -778,7 +905,12 @@ export function ResourceRow({
       {editing === null ? (
         <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
           <span className="flex min-w-0 flex-wrap items-baseline gap-2">
-            <span className="font-medium [overflow-wrap:anywhere]">{resource.name}</span>
+            <span
+              id={`resource-name-${resource.id}`}
+              className="font-medium [overflow-wrap:anywhere]"
+            >
+              {resource.name}
+            </span>
             <span className="text-muted-foreground text-xs">
               {resource.kind === 'exclusive' ? 'Exclusive — one at a time' : 'Divisible'}
               {resource.unitLabel === '' ? '' : ` · ${resource.unitLabel}`}
@@ -803,7 +935,9 @@ export function ResourceRow({
             event.preventDefault();
             if (onRename === undefined || editing.name.trim() === '') return;
             void onRename(editing.name, editing.unitLabel).then((renamed) => {
-              if (renamed) setEditing(null);
+              if (!renamed) return;
+              setFocusAfter('edit');
+              setEditing(null);
             });
           }}
         >
@@ -812,6 +946,7 @@ export function ResourceRow({
               Name
             </label>
             <Input
+              ref={nameBox}
               id={`${editIds}-name`}
               className={CONTROL_HEIGHT}
               value={editing.name}
@@ -846,6 +981,7 @@ export function ResourceRow({
             variant="outline"
             disabled={busy}
             onClick={() => {
+              setFocusAfter('edit');
               setEditing(null);
             }}
           >
@@ -853,7 +989,12 @@ export function ResourceRow({
           </Button>
         </form>
       )}
-      {held !== null && declared !== null && (
+      {held === 'not_reported' && declared !== null && (
+        <span data-held="not_reported" className="text-muted-foreground text-xs">
+          No holdings were reported for it.
+        </span>
+      )}
+      {held !== null && held !== 'not_reported' && declared !== null && (
         <div data-held={resource.id} className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap justify-between gap-x-2 text-xs tabular-nums">
             <span>
@@ -890,13 +1031,19 @@ export function ResourceRow({
               });
             }}
           >
-            <label htmlFor={`resource-capacity-${resource.id}`} className="text-muted-foreground">
+            <label
+              id={`resource-capacity-label-${resource.id}`}
+              htmlFor={`resource-capacity-${resource.id}`}
+              className="text-muted-foreground"
+            >
               This project may use
             </label>
             <Input
               id={`resource-capacity-${resource.id}`}
               inputMode="numeric"
-              aria-label={`Declared capacity of ${resource.name}`}
+              // The visible label first, then whose number it is (WCAG 2.5.3):
+              // `This project may use h2puni ram`.
+              aria-labelledby={`resource-capacity-label-${resource.id} resource-name-${resource.id}`}
               className={`${CONTROL_HEIGHT} w-24 text-right tabular-nums`}
               placeholder="unstated"
               value={capacity ?? (declared === null ? '' : String(declared))}
@@ -1018,12 +1165,38 @@ export function ResourceRow({
       {removal !== null && (
         <div
           role="alert"
+          data-removal={removal.stage}
           className="border-destructive/40 bg-destructive/5 flex flex-col gap-2 rounded-md border px-3 py-2 text-sm"
         >
-          <span>
-            {resource.name} is still used by {usageWords(removal.counts)}. Removing it takes them
-            with it{removal.counts.occupancies > 0 ? ', and the claims stop holding it' : ''}.
-          </span>
+          {removal.stage === 'confirm' ? (
+            <span>
+              Remove {resource.name} from the directory? Every project loses it, and it cannot be
+              undone: the plan’s Undo does not reach the directory
+              {resource.providerId === null ? '' : ', and its compute provider link goes with it'}.
+            </span>
+          ) : (
+            <span className="flex flex-col gap-1">
+              {removal.changed && (
+                <strong className="font-medium">
+                  What uses {resource.name} changed since you were shown. Check it again.
+                </strong>
+              )}
+              <span>
+                {resource.name} is still used by {usageWords(removal.counts)}
+                {removal.usage.projects.length === 0
+                  ? ''
+                  : ` — in ${usagePlaces(removal.usage, projectId)}`}
+                . Removing it with them takes those away in every project, and cannot be undone.
+              </span>
+              {removal.counts.occupancies > 0 && (
+                <span>
+                  {removal.counts.occupancies === 1
+                    ? '1 live claim holds it: its agent keeps the claim but no longer holds these units.'
+                    : `${String(removal.counts.occupancies)} live claims hold it: their agents keep the claims but no longer hold these units.`}
+                </span>
+              )}
+            </span>
+          )}
           <span className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -1031,12 +1204,22 @@ export function ResourceRow({
               variant="destructive"
               disabled={busy}
               onClick={() => {
-                onRemove?.(true);
+                onRemove?.(removal.stage === 'confirm' ? 'confirm' : 'cascade');
               }}
             >
-              Remove with them
+              {removal.stage === 'confirm' ? `Remove ${resource.name}` : 'Remove with them'}
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onKeep}>
+            <Button
+              ref={keepButton}
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                setFocusAfter('remove');
+                onKeep?.();
+              }}
+            >
               Keep {resource.name}
             </Button>
           </span>
@@ -1050,8 +1233,10 @@ export function ResourceRow({
               size="sm"
               variant="ghost"
               disabled={busy}
+              ref={editButton}
               aria-label={`Edit ${resource.name}`}
               onClick={() => {
+                setFocusAfter('name');
                 setEditing({ name: resource.name, unitLabel: resource.unitLabel });
               }}
             >
@@ -1065,9 +1250,10 @@ export function ResourceRow({
               variant="ghost"
               className="text-destructive"
               disabled={busy}
+              ref={removeButton}
               aria-label={`Remove ${resource.name}`}
               onClick={() => {
-                onRemove(false);
+                onRemove('ask');
               }}
             >
               Remove

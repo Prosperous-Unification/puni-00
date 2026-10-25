@@ -962,8 +962,12 @@ Branch `feat/wbs-resources-fe` from main `c939e8cfd`.
   snapshot, the isolated and legacy reads from the stores (`withDemands` in
   `work-item.resource.ts`). The plan document omits both (`planDocument` keeps its own
   file-local `demands`). Delta: `specs/resource-directory/spec.md`, two ADDED requirements.
-- **Resources cell** (`plan-columns/resources.tsx`, column `resources`, 168 px, hidden by
-  default like Types so the folded 1280 budget and every default-width figure are unchanged):
+- **Resources cell** (`plan-columns/resources.tsx`, column `resources`, 168 px, in
+  `INITIAL_HIDDEN_COLUMNS` like Types). "Hidden by default" holds only for fresh storage: a
+  project whose reader already stored a hide-list, or a saved view, that predates the column
+  shows it, 168 px wider, possibly past the folded 1280 budget (the hide-list names what is
+  hidden, so a column it does not name is shown; `remembered-layout.ts`). The default-width
+  figures are unchanged for a never-customised table only. Not migrated; see review fixes.
   a leaf reads `h2puni ram 6 GB · staging`; a click, Enter, Space or typing opens the row's
   Resources panel; a parent shows its own (inert) demand muted with the reason and is not a
   grid stop. The row ⋯ menu offers `Resources…` on leaves (table and cards), and a phone card
@@ -1052,4 +1056,114 @@ moved to the hint); the 120 px cell clipped host-named resources (168 px); input
   `e2e/layout.spec.ts`, now expects `Resources…` between `Measures…` and `Delete`. There are no
   screenshot baselines; the default column set and its widths are unchanged.
 - The legacy (pre-organization) branch of `withDemands` has no test of its own.
-- h2puni gate: left to the caller.
+- h2puni gate: pending. 1.5 is ticked on the branch's evidence; the gate on the merged head
+  is owed before it counts as done.
+
+### Review fixes (Fable review of #719, 2026-10-25)
+
+**S2-1 export leak.** `buildDocument` now drops the tree read's `demands` and
+`demandedResources` before spreading the tree, so the document carries only its own file-local
+`demands`. `exports the organization’s resources … (isolated|shared)` asserts no
+`demandedResources` and the same top-level keys in both modes (`optimization` aside: it rides the
+live read in one mode only, as before this change).
+
+**S2-2 lost update.** The panel diffs the draft against the demands it opened with, never the
+live row, and sends only the boxes the reader changed. When the live row moves while it is open
+it says so (`Changed elsewhere since this opened: now …`). Test: opened at RAM 2, a peer sets
+RAM 4 + staging; an untouched save sends nothing; changing only RAM sends only RAM.
+
+**S2-3 Remove with them. ASSUMED, for Dany to confirm:**
+
+- Remove always asks first, and the confirm says it cannot be undone (the plan's Undo does not
+  reach the directory) and that every project loses it, naming the compute provider link when
+  there is one. Keep has the focus.
+- When be-01 answers `in_use`, the row names the counts and **where**: `this project (N work
+items)` and each other project by name, from the refusal's `usage`. It says live claims keep
+  their claim but stop holding the units, and how many.
+- be-01 has no conditional cascade. `Remove with them` re-sends the plain delete first: it
+  removes a resource nobody uses any more; it sends `cascade` only when be-01 answers the same
+  usage that was shown; otherwise it shows the new usage, marked changed, and asks again. The
+  window between the re-check and the cascade remains.
+- Role gating is unchanged. **Open question for Dany:** any member of the organization may
+  delete a directory resource with its demands, capacities and occupancies, from any project's
+  settings.
+
+**S3:**
+
+- Units boxes (demand and capacity) take digits only (`/^\d+$/`): `0x10`, `1e3`, `1.5`, `-2`
+  are said in place and never sent. `0` still reaches be-01 and its worded refusal.
+- `withDemands` moved to `tree-demands.ts` with tests. The isolated read takes demands and the
+  catalog outside one transaction, so `namedDemandFields` reads both again once when a demand
+  names a resource the catalog lacks (a cascade landing between the reads), and throws on a
+  second disagreement. The shared read is one snapshot and is not re-read. A persistent
+  unmapped demand is not reachable by construction: `resource_organization_bridge` maps every
+  resource created before activation to the legacy organization, creates after it map through
+  the directory, the mapping is immutable and cascades only with the resource, and a demand
+  naming a foreign resource is refused (`refuses a foreign resource exactly as an absent one`).
+  The read-only query that would find such rows:
+
+  ```sql
+  SELECT d.work_item_id, d.resource_id, w.project_id,
+         po.organization_id AS project_organization,
+         ro.organization_id AS resource_organization
+  FROM work_item_resource_demand d
+  JOIN work_item w ON w.id = d.work_item_id
+  JOIN project_organization po ON po.resource_id = w.project_id
+  LEFT JOIN resource_organization ro ON ro.resource_id = d.resource_id
+  WHERE ro.resource_id IS NULL OR ro.organization_id <> po.organization_id;
+  ```
+
+- Legacy (pre-organization) read: `legacy-demands-read.test.ts` (memory source,
+  `LEGACY_ACCESS`): no fields without demands, root names after a two-statement batch, and one
+  Undo leaves no demand.
+- Focus: Edit moves the keyboard to the form's Name; Save or Cancel back to Edit; Remove to
+  Keep; Keep back to Remove.
+- The capacity box is named by its visible label then the resource (`This project may use
+h2puni ram`, `aria-labelledby`).
+- A refused save names the refused box (`h2puni ram: …`, `aria-invalid`, described by the
+  alert) from the refusal's `at`, and is reported **once, in the panel**: a plain refusal is not
+  handed to the plan writer's toast. Failures that say the screen is behind (gone, unreadable
+  request, unknown transport outcome) stay the writer's toast and reread, and the panel adds
+  nothing. This departs from the Measures panel, which reports in place and toasts too.
+- A startable read with no `resources` (an outgoing be-01) says the server does not report
+  holdings; a stated resource absent from the list says `No holdings were reported for it.`
+  (Each showing of the tab still pays one whole startable read for the holdings.)
+
+Not addressed: viewers are still offered the write controls and answered with refusals (spec
+choice); the stored-hide-list effect above is stated, not migrated.
+
+#### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Fault injected                                            | Observed                                                                                                               |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `buildDocument` spreads the tree whole                    | `exports … (isolated)`: `not.toHaveProperty('demandedResources')` failed                                               |
+| `withDemands` drops an unnamed demand instead of throwing | `throws on a demand naming a resource the catalog does not hold` and `throws when the two reads still disagree` failed |
+| no second read pair                                       | `reads both again once when a removal landed between them` rejected on `r-stg`                                         |
+| legacy branch answers the tree alone                      | `names root resources, and one Undo takes a two-statement batch back`: no `demands`                                    |
+| panel diffs against the live row                          | `sends only what the reader changed over a peer’s edit`: the untouched save wrote                                      |
+| `Number.isFinite` instead of digits (panel)               | `refuses hexadecimal and exponent units in place` failed                                                               |
+| `Number.isFinite` instead of digits (capacity)            | `says a capacity that is not a number in place`: no alert, `0x10` sent                                                 |
+| `writeDemands` rethrows every refusal                     | `says a refused save once, in place, naming the box`: toasted too                                                      |
+| `writeDemands` ignores the outcome                        | `says a refused save in place and stays open` and the box case failed                                                  |
+| cascade sent without the re-check                         | `asks again when what uses a resource changed since it was shown` failed                                               |
+| `ask` sends the delete at once                            | `removes an unused resource only after a confirm …` and the in-use case failed                                         |
+| absent `resources` read as an empty list                  | `says a server that reports no holdings` failed                                                                        |
+
+#### Commands and results (fresh, after the last edit)
+
+- `bun test src` in `libs/wbs/application/core`: 1333 pass, 0 fail.
+- be-01: `resource-organization`, `resource-schedule` and every export / plan-document test
+  file (15 files): 420 pass, 0 fail.
+- fe-01 (`env -u CLAUDECODE`, UTC): the two resource suites plus `plan-cards`,
+  `plan-structure`, `plan-keyboard`, `plan-layout`, `measure-panel`, `table-frame`,
+  `project-settings-modal`, `src/testing` and `src/modules/plan-commands`: 14 files, 594 tests
+  pass.
+- `nx run-many -t lint typecheck -p wbs-be-01 wbs-fe-01 wbs-contracts wbs-core
+--skip-nx-cache`: exit 0 (`typecheck:module` included).
+- `openspec validate --all --json`: exit 0. Burokrat `check-indexes working . HEAD` (output
+  redirected, staged tree): exit 0.
+
+Screenshots re-shot (same directory, one full run): changed `07-demand-panel-refusal` (names
+the box, no toast), `11-settings-remove-in-use` (where, live claims, cannot be undone), new
+`19-settings-remove-unused-confirm`, `20-demand-panel-not-digits`,
+`21-demand-panel-peer-change`; the rest re-shot unchanged.

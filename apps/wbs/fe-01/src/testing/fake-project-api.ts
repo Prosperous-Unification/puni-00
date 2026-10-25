@@ -27,7 +27,7 @@ import type {
   UndoResult,
   WorkItemView,
 } from '@/lib/wbs-api';
-import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW, WbsRequestError } from '@/lib/wbs-api';
 
 import { SEEDED_MEASURES } from './measure-fixtures';
 import { EstimateUnitConflict, refusingApi } from './refusing-api';
@@ -853,13 +853,26 @@ export function fakeProjectApi(): ProjectApi & {
      * and any units but 1 on an exclusive one.
      */
     setDemands(_projectId, statements) {
-      for (const { resourceId, units } of statements) {
+      /** be-01's refusal of the command at `at`, as the batch route answers it. */
+      const refused = (
+        error:
+          'unknown_resource' | 'units_must_be_a_whole_number_from_1' | 'exclusive_demand_is_one',
+        at: number,
+      ) =>
+        Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'postApiProjectsByIdCommands',
+            refusal: { error, at, kind: 'setDemand' },
+          }),
+        );
+      for (const [at, { resourceId, units }] of statements.entries()) {
         const resource = resources.find((each) => each.id === resourceId);
-        if (resource === undefined) return Promise.reject(new Error('unknown_resource'));
+        if (resource === undefined) return refused('unknown_resource', at);
         if (units !== null && (!Number.isInteger(units) || units < 1))
-          return Promise.reject(new Error('units_must_be_a_whole_number_from_1'));
+          return refused('units_must_be_a_whole_number_from_1', at);
         if (units !== null && resource.kind === 'exclusive' && units !== 1)
-          return Promise.reject(new Error('exclusive_demand_is_one'));
+          return refused('exclusive_demand_is_one', at);
       }
       for (const { workItemId, resourceId, units } of statements) {
         const at = demands.findIndex(

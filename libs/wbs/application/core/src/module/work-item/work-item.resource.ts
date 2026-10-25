@@ -257,6 +257,7 @@ import { withMeasureEstimates } from './measure-estimate-read';
 import { findPersonWork, type PersonWork } from './person-work';
 import { findProjectClaims, type ProjectClaims } from './project-claims';
 import { findStartableWork, type StartableWork } from './startable';
+import { namedDemandFields, withDemands } from './tree-demands';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -2223,7 +2224,10 @@ export class WorkItemService {
           captured.chain.kind !== 'engine_unavailable' &&
           projected !== null &&
           !('kind' in projected)
-            ? withDemands(projected, captured.chain.reads.demands, captured.chain.reads.resources)
+            ? {
+                ...projected,
+                ...withDemands(captured.chain.reads.demands, captured.chain.reads.resources),
+              }
             : projected;
         if (
           captured.kind === 'shared' &&
@@ -2253,11 +2257,12 @@ export class WorkItemService {
       ? this.tree(projectId)
       : this.treeIsolated(projectId));
     if (tree === null || 'kind' in tree) return tree;
-    const demands = await this.opts.demands.listByProject(projectId);
+    const readDemands = () => this.opts.demands.listByProject(projectId);
     if (access.kind === 'legacy')
-      return demands.length === 0
-        ? tree
-        : withDemands(tree, demands, await this.opts.directory.listResources());
+      return {
+        ...tree,
+        ...(await namedDemandFields(readDemands, () => this.opts.directory.listResources())),
+      };
     // Assignees under their organization-local names, as the scoped people
     // list shows them; the tree read itself knows only the legacy name.
     // Proof: returning the tree's legacy names made `shows assignees under the
@@ -2295,18 +2300,9 @@ export class WorkItemService {
       // Proof: answering `tree` here unchanged failed `levels a demanded
       // resource (isolated)` (resource-schedule.controller.db.test.ts) on
       // `expected undefined to deeply equal [ … ]`; watched 2026-10-25.
-      ...(demands.length === 0
-        ? {}
-        : demandFieldsOf(
-            withDemands(
-              tree,
-              demands,
-              await this.opts.directory.listInOrganization(
-                'resources',
-                access.scope.organizationId,
-              ),
-            ),
-          )),
+      ...(await namedDemandFields(readDemands, () =>
+        this.opts.directory.listInOrganization('resources', access.scope.organizationId),
+      )),
     };
   }
 
@@ -10061,50 +10057,6 @@ function withResourceLabels(tree: PlanTree, catalog: readonly Resource[]): PlanT
       return { id: resource.id, name: resource.name, unitLabel: resource.unitLabel };
     }),
   };
-}
-
-/**
- * The tree with every demand of its work items and one entry per resource
- * those demands name (`wbs-resources` 1.5), so a row's Resources cell reads
- * the same answer the table is drawn from. Unchanged when nothing is demanded,
- * so a plan stating none keeps its payload shape.
- *
- * @throws when a demanded resource is absent from `catalog`: a demand naming
- * a resource this read cannot name is two trusted reads disagreeing.
- */
-function withDemands(
-  tree: PlanTree,
-  demands: readonly Demand[],
-  catalog: readonly Resource[],
-): PlanTree {
-  if (demands.length === 0) return tree;
-  const byId = new Map(catalog.map((resource) => [resource.id, resource] as const));
-  const ordered = [...demands].sort(
-    (left, right) =>
-      left.workItemId.localeCompare(right.workItemId) ||
-      left.resourceId.localeCompare(right.resourceId),
-  );
-  const named = [...new Set(ordered.map(({ resourceId }) => resourceId))].sort();
-  return {
-    ...tree,
-    demands: ordered.map(({ workItemId, resourceId, units }) => ({
-      workItemId,
-      resourceId,
-      units,
-    })),
-    demandedResources: named.map((resourceId) => {
-      const resource = byId.get(resourceId);
-      if (resource === undefined)
-        throw new Error(`a demand names resource "${resourceId}", which this read cannot name`);
-      const { id, name, kind, unitLabel } = resource;
-      return { id, name, kind, unitLabel };
-    }),
-  };
-}
-
-/** The two fields {@link withDemands} adds, alone, to spread beside other relabelled fields. */
-function demandFieldsOf({ demands, demandedResources }: PlanTree): Partial<PlanTree> {
-  return { demands, demandedResources };
 }
 
 /** Pure live projection shared by isolated reads and coherent shared observations. */

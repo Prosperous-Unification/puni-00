@@ -611,37 +611,125 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     ]);
   });
 
+  const inUse = (demands: number, occupancies: number, other: string | null) => () =>
+    answer(409, {
+      error: 'in_use',
+      at: 0,
+      kind: 'deleteResource',
+      usage: {
+        projects: [
+          {
+            id: 'p1',
+            name: 'This plan',
+            workItems: [{ id: 'w1', number: '010', name: 'A', effects: [] }],
+          },
+          ...(other === null
+            ? []
+            : [
+                {
+                  id: 'p2',
+                  name: other,
+                  workItems: [{ id: 'w9', number: '020', name: 'B', effects: [] }],
+                },
+              ]),
+        ],
+        members: [],
+      },
+      counts: { demands, capacities: 1, occupancies },
+    });
+
   it('names what still uses a resource and removes it with them on confirm', async () => {
     const onChanged = vi.fn(() => Promise.resolve());
     const sent = stubServer({
       [READ]: [readOf([resourceOf()]), readOf([])],
       [PROVIDERS]: [providersOf(h2puni)],
-      [DIRECTORY]: [
-        () =>
-          answer(409, {
-            error: 'in_use',
-            at: 0,
-            kind: 'deleteResource',
-            usage: { projects: [], members: [] },
-            counts: { demands: 2, capacities: 1, occupancies: 0 },
-          }),
-        applied,
-      ],
+      [DIRECTORY]: [inUse(2, 1, 'Swarm B'), inUse(2, 1, 'Swarm B'), applied],
     });
     mount(onChanged);
     const ram = await row('h2puni ram');
     fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
-    expect(await within(ram).findByRole('alert')).toHaveTextContent(
-      'h2puni ram is still used by 2 demands, 1 capacity and 0 claims holding it. Removing it takes them with it.',
+    // The plain confirm first: nothing is sent until it is answered.
+    expect(await within(ram).findByRole('alert')).toHaveTextContent(/cannot be undone/);
+    expect(directories(sent)).toEqual([]);
+    fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+    const alert = await within(ram).findByText(/is still used by/);
+    expect(alert.closest('[role="alert"]')).toHaveTextContent(
+      'h2puni ram is still used by 2 demands, 1 capacity and 1 claim holding it — in this project (1 work item) and “Swarm B” (1 work item). Removing it with them takes those away in every project, and cannot be undone.' +
+        '1 live claim holds it: its agent keeps the claim but no longer holds these units.',
     );
     expect(onChanged).not.toHaveBeenCalled();
     fireEvent.click(within(ram).getByRole('button', { name: 'Remove with them' }));
     expect(await screen.findByText(/This directory holds no resources yet/)).toBeDefined();
+    // The re-check before the cascade answered what was shown.
     expect(directories(sent)).toEqual([
+      { commands: [{ kind: 'deleteResource', resourceId: 'r1' }] },
       { commands: [{ kind: 'deleteResource', resourceId: 'r1' }] },
       { commands: [{ kind: 'deleteResource', resourceId: 'r1', cascade: true }] },
     ]);
     expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks again when what uses a resource changed since it was shown', async () => {
+    const sent = stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [DIRECTORY]: [inUse(2, 0, null), inUse(3, 0, 'Swarm B')],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+    fireEvent.click(await within(ram).findByRole('button', { name: 'Remove h2puni ram' }));
+    fireEvent.click(await within(ram).findByRole('button', { name: 'Remove with them' }));
+    expect(await within(ram).findByText(/changed since you were shown/)).toBeDefined();
+    expect(within(ram).getByRole('alert')).toHaveTextContent(/3 demands/);
+    expect(within(ram).getByRole('alert')).toHaveTextContent(/“Swarm B”/);
+    expect(directories(sent)).toEqual([
+      { commands: [{ kind: 'deleteResource', resourceId: 'r1' }] },
+      { commands: [{ kind: 'deleteResource', resourceId: 'r1' }] },
+    ]);
+  });
+
+  it('removes an unused resource only after a confirm naming its provider link', async () => {
+    const sent = stubServer({
+      [READ]: [readOf([resourceOf()]), readOf([])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [DIRECTORY]: [applied],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+    expect(await within(ram).findByRole('alert')).toHaveTextContent(
+      'Remove h2puni ram from the directory? Every project loses it, and it cannot be undone: the plan’s Undo does not reach the directory, and its compute provider link goes with it.',
+    );
+    // Keep is where the keyboard lands, and Keep sends nothing.
+    expect(document.activeElement).toBe(
+      within(ram).getByRole('button', { name: 'Keep h2puni ram' }),
+    );
+    fireEvent.click(within(ram).getByRole('button', { name: 'Keep h2puni ram' }));
+    expect(within(ram).queryByRole('alert')).toBeNull();
+    expect(document.activeElement).toBe(
+      within(ram).getByRole('button', { name: 'Remove h2puni ram' }),
+    );
+    expect(directories(sent)).toEqual([]);
+    fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+    fireEvent.click(await within(ram).findByRole('button', { name: 'Remove h2puni ram' }));
+    expect(await screen.findByText(/This directory holds no resources yet/)).toBeDefined();
+    expect(directories(sent)).toEqual([
+      { commands: [{ kind: 'deleteResource', resourceId: 'r1' }] },
+    ]);
+  });
+
+  it('moves the keyboard into the edit form and back to Edit', async () => {
+    stubServer({ [READ]: [readOf([resourceOf()])], [PROVIDERS]: [providersOf(h2puni)] });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: 'Edit h2puni ram' }));
+    const form = within(ram).getByRole('form', { name: 'Edit h2puni ram' });
+    expect(document.activeElement).toBe(within(form).getByLabelText('Name'));
+    fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }));
+    expect(document.activeElement).toBe(
+      within(ram).getByRole('button', { name: 'Edit h2puni ram' }),
+    );
   });
 
   it('states and clears this project’s capacity by hand', async () => {
@@ -657,9 +745,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     });
     mount(onChanged);
     const ram = await row('h2puni ram');
-    const box = within(ram).getByLabelText('Declared capacity of h2puni ram', {
-      selector: 'input',
-    });
+    const box = within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' });
     fireEvent.change(box, { target: { value: '16' } });
     fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
     expect(await within(ram).findByText('16 GB')).toBeDefined();
@@ -682,8 +768,8 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     mount();
     const ram = await row('h2puni ram');
     fireEvent.change(
-      within(ram).getByLabelText('Declared capacity of h2puni ram', { selector: 'input' }),
-      { target: { value: 'lots' } },
+      within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' }),
+      { target: { value: '0x10' } },
     );
     fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -737,5 +823,34 @@ describe('resources section holdings (wbs-resources 1.5)', () => {
       ),
     ).toBeDefined();
     expect(within(ram).queryByText(/free$/)).toBeNull();
+  });
+});
+
+describe('resources section holdings from an older server', () => {
+  it('says a server that reports no holdings', async () => {
+    stubServer({
+      [READ]: [readOf([resourceOf()], [{ resourceId: 'r1', units: 32 }])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [STARTABLE]: [() => answer(200, { leaves: [], claimed: [], subtreeClaims: [] })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(
+      await screen.findByText(
+        'This server does not report what claims hold; the declared numbers below are current.',
+      ),
+    ).toBeDefined();
+    expect(within(ram).queryByText(/Claims hold|No claim holds/)).toBeNull();
+  });
+
+  it('says a stated resource the holdings list leaves out', async () => {
+    stubServer({
+      [READ]: [readOf([resourceOf()], [{ resourceId: 'r1', units: 32 }])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [STARTABLE]: [startableOf()],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(await within(ram).findByText('No holdings were reported for it.')).toBeDefined();
   });
 });

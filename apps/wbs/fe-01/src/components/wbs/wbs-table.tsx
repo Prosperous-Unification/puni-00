@@ -63,7 +63,7 @@ import { PlanToolbar } from './plan-toolbar';
 import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
-import { DemandPanel } from './resource-demand-panel';
+import { DemandPanel, type DemandWriteOutcome, demandWriteOutcome } from './resource-demand-panel';
 import { statusOffersOf, type StatusRow } from './status-offers';
 import { blockageLabelsOf } from './step-blockage';
 import { stepNodeReadingsOf } from './step-reading';
@@ -1864,24 +1864,34 @@ export function WbsTable({
   const readResources = useCallback(() => commands.readResources(), [commands]);
   /**
    * A Resources panel's save: one `setDemand` batch through the same `run` as
-   * every edit, so it is one journal entry the plan's Undo takes back whole,
-   * answering the refusal's sentence for the panel to show in place.
+   * every edit, so it is one journal entry the plan's Undo takes back whole.
+   * A refusal of the request is the panel's to say, beside the box it names,
+   * and is not handed on to the writer's toast; a failure that says the screen
+   * is behind is rethrown for the writer to toast and reread
+   * ({@link demandWriteOutcome}).
    *
-   * Proof: with the catch below answering null, `says a refused save in place
-   * and stays open` (resource-demand-panel.test.tsx) failed on `Unable to find
-   * role="alert"`: the panel closed as if it had landed; watched 2026-10-25.
+   * Proof: with the catch below rethrowing every refusal, `says a refused save
+   * once, in place, naming the box` (resource-demand-panel.test.tsx) found the
+   * refusal toasted as well; with it answering `landed`, `says a refused save
+   * in place and stays open` found no alert; both watched 2026-10-25.
    */
-  const writeDemands = async (statements: readonly DemandStatement[]): Promise<string | null> => {
-    let sentence: string | null = null;
-    await run(async (write) => {
+  const writeDemands = async (
+    statements: readonly DemandStatement[],
+  ): Promise<DemandWriteOutcome> => {
+    // A holder the closure writes: a `let` would read as never reassigned here.
+    const answer: { refused: DemandWriteOutcome | null } = { refused: null };
+    const ran = await run(async (write) => {
       try {
         await write.perform(['tree'], () => commands.setDemands(statements));
       } catch (thrown: unknown) {
-        sentence = refusalSentence(thrown);
-        throw thrown;
+        const outcome = demandWriteOutcome(thrown, statements);
+        if (outcome.kind === 'reported') throw thrown;
+        answer.refused = outcome;
       }
     });
-    return sentence;
+    if (answer.refused !== null) return answer.refused;
+    // A gesture the writer refused (its own toast, or the reader left) did not land.
+    return ran === 'refused' ? { kind: 'reported' } : { kind: 'landed' };
   };
 
   // Keyed on the rule's values, not on the read's object identities: every

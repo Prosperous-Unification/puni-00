@@ -1,5 +1,5 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { fireEvent, render as renderBare, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
@@ -8,7 +8,7 @@ import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { refusalSentence } from './plan-refusal';
-import { demandStatements } from './resource-demand-panel';
+import { DemandPanel, type DemandPanelRow, demandStatements } from './resource-demand-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -163,10 +163,46 @@ describe('the Resources cell (wbs-resources 1.5)', () => {
     });
     fireEvent.click(within(panel).getByRole('button', { name: 'Save resources' }));
     expect((await within(panel).findByRole('alert')).textContent).toBe(
-      refusalSentence(new Error('units_must_be_a_whole_number_from_1')),
+      `RAM: ${refusalSentence(new Error('units_must_be_a_whole_number_from_1'))}`,
     );
     expect(screen.getByRole('dialog', { name: 'Resources for 020' })).toBeDefined();
     expect(api.demands).toEqual([]);
+  });
+
+  itDom('says a refused save once, in place, naming the box', async () => {
+    const { api } = await planWithResources();
+    drawTable(api);
+    const panel = await openFromCell('020');
+    const ram = await within(panel).findByLabelText('RAM units for 020');
+    fireEvent.change(ram, { target: { value: '0' } });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Save resources' }));
+    const alert = await within(panel).findByRole('alert');
+    expect(ram).toHaveAttribute('aria-invalid', 'true');
+    expect(ram.getAttribute('aria-describedby')).toContain(alert.id);
+    expect(within(panel).getByLabelText('staging needed by 020')).not.toHaveAttribute(
+      'aria-invalid',
+    );
+    // Said once: not toasted beside the panel.
+    expect(
+      [...document.querySelectorAll('[data-toast-text]')].map((node) => node.textContent),
+    ).toEqual([]);
+  });
+
+  itDom('refuses hexadecimal and exponent units in place', async () => {
+    const { api } = await planWithResources();
+    const sent = recordCalls(api, 'setDemands');
+    drawTable(api);
+    const panel = await openFromCell('020');
+    const ram = await within(panel).findByLabelText('RAM units for 020');
+    for (const typed of ['0x10', '1e3', '1.5', '-2']) {
+      fireEvent.change(ram, { target: { value: typed } });
+      fireEvent.click(within(panel).getByRole('button', { name: 'Save resources' }));
+      expect((await within(panel).findByRole('alert')).textContent, typed).toBe(
+        'RAM takes a whole number of units, or blank for none.',
+      );
+      expect(ram).toHaveAttribute('aria-invalid', 'true');
+    }
+    expect(sent).toEqual([]);
   });
 
   itDom('renders a failed read with retry, and recovers', async () => {
@@ -205,6 +241,68 @@ describe('the Resources cell (wbs-resources 1.5)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 020' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Resources…' }));
     expect(await screen.findByRole('dialog', { name: 'Resources for 020' })).toBeDefined();
+  });
+});
+
+describe('a peer’s edit while the panel is open', () => {
+  const resources = [RAM, STAGING];
+  const ramAt = (units: number) => ({
+    resourceId: RAM.id,
+    name: 'RAM',
+    kind: 'divisible' as const,
+    unitLabel: 'GiB',
+    units,
+  });
+  const stagingNeeded = {
+    resourceId: STAGING.id,
+    name: 'staging',
+    kind: 'exclusive' as const,
+    unitLabel: 'env',
+    units: 1,
+  };
+  const rowWith = (demands: DemandPanelRow['demands']): DemandPanelRow => ({
+    id: 'w1',
+    number: '020',
+    name: 'Deploy',
+    demands,
+  });
+  const read = () => Promise.resolve({ resources, capacities: [], demands: [] });
+
+  itDom('sends only what the reader changed over a peer’s edit', async () => {
+    const write = vi.fn(() => Promise.resolve({ kind: 'landed' as const }));
+    const onOpenChange = vi.fn();
+    const drawn = renderBare(
+      <DemandPanel
+        row={rowWith([ramAt(2)])}
+        read={read}
+        write={write}
+        onOpenChange={onOpenChange}
+      />,
+    );
+    const ram = await screen.findByLabelText<HTMLInputElement>('RAM units for 020');
+    expect(ram.value).toBe('2');
+    // A peer raises RAM to 4 and adds staging; the plan refresh redraws the row.
+    drawn.rerender(
+      <DemandPanel
+        row={rowWith([ramAt(4), stagingNeeded])}
+        read={read}
+        write={write}
+        onOpenChange={onOpenChange}
+      />,
+    );
+    expect(screen.getByRole('status').textContent).toMatch(/Changed elsewhere since this opened/);
+    // Saved untouched: nothing is sent, and the peer's demands stand.
+    fireEvent.click(screen.getByRole('button', { name: 'Save resources' }));
+    expect(write).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    // Only RAM changed by the reader: only RAM is sent; staging is left alone.
+    fireEvent.change(ram, { target: { value: '6' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save resources' }));
+    await waitFor(() => {
+      expect(write).toHaveBeenCalledTimes(1);
+    });
+    expect(write.mock.calls[0]).toEqual([[{ workItemId: 'w1', resourceId: RAM.id, units: 6 }]]);
   });
 });
 

@@ -2,7 +2,7 @@ import { Button, CONTROL_HEIGHT, Input } from '@ui/saas-01';
 import { useEffect, useRef, useState } from 'react';
 
 import { unitsWords } from '@/lib/compute-provider-words';
-import type { DemandStatement, ProjectResourcesView } from '@/lib/wbs-api';
+import { type DemandStatement, type ProjectResourcesView, WbsRequestError } from '@/lib/wbs-api';
 
 import {
   Modal,
@@ -13,8 +13,14 @@ import {
   ModalHeader,
   ModalTitle,
 } from './modal';
-import { refusalSentence } from './plan-refusal';
-import type { RowDemand } from './resource-demand-words';
+import {
+  failureText,
+  GONE,
+  INVALID_REQUEST,
+  isAmbiguousWriteFailure,
+  refusalSentence,
+} from './plan-refusal';
+import { demandSummary, type RowDemand } from './resource-demand-words';
 
 type CatalogResource = ProjectResourcesView['resources'][number];
 
@@ -47,32 +53,78 @@ export interface DemandPanelProps {
   read: () => Promise<ProjectResourcesView>;
   /**
    * Sends the changed demands as one batch through the plan's writer, so the
-   * plan's Undo takes the edit back whole, answering the refusal's sentence or
-   * null when it landed.
+   * plan's Undo takes the edit back whole ({@link demandWriteOutcome}).
    */
-  write: (statements: readonly DemandStatement[]) => Promise<string | null>;
+  write: (statements: readonly DemandStatement[]) => Promise<DemandWriteOutcome>;
   onOpenChange: (open: boolean) => void;
 }
+
+/**
+ * What a save came to: `landed`; `refused`, said in the panel alone with the
+ * resource whose box be-01 refused when the refusal names its command; or
+ * `reported`, a failure the plan writer toasts and rereads for (a row that is
+ * gone, a body be-01 could not read, an outcome a transport left unknown), so
+ * the panel adds nothing to it.
+ */
+export type DemandWriteOutcome =
+  | { readonly kind: 'landed' }
+  | { readonly kind: 'refused'; readonly sentence: string; readonly resourceId: string | null }
+  | { readonly kind: 'reported' };
+
+/**
+ * How a thrown `setDemand` batch failure is reported: a refusal of the request
+ * itself is the panel's to say ({@link DemandWriteOutcome} `refused`), once and
+ * beside the box it names; everything that says the screen is behind stays the
+ * writer's (`reported`). Unlike the Measures panel, which says a refusal in
+ * place and lets the writer toast it too, this reports each failure once.
+ */
+export function demandWriteOutcome(
+  thrown: unknown,
+  statements: readonly DemandStatement[],
+): DemandWriteOutcome {
+  const code = failureText(thrown, '');
+  if (
+    !(thrown instanceof WbsRequestError) ||
+    thrown.problem.kind !== 'refusal' ||
+    isAmbiguousWriteFailure(thrown) ||
+    code === GONE ||
+    INVALID_REQUEST.has(code)
+  )
+    return { kind: 'reported' };
+  const refusal: object = thrown.problem.refusal;
+  const at = 'at' in refusal && typeof refusal.at === 'number' ? refusal.at : null;
+  return {
+    kind: 'refused',
+    sentence: refusalSentence(thrown),
+    resourceId: at === null ? null : (statements[at]?.resourceId ?? null),
+  };
+}
+
+/** A typed units box: digits only, so `0x10`, `1e3` and `1.5` never reach a number. */
+const WHOLE_UNITS = /^\d+$/;
 
 /** One resource's draft: the typed units of a divisible one, whether an exclusive one is needed. */
 type Draft = Readonly<Partial<Record<string, string | boolean>>>;
 
 /**
- * The statements a draft makes against the row's demands, one per resource
- * whose answer changed: `null` takes a demand off. A divisible box that is not
- * a number answers `invalid` naming the resource; be-01 keeps the rest of the
- * rule (whole, at least 1, at most its bound), so `0` and `1.5` are sent and
- * answered there.
+ * The statements a draft makes against the demands the panel **opened with**
+ * (`baseline`), one per resource whose box the reader changed: `null` takes a
+ * demand off. Against the baseline and never the live row, so a peer's demand
+ * that landed while the panel was open is sent back over only where the reader
+ * changed that same box (there is no revision precondition on `setDemand`).
+ * A divisible box that is not digits answers `invalid` naming the resource;
+ * be-01 keeps the rest of the rule (at least 1, at most its bound), so `0` is
+ * sent and answered there.
  */
 export function demandStatements(
   workItemId: string,
   resources: readonly CatalogResource[],
-  demands: readonly RowDemand[],
+  baseline: readonly RowDemand[],
   draft: Draft,
 ):
   | { readonly kind: 'statements'; readonly statements: DemandStatement[] }
   | { readonly kind: 'invalid'; readonly resourceName: string } {
-  const held = new Map(demands.map((each) => [each.resourceId, each.units] as const));
+  const held = new Map(baseline.map((each) => [each.resourceId, each.units] as const));
   const statements: DemandStatement[] = [];
   for (const resource of resources) {
     const answer = draft[resource.id];
@@ -81,12 +133,14 @@ export function demandStatements(
     if (typeof answer === 'boolean') units = answer ? 1 : null;
     else if (answer.trim() === '') units = null;
     else {
-      units = Number(answer.trim());
       // Proof: with this check removed, `says a box that is not a number in
       // place and sends nothing` (resource-demand-panel.test.tsx) failed: it
       // sent `units: NaN`, which JSON carries as `null`, a cleared demand;
-      // watched 2026-10-25.
-      if (!Number.isFinite(units)) return { kind: 'invalid', resourceName: resource.name };
+      // watched 2026-10-25. With `Number.isFinite` in place of the digits
+      // test, `refuses hexadecimal and exponent units in place` failed: `0x10`
+      // went out as 16; watched 2026-10-25.
+      if (!WHOLE_UNITS.test(answer.trim())) return { kind: 'invalid', resourceName: resource.name };
+      units = Number(answer.trim());
     }
     if ((held.get(resource.id) ?? null) !== units)
       statements.push({ workItemId, resourceId: resource.id, units });
@@ -136,7 +190,12 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
   const [catalog, setCatalog] = useState<Catalog>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [draft, setDraft] = useState<Draft>({});
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{
+    readonly sentence: string;
+    readonly resourceId: string | null;
+  } | null>(null);
+  /** The demands the open panel was seeded with, what a save is diffed against. */
+  const [baseline, setBaseline] = useState<readonly RowDemand[]>([]);
   const [saving, setSaving] = useState(false);
   // The row's demands seed the draft once per read, through a ref: a peer's
   // edit landing while the panel is open must not take the reader's typing.
@@ -162,6 +221,7 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
             capacities: new Map(answer.capacities.map((each) => [each.resourceId, each.units])),
           });
           setDraft(draftOf(resources, seed.current));
+          setBaseline(seed.current);
         },
         (thrown: unknown) => {
           // A read answered after the panel closed or retried is dropped.
@@ -175,9 +235,16 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
   }, [read, attempt]);
 
   async function save(resources: readonly CatalogResource[]) {
-    const planned = demandStatements(row.id, resources, row.demands, draft);
+    // Proof: diffed against the live `row.demands` again, `sends only what the
+    // reader changed over a peer’s edit` failed: an untouched save wrote RAM
+    // back to 2 and cleared staging; watched 2026-10-25.
+    const planned = demandStatements(row.id, resources, baseline, draft);
     if (planned.kind === 'invalid') {
-      setProblem(`${planned.resourceName} takes a whole number of units, or blank for none.`);
+      const named = resources.find((each) => each.name === planned.resourceName);
+      setProblem({
+        sentence: `${planned.resourceName} takes a whole number of units, or blank for none.`,
+        resourceId: named?.id ?? null,
+      });
       return;
     }
     if (planned.statements.length === 0) {
@@ -186,13 +253,22 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
     }
     setSaving(true);
     setProblem(null);
-    const sentence = await write(planned.statements);
+    const outcome = await write(planned.statements);
     setSaving(false);
     // Proof: with the refusal treated as landed, `says a refused save in
     // place and stays open` found no alert and a closed panel; watched 2026-10-25.
-    if (sentence === null) onOpenChange(false);
-    else setProblem(sentence);
+    if (outcome.kind === 'landed') onOpenChange(false);
+    else if (outcome.kind === 'refused') {
+      const named = resources.find((each) => each.id === outcome.resourceId);
+      setProblem({
+        sentence: named === undefined ? outcome.sentence : `${named.name}: ${outcome.sentence}`,
+        resourceId: outcome.resourceId,
+      });
+    }
   }
+
+  const peerChanged =
+    catalog.kind === 'ready' && demandSummary(row.demands) !== demandSummary(baseline);
 
   const title = `Resources for ${row.number}`;
   return (
@@ -237,6 +313,13 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
             slots in Project settings → Resources, then state here what this work needs.
           </p>
         )}
+        {peerChanged && (
+          <p role="status" data-demands-changed className="bg-muted/50 m-0 rounded-md p-3 text-sm">
+            Changed elsewhere since this opened: now{' '}
+            {row.demands.length === 0 ? 'none' : demandSummary(row.demands)}. Saving sends only the
+            boxes you changed.
+          </p>
+        )}
         {catalog.kind === 'ready' && catalog.resources.length > 0 && (
           <form
             className="flex flex-col gap-3"
@@ -253,6 +336,10 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
                 const boxId = `demand-${row.id}-${resource.id}`;
                 const answer = draft[resource.id];
                 const note = capacityWords(resource, catalog.capacities.get(resource.id));
+                const refused = problem?.resourceId === resource.id;
+                const describedBy = refused
+                  ? `${boxId}-note demand-problem-${row.id}`
+                  : `${boxId}-note`;
                 return (
                   <li
                     key={resource.id}
@@ -277,7 +364,8 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
                         <input
                           id={boxId}
                           type="checkbox"
-                          aria-describedby={`${boxId}-note`}
+                          aria-describedby={describedBy}
+                          aria-invalid={refused ? true : undefined}
                           aria-label={`${resource.name} needed by ${row.number}`}
                           className="size-4"
                           checked={answer === true}
@@ -294,7 +382,8 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
                         <Input
                           id={boxId}
                           inputMode="numeric"
-                          aria-describedby={`${boxId}-note`}
+                          aria-describedby={describedBy}
+                          aria-invalid={refused ? true : undefined}
                           aria-label={`${resource.name} units for ${row.number}`}
                           placeholder="none"
                           className={`${CONTROL_HEIGHT} w-24 text-right tabular-nums`}
@@ -313,8 +402,12 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
               })}
             </ul>
             {problem !== null && (
-              <p role="alert" className="text-destructive m-0 text-sm">
-                {problem}
+              <p
+                id={`demand-problem-${row.id}`}
+                role="alert"
+                className="text-destructive m-0 text-sm"
+              >
+                {problem.sentence}
               </p>
             )}
             <ModalFooter>
