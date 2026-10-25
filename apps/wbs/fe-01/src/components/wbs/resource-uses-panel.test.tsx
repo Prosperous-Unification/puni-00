@@ -561,6 +561,66 @@ describe('reported resource uses', () => {
     });
   });
 
+  it('shows a delayed managed conflict after its queued reread closes the form', async () => {
+    const managed = useOf({
+      source: 'runtime',
+      runtimeId: 'dash-host-a',
+      runtimeRevision: 3,
+      incarnation: 'inc-7',
+      pendingCleanupRequest: false,
+      reclaimedBytes: null,
+    });
+    let finishWrite: ((response: Response) => void) | undefined;
+    let listReads = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        const route = `${init?.method ?? 'GET'} ${new URL(url, 'http://wbs.test').pathname}`;
+        if (route === LIST) {
+          listReads++;
+          return Promise.resolve(
+            answer(200, {
+              uses: [
+                listReads === 1
+                  ? managed
+                  : { ...managed, pendingCleanupRequest: true, revision: 2 },
+              ],
+              nextCursor: null,
+            }),
+          );
+        }
+        if (route === EVENT)
+          return new Promise<Response>((resolve) => {
+            finishWrite = resolve;
+          });
+        return Promise.reject(new Error(`unexpected ${route}`));
+      }),
+    );
+    const onBusyChange = vi.fn();
+    mount('p1', true, onBusyChange);
+    const row = await screen.findByRole('listitem', { name: /Scratch disk.*Compile/ });
+    fireEvent.click(within(row).getByRole('button', { name: 'Request cleanup' }));
+    fireEvent.change(within(row).getByLabelText('Reason'), { target: { value: 'Job done' } });
+    fireEvent.click(within(row).getByRole('button', { name: 'Send cleanup request' }));
+    await waitFor(() => {
+      expect(finishWrite).toBeDefined();
+    });
+    expect(onBusyChange).toHaveBeenLastCalledWith(true);
+    await act(async () => {
+      finishWrite?.(answer(409, { error: 'conflict' }));
+      await Promise.resolve();
+    });
+    expect(await within(row).findByText('Cleanup request queued for Dash')).toBeDefined();
+    await waitFor(() => {
+      expect(onBusyChange).toHaveBeenLastCalledWith(false);
+      expect(within(row).queryByRole('button', { name: 'Send cleanup request' })).toBeNull();
+      expect(within(row).queryByRole('button', { name: 'Retry cleanup' })).toBeNull();
+      expect(within(row).getByRole('alert')).toHaveTextContent(
+        /Conflict: this resource use changed.*review it before retrying/i,
+      );
+    });
+  });
+
   it('offers only a cleanup retry for a managed pending use', async () => {
     const managed = useOf({
       source: 'runtime',

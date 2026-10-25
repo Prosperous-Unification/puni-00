@@ -579,6 +579,11 @@ function UseRow({
           {history === null ? 'Show history' : 'Hide history'}
         </Button>
       </div>
+      {kind === null && error !== '' && (
+        <p role="alert" className="text-destructive m-0">
+          {error}
+        </p>
+      )}
       {active && kind !== null && (
         <div className="border-border flex flex-col gap-2 rounded-md border p-3">
           <strong>{label[kind]}</strong>
@@ -664,6 +669,7 @@ function UseRow({
               // Proof: allowing Cancel during a pending write failed `keeps Cancel unavailable until a refused write returns`: a delayed 403 would be hidden with the form (watched 2026-10-25).
               disabled={busy}
               onClick={() => {
+                setError('');
                 setKind(null);
                 onChoose(false);
               }}
