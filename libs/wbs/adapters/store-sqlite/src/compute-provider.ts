@@ -60,7 +60,7 @@ function administering(
 }
 
 /** @throws on a kind outside {@link COMPUTE_PROVIDER_KINDS}, which the table's CHECK refuses. */
-function kindOf(row: ComputeProviderRow): ComputeProviderKind {
+function kindOf(row: Pick<ComputeProviderRow, 'id' | 'kind'>): ComputeProviderKind {
   const known: readonly string[] = COMPUTE_PROVIDER_KINDS;
   if (!known.includes(row.kind)) throw new Error(`compute provider ${row.id} has a malformed kind`);
   // Narrowed by the membership test above, which is the boundary this is.
@@ -437,21 +437,28 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
  *
  * @throws when the reference names no instance: removal clears every
  * reference in its transaction (`cascade`), so a dangling one is broken
- * trusted state.
+ * trusted state; and as {@link kindOf} on a malformed kind.
  */
 function providerOf(row: {
   id: string;
   providerId: string | null;
-  kind: ComputeProviderKind | null;
+  kind: ComputeProviderRow['kind'] | null;
   name: string | null;
 }): ResourceProviderReading['provider'] {
   if (row.providerId === null) return null;
+  // Proof: answering null here, `answers 500 on a reference naming no
+  // instance` (compute-provider.controller.db.test.ts) failed: the store
+  // resolved; watched 2026-10-25.
   if (row.kind === null || row.name === null)
     throw new Error(`resource ${row.id} names provider ${row.providerId}, which is not registered`);
-  const known: readonly string[] = COMPUTE_PROVIDER_KINDS;
-  if (!known.includes(row.kind))
-    throw new Error(`compute provider ${row.providerId} has a malformed kind`);
-  return { id: row.providerId, kind: row.kind, name: row.name };
+  // Proof: with `row.kind` returned unchecked, `answers 500 on an instance
+  // of a malformed kind` failed: the store resolved with `vm` (the route's
+  // response contract alone still answered 500); watched 2026-10-25.
+  return {
+    id: row.providerId,
+    kind: kindOf({ id: row.providerId, kind: row.kind }),
+    name: row.name,
+  };
 }
 
 /** One {@link ComputeProviderRepository} serving both ports, as be-01 composes them. */

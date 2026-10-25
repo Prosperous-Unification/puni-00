@@ -1272,3 +1272,14 @@ The group lists `builder agent slots`, `h2puni ram`, `h4claw tmp disk`, `staging
 parent-only demand; ticking `staging` leaves `020 Deploy` and `020.1 Smoke on staging` (marked),
 `Filters (1)`, `2 of 6`; on a phone the group sits inside the Plan actions sheet unchanged. The
 plan without demands shows no Resource group. Nothing changed after review.
+
+### Task 3.4 review fixes (Fable review of #720, 2026-10-25)
+
+- `resourceNames` and its JSDoc sit above `filterLabels`, so `filterLabels` keeps its own doc.
+  The hook doc says seven facet lists.
+- The spec now says what the code does: a ticked resource the tree read no longer names reads
+  `a resource this plan has not loaded`, and a resource still stated on a parent keeps its
+  name. In both cases it narrows to nothing when no leaf demands it.
+- **Known gap (S3 10), follow-up:** the Resources column is hidden by default. After narrowing
+  by resource, the reader therefore cannot see on the row why it matched. Showing the column
+  while the facet is ticked was not done.

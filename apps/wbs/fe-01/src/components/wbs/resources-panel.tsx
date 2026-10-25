@@ -855,10 +855,11 @@ function ProviderChip({ kind, name }: { kind: ComputeProvider['kind']; name: str
   return (
     <span
       data-provider-chip=""
-      aria-label={`Compute provider: ${kindName} ${name}`}
       title={`Fulfilled by the compute provider ${name} (${kindName})`}
       className="border-border bg-muted/40 inline-flex max-w-full min-w-0 items-baseline gap-1 rounded-full border px-2 py-0.5 text-xs"
     >
+      {/* Named in text, not `aria-label`: a generic span may not carry a name (ARIA 1.2). */}
+      <span className="sr-only">Compute provider: </span>
       <span className="text-muted-foreground shrink-0">{kindName}</span>
       <span aria-hidden="true" className="text-muted-foreground">
         ·

@@ -133,8 +133,8 @@ as stored, and always
 `measurement { declared, measured, measuredAt, state }`: this project's stated units or null,
 the latest measured capacity or null, the latest report's `observedAt` or null, and `state`
 one of `no_report`, `measured`, `unreachable` or `stale` (`stale` once
-`now - observedAt > 3 × cadenceSeconds`, whatever the outcome). The project settings resources section and the directory page
-SHALL show, beside a capacity whose resource names an instance, the report in one of the
+`now - observedAt > 3 × cadenceSeconds`, whatever the outcome). The project settings resources section (whose rows are the
+directory's resources) SHALL show, beside a capacity whose resource names an instance, the report in one of the
 rendered states: `no report yet`, `measured <capacity> <unit>, <usage> in use, <age>`,
 `unreachable <age>: <reason>`, each marked `stale` once `now - observedAt > 3 ×
 cadenceSeconds`; a resource without an instance SHALL show nothing extra. Each directory
@@ -153,8 +153,8 @@ adopt a measurement without that act.
 
 - **WHEN** `h4claw ram` is stated at 32 GB for project P and the stored report is measured 15
   with 8 in use, observed 4 minutes ago at a cadence of 300 s
-- **THEN** the row reads `32 GB` with `ssh_host h4claw · measured 15 GB, 8 in use, 4 min ago`
-  and no stale mark; at 16 minutes it is marked stale
+- **THEN** the row reads `32 GB` with the chip `SSH host · h4claw` and `measured 15 GB, 8 in
+use, 4 min ago` and no stale mark; at 16 minutes it is marked stale
 
 #### Scenario: The directory row names the instance for a member
 

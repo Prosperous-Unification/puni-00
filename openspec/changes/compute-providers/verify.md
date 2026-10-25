@@ -788,3 +788,41 @@ Eye review (same stack and seed as `wbs-resources` 3.4): `05-resources-{admin,me
 in `resource-facet-shots/`. Page errors 0, overflow 0 px. The chip sits on the name line and
 wraps under the name at 375. An admin sees the chip and the select naming the same instance on
 separate lines; kept, since the chip is what the row reads as and the select is the editor.
+
+### Task 5.3 review fixes (Fable review of #720, 2026-10-25)
+
+- **S2-1:** both `providerOf` throws (in the SQLite `readingsOf`) now have a negative test.
+  Each test calls the store directly over the harness's database and the route:
+  - `answers 500 on a reference naming no instance`: `PRAGMA foreign_keys = OFF`, then the
+    instance is deleted. The store rejects `is not registered` and the read answers 500.
+  - `answers 500 on an instance of a malformed kind`: `PRAGMA ignore_check_constraints = ON`,
+    then `kind = 'vm'`. The store rejects `malformed kind`. The route's response contract alone
+    would also answer 500, which is why the test asserts the store.
+  - The kind check reuses `kindOf`.
+- **S3 fixes:**
+  - The chip is named by visually hidden text, "Compute provider: ", instead of an
+    `aria-label` on a generic span.
+  - The admin read asserts the whole `provider` (no locator).
+  - A viewer case was added: `names the instance to a viewer too, never its locator`.
+  - `@throws` was added on the `CapacityReports.readingsOf` port and on `withProviderReadings`.
+  - Spec and design text: the scenario's chip reads `SSH host · h4claw`, "the directory page"
+    is replaced by the section whose rows are the directory's resources, and design P12 no
+    longer says 1.5 is unbuilt.
+- **Not done (S3 8):** a `readingsOf` conformance case. The memory twin answers an entry for
+  any id while SQLite omits unknown ids (pre-existing; `withProviderReadings` passes only
+  listed ids, so nothing user-visible differs). Fixing it means filtering the twin by its
+  directory and adding the case to both stores. That is left for a follow-up.
+
+| Fault injected (watched 2026-10-25)                            | Observed failing test                                                                          |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `providerOf` answers null for a reference naming no instance   | `answers 500 on a reference naming no instance` (store resolved)                               |
+| `providerOf` returns `row.kind` without `kindOf`               | `answers 500 on an instance of a malformed kind` (store resolved with `vm`)                    |
+| the visually hidden "Compute provider: " removed from the chip | `names the instance on the row for a member…`; `shows the chip to an admin beside the picker…` |
+
+Commands after the review fixes (fresh, `env -u CLAUDECODE`):
+
+- `compute-provider.controller.db.test.ts`: 30 pass.
+- fe-01 `resources-panel`, `plan-filter` and `tree-search` (one worker, UTC): 165 pass.
+- `bunx nx run-many -t typecheck lint` on wbs-core, wbs-store-sqlite, wbs-be-01 and wbs-fe-01
+  (`--skip-nx-cache --parallel=1`, `NODE_OPTIONS=--max-old-space-size=8192`): succeeded.
+- `openspec validate --all --json`: 285 of 285. Burokrat `check-indexes working . HEAD`: exit 0.

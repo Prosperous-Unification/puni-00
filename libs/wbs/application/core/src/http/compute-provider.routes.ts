@@ -247,7 +247,8 @@ export interface PlannedResources {
  * with no instance gets `providerId: null` and nothing else.
  *
  * @throws when a listed resource has no reading: the reports store reads the
- * same rows the directory listed.
+ * same rows the directory listed; and as {@link CapacityReports.readingsOf}
+ * on a dangling reference or a malformed instance.
  */
 export async function withProviderReadings(
   planned: PlannedResources,

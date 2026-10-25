@@ -52,8 +52,9 @@ no Resource group. The facet SHALL count in the Filters badge, be stored in a sa
 `resourceIds` and applied back from it (a view saved before the facet existed applies as
 asking nothing about resources; a non-list `resourceIds` drops that view alone), and be named
 in the filter's words as `resource <name> or <name>`, which the on-screen export's Scope line
-and an unnamed saved view use. A ticked resource no leaf demands any longer SHALL read `a
-resource this plan has not loaded` and narrow to nothing.
+and an unnamed saved view use. A ticked resource the tree read no longer names SHALL read
+`a resource this plan has not loaded`, and one no leaf demands SHALL narrow to nothing (a
+resource still stated on a parent keeps its name).
 
 #### Scenario: Ticking staging
 

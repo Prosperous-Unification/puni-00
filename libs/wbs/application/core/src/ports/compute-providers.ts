@@ -126,7 +126,13 @@ export interface CapacityReports {
    * the credential that named it was just admitted).
    */
   put(request: CapacityReportRequest): Promise<CapacityReportDecision>;
-  /** The provider reference and latest report of each of `resourceIds`; an id nothing holds is absent. */
+  /**
+   * The provider reference and latest report of each of `resourceIds`; an id nothing holds is absent.
+   *
+   * @throws when a reference names no instance or an instance has a kind
+   * outside the four, or a report names another instance than its resource:
+   * each is broken trusted state.
+   */
   readingsOf(resourceIds: readonly string[]): Promise<ReadonlyMap<string, ResourceProviderReading>>;
 }
 

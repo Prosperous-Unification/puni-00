@@ -188,13 +188,13 @@ export function usePlanFilterState({ projectId }: { projectId: string }) {
 const NOTHING_REVEALED: ReadonlySet<string> = new Set();
 
 /**
- * A ticked resource no leaf demands any longer: the tree read names only the
+ * A ticked resource the tree read no longer names: it names only the
  * demanded ones, so a saved view can outlive the name.
  */
 const NOT_LOADED_RESOURCE = 'a resource this plan has not loaded';
 
 /**
- * The rows this render shows, and the six facet lists the panel offers.
+ * The rows this render shows, and the seven facet lists the panel offers.
  *
  * Derived rather than stored, every render: a filter held as state alongside
  * the rows is a filter that can describe a plan the reader is no longer
@@ -427,12 +427,6 @@ export function usePlanFilter({
   const filtering = isFiltering(criteria);
 
   /**
-   * The names the ids inside a {@link FilterCriteria} stand for, in this
-   * plan's own words — one object read by the filtered export's `Scope` line
-   * ({@link planOnScreen}) and by the saved-views panel's tooltip, so a
-   * filter is never described two different ways.
-   */
-  /**
    * What the tree read calls each demanded resource (`demandedResources`,
    * carried onto each row's demands by `demandsByWorkItem`).
    */
@@ -446,6 +440,12 @@ export function usePlanFilter({
     [flat],
   );
 
+  /**
+   * The names the ids inside a {@link FilterCriteria} stand for, in this
+   * plan's own words — one object read by the filtered export's `Scope` line
+   * ({@link planOnScreen}) and by the saved-views panel's tooltip, so a
+   * filter is never described two different ways.
+   */
   const filterLabels: FilterLabels = {
     teamName: (teamId) =>
       teams.find((team) => team.id === teamId)?.name ?? 'a team this plan has not loaded',

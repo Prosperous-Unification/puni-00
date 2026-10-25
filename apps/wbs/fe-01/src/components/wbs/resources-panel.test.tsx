@@ -86,6 +86,12 @@ function mount(onChanged: () => Promise<void> = () => Promise.resolve()) {
 }
 
 const row = (name: string) => screen.findByRole('listitem', { name });
+/** A row's provider chip, found by the words a screen reader reads from it. */
+const chipIn = (scope: HTMLElement, words: string) =>
+  within(scope).getByText(
+    (_content, node) =>
+      node?.hasAttribute('data-provider-chip') === true && node.textContent === words,
+  );
 const plans = (sent: ReturnType<typeof stubServer>) =>
   sent.filter((request) => request.route === PLAN).map((request) => request.body);
 
@@ -209,8 +215,7 @@ describe('resources section states', () => {
     });
     mount();
     const ram = await row('h2puni ram');
-    const chip = within(ram).getByLabelText('Compute provider: SSH host h2puni');
-    expect(chip).toHaveTextContent('SSH host·h2puni');
+    expect(chipIn(ram, 'Compute provider: SSH host·h2puni')).toBeDefined();
     expect(within(ram).queryByText('Fulfilled by a compute provider')).toBeNull();
     expect(within(ram).queryByRole('combobox')).toBeNull();
     expect(within(ram).queryByRole('button', { name: /Adopt/ })).toBeNull();
@@ -228,7 +233,7 @@ describe('resources section states', () => {
     });
     mount();
     const ram = await row('h2puni ram');
-    expect(within(ram).getByLabelText('Compute provider: Docker builder')).toBeDefined();
+    expect(chipIn(ram, 'Compute provider: Docker·builder')).toBeDefined();
     expect(within(ram).getByLabelText('Compute provider of h2puni ram')).toHaveValue('cp-2');
     const worktrees = await row('worktrees');
     expect(worktrees.querySelector('[data-provider-chip]')).toBeNull();
