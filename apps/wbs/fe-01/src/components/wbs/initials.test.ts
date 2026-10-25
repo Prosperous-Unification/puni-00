@@ -38,17 +38,39 @@ describe('an assignee is named in two characters', () => {
   });
 
   it('reads a name padded with spaces as the name', () => {
-    // A `.trim()` was written for this and deleted: with it removed this test
-    // was watched **passing**, because splitting on `/\s+/` puts an empty
-    // string at each end and `filter(Boolean)` drops them either way. The
-    // filter is what the padding is actually handled by, so that is what this
-    // watches.
+    // The word pattern is what the padding is handled by: it matches runs of
+    // letters and digits, so nothing at either end is ever a word.
     //
-    // Proof: `.filter(Boolean)` dropped — failed on `expected 'V' to be 'VA'`,
-    // the leading empty segment taken as the first word and `vadym` as the
-    // second. Watched 2026-08-12.
+    // Proof: the pattern replaced by `split(/[^\p{L}\p{M}\p{N}]+/u)` with no
+    // filter — failed on `expected 'V' to be 'VA'`, the leading empty segment
+    // taken as the first word. Watched 2026-10-25 (the `.filter(Boolean)` it
+    // replaced was watched the same way on 2026-08-12).
     expect(initialsOf('  vadym  ')).toBe('VA');
     expect(initialsOf('Kat\tNowak')).toBe('KN');
+  });
+
+  it('takes letters and digits only, in any script', () => {
+    // The swarm rehearsal of 2026-10-25 drew `Mira (human)` as `M(`: the
+    // bracket was the second word's first character.
+    //
+    // Proof: the word pattern replaced by `/\S+/gu` — failed on `expected 'M('
+    // to be 'MH'`; the NFC composition dropped — `expected 'ZA' to be 'ZÅ'`;
+    // `Array.from` replaced by `String#slice` — `expected '\uD835\uD835' to
+    // be '𝔄𝔅'` (two half surrogates). All watched 2026-10-25.
+    expect(initialsOf('Mira (human)')).toBe('MH');
+    expect(initialsOf('w2')).toBe('W2');
+    expect(initialsOf('agent-w3')).toBe('AW');
+    expect(initialsOf('Zoë Ångström')).toBe('ZÅ');
+    expect(initialsOf('Zoe\u0308 A\u030angstro\u0308m')).toBe('ZÅ');
+    expect(initialsOf('Łukasz "Luk" Żak')).toBe('ŁL');
+    expect(initialsOf('𝔄lma 𝔅erg')).toBe('𝔄𝔅');
+  });
+
+  it('answers a name without letters or digits with its first character', () => {
+    // Proof: `.trim()` dropped from the fallback — failed on `expected ' ' to
+    // be '🤖'`. Watched 2026-10-25.
+    expect(initialsOf('  🤖 ')).toBe('🤖');
+    expect(initialsOf('(-)')).toBe('(');
   });
 
   it('refuses a name with nothing in it', () => {
