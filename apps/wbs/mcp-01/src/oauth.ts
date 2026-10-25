@@ -61,7 +61,25 @@ const REFRESH_IDLE_MS = 14 * 86_400_000;
 const REFRESH_ABSOLUTE_MS = 30 * 86_400_000;
 const UPSTREAM_REFRESH_EARLY_MS = 120_000;
 const UNPROVEN_CLIENT_TTL_MS = 600_000;
-const ACTIVE_CLIENT_TTL_MS = 86_400_000;
+// Proof: 2026-10-25, 86_400_000 here failed `authorizes a client 25 h after its code exchange
+// without a refresh, across a restart` (400 invalid_client), `renews the client at each refresh,
+// …` and `renews a client only on a successful refresh` (expiry); 2 * REFRESH_ABSOLUTE_MS failed
+// both renewal tests (expiry) and `deletes an expired proven client with no live family and
+// answers invalid_client` (302) (oauth.test.ts).
+/**
+ * How long a proven client stays registered after its last use: a code exchange (promotion) or a
+ * successful refresh, each of which moves `expires_at` to now plus this, never back. It equals
+ * {@link REFRESH_ABSOLUTE_MS}, so a client outlives every refresh family issued or refreshed
+ * since this lifetime shipped (idle 14 d, absolute 30 d from its exchange) and keeps 16 or more
+ * days past a lapsed family's idle expiry for a fresh authorization with the same `client_id`.
+ * A family from before then can outlive its client, whose row was already swept at 24 h; and a
+ * client unused for 30 d still answers `invalid_client`, which only removing and re-adding the
+ * connector cures. Connectors such as Claude Code
+ * cache the `client_id` indefinitely and do not re-register on the browser `invalid_client`, so a
+ * client that expires while its connector still holds it breaks every later sign-in; the former
+ * 24 h promotion lifetime, which refresh never renewed, did exactly that on dev.
+ */
+const PROVEN_CLIENT_TTL_MS = REFRESH_ABSOLUTE_MS;
 const MAX_AUTHORIZATION_QUERY_BYTES = 2_048;
 const MAX_STATE_BYTES = 512;
 const MAX_REDIRECT_URIS = 10;
@@ -165,7 +183,7 @@ interface Options {
   provenClientSourceLimit?: number;
   clientTtlMs?: number;
   grantLimit?: number;
-  activeClientTtlMs?: number;
+  provenClientTtlMs?: number;
   sessionLimit?: number;
   transactionLimit?: number;
   transactionLimitPerClient?: number;
@@ -238,7 +256,7 @@ export class McpOAuthServer implements McpOAuthHandler {
   private readonly clientSourceLimit: number;
   private readonly provenClientSourceLimit: number;
   private readonly clientTtlMs: number;
-  private readonly activeClientTtlMs: number;
+  private readonly provenClientTtlMs: number;
   private readonly grantLimit: number;
   private readonly sessionLimit: number;
   private readonly routeEvidence: Options['routeEvidence'];
@@ -277,7 +295,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.clientSourceLimit = Math.max(1, options.clientSourceLimit ?? 20);
     this.provenClientSourceLimit = Math.max(1, options.provenClientSourceLimit ?? 100);
     this.clientTtlMs = Math.max(1, options.clientTtlMs ?? UNPROVEN_CLIENT_TTL_MS);
-    this.activeClientTtlMs = Math.max(1, options.activeClientTtlMs ?? ACTIVE_CLIENT_TTL_MS);
+    this.provenClientTtlMs = Math.max(1, options.provenClientTtlMs ?? PROVEN_CLIENT_TTL_MS);
     this.grantLimit = Math.max(1, options.grantLimit ?? 1_000);
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
     this.routeEvidence = options.routeEvidence;
@@ -649,6 +667,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.store.extendClient(
       clientId,
       client.proven ? activeFlowExpiry : Math.min(activeFlowExpiry, client.unprovenExpiresAt),
+      this.now(),
     );
     const reauthMarker = this.takeReauthMarker(cookieOf(request, REAUTH_COOKIE));
     let location: URL;
@@ -1122,7 +1141,7 @@ export class McpOAuthServer implements McpOAuthHandler {
       );
       // Proof: 2026-10-21, skipping this write failed `promotes a client only after a successful
       // token exchange` and `keeps a promoted client proven and counted across the restart`.
-      this.store.promoteClient(client.clientId, now + this.activeClientTtlMs);
+      this.store.promoteClient(client.clientId, now + this.provenClientTtlMs);
       this.promotionReservations.delete(client.clientId);
       return tokenResponse(token, refreshToken, grant.scope, expiresAt - now);
     } catch (error) {
@@ -1193,6 +1212,13 @@ export class McpOAuthServer implements McpOAuthHandler {
         boundedExpiresAt,
         now + REFRESH_IDLE_MS,
         now,
+        // A refresh is use: the consume transaction itself renews the client past the family's new
+        // idle expiry, so a connector that only ever refreshes can still start a fresh
+        // authorization with its cached client_id, and a failed renewal rolls the whole refresh
+        // back instead of consuming the token the caller never received.
+        // Proof: 2026-10-25, passing `now` here failed `renews the client at each refresh, so it
+        // outlives a lapsed family for re-authorization` (oauth.test.ts): expiry stayed at day 30.
+        now + this.provenClientTtlMs,
       );
       if (consumed.outcome !== 'ok') return protocolError('invalid_grant');
       return tokenResponse(token, successor, scope, boundedExpiresAt - now);
