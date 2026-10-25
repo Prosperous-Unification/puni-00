@@ -81,3 +81,33 @@ Feature-wide CI, the exact feature-head host gate, native acceptance and activat
 restoration/adoption remain unverified. The host gate for separately merged PR721
 does not establish feature acceptance. No WBS note update is claimed: the connected
 WBS tool was unavailable. No architectural merge or production action occurred.
+
+## Post-checkpoint replay
+
+Normal local checkpoint `f48cfbd913c456ea89f300dbf8ffc821e695c463` has the exact
+reviewed source tree. All15 reviewed source hashes and both verification receipts
+matched the frozen precommit tree; the worktree was clean. The first normal lint
+hook exhausted Node's default4GB heap. With approximately12GB host memory available,
+the identical full hook passed using process-local
+`NODE_OPTIONS=--max-old-space-size=8192`. No hook, staged file or check was omitted.
+
+These actual post-checkpoint commands ran from the reconciliation root with
+`TOOL_WIKI_TRUSTED_NODE_MODULES` set to that root's installed `node_modules`:
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --timeout=60000 -t 'matches what the static extractor reads|pins exact pre-index tuples|refuses a stale Burokrat test command'
+bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD
+```
+
+The four policy/fact cases passed100 assertions in78.64s, including the actual
+immutable candidate positive and stale-command negative; no fixture or selector was
+changed. Working-index validation exited0 and reported40 indexes. It also reported
+nonfatal review debt: the memory adapter README has52 direct entries against40.
+This is recorded debt, not a zero-warning result.
+
+Independent review rechecked the clean checkpoint, committed/working source hashes
+and these actual results. Draft branch submission solely to obtain feature CI is
+source-approved under standing authorization; architectural merge, adoption,
+deployment and feature completion remain held. The final evidence-only commit
+preserves all15 reviewed source hashes. The existing PR remains a draft, with
+auto-merge disabled and its operational body unchanged.
