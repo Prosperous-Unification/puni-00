@@ -11,15 +11,14 @@ Dany chose MCP as the one (2026-10-25).
 **How a headless agent connects**
 
 - From: HTTP with a `wbs_mk_` key or a trusted-issuer token.
-- To: MCP. The agent gets a short-lived mcp-01 access token through the OAuth client
-  credentials grant (an MCP authorization extension), authenticating with its API key or its
-  workload's OIDC token.
+- To: MCP. A fixed-header client (claude.ai, Claude Code, the SDKs) sends its API key as an
+  opaque bearer. Any other client gets an mcp-01 token through the OAuth client credentials
+  grant, using its key or its workload's OIDC token.
 
 **Who it is on MCP**
 
 - From: a human, or an agent person a human consented to.
-- To: also the credential's agent person, with the principal, leases, member cap, limits and
-  tool list it has today.
+- To: also the credential's agent person, with today's principal, leases, cap and tools.
 
 **What be-01's HTTP API is**
 
@@ -32,8 +31,7 @@ Dany chose MCP as the one (2026-10-25).
 - From: one admin act per key.
 - To: an admin approves an agent pool once: N agent persons and credentials in one act.
 
-Credential, issuer, pool and organization administration stay human-only and leave the MCP
-tool list.
+Administration stays human-only and leaves the MCP tool list.
 
 Impact: breaking for HTTP fleets and the Dash capacity reporter; no external users, so no
 compatibility window.
@@ -41,13 +39,13 @@ compatibility window.
 ## Non-Goals
 
 - Changing consent or hosted-connector sign-in.
-- Wildcard OIDC subjects, machines minting credentials, per-organization rate limits, billing.
+- OIDC pools, wildcard subjects, machines minting credentials, per-organization limits.
 - A REST deprecation period.
 
 ## Constraints
 
-- MCP authorization (2025-11-25): mcp-01 accepts only tokens its own server issued, and never
-  passes a client's token through.
+- MCP authorization (2025-11-25): `/mcp` accepts only tokens for the MCP resource from the
+  authorization server its metadata lists, and passes none through.
 - A2, A12, A23 and A24 hold; a machine never administers or mints credentials.
 - A machine session leaves no mcp-01 store rows.
 - Additive migration with a guarded `down.sql`. Secrets are never logged.
@@ -71,4 +69,4 @@ Agent surface, Machine grant, Agent pool (in `CONTEXT.md`).
 
 ## Decisions Recorded
 
-M1 to M12 are assumed, awaiting Dany (design.md).
+M1 to M16 are assumed, awaiting Dany (design.md).

@@ -1,317 +1,372 @@
 ## Context
 
-Read on 2026-10-25 at `origin/main` 277fdf03c:
+Read on 2026-10-25 at `origin/main` 277fdf03c. Amended the same day after the Fable review of
+24dcae0a5 (items S1-1 to S3, mapped in verify.md).
 
-| Need                              | Exists today                                                                                                                                                                                                                                                     | Missing                                                     |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Admitting a caller at `/mcp`      | `caller-auth.ts` `authenticateCaller`: standalone verifies an mcp-01 JWT (`verifyLocal`, session row by `jti`) or falls back to the upstream issuer; gateway decodes the JWT unverified because the gateway verified it. A `wbs_mk_` key fails both: `401`       | a machine path that does not accept a foreign token         |
-| mcp-01's authorization server     | `oauth.ts` `McpOAuthServer`: `authorization_code` and `refresh_token` only, public clients (`token_endpoint_auth_methods_supported: ['none']`), 1 h access TTL, families and sessions in `McpSessionStore` (`sessionLimit` 1,000)                                | a grant with no human                                       |
-| Verifying a machine credential    | be-01 `authentication.feature.ts`: `parseMachineKey`, `authenticateMachineKey` (PK read, constant-time digest, coarse `touchLastUsed`), the trusted-issuer path (A13 step 3, A25), `machinePrincipalOf`, `organizationRoleOf` (A23)                              | a route mcp-01 can ask without forwarding the key on `/api` |
-| be-01 learning who an MCP call is | `/internal/mcp/delegation` (`x-internal-auth` plus the human's upstream token): a single-use, at most five-minute `wbs-be-01/via-mcp-01` delegation; one `(issuer, jti)` consume write per use (`SqliteDelegationUse`)                                           | a per-call bearer that does not cost a write                |
-| Per-request statelessness         | `http.ts` `mcpFetchHandler`: a fresh `Server` and transport per request, `enableJsonResponse`, no `Mcp-Session-Id`, no standalone SSE stream                                                                                                                     | nothing                                                     |
-| The tool list                     | `openapi-tools.ts`: every operation except `EXCLUDED_PATHS`. Today that list holds auth, internal and smoke routes, plus credential, issuer, provisioning and compute-provider routes. Other admin routes stay listed and answer `403` to every delegated caller | a policy, not a path list, for what is human-only           |
-| Leases and caps                   | `wbs-claim-leases` L1: a claim is leased when it is taken under a credential pinned to its claimant. `wbs-organization-limits`: agent-person, claim and capacity caps. Neither one depends on the transport                                                      | nothing                                                     |
-| Docs                              | `docs/auth-integration.md` "Fleets and the MCP endpoint" and `docs/local-dev.md` "These agents use HTTP only" (PR #738) tell fleets to use HTTP                                                                                                                  | their reversal                                              |
+| Need                              | Exists today                                                                                                                                                                                                                                                                                                                                                                                                                          | Missing                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Admitting a caller at `/mcp`      | `caller-auth.ts` `authenticateCaller`. Standalone mode first tries an mcp-01 JWT (`verifyLocal`, session row by `jti`). If that fails, `McpOAuthServer.verify` and `callerSessionFor` (`oauth.ts` 362–381) fall back to `verifyUpstream`, whose audience is be-01's `AUTH_AUDIENCE` (`token-verifier.ts` 81). `bearerFor` with a null session then forwards that raw token (`oauth.ts` 446). Gateway mode decodes the JWT unverified. | **mcp-01 already accepts and passes through a be-01-audience Auth0 token.** Nothing admits a machine. |
+| mcp-01's authorization server     | `oauth.ts` `McpOAuthServer`: `authorization_code` and `refresh_token`, public clients (`none`), 1 h access TTL, families and sessions in `McpSessionStore`. `credentialEpoch()` reads SQLite on every use (`session-store.ts` 151–153). `sourceOf` trusts the leftmost `X-Forwarded-For` (`oauth.ts` 1879–1882).                                                                                                                      | a grant with no human; a trustworthy source address                                                   |
+| Verifying a machine credential    | be-01 `authentication.feature.ts`: `parseMachineKey`, `authenticateMachineKey` → `admitMachineCredential`, the trusted-issuer path (A13 step 3, A25), `machinePrincipalOf`, `organizationRoleOf` (A23). A groups-less configured-issuer token still resolves through an operator link (the `!identity.groupsClaimed` branch, line 294) until #731 lands.                                                                              | a route mcp-01 can ask; refusal on `/api`                                                             |
+| be-01 learning who an MCP call is | `/internal/mcp/delegation`: a single-use `wbs-be-01/via-mcp-01` delegation, at most `MOST_DELEGATION_SECONDS` = 300 (`delegation.ts` 12, 286), no `kid` and no previous key, with one consume write per use. `directAudienceOf` (`identity.ts` 164–172) sends every non-`direct` audience to the via-mcp-01 verifier.                                                                                                                 | a separately keyed, separately verified per-call bearer                                               |
+| The service secret                | `x-internal-auth`. It is shared with gw-01, tool-smoke and tool-devsync, and compared with `===` (`identity.ts` 35, 42, 71).                                                                                                                                                                                                                                                                                                          | a dedicated, constant-time-compared mcp-01↔be-01 secret                                               |
+| Tool path values                  | `wbs-client.ts` 199–212 encodes each value with `encodeURIComponent`, which leaves `.` and `..` intact, so `/api/projects/{..}/claims` normalises to `/api/claims`.                                                                                                                                                                                                                                                                   | a refusal of dot segments                                                                             |
+| Leases                            | `claim-lease.routes.ts` 30 `renewLeases(pin.personId)`: one heartbeat renews every lease of the **person**.                                                                                                                                                                                                                                                                                                                           | a stated rule for one person serving several processes                                                |
+| Account-keyed state               | `command_journal` (undo) is keyed by `(project_id, user_id)` (`command-journal.ts` 27, 75). A12 makes a machine act as its person's **account**.                                                                                                                                                                                                                                                                                      | per-person undo once one account serves many persons                                                  |
+| Docs                              | `docs/auth-integration.md` "Fleets and the MCP endpoint" and `docs/local-dev.md` (PR #738) tell fleets to use HTTP.                                                                                                                                                                                                                                                                                                                   | their reversal                                                                                        |
 
-**MCP authorization, read 2026-10-25 from modelcontextprotocol.io (2025-11-25 revision):**
+**MCP authorization (2025-11-25, read from modelcontextprotocol.io on 2026-10-25).**
 
-- The server "MUST validate that access tokens were issued specifically for them as the
-  intended audience".
-- "MCP clients MUST NOT send tokens to the MCP server other than ones issued by the MCP
-  server's authorization server", and "MCP servers MUST NOT accept or transit any other tokens".
-- The token an MCP server uses upstream "is a separate token" and it "MUST NOT pass through
-  the token it received from the MCP client".
-- Clients include RFC 8707 `resource` in token requests.
+- Servers "MUST validate that access tokens were issued specifically for them as the intended
+  audience" and "MUST NOT accept or transit any other tokens".
+- The token used upstream "is a separate token", and a server "MUST NOT pass through" the
+  client's token.
+- "The MCP server's authorization server" means any authorization server listed in the
+  RFC 9728 protected-resource metadata. WBS lists exactly one, `<MCP_PUBLIC_URL>/oauth`, and
+  that server and be-01's credential store are one deployment.
 
-The stable **OAuth Client Credentials** extension (`modelcontextprotocol/ext-auth`, 2026-07-28,
-read the same day) defines the `client_credentials` grant for machine-to-machine use. It allows
-two client authentication methods: an RFC 7523 JWT assertion (RECOMMENDED) or a client secret
-in the body. The authorization server's metadata lists `private_key_jwt` and/or
-`client_secret_basic` in `token_endpoint_auth_methods_supported`. The text and examples put the
-secret in the body, while the metadata names `client_secret_basic`; the extension does not
-reconcile the two. **From memory, not re-read:** RFC 6749 §4.4.3 says a client-credentials
-response should not carry a refresh token. Azure-style workload identity federation passes an
-external OIDC token as `client_assertion` for a known `client_id`. Claude Code accepts static
-`headers` for a remote MCP server. The Anthropic Messages API MCP connector takes an
-`authorization_token`. Hosted claude.ai connectors run only the authorization-code flow. Before
-M2 and M12 are built, re-read each of these and record it in verify.md.
+**OAuth Client Credentials extension** (`modelcontextprotocol/ext-auth`, stable 2026-07-28,
+read the same day). It defines the `client_credentials` grant with two client authentication
+methods: an RFC 7523 JWT assertion, which is RECOMMENDED, or a client secret.
+
+**MCP TypeScript SDK 1.31.0** (in `node_modules`).
+
+- `ClientCredentialsProvider` defaults to `client_secret_basic`.
+- `StaticPrivateKeyJwtProvider` sends a pre-made `client_assertion`. Its `addClientAuthentication`
+  path omits `client_id` (`auth.js` 852–854).
+- Both re-fetch a token on 401 (verified by the reviewer).
+- `PrivateKeyJwtProvider` signs with the client's own key, which a federated profile can never
+  verify.
+
+**Anthropic clients**, read 2026-10-25 by the coordinator:
+
+- **Claude Code** (https://code.claude.com/docs/en/mcp.md):
+  - Static `headers` work, with `${VAR}` expansion.
+  - `headersHelper` prints a header map. It runs fresh at each connection, and on a 401 or 403
+    it re-runs and retries once, with a 10 s timeout.
+  - The helper is trust-gated: in `claude -p` or SDK sessions without folder trust, only
+    static headers are used.
+  - OAuth is authorization-code only; there is no `client_credentials`. With static headers, a
+    401 fails the connection.
+  - Claude Code "stores OAuth sign-ins per endpoint", so two entries on one URL likely share
+    one consent.
+- **Agent SDK** (https://code.claude.com/docs/en/agent-sdk/mcp.md): static headers only. It
+  "doesn't open a browser or run an interactive OAuth flow", and refreshing headers mid-run is
+  not documented.
+- **Messages API MCP connector**
+  (https://platform.claude.com/docs/en/agents-and-tools/mcp-connector.md): `authorization_token`
+  is a static bearer per request, and the "consumer handles the OAuth flow and refreshes as
+  needed".
+- **claude.ai custom connectors** (https://support.claude.com/en/articles/11175166): OAuth in
+  three modes, plus "Request headers", which are fixed credentials sent with every request.
+
+**What follows from these facts.**
+
+- No Anthropic client runs `client_credentials` itself. A helper or orchestrator fetches the
+  token.
+- Fixed headers are first-class in every Anthropic client.
+- Per-endpoint sign-in storage means a headless identity must come from a machine credential,
+  not from consent.
+
+**From memory, not re-read:**
+
+- RFC 6749 §4.4.3: no refresh token for client credentials.
+- RFC 7523 §2.2: `iss = sub = client_id`.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- A headless agent reaches `/mcp` as its credential's agent person, without a human per
-  session and without mcp-01 accepting or forwarding a token its own server did not issue.
-- One principal, one set of leases, one cap and one tool list, whichever way the agent arrived.
-- A machine session costs mcp-01 no store row and be-01 no write per call.
+- A headless agent reaches `/mcp` as its credential's agent person, in every client Dany uses,
+  with no human per session.
+- `/mcp` accepts only tokens issued for the MCP resource, and passes none of them through.
+- One principal, one set of leases, one cap and one tool list, whichever way an agent arrived.
+- Machine calls cost be-01 no write per call. mcp-01 holds no machine rows.
 - A swarm's N identities take one admin act.
 - be-01's `/api` stops being an agent surface.
 
-**Non-Goals:** consent changes; hosted-connector machine sign-in; wildcard subjects; machines
-minting credentials; organization-configurable rate limits; REST deprecation windows.
+**Non-Goals:** consent changes; wildcard subjects; machines minting credentials;
+organization-configurable rate limits; REST deprecation windows; OIDC agent pools (M7).
 
 ## Decisions
 
-Every decision below is **assumed, awaiting Dany**, and each can be overruled by its id. "From
-memory" marks a claim that this draft did not re-read.
+Every decision is **assumed, awaiting Dany**, and each can be overruled by its id. Task 0.1
+(client facts) is done above, and was done before Dany reads these decisions.
 
-**M1. Admission is the OAuth client credentials grant at mcp-01's own token endpoint.** A
-machine `POST`s `grant_type=client_credentials` with `resource=<MCP_PUBLIC_URL>` and
-`scope=wbs:read wbs:write` to `/mcp/oauth/token`, authenticated by its credential (M2).
-mcp-01 asks be-01 to verify that credential (M3) and answers with an mcp-01-signed access token
-whose `aud` is the MCP resource. `/mcp` then sees only its own tokens, as the spec requires.
-The authorization server metadata gains `client_credentials` in `grant_types_supported`, and
-`client_secret_post`, `client_secret_basic` and `private_key_jwt` in
-`token_endpoint_auth_methods_supported`. Dynamic client registration still refuses every
-grant type except `authorization_code` and `refresh_token`: a machine is a credential an admin
-created, never a self-registered client. Hosted connectors keep the authorization-code consent
-(A8, A20). That path is how a claude.ai connector acts as a human or as a consented agent, and
-nothing about it changes.
+**M1. Two admission forms at `/mcp`, both for the MCP resource only.**
 
-_Alternatives:_
+- **(i) `client_credentials`** at `<MCP_PUBLIC_URL>/oauth/token` (M2). It answers an
+  mcp-01-signed access token for SDK clients, Claude Code `headersHelper`, orchestrators and
+  OIDC workloads.
+- **(ii) The raw `wbs_mk_` key as an opaque bearer on `/mcp`**, for fixed-header clients:
+  claude.ai "Request headers", Claude Code static `headers`, the Agent SDK, and the Messages API
+  `authorization_token`.
 
-- (a) Accept `wbs_mk_` at `/mcp` and forward it raw to be-01. This is the token passthrough the
-  spec forbids, and every replica would handle the long-lived secret on every request.
-- (b) Accept `wbs_mk_` at `/mcp`, verify it through be-01, and do not forward it. This is the
-  simplest client configuration (one static header), but `/mcp` would still accept a token its
-  own server did not issue, and the long-lived secret would travel on every request. **This is
-  the alternative Dany is most likely to prefer for ergonomics.** It can be added later as a
-  thin adapter in front of M1 if he overrules.
-- (c) RFC 8693 token exchange (from memory). The same shape as M1, but it is not the
-  extension's grant, and fewer clients speak it.
-- (d) Keep HTTP for headless agents. This keeps two surfaces, which is the thing Dany rejected.
+Form (ii) is conformant because, after M9, a `wbs_mk_` key is valid at no resource except the
+MCP resource. It is issued by the deployment whose authorization server the metadata lists, for
+this resource. mcp-01 validates it through be-01 and never forwards it: be-01 receives a machine
+grant (M3) instead. That reading of "issued specifically for them" is the contestable point,
+and it is Dany's to accept.
 
-**M2. How each source authenticates at the token endpoint.**
+Consent (A8, A20) is unchanged and remains how a human, or a human-consented agent, connects.
 
-- _API key:_ `client_id` is the credential id, and `client_secret` is the whole key
-  `wbs_mk_<id>.<secret>`, sent in the body or by HTTP Basic (both, because of the extension's
-  ambiguity). Sending the whole key keeps one boundary parser (A22). A `client_id` that differs
-  from the key's id is `invalid_client`.
-- _OIDC (trusted issuer):_ `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`,
-  with `client_assertion` set to the workload's token (GitHub Actions, a Kubernetes projected
-  service-account token) and `client_id` set to the credential id. be-01 verifies the assertion
-  exactly as A13 step 3 and A25 do (registration chosen by `(iss, aud)`, credential by
-  `(registration, sub)`), and requires the matched credential's id to equal `client_id`. This
-  departs from RFC 7523 §2.2, which wants `iss = sub = client_id` (from memory). The workload
-  token's issuer is the compute provider, which is the point of federation.
-- _Consent:_ not a source here. A consent family keeps its refresh grant.
+|                               | (i) client credentials                                              | (ii) raw key                                                                           | (a) forward the raw key (rejected) | (d) HTTP only (rejected)  |
+| ----------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------- |
+| Client config                 | helper or orchestrator fetches the token; the SDK re-fetches on 401 | one static header, in every Anthropic client                                           | one static header                  | a separate HTTP client    |
+| Long-lived secret on the wire | once per token (≤ 24 h)                                             | every request                                                                          | every request, and to be-01        | every request             |
+| Spec conformance              | literal                                                             | by the reading above                                                                   | token passthrough, forbidden       | not MCP                   |
+| be-01 load                    | one verification per token, plus a grant reread per call            | one verification per request (cached ≤ 60 s per replica), plus a grant reread per call | one verification per call          | one verification per call |
+| Revocation                    | next tool call                                                      | next tool call                                                                         | next call                          | next call                 |
+| OIDC workload identity        | yes                                                                 | no (keys only)                                                                         | no                                 | yes                       |
 
-Every failure, whether an unknown id, a wrong secret, a revoked credential or an unverifiable
-assertion, answers the same `401 invalid_client`, so the endpoint is no oracle for which ids
-exist.
+_Alternatives:_ (i) only, which leaves every fixed-header client without a path, because no
+Anthropic client runs the grant; (ii) only, which gives no OIDC workloads and puts the
+long-lived secret on every request; RFC 8693 token exchange (from memory), which no listed
+client speaks.
 
-_Alternatives:_ the RFC 7523 §2.1 JWT-bearer authorization grant for OIDC (a second grant type
-to support); only the client-secret form for API keys (refuses Basic-only clients); a strictly
-conformant `private_key_jwt` with keys registered per credential (a third secret kind, with
-nothing gained over A25's audience scoping).
+**M2. Token-endpoint presentation.**
 
-**M3. The machine grant: be-01 signs who the machine is; mcp-01 carries it.** At issuance
-mcp-01 calls a new `POST /internal/mcp/machine-grants` with `x-internal-auth` and the presented
-key or assertion, which is never logged. be-01 runs its existing verification and answers a
-**machine grant**. That grant is a JWT signed with `WBS_DELEGATION_SIGNING_KEY`, carrying:
+- _API key._ `client_secret` is the whole key, sent by HTTP Basic (the SDK's default) or in
+  the body. Both together is `invalid_request`. `client_id` is optional, because the key
+  carries its id; when it is sent it must equal that id. A 401 `invalid_client` carries
+  `WWW-Authenticate: Basic`.
+- _OIDC._ A `client_assertion` of type `jwt-bearer` holds the workload token. The credential is
+  identified by `(iss, aud, sub)` per A25. `client_id`, when sent, must equal the matched
+  credential's id. The SDK omits `client_id` here.
+- _A WBS-unique audience._ A trusted-issuer registration's audience must start with the
+  canonical `MCP_PUBLIC_URL` (for example `<MCP_PUBLIC_URL>/org/<organizationId>`). This
+  amends A25's recommended `wbs:org:<id>` into a rule, so that an assertion minted for WBS is
+  never also valid at another relying party that chose a generic audience.
+- _The WBS federated assertion profile._ It is published in `docs/auth-integration.md`. The
+  assertion's issuer is a trusted issuer, never the client. A self-signed assertion is
+  `invalid_client`.
+- _What is advertised._ `private_key_jwt` is advertised with that profile, and
+  `StaticPrivateKeyJwtProvider` works with it. `PrivateKeyJwtProvider` does not, and the docs
+  say so. `token_endpoint_auth_signing_alg_values_supported` is `["RS256", "ES256"]`. `none`
+  stays for public consent clients, so hosted connectors keep working; a dev check covers that.
+- _Requests._
+  - `resource` must be present once and must equal the canonical `MCP_PUBLIC_URL`, compared
+    against the same canonical value `oauth.ts` 270 derives. A missing, wrong or repeated
+    `resource` is `invalid_target`.
+  - An absent `scope` means `wbs:read wbs:write`. Anything beyond that is `invalid_scope`.
+- _Failures._ Every credential failure is the same `401 invalid_client`. A failed machine
+  verification never falls through to `verifyUpstream`.
+- _Registration._ Dynamic client registration refusing `client_credentials` is **new**
+  behaviour, with its own test: a machine is an admin-created credential, never a
+  self-registered client.
 
-- `aud wbs-be-01/machine-grant`;
-- `sub` set to the credential id, plus the person, the organization and the source;
-- `scope read write`;
-- `exp` set to issuance plus the machine token lifetime (M4).
+_Alternatives:_ the RFC 7523 §2.1 JWT-bearer grant (a second grant type); not advertising
+`private_key_jwt` yet (then OIDC sources have no conformant method); strict per-credential
+registered keys (a third secret kind).
 
-mcp-01 embeds the grant as a claim of the access token it returns, so it keeps nothing. On
-every be-01 call, mcp-01 sends the grant as `Authorization: Bearer` together with
-`x-internal-auth`. be-01 admits a grant only when **both** are present. It verifies signature,
-audience and `exp`, then **rereads the credential** (unrevoked, person still bound, account
-still a member) and yields exactly `machinePrincipalOf`'s principal. A grant is not single-use.
-It costs no consume write, only the coarse `last_used_at` touch be-01 already makes.
+**M3. The machine grant has its own key, type, verifier and cap.**
 
-Two consequences follow:
+- _Issue._ be-01 issues the grant at `POST /internal/mcp/machine-grants` (M14's secret) from the
+  presented key or assertion. The grant is a JWT:
+  - `typ wbs-machine-grant+jwt`, `aud wbs-be-01/machine-grant`;
+  - `kid` from **`WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT`/`_PREVIOUS`**, never the delegation
+    key;
+  - `sub` the credential, plus person, organization and source.
+- _One owner of the lifetime._ be-01 caps `exp` at
+  `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion.exp)`, with a 24 h + 60 s cap.
+  mcp-01 sets its own token `exp` 60 s before the grant's, which absorbs clock skew.
+- _Verifier._ A dedicated verifier admits only that `typ`, that `aud` and those keys.
+  `directAudienceOf` dispatches on exact audiences, and any other audience is `invalid_token`.
+  A 3,600 s `via-mcp-01` delegation is still refused.
+- _Admission._ It needs M14's secret. It rereads the credential through a new
+  `PresentedMachineProof` variant inside `admitMachineCredential`, so revocation, binding,
+  membership and pool expiry (M7) are judged in one place.
+- _Scopes._ They are derived **only** from the reread credential (`read`, `write`), never from
+  the token or the metadata's `scopes_supported`. `http.ts` 63 still advertises `wbs:editor`
+  for consent.
+- _Failures._ A refused grant is `401 unknown_identity` (A5; there is no `credential_revoked`
+  here). mcp-01 turns it into HTTP `401 invalid_token` on `/mcp`, so a helper or SDK client
+  re-fetches, then meets `invalid_client`.
+- _Cost._ The grant is multi-use until `exp`. Its only write is the coarse last-use touch.
+- _Optional replay guard._ An OIDC assertion's `jti` is consumed once at issuance, which is one
+  write per issuance and none per call.
+- _Audit._ Every issuance writes one `machine_token_issued` audit row, naming the credential,
+  person, source and grant `exp`, and never a secret.
 
-- A client that extracts the grant from its own token cannot call `/api` with it: it has no
-  `x-internal-auth`.
-- A stolen `INTERNAL_AUTH_SECRET` alone cannot act as any machine: it also needs a grant that
-  be-01 signed after seeing a valid secret. This keeps today's property that mcp-01 cannot act
-  without the caller's proof.
+_Alternatives:_ a single-use delegation per call (one write per call); the delegation key with
+a new audience (rejected: no `kid` and no rotation, and the 300 s cap would be bent); naming
+the credential under the service secret alone.
 
-_Alternatives:_
+**M4. Lifetimes follow the client.**
 
-- (a) A single-use delegation per call, as consent families use. This is uniform, but it costs
-  one SQLite write under the write coordinator per tool call, and swarms are where call rates
-  are highest.
-- (b) mcp-01 names the credential id under `x-internal-auth` alone. A leaked service secret
-  would then be every machine.
-- (c) Keep the grant in mcp-01's memory, keyed by token `jti`. Replicas would then need sticky
-  routing or a shared store, which works against M5.
+- Helper and SDK clients re-fetch on 401, so short tokens cost them nothing.
+- Fixed-header clients use the raw key (M1 ii) and never expire, except when the credential
+  does.
+- `client_credentials` tokens default to **12 h**, capped at **24 h** by M3, with `exp` lowered
+  by a uniform 0–10% jitter so a pool does not re-fetch in one burst.
+- An OIDC token never outlives its assertion.
+- Why 24 h is acceptable: revocation does not depend on the token lifetime, because every call
+  rereads the credential. The lifetime bounds only how long a stolen token stays useful while
+  its credential is live, which is the same exposure a raw key has, forever.
+- At `exp`, `/mcp` answers HTTP 401 `invalid_token` with `WWW-Authenticate`. Claude Code's
+  `headersHelper` re-runs, the SDK providers re-fetch, and an orchestrator re-issues.
+- Pool expiry (M7) is refused at admission. Leases held under an expired credential lapse at
+  their own 15-minute lease end, because nothing can renew them; the release reason is
+  `lease expired`.
 
-**M4. Lifetimes and revocation.**
+_Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token per run.
 
-- The machine access token and its grant last `MCP_MACHINE_TOKEN_TTL`: default 3,600 s (the
-  consent access TTL), refused at boot when it is under 60 s or over 3,600 s. No refresh token
-  is issued; the client asks again.
-- Revocation is effective at the next tool call, because be-01 rereads the credential behind
-  every grant. `tools/list` and `initialize` need no be-01 call, so they stay answerable until
-  `exp`. Neither discloses data, and both are stated in the spec.
-- A stolen access token is a bearer until `exp` while its credential is live. Revoking the
-  credential ends it at once.
-- Revoking a person's last live credential still ends that person's leases in the revoke's own
-  transaction (L8). mcp-01 has no family to sweep.
-- The consent end callback (A20 _End_) is unchanged.
+**M5. Machine admission reads no mcp-01 store.**
 
-_Alternatives:_ a 15-minute TTL, which suits a refresh-capable orchestrator but breaks a
-static-header Claude Code session mid-run; a per-credential TTL, which is quota-shaped and a
-non-goal.
+- be-01 refuses to issue a grant before activation (`409 not_activated`). So machine tokens
+  carry no epoch claim and skip `credentialEpoch()`.
+- The machine path verifies by signature, `aud` and `exp` only, and never calls
+  `familyForSession` or `credentialEpoch`.
+- Replicas share keys, M14's secret and `WBS_API_URL`. The consent path keeps its shared store.
+- For a raw key (M1 ii), the grant may be cached in replica memory under `SHA-256(key)` for at
+  most 60 s. That cache is an optimisation, not state: a cold replica asks be-01.
+- A machine token at `/refresh` is `invalid_grant`, and at `/revoke` it is
+  `unsupported_token_type`.
 
-**M5. A machine session is stateless in mcp-01.**
+**M6. Parity, with no per-principal tool list or descriptions.** A grant yields
+`{ kind: 'machine', credentialId, personId }`, which is the API-key principal byte for byte.
+A23, A24, L1, the claim pin and the caps apply. `postApiClaimsRenew` is the heartbeat. Refusals
+a principal can meet are stated once in the description.
 
-- Verifying a machine token is signature, `aud`, `exp`, and the activated credential epoch.
-  There is no `familyForSession` read and no session row. `sessionLimit` and the family tables
-  do not see machines.
-- Replicas share only `MCP_SIGNING_KEY_CURRENT`/`PREVIOUS`, `INTERNAL_AUTH_SECRET` and
-  `WBS_API_URL`, so the machine path scales horizontally behind any balancer. The consent path
-  keeps its shared SQLite store, and with it its scaling limit. That limit is unchanged and
-  recorded here.
-- Machine tokens carry a `token_use: machine` claim. `verifyLocal` dispatches on it and refuses
-  a machine token presented to the refresh or revoke endpoints.
+_Alternatives:_ per-principal filtering, or descriptions per principal (two contracts).
 
-_Alternative:_ store a row per machine token, which gives revocable tokens at a write each and
-adds nothing that M3's per-call reread does not already give.
+**M7. Agent pools: API-key bulk issuance, re-keyable, delivered once.**
 
-**M6. Parity: one principal, one tool list, one set of descriptions.**
+- _Creation._ An admin's browser session posts `{ name, size ≤ 100, expiresAt? }`. In one
+  transaction this creates `size` agent persons bound to the admin's account, through
+  **`addPerson`'s own agent-person cap check**, and one API key each.
+- _Delivery._ fe-01 shows the keys once, as a single download (`pool-<id>.keys.json`), never
+  stored server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
+  store, verifies every key by issuing one token each, and tells the admin to delete the file.
+- _Re-keying._ `POST …/agent-pools/:id/rekey` revokes every key and issues fresh ones for the
+  **same** persons, so `agent_person_limit` is not consumed again and a leaked file is answered
+  without recreating the swarm.
+- _Fixed after creation._ A pool never gains a person or a right. A machine, a delegation or a
+  grant can never reach the pool routes.
+- _Blast radius, stated honestly._ Dash holds all N keys. A compromised Dash is all N agents,
+  each capped at `member`, until the pool is revoked or re-keyed. Agents themselves see only
+  their 12 h token, or one key when they run as fixed-header clients.
+- _OIDC pools are not in v1._ A GitHub `sub` is per repository and ref, and a Kubernetes `sub`
+  is per service account, so one workload cannot be N identities without seat selection.
 
-- A machine call reaches be-01 as `{ kind: 'machine', credentialId, personId }`, which is the
-  API-key principal byte for byte. A23's cap, A24's cascade reach, L1's leases, the claim pin,
-  and the agent-person and claim caps all apply unchanged.
-- `postApiClaimsRenew` is the heartbeat over MCP.
-- Tool descriptions do **not** differ by principal. A refusal a principal can meet, such as
-  `createMeasure` for a non-admin, is stated once in the description and answered as a typed
-  tool error.
+_Alternatives:_ (a) one pool credential with a seat per token request (amends A2, but it is
+the only way OIDC workloads give N identities; reopen it for OIDC); (b) machines minting
+children (laundering, rejected); (c) subject patterns (deferred); (d) one admin act per key.
 
-_Alternatives:_ filter `tools/list` per principal, which means smaller context but two
-contracts to test and a list that silently changes when a role changes; separate descriptions
-for machines, which is the maintenance Dany wants to avoid.
+**M8. Human-only is an endpoint policy.**
 
-**M7. Agent pools are admin-approved bulk issuance.** An admin or super-admin posts one
-`POST /api/organization/agent-pools` with `{ name, size, credentialSource, expiresAt? }`. In
-one transaction it creates `size` agent persons bound to the admin's account (A12) and one
-`api_key` credential each (or, for `oidc`, one credential per listed subject). It answers every
-key once. It is refused `agent_person_limit` when that would cross the cap, and nothing is
-created then. The pool row (`agent_pool`) groups the credentials. A pool can be:
+- A `humanOnly` policy on endpoint shapes excludes them from tools for every principal. The
+  covered set is the one listed in the spec.
+- `EXCLUDED_PATHS` keeps auth, internal, smoke and `/api/organization/active`.
+- The capacity report becomes a tool.
+- A `humanOnly` shape matching nothing fails startup.
 
-- revoked as a unit, with one audit row per credential plus one per pool;
-- given an expiry that every key in it shares.
+_Alternatives:_ the path list; admin tools for consented humans.
 
-It never gains a member, a person or a right after creation. Enlarging a pool is a new admin
-act. A machine (A23), a delegation, or a pool's own credential can never call the pool routes.
-The orchestrator (Twilight Dash) holds the N keys in its secret store and exchanges one per
-agent run for a 1-hour MCP token, so an agent process sees only its short-lived token, never a
-key.
+**M9. be-01 refuses every machine bearer on `/api`.**
 
-_Alternatives:_
+- The refusal is `401 machine_bearer_not_accepted`, which names `/mcp`, for `wbs_mk_` keys,
+  trusted-issuer tokens and **groups-less configured-issuer tokens**.
+- **Precondition: #731 merged.** It retires operator links, so the groups-less branch admits
+  nobody.
+- There is no environment switch. Tests that need raw-key `/api` behaviour use a test-only
+  composition seam in `src/testing`, which `production-entrypoint.test.ts` keeps unreachable
+  from `main.ts`.
 
-- (a) A pool credential that serves several persons, a seat chosen per token request (for
-  example `scope=wbs:seat:<personId>`). This is one secret for N identities and fits workload
-  identity, but it amends A2 (one credential, one person) and concentrates the blast radius;
-  it is recorded for Dany.
-- (b) A machine allowed to mint child credentials. This is permission laundering: a capped
-  principal would create principals. Rejected outright.
-- (c) OIDC subject patterns, so one registration admits any `sub` matching a pattern. This was
-  deferred in `wbs-machine-credentials` (wildcards).
-- (d) One key per admin act, as today: a human per agent.
+_Alternatives:_ keep accepting (two surfaces in fact); a deprecation header period.
 
-**M8. Human-only is a policy on the endpoint shape, not a path list.** Endpoint shapes gain a
-`humanOnly` policy, which `openapi-tools.ts` excludes for every MCP principal. It covers:
+**M10. Limits at mcp-01, per replica.**
 
-- machine credentials, trusted issuers, provisioning tokens, agent pools and compute-provider
-  administration;
-- memberships, invitations, join requests and domains;
-- SSO connections and session policy;
-- the limits read, the capacity-mode switch, shared-people restore approvals and onboarding.
+- _Source address._ It is the `X-Forwarded-For` entry `MCP_TRUSTED_PROXY_HOPS` from the right
+  (1 behind Caddy); with 0, the socket address. A spoofed leftmost entry changes nothing.
+- _Failure counting._ Failed authentications are counted per `(client_id, IP)` and per IP.
+  Successful issuances are limited per credential, separately, so a stranger who knows a
+  public `client_id` cannot lock it out.
 
-be-01 keeps refusing every delegation and machine principal on them. The policy only stops
-advertising tools that could answer `403`. `EXCLUDED_PATHS` shrinks to auth, internal, smoke
-and browser organization selection. The capacity report `PUT /api/compute-providers/:id/report`
-becomes a tool (P6: machine only), so the Dash reporter moves to MCP. The startup check that
-every exclusion still matches something carries over to the policy: a `humanOnly` shape that
-matches no document operation throws.
+| Limit                                 | Default          | Sized for                                                                           |
+| ------------------------------------- | ---------------- | ----------------------------------------------------------------------------------- |
+| Failed auth per `(client_id, IP)`     | 5 / min          | guessing one id                                                                     |
+| Failed auth per IP                    | 30 / min         | a scanner                                                                           |
+| Successful issuances per credential   | 6 / min, burst 3 | helper re-runs                                                                      |
+| Successful issuances per IP           | 300 / min        | one orchestrator re-keying a pool of 100                                            |
+| Tool calls per credential             | 10 / s, burst 20 | counted per JSON-RPC `tools/call`, not per HTTP request (a batch of 100 counts 100) |
+| In-flight tool calls per organization | 64               | a 100-agent pool at about 2 calls/s with 300 ms be-01 latency                       |
 
-_Alternatives:_ keep the path list (a new admin route is exposed until someone remembers it);
-keep advertising admin tools to consented humans (pre-activation forwarding sessions could use
-them, but the browser app is where humans administer).
+- Every refusal is HTTP `429` with `Retry-After`. The token endpoint uses the same status, with
+  error `temporarily_unavailable`.
+- The authoritative fences stay be-01's transactional caps.
 
-**M9. be-01 refuses machine bearers on `/api`.** After this change, a `wbs_mk_` key or a
-trusted-issuer token presented on any `/api` route is refused
-`401 { error: 'machine_bearer_not_accepted' }`. The body names the MCP endpoint. The
-verification code stays: `/internal/mcp/machine-grants` calls the same functions. The browser
-app (cookie sessions) and mcp-01 (delegations, grants) are the only `/api` callers. This is the
-forcing function that keeps one agent surface.
+_Alternatives:_ a shared limiter (exact across replicas); per-organization limits (later).
 
-_Alternatives:_ keep accepting machine bearers on `/api`, undocumented (two surfaces in fact,
-whatever the docs say); a deprecation header period (a compatibility window with no external
-users to protect).
+**M11. Gateway mode has no machine admission.** `client_credentials` is
+`unsupported_grant_type`, metadata omits it, and on `/mcp` both a `token_use: machine` JWT and
+a raw `wbs_mk_` key are 401 and never decoded.
 
-**M10. Limits, per replica, at mcp-01.**
+**M12. Docs and the REST surface's status.**
 
-| Limit                          | Default per replica   | Answer                        |
-| ------------------------------ | --------------------- | ----------------------------- |
-| Token requests per `client_id` | 6 a minute, burst 3   | `429 slow_down`               |
-| Token requests per source IP   | 60 a minute           | `429 slow_down`               |
-| `/mcp` requests per credential | 10 a second, burst 20 | HTTP `429` with `Retry-After` |
-| In-flight tool calls per org   | 32                    | HTTP `429` with `Retry-After` |
+- PR #738's sections are reversed, and the WBS federated profile is published.
+- `docs/import-with-ai.md` gains a headless section with the dated client facts above:
+  - Claude Code: `headersHelper` calling the token endpoint, or a static `wbs_mk_` header;
+  - the SDK and the Messages API: an app-fetched token or the raw key;
+  - claude.ai: Request headers with the raw key.
+- The OpenAPI document is an internal contract artifact.
+- `report-capacity.ts` becomes an MCP client.
 
-The per-IP limit applies before be-01 is asked. The `/mcp` limits key on the grant's `sub` and
-organization.
+**M13. After activation, `/mcp` stops accepting upstream tokens.** `verify` and
+`callerSessionFor` no longer fall back to `verifyUpstream` once the credential epoch is
+activated, and `bearerFor` with a null session throws instead of forwarding. Before activation,
+the pre-activation forwarding path stays as it is: no compatibility burden, and one code path
+fewer once prod activates. An Auth0 token on `/mcp` after activation is 401, and be-01 sees no
+request.
 
-- The limits are deployment configuration, not organization rows (`wbs-organization-limits`
-  made HTTP rate limiting a non-goal). With R replicas, the effective limit is R times the
-  configured one. The authoritative fences stay be-01's caps on agent persons, claims and
-  capacity, which hold in the batch transaction whatever the request rate.
-- Request size keeps the SDK's 4 MiB body and 100-message batch caps.
-- There is no long-lived stream to bound: a stateless server answers JSON.
-- be-01's load per tool call is one grant verification, one credential primary-key read, the
-  routed work, and at most one `last_used_at` write a minute per credential. Each token
-  issuance is one internal call per agent per TTL.
+_Alternative:_ keep the fallback (today's passthrough; non-conformant).
 
-_Alternatives:_ a shared limiter (a Redis or SQLite table, exact across replicas, one more
-store); per-organization configurable limits (billing-shaped, later); no limits (one runaway
-agent saturates be-01's single writer).
+**M14. A dedicated mcp-01↔be-01 secret, a constant-time compare, and safe paths.**
 
-**M11. Gateway mode offers no machine admission.** `MCP_AUTH_MODE=gateway` exists for a
-gateway that verified an upstream token. It is not deployed. Machine tokens are mcp-01's own,
-so in gateway mode the token endpoint answers `unsupported_grant_type` for
-`client_credentials`, the metadata omits it, and a JWT carrying `token_use: machine` is refused
-`401` rather than decoded as gateway claims. Standalone (deployed) mode is where M1 lives.
+- `MCP_BE_INTERNAL_SECRET` is used only for `/internal/mcp/*` and for grant admission. It is
+  compared by `timingSafeEqual` over SHA-256 digests. `x-internal-auth` stays for gw-01 and the
+  tools, and gets the same constant-time compare.
+- mcp-01 refuses a path value equal to `.` or `..` as `ToolInputRefused`. The `..` value,
+  encoded, would have normalised `/api/projects/{..}/claims` to `/api/claims`.
+- _The property, stated honestly._ The secret alone acts as no machine. The secret together
+  with any client's still-valid token (which carries its grant) acts as that credential until
+  the grant's `exp`.
 
-_Alternatives:_ teach the gateway to run the grant (a second implementation); trust a machine
-token's claims in gateway mode (decoded, unverified: a forgery path).
+_Alternative:_ mTLS between mcp-01 and be-01 (stronger, but needs a CA on every host).
 
-**M12. Docs and the REST surface's new status.** The following change:
+**M15. One process per credential is a stated invariant.**
 
-- `docs/auth-integration.md` "Fleets and the MCP endpoint" and `docs/local-dev.md` "These
-  agents use HTTP only" (PR #738) are rewritten: headless agents use MCP with
-  `client_credentials`.
-- `docs/import-with-ai.md` gains a headless section: Claude Code `headers`, the Agent SDK, and
-  the Messages API connector token, each checked against the vendor's docs on the day of the
-  write.
-- The stale Auth0 "Fleet credentials" section goes with PR #731.
-- The OpenAPI document becomes an internal contract artifact. It is still emitted and still
-  the source of the tools, but no doc tells an agent to call `/api`. The tool descriptions are
-  the agent contract.
-- `apps/wbs/mcp-01/README.md` lists both admission paths.
-- Twilight Dash's `report-capacity.ts` becomes an MCP client.
+- Leases renew per person, so two processes sharing one credential renew each other's leases.
+- The docs and the pool import say: one credential, one running agent. A test pins today's
+  behaviour, where a second process's heartbeat renews the first's leases, so the invariant is
+  documented rather than silently assumed.
 
-_Alternative:_ document both (the cost Dany named).
+_Alternative:_ a run nonce in the grant, with renewal scoped to `(person, run)`, recorded for
+when a pool needs several processes per person.
+
+**M16. State keyed by account, not person.** A pool's N persons share the admin's account
+(A12). Each such check is listed here with its decision.
+
+- Undo and redo (`command_journal`, keyed by `(project, user)`): a pinned principal's entries
+  carry `person_id`, through an additive nullable column. Undo and redo pop only
+  `(user, person)` entries, so one agent never undoes another.
+- Membership and the A23 role cap: per account, intended.
+- `created_by` and audit actors: these name the account, and the person is in the claim and
+  audit detail. Accepted.
+- Project-opened and recents: shared, harmless.
+- Claim cap: keyed by person, unaffected.
+
+Task 6.0 greps every `userId` key and adds any check missing from this list before slice 6.
+
+_Alternative:_ refuse undo to machine principals.
 
 ## Risks / Trade-offs
 
-- **Client support for `client_credentials` is unverified.** If Claude Code or the Agent SDK
-  cannot run the grant, the orchestrator runs it and hands the agent a static `Authorization`
-  header for the run. That is why M4 defaults to 1 hour. A client with neither option needs M1
-  alternative (b).
-- **The grant is multi-use (M3).** A leaked access token is usable until `exp` while its
-  credential is live. Mitigations: TLS only, the 1-hour cap, instant revoke, and per-credential
-  rate limits. A single-use alternative exists at one write per call.
-- **M9 breaks every HTTP fleet at the swap.** Dev first, then PUNI's own fleets move to MCP
-  before prod. Being the first tenant is the test.
-- **Per-replica limits are approximate (M10).** The fences that matter are transactional and
-  in be-01.
-- **The consent path already costs one delegation consume write per tool call.** This change
-  does not alter that. A swarm on consent sessions pays it; a swarm on machine grants does not.
-- **A pool's keys all share the issuing admin's account (A12).** Removing that admin is refused
-  while the pool's credentials are live (A12's `in_use`), as for any credential.
+- **M1 (ii) rests on an interpretation** of the audience rule. If Dany rejects it,
+  fixed-header clients need a helper, and the Agent SDK and claude.ai have none, so they would
+  depend on an app-fetched token.
+- **Dash concentrates N keys (M7).** Re-keying is the recovery path.
+- **M9 and M13 break HTTP fleets and Auth0 bearers on `/mcp` at the swap.** Fleets go straight
+  to MCP (slice 7 is gated on claire fleets observed on MCP on dev).
+- **Per-replica limits are approximate.** be-01's caps are the fences.
+- **The consent path still costs one consume write per call.** This change does not alter it.

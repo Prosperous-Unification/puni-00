@@ -29,7 +29,7 @@ The short exclusive claim one mcp-01 process holds while replacing a refresh fam
 _Avoid_: lock, refresh mutex
 
 **Agent surface**:
-The one integration surface agents build on: mcp-01's `/mcp`, for consented and headless agents alike. be-01's HTTP API is internal transport, not an agent surface.
+The one integration surface agents build on: mcp-01's `/mcp`, for consented and headless agents alike.
 _Avoid_: agent API, public API, REST for agents
 
 **Machine grant**:
