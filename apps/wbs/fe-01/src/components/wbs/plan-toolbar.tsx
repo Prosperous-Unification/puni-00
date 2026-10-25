@@ -90,6 +90,7 @@ export function FilterFacets({
   teams,
   tags,
   services,
+  resources,
   people,
   bands,
   steps,
@@ -101,6 +102,8 @@ export function FilterFacets({
   teams: readonly FacetOption[];
   tags: readonly FacetOption[];
   services: readonly FacetOption[];
+  /** The resources the plan's leaves demand (`wbs-resources` task 3.4). */
+  resources: readonly FacetOption[];
   people: readonly FacetOption[];
   bands: readonly FacetOption[];
   steps: readonly FacetOption[];
@@ -244,6 +247,14 @@ export function FilterFacets({
         {group('Service', 'service', services, facets.serviceIds, (serviceIds) => ({
           ...facets,
           serviceIds,
+        }))}
+        {/*
+          What a leaf needs while it runs, beside who runs it. Gone on a plan
+          stating no demand, as every group with nothing to offer is.
+        */}
+        {group('Resource', 'resource', resources, facets.resourceIds, (resourceIds) => ({
+          ...facets,
+          resourceIds,
         }))}
         {group('Assignee', 'assignee', people, facets.assigneeIds, (assigneeIds) => ({
           ...facets,
@@ -732,6 +743,7 @@ export function PlanToolbar({
   facetTeams,
   facetTags,
   facetServices,
+  facetResources,
   facetPeople,
   facetBands,
   facetSteps,
@@ -804,6 +816,7 @@ export function PlanToolbar({
   facetTeams: FacetOption[];
   facetTags: FacetOption[];
   facetServices: FacetOption[];
+  facetResources: FacetOption[];
   facetPeople: FacetOption[];
   facetBands: { id: string; label: string }[];
   facetSteps: { id: string; label: string }[];
@@ -1330,6 +1343,7 @@ export function PlanToolbar({
         teams={facetTeams}
         tags={facetTags}
         services={facetServices}
+        resources={facetResources}
         people={facetPeople}
         bands={facetBands}
         steps={facetSteps}

@@ -49,6 +49,7 @@ export function facetsChosen(facets: FacetCriteria): number {
     facets.teamIds.length +
     facets.tagIds.length +
     facets.serviceIds.length +
+    facets.resourceIds.length +
     (facets.builtByNonOwner ? 1 : 0) +
     (facets.assignedOutsideTeam ? 1 : 0) +
     facets.assigneeIds.length +
@@ -187,6 +188,12 @@ export function usePlanFilterState({ projectId }: { projectId: string }) {
 const NOTHING_REVEALED: ReadonlySet<string> = new Set();
 
 /**
+ * A ticked resource no leaf demands any longer: the tree read names only the
+ * demanded ones, so a saved view can outlive the name.
+ */
+const NOT_LOADED_RESOURCE = 'a resource this plan has not loaded';
+
+/**
  * The rows this render shows, and the six facet lists the panel offers.
  *
  * Derived rather than stored, every render: a filter held as state alongside
@@ -292,6 +299,14 @@ export function usePlanFilter({
             // nearest statement, the tag is every statement above it, and the
             // type is this row's alone. Each is the rule its own question takes.
             typeIds: row.typeIds,
+            // The leaf's **own** demands and nothing on a parent, whose stored
+            // demand charges nothing (`plan-columns/resources.tsx`): a facet
+            // finding it would name a row no engine levels.
+            // Proof: the leaf test removed, `offers the resources the leaves
+            // demand, by name, and never a parent’s own` failed (`disk`
+            // offered); watched 2026-10-25.
+            resourceIds:
+              row.subRows.length === 0 ? row.demands.map((demand) => demand.resourceId) : [],
             // The **effective** service, for the same reason a third time, and
             // `?? null` because absence from the map is how this walk spells
             // "nobody above this row states one".
@@ -417,6 +432,20 @@ export function usePlanFilter({
    * ({@link planOnScreen}) and by the saved-views panel's tooltip, so a
    * filter is never described two different ways.
    */
+  /**
+   * What the tree read calls each demanded resource (`demandedResources`,
+   * carried onto each row's demands by `demandsByWorkItem`).
+   */
+  const resourceNames = useMemo(
+    () =>
+      new Map(
+        flat.flatMap((row) =>
+          row.demands.map((demand) => [demand.resourceId, demand.name] as const),
+        ),
+      ),
+    [flat],
+  );
+
   const filterLabels: FilterLabels = {
     teamName: (teamId) =>
       teams.find((team) => team.id === teamId)?.name ?? 'a team this plan has not loaded',
@@ -434,6 +463,7 @@ export function usePlanFilter({
     // would put a uuid in the export's `Scope` line.
     serviceName: (serviceId) =>
       services.find((each) => each.id === serviceId)?.name ?? 'a service this plan has not loaded',
+    resourceName: (resourceId) => resourceNames.get(resourceId) ?? NOT_LOADED_RESOURCE,
   };
 
   const facetTeams = useMemo(
@@ -486,6 +516,21 @@ export function usePlanFilter({
     [narrowable, facets.serviceIds, services],
   );
 
+  /**
+   * The resources any leaf on this plan demands, plus whatever is already
+   * ticked (`wbs-resources` task 3.4). A plan stating no demand offers none,
+   * and the panel then draws no Resource group, as for every empty facet.
+   */
+  const facetResources = useMemo(
+    () =>
+      optionsFor(
+        new Set(narrowable.flatMap((row) => row.facets.resourceIds)),
+        facets.resourceIds,
+        (id) => resourceNames.get(id) ?? NOT_LOADED_RESOURCE,
+      ),
+    [narrowable, facets.resourceIds, resourceNames],
+  );
+
   const facetPeople = useMemo(
     () =>
       optionsFor(
@@ -529,6 +574,7 @@ export function usePlanFilter({
     facetTeams,
     facetTags,
     facetServices,
+    facetResources,
     facetPeople,
     facetBands,
     facetSteps,

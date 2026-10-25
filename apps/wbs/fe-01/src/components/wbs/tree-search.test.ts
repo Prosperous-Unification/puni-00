@@ -17,6 +17,7 @@ const NO_FACETS: RowFacets = {
   tagIds: [],
   serviceIds: [],
   typeIds: [],
+  resourceIds: [],
   builtByNonOwner: false,
   assignedOutsideTeam: false,
   assigneeIds: [],
@@ -362,6 +363,7 @@ describe('what the filter says it is asking', () => {
     tagName: (id: string) => `tag-${id}`,
     serviceName: (id: string) => `service-${id}`,
     typeName: (id: string) => `type-${id}`,
+    resourceName: (id: string) => `resource-${id}`,
     personName: (id: string) => (id === 'ada' ? 'Ada' : 'Kat'),
     stepName: (id: string) => (id === 'dev' ? 'Dev' : 'QA'),
   };
@@ -460,6 +462,7 @@ describe('the tag facet narrows like every other facet', () => {
         tagName: (id) => `tag-${id}`,
         serviceName: (id) => `service-${id}`,
         typeName: (id) => `type-${id}`,
+        resourceName: (id) => `resource-${id}`,
         personName: (id) => id,
         stepName: (id) => id,
       }),
@@ -615,6 +618,7 @@ describe('what the filter says it is asking, for the third dimension', () => {
     tagName: (id: string) => `tag-${id}`,
     serviceName: (id: string) => `service-${id}`,
     typeName: (id: string) => `type-${id}`,
+    resourceName: (id: string) => `resource-${id}`,
     personName: (id: string) => `person-${id}`,
     stepName: (id: string) => `step-${id}`,
   };
@@ -637,5 +641,56 @@ describe('what the filter says it is asking, for the third dimension', () => {
 
   it('says nothing about a signal nobody ticked', () => {
     expect(filterWords(NO_FILTER, LABELS)).toEqual([]);
+  });
+});
+
+/**
+ * The resource facet (`wbs-resources` task 3.4): a leaf's **own** demands,
+ * never inherited, since a demand charges only the leaf that states it. The
+ * table hands a parent no resource ids (`use-plan-filter.ts`), so the rows
+ * here carry what that build site would.
+ */
+describe('the resource facet narrows like every other facet', () => {
+  const DEMANDING: NarrowableRow[] = [
+    row('a', null, 'Gate'),
+    row('a1', 'a', 'Build', { resourceIds: ['ram', 'staging'] }),
+    row('a2', 'a', 'Lint', { resourceIds: ['ram'] }),
+    row('b', null, 'Deploy'),
+    row('b1', 'b', 'Smoke', { resourceIds: ['staging'] }),
+    row('b2', 'b', 'Docs'),
+  ];
+
+  it('keeps the leaves demanding a chosen resource, and the rows that place them', () => {
+    const narrowed = narrowTree(DEMANDING, asking({ resourceIds: ['staging'] }));
+    expect([...narrowed.matchIds].sort()).toEqual(['a1', 'b1']);
+    expect([...narrowed.visibleIds].sort()).toEqual(['a', 'a1', 'b', 'b1']);
+  });
+
+  it('is OR within the facet and AND against another', () => {
+    expect(
+      [...narrowTree(DEMANDING, asking({ resourceIds: ['ram', 'staging'] })).matchIds].sort(),
+    ).toEqual(['a1', 'a2', 'b1']);
+    expect([
+      ...narrowTree(DEMANDING, asking({ resourceIds: ['ram'], query: 'lint' })).matchIds,
+    ]).toEqual(['a2']);
+  });
+
+  it('counts as a facet, and narrows to nothing for a resource no leaf demands', () => {
+    expect(isFiltering(asking({ resourceIds: ['ram'] }))).toBe(true);
+    expect(narrowTree(DEMANDING, asking({ resourceIds: ['gone'] })).visibleIds.size).toBe(0);
+  });
+
+  it('says what it is asking, in its own phrase', () => {
+    expect(
+      filterWords(asking({ serviceIds: ['s1'], resourceIds: ['ram', 'staging'] }), {
+        teamName: (id) => id,
+        tagName: (id) => id,
+        serviceName: (id) => `service-${id}`,
+        typeName: (id) => id,
+        resourceName: (id) => (id === 'ram' ? 'h2puni ram' : 'staging'),
+        personName: (id) => id,
+        stepName: (id) => id,
+      }),
+    ).toEqual(['service service-s1', 'resource h2puni ram or staging']);
   });
 });
