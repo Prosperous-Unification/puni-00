@@ -26,6 +26,10 @@
       Resources cell (hidden by default) and `Resources…` open one panel saving one `setDemand`
       batch, and the settings section adds, renames, removes (`in_use` confirm) and states
       capacity, with what claims hold; `verify.md` "Task 1.5".
+- [x] 1.6 Only organization admins delete a directory resource (design R8a, Dany 2026-10-25)
+      — test: be-01 member and viewer refused `forbidden` on both command routes, admin and
+      super-admin allowed; fe-01 Remove per role and a refused removal said in place;
+      negative: skip the role check and the member's cascade lands. `verify.md` "Task 1.6".
 
 ## 2. Occupancy on claims (needs slice 1 and the claims change slice 1)
 
@@ -57,11 +61,13 @@
 - [x] 3.3 CP-SAT: wire bump, one `AddCumulative` per resource, re-validator, fixtures in both
       suites, materialiser proof — test: parity with Fast on the fixtures. Solver wire 4,
       `wbs-solver` 0.3.0.
-- [ ] 3.4 fe-01: hover sentence and facet. The sentence half is done on
+- [x] 3.4 fe-01: hover sentence and facet. The sentence half is done on
       `feat/wbs-resource-levelling` (the chart and the table's start reason name the resource
       and its units from the tree read's `resourceLabels`); the per-resource facet is open.
       Since 1.5 the tree read carries `demands`, so the facet needs only fe-01's filter
       criteria, facet panel and export words (left for its own slice; see verify.md "Task 1.5").
+      The facet is done on `feat/wbs-resource-facet`: a leaf's own demands, saved views and
+      the filter's words; verify.md "Task 3.4 (facet)".
 
 ## 4. Assignee management
 

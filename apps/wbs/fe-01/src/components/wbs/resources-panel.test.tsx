@@ -23,6 +23,7 @@ const stubServer = (routes: Parameters<typeof baseStubServer>[0]) =>
     [RESOURCE_USES]: [() => answer(200, { uses: [], nextCursor: null })],
     ...routes,
   });
+const ACTIVE = 'GET /api/organization/active';
 
 beforeEach(() => {
   // Only `Date`: the panel's 30 s tick and every promise stay on the real clock.
@@ -81,17 +82,28 @@ const providersOf =
   (...providers: ComputeProvider[]) =>
   () =>
     answer(200, { computeProviders: providers });
+/** The caller's role in org-a, as `GET /api/organization/active` answers it. */
+const activeAs =
+  (role: 'super_admin' | 'admin' | 'member' | 'viewer', organizationId = 'org-a') =>
+  () =>
+    answer(200, { organizationId, name: 'Org A', role });
 const applied = () => answer(200, { results: [{ index: 0 }], undoable: false, redoable: false });
 
-function mount(onChanged: () => Promise<void> = () => Promise.resolve()) {
+function mount(onChanged: () => Promise<void> = () => Promise.resolve(), resourceScope = scope) {
   return renderBare(
-    <OrganizationResourcesProvider scope={scope}>
+    <OrganizationResourcesProvider scope={resourceScope}>
       <ResourcesPanel projectId="p1" shown onChanged={onChanged} onDirtyChange={() => undefined} />
     </OrganizationResourcesProvider>,
   );
 }
 
 const row = (name: string) => screen.findByRole('listitem', { name });
+/** A row's provider chip, found by the words a screen reader reads from it. */
+const chipIn = (scope: HTMLElement, words: string) =>
+  within(scope).getByText(
+    (_content, node) =>
+      node?.hasAttribute('data-provider-chip') === true && node.textContent === words,
+  );
 const plans = (sent: ReturnType<typeof stubServer>) =>
   sent.filter((request) => request.route === PLAN).map((request) => request.body);
 
@@ -202,10 +214,49 @@ describe('resources section states', () => {
     expect(within(disk).queryByRole('button', { name: /Adopt/ })).toBeNull();
   });
 
-  it('shows a member each reference unnamed, with no picker and no adopt', async () => {
+  it('names the instance on the row for a member, with no picker and no adopt', async () => {
+    stubServer({
+      [READ]: [
+        readOf(
+          [resourceOf({ provider: { kind: 'ssh_host', name: 'h2puni' }, report: measured() })],
+          [{ resourceId: 'r1', units: 12 }],
+        ),
+      ],
+      [PROVIDERS]: [() => answer(403, { error: 'forbidden' })],
+      [STARTABLE]: [startableOf({ resourceId: 'r1', capacity: 12, occupied: 0, free: 12 })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(chipIn(ram, 'Compute provider: SSH host·h2puni')).toBeDefined();
+    expect(within(ram).queryByText('Fulfilled by a compute provider')).toBeNull();
+    expect(within(ram).queryByRole('combobox')).toBeNull();
+    expect(within(ram).queryByRole('button', { name: /Adopt/ })).toBeNull();
+  });
+
+  it('shows the chip to an admin beside the picker, and none on a resource without one', async () => {
+    stubServer({
+      [READ]: [
+        readOf([
+          resourceOf({ provider: { kind: 'docker', name: 'builder' }, providerId: 'cp-2' }),
+          resourceOf({ id: 'r2', name: 'worktrees', unitLabel: '', providerId: null }),
+        ]),
+      ],
+      [PROVIDERS]: [providersOf(h2puni, builder)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(chipIn(ram, 'Compute provider: Docker·builder')).toBeDefined();
+    expect(within(ram).getByLabelText('Compute provider of h2puni ram')).toHaveValue('cp-2');
+    const worktrees = await row('worktrees');
+    expect(worktrees.querySelector('[data-provider-chip]')).toBeNull();
+  });
+
+  it('shows a member each reference unnamed while the read names no instance', async () => {
+    // The swap window: an outgoing be-01 answers `providerId` without `provider`.
     stubServer({
       [READ]: [readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 12 }])],
       [PROVIDERS]: [() => answer(403, { error: 'forbidden' })],
+      [ACTIVE]: [activeAs('member')],
       [STARTABLE]: [startableOf({ resourceId: 'r1', capacity: 12, occupied: 0, free: 12 })],
     });
     mount();
@@ -649,6 +700,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     const sent = stubServer({
       [READ]: [readOf([resourceOf()]), readOf([])],
       [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('admin')],
       [DIRECTORY]: [inUse(2, 1, 'Swarm B'), inUse(2, 1, 'Swarm B'), applied],
     });
     mount(onChanged);
@@ -679,6 +731,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     const sent = stubServer({
       [READ]: [readOf([resourceOf()])],
       [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('admin')],
       [DIRECTORY]: [inUse(2, 0, null), inUse(3, 0, 'Swarm B')],
     });
     mount();
@@ -699,6 +752,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     const sent = stubServer({
       [READ]: [readOf([resourceOf()]), readOf([])],
       [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('admin')],
       [DIRECTORY]: [applied],
     });
     mount();
@@ -725,11 +779,124 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     ]);
   });
 
+  for (const role of ['member', 'viewer'] as const)
+    it(`offers a ${role} no Remove, and says only an admin may`, async () => {
+      // The providers list answers as for an admin: the role alone withholds Remove.
+      const sent = stubServer({
+        [READ]: [readOf([resourceOf()])],
+        [PROVIDERS]: [providersOf(h2puni)],
+        [ACTIVE]: [activeAs(role)],
+      });
+      mount();
+      const ram = await row('h2puni ram');
+      expect(within(ram).getByRole('button', { name: 'Edit h2puni ram' })).toBeDefined();
+      expect(within(ram).queryByRole('button', { name: /Remove/ })).toBeNull();
+      expect(screen.getByText('Only an organization admin can remove a resource.')).toBeDefined();
+      expect(screen.getByRole('form', { name: 'Add a resource' })).toBeDefined();
+      expect(directories(sent)).toEqual([]);
+    });
+
+  for (const role of ['admin', 'super_admin'] as const)
+    it(`offers ${role === 'admin' ? 'an admin' : 'a super-admin'} Remove, whatever the providers read answered`, async () => {
+      stubServer({
+        [READ]: [readOf([resourceOf()])],
+        [PROVIDERS]: [() => answer(500, { error: 'internal' })],
+        [ACTIVE]: [activeAs(role)],
+      });
+      mount();
+      const ram = await row('h2puni ram');
+      expect(within(ram).getByRole('button', { name: 'Remove h2puni ram' })).toBeDefined();
+      expect(screen.queryByText(/Only an organization admin/)).toBeNull();
+    });
+
+  it('offers every caller without organizations Remove, reading no role', async () => {
+    const sent = stubServer({ [READ]: [readOf([resourceOf({ providerId: null })])] });
+    mount(undefined, { ...scope, organization: { kind: 'legacy' } });
+    const ram = await row('h2puni ram');
+    expect(within(ram).getByRole('button', { name: 'Remove h2puni ram' })).toBeDefined();
+    expect(sent.some(({ route }) => route === ACTIVE)).toBe(false);
+  });
+
+  it('offers no Remove while the role read failed, and says so', async () => {
+    stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [() => answer(500, { error: 'internal' })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(within(ram).getByRole('button', { name: 'Edit h2puni ram' })).toBeDefined();
+    expect(within(ram).queryByRole('button', { name: /Remove/ })).toBeNull();
+    expect(
+      screen.getByText('Your role could not be read, so removing a resource is not offered.'),
+    ).toBeDefined();
+  });
+
+  it('offers no Remove when the active organization is another one', async () => {
+    stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('admin', 'org-b')],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(within(ram).queryByRole('button', { name: /Remove/ })).toBeNull();
+  });
+
+  it('says a refused removal in place, closes its confirm and takes Remove away', async () => {
+    // An admin demoted since the read: be-01 decides, and the reread follows it.
+    stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('admin'), activeAs('member')],
+      [DIRECTORY]: [() => answer(403, { error: 'forbidden', at: 0, kind: 'deleteResource' })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+    fireEvent.click(await within(ram).findByRole('button', { name: 'Remove h2puni ram' }));
+    const said = await screen.findByText(
+      'Your role no longer allows removing a resource. Nothing was changed.',
+    );
+    expect(said.getAttribute('role')).toBe('alert');
+    expect(within(ram).queryByRole('button', { name: 'Keep h2puni ram' })).toBeNull();
+    await waitFor(() => {
+      expect(within(ram).queryByRole('button', { name: /Remove/ })).toBeNull();
+    });
+    expect(said.isConnected).toBe(true);
+  });
+
+  it('says a refused cascade in place and closes its confirm', async () => {
+    const sent = stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('admin')],
+      [DIRECTORY]: [
+        inUse(2, 0, null),
+        inUse(2, 0, null),
+        () => answer(403, { error: 'forbidden', at: 0, kind: 'deleteResource' }),
+      ],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+    fireEvent.click(await within(ram).findByRole('button', { name: 'Remove h2puni ram' }));
+    fireEvent.click(await within(ram).findByRole('button', { name: 'Remove with them' }));
+    expect(
+      await screen.findByText(
+        'Your role no longer allows removing a resource. Nothing was changed.',
+      ),
+    ).toBeDefined();
+    expect(within(ram).queryByRole('button', { name: 'Remove with them' })).toBeNull();
+    expect(directories(sent)).toHaveLength(3);
+  });
+
   it('lands on the next resource after a removal, and on Add after the last', async () => {
     const disk = resourceOf({ id: 'r2', name: 'h2puni disk', providerId: null });
     stubServer({
       [READ]: [readOf([resourceOf(), disk]), readOf([disk]), readOf([])],
       [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('admin')],
       [DIRECTORY]: [applied],
     });
     mount();
@@ -831,6 +998,7 @@ describe('resources section holdings (wbs-resources 1.5)', () => {
     stubServer({
       [READ]: [readOf([resourceOf()], [{ resourceId: 'r1', units: 32 }])],
       [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('admin')],
       [STARTABLE]: [startableOf({ resourceId: 'r1', capacity: 32, occupied: 6, free: 26 })],
     });
     mount();

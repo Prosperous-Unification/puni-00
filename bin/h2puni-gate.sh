@@ -78,6 +78,11 @@ fi
 # red happening once already, from a lane launching the gate with the value set
 # on its command line.
 : "${HEAVY_LOCK_WAIT_SECONDS:=1800}"
+# Assignment retains an inherited variable's export attribute. Keep its value for
+# the same-shell lock function, but remove that attribute before spawning steps.
+# Proof: omitting this line made the actual-entrypoint 0/7200 override tests leak
+# child=0/7200 instead of child=unset (tools/tool-dagger/src/heavy-lock.test.ts).
+export -n HEAVY_LOCK_WAIT_SECONDS
 
 trusted_launcher_dir=$(mktemp -d)
 trusted_launcher="$trusted_launcher_dir/tool-wiki-lint.sh"

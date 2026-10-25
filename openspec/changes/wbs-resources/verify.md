@@ -1086,7 +1086,7 @@ items)` and each other project by name, from the refusal's `usage`. It says live
   window between the re-check and the cascade remains.
 - Role gating is unchanged. **Open question for Dany:** any member of the organization may
   delete a directory resource with its demands, capacities and occupancies, from any project's
-  settings.
+  settings. **Answered 2026-10-25:** only admins may; see "Task 1.6" and design R8a.
 
 **S3:**
 
@@ -1211,3 +1211,197 @@ project-settings-modal, `src/testing`, plan-commands and #718's `playwright-conf
 15 files, 616 pass; `nx run-many -t lint typecheck` (be-01, fe-01, contracts, core, with
 `typecheck:module`) exit 0; `openspec validate --all --json` exit 0; Burokrat `check-indexes`
 exit 0. Full fe-01 / be-01 suites and the h2puni gate not re-run (gate pending).
+
+## Task 3.4 (facet): the plan filters by resource (2026-10-25)
+
+Branch `feat/wbs-resource-facet` from main `830e774d2`. fe-01 only for this half; the sentence
+half was done on `feat/wbs-resource-levelling`.
+
+### What shipped
+
+- `tree-search.ts`: `RowFacets.resourceIds`, `FilterCriteria.resourceIds`, `NO_FACETS`, the
+  facet test in `isFiltering`, the predicate (OR within, AND across, ancestors kept, no subtree),
+  `FilterLabels.resourceName` and the phrase `resource <name> or <name>` in `filterWords` (so the
+  on-screen export's Scope line and an unnamed saved view say it).
+- `use-plan-filter.ts`: a row's `resourceIds` are its **own** demands on a leaf and nothing on a
+  parent (a parent's stored demand charges nothing, `plan-columns/resources.tsx`); names come
+  from the rows' demands, i.e. the tree read's `demandedResources`; `facetResources` is the
+  leaves' resources plus whatever is ticked; the Filters badge counts it. A ticked resource no
+  leaf demands any more reads `a resource this plan has not loaded`.
+- `plan-toolbar.tsx`: a `Resource` group before `Assignee`; like every group it is not drawn
+  when the plan offers nothing (a plan with no demands).
+- `remembered-layout.ts`: a saved view stores `resourceIds`; absent (every view saved before) is
+  asking nothing, a non-list drops that view alone. There is no URL encoding of filters (by
+  design, `usePlanFilterState`), so saved views are the only round trip.
+- Delta: `specs/schedule-resources/spec.md` drops "facet deferred" and adds "The plan filters by
+  the resource a leaf demands" with three scenarios.
+
+### Commands and results (fresh, `env -u CLAUDECODE`)
+
+- fe-01 DOM suites, one worker, UTC: `plan-filter`, `tree-search`, `resources-panel`,
+  `plan-toolbar`, `resource-demand-panel`, `project-settings-modal`: 6 files, 250 tests pass.
+- `wbs-fe-01` node tier (`vitest.node.config.ts`): 85 files, 1049 tests pass.
+- `bunx nx run-many -t typecheck -p wbs-contracts wbs-core wbs-store-sqlite wbs-be-01 wbs-fe-01
+--skip-nx-cache --parallel=1`: succeeded (fe-01 `typecheck:module` included).
+- `bunx nx run-many -t lint -p` the same five `--skip-nx-cache --parallel=1`
+  (`NODE_OPTIONS=--max-old-space-size=8192`): succeeded.
+- `bunx openspec validate --all --json`: 285 of 285 passed. Burokrat `check-indexes working .
+HEAD` (output redirected): exit 0.
+- Not run: the full `wbs-fe-01:test` target (every DOM suite plus the Auckland run) and
+  `bun run e2e`, for the laptop RAM cap; CI runs both. No e2e or pixels fixture states a
+  demand, so the Resource group never appears there: no hard-coded count and no baseline moves.
+
+### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Fault injected                                                   | Observed failing test                                                                                 |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| the `resourceIds` predicate line removed from `narrowTree`       | the three narrowing cases of `the resource facet narrows like every other facet`                      |
+| the leaf test removed (a parent's own demand made a facet value) | `offers the resources the leaves demand, by name, and never a parent’s own` (`disk` offered)          |
+| `isAbsentOrStringArray(claimed['resourceIds'])` removed          | `drops a saved view whose resources are not a list, keeping the rest` (both views offered)            |
+| `facets.resourceIds.length` dropped from `facetsChosen`          | `keeps the leaves demanding a ticked resource and the rows that place them` (`Filters (1)` not shown) |
+
+### Eye review (Playwright Chromium, local activated organization per docs/local-dev.md)
+
+be-01 `activated-organization-server.ts` on 7300, gw-01 on 7301, fe-01 Vite on 7400; seeded over
+the routes (a `Release train` plan of two parents and four leaves, four resources, three provider
+instances, demands on three leaves and one parent, a `No demands yet` plan). Screenshots in the
+coordinator's scratch `resource-facet-shots/`:
+`01-facet-panel-{1280,375}-{light,dark}`, `02-facet-staging-ticked-…`, `03-narrowed-…`,
+`04-no-demands-panel-1280-light`. Page errors 0 and horizontal overflow 0 px in every shot.
+The group lists `builder agent slots`, `h2puni ram`, `h4claw tmp disk`, `staging` and not the
+parent-only demand; ticking `staging` leaves `020 Deploy` and `020.1 Smoke on staging` (marked),
+`Filters (1)`, `2 of 6`; on a phone the group sits inside the Plan actions sheet unchanged. The
+plan without demands shows no Resource group. Nothing changed after review.
+
+### Task 3.4 review fixes (Fable review of #720, 2026-10-25)
+
+- `resourceNames` and its JSDoc sit above `filterLabels`, so `filterLabels` keeps its own doc.
+  The hook doc says seven facet lists.
+- The spec now says what the code does: a ticked resource the tree read no longer names reads
+  `a resource this plan has not loaded`, and a resource still stated on a parent keeps its
+  name. In both cases it narrows to nothing when no leaf demands it.
+- **Known gap (S3 10), follow-up:** the Resources column is hidden by default. After narrowing
+  by resource, the reader therefore cannot see on the row why it matched. Showing the column
+  while the facet is ticked was not done.
+
+## Task 1.6: only organization admins delete a directory resource (2026-10-25)
+
+Dany's decision of 2026-10-25 answers the open question of #719's review (S2-3): a member may
+not delete a directory resource; an admin or a super-admin may (design R8a). Create and patch
+are unchanged.
+
+### What shipped
+
+- `@wbs/domain` `mayRemoveResourceInOrganization(role)`: admin or super_admin, beside
+  `mayDefineMeasuresInOrganization`.
+- `DirectoryService.removeResourceWithin` refuses a scoped caller without that role
+  `forbidden` before the resource is looked up. It is the one path every `deleteResource` takes:
+  the directory batch, a project batch carrying the directory command, and MCP, whose tools
+  call the same be-01 routes. Plan import and undo never remove a resource. A viewer's batch is
+  still refused whole, before any command runs. Legacy access carries no role and keeps its
+  whole-directory writes, as for measures. The `deleteResource` command description (MCP and
+  OpenAPI text) says who may; the MCP tool count is unchanged.
+- fe-01 `resources-panel.tsx`: Remove is offered only where the admin-only providers list was
+  read (`mayRemoveResources`), or without organizations. A member, a viewer, and a reader whose
+  providers read failed see Edit and no Remove. A `forbidden` removal that still arrives (an
+  admin demoted since the read) says `Only an organization admin can remove a resource. Nothing
+was changed.` and closes the confirm.
+
+### Commands and results (fresh, `env -u CLAUDECODE`)
+
+- be-01 `resource-organization.controller.db.test.ts`, `compute-provider.controller.db.test.ts`,
+  `measure-organization.controller.db.test.ts`: 50 pass, 0 fail.
+- core `bun test src`: 1337 pass, 0 fail. domain `bun test src`: 1313 pass, 0 fail.
+  contracts `src/commands`: 0 fail. mcp-01 `openapi-tools.test.ts`: 33 tests, 0 fail.
+  store-sqlite `resource-occupancy.db.test.ts`: 70 tests, 0 fail.
+- fe-01 `vitest run src/components/wbs/resources-panel.test.tsx` (TZ=UTC): 42 pass.
+- `nx run-many -t typecheck lint -p wbs-domain wbs-core wbs-contracts wbs-be-01 wbs-fe-01
+--parallel=1` (NODE_OPTIONS=--max-old-space-size=8192): exit 0, 13 tasks.
+- `prettier --check` on the changed files: clean. `openspec validate --all --json`: exit 0,
+  285/285. Burokrat `check-indexes working . HEAD`: exit 0.
+
+### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Fault injected (watched 2026-10-25)                  | Observed failing test                                                                                                                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the role refusal in `removeResourceWithin` skipped   | `refuses a member removing a resource on either route, an admin and a super-admin allowed`: the member's cascade answered 200 `results: [{ index: 0 }]` |
+| `mayRemoveResources` answering true                  | `offers a member Edit but no Remove`, `offers a viewer Edit but no Remove`, `offers no Remove while the providers read failed and the role is unknown`  |
+| the `forbidden` arm of the removal's refusal skipped | `says a refused removal in place and closes its confirm`: `Unable to find an element with the text: Only an organization admin can remove…`             |
+
+### Eye review (Playwright Chromium, local activated organization per docs/local-dev.md)
+
+`resources-member-1280-light` and `resources-admin-1280-light` in `resource-delete-shots/`
+(the seed and the stack of the 3.4 review). The member's four rows show Edit and no Remove (0
+Remove buttons, 4 Edit); the super-admin owner's show Edit and Remove beside the picker (4 and
+4). Page errors 0, overflow 0 px.
+
+### Not run, and why
+
+- The full be-01 and fe-01 suites, e2e and pixels: laptop RAM cap; CI runs them. No e2e spec
+  clicks a resource's Remove (`grep` of `apps/wbs/fe-01/e2e` for `Resources` and `Remove`: the
+  hits are the section list, a leaf's `Resources…` and step and team removals), so no e2e count
+  or pixel baseline moves.
+- The h2puni gate: the caller runs it on the merged head.
+
+### Task 1.6 review fixes (Fable review of #727, 2026-10-25)
+
+- **S2-1:** `wbs-permissions/permission-matrix.md` gives `deleteResource` its own admin row
+  (`mayRemoveResourceInOrganization`, R8a) beside the measures. The member-level directory row
+  no longer lists it.
+- **S3-1:** the member test now also removes another organization's resource and an absent id.
+  Both answer `403 forbidden`, which pins "before the resource is looked up".
+- **S3-2:** the foreign-id `patchResource` case is a member's again (`ada`). Only the removal is
+  `sue`'s.
+- **S3-3 / S3-5:** fe-01 reads the role from `GET /api/organization/active` on each read of the
+  section (`RemovalRight`), no longer from the providers list.
+  - Admin and super_admin are `granted`.
+  - Member and viewer are `withheld`, with the hint `Only an organization admin can remove a
+resource.`
+  - A failed role read is `unknown`: no Remove, and the section says the role could not be
+    read.
+  - An active organization other than the captured one is `withheld`.
+
+  The member and viewer tests now stub an admin's providers list and differ only in the role.
+  The admin and super-admin tests stub a failed providers read and still get Remove.
+
+- **S3-4 / S3-9:** `sayForbiddenRemoval` handles a `forbidden` on both the plain delete and the
+  cascade. It closes the confirm, says `Your role no longer allows removing a resource. Nothing
+was changed.` (reworded so it does not repeat the hint) and rereads, which takes Remove away.
+- **S3-6:** R8a, the spec requirement and the `deleteResource` description say that a machine
+  credential or MCP delegation acts as at most a member, so no agent removes a resource. New
+  be-01 test: `refuses an agent key of a super-admin removing a resource, as a member`.
+- **S3-7:** the `organization-ownership-and-access` role matrix has the row `Delete a directory
+resource; define measures (R8a, D70)`: admin and super-admin.
+- **S3-8:** a plain admin, the member's hint and the refusal are now shot.
+
+#### Commands and results (fresh, after the last edit, `env -u CLAUDECODE`)
+
+- be-01 `resource-organization.controller.db.test.ts`, `compute-provider.controller.db.test.ts`,
+  `measure-organization.controller.db.test.ts`: 51 pass, 0 fail. core `bun test src`, contracts
+  `src/commands` and mcp-01 `openapi-tools.test.ts`: 1337 pass, 0 fail, 0 fail.
+- `nx run-many -t typecheck lint -p wbs-core wbs-contracts wbs-be-01 wbs-fe-01 --parallel=1`:
+  exit 0. `openspec validate --all --json`: exit 0. Burokrat `check-indexes`: exit 0.
+- fe-01 `resources-panel.test.tsx` + `project-settings-modal.test.tsx` (TZ=UTC): 82 pass.
+
+#### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Fault injected (watched 2026-10-25)               | Observed failing test                                                                                                                                                                                 |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| role check moved after the `ownEntry` lookup      | `refuses a member removing a resource on either route, …`: 404 `not_found` for the foreign id, not 403                                                                                                |
+| role refusal in `removeResourceWithin` skipped    | `refuses an agent key of a super-admin removing a resource, as a member`: the agent got 200                                                                                                           |
+| `RemovalRight` always `granted`                   | `offers a member no Remove…`, `offers a viewer no Remove…`, `offers no Remove while the role read failed…`, `offers no Remove when the active organization is another one`, `says a refused removal…` |
+| the reread in `sayForbiddenRemoval` dropped       | `says a refused removal in place, closes its confirm and takes Remove away`                                                                                                                           |
+| `sayForbiddenRemoval` not passed to the cascade   | `says a refused cascade in place and closes its confirm`                                                                                                                                              |
+| `sayForbiddenRemoval` skipped on the plain delete | `says a refused removal in place, …`: `Unable to find … Your role no longer allows removing a resource.`                                                                                              |
+
+#### Eye review (same stack and seed, plus an `admin` account `adm`)
+
+Shots in `resource-delete-shots/`, page errors 0, overflow 0 px:
+
+- `resources-member-1280-light`, `resources-member-hint-1280-light`: `mem` has 0 Remove and 4 Edit
+  buttons, with the hint above Add.
+- `resources-admin-1280-light`: `adm`, a plain admin, has 4 Remove and 4 Edit buttons beside the
+  picker.
+- `resources-forbidden-alert-1280-light`: `adm` was demoted to member between opening the confirm
+  and confirming. It shows the alert under the hint, no confirm, and 0 Remove buttons; the picker
+  is gone after the reread.

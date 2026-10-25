@@ -1215,6 +1215,7 @@ export function WbsTable({
     facetTeams,
     facetTags,
     facetServices,
+    facetResources,
     facetPeople,
     facetBands,
     facetSteps,
@@ -2516,6 +2517,7 @@ export function WbsTable({
       facetTeams={facetTeams}
       facetTags={facetTags}
       facetServices={facetServices}
+      facetResources={facetResources}
       facetPeople={facetPeople}
       facetBands={facetBands}
       facetSteps={facetSteps}
