@@ -474,8 +474,7 @@ codes, workPackageIds }` naming the project and the packages holding them; the r
 { typeIds }`. Back-fill: no row (after it, no organization, space or project narrows the
   list). _Revised 2026-10-25 by Dany:_ the allow-list is also settable at the organization
   and at space (E18), nearest wins; still never at the work package. A write that would
-  leave existing work outside the resolved list refuses `409 types_in_use { count }` (E48,
-  awaits Dany). ADR 0009 (a type does
+  leave existing work outside the resolved list refuses `409 types_in_use { count, workItems }`, listing the work items, and `dryRun: true` previews it (E48, settled 2026-10-25). ADR 0009 (a type does
   not inherit) is untouched. Rejected: project-scoped types (it splits one directory word into
   one per project and breaks the organization-level directory commands).
 - **E23. A project sits in one space or none; persons and teams belong to spaces.** _Revised
@@ -905,17 +904,7 @@ planner assumptions and **await Dany**.
   `space_project_dropped`, printed in `verify.md`, lets Dany re-home a project by hand
   afterwards (remove it from its space, then `POST /api/spaces/:id/projects`). Rejected
   alternative: stopping the migration until an explicit mapping is supplied.
-- **E48. Awaits Dany (review Q2): inherited changes apply at once, and a narrowing that
-  existing work violates is refused.** Resolution happens at read and nothing is cached. So
-  a settings write at the organization, a space or a project, a project entering or leaving
-  a space, and a space deletion each change every resolved value beneath them immediately.
-  After the commit, each affected work package gets `work_package_settings_changed` and the
-  optimizer's ordinary re-plan trigger. Saved plans keep their captured inputs and show the
-  new values as `settings` differences on compare. Any of those writes that would leave a
-  work item carrying a type outside its work package's resolved `allowedWorkItemTypes` is
-  refused with `409 types_in_use { count }` (the number of such work items) and changes
-  nothing; the move keeps its own `type_not_allowed_in_project { typeIds }`. Nothing is
-  grandfathered.
+- **E48. Settled by Dany 2026-10-25 (review Q2): inherited changes apply at once; a change that would break existing work lists what breaks, and is refused until that is cleared.** Resolution happens at read and nothing is cached. So a settings write at the organization, a space or a project, a project entering or leaving a space, and a space deletion each change every resolved value beneath them immediately. After the commit, each affected work package gets `work_package_settings_changed` and the optimizer's ordinary re-plan trigger. Saved plans keep their captured inputs and show the new values as `settings` differences on compare. Any of those writes that would leave a work item carrying a type outside its work package's resolved `allowedWorkItemTypes` is refused with `409 types_in_use { count, workItems }` and changes nothing: `workItems` lists each such work item (`id`, `name`, `typeId`, `workPackageId`, `projectId`), the first 200 by project, package and rank, with `count` the total, so a person or an agent sees exactly what to re-type and where. Dany (2026-10-25): "if changing configs breaks smth - must list what will be broken before change can happen". Preview: every one of those writes accepts `dryRun: true` in its body; it runs the same code in a transaction that is rolled back and answers `200 { wouldRefuse: 'types_in_use', count, workItems }` or `200 { wouldRefuse: null, affectedWorkPackages }` (the packages that would receive `work_package_settings_changed`), under the same permission as the write and never writing or announcing. The same shape covers the move's own `type_not_allowed_in_project { typeIds }`. Nothing is grandfathered. Rejected: a separate preview route per write (two code paths whose answers can drift) and a count-only refusal (the caller must hunt for the items).
 - **E49. Awaits Dany (review Q3): the combined create succeeds only as a whole.** The
   create succeeds only when the project, the package, both creator grants and their audit
   rows commit together (E41); otherwise nothing is written. Where the owner was displayed,
