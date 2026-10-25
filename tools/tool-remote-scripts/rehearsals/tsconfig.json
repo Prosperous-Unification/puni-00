@@ -13,7 +13,11 @@
     "source-stageb-journal.ts",
     "source-stageb-journal.test.ts",
     "source-stageb-archive.ts",
-    "source-stageb-archive.test.ts"
+    "source-stageb-archive.test.ts",
+    "source-stageb-inputs.ts",
+    "source-stageb-inputs.test.ts",
+    "source-stageb-bootstrap.ts",
+    "source-stageb-bootstrap.test.ts"
   ],
   "references": []
 }
