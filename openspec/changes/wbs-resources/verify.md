@@ -1202,3 +1202,12 @@ the box, no toast), `11-settings-remove-in-use` (where, live claims, cannot be u
 | `readUntilNamed` answers its first pair           | `reads both again once when a removal landed between them` failed                              |
 | `treeIsolated` re-read skipped                    | `labels a bar of a resource removed between the two reads` threw `a bar waited for resource …` |
 | removal focus not recorded                        | `lands on the next resource after a removal, and on Add after the last` failed                 |
+
+Fresh after merging `origin/main` (e759f1e13, #718), `env -u CLAUDECODE`: core `bun test src`
+1337 pass, 0 fail; be-01 resource-organization, resource-schedule and #718's
+`organization-browser-server.test.ts` 12 pass; fe-01 (UTC) the resource suites, plan-cards,
+plan-structure, plan-keyboard, plan-layout, measure-panel, table-frame,
+project-settings-modal, `src/testing`, plan-commands and #718's `playwright-config.test.ts`:
+15 files, 616 pass; `nx run-many -t lint typecheck` (be-01, fe-01, contracts, core, with
+`typecheck:module`) exit 0; `openspec validate --all --json` exit 0; Burokrat `check-indexes`
+exit 0. Full fe-01 / be-01 suites and the h2puni gate not re-run (gate pending).
