@@ -17,6 +17,8 @@ import {
   PERSON_KINDS,
   READINESSES,
   RESOURCE_KINDS,
+  type ResourceUse,
+  type ResourceUseEvent,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
 } from '@wbs/domain';
@@ -4171,3 +4173,74 @@ export const measure = sqliteTable(
     ),
   ],
 );
+
+/** Durable operational snapshots; source deletions never cascade into reported responsibility. */
+export const resourceUseRecord = sqliteTable('resource_use', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id'),
+  projectId: text('project_id').notNull(),
+  workItemId: text('work_item_id').notNull(),
+  responsiblePersonId: text('responsible_person_id').notNull(),
+  agentRun: text('agent_run').notNull(),
+  stepId: text('step_id'),
+  attemptNumber: integer('attempt_number'),
+  state: text('state').notNull(),
+  revision: integer('revision').notNull(),
+  snapshot: text('snapshot', { mode: 'json' }).$type<ResourceUse>().notNull(),
+  requestId: text('request_id').notNull(),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  registrationResponse: text('registration_response', { mode: 'json' })
+    .$type<ResourceUse>()
+    .notNull(),
+});
+/** Append-only reports and exact original responses for retries after subsequent transitions. */
+export const resourceUseEventRecord = sqliteTable('resource_use_event', {
+  id: text('id').notNull(),
+  useId: text('use_id').notNull(),
+  projectId: text('project_id').notNull(),
+  revision: integer('revision').notNull(),
+  snapshot: text('snapshot', { mode: 'json' }).$type<ResourceUseEvent>().notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  response: text('response', { mode: 'json' }).$type<ResourceUse>().notNull(),
+});
+
+/** Immutable authority binding; its sequence advances atomically with accepted runtime events. */
+export const resourceAuthorityRecord = sqliteTable('resource_authority', {
+  authorityId: text('authority_id').primaryKey(),
+  organizationId: text('organization_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  credentialId: text('credential_id').notNull(),
+  epoch: text('epoch').notNull(),
+  acceptedSequence: integer('accepted_sequence').notNull(),
+  createdAt: integer('created_at').notNull(),
+  createdBy: text('created_by').notNull(),
+});
+/** Runtime identity is separate from the browser projection revision. */
+export const resourceRuntimeUseRecord = sqliteTable('resource_runtime_use', {
+  useId: text('use_id').primaryKey(),
+  authorityId: text('authority_id').notNull(),
+  incarnation: text('incarnation').notNull(),
+  revision: integer('revision').notNull(),
+  declaration: text('declaration').notNull(),
+});
+/** Exact accepted message and answer make replay independent of later state. */
+export const resourceRuntimeEventRecord = sqliteTable('resource_runtime_event', {
+  authorityId: text('authority_id').notNull(),
+  eventId: text('event_id').notNull(),
+  sequence: integer('sequence').notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  response: text('response', { mode: 'json' })
+    .$type<{ acceptedSequence: number; useId: string; revision: number }>()
+    .notNull(),
+});
+/** Durable request queue; only an accepted matching runtime event acknowledges a request. */
+export const resourceCleanupRequestRecord = sqliteTable('resource_cleanup_request', {
+  requestId: integer('request_id').primaryKey({ autoIncrement: true }),
+  authorityId: text('authority_id').notNull(),
+  useId: text('use_id').notNull(),
+  incarnation: text('incarnation').notNull(),
+  expectedRevision: integer('expected_revision').notNull(),
+  reason: text('reason').notNull(),
+  at: integer('at').notNull(),
+  acknowledgedSequence: integer('acknowledged_sequence'),
+});

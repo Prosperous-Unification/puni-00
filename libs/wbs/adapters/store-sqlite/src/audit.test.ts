@@ -153,6 +153,15 @@ const EXEMPT = new Set([
   // Proof: injecting auditColumns() into its schema failed `exempts only
   // tables that carry no audit columns` for this entry (2026-10-22).
   'resourceCapacityReport',
+  // Operational reports carry actor/time in immutable snapshots; runtime metadata and
+  // outbox rows are sequenced under those reports rather than separate authored facts.
+  'resourceUseRecord',
+  'resourceUseEventRecord',
+  'resourceAuthorityRecord',
+  // Proof: injecting auditColumns into this exempt record failed the exemption assertion (2026-10-25).
+  'resourceRuntimeUseRecord',
+  'resourceRuntimeEventRecord',
+  'resourceCleanupRequestRecord',
 ]);
 
 /**

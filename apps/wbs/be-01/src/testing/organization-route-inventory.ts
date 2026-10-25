@@ -1,6 +1,54 @@
 /** Independently enumerated production surface; control routes retain their existing authority contracts. */
 export const ORGANIZATION_ROUTE_INVENTORY = [
   {
+    operationId: 'putApiOrganizationResourceAuthoritiesByAuthorityId',
+    method: 'PUT',
+    path: '/api/organization/resource-authorities/:authorityId',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'getApiOrganizationResourceAuthoritiesByAuthorityId',
+    method: 'GET',
+    path: '/api/organization/resource-authorities/:authorityId',
+    kind: 'read',
+  },
+  {
+    operationId: 'putApiResourceAuthoritiesByAuthorityIdEvents',
+    method: 'PUT',
+    path: '/api/resource-authorities/:authorityId/events',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
+    method: 'GET',
+    path: '/api/resource-authorities/:authorityId/cleanup-requests',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResourceUses',
+    method: 'GET',
+    path: '/api/projects/:id/resource-uses',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResourceUsesByUseIdHistory',
+    method: 'GET',
+    path: '/api/projects/:id/resource-uses/:useId/history',
+    kind: 'read',
+  },
+  {
+    operationId: 'postApiProjectsByIdResourceUses',
+    method: 'POST',
+    path: '/api/projects/:id/resource-uses',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiProjectsByIdResourceUsesByUseIdEvents',
+    method: 'POST',
+    path: '/api/projects/:id/resource-uses/:useId/events',
+    kind: 'mutation',
+  },
+  {
     operationId: 'getApiOrganizationActive',
     method: 'GET',
     path: '/api/organization/active',

@@ -54,6 +54,8 @@ export * from './project';
 export * from './project-rank';
 export * from './provisioning-token';
 export * from './resource';
+export * from './resource-runtime';
+export * from './resource-use';
 export * from './revision';
 export * from './saved-plan';
 export * from './saved-plan-capture';
