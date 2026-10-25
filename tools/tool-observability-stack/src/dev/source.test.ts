@@ -39,7 +39,8 @@ function fixture() {
     `#!${process.execPath}\nimport {readFileSync,writeFileSync} from 'node:fs';
  const settings=JSON.parse(readFileSync(${JSON.stringify(settings)},'utf8'));
  writeFileSync(${JSON.stringify(argumentsPath)},JSON.stringify(process.argv.slice(2)));
- if(settings.mode==='blocked'){writeFileSync(${JSON.stringify(join(directory, 'pid'))},String(process.pid));await Bun.sleep(60000);}
+ if(settings.mode==='inspect-failure'&&process.argv.includes('inspect'))process.exit(1);
+ else if(settings.mode==='blocked'){writeFileSync(${JSON.stringify(join(directory, 'pid'))},String(process.pid));await Bun.sleep(60000);}
  else if(process.argv.includes('inspect')){console.log(JSON.stringify(settings.inspect));if(settings.mode==='recreated'){settings.inspect[0].Id='e'.repeat(64);writeFileSync(${JSON.stringify(settings)},JSON.stringify(settings));}}
  else if(settings.mode==='recreated'&&process.argv.includes('wbs-dev-src')){const time=Date.now();console.log(JSON.stringify({success:true,revision:'b'.repeat(40),reason:null,startedAt:time,finishedAt:time,requestDurationMs:0,transportDurationMs:null}));}
  else if(settings.mode==='malformed')console.log('invalid-json');
@@ -328,5 +329,28 @@ test('malformed Docker ID is refused before exec', async () => {
       producerVersion: 'test',
     }),
   );
+  expect(readFileSync(source.argumentsPath, 'utf8')).toContain('inspect');
+});
+
+test('failed actual inspection emits root failure without an unmeasured HTTP child', async () => {
+  const source = fixture();
+  writeFileSync(
+    source.settings,
+    JSON.stringify({ inspect: source.inspect, mode: 'inspect-failure' }),
+  );
+  const observation = await collectProbe({
+    readHealth: createSshHealthReader(source.executable),
+    publication,
+    producerVersion: 'test',
+  });
+  expect(observation.reason).toBe('source-unavailable');
+  expect(observation.requestDurationMs).toBeNull();
+  const encoded = encodeOtlp(observation);
+  const spans = encoded.traces.resourceSpans[0].scopeSpans[0].spans;
+  expect(spans).toHaveLength(1);
+  expect(spans[0]).toMatchObject({ name: 'dev health observation', kind: 1, status: { code: 2 } });
+  expect(JSON.stringify(spans)).not.toContain('http.request.method');
+  expect(JSON.stringify(spans)).not.toContain('url.path');
+  expect(JSON.stringify(encoded.metrics)).not.toContain('puni_dev_probe_duration_seconds');
   expect(readFileSync(source.argumentsPath, 'utf8')).toContain('inspect');
 });

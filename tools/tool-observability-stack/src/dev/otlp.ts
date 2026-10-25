@@ -99,6 +99,8 @@ export function encodeOtlp(observation: ProbeObservation, previousRevision: stri
       attribute('url.path', '/health'),
     ],
   };
+  // Proof: forcing an HTTP child on failed actual inspection makes its no-unmeasured-request negative fail.
+  const spans = observation.requestDurationMs === null ? [parent] : [parent, child];
   const dimensions = [attribute('environment', 'dev'), attribute('service', 'be-01')];
   const point = (value: number, labels = dimensions) => ({
     attributes: labels,
@@ -152,7 +154,7 @@ export function encodeOtlp(observation: ProbeObservation, previousRevision: stri
         },
       ],
     },
-    traces: { resourceSpans: [{ resource, scopeSpans: [{ scope, spans: [parent, child] }] }] },
+    traces: { resourceSpans: [{ resource, scopeSpans: [{ scope, spans }] }] },
     metrics: { resourceMetrics: [{ resource, scopeMetrics: [{ scope, metrics }] }] },
   };
 }
