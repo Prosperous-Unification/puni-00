@@ -249,10 +249,9 @@ export class MemoryState {
       next.tables.directory.resources.capacities,
     );
     replaceMap(this.tables.directory.resources.demands, next.tables.directory.resources.demands);
-    // Proof: with these two copies removed, the memory twin of `states and
-    // clears a directory capacity with one audit row each`
-    // (directory-capacity-command.test.ts) read no capacity after its batch
-    // committed; watched 2026-10-25.
+    // Proof: with the capacities' copy removed, `states and clears a directory
+    // capacity with its batch` (directory-capacity-command.test.ts in core)
+    // read no capacity after its batch committed; watched 2026-10-25.
     replaceMap(
       this.tables.directory.resources.directoryCapacities,
       next.tables.directory.resources.directoryCapacities,

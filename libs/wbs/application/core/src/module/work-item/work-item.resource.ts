@@ -59,6 +59,7 @@ import {
   type LeaseReleaseReason,
   type LimitCrossed,
   MAX_ESTIMATE_DAYS,
+  mayStateDirectoryCapacityInOrganization,
   type MeasureDefinition,
   type MeasureMetric,
   type MeasureTrio,
@@ -75,6 +76,7 @@ import {
   type OccupancyRow,
   orderSteps,
   ORDINARY_BAND_RANK,
+  type OrganizationScope,
   parentIndexOf,
   placeAfter,
   POSITION_STEP,
@@ -3746,20 +3748,126 @@ export class WorkItemService {
     projectId: string,
     access: ResourceAccess,
   ): Promise<{
-    resources: Resource[];
+    resources: (Resource & { directoryCapacity: number | null })[];
     capacities: ResourceCapacity[];
     demands: Demand[];
   } | null> {
     if (!(await this.admits(projectId, access))) return null;
     const { resourceCapacity } = this.opts;
-    const resources =
+    const listed =
       access.kind === 'scoped'
         ? await this.opts.directory.listInOrganization('resources', access.scope.organizationId)
         : await this.opts.directory.listResources();
+    // Each resource's directory capacity beside it (`wbs-shared-occupancy`
+    // S6), null when unstated; never its holders.
+    // Proof: with null answered for every resource, `states a directory
+    // capacity on either route and reads it from both projects`
+    // (directory-capacity.controller.db.test.ts) read null; watched 2026-10-25.
+    const stated = new Map(
+      (await this.opts.directory.directoryCapacitiesOf(listed.map(({ id }) => id))).map(
+        ({ resourceId, units }) => [resourceId, units] as const,
+      ),
+    );
+    const resources = listed.map((resource) => ({
+      ...resource,
+      directoryCapacity: stated.get(resource.id) ?? null,
+    }));
     return {
       resources,
       capacities: await resourceCapacity.listFor(projectId),
       demands: await this.opts.demands.listByProject(projectId),
+    };
+  }
+
+  /**
+   * What setting a resource's directory capacity to `units` would leave
+   * (`wbs-shared-occupancy` S12, assumed), writing nothing: the units before
+   * and after, each project of the organization that holds, states or demands
+   * the resource with the units its leaves hold, the free units after (null
+   * when it would be unstated), and the refusal the write would meet.
+   *
+   * Every project of the caller's organization is readable to its members
+   * today, so none is hidden; `hiddenProjects` folds the projects
+   * `mayReadProjectWithin` denies once `wbs-permissions` grants can (task 4.1).
+   * The cap check the write will meet is task 7.1's; until it lands the
+   * refusal is always null for a resource the organization owns.
+   *
+   * Refused `forbidden` for every role but admin and super-admin, after
+   * `organizationRoleOf` (agents included), before the resource is looked up;
+   * `not_found` for a resource the organization does not hold.
+   *
+   * Proof, each watched 2026-10-25 in directory-capacity.controller.db.test.ts:
+   * with the role check skipped, `refuses a member and an admin's agent`
+   * answered the member 200; with the store's write called before answering,
+   * `previews a lowering of 16 to 10 with A at 8 and B at 6, writing nothing`
+   * found the capacity at 10 and one more audit row.
+   */
+  async previewDirectoryCapacityWithin(
+    resourceId: string,
+    units: number | null,
+    scope: OrganizationScope,
+  ): Promise<
+    | {
+        ok: true;
+        value: {
+          resourceId: string;
+          before: number | null;
+          after: number | null;
+          projects: { projectId: string; name: string; units: number }[];
+          hiddenProjects: { count: number; units: number };
+          free: number | null;
+          refusal: null;
+        };
+      }
+    | { ok: false; reason: 'forbidden' | 'not_found' }
+  > {
+    if (!mayStateDirectoryCapacityInOrganization(scope.role))
+      return { ok: false, reason: 'forbidden' };
+    const { directory } = this.opts;
+    const owned = (await directory.listInOrganization('resources', scope.organizationId)).some(
+      ({ id }) => id === resourceId,
+    );
+    if (!owned) return { ok: false, reason: 'not_found' };
+    const before =
+      (await directory.directoryCapacitiesOf([resourceId])).find(
+        (each) => each.resourceId === resourceId,
+      )?.units ?? null;
+    const rows = await this.claiming().claims.organizationOccupancyOf([resourceId]);
+    const usage = await directory.usageOfResource(resourceId);
+    const projectIds = [
+      ...new Set([
+        ...rows.map(({ projectId }) => projectId),
+        ...usage.capacities.map(({ projectId }) => projectId),
+        ...usage.rows.projects.map(({ id }) => id),
+      ]),
+    ].sort();
+    const projects: { projectId: string; name: string; units: number }[] = [];
+    for (const projectId of projectIds) {
+      const project = await this.opts.projects.findInOrganization(projectId, scope.organizationId);
+      // A project of another organization naming the resource is corrupt
+      // trusted state: a plan can name only its organization's resources.
+      if (project === null)
+        throw new Error(
+          `project ${projectId} names resource ${resourceId} outside its organization`,
+        );
+      const held =
+        occupancyByResource(rows.filter((row) => row.projectId === projectId)).find(
+          (each) => each.resourceId === resourceId,
+        )?.occupied ?? 0;
+      projects.push({ projectId, name: project.name, units: held });
+    }
+    const occupied = projects.reduce((sum, each) => sum + each.units, 0);
+    return {
+      ok: true,
+      value: {
+        resourceId,
+        before,
+        after: units,
+        projects,
+        hiddenProjects: { count: 0, units: 0 },
+        free: units === null ? null : units - occupied,
+        refusal: null,
+      },
     };
   }
 

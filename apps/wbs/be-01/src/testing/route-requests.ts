@@ -22,6 +22,7 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     issuer: 'https://route-probe.test',
     audience: 'route-probe',
   },
+  'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview': { units: 10 },
   'postApiOrganizationCompute-providers': {
     kind: 'ssh_host',
     name: 'route-probe',

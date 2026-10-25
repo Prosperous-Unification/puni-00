@@ -32,7 +32,7 @@
       `down.sql` — test: forward, back, refusal with one row; a text `'16'` is refused.
       Fault lines: drop the guard and the rollback test deletes a stated capacity; drop the
       `typeof` half and the text row is stored.
-- [ ] 1.2 `setDirectoryCapacity` on both `POST /api/directory/commands` and
+- [x] 1.2 `setDirectoryCapacity` on both `POST /api/directory/commands` and
       `POST /api/projects/:id/commands`, through one check: admin or super-admin in their own
       session or own MCP session; `forbidden` for other roles, machine principals and MCP
       consent delegations acting as an agent (both capped at member by `organizationRoleOf`); `organization_required` for a legacy resource; not
@@ -42,18 +42,21 @@
       is applied". Fault lines: skip the role check and the member's write lands; answer the
       stored role in place of `organizationRoleOf` and the admin's agent writes 16; skip the audit write and the audit test finds no row; skip the
       organization check and a legacy resource takes a capacity.
-- [ ] 1.3 Announce (S7): every applied `setDirectoryCapacity` publishes `directory_changed`
+- [x] 1.3 Announce (S7): every applied `setDirectoryCapacity` publishes `directory_changed`
       through `DirectoryService.announce` to each project that demands or states the
       resource — test: the spec's roll-up scenario. Fault line: skip the announce and a
-      space roll-up serves the stale dates scheduled against 32.
-- [ ] 1.4 Preview endpoint `POST /api/organization/resources/:resourceId/directory-capacity/preview`
+      space roll-up serves the stale dates scheduled against 32. (Built: the publication to
+      every project that states or demands the resource, proven on the memory twin; the
+      roll-up half of the scenario needs the clamp of 6.1 and is proven there.)
+- [x] 1.4 Preview endpoint `POST /api/organization/resources/:resourceId/directory-capacity/preview`
       (S12), admin only — test: the spec's preview scenario; row count and audit count
       unchanged; a member and an admin's agent refused `forbidden`. Fault line: write
       before answering and the unchanged-count assertion fails.
-- [ ] 1.5 Route inventory: add both new routes to `ORGANIZATION_ROUTE_INVENTORY`
+- [x] 1.5 Route inventory: add both new routes to `ORGANIZATION_ROUTE_INVENTORY`
       (`apps/wbs/be-01/src/testing/organization-route-inventory.ts`) with their policies
       — test: `organization-context.controller.db.test.ts`. Fault line: register a route
-      without its inventory entry and the inventory test fails.
+      without its inventory entry and the inventory test fails. (Built for the preview; the
+      occupancy route's entry lands with 4.2, which adds the route.)
 
 ## 2. Domain: both scopes in one check
 

@@ -538,6 +538,9 @@ export class OrganizationHarness {
                 new SqliteDelegationUse(db, gate).consume(issuer, jti, expiresAt, now),
               Date.now,
               (userId) => new UserRepository(db, OPEN).findById(userId),
+              // An MCP consent delegation acting as an agent person, read live
+              // as boot.ts reads it (`wbs-machine-credentials` A20).
+              (credentialId) => new MachineCredentialRepository(db, gate).findById(credentialId),
             ),
           }),
       ...(directSigningKey === undefined
@@ -622,6 +625,7 @@ export class OrganizationHarness {
     upstreamCredential,
     now,
     trustedIssuers,
+    delegationKey,
     migrate = (path) => {
       runMigrations(path, FOLDER);
     },
@@ -705,6 +709,31 @@ export class OrganizationHarness {
     const app = buildApp({
       ...(delivery === undefined ? {} : { delivery }),
       ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
+      ...(delegationKey === undefined
+        ? {}
+        : {
+            delegation: delegationVerifier(
+              delegationKey,
+              async (pair) => {
+                const userId = await new ExternalIdentityRepository(source.db, OPEN).findUserId(
+                  pair,
+                );
+                if (userId === null) return null;
+                return new UserRepository(source.db, OPEN).findById(userId);
+              },
+              (issuer, jti, expiresAt, now) =>
+                new SqliteDelegationUse(source.db, services.gate).consume(
+                  issuer,
+                  jti,
+                  expiresAt,
+                  now,
+                ),
+              Date.now,
+              (userId) => new UserRepository(source.db, OPEN).findById(userId),
+              (credentialId) =>
+                new MachineCredentialRepository(source.db, services.gate).findById(credentialId),
+            ),
+          }),
       appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,
@@ -1047,6 +1076,11 @@ export interface ComposedHarnessOptions {
    * local issuer). `configuredIssuer` is the sign-in issuer they refuse.
    */
   trustedIssuers?: HarnessTrustedIssuers;
+  /**
+   * The RS256 public key MCP delegations verify with, as {@link open} takes
+   * it, with consent delegations read live as `boot.ts` reads them.
+   */
+  delegationKey?: CryptoKey;
 }
 
 /** What {@link ComposedHarnessOptions.trustedIssuers} wires. */

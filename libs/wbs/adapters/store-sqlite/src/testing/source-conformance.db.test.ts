@@ -425,7 +425,7 @@ async function openSqliteCase<Family extends ExistingFamily>(
       );
     }
     await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
-    if (caseId === SHARED_OCCUPANCY_OWNERSHIP.caseId) {
+    if ((SHARED_OCCUPANCY_OWNERSHIP.caseIds as readonly string[]).includes(caseId)) {
       const { organizationId, otherOrganizationId, resourceId } = SHARED_OCCUPANCY_OWNERSHIP;
       for (const id of [organizationId, otherOrganizationId])
         seeded.db.run(

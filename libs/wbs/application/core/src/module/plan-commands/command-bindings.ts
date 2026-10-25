@@ -1031,6 +1031,18 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    setDirectoryCapacity: async (command, context) => {
+      context.value(
+        await directory.setDirectoryCapacityWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.units,
+          command.confirm ?? false,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     deleteResource: async (command, context) => {
       context.accept(
         await directory.removeResourceWithin(

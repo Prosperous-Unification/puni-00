@@ -434,7 +434,7 @@ async function openMemoryCase<Family extends ExistingFamily>(
       seeded.pinCredential(issuer, subject, personId);
     }
     await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
-    if (caseId === SHARED_OCCUPANCY_OWNERSHIP.caseId) {
+    if ((SHARED_OCCUPANCY_OWNERSHIP.caseIds as readonly string[]).includes(caseId)) {
       const { organizationId, otherOrganizationId, resourceId } = SHARED_OCCUPANCY_OWNERSHIP;
       seeded.ownProjectInOrganization(DETERMINISTIC_SEED.projectIds[0], organizationId);
       seeded.ownProjectInOrganization(DETERMINISTIC_SEED.projectIds[1], otherOrganizationId);

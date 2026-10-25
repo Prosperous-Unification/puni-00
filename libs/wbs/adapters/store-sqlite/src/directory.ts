@@ -1058,9 +1058,9 @@ export class DirectoryRepository implements DirectoryStore {
    *
    * Proof: with the audit append removed, `writes one audit row per change,
    * never a journal entry` (directory-capacity.controller.db.test.ts) found no
-   * row; with the organization refusal removed, `refuses a legacy resource
-   * organization_required` (directory-capacity.db.test.ts) stated a capacity
-   * on it; watched 2026-10-25.
+   * row; with the organization refusal removed, the SQLite certification's
+   * `directory.setDirectoryCapacity:state-clear-remove` failed on the audit
+   * insert for the unowned stage; watched 2026-10-25.
    */
   async setDirectoryCapacity(
     resourceId: string,
@@ -1245,7 +1245,8 @@ export class DirectoryRepository implements DirectoryStore {
       providerId: referenced?.providerId ?? null,
       // Proof: with null answered here, `refuses removing a resource with a
       // stated directory capacity, counting it` (directory-capacity.controller.db.test.ts)
-      // removed it unconfirmed; watched 2026-10-25.
+      // and the SQLite certification's `directory.setDirectoryCapacity:state-clear-remove`
+      // failed; watched 2026-10-25.
       directoryCapacity:
         reader
           .select({ units: resourceDirectoryCapacity.units })

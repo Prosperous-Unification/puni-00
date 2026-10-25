@@ -164,3 +164,55 @@ wbs-contracts wbs-conformance` → exit 0.
 
 ADR 0015 carries the amendment "a check that reads across projects needs the source's lock to
 cover the organization", marked assumed with S4.
+
+### Slice 1.2 to 1.5: the command, its announce, the preview, the inventory
+
+`setDirectoryCapacity { resourceId | resourceRef, units | null, confirm?: true }`, scope
+`directory`, accepted on both command routes through `DirectoryService.setDirectoryCapacityWithin`,
+whose role check is `mayStateDirectoryCapacityInOrganization` on the role `organizationRoleOf`
+answered (no `scope.delegated` check, as R8a's removal). The project resources read carries
+`directoryCapacity` on each resource; `deleteResource`'s `in_use` counts carry it and the
+cascade drops it. `POST /api/organization/resources/:resourceId/directory-capacity/preview`
+answers S12's shape (`hiddenProjects` is `{ count: 0, units: 0 }` until 4.1's port can deny a
+project; `refusal` is null until 7.1's cap check exists). `confirm` is accepted and carried,
+read by nothing until 7.1. The preview is an MCP tool (92 tools); the README and the pinned
+operation list say so. The composed test harness gained `delegationKey` (MCP delegations, with
+consent credentials read live as `boot.ts` reads them) and `delegationFor` an optional consent.
+
+- `bun test apps/wbs/be-01/src/controller/directory-capacity.controller.db.test.ts` → 11 pass,
+  0 fail (both routes, every role, an admin's agent key, an admin's own MCP session, an MCP
+  consent acting as the admin's agent, audit, removal counts, preview, lowering).
+- `bun test libs/wbs/application/core/src/module/plan-commands/directory-capacity-command.test.ts`
+  → 3 pass, 0 fail (memory twin: commit, `organization_required`, the announce).
+- Memory and SQLite certifications with `directory.setDirectoryCapacity:state-clear-remove`
+  → 101 pass and 75 pass, 0 fail.
+- be-01: `resource-organization`, `compute-provider`, `organization-context`, `app.routes`,
+  OpenAPI document tests, and ten claim, limit, lease, schedule and swarm suites → 41 + 98 + 15
+  pass, 0 fail (the two resource read expectations gained `directoryCapacity: null`).
+- mcp-01 `openapi-tools.test.ts` and `generated-document.test.ts` → 45 pass, 0 fail.
+- `bunx nx run-many -t typecheck -p wbs-domain wbs-core wbs-store-memory wbs-store-sqlite
+wbs-contracts wbs-conformance wbs-be-01 wbs-mcp-01 wbs-fe-01 --skip-nx-cache` → exit 0 (a
+  cached run had earlier answered exit 0 over a shape `defineEndpointShape` refused; the
+  uncached run and `tsc -p libs/wbs/application/core/tsconfig.lib.json` found it, and the
+  preview's two 403 arms were split as the compute-provider shapes split theirs).
+- `bunx nx run-many -t lint -p wbs-domain wbs-core wbs-store-memory wbs-store-sqlite
+wbs-contracts wbs-conformance wbs-be-01 wbs-mcp-01 tool-git-hooks` → exit 0.
+
+| Fault                                                                          | Observed                                                                                                              |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| the role check skipped in `setDirectoryCapacityWithin`                         | controller test 8 pass, 3 fail: member and viewer, the admin's agent key, the MCP consent as an agent                 |
+| the stored role in place of `organizationRoleOf` in `SqliteOrganizationAccess` | 8 pass, 3 fail: the agent key, the MCP consent, the preview's agent case                                              |
+| the audit append skipped in SQLite                                             | 10 pass, 1 fail: `writes one audit row per change, never a journal entry`                                             |
+| the organization refusal removed in SQLite                                     | SQLite certification `directory.setDirectoryCapacity:state-clear-remove` failed on the audit insert (74 pass, 1 fail) |
+| the organization refusal removed in the memory twin                            | memory certification, the same case failed (74 pass, 1 fail)                                                          |
+| SQLite's usage answering `directoryCapacity: null`                             | the same SQLite case and `refuses removing a resource with a stated directory capacity` failed                        |
+| the memory twin's removal ignoring the directory capacity                      | memory certification, the same case failed                                                                            |
+| the memory commit copy of directory capacities removed                         | `states and clears a directory capacity with its batch` failed (2 pass, 1 fail)                                       |
+| the announce skipped                                                           | `announces directory_changed to every project that states or demands the resource` failed                             |
+| the resources read answering null                                              | `states a directory capacity on either route and reads it from both projects` failed                                  |
+| the preview's role check skipped                                               | `refuses a member and an admin's agent the preview` failed                                                            |
+| the preview writing before answering                                           | `previews a lowering of 16 to 10 with A at 8 and B at 6, writing nothing` failed                                      |
+| the preview's inventory entry removed                                          | `organization-context.controller.db.test.ts` `covers every mounted organization mutation` failed (7 pass, 1 fail)     |
+
+Not proven here: the spec's roll-up scenario for 1.3 (a space roll-up recomputed against the
+clamped pool) needs 6.1's clamp; the announce half is proven above.

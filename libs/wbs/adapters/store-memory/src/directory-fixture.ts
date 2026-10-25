@@ -316,8 +316,8 @@ export function inMemoryDirectory(
         return Promise.resolve({ ok: false, reason: 'not_found' });
       const usage = resourceUsageOf(resourceTables, resourceId);
       // Proof: with the directory capacity left out of this test, the memory
-      // twin of `refuses removing a resource with a stated directory capacity,
-      // counting it` (directory-capacity-command.test.ts) removed it; watched 2026-10-25.
+      // certification's `directory.setDirectoryCapacity:state-clear-remove`
+      // removed RAM unconfirmed (74 pass, 1 fail); watched 2026-10-25.
       if (
         !cascade &&
         (usage.demands.length > 0 ||

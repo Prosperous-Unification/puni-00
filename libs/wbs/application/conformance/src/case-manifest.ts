@@ -59,6 +59,7 @@ export const CASE_MANIFEST = {
     'directory.removePerson:pinned-credential',
     'directory.addResource:taken',
     'directory.setResourceProvider:unknown-and-clear',
+    'directory.setDirectoryCapacity:state-clear-remove',
     'directory.removeResource:in-use-cascade',
     'directory.listMeasures:seeded-per-organization',
     'directory.addMeasure:index-backstop',

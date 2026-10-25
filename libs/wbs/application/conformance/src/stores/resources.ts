@@ -22,6 +22,7 @@ export function isResourceCase(caseId: string): boolean {
     caseId.startsWith('directory.addResource') ||
     caseId.startsWith('directory.removeResource') ||
     caseId.startsWith('directory.setResourceProvider') ||
+    caseId.startsWith('directory.setDirectoryCapacity') ||
     caseId.startsWith('claims.occupancy')
   );
 }
@@ -34,7 +35,10 @@ const [RAM, STAGE] = CONFORMANCE_RESOURCES;
  * the second project to `otherOrganizationId`, and the stage to none.
  */
 export const SHARED_OCCUPANCY_OWNERSHIP = {
-  caseId: 'claims.occupancy:organization-scope',
+  caseIds: [
+    'claims.occupancy:organization-scope',
+    'directory.setDirectoryCapacity:state-clear-remove',
+  ],
   organizationId: 'shared-occupancy-org',
   otherOrganizationId: 'shared-occupancy-other-org',
   resourceId: RAM.id,
@@ -219,6 +223,62 @@ export function directoryResourceRegistrations(
           await port.setResourceProvider('resource-missing', null, null, seed.stamps[1]),
         ).toEqual({ ok: false, reason: 'not_found' });
         expect(await port.listResources()).toEqual([RAM, STAGE]);
+      },
+    ),
+    // `wbs-shared-occupancy` S1, S2, S8. RAM is the organization's (seeded by
+    // {@link SHARED_OCCUPANCY_OWNERSHIP}); the stage belongs to none.
+    // Proof, each watched 2026-10-25: with the memory twin's organization
+    // refusal removed, the memory certification failed here stating the
+    // stage's capacity; with its removal check ignoring the directory capacity,
+    // it removed RAM unconfirmed; with SQLite's usage answering null, the
+    // SQLite certification failed the same way.
+    storeCase(
+      'directory',
+      'directory.setDirectoryCapacity:state-clear-remove',
+      open,
+      async ({ port, seed }) => {
+        const act = (auditId: string) => ({
+          stamp: seed.stamps[0],
+          actor: seed.ownerIds[0],
+          auditId,
+        });
+        expect(await port.directoryCapacitiesOf([RAM.id, STAGE.id])).toEqual([]);
+        expect(await port.setDirectoryCapacity(RAM.id, 16, act('audit-1'))).toEqual({
+          ok: true,
+          before: null,
+          after: 16,
+          organizationId: SHARED_OCCUPANCY_OWNERSHIP.organizationId,
+          projectIds: [],
+        });
+        expect(await port.setDirectoryCapacity(RAM.id, 0, act('audit-2'))).toMatchObject({
+          ok: true,
+          before: 16,
+          after: 0,
+        });
+        expect(await port.directoryCapacitiesOf([STAGE.id, RAM.id])).toEqual([
+          { resourceId: RAM.id, units: 0 },
+        ]);
+        expect(await port.setDirectoryCapacity(STAGE.id, 1, act('audit-3'))).toEqual({
+          ok: false,
+          reason: 'organization_required',
+        });
+        expect(await port.setDirectoryCapacity('resource-missing', 1, act('audit-4'))).toEqual({
+          ok: false,
+          reason: 'not_found',
+        });
+        expect((await port.usageOfResource(RAM.id)).directoryCapacity).toBe(0);
+        expect((await port.usageOfResource(STAGE.id)).directoryCapacity).toBeNull();
+        expect(await port.removeResource(RAM.id, false, seed.stamps[1])).toMatchObject({
+          ok: false,
+          reason: 'in_use',
+          usage: { directoryCapacity: 0 },
+        });
+        expect(await port.removeResource(RAM.id, true, seed.stamps[1])).toMatchObject({ ok: true });
+        expect(await port.directoryCapacitiesOf([RAM.id])).toEqual([]);
+        expect(await port.setDirectoryCapacity(RAM.id, 4, act('audit-5'))).toEqual({
+          ok: false,
+          reason: 'not_found',
+        });
       },
     ),
     storeCase(

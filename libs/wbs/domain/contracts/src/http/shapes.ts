@@ -114,7 +114,7 @@ import {
   revokeProvisioningToken,
   rotateProvisioningToken,
 } from './provisioning-token-shapes';
-import { readProjectResources } from './resource-shapes';
+import { previewDirectoryCapacity, readProjectResources } from './resource-shapes';
 import {
   compareSavedPlans,
   deleteSavedPlan,
@@ -208,6 +208,7 @@ export const httpShapes = [
   readSessionPolicy,
   setSessionPolicy,
   readOrganizationLimits,
+  previewDirectoryCapacity,
   listSsoConnections,
   createSsoConnection,
   updateSsoConnection,
