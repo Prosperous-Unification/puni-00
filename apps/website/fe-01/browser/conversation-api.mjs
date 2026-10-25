@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { appendFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from 'node:process';
@@ -164,6 +164,8 @@ function refusalChunk(id) {
 
 /** A scripted OpenRouter SSE response that honours the request's abort signal. */
 function providerFetch(_input, init) {
+  const capturePath = env['PUNI_FIXTURE_OUTBOUND_PATH'];
+  if (capturePath) appendFileSync(capturePath, `${init.body}\n`);
   const { stage, visitor, context } = readOutbound(init.body);
   const isRefused = /refuse/i.test(visitor);
   const words = (

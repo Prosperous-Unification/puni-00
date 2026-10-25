@@ -95,6 +95,23 @@ test('expired or malformed browser recovery cannot replace the current claim bri
       }),
     );
     expect(render()).toContain('Browser recovery is unavailable');
+    for (const revision of [-1, 1.5, '1']) {
+      values.set(
+        'puni_editor:cache-claim',
+        JSON.stringify({
+          expiresAt: Date.now() + 1000,
+          fields: {
+            brief: 'Untrusted cache',
+            references: '',
+            email: '',
+            savedBrief: '',
+            savedReferences: '',
+            revision,
+          },
+        }),
+      );
+      expect(render()).toContain('Browser recovery is unavailable');
+    }
     storage.getItem = () => {
       throw new Error('Storage denied');
     };

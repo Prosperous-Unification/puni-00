@@ -886,6 +886,13 @@ test('human review hides the composer but keeps one working Stop for a paid repl
     () => String(cancels),
   );
   expect(cancels).toBe(1);
+  await settleUntil(
+    () => harness.container.querySelector('.harness-interrupted button') !== null,
+    () => harness.container.innerHTML,
+  );
+  expect(
+    harness.container.querySelector('.harness-interrupted button')?.hasAttribute('disabled'),
+  ).toBe(true);
   harness.unmount();
 });
 
@@ -916,4 +923,88 @@ test('known-invalid reply offers manual review without repeating old choices', (
   );
   expect(markup).toContain('Send my request now');
   expect(markup).not.toContain('aria-label="Suggested answers"');
+});
+
+test('candidate save synchronously blocks a same-event paid Retry', async () => {
+  const conversation: Conversation = {
+    ...scoped,
+    brief: 'Human body',
+    scoping: {
+      version: 1,
+      startConversation: true,
+      startingChoice: 'improve',
+      questionId: null,
+      revision: 1,
+      references: null,
+      candidateBrief: 'Model candidate',
+      emailInvitationDeclined: false,
+    },
+    latestOperation: {
+      state: 'unknown',
+      idempotencyKey: 'retry-while-saving',
+      truncated: false,
+      message: 'Original retry text',
+      answer: { message: 'Original retry text' },
+    },
+  };
+  const pending = Promise.withResolvers<Response>();
+  let streams = 0;
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/scoping')) return pending.promise;
+      if (url.endsWith('/conversation/stream')) {
+        streams += 1;
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 'provider_unavailable' }), {
+            status: 503,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }
+      if (url.endsWith('/conversation'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ...conversation,
+              brief: 'Model candidate',
+              scoping: { ...conversation.scoping, revision: 2 },
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const harness = await mountHarness(conversation, () => Promise.resolve(null));
+  const candidate = [...harness.container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Use suggested brief',
+  );
+  const retry = harness.container.querySelector('.harness-interrupted button');
+  if (!candidate || !(retry instanceof dom.window.HTMLButtonElement))
+    throw new Error('candidate or Retry absent');
+  act(() => {
+    candidate.click();
+    retry.click();
+  });
+  expect(streams).toBe(0);
+  expect(retry.disabled).toBe(true);
+  await act(async () => {
+    pending.resolve(
+      new Response(
+        JSON.stringify({
+          brief: 'Model candidate',
+          scoping: { ...conversation.scoping, revision: 2 },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    await Promise.resolve();
+  });
+  await settleUntil(
+    () => harness.container.querySelector('.request-preview')?.textContent === 'Model candidate',
+    () => harness.container.innerHTML,
+  );
+  harness.unmount();
 });

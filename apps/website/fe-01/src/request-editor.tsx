@@ -19,6 +19,13 @@ interface Fields {
   email: string;
   savedBrief: string;
   savedReferences: string;
+  /** Revision governing the saved baselines; null means an older cache omitted its origin. */
+  revision: number | null;
+}
+interface SavedVersion {
+  brief: string;
+  references: string;
+  revision: number;
 }
 
 /** Exact visible submission composition; canonical body never contains an automatically appended reference block. */
@@ -40,6 +47,7 @@ function readFields(draft: EditableDraft): { fields: Fields; failure: string; ex
     email: '',
     savedBrief: draft.brief || draft.description,
     savedReferences: references,
+    revision: draft.scoping?.version === 1 ? draft.scoping.revision : 0,
   };
   if (draft.scoping?.version === 1 && draft.expiresAt === undefined)
     return {
@@ -82,8 +90,17 @@ function readFields(draft: EditableDraft): { fields: Fields; failure: string; ex
       typeof saved['savedReferences'] !== 'string'
     )
       throw new Error('Malformed saved editor fields');
+    const revision: unknown = saved['revision'];
+    // Proof: accepting malformed cached revisions removed the visible recovery failure in request-editor.test.tsx.
+    if (
+      revision !== undefined &&
+      revision !== null &&
+      (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0)
+    )
+      throw new Error('Malformed saved editor revision');
     return {
       fields: {
+        revision: typeof revision === 'number' ? revision : null,
         brief: saved['brief'],
         references: saved['references'],
         email: saved['email'],
@@ -110,7 +127,9 @@ export function clearRequestEditor(csrfToken: string): void {
 /**
  * Shared versioned manual/chat review. Saves body and references independently under the current
  * revision; submitted bytes are exactly the final preview. Incoming candidates never replace
- * unsaved fields. Browser recovery is claim-scoped and expires; server saves survive fresh tabs.
+ * unsaved fields. Dirty baselines retain their originating revision until explicit reconciliation.
+ * Review saves before restoring AI; a failed save preserves local manual submission. Browser
+ * recovery is claim-scoped and expires; server saves survive fresh tabs.
  */
 export function RequestEditor({
   draft,
@@ -135,13 +154,17 @@ export function RequestEditor({
   const [fields, setFields] = useState(restored.fields);
   const [failure, setFailure] = useState('');
   const [recoveryFailure, setRecoveryFailure] = useState(restored.failure);
-  const [revision, setRevision] = useState(
-    draft.scoping?.version === 1 ? draft.scoping.revision : 0,
-  );
+  const [remote, setRemote] = useState<SavedVersion | null>(null);
   const [isPending, setPending] = useState(false);
   const [isContactOpen, setContactOpen] = useState(contact);
   const [isEditing, setEditing] = useState(false);
-  const [isEditorOpen, setEditorOpen] = useState(open || draft.brief !== '');
+  // Proof: a dirty cache reload otherwise restored AI with unsaved references in request-editor.mjs.
+  const [isEditorOpen, setEditorOpen] = useState(
+    open ||
+      draft.brief !== '' ||
+      fields.brief !== fields.savedBrief ||
+      fields.references !== fields.savedReferences,
+  );
   const [receipt, setReceipt] = useState<string | null>(null);
   const isWriting = useRef(false);
   const proposalKey = useRef<string>(crypto.randomUUID());
@@ -157,12 +180,18 @@ export function RequestEditor({
     fields.brief !== fields.savedBrief || fields.references !== fields.savedReferences;
   const candidate = draft.scoping?.version === 1 ? draft.scoping.candidateBrief : null;
   // Proof: bypassing dirty-field eligibility enabled candidate acceptance in scoping.mjs.
-  const acceptsCandidate = !isDirty && candidate !== null;
+  const acceptsCandidate =
+    !isDirty && remote === null && fields.revision !== null && candidate !== null;
   const hasDeclined = draft.scoping?.version === 1 && draft.scoping.emailInvitationDeclined;
 
   useLayoutEffect(() => {
-    onFocusChange?.(isEditorOpen && (isEditing || isContactOpen) && receipt === null);
-  }, [isEditorOpen, isEditing, isContactOpen, receipt, onFocusChange]);
+    // Proof: dropping dirty-field focus reopened AI after a failed reference save in request-editor.mjs.
+    onFocusChange?.(
+      isEditorOpen &&
+        (isEditing || isContactOpen || isPending || isDirty || remote !== null) &&
+        receipt === null,
+    );
+  }, [isEditorOpen, isEditing, isContactOpen, isPending, isDirty, remote, receipt, onFocusChange]);
   useEffect(() => {
     if (open) {
       setEditorOpen(true);
@@ -177,21 +206,33 @@ export function RequestEditor({
   useEffect(() => {
     if (isEditing) briefField.current?.focus();
   }, [isEditing]);
-  useEffect(() => {
-    if (draft.scoping?.version === 1) setRevision(draft.scoping.revision);
-  }, [draft.scoping?.version === 1 ? draft.scoping.revision : null]);
-  useEffect(() => {
-    const savedBrief = draft.brief || draft.description;
-    const savedReferences = draft.scoping?.version === 1 ? (draft.scoping.references ?? '') : '';
+  useLayoutEffect(() => {
+    if (draft.scoping?.version !== 1) return;
+    const latest = {
+      brief: draft.brief || draft.description,
+      references: draft.scoping.references ?? '',
+      revision: draft.scoping.revision,
+    };
+    // Proof: discarding the cached origin admitted the dirty-tab reload overwrite in request-editor.mjs.
+    if (isDirty) {
+      if (fields.revision !== latest.revision) setRemote(latest);
+      return;
+    }
+    if (fields.revision !== null && fields.revision > latest.revision) return;
     setFields((current) => ({
       ...current,
-      brief: current.brief === current.savedBrief ? savedBrief : current.brief,
-      references:
-        current.references === current.savedReferences ? savedReferences : current.references,
-      savedBrief,
-      savedReferences,
+      brief: latest.brief,
+      references: latest.references,
+      savedBrief: latest.brief,
+      savedReferences: latest.references,
+      revision: latest.revision,
     }));
-  }, [draft.brief, draft.scoping?.version === 1 ? draft.scoping.references : null]);
+    setRemote(null);
+  }, [
+    draft.brief,
+    draft.scoping?.version === 1 ? draft.scoping.references : null,
+    draft.scoping?.version === 1 ? draft.scoping.revision : null,
+  ]);
   useEffect(() => {
     if (receipt !== null || expiresAt.current === null) return;
     try {
@@ -231,17 +272,20 @@ export function RequestEditor({
       const scoping = parseScoping(value.scoping);
       if (scoping.version !== 1 || typeof value.brief !== 'string')
         throw new Error('Invalid versioned scoping edit response');
-      setRevision(scoping.revision);
       return { revision: scoping.revision, brief: value.brief };
     } catch (error) {
       if (error instanceof ApiFailure && error.code === 'scoping_stale') {
         const fresh = parseDraft(await requestJson('/draft'));
         if (fresh.scoping?.version !== 1)
           throw new Error('Versioned draft became legacy', { cause: error });
-        setRevision(fresh.scoping.revision);
+        setRemote({
+          brief: fresh.brief || fresh.description,
+          references: fresh.scoping.references ?? '',
+          revision: fresh.scoping.revision,
+        });
         await onRefresh?.();
         throw new Error(
-          'The draft changed in another tab. Your edits are still here. Review and save again.',
+          'The draft changed in another tab. Your edits are still here. Choose which version to keep before saving.',
           { cause: error },
         );
       }
@@ -249,43 +293,99 @@ export function RequestEditor({
     }
   }
 
-  async function saveDraft(): Promise<void> {
-    if (isWriting.current) return;
+  /** Persists one bounded body/reference snapshot before ordinary AI can use it. */
+  async function persistFields(): Promise<number> {
+    // Proof: bypassing reconciliation attempted a stale cached write in the two-tab browser regression.
+    if (remote !== null || fields.revision === null)
+      throw new Error(
+        'Review the saved version and choose which edits to keep before saving. AI chat has not received these edits.',
+      );
+    if (final.kind === 'overflow')
+      throw new Error(
+        'Shorten your request before saving it for AI. You can still review and edit it.',
+      );
+    let currentRevision = fields.revision;
+    if (fields.references !== fields.savedReferences) {
+      const saved = await editDraft(
+        { kind: 'references', references: fields.references || null },
+        currentRevision,
+      );
+      currentRevision = saved.revision;
+      setFields((current) => ({
+        ...current,
+        savedReferences: fields.references,
+        revision: saved.revision,
+      }));
+    }
+    if (fields.brief !== fields.savedBrief) {
+      const saved = await editDraft({ kind: 'brief', brief: fields.brief }, currentRevision);
+      currentRevision = saved.revision;
+      setFields((current) => ({ ...current, savedBrief: fields.brief, revision: saved.revision }));
+    }
+    return currentRevision;
+  }
+
+  async function saveDraft(): Promise<boolean> {
+    if (isWriting.current) return false;
     isWriting.current = true;
+    onFocusChange?.(true);
     setPending(true);
     setFailure('');
     try {
-      let currentRevision = revision;
-      if (fields.references !== fields.savedReferences) {
-        const saved = await editDraft(
-          { kind: 'references', references: fields.references || null },
-          currentRevision,
-        );
-        currentRevision = saved.revision;
-        setFields((current) => ({ ...current, savedReferences: fields.references }));
-      }
-      if (fields.brief !== fields.savedBrief) {
-        await editDraft({ kind: 'brief', brief: fields.brief }, currentRevision);
-        setFields((current) => ({ ...current, savedBrief: fields.brief }));
-      }
+      await persistFields();
       setFailure('Draft saved. This has not sent a request.');
       await onRefresh?.();
+      return true;
     } catch (error) {
-      setFailure(describeFailure(error));
+      setFailure(
+        `Your edits are still here. AI chat has not received them yet. ${describeFailure(error)}`,
+      );
+      return false;
     } finally {
       isWriting.current = false;
       setPending(false);
     }
   }
 
+  async function reviewRequest(): Promise<void> {
+    // Proof: skipping this flush omitted both references from the real captured provider request.
+    await saveDraft();
+    setEditing(false);
+  }
+
+  function reconcileFields(keepsLocal: boolean): void {
+    if (remote === null) return;
+    setFields((current) => ({
+      ...current,
+      brief: keepsLocal ? current.brief : remote.brief,
+      references: keepsLocal ? current.references : remote.references,
+      savedBrief: remote.brief,
+      savedReferences: remote.references,
+      revision: remote.revision,
+    }));
+    setRemote(null);
+    setFailure(
+      keepsLocal
+        ? 'Your edits are kept. Review request will save them against the displayed version.'
+        : 'The saved version is restored.',
+    );
+  }
+
   async function acceptCandidate(): Promise<void> {
-    if (isWriting.current || !acceptsCandidate) return;
+    if (isWriting.current || !acceptsCandidate || fields.revision === null) return;
     isWriting.current = true;
+    // Proof: removing this synchronous notification let the same-event Retry start a paid request.
+    onFocusChange?.(true);
     setPending(true);
     setFailure('');
     try {
-      const saved = await editDraft({ kind: 'accept_candidate' }, revision);
-      setFields((current) => ({ ...current, brief: saved.brief, savedBrief: saved.brief }));
+      const saved = await editDraft({ kind: 'accept_candidate' }, fields.revision);
+      setFields((current) => ({
+        ...current,
+        brief: saved.brief,
+        savedBrief: saved.brief,
+        revision: saved.revision,
+      }));
       await onRefresh?.();
     } catch (error) {
       setFailure(describeFailure(error));
@@ -298,10 +398,13 @@ export function RequestEditor({
   async function keepExploring(): Promise<void> {
     if (isWriting.current) return;
     isWriting.current = true;
+    onFocusChange?.(true);
     setPending(true);
     setFailure('');
     try {
-      await editDraft({ kind: 'decline_email' }, revision);
+      const currentRevision = await persistFields();
+      const saved = await editDraft({ kind: 'decline_email' }, currentRevision);
+      setFields((current) => ({ ...current, revision: saved.revision }));
       setContactOpen(false);
       onClose();
       await onRefresh?.();
@@ -317,6 +420,7 @@ export function RequestEditor({
     event.preventDefault();
     if (isWriting.current || final.kind !== 'ready' || !fields.brief.trim()) return;
     isWriting.current = true;
+    onFocusChange?.(true);
     setPending(true);
     setFailure('');
     try {
@@ -469,9 +573,8 @@ export function RequestEditor({
               <button
                 type="button"
                 className="glass-button"
-                onClick={() => {
-                  setEditing(false);
-                }}
+                disabled={isPending}
+                onClick={() => void reviewRequest()}
               >
                 Review request
               </button>
@@ -590,6 +693,39 @@ export function RequestEditor({
               </form>
             )}
           </>
+        )}
+        {remote !== null && (
+          <section aria-label="Resolve draft changes" className="request-preview">
+            <h3>Saved version changed</h3>
+            <p>
+              {`${remote.brief}${remote.references ? `\n\nReferences\n${remote.references}` : ''}`}
+            </p>
+            <p>
+              Your local edits are preserved. Choose a version before saving or continuing AI chat.
+            </p>
+            <div className="scoping-answers">
+              <button
+                type="button"
+                className="glass-button quiet"
+                disabled={isPending}
+                onClick={() => {
+                  reconcileFields(true);
+                }}
+              >
+                Keep my edits
+              </button>
+              <button
+                type="button"
+                className="glass-button quiet"
+                disabled={isPending}
+                onClick={() => {
+                  reconcileFields(false);
+                }}
+              >
+                Use saved version
+              </button>
+            </div>
+          </section>
         )}
         {failure && (
           <p className="proposal-failure" role="status">

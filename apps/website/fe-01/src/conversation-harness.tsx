@@ -7,7 +7,7 @@ import {
   type ScopingAnswerSelection,
 } from '@website/contracts';
 import { DefaultChatTransport, type UIMessage } from 'ai';
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import { ApiFailure, apiOrigin, requestJson, streamFetch } from './api';
 import { describeFailure, unreachableMessage } from './app-flow';
@@ -112,6 +112,11 @@ export function LiveHarness({
   const [notice, setNotice] = useState('');
   const [isReviewOpen, setReviewOpen] = useState(false);
   const [isReviewFocused, setReviewFocused] = useState(false);
+  const reviewFocus = useRef(false);
+  const updateReviewFocus = useCallback((isFocused: boolean) => {
+    reviewFocus.current = isFocused;
+    setReviewFocused(isFocused);
+  }, []);
   const isSending = useRef(false);
   const isMountedStart = useRef(false);
   const [receipt, setReceipt] = useState<string | null>(null);
@@ -135,6 +140,8 @@ export function LiveHarness({
     // Proof: bypassing durable not-started eligibility made the unknown-initial mount test post automatically.
     if (
       !isMountedStart.current &&
+      // Proof: latching during recovered review prevented the one authorized initial from resuming after save.
+      !reviewFocus.current &&
       conversation.scoping.version === 1 &&
       conversation.scoping.startConversation &&
       conversation.initialOperation?.state === 'not-started' &&
@@ -144,7 +151,7 @@ export function LiveHarness({
       isMountedStart.current = true;
       void send({ ...mode.attempt, automatic: true });
     }
-  }, []);
+  }, [isReviewFocused]);
 
   function startCheck(challenge: BrowserChallenge): PendingCheck {
     const pending: PendingCheck = { challenge, isSettled: false, number: solveCheck(challenge) };
@@ -216,7 +223,8 @@ export function LiveHarness({
 
   async function send(attempt: ConversationAttempt): Promise<void> {
     // Proof: removing this synchronous fence admitted two posts in the selected-answer double-click test.
-    if (isSending.current || isBusy || isPreparing.current) return;
+    // Proof: bypassing this review fence let the hidden composer buy a stale-reference turn in request-editor.mjs.
+    if (reviewFocus.current || isSending.current || isBusy || isPreparing.current) return;
     isSending.current = true;
     let solution: BrowserCheckSolution | undefined;
     if (attempt.initial) {
@@ -481,6 +489,7 @@ export function LiveHarness({
               <button
                 type="button"
                 className="harness-text-button"
+                disabled={isReviewFocused}
                 onClick={() => void send({ ...retryable, automatic: false })}
               >
                 [ Retry ]
@@ -489,6 +498,7 @@ export function LiveHarness({
           )}
           {conversation.scoping.version === 1 &&
             mode.kind === 'open' &&
+            !isReviewFocused &&
             !isBusy &&
             live === null &&
             // Proof: without this exclusion, the known-invalid render repeated old choices before manual review.
@@ -532,7 +542,7 @@ export function LiveHarness({
               <RequestEditor
                 draft={conversation}
                 contact={isReviewOpen}
-                onFocusChange={setReviewFocused}
+                onFocusChange={updateReviewFocus}
                 open={
                   isReviewOpen ||
                   (offersProposal(conversation) && !conversation.scoping.emailInvitationDeclined)

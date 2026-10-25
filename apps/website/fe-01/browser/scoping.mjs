@@ -116,6 +116,12 @@ try {
     const references = 'https://one.test — borrow navigation\nDemo Two — avoid checkout';
     await brief.fill(edited);
     await refs.fill(references);
+    await page.reload();
+    await editRequest(page);
+    assert(
+      (await brief.inputValue()) === edited && (await refs.inputValue()) === references,
+      'unsaved edits lost before review',
+    );
     const exact = `${edited}\n\nReferences\n${references}`;
     await reviewRequest(page);
     assert((await final.textContent()) === exact, 'final references missing');
@@ -321,12 +327,21 @@ try {
   await mixed.page
     .getByRole('textbox', { name: 'Your brief', exact: true })
     .fill('My unsaved human brief');
-  await reviewRequest(mixed.page);
-  await mixed.page
+  const correctionTab = await mixed.context.newPage();
+  await correctionTab.goto(appOrigin);
+  await correctionTab
     .getByRole('textbox', { name: 'Your message', exact: true })
     .fill('Correction: sign-in, not payments. contact@example.test');
-  await mixed.page.getByRole('textbox', { name: 'Your message', exact: true }).press('Enter');
-  await idle(mixed.page);
+  await correctionTab.getByRole('textbox', { name: 'Your message', exact: true }).press('Enter');
+  await correctionTab
+    .getByText(
+      'Improve the existing app: inspect sign-in and agree the next milestone. Details need inspection.',
+      { exact: true },
+    )
+    .waitFor({ state: 'attached' });
+  await correctionTab.close();
+  await mixed.page.reload();
+  await mixed.page.getByText('Saved version changed', { exact: true }).waitFor();
   await mixed.page
     .getByText(
       'Improve the existing app: inspect sign-in and agree the next milestone. Details need inspection.',
@@ -343,6 +358,7 @@ try {
     await mixed.page.getByRole('button', { name: 'Use suggested brief', exact: true }).isDisabled(),
     'dirty candidate guard absent',
   );
+  await mixed.page.getByRole('button', { name: 'Keep my edits', exact: true }).click();
   await editRequest(mixed.page);
   await mixed.page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await mixed.page
