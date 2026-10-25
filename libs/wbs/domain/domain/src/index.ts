@@ -1,5 +1,8 @@
 // Who does one step of one work item, and who is assumed to when nobody is named. Moved out of
 // the core's `service/` on 2026-10-11 (task 6.1, A12); the ports re-export `Assignment`.
+// The permission catalogue and the pure decision over it (`wbs-permissions` 1.2,
+// `wbs-custom-permissions` CP1, CP16, CP18); the matrix reader holds the seed to its source.
+export * from './access-role';
 export type * from './assignment';
 export * from './assumed-assignee';
 export * from './assumed-duration';
@@ -62,6 +65,7 @@ export * from './node-resources';
 export * from './not-before';
 export * from './on-time';
 // A person's bookings across projects on one workday axis: overlaps and weekly load.
+export * from './permission-matrix';
 export * from './person-load';
 export * from './place-sibling';
 export * from './priority-band';
