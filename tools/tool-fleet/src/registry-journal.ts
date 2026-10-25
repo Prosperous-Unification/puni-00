@@ -43,6 +43,7 @@ const images = { roots: Roots, references: References };
 const Protection = type({ ...ownership, ...images, reason: Identity, '+': 'reject' });
 const Bundle = type({
   operationId: Identity,
+  owner: Identity,
   product: Identity,
   ...images,
   receipt: {
@@ -241,6 +242,7 @@ function requireConsistentState(journal: RegistryJournal): void {
     requireImages(protectedImages.roots, protectedImages.references);
   for (const bundle of journal.bundles) requireImages(bundle.roots, bundle.references);
   for (const owner of [
+    ...journal.bundles,
     ...journal.protections,
     ...(journal.publication === null ? [] : [journal.publication]),
     ...(journal.maintenance === null ? [] : [journal.maintenance]),
@@ -475,7 +477,7 @@ async function mutateJournal(
         roots: request.roots,
         receipt: { state: 'unfinished', at: journal.updatedAt },
       };
-      journal.bundles.push({ ...bundle, references: request.references });
+      journal.bundles.push({ ...bundle, owner: request.owner, references: request.references });
       journal.publication = {
         operationId: request.operationId,
         owner: request.owner,

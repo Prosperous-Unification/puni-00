@@ -76,6 +76,7 @@ it('persists complete publication identity and server receipts before acknowledg
     ports(),
   );
   expect(completed.state.reservations).toEqual([]);
+  expect(completed.state.bundles[0]?.owner).toBe('publisher');
   expect(completed.state.bundles[0]?.receipt).toEqual({
     state: 'completed',
     at: '2026-10-25T00:00:00.000Z',
