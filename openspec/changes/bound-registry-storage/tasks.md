@@ -18,7 +18,7 @@ is permitted merely because planning validation passes.
       `does not count shared blobs twice`; negatives: missing/NaN capacity, malformed
       timestamp, unknown owner and all-protected exhaustion. Remove each guard and
       observe the production-path refusal test fail before adding its adjacent `Proof:`.
-- [ ] 1.2 Add `registry-journal.ts` and `registry-journal.test.ts` beside that policy.
+- [x] 1.2 Add `registry-journal.ts` and `registry-journal.test.ts` beside that policy.
       Persist versioned protection ownership, complete bundles, reservations and
       recoverable operation phases with atomic durable acknowledgements. Provide
       acquire/release protection, reserve/finish publication and begin/advance/recover
