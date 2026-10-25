@@ -280,15 +280,19 @@ Precondition (design "Dependency graph"): 3.8 executed and `wbs-permissions` 3.4
       allow-list check removed (a `spike` assignment succeeds); the level filter removed
       from `calendarMarkers: null` (clearing P's set deletes W's markers too); the level
       check removed from a lower level's delete (W deletes P's holiday); each watched.
-- [ ] 4.5 Inherited changes (E48, awaits Dany): a write at organization, space or project, a
+- [ ] 4.5 Inherited changes (E48, settled 2026-10-25): a write at organization, space or project, a
       project entering or leaving a space and a space deletion announce
       `work_package_settings_changed` for each affected work package after the commit, and
       any of them that would leave a work item outside its resolved `allowedWorkItemTypes`
-      refuses `409 types_in_use { count }` changing nothing. Tests: the spec's space-change
-      and narrowing scenarios on the mounted routes, the announcement observed by the
-      realtime adapter's test double. R5 faults: the `types_in_use` check removed from the
-      space add (the project enters and its work item is outside the list); the
-      announcement skipped for space changes (the realtime assertion fails); each watched.
+      refuses `409 types_in_use { count, workItems }` listing the work items, changing nothing;
+      `dryRun: true` on each of those writes answers the list or the affected packages
+      from a rolled-back transaction. Tests: the spec's space-change, narrowing and dry-run
+      scenarios on the mounted routes, the announcement observed by the realtime adapter's
+      test double, a 201-item fixture answering 200 items and `count: 201`. R5 faults: the
+      `types_in_use` check removed from the space add (the project enters and its work item
+      is outside the list); the announcement skipped for space changes (the realtime
+      assertion fails); the dry-run rollback removed (the setting persists after a dry run);
+      the `workItems` query dropped (the list is empty with `count: 1`); each watched.
 - [ ] 4.6 Red: `project-in-one-space.db.test.ts` (E46: `project.space_id` and
       `space_position` back-filled by the total order; several packages of one project in
       one space make one pair; equal positions across spaces fall back to `space.created_at`
@@ -320,7 +324,8 @@ Precondition (design "Dependency graph"): 3.8 executed and `wbs-permissions` 3.4
       space-level settings pages, spaces page with each space's projects, persons and teams
       and an organization-level group for projects in no space; browser test. R5 faults:
       the handler that renders `409 not_overridable_here` as a state removed; the handler
-      that renders `409 types_in_use` as a state removed; the browser tests naming those
+      that renders `409 types_in_use` with its work item list as a state removed; the dry-run
+      preview shown before a narrowing or a space change skipped; the browser tests naming those
       refusals fail; each watched. UI reviewed by eye.
 - [ ] 4.9 Runbook window executed on dev (E36–E38; precondition: one budget factor per
       project, E20); `verify.md`.
