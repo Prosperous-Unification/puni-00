@@ -47,7 +47,7 @@ async function run(executable: string, arguments_: string[], environment = proce
 
 /** Runs real role tasks; only remaps host paths/ownership and substitutes the unavailable system manager. */
 async function fixture(
-  role: 'registry_endpoint' | 'registry_client',
+  role: 'registry_endpoint' | 'registry_client' | 'registry_storage',
   overrides: Record<string, unknown> = {},
   removed?: string,
   fault?: string,
@@ -59,6 +59,7 @@ async function fixture(
   const targets = ['/etc/systemd/system', '/etc/rancher/k3s'];
   for (const target of targets) await mkdir(root + target, { recursive: true });
   await writeFile(root + '/etc/hosts', '127.0.0.1 localhost\n');
+  await writeFile(root + '/etc/fstab', '# fixture\n');
   const certificate = join(root, 'ca.pem');
   const generated = await run('openssl', [
     'req',
@@ -89,6 +90,8 @@ async function fixture(
     puni_registry_username: 'fixture-user',
     puni_registry_password: 'fixture-secret',
     puni_registry_service: 'k3s',
+    puni_registry_storage_enrolled: true,
+    puni_registry_storage_directory: root + '/volumes',
     ...overrides,
   };
   const serviceLog = join(root, 'services');
@@ -115,7 +118,9 @@ async function fixture(
         task['ansible.builtin.stat']!['path'] = join(root, 'missing-proxy');
       if (task.loop instanceof Array)
         task.loop = task.loop.map((entry: unknown) =>
-          typeof entry === 'string' && entry.startsWith('/') && entry.includes('/puni-registry.')
+          typeof entry === 'string' &&
+          entry.startsWith('/') &&
+          (entry.includes('/puni-registry.') || role === 'registry_storage')
             ? root + entry
             : entry,
         );
@@ -133,13 +138,22 @@ async function fixture(
           argv: [
             '/bin/sh',
             '-c',
-            task.name === 'Enable private registry socket' ? ':' : 'printf "%s\\n" "$1" >> "$2"',
+            ['Enable private registry socket', 'Enable storage verification on host boot'].includes(
+              task.name ?? '',
+            )
+              ? ':'
+              : 'printf "%s\\n" "$1" >> "$2"',
             'service-fixture',
             JSON.stringify(task['ansible.builtin.systemd_service']),
             serviceLog,
           ],
         };
-        if (task.name === 'Enable private registry socket') task.changed_when = false;
+        if (
+          ['Enable private registry socket', 'Enable storage verification on host boot'].includes(
+            task.name ?? '',
+          )
+        )
+          task.changed_when = false;
         delete task['ansible.builtin.systemd_service'];
       }
       for (const module of [
@@ -149,14 +163,29 @@ async function fixture(
         'ansible.builtin.stat',
         'ansible.builtin.slurp',
         'ansible.builtin.blockinfile',
+        'ansible.builtin.lineinfile',
       ]) {
         const options = task[module] as Options | undefined;
         if (!options) continue;
         for (const key of ['path', 'dest', 'src'])
-          if (typeof options[key] === 'string' && options[key].startsWith('/etc/'))
+          if (
+            typeof options[key] === 'string' &&
+            ['/etc/', '/usr/local/'].some((prefix) => (options[key] as string).startsWith(prefix))
+          )
             options[key] = root + options[key];
         if (options['owner']) options['owner'] = String(process.getuid?.());
         if (options['group']) options['group'] = String(process.getgid?.());
+      }
+      if (task['ansible.builtin.group'] || task['ansible.builtin.user']) {
+        // Host account writes are deferred to rollout; exercise their real preflight here.
+        delete task['ansible.builtin.group'];
+        delete task['ansible.builtin.user'];
+        task['ansible.builtin.command'] = { argv: ['/bin/true'] };
+        task.changed_when = false;
+      }
+      if (task.name === 'Provision and verify both bounded filesystems') {
+        // Native block operations are proven separately by registry-storage.test.ts.
+        task['ansible.builtin.command'] = { argv: ['/bin/sh', '-c', 'printf unchanged'] };
       }
       rewritten.push(task);
     }
@@ -455,3 +484,92 @@ it('bounds the production server readiness request against a stalled API respons
     server.close();
   }
 }, 90000);
+
+it('requires bounded storage at host boot and on every production container start', async () => {
+  const plays = parse(
+    await readFile(join(repository, 'infra/ansible/playbooks/registry.yml'), 'utf8'),
+  ) as { roles: string[] }[];
+  expect(plays.flatMap((play) => play.roles)).toContain('registry_storage');
+  const unit = await readFile(
+    join(
+      repository,
+      'infra/ansible/roles/registry_storage/templates/puni-registry-storage.service.j2',
+    ),
+    'utf8',
+  );
+  expect(unit).toContain('Before=k3s.service');
+  expect(unit).toContain('storage.sh mount');
+  const dependency = await readFile(
+    join(repository, 'infra/ansible/roles/registry_storage/files/k3s-storage.conf'),
+    'utf8',
+  );
+  expect(dependency).toContain('Requires=puni-registry-storage.service');
+  const tasks = await readFile(
+    join(repository, 'infra/ansible/roles/registry_storage/tasks/main.yml'),
+    'utf8',
+  );
+  expect(tasks).toContain('X-fstrim.notrim');
+  expect(tasks).toContain('noauto');
+  const patch = parse(
+    await readFile(
+      join(repository, 'infra/platform/registry/production/storage-patch.yaml'),
+      'utf8',
+    ),
+  ) as {
+    spec: {
+      template: {
+        spec: {
+          containers: { command: string[]; args: string[]; securityContext: unknown }[];
+          volumes: unknown[];
+        };
+      };
+    };
+  };
+  expect(patch.spec.template.spec.containers[0]?.command).toEqual([
+    '/bin/sh',
+    '/storage-guard/startup.sh',
+  ]);
+  expect(patch.spec.template.spec.containers[0]?.args).toContain('/bin/registry');
+  expect(JSON.stringify(patch.spec.template.spec.volumes)).not.toContain('DirectoryOrCreate');
+});
+
+it('renders bounded storage enrollment and converges without changing boot configuration', async () => {
+  const host = await fixture('registry_storage');
+  const first = await host.apply();
+  expect(first.output).toContain('failed=0');
+  expect(first.code).toBe(0);
+  expect((await host.apply()).output).toMatch(/changed=0/);
+  const configuration = JSON.parse(
+    await readFile(host.root + '/etc/puni/registry-storage.json', 'utf8'),
+  ) as { volumes: { name: string; bytes: number; uid: number }[] };
+  expect(configuration.volumes).toEqual([
+    { name: 'registry', bytes: 53687091200, uid: 59001 },
+    { name: 'journal', bytes: 1073741824, uid: 59001 },
+  ]);
+  expect(await readFile(host.root + '/etc/fstab', 'utf8')).toContain('X-fstrim.notrim');
+  const refused = await fixture('registry_storage', { puni_registry_storage_enrolled: false });
+  expect((await refused.apply()).code).not.toBe(0);
+  expect(await Bun.file(refused.root + '/etc/puni/registry-storage.json').exists()).toBe(false);
+  const unguarded = await fixture(
+    'registry_storage',
+    { puni_registry_storage_enrolled: false },
+    'Require explicit bounded storage enrollment',
+  );
+  expect((await unguarded.apply()).code).toBe(0);
+  expect(await Bun.file(unguarded.root + '/etc/puni/registry-storage.json').exists()).toBe(true);
+}, 60000);
+
+it('refuses a foreign authority UID before any persistent enrollment', async () => {
+  const uid = process.getuid?.();
+  if (uid === undefined) throw new Error('Identity proof requires Unix UID');
+  const host = await fixture('registry_storage', { puni_registry_storage_uid: uid });
+  expect((await host.apply()).code).not.toBe(0);
+  expect(await Bun.file(host.root + '/etc/puni/registry-storage.json').exists()).toBe(false);
+  const unguarded = await fixture(
+    'registry_storage',
+    { puni_registry_storage_uid: uid },
+    'Validate dedicated registry identity',
+  );
+  expect((await unguarded.apply()).code).toBe(0);
+  expect(await Bun.file(unguarded.root + '/etc/puni/registry-storage.json').exists()).toBe(true);
+}, 60000);

@@ -170,8 +170,18 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "env": { "CLAUDECODE": "0", "AGENT": "0" },
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
         "command": "bun test --preload ./tools/test/scratch/preload.ts ./infra/ansible/tests/registry-hosts.test.ts --timeout=120000"
+      }
+    },
+    "test:registry-storage": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test ./infra/ansible/tests/registry-storage.test.ts --timeout=120000"
       }
     }
   }

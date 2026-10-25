@@ -1,0 +1,12 @@
+[Unit]
+Description=Verify and mount retained bounded registry filesystems
+Before=k3s.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/puni-registry-storage/storage.sh mount /etc/puni/registry-storage.json
+
+[Install]
+WantedBy=multi-user.target

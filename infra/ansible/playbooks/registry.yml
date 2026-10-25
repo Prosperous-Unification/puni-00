@@ -1,4 +1,12 @@
 ---
+- name: Enroll bounded registry storage explicitly
+  hosts: registry_endpoints
+  become: true
+  gather_facts: false
+  serial: 1
+  tags: [never, registry_storage]
+  roles: [registry_storage]
+
 - name: Converge the private registry TCP endpoint
   hosts: registry_endpoints
   become: true
