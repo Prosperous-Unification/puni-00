@@ -332,6 +332,8 @@ describe('McpOAuthServer', () => {
 
   // Proof: omitting cleanup before the capacity check leaves an expired client
   // occupying the only slot and rejects a replacement connector forever.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('expires dynamic clients and frees their capacity', async () => {
     const expiring = fixture({ clientLimit: 1, clientTtlMs: 1_000 });
     const clientId = await register(expiring.oauth);
@@ -424,6 +426,8 @@ describe('McpOAuthServer', () => {
 
   // Proof: extending expiry from the current time on every authorize lets a
   // registered but unauthenticated client renew itself forever without login.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('caps repeated authorization extensions at an absolute unproven lifetime', async () => {
     const { advance, oauth } = fixture();
     const clientId = await register(oauth);
@@ -3123,6 +3127,8 @@ describe('registered clients across a restart', () => {
     server.close();
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('answers invalid_client with a re-register hint for an unknown client_id', async () => {
     const { oauth } = fixture();
     const response = await oauth.response(new Request(authorizeUrl('never-registered')));
@@ -3132,6 +3138,8 @@ describe('registered clients across a restart', () => {
     expect(await response?.json()).toEqual(INVALID_CLIENT);
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('answers invalid_client once an unproven client expires across a restart', async () => {
     const server = restartable({ clientTtlMs: 1_000 });
     const clientId = await register(server.oauth);
@@ -3213,6 +3221,30 @@ describe('registered clients across a restart', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it('refuses a stored redirect that carries a planted response field', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { oauth } = fixture({ store });
+    const planted = 'http://127.0.0.1:33418/callback?code=planted';
+    store.admitClient(
+      'unknown',
+      1_700_000_000_000,
+      () => true,
+      () => ({
+        clientId: 'planted-client',
+        source: 'unknown',
+        redirectUris: [planted],
+        proven: true,
+        expiresAt: 1_700_000_000_000 + 60_000,
+        unprovenExpiresAt: 1_700_000_000_000 + 60_000,
+      }),
+    );
+
+    const refused = await oauth.response(new Request(authorizeUrl('planted-client', planted)));
+    expect(refused?.status).toBe(400);
+    expect(await refused?.json()).toEqual({ error: 'invalid_request' });
+    store.close();
+  });
+
   it('deletes an expired client from the store when the next request sweeps', async () => {
     const store = new McpSessionStore(':memory:', [randomBytes(32)]);
     const { advance, oauth } = fixture({ clientTtlMs: 1_000, store });
@@ -3226,6 +3258,8 @@ describe('registered clients across a restart', () => {
     store.close();
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('keeps the absolute unproven lifetime an authorization extension stored before the restart', async () => {
     const server = restartable();
     const clientId = await register(server.oauth);
@@ -3342,6 +3376,8 @@ describe('registered clients across a restart', () => {
 
   // Proof: 2026-10-25, a proven lifetime of 2 * REFRESH_ABSOLUTE_MS made this authorization
   // answer 302 instead of invalid_client; dropping the cleanup sweep kept the expired row.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('deletes an expired proven client with no live family and answers invalid_client', async () => {
     const server = restartable(refreshable);
     const clientId = await register(server.oauth);
@@ -3407,6 +3443,8 @@ describe('registered clients across a restart', () => {
 
   // Proof: 2026-10-25, dropping `expires_at > ?` from the store's client renewal moved the planted
   // expired row 30 d forward (stored 1702592060000, not 1700000030000).
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('does not revive an expired, unswept client through a refresh', async () => {
     const server = restartable(refreshable);
     const clientId = await register(server.oauth);
@@ -3559,9 +3597,6 @@ describe('registered clients across a restart', () => {
     it('re-admits a swept client, exchanges its code, and keeps it proven across a restart', async () => {
       const { clientId, server } = sweptClient();
       const verifier = 'r'.repeat(43);
-      const url = authorizeUrl(clientId, LOOPBACK);
-      url.searchParams.set('code_challenge', challengeOf(verifier));
-
       const code = await codeAt(server.oauth, clientId, LOOPBACK, verifier);
       const readmittedAt = START + 1_001;
       expect(server.store.client(clientId, readmittedAt)).toMatchObject({
@@ -3725,6 +3760,82 @@ describe('registered clients across a restart', () => {
       expect(storedRow(server.path, clientId)).toEqual(first);
       other.close();
       server.close();
+    });
+
+    /** A proven client of an issued-shape id with a live family, then swept by an older release. */
+    async function sweptWithLiveFamily() {
+      const server = restartable(refreshable);
+      const clientId = issuedId();
+      server.store.admitClient(
+        'unknown',
+        START,
+        () => true,
+        () => ({
+          clientId,
+          source: 'unknown',
+          redirectUris: [CALLBACK],
+          proven: true,
+          expiresAt: START + 30 * DAY,
+          unprovenExpiresAt: START + 30 * DAY,
+        }),
+      );
+      const refreshToken = await signIn(server.oauth, clientId);
+      const db = new Database(server.path, { strict: true });
+      db.query('DELETE FROM mcp_client WHERE client_id = ?').run(clientId);
+      db.close();
+      server.advance(HOUR);
+      return { clientId, refreshToken, server };
+    }
+
+    // Proof: 2026-10-25, renewing unproven clients at refresh moved the pre-claimed row 30 d
+    // forward (expiresAt 1702595900000, not 1700004200000).
+    it("keeps a pre-claimed swept id unproven through the victim's refresh", async () => {
+      const { clientId, refreshToken, server } = await sweptWithLiveFamily();
+      const claimed = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '198.51.100.66'),
+      );
+      expect(claimed?.status).toBe(302);
+      const preClaimed = server.store.client(clientId, START + HOUR);
+      server.advance(5 * 60_000);
+
+      await refreshed(server.oauth, clientId, refreshToken);
+      expect(server.store.client(clientId, START + HOUR)).toEqual(preClaimed);
+      expect(preClaimed?.proven).toBe(false);
+      server.advance(DAY);
+      const victim = await server.oauth.response(new Request(authorizeUrl(clientId)));
+      expect(victim?.status).toBe(302);
+      expect(server.store.client(clientId, START + HOUR + DAY)).toMatchObject({
+        proven: false,
+        redirectUris: [CALLBACK],
+        source: 'unknown',
+      });
+      server.close();
+    });
+
+    // Proof: 2026-10-25, renewing unproven clients at refresh answered the authorization an hour
+    // after the refresh 429 instead of 302: the row outlived its absolute unproven lifetime.
+    it('keeps an abandoned re-admission unproven through a refresh', async () => {
+      const { clientId, refreshToken, server } = await sweptWithLiveFamily();
+      expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+      server.advance(5 * 60_000);
+
+      await refreshed(server.oauth, clientId, refreshToken);
+      server.advance(HOUR);
+      expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+      server.close();
+    });
+
+    // Proof: 2026-10-25, dropping `expires_at > ?` from the store's extendClient moved the
+    // planted expired row's expiry to the extension.
+    it('does not revive an expired, unswept client through an authorization extension', () => {
+      const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+      const clientId = issuedId();
+      plantClient(store, clientId);
+      const now = START + 2_000;
+
+      store.extendClient(clientId, now + 600_000, now);
+      expect(store.client(clientId, START)?.expiresAt).toBe(START + 1_000);
+      store.close();
     });
 
     // Proof: 2026-10-25, replacing the store's expired-row DELETE with a no-op returned the

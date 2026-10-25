@@ -294,8 +294,9 @@ export class McpSessionStore {
 
   /**
    * Consumes `token` for `successor` and a new session in one transaction, which also renews the
-   * family's client to at least `clientExpiresAt` (a live client only; an expired, unswept one
-   * stays expired). Any failure, the renewal's included, rolls all of it back, so the caller can
+   * family's client to at least `clientExpiresAt` when it is live and proven. An expired, unswept
+   * one stays expired, and an unproven one (a swept id re-admitted at authorization while an older
+   * family of it still refreshes) keeps its unproven lifetime: a refresh never proves a client. Any failure, the renewal's included, rolls all of it back, so the caller can
    * retry with the same token instead of reading as a replay.
    */
   consumeRefresh(
@@ -350,7 +351,7 @@ export class McpSessionStore {
       // Proof: 2026-10-25, running this renewal after the transaction committed made `rolls back
       // the whole refresh when the client renewal fails, so the retry still refreshes`
       // (oauth.test.ts) answer the retry 400 invalid_grant: the consumed token read as a replay.
-      this.renewClient(clientId, clientExpiresAt, now);
+      this.renewProvenClient(clientId, clientExpiresAt, now);
       return {
         outcome: 'row' as const,
         row: { ...row, idle_expires_at: boundedIdle },
@@ -652,7 +653,13 @@ export class McpSessionStore {
   extendClient(clientId: string, expiresAt: number, now: number): void {
     // Proof: 2026-10-21, `SET expires_at = ?` without MAX failed `never shortens a lifetime
     // when an extension follows a promotion` (store-migrations.test.ts).
-    this.renewClient(clientId, expiresAt, now);
+    // Proof: 2026-10-25, dropping `expires_at > ?` failed `does not revive an expired, unswept
+    // client through an authorization extension` (oauth.test.ts).
+    this.db
+      .query(
+        'UPDATE mcp_client SET expires_at = MAX(expires_at, ?) WHERE client_id = ? AND expires_at > ?',
+      )
+      .run(expiresAt, clientId, now);
   }
 
   /**
@@ -675,12 +682,16 @@ export class McpSessionStore {
       .run(expiresAt, clientId);
   }
 
-  private renewClient(clientId: string, expiresAt: number, now: number): void {
+  private renewProvenClient(clientId: string, expiresAt: number, now: number): void {
     // Proof: 2026-10-25, dropping `expires_at > ?` failed `does not revive an expired, unswept
     // client through a refresh` (oauth.test.ts): the planted expired row was moved 30 d forward.
+    // Proof: 2026-10-25, dropping `proven = 1` failed `keeps a pre-claimed swept id unproven
+    // through the victim's refresh` and `keeps an abandoned re-admission unproven through a
+    // refresh` (oauth.test.ts): the unproven row was moved 30 d forward.
     this.db
       .query(
-        'UPDATE mcp_client SET expires_at = MAX(expires_at, ?) WHERE client_id = ? AND expires_at > ?',
+        `UPDATE mcp_client SET expires_at = MAX(expires_at, ?)
+        WHERE client_id = ? AND expires_at > ? AND proven = 1`,
       )
       .run(expiresAt, clientId, now);
   }

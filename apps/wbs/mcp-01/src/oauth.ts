@@ -624,14 +624,20 @@ export class McpOAuthServer implements McpOAuthHandler {
    * anyone may already register a fresh one; PKCE still binds each code to the verifier of the
    * flow that started it; the callback is checked against today's allowlist; and the caps still
    * bound how many clients one source can hold. Choosing the id value is the only thing added.
+   * So a `client_id` no longer names one registration: families of different subjects and
+   * sources can share one over time. Besides the token-endpoint match, it reaches be-01 only as
+   * the delegation's `client` claim, a label in the consent credential's name.
    *
    * A live client is never touched: the store returns a live row of that id unchanged instead
    * of re-admitting (also when a second process admitted it first), and the normal checks then
-   * apply to it. Someone who learns another connector's swept id can re-admit it first with
-   * another listed callback; that connector's authorization then answers `invalid_request` until
-   * the unproven client expires (at most twice the unproven lifetime); repeating that keeps the
-   * connector no worse off than the permanent `invalid_client` it got before, and codes still
-   * only reach the callback and verifier of the flow that asked for them.
+   * apply to it. A refresh of an older family of that id never renews or proves the re-admitted
+   * client ({@link McpSessionStore.consumeRefresh}). Someone who learns another connector's
+   * swept id can re-admit it first with another listed callback, and an insider holding
+   * `wbs:read` can complete their own sign-in on it and keep it proven for 30 d, renewed by their
+   * own refreshes. That connector's authorization then answers `invalid_request`, with no
+   * re-register hint, for as long as the other client lives. This leaves it no worse off than the
+   * permanent `invalid_client` it got before, and codes still only reach the callback and
+   * verifier of the flow that asked for them.
    *
    * @returns the live client, `'refused'` when the caps refuse, or `null` when the request does
    * not qualify.
@@ -641,9 +647,15 @@ export class McpOAuthServer implements McpOAuthHandler {
     clientId: string,
     redirectUri: string,
   ): RegisteredClient | 'refused' | null {
-    // Proof: 2026-10-25, dropping this check made every `keeps invalid_client for a swept client
-    // whose id is …` case and `answers invalid_client with a re-register hint for an unknown
-    // client_id` answer 302 instead of 400 (oauth.test.ts).
+    // Proof: 2026-10-25, dropping this check failed every `keeps invalid_client for a swept
+    // client whose id is …` case (302 instead of 400) and the seven tests that expect an unknown
+    // or expired injected id to stay refused: `expires dynamic clients and frees their capacity`,
+    // `caps repeated authorization extensions at an absolute unproven lifetime`, `answers
+    // invalid_client with a re-register hint for an unknown client_id`, `answers invalid_client
+    // once an unproven client expires across a restart`, `keeps the absolute unproven lifetime an
+    // authorization extension stored before the restart`, `deletes an expired proven client with
+    // no live family and answers invalid_client` and `does not revive an expired, unswept client
+    // through a refresh` (oauth.test.ts).
     if (!isIssuedIdShape(clientId)) return null;
     // Proof: 2026-10-25, dropping this check stored a client for every `keeps invalid_client for
     // a swept client with the unlisted or malformed redirect …` case (oauth.test.ts), which then
@@ -710,7 +722,13 @@ export class McpOAuthServer implements McpOAuthHandler {
     // a callback removed from HOSTED_REDIRECTS stops authorizing at the next deploy.
     // Proof: 2026-10-21, dropping `isListedRedirect` here made `refuses a stored redirect that is
     // no longer on the allowlist` (oauth.test.ts) answer 302 instead of 400 invalid_request.
-    if (!client.redirectUris.includes(redirectUri) || !isListedRedirect(redirectUri))
+    // Proof: 2026-10-25, dropping `isMalformedRedirect` here made `refuses a stored redirect that
+    // carries a planted response field` (oauth.test.ts) answer 302 instead of 400.
+    if (
+      !client.redirectUris.includes(redirectUri) ||
+      isMalformedRedirect(redirectUri) ||
+      !isListedRedirect(redirectUri)
+    )
       return protocolError('invalid_request');
 
     if (!client.proven && this.now() + GRANT_TTL_MS * 2 > client.unprovenExpiresAt) {
