@@ -322,6 +322,7 @@ export interface ResourceUsageRows {
   demands: readonly Demand[];
   capacities: readonly { projectId: string; units: number }[];
   occupancies: number;
+  outstandingUses?: number;
   /** The provider instance the resource names, or null (`compute-providers` P3). */
   providerId: string | null;
   /** The resource's stated directory capacity, or null (`wbs-shared-occupancy` S8). */

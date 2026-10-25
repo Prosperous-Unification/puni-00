@@ -415,6 +415,7 @@ const batchRefusals = [
           demands: 'number',
           capacities: 'number',
           occupancies: 'number',
+          'outstandingUses?': 'number',
           // `compute-providers` P3; absent from an outgoing be-01 mid-swap.
           'providerId?': 'string | null',
           // `wbs-shared-occupancy` S8; absent from an outgoing be-01 mid-swap.

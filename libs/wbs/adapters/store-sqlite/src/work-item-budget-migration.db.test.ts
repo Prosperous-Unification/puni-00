@@ -11,9 +11,6 @@ import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261023170000_add_work_item_budget';
-/** This change's two migrations (`wbs-shared-occupancy`), newer still, which reverse first. */
-const DIRECTORY_CAPACITY = '20261025100100_add_resource_directory_capacity';
-const DIRECTORY_AUDIT = '20261025100000_widen_organization_audit_directory_capacity';
 const BASELINE = '20261023160000_add_measure_estimate';
 
 let dir: string;
@@ -76,8 +73,10 @@ beforeEach(() => {
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-    DIRECTORY_CAPACITY,
-    DIRECTORY_AUDIT,
+    '20261025140100_add_resource_directory_capacity',
+    '20261025140000_widen_organization_audit_directory_capacity',
+    '20261025130000_add_resource_runtime',
+    '20261025120000_add_resource_use',
     MIGRATION,
   ]);
   db = openDatabase(path);
@@ -193,8 +192,10 @@ describe(MIGRATION, () => {
     const before = facts();
     db.close();
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      DIRECTORY_CAPACITY,
-      DIRECTORY_AUDIT,
+      '20261025140100_add_resource_directory_capacity',
+      '20261025140000_widen_organization_audit_directory_capacity',
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       MIGRATION,
     ]);
     db = openDatabase(path);

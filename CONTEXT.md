@@ -698,6 +698,36 @@ observed and which agent person reported it. Informational beside the declared c
 an admin adopts it as a typed number.
 _Avoid_: Receipt (that is progress), heartbeat, usage report, telemetry
 
+**Resource use**:
+A particular resource consumed by an execution, with an owner and continuing capacity
+responsibility until it is released or accepted by another owner.
+_Avoid_: Occupancy, claim, allocation
+
+**Resource cleanup**:
+The work of settling resource uses after execution: preserving required work, ending access,
+and releasing or explicitly retaining what remains.
+_Avoid_: Claim release, completion, garbage collection
+
+**Resource release**:
+The verified return of specific runtime capacity after its resource use ends; distinct from
+releasing a WBS claim, recording work done, or publishing a software release.
+_Avoid_: Cleanup request, expiry, refund
+
+**Release record**:
+The attributable evidence of a resource release, naming the use, released capacity, verifier
+and time; a cleanup request or retention decision is not a release record.
+_Avoid_: Claim history, capacity report, receipt (without qualification)
+
+**Reported release**:
+An actor’s recorded statement that a resource use ended, with a reason and evidence reference;
+it does not itself prove physical capacity is available.
+_Avoid_: Verified release, free capacity, cleanup request
+
+**Retained resource**:
+A resource use kept for a stated purpose under a responsible owner and review deadline,
+with its capacity responsibility continuing.
+_Avoid_: Released resource, free capacity, abandoned resource
+
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
 the affected projects with their work items by number and name, each work item's effects,

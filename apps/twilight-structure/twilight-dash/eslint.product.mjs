@@ -124,5 +124,11 @@ export default ({
       // paths reach the same alias for canonical JSON and digests (2026-10-22).
       rules: boundary(['^@twilight-burokrat/contracts$']),
     },
+    {
+      files: ['apps/twilight-structure/twilight-dash/cli/src/resources/**/*.ts'],
+      // Proof: removing this exact override failed `Dash resources reach only the WBS
+      // transport contract at their scoped paths`; sibling/relative imports remain denied.
+      rules: boundary(['^@wbs/contracts$']),
+    },
   ];
 };

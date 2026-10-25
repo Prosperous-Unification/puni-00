@@ -23,9 +23,6 @@ const MEASURE = '20261023140000_add_measure';
 const MEASURE_FACTS = '20261023150000_key_step_measure';
 const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
-/** This change's two migrations (`wbs-shared-occupancy`), newer still, which reverse first. */
-const SHARED_OCCUPANCY =
-  '20261025100100_add_resource_directory_capacity, 20261025100000_widen_organization_audit_directory_capacity';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const TABLES = ['organization_trusted_issuer', 'machine_credential', 'machine_credential_secret'];
@@ -157,7 +154,7 @@ describe(MACHINE_CREDENTIAL, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${SHARED_OCCUPANCY}, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
+      `rolled back: 20261025140100_add_resource_directory_capacity, 20261025140000_widen_organization_audit_directory_capacity, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
     );
     for (const table of TABLES) expect(tablesOf(dbPath)).not.toContain(table);
     runMigrations(dbPath, join(root, 'drizzle'));

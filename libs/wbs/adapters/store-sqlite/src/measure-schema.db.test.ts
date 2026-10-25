@@ -17,9 +17,6 @@ const MEASURE_FACTS = '20261023150000_key_step_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
 const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
-/** This change's two migrations (`wbs-shared-occupancy`), newer still, which reverse first. */
-const DIRECTORY_CAPACITY = '20261025100100_add_resource_directory_capacity';
-const DIRECTORY_AUDIT = '20261025100000_widen_organization_audit_directory_capacity';
 const BASELINE = '20261023100000_add_claim_lease';
 
 let dir: string;
@@ -99,8 +96,10 @@ describe(MIGRATION, () => {
   // read no definitions for either existing organization; watched 2026-10-23.
   it('seeds the five definitions for every organization that existed before it', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      DIRECTORY_CAPACITY,
-      DIRECTORY_AUDIT,
+      '20261025140100_add_resource_directory_capacity',
+      '20261025140000_widen_organization_audit_directory_capacity',
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,
@@ -228,11 +227,13 @@ describe(MIGRATION, () => {
     expect(ledger()).toEqual(
       before.filter(
         ({ name }) =>
+          name !== '20261025120000_add_resource_use' &&
+          name !== '20261025130000_add_resource_runtime' &&
+          name !== '20261025140000_widen_organization_audit_directory_capacity' &&
+          name !== '20261025140100_add_resource_directory_capacity' &&
           name !== MEASURE_FACTS &&
           name !== MEASURE_ESTIMATES &&
-          name !== WORK_ITEM_BUDGETS &&
-          name !== DIRECTORY_AUDIT &&
-          name !== DIRECTORY_CAPACITY,
+          name !== WORK_ITEM_BUDGETS,
       ),
     );
   });
@@ -240,8 +241,10 @@ describe(MIGRATION, () => {
   it('rolls back over untouched seeded definitions, and comes forward seeding again', () => {
     organization('org-a', 5);
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      DIRECTORY_CAPACITY,
-      DIRECTORY_AUDIT,
+      '20261025140100_add_resource_directory_capacity',
+      '20261025140000_widen_organization_audit_directory_capacity',
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,

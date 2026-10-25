@@ -371,7 +371,7 @@ describe('the directory capacity audit rebuild', () => {
     const root = new URL('.', WORKSPACE).pathname.replace(/\/$/, '');
     const file = join(
       root,
-      'apps/wbs/be-01/drizzle/20261025100000_widen_organization_audit_directory_capacity/migration.sql',
+      'apps/wbs/be-01/drizzle/20261025140000_widen_organization_audit_directory_capacity/migration.sql',
     );
     expect(await lintMigration(file, root)).toBeNull();
   });

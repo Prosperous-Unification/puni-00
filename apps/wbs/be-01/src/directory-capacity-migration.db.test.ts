@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,14 +6,15 @@ import { fileURLToPath } from 'node:url';
 import { ORGANIZATION_AUDIT_ACTIONS, ORGANIZATION_AUDIT_SUBJECT_KINDS } from '@wbs/core';
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { duplicateMigrationStamps } from '@wbs/store-sqlite/migrate-down';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
-/** The latest migration before this change's two. */
-const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
-const AUDIT_WIDENING = '20261025100000_widen_organization_audit_directory_capacity';
-const DIRECTORY_CAPACITY = '20261025100100_add_resource_directory_capacity';
+/** The newest folder on `main` when this change's two were stamped (`wbs-resource-release`). */
+const RESOURCE_RUNTIME = '20261025130000_add_resource_runtime';
+const AUDIT_WIDENING = '20261025140000_widen_organization_audit_directory_capacity';
+const DIRECTORY_CAPACITY = '20261025140100_add_resource_directory_capacity';
 /** What the widening adds; every other value of the two vocabularies was admitted before it. */
 const NEW_ACTION = 'directory_capacity_changed';
 const NEW_KIND = 'resource';
@@ -38,7 +39,7 @@ function migratedStore(): { root: string; dbPath: string } {
   return { root, dbPath };
 }
 
-/** A store migrated only through {@link WORK_ITEM_BUDGETS}: the schema this change finds. */
+/** A store migrated only through {@link RESOURCE_RUNTIME}: the schema this change finds. */
 function baselineStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-directory-capacity-baseline-'));
   roots.push(root);
@@ -99,6 +100,19 @@ async function rollBack(root: string, dbPath: string, to: string) {
   ]);
   return { exitCode, stdout, stderr };
 }
+
+// Drizzle applies a folder by name and `migrationsToRollback` filters on the
+// stamp: a folder stamped below one a database already applied would apply
+// out of order there and never be reversed by a rollback to that one.
+// Proof: with the two folders stamped 20261025100000 and 20261025100100
+// (their first stamps, below #735's), this failed on the index of
+// AUDIT_WIDENING; watched 2026-10-25.
+it('is stamped after every folder that existed when it was written, colliding with none', () => {
+  const names = readdirSync(MIGRATIONS).sort();
+  expect(duplicateMigrationStamps(names)).toEqual([]);
+  expect(names.indexOf(AUDIT_WIDENING)).toBe(names.indexOf(RESOURCE_RUNTIME) + 1);
+  expect(names.indexOf(DIRECTORY_CAPACITY)).toBe(names.indexOf(AUDIT_WIDENING) + 1);
+});
 
 /** The audit vocabulary widening (`wbs-shared-occupancy` task 1.0). */
 describe(AUDIT_WIDENING, () => {
@@ -163,7 +177,7 @@ describe(AUDIT_WIDENING, () => {
     const baseline = auditSchemaOf(baselineStore().dbPath);
     const { root, dbPath } = migratedStore();
     expect(auditSchemaOf(dbPath)).not.toEqual(baseline);
-    const down = await rollBack(root, dbPath, WORK_ITEM_BUDGETS);
+    const down = await rollBack(root, dbPath, RESOURCE_RUNTIME);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(`rolled back: ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`);
@@ -175,7 +189,7 @@ describe(AUDIT_WIDENING, () => {
   it('refuses rollback over one directory capacity audit row, keeping it', async () => {
     const { root, dbPath } = migratedStore();
     run(dbPath, [audit('d1', NEW_ACTION, NEW_KIND)]);
-    const down = await rollBack(root, dbPath, WORK_ITEM_BUDGETS);
+    const down = await rollBack(root, dbPath, RESOURCE_RUNTIME);
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('directory capacity audit rows exist');
     expect(count(dbPath, 'SELECT count(*) AS n FROM organization_audit')).toBe(1);

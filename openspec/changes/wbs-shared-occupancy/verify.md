@@ -69,8 +69,8 @@ under `CLAUDECODE=1`). Only targeted files ran; the full suites are CI's.
 
 ### Slice 1.0 and 1.1: the two migrations
 
-`20261025100000_widen_organization_audit_directory_capacity` and
-`20261025100100_add_resource_directory_capacity`, each with a guarded `down.sql`.
+`20261025140000_widen_organization_audit_directory_capacity` and
+`20261025140100_add_resource_directory_capacity`, each with a guarded `down.sql`.
 
 - `bun test apps/wbs/be-01/src/directory-capacity-migration.db.test.ts` → 8 pass, 0 fail.
 - `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` over both folders' four files →

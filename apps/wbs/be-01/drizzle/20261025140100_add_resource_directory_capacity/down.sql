@@ -1,4 +1,4 @@
--- Reverses `20261025100100_add_resource_directory_capacity`, refusing while
+-- Reverses `20261025140100_add_resource_directory_capacity`, refusing while
 -- any directory capacity is stated: dropping the table would discard it, and
 -- the older release would then promise the resource once per project again.
 --

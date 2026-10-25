@@ -202,8 +202,10 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
-        '20261025100100_add_resource_directory_capacity',
-        '20261025100000_widen_organization_audit_directory_capacity',
+        '20261025140100_add_resource_directory_capacity',
+        '20261025140000_widen_organization_audit_directory_capacity',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -297,8 +299,10 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
-        '20261025100100_add_resource_directory_capacity',
-        '20261025100000_widen_organization_audit_directory_capacity',
+        '20261025140100_add_resource_directory_capacity',
+        '20261025140000_widen_organization_audit_directory_capacity',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',
@@ -428,8 +432,10 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
-        '20261025100100_add_resource_directory_capacity',
-        '20261025100000_widen_organization_audit_directory_capacity',
+        '20261025140100_add_resource_directory_capacity',
+        '20261025140000_widen_organization_audit_directory_capacity',
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',

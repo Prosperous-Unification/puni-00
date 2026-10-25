@@ -1,7 +1,7 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes thirteen local commands:
+and exposes the local commands below, plus the managed resource runtime:
 
 | Command                                                                                                                                                                   | What it does                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -16,6 +16,14 @@ and exposes thirteen local commands:
 | `record-progress`, `record-progress-v2`                                                                                                                                   | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                      |
 | `account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...` | writes the period's efficiency breakdown: cost per accepted outcome from harness logs; see [`account-outcomes`](#account-outcomes)                                                               |
 | `report-capacity --config <owner-only file>`                                                                                                                              | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                       |
+
+## Managed resource cleanup
+
+`resources init|create|exec|run|inspect|cleanup|sweep|sync|watch` manages Linux disposable
+directories, Git worktrees and their commands through a separate durable reservation ledger.
+Start with the [resource runbook](docs/resources.md) for the current-account setup and cleanup inspection requirements,
+owner-only enrollment, automatic Claude/Codex command wrappers, copied generated dependencies,
+WBS authority binding and truthful cleanup blockers. Existing unmanaged sessions are untracked.
 
 ## Activation controller
 

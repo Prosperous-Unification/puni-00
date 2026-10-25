@@ -17,6 +17,7 @@ import { reportCapacityCommand, sleepUnlessInterrupted } from './compute/report-
 import { sshHostAdapter } from './compute/ssh-host';
 import { accountOutcomes } from './ledger/account-outcomes';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
+import { runResources } from './resources/command';
 
 const enrollmentFlags = [
   '--fleet',
@@ -70,6 +71,12 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
     }
   }
   const [command, ...argumentsAfterCommand] = argv;
+  if (command === 'resources') {
+    process.exitCode = await runResources(argumentsAfterCommand, deps.clock, (text) =>
+      deps.stdout.write(text),
+    );
+    return;
+  }
   const commandDependencies = {
     clock: deps.clock,
     write: (text: string) => deps.stdout.write(text),

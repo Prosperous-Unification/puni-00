@@ -1,5 +1,5 @@
 -- foreign-keys-off-rebuild
--- Reverses `20261025100000_widen_organization_audit_directory_capacity`.
+-- Reverses `20261025140000_widen_organization_audit_directory_capacity`.
 --
 -- Audit evidence is never discarded by a rollback: the first statement fails
 -- its CHECK while any `directory_capacity_changed` row or `resource` subject

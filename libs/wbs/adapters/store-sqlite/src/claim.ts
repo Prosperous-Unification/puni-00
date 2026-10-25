@@ -28,6 +28,7 @@ import type { Gate } from './gate';
 import type { ImmediateTransaction } from './immediate-write';
 import { currentMembershipAccess } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
+import { signalClaimResourceUses } from './resource-use';
 import { bumpWorkItems } from './revision';
 import {
   claim,
@@ -333,6 +334,7 @@ export class ClaimRepository implements ClaimStore {
         // Delegated claims under a removed one go with it (`parent_claim_id`
         // cascades), and every removed claim's occupancy rows with it.
         if (ids.length > 0) tx.delete(claim).where(inArray(claim.id, ids)).run();
+        for (const removed of claims) signalClaimResourceUses(tx, removed, stamp.at, stamp.by);
         for (const { workItemId, stepId } of cleared) {
           tx.delete(stepProgress)
             .where(and(eq(stepProgress.workItemId, workItemId), eq(stepProgress.stepId, stepId)))
