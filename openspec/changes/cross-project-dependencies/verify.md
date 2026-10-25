@@ -7669,3 +7669,5 @@ The original deadline stops successful admission; failure and close wait for act
 ## Main reconciliation R3 and contract boot cleanup
 
 [Preservation, rejected hypotheses, unchanged memory guard and causal cleanup evidence](verify-main-r3-20261025.md) records the private `a83de0c8c` reconciliation and `74ae00b1a` cleanup. The final scoped selection passed 226 tests, with a narrow 495 MB reading against the unchanged strict 500 MB bound. Whole-candidate CI, exact-SHA host acceptance, complete provider and architectural main merge remain open.
+
+The [R3 receipt](verify-main-r3-20261025.md#later-fixture-partition-blocker-and-restoration) also records the actual final-policy failure caused by overlapping test/fixture declarations and its independently reviewed three-file restoration. Strict classification and security fields remain unchanged; main extraction and integrated acceptance are separate.
