@@ -1,4 +1,5 @@
 import type { Color, Tier } from './deploy-contract';
+import { type ComposeRegistryState, parseComposeRegistry } from './registry-state';
 
 // Re-exported rather than re-declared: every reader of this module already
 // imports `Tier` and `Color` from it, and the words themselves belong to the
@@ -7,6 +8,7 @@ export type { Color, Tier };
 
 export interface TierState {
   tier: Tier;
+  registry?: ComposeRegistryState;
   lastDeployedSha: string | null;
   activeColor: Color;
 }
@@ -25,6 +27,7 @@ export function parseStateJson(raw: string): TierState {
   }
   return {
     tier: v.tier,
+    ...(v.registry === undefined ? {} : { registry: parseComposeRegistry(v.registry) }),
     lastDeployedSha: typeof v.lastDeployedSha === 'string' ? v.lastDeployedSha : null,
     activeColor: v.activeColor,
   };

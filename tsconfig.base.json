@@ -113,6 +113,8 @@
         "./tools/tool-remote-scripts/src/lib/step-blockage-inventory.ts"
       ],
       "@tools/docker": ["./tools/tool-remote-scripts/src/lib/docker.ts"],
+      "@tools/compose-registry": ["./tools/tool-remote-scripts/src/registry-compose-facade.ts"],
+      "@tools/deploy-smoke": ["./tools/tool-remote-scripts/src/lib/smoke-command.ts"],
       "@tools/deploy-contract": ["./tools/tool-remote-scripts/src/lib/deploy-contract.ts"],
       "@tools/compose": ["./tools/tool-compose/src/index.ts"],
       "@tools/test-scratch": ["./tools/test/scratch/index.ts"],

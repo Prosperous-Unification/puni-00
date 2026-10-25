@@ -692,3 +692,31 @@ verified binary extracted to `/tmp/puni-audit-busybox`. It requires Docker acces
 and that exact cached fixture image; missing dependencies fail. It checks normal
 admission, absent binary, restored Debian shell, and the 15-second supervisor
 deadline with a stalled scanner/descendant, then removes only its created IDs.
+
+## Registry lifecycle installation prerequisite
+
+Before rolling out the managed publication/deploy tools, install the host-owned
+`/etc/puni/registry-deployments.json` catalog and its hash-pinned enrollment files.
+The [catalog contract](../openspec/changes/bound-registry-storage/design.md#installed-selection-cannot-be-erased-by-environment-variables)
+defines ownership, normalization and selection. Missing installation refuses even
+an otherwise legacy invocation. A reviewed explicit empty catalog preserves an
+unmanaged host; never install an empty catalog on a host that has adopted registry
+products. Task11 owns live installation and complete source/artifact access. This
+change does not install it or migrate a product.
+
+Managed cutover export, restore-job and release/handoff-manifests also require
+`--registry-target k8s:<cluster-uid>/wbs/wbs-solver`. They use the complete descriptor
+and publication receipt to acquire the same durable operation as first-start,
+before export-container execution or emitting usable consumer manifests. The old
+export image, if it belongs to the managed registry, must already be present in the
+enrolled source inventory. Interrupted cutover retains ownership. First-start
+promotion follows the existing readiness and Flux handoff checks; registry capacity
+for a second upload is not required. Preserve the receipt and local recovery
+journals; deleting or downgrading their managed binding does not authorize recovery.
+
+Managed registry installation, complete source enrollment, explicit genesis,
+first-start history handoff and retained recovery ownership are specified in
+[the registry consumer runbook](infra/registry-consumers.md). Managed Compose
+completion includes the existing cross-stack smoke under the whole-environment
+lock. Its attended backend recovery diagnostic requires an already protected
+unresolved whole-environment operation and never grants deployment success.

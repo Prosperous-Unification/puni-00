@@ -988,13 +988,16 @@ it('requires explicit schema upgrade and preserves old recovery obligations', as
   delete legacy['fenceReason'];
   delete legacy['maintenanceVerified'];
   delete legacy['measurement'];
+  delete legacy['environments'];
+  delete legacy['deployments'];
+  delete legacy['consumers'];
   await writeFile(
     join(directory, 'journal.json'),
     JSON.stringify({ ...legacy, schemaVersion: 1, fenced: true }),
   );
   await requireRefusal(read(directory), 'registry journal');
   const upgraded = await executeRegistryCommand(directory, { command: 'upgrade' }, ports());
-  expect(upgraded.state.schemaVersion).toBe(2);
+  expect(upgraded.state.schemaVersion).toBe(3);
   expect(upgraded.state.fenced).toBe(true);
   expect(upgraded.state.maintenanceVerified).toBe(false);
 });
@@ -1024,6 +1027,9 @@ it('refuses inconsistent legacy recovery state before schema upgrade', async () 
   delete legacy['fenceReason'];
   delete legacy['maintenanceVerified'];
   delete legacy['measurement'];
+  delete legacy['environments'];
+  delete legacy['deployments'];
+  delete legacy['consumers'];
   await writeFile(join(directory, 'journal.json'), JSON.stringify(legacy));
   await requireRefusal(
     executeRegistryCommand(directory, { command: 'upgrade' }, ports()),

@@ -1,14 +1,43 @@
 export { type RegistryEndpoint, uploadArtifact } from './platform-registry';
 export { inspectOciArchive, type RegistryArtifact } from './registry-artifact';
 export {
+  type DeploymentEnrollment,
+  prepareManagedDeployment,
+  protectDeployment,
+  readDeploymentEnrollment,
+  readEnvironmentEnrollment,
+  type RegistryDeployment,
+  verifyRegistryPromotion,
+} from './registry-deployment';
+export {
   admitExportScratch,
   checkExportScratch,
   connectRegistryAuthority,
   type ManagedRegistry,
   readPublicationEnrollment,
+  readTrustedEnrollment,
 } from './registry-enrollment';
+export {
+  advanceRegistryHistory,
+  parseRegistryHistory,
+  parseRegistryPromotionReceipt,
+  type RegistryHistory,
+  registryHistorySha256,
+  type RegistryPromotionReceipt,
+} from './registry-history';
+export {
+  assertConsumerUniverse,
+  executeRegistryCommand,
+  type RegistryConsumer,
+  type RegistryJournalPorts,
+} from './registry-journal';
+export { isNonImageKubernetesResource, kubernetesImageReferences } from './registry-kubernetes';
+export { runRegistryProcess, withRegistryExecutable } from './registry-process';
 export {
   type PublicationEnrollment,
   publishArtifacts,
   type RegistryAuthority,
 } from './registry-publication';
+export { managedImageReferences, runRegistryReader, serveRegistryReader } from './registry-reader';
+export { readRegistryOwnerFile, readRegistrySource } from './registry-source';
+export { readRegistryBytes } from './registry-stream';

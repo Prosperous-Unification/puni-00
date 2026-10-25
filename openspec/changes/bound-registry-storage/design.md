@@ -261,3 +261,88 @@ facts are not asserted by this design-only delivery.
 
 Implementation must verify behavior against the deployed Distribution and restic
 versions, not assume current documentation proves compatibility.
+
+### Installed selection cannot be erased by environment variables
+
+Task6 replaces the optional-selector boundary for installed publication, copy and
+consumer-mutating entrypoints. Every execution host must have
+`/etc/puni/registry-deployments.json`: canonical root:root regular file, mode0644,
+single link and at most64KiB. Missing, unreadable or malformed catalog refuses
+execution. An explicitly installed `{ "schemaVersion": 1, "managed": [] }`
+establishes an unmanaged host; absence never does. This is a tool-installation
+prerequisite, not product migration. Task11 installs the complete mapping before
+rolling out these entrypoints.
+
+Each managed entry pins normalized registry `authority` (host and optional port),
+`registryId`, `product`, `environment`, immutable execution `target`, and
+`enrollment: {path, sha256}`. Optional `publication: {path, sha256}` pins the
+publication contract for that product. Paths are absolute trusted enrollment files;
+SHA256 is over UTF8 `JSON.stringify` of the parsed enrollment. Catalog identity
+must match the enrollment's registry URL, registry ID, product and (for deployment)
+environment and target. Duplicate mappings refuse. A managed registry without an
+applicable publication entry refuses publication; it cannot become a legacy push.
+Environment variables select among matching pinned entries only. Unsetting them
+cannot suppress catalog-required management or permit a downgraded local recovery
+journal to mutate consumers.
+
+Existing successful history enrollment accepts only complete ordered IDs of
+already-promoted journal bundles, preserving their receipts. Pre-authority product
+history that cannot prove this contract is not adoptable by this change. Fresh
+first-install enrollment is explicit. Upgrading authority schema1/2 to3 is an
+explicit fenced operation; no live upgrade is performed here. Deployment journal
+writer4 and first-start writer3 retain legacy unmanaged readers (3 and2 respectively)
+but managed recovery requires exact operation and reference bindings. Recovery
+lineage preserves interrupted ancestors until verified successful reconciliation.
+
+### Source-owned history, host coverage and completion receipts
+
+The [installation and recovery contract](../../../docs/infra/registry-consumers.md)
+defines the fixed catalogs, artifact pins, source access, explicit initialization
+and transfer procedures. The authority remains the only registry journal writer.
+A versioned JSON lifecycle bundle lets the private product reuse public admission,
+export and receipt logic without a sibling-source runtime dependency or a copied
+private authority. Source-owned reader bundles avoid a new shared contract project
+and dependency cycle while retaining each owner's strict parser. Fixed authenticated
+SSH transport makes source access explicit where authority UID59001 cannot read
+product-host state; installed transport access is an activation prerequisite.
+
+Reader protocol registry-consumer/2 distinguishes actual references from successful
+history evidence. Complete ordered history includes a canonical evidence digest of
+bundle IDs, sorted exact references and original promoted receipts. Empty history
+requires explicit validated genesis, never a missing file. Owning journals persist
+history after verified authority promotion, preserve sealed first-start inheritance,
+and refuse bounded-capacity overflow. A lost persistence acknowledgement blocks new
+ownership/retirement until read-only existing-operation resume repairs the original
+receipt. Resume never creates, promotes, reconciles or releases an operation.
+
+Historical evidence does not permanently root completed images. Actual desired,
+runtime, idle and rollback readers provide live roots; environment protection keeps
+current plus two prior successes and unresolved recovery ancestry. History/authority
+disagreement blocks retirement. A retired environment releases only its own protection;
+its readable control/history sources and other owners' shared references remain.
+
+Docker host scope is explicit: kind docker-host, environment:null, consumer role.
+Each Compose actual-consumer source links its complete global host source through
+hostSourceId; trusted configuration must match machine/catalog/Docker/transport
+identity. The shared root-owned ownership catalog binds exact names and Compose
+project/service/working_dir labels to canonical roots and environments. All containers,
+including stopped/unrecognized managed refs, remain in global coverage; unknown or
+ambiguous ownership refuses. Per-environment projection uses that verified mapping
+and root-scoped desired files. Global sources cannot replace environment coverage.
+This permits same-host environment retirement and fresh genesis without dropping
+another environment's roots or importing its history.
+
+Managed Compose success follows all configured three tiers and the existing shared
+smoke within the same whole-environment lock, protecting the complete four-image WBS
+publication. Partial selection refuses. Smoke artifact identity is installed before
+mutation; failure preserves ownership without auto-rollback. Retry of a fully committed
+candidate reruns complete verification/smoke without tier swaps or migrations. Attended
+backend diagnostics require an already unresolved full-environment binding and fresh
+protection verification; they confer no promotion or reconciliation.
+
+Private Git pin/rollback only persist pending ownership. Exact Flux source/applied
+revision, current Ready generations, all three exact-image available Deployments and
+existing live checks precede promotion. The private fleet declaration independently
+pins accepted authority/repository/service mapping; receipts cannot choose the trusted
+allowlist. GHCR logical Kustomize names remain, managed newName is explicit, rollback
+preserves complete owner evidence, and current actual pins/holds stay unchanged.

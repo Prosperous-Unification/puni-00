@@ -1,6 +1,26 @@
 import { randomBytes } from 'node:crypto';
-import { closeSync, fsyncSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import {
+  closeSync,
+  fsyncSync,
+  openSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
+import { dirname, isAbsolute, join } from 'node:path';
+
+import { readRegistryOwnerFile } from '@tools/registry-publication';
+import {
+  advanceRegistryHistory,
+  parseRegistryHistory,
+  prepareManagedDeployment,
+  readRegistrySource,
+  type RegistryDeployment,
+  type RegistryHistory,
+} from '@tools/registry-publication';
+import { type } from 'arktype';
 
 import {
   assertExportSound,
@@ -24,6 +44,7 @@ import {
   K8S_TIERS,
   type K8sTier,
   type ReleaseIdentity,
+  type ReleaseRegistryBinding,
 } from './release';
 
 /** Original restored bytes and immutable cluster objects admitted by this first installation. */
@@ -50,9 +71,12 @@ const PHASES = [
 ] as const;
 type Phase = (typeof PHASES)[number];
 
-/** Separate from release journal schema 3; receipt seals the actual stopped-writer observation. */
+/** Writer version3 binds managed ownership; version2 remains readable only for unmanaged recovery. */
 export interface FirstStartState {
-  version: 2;
+  version: 2 | 3;
+  registry?: ReleaseRegistryBinding | null;
+  registryHistory?: RegistryHistory | null;
+  registryTransfer?: { destination: string; sourceBytes: string; sha256: string };
   transaction: string;
   requestBytes: string;
   requestSha256: string;
@@ -255,11 +279,15 @@ function assertObservation(
 }
 
 /** Validates sealed disk state before any Lease or cluster mutation, including terminal receipts. */
-export function parseFirstStartState(raw: unknown, request: FirstStartRequest): FirstStartState {
+export function parseFirstStartState(
+  raw: unknown,
+  request: FirstStartRequest,
+  path: string,
+): FirstStartState {
   const fields = requireRecord(raw);
   // Proof: request-binding omission allows a changed PVC UID to resume without evidence.
   if (
-    fields['version'] !== 2 ||
+    (fields['version'] !== 2 && fields['version'] !== 3) ||
     typeof fields['transaction'] !== 'string' ||
     !/^first-start-[0-9a-f]{16}$/.test(fields['transaction']) ||
     fields['requestBytes'] !== JSON.stringify(request) ||
@@ -268,6 +296,30 @@ export function parseFirstStartState(raw: unknown, request: FirstStartRequest): 
     !(PHASES as readonly string[]).includes(fields['phase'])
   )
     throw new Error('first-start state belongs to another request or version');
+  if (fields['version'] === 3) {
+    const binding = type.or('null', {
+      registryId: 'string > 0',
+      operationId: 'string > 0',
+      references: type({ repository: 'string > 0', digest: /^sha256:[0-9a-f]{64}$/, '+': 'reject' })
+        .array()
+        .atLeastLength(1),
+      '+': 'reject',
+    })(fields['registry']);
+    if (
+      binding instanceof type.errors ||
+      (binding !== null && binding.operationId !== fields['transaction'])
+    )
+      throw new Error('first-start has an invalid registry binding');
+    if (binding === null) {
+      if (fields['registryHistory'] !== null)
+        throw new Error('Unmanaged first-start carries registry history');
+    } else {
+      const history = parseRegistryHistory(fields['registryHistory'], path);
+      if (history.registryId !== binding.registryId || history.target !== firstStartTarget(request))
+        throw new Error('First-start registry history scope differs');
+    }
+  } else if (fields['registry'] !== undefined || fields['registryHistory'] !== undefined)
+    throw new Error('legacy first-start cannot carry a registry binding');
   if (fields['phase'] !== 'requested' || fields['source'] !== null)
     parseSourceReceipt(fields['source'], request);
   if (fields['phase'] !== 'requested' || fields['receipt'] !== null) {
@@ -288,6 +340,29 @@ export function parseFirstStartState(raw: unknown, request: FirstStartRequest): 
       throw new Error('first-start receipt lacks activation');
     assertObservation(request, { report, activation: payload['activation'] });
   }
+  if (fields['registryTransfer'] !== undefined) {
+    const transfer = type({
+      destination: type('string > 0').narrow(isAbsolute),
+      sourceBytes: 'string > 0',
+      sha256: /^[0-9a-f]{64}$/,
+      '+': 'reject',
+    })(fields['registryTransfer']);
+    if (
+      transfer instanceof type.errors ||
+      transfer.destination === path ||
+      transfer.sha256 !== sha256Of(transfer.sourceBytes) ||
+      fields['phase'] !== 'complete'
+    )
+      throw new Error('Malformed first-start history transfer');
+    const sealed = requireRecord(JSON.parse(transfer.sourceBytes) as unknown);
+    const current = { ...fields };
+    delete current['registryTransfer'];
+    if (
+      sealed['registryTransfer'] !== undefined ||
+      JSON.stringify(sealed) !== JSON.stringify(current)
+    )
+      throw new Error('First-start history transfer source changed');
+  }
   // Boundary: protocol fields, phase, request binding and receipt were checked above.
   return fields as unknown as FirstStartState;
 }
@@ -298,7 +373,7 @@ export function firstStartJournal(path: string): FirstStartJournal {
     path,
     read() {
       try {
-        const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+        const parsed: unknown = JSON.parse(readRegistryOwnerFile(path));
         // Proof: null-file omission treated malformed trusted state as absent in the durable-file test.
         if (parsed === null) throw new Error('first-start state cannot be null');
         return parsed;
@@ -314,10 +389,13 @@ export function firstStartJournal(path: string): FirstStartJournal {
       }
     },
     write(state) {
+      const serialized = `${JSON.stringify(state)}\n`;
+      if (Buffer.byteLength(serialized) > 4 * 1024 ** 2)
+        throw new Error('First-start owner journal capacity exceeded');
       const pending = join(dirname(path), `.${String(process.pid)}.first-start`);
       const fd = openSync(pending, 'w', 0o600);
       try {
-        writeSync(fd, `${JSON.stringify(state)}\n`);
+        writeSync(fd, serialized);
         fsyncSync(fd);
       } finally {
         closeSync(fd);
@@ -344,22 +422,93 @@ export async function startCutover(
   journal: FirstStartJournal,
   effects: FirstStartEffects,
   heartbeatMs = 3000,
+  protect: (
+    request: FirstStartRequest,
+    operationId: string,
+  ) => Promise<RegistryDeployment | undefined> = (request, operationId) =>
+    prepareManagedDeployment(
+      operationId,
+      Object.values(
+        releaseIdentityOf(parseDescriptor(JSON.parse(request.identity.descriptorBytes) as unknown))
+          .images,
+      ),
+      null,
+      firstStartTarget(request),
+    ),
 ): Promise<FirstStartState> {
   const release = assertFirstStartRequest(request);
-  const raw = journal.read();
+  const stored = journal.read();
+  const genesis = parseFirstStartGenesis(stored, journal.path);
+  const raw = genesis === undefined ? stored : null;
   let state: FirstStartState =
     raw === null
       ? {
-          version: 2,
-          transaction: `first-start-${randomBytes(8).toString('hex')}`,
+          version: 3,
+          registry: null,
+          registryHistory: genesis ?? null,
+          transaction: firstStartOperation(
+            request.identity.descriptorSha256,
+            firstStartTarget(request),
+          ),
           requestBytes: JSON.stringify(request),
           requestSha256: sha256Of(JSON.stringify(request)),
           phase: 'requested',
           receipt: null,
           source: null,
         }
-      : parseFirstStartState(raw, request);
-  if (state.phase === 'complete') return state;
+      : parseFirstStartState(raw, request, journal.path);
+  if (
+    raw !== null &&
+    process.env['REGISTRY_DEPLOYMENT_ENROLLMENT'] !== undefined &&
+    (state.version !== 3 || state.registry == null)
+  )
+    throw new Error('Managed first-start recovery requires a verified version3 registry binding');
+  if (state.registryTransfer !== undefined)
+    throw new Error('First-start ownership transferred to regular release; use its journal');
+  if (state.registryHistory != null && state.registryHistory.target !== firstStartTarget(request))
+    throw new Error('First-start initialized history belongs to another target');
+  const registry = await protect(request, state.transaction);
+  if (
+    registry !== undefined &&
+    (state.registryHistory?.registryId !== registry.registryId ||
+      state.registryHistory.product !== registry.product ||
+      state.registryHistory.environment !== registry.environment ||
+      state.registryHistory.target !== registry.target)
+  )
+    throw new Error('Managed first-start requires initialized matching owner history');
+  if (registry === undefined && state.registryHistory != null)
+    throw new Error('Managed first-start history cannot become unmanaged');
+  if (raw !== null && registry !== undefined && (state.version !== 3 || state.registry == null))
+    throw new Error('Managed first-start recovery requires a verified version3 registry binding');
+  const binding =
+    registry === undefined
+      ? null
+      : {
+          registryId: registry.registryId,
+          operationId: registry.operationId,
+          references: registry.references,
+        };
+  if (state.registry != null && JSON.stringify(state.registry) !== JSON.stringify(binding))
+    throw new Error('Managed first-start registry binding differs from authority');
+  state = {
+    ...state,
+    version: 3,
+    registry: binding,
+    registryHistory: state.registryHistory ?? null,
+  };
+  const completeHistory = async () => {
+    if (registry === undefined) return;
+    const receipt = await registry.finish('promoted');
+    if (receipt === undefined) throw new Error('First-start completion omitted authority history');
+    const registryHistory = advanceRegistryHistory(state.registryHistory, receipt);
+    if (JSON.stringify(registryHistory) === JSON.stringify(state.registryHistory)) return;
+    journal.write({ ...state, registryHistory });
+    state = parseFirstStartState(journal.read(), request, journal.path);
+  };
+  if (state.phase === 'complete') {
+    await completeHistory();
+    return state;
+  }
   // Proof: target-preflight omission lets the foreign-target negative acquire a Lease and scale.
   await effects.assertTarget(request);
   const holder = `${state.transaction}#${randomBytes(4).toString('hex')}`;
@@ -429,7 +578,7 @@ export async function startCutover(
     state = { ...state, phase };
     journal.write(state);
     // Proof: reread omission accepts journal corruption injected after persisted admission.
-    state = parseFirstStartState(journal.read(), request);
+    state = parseFirstStartState(journal.read(), request, journal.path);
   };
   try {
     if (raw === null) persist('requested');
@@ -473,7 +622,7 @@ export async function startCutover(
     persist('starting');
     for (const tier of K8S_TIERS) {
       await renew();
-      parseFirstStartState(journal.read(), request);
+      parseFirstStartState(journal.read(), request, journal.path);
       await effects.assertSafety(request, false, false);
       assertLease();
       await effects.startTier(tier, release.images[tier]);
@@ -513,7 +662,6 @@ export async function startCutover(
     assertLease();
     await effects.releaseLease(holder);
     persist('complete');
-    return state;
   } catch (cause) {
     clearInterval(heartbeat);
     await queue;
@@ -534,5 +682,173 @@ export async function startCutover(
     );
   } finally {
     clearInterval(heartbeat);
+  }
+  await completeHistory();
+  return state;
+}
+
+/** Stable authority operation shared by export, manifest creation and first-start recovery. */
+export function firstStartOperation(descriptorSha256: string, target: string): string {
+  return `first-start-${sha256Of(JSON.stringify([descriptorSha256, target])).slice(0, 16)}`;
+}
+
+/** Bind image ownership to immutable cluster identity and both consumer namespaces. */
+export function firstStartTarget(request: FirstStartRequest): string {
+  return `k8s:${request.cluster.uid}/${request.namespaces.app}/${request.namespaces.backend}`;
+}
+
+/** Initialize first-start's own empty history before any image-bearing source exists; never overwrite. */
+export async function initializeFirstStartHistory(
+  path: string,
+  scope: { registryId: string; product: string; environment: string; target: string },
+  observe: () => Promise<{
+    sourceRevision: string;
+    images: readonly string[];
+    hasReleaseEvidence: boolean;
+  }>,
+): Promise<void> {
+  const directory = dirname(path);
+  const status = statSync(directory);
+  if (
+    !isAbsolute(path) ||
+    realpathSync(directory) !== directory ||
+    !status.isDirectory() ||
+    status.uid !== process.getuid?.() ||
+    (status.mode & 0o777) !== 0o700
+  )
+    throw new Error('First-start history directory is not canonical and owner-only');
+  const source = await observe();
+  // Proof: a retained release ConfigMap with zero images was accepted by initialization without this evidence check.
+  if (source.images.length !== 0 || source.hasReleaseEvidence)
+    throw new Error('Existing release evidence prevents first-install history initialization');
+  const registryHistory = parseRegistryHistory(
+    {
+      ...scope,
+      schemaVersion: 1,
+      source: path,
+      genesis: { at: new Date().toISOString(), sourceRevision: source.sourceRevision },
+      authorityRevision: 0,
+      releases: [],
+      promotion: null,
+    },
+    path,
+  );
+  const descriptor = openSync(path, 'wx', 0o600);
+  try {
+    writeFileSync(
+      descriptor,
+      `${JSON.stringify({ version: 3, kind: 'registry-genesis', registryHistory })}\n`,
+    );
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+  const parent = openSync(directory, 'r');
+  try {
+    fsyncSync(parent);
+  } finally {
+    closeSync(parent);
+  }
+}
+
+/** Only an explicitly initialized first-start journal may establish empty managed history. */
+export function parseFirstStartGenesis(input: unknown, path: string): RegistryHistory | undefined {
+  if (
+    typeof input !== 'object' ||
+    input === null ||
+    !('kind' in input) ||
+    input.kind !== 'registry-genesis'
+  )
+    return undefined;
+  const genesis = type({
+    version: '3',
+    kind: "'registry-genesis'",
+    registryHistory: 'unknown',
+    '+': 'reject',
+  })(input);
+  if (genesis instanceof type.errors) throw new Error('Malformed first-start history genesis');
+  const history = parseRegistryHistory(genesis.registryHistory, path);
+  if (history.releases.length !== 0 || history.promotion !== null)
+    throw new Error('First-start genesis is not empty');
+  return history;
+}
+
+/** Transfer completed source-owned history using its immutable bytes and a fresh authority receipt. */
+export async function inheritFirstStartHistory(
+  source: string,
+  path: string,
+  verify: (history: RegistryHistory) => Promise<unknown>,
+): Promise<void> {
+  const directory = dirname(path);
+  const status = statSync(directory);
+  if (
+    !isAbsolute(path) ||
+    source === path ||
+    realpathSync(directory) !== directory ||
+    !status.isDirectory() ||
+    status.uid !== process.getuid?.() ||
+    (status.mode & 0o777) !== 0o700
+  )
+    throw new Error('Release history directory is not canonical and owner-only');
+  const snapshot = await readRegistrySource(source);
+  const fields = requireRecord(JSON.parse(snapshot.text) as unknown);
+  if (typeof fields['requestBytes'] !== 'string')
+    throw new Error('First-start has no immutable request');
+  const request = parseFirstStartRequest(JSON.parse(fields['requestBytes']) as unknown);
+  const state = parseFirstStartState(fields, request, source);
+  if (
+    state.phase !== 'complete' ||
+    state.registry == null ||
+    state.registryHistory?.promotion?.operationId !== state.transaction
+  )
+    throw new Error('First-start history transfer requires completed authority promotion');
+  const history = advanceRegistryHistory(
+    state.registryHistory,
+    await verify(state.registryHistory),
+  );
+  if (JSON.stringify(history) !== JSON.stringify(state.registryHistory))
+    throw new Error('First-start source history differs from authority');
+  if (state.registryTransfer !== undefined && state.registryTransfer.destination !== path)
+    throw new Error('First-start history was transferred elsewhere');
+  const sourceBytes = state.registryTransfer?.sourceBytes ?? snapshot.text;
+  const registryHistory = parseRegistryHistory(
+    {
+      ...history,
+      source: path,
+      inheritance: { source, sha256: sha256Of(sourceBytes), operationId: state.transaction },
+    },
+    path,
+  );
+  const serialized = `${JSON.stringify({ schemaVersion: 4, kind: 'registry-inheritance', registryHistory })}\n`;
+  // Record ownership transfer before creating the destination: a missing destination then refuses,
+  // and the exact sealed source supports retry without inferring first-install from absence.
+  if (state.registryTransfer === undefined)
+    firstStartJournal(source).write({
+      ...state,
+      registryTransfer: { destination: path, sourceBytes, sha256: sha256Of(sourceBytes) },
+    });
+  let descriptor: number;
+  try {
+    descriptor = openSync(path, 'wx', 0o600);
+  } catch (cause) {
+    if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === 'EEXIST') {
+      if ((await readRegistrySource(path)).text === serialized) return;
+      throw new Error('Release history transfer destination already contains different state', {
+        cause,
+      });
+    }
+    throw cause;
+  }
+  try {
+    writeFileSync(descriptor, serialized);
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+  const parent = openSync(directory, 'r');
+  try {
+    fsyncSync(parent);
+  } finally {
+    closeSync(parent);
   }
 }

@@ -6,8 +6,15 @@ import { expect, it } from 'bun:test';
 
 import { readPublicationEnrollment } from './registry-enrollment';
 
-it('legacy selection is explicit absence; a selected missing or malformed enrollment never falls back', async () => {
-  expect(await readPublicationEnrollment('https://registry.example', {})).toBeUndefined();
+it('legacy selection requires explicit unmanaged installation; selected missing or malformed state never falls back', async () => {
+  expect(
+    await readPublicationEnrollment('https://registry.example', {}, () =>
+      Promise.resolve().then(() => ({
+        schemaVersion: 1,
+        managed: [],
+      })),
+    ),
+  ).toBeUndefined();
   expect(
     (
       await rejectionOf(

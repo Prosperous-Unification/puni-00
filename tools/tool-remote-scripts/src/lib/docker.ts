@@ -51,7 +51,11 @@ export function isDigest(v: string): boolean {
  * cannot collide here, which matters because container names are unique per
  * daemon, not per network.
  */
-export function containerName(tier: Tier, color: Color, layout: EnvLayout = CURRENT_ENV): string {
+export function containerName(
+  tier: Tier,
+  color: Color,
+  layout: Pick<EnvLayout, 'containerPrefix'> = CURRENT_ENV,
+): string {
   return `${layout.containerPrefix}${APP_NAME[tier]}-${color}`;
 }
 

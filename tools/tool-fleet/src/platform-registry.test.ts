@@ -2,7 +2,14 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'bun:test';
 
-import { copyImage } from './platform-registry';
+import { copyImage as nativeCopyImage } from './platform-registry';
+import { readPublicationEnrollment } from './registry-enrollment';
+const copyImage = (...args: Parameters<typeof nativeCopyImage>) =>
+  nativeCopyImage(args[0], args[1], args[2], args[3], (registry, env = {}) =>
+    readPublicationEnrollment(registry, env, () =>
+      Promise.resolve().then(() => ({ schemaVersion: 1, managed: [] })),
+    ),
+  );
 
 /** Await `promise` and return its rejection, so assertions after it observe the settled state. */
 async function rejectionOf(promise: Promise<unknown>): Promise<Error> {
@@ -231,7 +238,7 @@ it('copy refuses missing managed admission before POST', async () => {
   try {
     seedImage(source);
     process.env['REGISTRY_PUBLICATION_ENROLLMENT'] = '/absent-task5-managed-enrollment';
-    await rejectionOf(copyImage({ url: source.url }, { url: target.url }, 'wbs/be-01', '1'));
+    await rejectionOf(nativeCopyImage({ url: source.url }, { url: target.url }, 'wbs/be-01', '1'));
     expect(target.blobs.size).toBe(0);
     expect(target.manifests.size).toBe(0);
   } finally {

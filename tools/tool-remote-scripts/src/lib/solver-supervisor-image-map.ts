@@ -18,6 +18,8 @@ export interface SupervisorImageRule {
 }
 
 export interface SupervisorImagePolicy {
+  /** Complete desired caller and solver image locks, independent of live containers. */
+  readonly imageReferences: readonly string[];
   readonly allowedNamePatterns: readonly RegExp[];
   imageFor(identity: BackendContainerIdentity): string;
 }
@@ -73,6 +75,13 @@ export function supervisorImagePolicy(value: unknown): SupervisorImagePolicy {
   const byName = new Map(rules.map((rule) => [rule.callerName, rule] as const));
 
   return {
+    imageReferences: [
+      ...new Set(
+        rules.flatMap((rule) =>
+          rule.callerImage === null ? [rule.solverImage] : [rule.callerImage, rule.solverImage],
+        ),
+      ),
+    ],
     allowedNamePatterns: names.map(exactNamePattern),
     imageFor(identity) {
       const rule = byName.get(identity.name);

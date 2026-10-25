@@ -197,6 +197,13 @@
       "options": {
         "command": "bun test ./infra/ansible/tests/registry-capacity.test.ts --timeout=240000"
       }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun build tools/tool-fleet/src/registry-journal-cli.ts tools/tool-fleet/src/registry-flux-reader.ts tools/tool-fleet/src/registry-lifecycle-cli.ts tools/tool-fleet/src/registry-reader-host.ts --target=bun --outdir dist/tool-fleet"
+      },
+      "outputs": ["{workspaceRoot}/dist/tool-fleet"]
     }
   }
 }

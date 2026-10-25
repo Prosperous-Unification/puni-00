@@ -1,16 +1,29 @@
-import { closeSync, fsyncSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
+import { closeSync, fsyncSync, openSync, renameSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { readRegistryOwnerFile } from '@tools/registry-publication';
+import { parseRegistryHistory, type RegistryHistory } from '@tools/registry-publication';
+import { type } from 'arktype';
+
 import { assertMigrationCapture, migrationIdentityOf } from './migration-capture';
-import { isReleasePhase, type ReleaseRequest, type ReleaseState, TERMINAL_PHASES } from './release';
+import {
+  isReleasePhase,
+  type ReleaseRegistryBinding,
+  type ReleaseRequest,
+  type ReleaseState,
+  TERMINAL_PHASES,
+} from './release';
 import { assertReplayProgress } from './replay-receipt';
 
 /** Bumped when a stored field changes meaning; an older coordinator refuses a newer journal. */
-const JOURNAL_SCHEMA = 3;
+const JOURNAL_SCHEMA = 4;
 
 /** One write of the journal: the request it binds and the state it reached. */
 export interface JournalRecord {
-  schemaVersion: typeof JOURNAL_SCHEMA;
+  schemaVersion: typeof JOURNAL_SCHEMA | 3;
+  /** Schema3 is legacy-only; schema4 always records null or its exact managed authority binding. */
+  registry?: ReleaseRegistryBinding | null;
+  registryHistory?: RegistryHistory | null;
   request: ReleaseRequest;
   state: ReleaseState;
   /** Every phase this journal has recorded, oldest first, with the time it was written. */
@@ -26,6 +39,8 @@ export interface ReleaseJournal {
   readonly path: string;
   /** `null` only when no journal exists; unreadable or malformed journals throw. */
   read(): JournalRecord | null;
+  /** Explicit initialized/inherited owner history; absence cannot initialize managed mode. */
+  readHistory?(): RegistryHistory | null;
   write(record: JournalRecord): void;
 }
 
@@ -51,7 +66,10 @@ export function parseJournal(path: string, text: string): JournalRecord {
       `release journal ${path} has a legacy migration capture or replay progress; use the prior executor/manual recovery`,
     );
   }
-  if (!isRecord(parsed) || parsed['schemaVersion'] !== JOURNAL_SCHEMA) {
+  if (
+    !isRecord(parsed) ||
+    (parsed['schemaVersion'] !== JOURNAL_SCHEMA && parsed['schemaVersion'] !== 3)
+  ) {
     throw new Error(`release journal ${path} has an unsupported schema version`);
   }
   const state = parsed['state'];
@@ -71,6 +89,31 @@ export function parseJournal(path: string, text: string): JournalRecord {
   if (typeof state['transactionId'] !== 'string' || state['transactionId'] === '') {
     throw new Error(`release journal ${path} names no transaction`);
   }
+  if (parsed['schemaVersion'] === JOURNAL_SCHEMA) {
+    const binding = type.or('null', {
+      registryId: 'string > 0',
+      operationId: 'string > 0',
+      references: type({ repository: 'string > 0', digest: /^sha256:[0-9a-f]{64}$/, '+': 'reject' })
+        .array()
+        .atLeastLength(1),
+      '+': 'reject',
+    })(parsed['registry']);
+    if (
+      binding instanceof type.errors ||
+      // Proof: omitting operation equality accepts foreign schema4 binding in journal.test.
+      (binding !== null && binding.operationId !== state['transactionId'])
+    )
+      throw new Error(`release journal ${path} has an invalid registry binding`);
+    if (binding === null) {
+      if (parsed['registryHistory'] !== null)
+        throw new Error('Unmanaged release carries registry history');
+    } else {
+      const registryHistory = parseRegistryHistory(parsed['registryHistory'], path);
+      if (registryHistory.registryId !== binding.registryId)
+        throw new Error('Release history authority differs');
+    }
+  } else if (parsed['registry'] !== undefined || parsed['registryHistory'] !== undefined)
+    throw new Error(`legacy release journal ${path} cannot carry a registry binding`);
   if (state['capture'] !== null && state['capture'] !== undefined) {
     const source = request['release'];
     const cluster = request['cluster'];
@@ -109,18 +152,40 @@ export function fileJournal(path: string): ReleaseJournal {
     read() {
       let text: string;
       try {
-        text = readFileSync(path, 'utf8');
+        text = readRegistryOwnerFile(path);
       } catch (e: unknown) {
         if (isRecord(e) && e['code'] === 'ENOENT') return null;
         throw new Error(`release journal ${path} is unreadable`, { cause: e });
       }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text) as unknown;
+      } catch (cause) {
+        throw new Error(`release journal ${path} is not JSON`, { cause });
+      }
+      if (parseReleaseInheritance(parsed, path) !== undefined) return null;
       return parseJournal(path, text);
     },
+    readHistory() {
+      const record = this.read();
+      if (record !== null) return record.registryHistory ?? null;
+      try {
+        return (
+          parseReleaseInheritance(JSON.parse(readRegistryOwnerFile(path)) as unknown, path) ?? null
+        );
+      } catch (cause) {
+        if (isRecord(cause) && cause['code'] === 'ENOENT') return null;
+        throw cause;
+      }
+    },
     write(record) {
+      const serialized = `${JSON.stringify(record, null, 2)}\n`;
+      if (Buffer.byteLength(serialized) > 4 * 1024 ** 2)
+        throw new Error('Release owner journal capacity exceeded');
       const temporary = join(dirname(path), `.${String(process.pid)}.journal.tmp`);
       const fd = openSync(temporary, 'w', 0o600);
       try {
-        writeSync(fd, `${JSON.stringify(record, null, 2)}\n`);
+        writeSync(fd, serialized);
         fsyncSync(fd);
       } finally {
         closeSync(fd);
@@ -138,4 +203,26 @@ export function fileJournal(path: string): ReleaseJournal {
 
 export function isTerminal(state: ReleaseState): boolean {
   return (TERMINAL_PHASES as readonly string[]).includes(state.phase);
+}
+
+/** Only an explicit populated first-start inheritance can seed the regular-release owner journal. */
+export function parseReleaseInheritance(input: unknown, path: string): RegistryHistory | undefined {
+  if (!isRecord(input) || input['kind'] !== 'registry-inheritance') return undefined;
+  const envelope = type({
+    schemaVersion: '4',
+    kind: "'registry-inheritance'",
+    registryHistory: 'unknown',
+    '+': 'reject',
+  })(input);
+  if (envelope instanceof type.errors) throw new Error('Malformed release history inheritance');
+  const history = parseRegistryHistory(envelope.registryHistory, path);
+  if (
+    history.releases.length === 0 ||
+    history.promotion === null ||
+    history.inheritance === undefined ||
+    history.inheritance.source === path ||
+    history.inheritance.operationId !== history.promotion.operationId
+  )
+    throw new Error('Release history inheritance lacks completed first-start evidence');
+  return history;
 }

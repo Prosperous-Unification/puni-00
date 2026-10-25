@@ -7,6 +7,7 @@ import { type } from 'arktype';
 import { dlopen } from 'bun:ffi';
 
 import type { RegistryWritePermit } from './registry-capacity';
+import { registryHistorySha256 } from './registry-history';
 import {
   admitPublication,
   type ImageProtection,
@@ -96,12 +97,91 @@ const Measurement = type({
   rootFreeBytes: Count,
   '+': 'reject',
 });
-const Journal = type({
+const VersionTwoJournal = type({
   ...journalShape,
   schemaVersion: '2',
   fenceReason: Identity.or('null'),
   maintenanceVerified: 'boolean',
   measurement: Measurement.or('null'),
+});
+export const EnvironmentHistory = type.or(
+  { state: "'first-install'", at: Timestamp, '+': 'reject' },
+  {
+    state: "'successful'",
+    complete: 'true',
+    releases: Identity.array().atLeastLength(1),
+    '+': 'reject',
+  },
+);
+const Environment = type({
+  environment: Identity,
+  owner: Identity,
+  product: Identity,
+  protectionId: Identity,
+  enrolledAt: Timestamp,
+  genesisAt: Timestamp.or('null'),
+  retiredAt: Timestamp.or('null'),
+  releases: Identity.array(),
+  '+': 'reject',
+});
+const Consumer = type({
+  id: Identity,
+  owner: Identity,
+  environment: Identity.or('null'),
+  kind: "'flux'|'kubernetes'|'compose'|'solver'|'recovery'|'private-product'|'docker-host'",
+  source: Path,
+  configurationSha256: /^[0-9a-f]{64}$/,
+  role: "'consumer'|'history'",
+  'hostSourceId?': Identity,
+  '+': 'reject',
+}).narrow((source) =>
+  source.kind === 'docker-host'
+    ? source.environment === null && source.role === 'consumer' && source.hostSourceId === undefined
+    : source.environment !== null &&
+      (source.kind === 'compose' && source.role === 'consumer'
+        ? source.hostSourceId !== undefined
+        : source.hostSourceId === undefined),
+);
+const ConsumerReport = type({
+  id: Identity,
+  source: Path,
+  revision: Count,
+  sourceRevision: Identity,
+  role: "'consumer'|'history'",
+  'history?': EnvironmentHistory,
+  'historySha256?': /^[a-f0-9]{64}$/,
+  references: type({ repository: Identity, digest: Digest, '+': 'reject' }).array(),
+  'currentReferences?': type({ repository: Identity, digest: Digest, '+': 'reject' }).array(),
+  '+': 'reject',
+});
+/** Explicit trusted adapter registration; the source points to its installed reader configuration. */
+export type RegistryConsumer = typeof Consumer.infer;
+export type RegistryConsumerReport = typeof ConsumerReport.infer;
+const DeploymentPhase = type("'protected'|'promoted'|'recovery-required'|'reconciled'");
+const Deployment = type({
+  ...ownership,
+  environment: Identity,
+  candidate: Identity,
+  current: Identity.or('null'),
+  recovers: Identity.or('null'),
+  reconciledBy: Identity.or('null'),
+  inventory: ConsumerReport.array(),
+  references: References,
+  phase: DeploymentPhase,
+  events: type({ phase: DeploymentPhase, at: Timestamp, '+': 'reject' }).array().atLeastLength(1),
+  startedAt: Timestamp,
+  finishedAt: Timestamp.or('null'),
+  '+': 'reject',
+});
+const Journal = type({
+  ...journalShape,
+  schemaVersion: '3',
+  fenceReason: Identity.or('null'),
+  maintenanceVerified: 'boolean',
+  measurement: Measurement.or('null'),
+  environments: Environment.array(),
+  consumers: Consumer.array(),
+  deployments: Deployment.array(),
 });
 const mutation = { expectedRevision: Count, operationId: Identity, owner: Identity };
 const existing = { ...mutation, token: Token };
@@ -111,6 +191,37 @@ const Command = type.or(
   { command: "'upgrade'", '+': 'reject' },
   { command: "'check-capacity'", '+': 'reject' },
   { command: "'reopen'", ...mutation, '+': 'reject' },
+  {
+    command: "'enroll-consumers'",
+    ...mutation,
+    sources: Consumer.array().atLeastLength(1),
+    '+': 'reject',
+  },
+  { command: "'retire-environment'", ...mutation, environment: Identity, '+': 'reject' },
+  {
+    command: "'enroll-environment'",
+    ...mutation,
+    environment: Identity,
+    product: Identity,
+    history: EnvironmentHistory,
+    '+': 'reject',
+  },
+  {
+    command: "'begin-deployment'",
+    ...mutation,
+    environment: Identity,
+    candidate: Identity,
+    current: Identity.or('null'),
+    'recovers?': Identity,
+    '+': 'reject',
+  },
+  {
+    command: "'finish-deployment'",
+    ...existing,
+    outcome: "'promoted'|'recovery-required'|'reconciled'",
+    reconciled: 'boolean',
+    '+': 'reject',
+  },
   { command: "'acquire-protection'", ...mutation, ...images, reason: Identity, '+': 'reject' },
   { command: "'release-protection'", ...existing, reconciled: 'true', '+': 'reject' },
   {
@@ -124,7 +235,8 @@ const Command = type.or(
   {
     command: "'finish-publication'",
     ...existing,
-    outcome: "'completed'|'promoted'|'abandoned'|'failed'",
+    // Proof: restoring promoted admits raw schema3 stdin beyond the publication-only boundary.
+    outcome: "'completed'|'abandoned'|'failed'",
     reconciled: 'boolean',
     'failure?': 'string <= 1024',
     '+': 'reject',
@@ -175,6 +287,17 @@ export function parseRegistryCommandResponse(input: unknown): RegistryCommandRes
 export interface RegistryJournalPorts {
   measureJournal: (enrollment: RegistryEnrollment) => Promise<typeof JournalCapacity.infer>;
   measureRegistry: (enrollment: RegistryEnrollment) => Promise<RegistryCapacity>;
+  /** Verify every exact image and its complete content before reference protection is acknowledged. */
+  verifyImages?: (
+    enrollment: RegistryEnrollment,
+    references: readonly { repository: string; digest: string }[],
+  ) => Promise<void>;
+  verifyConsumers?: (sources: readonly RegistryConsumer[], registryId: string) => Promise<void>;
+  collectConsumers?: (
+    sources: readonly RegistryConsumer[],
+    revision: number,
+    enrollment: RegistryEnrollment,
+  ) => Promise<unknown>;
   now?: () => string;
   sync?: (descriptor: FileHandle) => Promise<void>;
   permit?: RegistryWritePermit;
@@ -230,30 +353,31 @@ async function readJournal(path: string, upgrade = false): Promise<RegistryJourn
     }
     // Proof: legacy state is refused by read and admitted only by the explicit fenced upgrade test.
     if (upgrade) {
-      const legacy = requireSchema(LegacyJournal, parsed, 'legacy registry journal');
-      // Proof: upgrading an unfenced legacy maintenance owner succeeded before this preservation check.
-      requireConsistentState(
-        requireSchema(
-          Journal,
-          {
-            ...legacy,
-            schemaVersion: 2,
-            fenceReason: legacy.fenced ? 'legacy-recovery' : null,
-            maintenanceVerified: false,
-            measurement: null,
-          },
-          'legacy journal invariants',
-        ),
+      const legacy = requireSchema(
+        type.or(LegacyJournal, VersionTwoJournal),
+        parsed,
+        'legacy registry journal',
       );
-      parsed = {
+      const upgraded = {
         ...legacy,
-        schemaVersion: 2,
+        schemaVersion: 3,
+        fenceReason:
+          'fenceReason' in legacy ? legacy.fenceReason : legacy.fenced ? 'legacy-recovery' : null,
+        maintenanceVerified: 'maintenanceVerified' in legacy ? legacy.maintenanceVerified : false,
+        measurement: 'measurement' in legacy ? legacy.measurement : null,
+        environments: [],
+        consumers: [],
+        deployments: [],
+      };
+      requireConsistentState(requireSchema(Journal, upgraded, 'legacy journal invariants'));
+      parsed = {
+        ...upgraded,
         fenced: true,
         fenceReason: 'explicit-upgrade',
         maintenanceVerified: false,
-        measurement: null,
       };
     }
+
     const journal = requireSchema(Journal, parsed, 'registry journal');
     // Proof: removing read-time invariants failed malformed-trusted-ownership on the read command.
     requireConsistentState(journal);
@@ -284,6 +408,131 @@ function requireConsistentState(journal: RegistryJournal): void {
     (journal.fenced && journal.fenceReason === null)
   )
     throw new Error('Inconsistent fence reason');
+  requireUnique(
+    journal.environments.map((environment) => environment.environment),
+    'environment',
+  );
+  requireUnique(
+    journal.deployments.map((deployment) => deployment.operationId),
+    'deployment',
+  );
+  for (const environment of journal.environments) {
+    requireUnique(environment.releases, 'environment release');
+    if (environment.releases.length === 0 && environment.genesisAt === null)
+      throw new Error('Invalid deployment environment first-install genesis');
+    if (!journal.enrollment.owners.includes(environment.owner))
+      throw new Error('Unenrolled environment owner');
+    for (const operationId of environment.releases)
+      requireBundle(journal, operationId, environment.product);
+    const expected = uniqueReferences(
+      environment.releases
+        .slice(0, 3)
+        .flatMap(
+          (operationId) => requireBundle(journal, operationId, environment.product).references,
+        ),
+    );
+    const protectedEnvironment = journal.protections.find(
+      (protection) => protection.operationId === environment.protectionId,
+    );
+    if (
+      environment.retiredAt === null &&
+      expected.length > 0 &&
+      (protectedEnvironment?.owner !== environment.owner ||
+        !matchReferences(protectedEnvironment.references, expected))
+    )
+      // Proof: removing this refusal accepts a missing history root in preserves-recovery-events.
+      throw new Error('Incomplete environment image protection');
+  }
+  for (const deployment of journal.deployments) {
+    if (deployment.recovers !== null)
+      recoveryChain(journal, deployment.recovers, deployment.environment, deployment.owner);
+    if (
+      deployment.events[0]?.phase !== 'protected' ||
+      deployment.events[0].at !== deployment.startedAt ||
+      deployment.events.at(-1)?.phase !== deployment.phase ||
+      deployment.events.some(
+        (event, index) => index > 0 && event.at < deployment.events[index - 1].at,
+      )
+    )
+      // Proof: removing this refusal accepts corrupted durable events in registry-deployment.test.
+      throw new Error('Invalid deployment event history');
+
+    const environment = journal.environments.find(
+      (environment) => environment.environment === deployment.environment,
+    );
+    if (environment?.owner !== deployment.owner) throw new Error('Invalid deployment environment');
+    requireBundle(journal, deployment.candidate, environment.product);
+    if (deployment.current !== null)
+      requireBundle(journal, deployment.current, environment.product);
+    const protection = journal.protections.find(
+      (protection) => protection.operationId === deployment.operationId,
+    );
+    if (deployment.phase === 'protected' || deployment.phase === 'recovery-required') {
+      if (
+        (deployment.recovers === null
+          ? (environment.releases.at(0) ?? null)
+          : recoveryChain(
+              journal,
+              deployment.recovers,
+              environment.environment,
+              deployment.owner,
+            )[0].candidate) !== deployment.current ||
+        protection?.token !== deployment.token ||
+        protection.owner !== deployment.owner ||
+        deployment.finishedAt !== null
+      )
+        throw new Error('Inconsistent active deployment ownership');
+      const inherited =
+        deployment.recovers === null
+          ? []
+          : recoveryChain(
+              journal,
+              deployment.recovers,
+              environment.environment,
+              deployment.owner,
+            ).flatMap((ancestor) => {
+              const inherited = journal.protections.find(
+                (protection) => protection.operationId === ancestor.operationId,
+              );
+              if (inherited === undefined)
+                throw new Error('Missing unresolved ancestor protection');
+              return inherited.references;
+            });
+      const expected = uniqueReferences(
+        [deployment.candidate, ...(deployment.current === null ? [] : [deployment.current])]
+          .flatMap(
+            (operationId) => requireBundle(journal, operationId, environment.product).references,
+          )
+          .concat(
+            deployment.inventory
+              .filter((report) =>
+                journal.consumers.some(
+                  (source) =>
+                    source.id === report.id && source.environment === deployment.environment,
+                ),
+              )
+              .flatMap((report) => report.references),
+          ),
+      );
+      const complete = uniqueReferences([...expected, ...inherited]);
+      if (
+        !matchReferences(protection.references, complete) ||
+        !matchReferences(deployment.references, complete)
+      )
+        throw new Error('Incomplete deployment image protection');
+    } else if (
+      protection !== undefined ||
+      deployment.finishedAt === null ||
+      !journal.closedOperations.includes(deployment.operationId)
+    )
+      throw new Error('Inconsistent settled deployment evidence');
+  }
+  requireUnique(
+    journal.consumers.map((source) => source.id),
+    'consumer source',
+  );
+  if (journal.consumers.some((source) => !journal.enrollment.owners.includes(source.owner)))
+    throw new Error('Unenrolled consumer owner');
   requireUnique(journal.enrollment.owners, 'enrolled owner');
   requireUnique(
     journal.bundles.map((bundle) => bundle.operationId),
@@ -565,6 +814,152 @@ function requireMaintenancePhase(maintenance: NonNullable<RegistryJournal['maint
     throw new Error('Invalid trusted maintenance phase and resume phase combination');
 }
 
+function requestOwnership(request: { operationId: string; owner: string }) {
+  return { operationId: request.operationId, owner: request.owner };
+}
+
+function requireBundle(journal: RegistryJournal, operationId: string, product: string) {
+  const bundle = journal.bundles.find((bundle) => bundle.operationId === operationId);
+  if (bundle?.product !== product || !['completed', 'promoted'].includes(bundle.receipt.state))
+    throw new Error('Missing complete deployment bundle');
+  return bundle;
+}
+
+function matchReferences(
+  left: readonly { repository: string; digest: string }[],
+  right: readonly { repository: string; digest: string }[],
+) {
+  const keys = (references: readonly { repository: string; digest: string }[]) =>
+    references.map((reference) => `${reference.repository}@${reference.digest}`).sort();
+  return JSON.stringify(keys(left)) === JSON.stringify(keys(right));
+}
+
+function uniqueReferences(references: readonly { repository: string; digest: string }[]) {
+  return [
+    ...new Map(
+      references.map((reference) => [`${reference.repository}@${reference.digest}`, reference]),
+    ).values(),
+  ];
+}
+
+async function verifyImages(
+  ports: RegistryJournalPorts,
+  journal: RegistryJournal,
+  references: readonly { repository: string; digest: string }[],
+) {
+  if (ports.verifyImages === undefined)
+    throw new Error('Registry image availability reader is unavailable');
+  // Proof: removing native verification admits missing rollback content in registry-deployment.test.
+  await ports.verifyImages(journal.enrollment, references);
+}
+
+/** Every registered source must report from its configured reader at this authority revision. */
+async function collectConsumers(journal: RegistryJournal, ports: RegistryJournalPorts) {
+  if (ports.verifyConsumers === undefined)
+    throw new Error('Installed consumer universe is unavailable');
+  await ports.verifyConsumers(journal.consumers, journal.enrollment.registryId);
+  if (journal.consumers.length === 0 || ports.collectConsumers === undefined)
+    throw new Error('Registry consumer inventory is unavailable');
+  const reports = requireSchema(
+    ConsumerReport.array(),
+    await ports.collectConsumers(journal.consumers, journal.revision, journal.enrollment),
+    'consumer inventory',
+  );
+  requireUnique(
+    reports.map((report) => report.id),
+    'consumer report',
+  );
+  if (
+    reports.length !== journal.consumers.length ||
+    journal.consumers.some(
+      (source) =>
+        !reports.some(
+          (report) =>
+            report.id === source.id &&
+            report.source === source.source &&
+            report.role === source.role &&
+            (source.role === 'history'
+              ? report.history !== undefined &&
+                report.historySha256 !== undefined &&
+                report.currentReferences !== undefined
+              : report.history === undefined && report.historySha256 === undefined) &&
+            report.revision === journal.revision,
+        ),
+    )
+  )
+    throw new Error('Incomplete or stale consumer inventory');
+  return reports;
+}
+
+/** A history ledger cannot certify the absence of actual desired/runtime consumers. */
+function requireActualConsumers(
+  journal: RegistryJournal,
+  environment: string,
+  owner: string,
+): void {
+  const consumers = journal.consumers.filter(
+    (source) =>
+      source.environment === environment &&
+      source.role === 'consumer' &&
+      source.kind !== 'recovery',
+  );
+  if (consumers.length === 0 || consumers.some((source) => source.owner !== owner))
+    throw new Error('Environment actual consumer coverage is missing or foreign');
+}
+
+/** Source persistence may lag an acknowledged promotion; it must reconcile before new ownership or retirement. */
+function requireCurrentHistory(
+  journal: RegistryJournal,
+  environment: typeof Environment.infer,
+  reports: readonly RegistryConsumerReport[],
+): void {
+  const historians = journal.consumers.filter(
+    (source) => source.environment === environment.environment && source.role === 'history',
+  );
+  if (historians.length === 0) throw new Error('Environment history authority is unavailable');
+  for (const source of historians) {
+    const report = reports.find((report) => report.id === source.id);
+    const history = report?.history;
+    // Proof: removing complete-evidence comparison let altered promoted timestamps retire through the real owner reader.
+    if (
+      source.owner !== environment.owner ||
+      history === undefined ||
+      report?.historySha256 !==
+        registryHistorySha256(
+          environment.releases.map((operationId) =>
+            requireBundle(journal, operationId, environment.product),
+          ),
+        ) ||
+      (environment.releases.length === 0
+        ? history.state !== 'first-install' || history.at !== environment.genesisAt
+        : history.state !== 'successful' ||
+          JSON.stringify(history.releases) !== JSON.stringify(environment.releases))
+    )
+      throw new Error('Environment source history differs from acknowledged authority history');
+  }
+}
+
+function recoveryChain(
+  journal: RegistryJournal,
+  operationId: string,
+  environment: string,
+  owner: string,
+) {
+  const chain: RegistryJournal['deployments'] = [];
+  const seen = new Set<string>();
+  let next: string | null = operationId;
+  while (next !== null) {
+    if (seen.has(next)) throw new Error('Cyclic deployment recovery chain');
+    seen.add(next);
+    const deployment = journal.deployments.find((deployment) => deployment.operationId === next);
+    if (deployment?.environment !== environment || deployment.owner !== owner)
+      throw new Error('Foreign or missing deployment recovery identity');
+    chain.push(deployment);
+    next = deployment.recovers;
+  }
+  return chain;
+}
+
 async function mutateJournal(
   journal: RegistryJournal,
   request: Exclude<
@@ -585,9 +980,317 @@ async function mutateJournal(
   const isNew =
     request.command === 'acquire-protection' ||
     request.command === 'reserve-publication' ||
-    request.command === 'begin-maintenance';
+    request.command === 'begin-maintenance' ||
+    request.command === 'enroll-environment' ||
+    request.command === 'begin-deployment' ||
+    request.command === 'enroll-consumers' ||
+    request.command === 'retire-environment';
   if (isNew) requireNewOperation(journal, request.operationId);
   switch (request.command) {
+    case 'enroll-consumers': {
+      if (ports.verifyConsumers === undefined)
+        throw new Error('Installed consumer universe is unavailable');
+      await ports.verifyConsumers(request.sources, journal.enrollment.registryId);
+      if (journal.consumers.length > 0)
+        throw new Error('Registry consumer universe is already enrolled');
+      requireUnique(
+        request.sources.map((source) => source.id),
+        'consumer source',
+      );
+      if (request.sources.some((source) => !journal.enrollment.owners.includes(source.owner)))
+        throw new Error('Unenrolled consumer owner');
+      journal.consumers = request.sources;
+      journal.closedOperations.push(request.operationId);
+      return undefined;
+    }
+    case 'retire-environment': {
+      const reports = await collectConsumers(journal, ports);
+      const environment = journal.environments.find(
+        (environment) => environment.environment === request.environment,
+      );
+      if (environment?.owner !== request.owner || environment.retiredAt !== null)
+        throw new Error('Missing or foreign environment retirement');
+      requireActualConsumers(journal, environment.environment, environment.owner);
+      requireCurrentHistory(journal, environment, reports);
+      const sources = journal.consumers.filter(
+        (source) => source.environment === request.environment,
+      );
+      if (
+        sources.length === 0 ||
+        sources.some(
+          (source) => reports.find((report) => report.id === source.id)?.references.length !== 0,
+        )
+      )
+        throw new Error('Environment consumer references remain');
+      if (
+        journal.deployments.some(
+          (deployment) =>
+            deployment.environment === request.environment &&
+            ['protected', 'recovery-required'].includes(deployment.phase),
+        )
+      )
+        throw new Error('Unsettled deployment prevents environment retirement');
+      journal.protections = journal.protections.filter(
+        (protection) => protection.operationId !== environment.protectionId,
+      );
+      if (!journal.closedOperations.includes(environment.protectionId))
+        journal.closedOperations.push(environment.protectionId);
+      journal.closedOperations.push(request.operationId);
+      environment.retiredAt = journal.updatedAt;
+      return undefined;
+    }
+    case 'enroll-environment': {
+      if (
+        journal.environments.some((environment) => environment.environment === request.environment)
+      )
+        throw new Error('Registry environment already enrolled');
+      // Proof: removing this call admitted first-install from a history-only source universe.
+      requireActualConsumers(journal, request.environment, request.owner);
+      const releases = request.history.state === 'successful' ? request.history.releases : [];
+      requireUnique(releases, 'environment release');
+      const bundles = releases.map((operationId) =>
+        requireBundle(journal, operationId, request.product),
+      );
+      if (bundles.some((bundle) => bundle.receipt.state !== 'promoted'))
+        throw new Error('Environment history requires trusted promoted bundles');
+      const inventory = await collectConsumers(journal, ports);
+      const historians = journal.consumers.filter(
+        (source) => source.environment === request.environment && source.role === 'history',
+      );
+      if (historians.length === 0) throw new Error('Environment history authority is not enrolled');
+      for (const source of historians) {
+        const report = inventory.find((report) => report.id === source.id);
+        if (
+          source.owner !== request.owner ||
+          report?.history === undefined ||
+          report.currentReferences === undefined ||
+          report.historySha256 !== registryHistorySha256(bundles) ||
+          JSON.stringify(report.history) !== JSON.stringify(request.history)
+        )
+          throw new Error('Environment history disagrees with its trusted source');
+        const current = bundles.at(0);
+        if (
+          current === undefined
+            ? report.currentReferences.length !== 0
+            : !matchReferences(report.currentReferences, current.references)
+        )
+          throw new Error('Environment history differs from existing release evidence');
+      }
+      const references = uniqueReferences(
+        bundles.slice(0, 3).flatMap((bundle) => bundle.references),
+      );
+      if (references.length > 0) await verifyImages(ports, journal, references);
+      const token = randomUUID();
+      journal.environments.push({
+        environment: request.environment,
+        owner: request.owner,
+        product: request.product,
+        protectionId: request.operationId,
+        enrolledAt: journal.updatedAt,
+        genesisAt: request.history.state === 'first-install' ? request.history.at : null,
+        retiredAt: null,
+        releases,
+      });
+      if (references.length > 0)
+        journal.protections.push({
+          operationId: request.operationId,
+          owner: request.owner,
+          token,
+          reason: `environment:${request.environment}`,
+          references,
+          roots: [...new Set(references.map((reference) => reference.digest))],
+        });
+      else journal.closedOperations.push(request.operationId);
+      return token;
+    }
+    case 'begin-deployment': {
+      const environment = journal.environments.find(
+        (environment) =>
+          environment.environment === request.environment && environment.retiredAt === null,
+      );
+      if (environment?.owner !== request.owner)
+        throw new Error('Missing or foreign registry environment');
+      const ancestry =
+        request.recovers === undefined
+          ? []
+          : recoveryChain(journal, request.recovers, request.environment, request.owner);
+      if (request.recovers === undefined) {
+        if ((environment.releases.at(0) ?? null) !== request.current)
+          throw new Error('Current environment release differs from rollback bundle');
+        if (
+          journal.deployments.some(
+            (deployment) =>
+              deployment.environment === request.environment &&
+              ['protected', 'recovery-required'].includes(deployment.phase),
+          )
+        )
+          throw new Error('Unsettled environment deployment');
+      } else {
+        if (
+          ancestry[0].phase !== 'recovery-required' ||
+          ancestry[0].candidate !== request.current ||
+          journal.deployments.some(
+            (deployment) =>
+              deployment.recovers === request.recovers &&
+              ['protected', 'recovery-required'].includes(deployment.phase),
+          )
+        )
+          throw new Error('Stale or concurrent deployment recovery head');
+      }
+      const bundles = [
+        requireBundle(journal, request.candidate, environment.product),
+        ...(request.current === null
+          ? []
+          : [requireBundle(journal, request.current, environment.product)]),
+      ];
+      const inventory = await collectConsumers(journal, ports);
+      requireActualConsumers(journal, environment.environment, environment.owner);
+      requireCurrentHistory(journal, environment, inventory);
+      const sources = journal.consumers.filter(
+        (source) => source.environment === environment.environment,
+      );
+      if (sources.length === 0) throw new Error('Environment consumer sources are unavailable');
+      if (
+        request.recovers !== undefined &&
+        !inventory.some(
+          (report) =>
+            sources.some((source) => source.id === report.id) &&
+            report.currentReferences !== undefined &&
+            matchReferences(report.currentReferences, bundles[1]?.references ?? []),
+        )
+      )
+        throw new Error('Recovery current source observation differs from interrupted candidate');
+      const inherited = ancestry.flatMap((ancestor) => {
+        const protection = journal.protections.find(
+          (protection) => protection.operationId === ancestor.operationId,
+        );
+        if (protection === undefined) throw new Error('Recovery ancestor protection missing');
+        return protection.references;
+      });
+      const references = uniqueReferences([
+        ...bundles.flatMap((bundle) => bundle.references),
+        ...inherited,
+        ...inventory
+          .filter((report) => sources.some((source) => source.id === report.id))
+          .flatMap((report) => report.references),
+      ]);
+      await verifyImages(ports, journal, references);
+      const token = randomUUID();
+      journal.protections.push({
+        operationId: request.operationId,
+        owner: request.owner,
+        token,
+        reason: `deployment:${request.environment}`,
+        references,
+        roots: [...new Set(references.map((reference) => reference.digest))],
+      });
+      journal.deployments.push({
+        ...requestOwnership(request),
+        token,
+        environment: request.environment,
+        candidate: request.candidate,
+        current: request.current,
+        recovers: request.recovers ?? null,
+        reconciledBy: null,
+        inventory,
+        references,
+        phase: 'protected',
+        events: [{ phase: 'protected', at: journal.updatedAt }],
+        startedAt: journal.updatedAt,
+        finishedAt: null,
+      });
+      return token;
+    }
+    case 'finish-deployment': {
+      const deployment = journal.deployments.find(
+        (deployment) => deployment.operationId === request.operationId,
+      );
+      requireOwnership(deployment, request);
+      if (!['protected', 'recovery-required'].includes(deployment.phase))
+        throw new Error('Deployment already settled');
+      const environment = journal.environments.find(
+        (environment) => environment.environment === deployment.environment,
+      );
+      if (environment?.owner !== request.owner || environment.retiredAt !== null)
+        throw new Error('Missing deployment environment');
+      if (request.outcome === 'recovery-required') {
+        deployment.events.push({ phase: 'recovery-required', at: journal.updatedAt });
+        deployment.phase = 'recovery-required';
+        return undefined;
+      }
+      if (!request.reconciled)
+        throw new Error('Deployment completion requires reconciled consumer state');
+      const target = request.outcome === 'promoted' ? deployment.candidate : deployment.current;
+      if (target !== null) {
+        const bundle = requireBundle(journal, target, environment.product);
+        await verifyImages(ports, journal, bundle.references);
+        if (request.outcome === 'promoted') {
+          if (bundle.receipt.state !== 'promoted')
+            bundle.receipt = { state: 'promoted', at: journal.updatedAt };
+          environment.releases = [
+            target,
+            ...environment.releases.filter((operationId) => operationId !== target),
+          ];
+        }
+      }
+      const references = uniqueReferences(
+        environment.releases
+          .slice(0, 3)
+          .flatMap(
+            (operationId) => requireBundle(journal, operationId, environment.product).references,
+          ),
+      );
+      const protectedEnvironment = journal.protections.find(
+        (protection) => protection.operationId === environment.protectionId,
+      );
+      if (references.length > 0) {
+        if (protectedEnvironment === undefined) {
+          journal.closedOperations = journal.closedOperations.filter(
+            (operationId) => operationId !== environment.protectionId,
+          );
+          journal.protections.push({
+            operationId: environment.protectionId,
+            owner: environment.owner,
+            token: randomUUID(),
+            reason: `environment:${environment.environment}`,
+            references,
+            roots: [...new Set(references.map((reference) => reference.digest))],
+          });
+        } else {
+          protectedEnvironment.references = references;
+          protectedEnvironment.roots = [
+            ...new Set(references.map((reference) => reference.digest)),
+          ];
+        }
+      }
+      if (request.outcome === 'promoted' && deployment.recovers !== null) {
+        for (const ancestor of recoveryChain(
+          journal,
+          deployment.recovers,
+          environment.environment,
+          request.owner,
+        )) {
+          if (!['protected', 'recovery-required'].includes(ancestor.phase))
+            throw new Error('Recovery ancestor already settled');
+          journal.protections = journal.protections.filter(
+            (protection) => protection.operationId !== ancestor.operationId,
+          );
+          journal.closedOperations.push(ancestor.operationId);
+          ancestor.phase = 'reconciled';
+          ancestor.reconciledBy = deployment.operationId;
+          ancestor.finishedAt = journal.updatedAt;
+          ancestor.events.push({ phase: 'reconciled', at: journal.updatedAt });
+        }
+      }
+      journal.protections = journal.protections.filter(
+        (protection) => protection.operationId !== deployment.operationId,
+      );
+      journal.closedOperations.push(deployment.operationId);
+      deployment.events.push({ phase: request.outcome, at: journal.updatedAt });
+      deployment.phase = request.outcome;
+      deployment.finishedAt = journal.updatedAt;
+      return undefined;
+    }
     case 'reopen': {
       if (
         !journal.maintenanceVerified ||
@@ -627,6 +1330,11 @@ async function mutateJournal(
       return token;
     }
     case 'release-protection': {
+      if (
+        journal.deployments.some((deployment) => deployment.operationId === request.operationId) ||
+        journal.environments.some((environment) => environment.protectionId === request.operationId)
+      )
+        throw new Error('Environment or deployment protection requires its lifecycle transition');
       const index = journal.protections.findIndex(
         (protection) => protection.operationId === request.operationId,
       );
@@ -808,7 +1516,7 @@ export async function executeRegistryCommand(
         const state = requireSchema(
           Journal,
           {
-            schemaVersion: 2,
+            schemaVersion: 3,
             enrollment: request.enrollment,
             revision: 0,
             updatedAt: (ports.now ?? (() => new Date().toISOString()))(),
@@ -822,6 +1530,9 @@ export async function executeRegistryCommand(
             publication: null,
             maintenance: null,
             closedOperations: [],
+            environments: [],
+            consumers: [],
+            deployments: [],
           },
           'initial registry journal',
         );
@@ -952,4 +1663,65 @@ export async function executeRegistryCommand(
       throw cause;
     }
   });
+}
+
+/** Exact root-owned whole-universe enrollment; requests cannot register a convenient subset. */
+export function assertConsumerUniverse(
+  input: unknown,
+  sources: readonly RegistryConsumer[],
+  registryId: string,
+): void {
+  const installed = type({
+    schemaVersion: '1',
+    registryId: Identity,
+    sources: Consumer.array().atLeastLength(1),
+    '+': 'reject',
+  })(input);
+  const canonical = (entries: readonly RegistryConsumer[]) =>
+    JSON.stringify(
+      [...entries]
+        .sort((left, right) => left.id.localeCompare(right.id))
+        .map((entry) => [
+          entry.id,
+          entry.owner,
+          entry.environment,
+          entry.kind,
+          entry.source,
+          entry.configurationSha256,
+          entry.role,
+          entry.hostSourceId ?? null,
+        ]),
+    );
+  if (
+    installed instanceof type.errors ||
+    installed.registryId !== registryId ||
+    canonical(installed.sources) !== canonical(sources)
+  )
+    throw new Error('Registered consumer universe differs from trusted installation');
+  for (const source of installed.sources.filter(
+    (source) => source.kind === 'compose' && source.role === 'consumer',
+  )) {
+    if (
+      !installed.sources.some(
+        (host) =>
+          host.id === source.hostSourceId &&
+          host.kind === 'docker-host' &&
+          host.role === 'consumer' &&
+          host.environment === null,
+      )
+    )
+      throw new Error('Compose environment omits registered Docker host census');
+  }
+  for (const history of installed.sources.filter((source) => source.role === 'history')) {
+    if (
+      !installed.sources.some(
+        (source) =>
+          source.environment === history.environment &&
+          source.owner === history.owner &&
+          source.role === 'consumer' &&
+          source.kind !== 'recovery',
+      )
+    )
+      throw new Error('Installed environment omits actual consumer coverage');
+  }
 }

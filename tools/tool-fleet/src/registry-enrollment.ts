@@ -7,6 +7,7 @@ import { type } from 'arktype';
 import { admitBuilderScratch, admitScratch, measureVerifiedFilesystem } from './registry-capacity';
 import { parseRegistryCommandResponse } from './registry-journal';
 import type { RegistryAuthority } from './registry-publication';
+import { selectPublicationEnrollment } from './registry-selection';
 import { readRegistryBytes } from './registry-stream';
 
 const Path = type('string > 0').narrow(isAbsolute);
@@ -25,6 +26,7 @@ const Enrollment = type({
     .array()
     .atLeastLength(1),
   'caPath?': Path,
+  'docker?': { path: Path, sha256: /^[0-9a-f]{64}$/, '+': 'reject' },
   builder: {
     uid: 'number.integer > 0 & number.integer < 61184',
     machineId: Machine,
@@ -40,7 +42,7 @@ const Enrollment = type({
 export type ManagedRegistry = typeof Enrollment.infer;
 
 /** Root-owned regular enrollment is read from the same no-follow descriptor that was checked. */
-async function readTrustedEnrollment(path: string): Promise<unknown> {
+export async function readTrustedEnrollment(path: string): Promise<unknown> {
   if (!isAbsolute(path) || (await realpath(path)) !== path)
     throw new Error('Enrollment path is not canonical');
   const descriptor = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -66,10 +68,12 @@ async function readTrustedEnrollment(path: string): Promise<unknown> {
 export async function readPublicationEnrollment(
   registry: string,
   env: NodeJS.ProcessEnv = process.env,
+  read: (path: string) => Promise<unknown> = readTrustedEnrollment,
+  target?: string,
 ): Promise<ManagedRegistry | undefined> {
-  const path = env['REGISTRY_PUBLICATION_ENROLLMENT'];
-  if (path === undefined) return undefined;
-  const enrollment = Enrollment(await readTrustedEnrollment(path));
+  const selected = await selectPublicationEnrollment(registry, env, read, target);
+  if (selected === undefined) return undefined;
+  const enrollment = Enrollment(selected);
   if (enrollment instanceof type.errors)
     throw new Error(`Malformed publication enrollment: ${enrollment.summary}`);
   if (
@@ -147,7 +151,9 @@ export async function checkExportScratch(
  * Invoke only the installed authority command with JSON stdin. Bound received stdout to 16 MiB
  * and stderr to 64 KiB; overflow terminates and reaps the child before the caller sees failure.
  */
-export function connectRegistryAuthority(enrollment: ManagedRegistry): RegistryAuthority {
+export function connectRegistryAuthority(
+  enrollment: Pick<ManagedRegistry, 'sshHost'>,
+): RegistryAuthority {
   return async (request) => {
     const child = Bun.spawn(
       [

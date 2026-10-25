@@ -7,8 +7,11 @@ import {
   registryRenewalSeconds,
   requireFreshCapacity,
 } from './registry-capacity';
+import { readTrustedEnrollment } from './registry-enrollment';
+import { verifyStoredImages } from './registry-image-availability';
 import type { RegistryEnrollment } from './registry-journal';
-import { executeRegistryCommand } from './registry-journal';
+import { assertConsumerUniverse, executeRegistryCommand } from './registry-journal';
+import { collectRegistryConsumers } from './registry-reader';
 
 /** Read at most 64 KiB from the authenticated SSH command's stdin before parsing any request. */
 async function readRequest(): Promise<unknown> {
@@ -88,6 +91,24 @@ async function main(): Promise<void> {
   do {
     const response = await executeRegistryCommand(directory, request, {
       permit,
+      verifyConsumers: async (sources, registryId) => {
+        assertConsumerUniverse(
+          await readTrustedEnrollment('/etc/puni/registry-consumers.json'),
+          sources,
+          registryId,
+        );
+      },
+      verifyImages: async (enrollment, references) => {
+        const registry = await measureVerifiedFilesystem(
+          registryPath,
+          join(identities, 'registry.receipt'),
+        );
+        if (enrollment.registryPath !== registryPath || registry.identity !== enrollment.storageId)
+          throw new Error('Registry image reader storage identity mismatch');
+        await verifyStoredImages(registryPath, references);
+      },
+      collectConsumers: (sources, revision, enrollment) =>
+        collectRegistryConsumers(sources, revision, enrollment.registryId),
       measureJournal: async (enrollment) => {
         current = enrollment;
         const measured = await measureVerifiedFilesystem(

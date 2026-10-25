@@ -697,6 +697,7 @@ describe('runSwaps', () => {
           phase: 'committed' as const,
         }),
       execute: () => Promise.resolve(),
+      protectImages: () => Promise.resolve(undefined),
       ...overrides,
     };
   }

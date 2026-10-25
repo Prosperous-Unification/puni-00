@@ -115,6 +115,7 @@ function fixture() {
   };
   const journal = memoryJournal();
   const options = {
+    protectImages: () => Promise.resolve(undefined),
     clock: fake.clock,
     heartbeatMs: 3_600_000,
     sleep: (ms: number) => {
@@ -411,6 +412,7 @@ for (const [phase, forbidden] of [
     expect(
       await rejectedMessage(
         executeRelease(request, corrupting, fake, () => undefined, {
+          protectImages: () => Promise.resolve(undefined),
           clock: fake.clock,
           heartbeatMs: 3_600_000,
         }),
@@ -458,6 +460,7 @@ for (const fault of ['null', 'missing'] as const) {
     expect(
       await rejectedMessage(
         executeRelease(recovery, disk, fake, () => undefined, {
+          protectImages: () => Promise.resolve(undefined),
           clock: fake.clock,
           heartbeatMs: 3_600_000,
         }),

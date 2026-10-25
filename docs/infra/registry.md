@@ -56,11 +56,14 @@ Do not remove the downstream holds as part of endpoint rollback: that would perm
 
 ## Managed publication — staged integration
 
-Managed publishing is selected explicitly by `REGISTRY_PUBLICATION_ENROLLMENT`, an
-absolute canonical path to a root-owned, root-group, mode `0644` JSON file. A selected
-file that is missing, unreadable or invalid fails; only an absent selector uses the
-existing unenrolled registry publisher. No production enrollment or scratch allocation
-is activated by this code change.
+Every installed publishing, copy and deployment entrypoint requires the root-owned
+`/etc/puni/registry-deployments.json` selection catalog. A missing catalog refuses;
+only an explicitly installed valid unmanaged catalog permits the existing publisher.
+`REGISTRY_PUBLICATION_ENROLLMENT` and `REGISTRY_DEPLOYMENT_ENROLLMENT` may select among
+matching hash-pinned catalog entries; unsetting either cannot erase management.
+Install the complete mappings before rolling out these tools. See the
+[consumer installation and recovery contract](registry-consumers.md). No production
+enrollment, product migration or scratch allocation is activated by this code change.
 
 The enrollment has `schemaVersion: 1`, an exact `registryUrl` (without a trailing
 slash), `registryId`, `sshHost`, `owner`, `product`, and `requiredRepositories`.

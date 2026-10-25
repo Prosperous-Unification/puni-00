@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "enrollment": {
+    "registryId": "proof",
+    "storageId": "proof",
+    "owners": ["publisher", "deploy", "other"],
+    "registryPath": "/registry",
+    "rootPath": "/",
+    "maximumBytes": 1073741824,
+    "journalMaximumBytes": 1073741824
+  },
+  "revision": 4,
+  "updatedAt": "2026-10-25T12:00:00.000Z",
+  "fenced": false,
+  "fenceReason": null,
+  "maintenanceVerified": false,
+  "measurement": {
+    "at": "2026-10-25T12:00:00.000Z",
+    "maximumBytes": 1073741824,
+    "usableBytes": 1073741824,
+    "usedBytes": 0,
+    "totalInodes": 10000,
+    "usedInodes": 10,
+    "rootFreeBytes": 32212254720
+  },
+  "protections": [],
+  "bundles": [
+    {
+      "operationId": "previous",
+      "product": "wbs",
+      "roots": ["sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+      "receipt": { "state": "promoted", "at": "2026-10-25T12:00:00.000Z" },
+      "owner": "publisher",
+      "references": [
+        {
+          "repository": "wbs/backend",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ]
+    },
+    {
+      "operationId": "candidate",
+      "product": "wbs",
+      "roots": ["sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+      "receipt": { "state": "completed", "at": "2026-10-25T12:00:00.000Z" },
+      "owner": "publisher",
+      "references": [
+        {
+          "repository": "wbs/backend",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    }
+  ],
+  "reservations": [],
+  "publication": null,
+  "maintenance": null,
+  "closedOperations": []
+}

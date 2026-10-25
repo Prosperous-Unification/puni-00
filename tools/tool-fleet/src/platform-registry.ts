@@ -272,9 +272,10 @@ export async function copyImages(
   source: RegistryEndpoint,
   target: RegistryEndpoint,
   images: readonly { repository: string; reference: string }[],
+  select: typeof readPublicationEnrollment = readPublicationEnrollment,
 ) {
   // Proof: removing managed admission selection copied blobs despite the selected missing enrollment.
-  const enrollment = await readPublicationEnrollment(target.url);
+  const enrollment = await select(target.url);
   if (enrollment === undefined) {
     const copied = [];
     for (const image of images)
@@ -327,8 +328,9 @@ export async function copyImage(
   target: RegistryEndpoint,
   repository: string,
   reference: string,
+  select: typeof readPublicationEnrollment = readPublicationEnrollment,
 ) {
-  const copied = (await copyImages(source, target, [{ repository, reference }])).at(0);
+  const copied = (await copyImages(source, target, [{ repository, reference }], select)).at(0);
   if (copied === undefined) throw new Error('Image copy omitted its receipt');
   return copied;
 }

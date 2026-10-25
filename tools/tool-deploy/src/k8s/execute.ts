@@ -3,6 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
+import {
+  advanceRegistryHistory,
+  parseRegistryHistory,
+  prepareManagedDeployment,
+  type RegistryDeployment,
+} from '@tools/registry-publication';
+
 import { isTerminal, type JournalRecord, type ReleaseJournal } from './journal';
 import {
   assertMigrationCapture,
@@ -410,6 +417,13 @@ function startingState(request: ReleaseRequest, journal: ReleaseJournal): Releas
   // Proof: removing resume validation mutates the cluster with missing or altered durable replay progress.
   assertReplayProgress(existing.state, existing.request);
   const requestedId = releaseIdOf(request.release);
+  // Proof: the lost-persistence retry test reran validation against already-promoted cluster state without this terminal reuse.
+  if (
+    existing.registry != null &&
+    existing.state.phase === 'lease-released' &&
+    JSON.stringify(existing.request) === JSON.stringify(request)
+  )
+    return existing.state;
   if (existing.state.phase === 'recovery-required' || isTerminal(existing.state)) {
     // Proof: without this check `stops at recovery-required ... recovers with a fresh capture` started a fresh
     // release over the promoted one until recovery required an explicit `recovers` name.
@@ -444,6 +458,12 @@ function startingState(request: ReleaseRequest, journal: ReleaseJournal): Releas
 }
 
 export interface ExecuteOptions {
+  /** Actual authority boundary; the default reads trusted explicit enrollment. */
+  protectImages?: (
+    request: ReleaseRequest,
+    transaction: string,
+    recovers?: string,
+  ) => Promise<RegistryDeployment | undefined>;
   clock?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** Heartbeat period; the effects' Lease duration must be several of these. */
@@ -482,6 +502,53 @@ export async function executeRelease(
   const existing = journal.read();
   let state = startingState(request, journal);
   planRelease(request, state);
+  const registry = await (
+    options.protectImages ??
+    ((request, transaction, recovers) =>
+      prepareManagedDeployment(
+        transaction,
+        Object.values(request.release.images),
+        Object.values(request.expectedCurrent.images),
+        `k8s:${request.cluster.uid}/${request.namespaces.app}/${request.namespaces.backend}`,
+        process.env,
+        recovers,
+      ))
+  )(
+    request,
+    state.transactionId,
+    existing?.registry != null && request.recovers === existing.state.releaseId
+      ? existing.registry.operationId
+      : undefined,
+  );
+  if (
+    existing !== null &&
+    registry !== undefined &&
+    (existing.schemaVersion !== 4 || existing.registry == null)
+  )
+    throw new Error('Managed recovery requires a verified schema4 registry binding');
+  if (
+    existing?.registry != null &&
+    (existing.registry.registryId !== registry?.registryId ||
+      (existing.state.transactionId === state.transactionId &&
+        (existing.registry.operationId !== registry.operationId ||
+          JSON.stringify(existing.registry.references) !== JSON.stringify(registry.references))))
+  )
+    throw new Error('Managed recovery registry binding differs from authority');
+  let registryHistory = existing?.registryHistory ?? journal.readHistory?.() ?? null;
+  if (registry !== undefined) {
+    registryHistory = parseRegistryHistory(registryHistory, journal.path);
+    if (
+      registryHistory.registryId !== registry.registryId ||
+      registryHistory.product !== registry.product ||
+      registryHistory.environment !== registry.environment ||
+      registryHistory.target !== registry.target ||
+      registry.target !==
+        `k8s:${request.cluster.uid}/${request.namespaces.app}/${request.namespaces.backend}` ||
+      registryHistory.releases.length === 0
+    )
+      throw new Error('Managed release requires verified inherited owner history');
+  } else if (registryHistory !== null)
+    throw new Error('Managed release history cannot become unmanaged');
   const holder = `${state.transactionId}#${randomBytes(4).toString('hex')}`;
   const held = { value: false, lost: null as unknown };
 
@@ -531,12 +598,26 @@ export async function executeRelease(
   const history: { phase: string; at: string }[] = [...(existing?.history ?? [])];
   const record = (next: ReleaseState): void => {
     history.push({ phase: next.phase, at: new Date(clock()).toISOString() });
-    const entry: JournalRecord = { schemaVersion: 3, request, state: next, history };
+    const entry: JournalRecord = {
+      schemaVersion: 4,
+      registry:
+        registry === undefined
+          ? null
+          : {
+              registryId: registry.registryId,
+              operationId: registry.operationId,
+              references: registry.references,
+            },
+      registryHistory,
+      request,
+      state: next,
+      history,
+    };
     journal.write(entry);
   };
   // Proof: recording before claiming let `refuses to resume a transaction whose live
   // coordinator still renews the Lease` overwrite the live coordinator's journal.
-  if (state.phase !== 'requested') await claim();
+  if (state.phase !== 'requested' && !isTerminal(state)) await claim();
   if (state.phase !== 'requested' && history.at(-1)?.phase !== state.phase) record(state);
 
   // One Lease write at a time: a heartbeat and a pre-step renewal racing each other read the
@@ -644,6 +725,25 @@ export async function executeRelease(
     }
   } finally {
     clearInterval(heartbeat);
+  }
+  if (registry !== undefined) {
+    const receipt = await registry.finish(
+      state.phase === 'lease-released'
+        ? 'promoted'
+        : state.phase === 'rolled-back'
+          ? 'reconciled'
+          : 'recovery-required',
+    );
+    if (state.phase === 'lease-released') {
+      if (receipt === undefined) throw new Error('Release completion omitted authority history');
+      const advanced = advanceRegistryHistory(registryHistory, receipt);
+      if (JSON.stringify(advanced) !== JSON.stringify(registryHistory)) {
+        registryHistory = advanced;
+        record(state);
+        if (JSON.stringify(journal.read()?.registryHistory) !== JSON.stringify(advanced))
+          throw new Error('Release history persistence readback differs');
+      }
+    }
   }
   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
   return state;

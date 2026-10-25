@@ -193,3 +193,52 @@ fences. Missing or corrupt journal state MUST prevent writes and deletion.
 
 - **WHEN** registry writes fail for lack of space
 - **THEN** the independent journal records the failure and subsequent restarts preserve the write fence
+
+### Requirement: Mandatory installed selection and compatible artifacts
+
+Every installed publishing, copy or consumer-mutating entrypoint SHALL require the
+complete trusted host catalog. Missing or unreadable catalog, source, artifact,
+identity or protocol MUST refuse rather than imply unmanaged execution. An explicit
+valid unmanaged catalog SHALL preserve legacy workflows.
+
+#### Scenario: An adopted target loses its environment selector
+
+- **WHEN** the selector is unset but the trusted host catalog enrolls the target
+- **THEN** the entrypoint still requires managed protection and complete receipt binding before effects
+
+### Requirement: Source-proved owning history and authenticated repair
+
+Environment enrollment SHALL require initialized complete owning history from every
+required history authority and actual-consumer coverage. History evidence SHALL bind
+ordered bundles, exact references and original promoted receipts. Missing history
+MUST NOT establish first-install. Read-only resume SHALL return successful evidence
+only for an already-promoted matching existing operation and SHALL never mutate authority.
+
+#### Scenario: Promotion succeeds but owner persistence is lost
+
+- **WHEN** the authority is promoted and the owning source still has pending history
+- **THEN** new ownership and retirement refuse while authenticated resume repairs the original receipt without deployment effects or authority mutation
+
+### Requirement: Registry-wide Docker coverage and environment ownership
+
+All managed Docker containers, including stopped entries, SHALL remain covered by a
+registered registry-scope census. Every Compose environment SHALL also have an actual
+consumer projection linked to the same trusted machine, ownership catalog, executable
+and transport. Unknown or ambiguous ownership MUST refuse complete inventory.
+
+#### Scenario: One of two environments sharing an image retires
+
+- **WHEN** A has no desired, active, stopped or unresolved references and B still uses the image
+- **THEN** A may retire while B's global references and independent environment protection remain
+
+### Requirement: Consumer completion precedes promotion
+
+Kubernetes first-start and regular release SHALL protect before effects and preserve
+recovery ancestry until verified reconciliation. Managed Compose SHALL verify the full
+configured environment and shared smoke under its lock. Private Git pin/rollback SHALL
+remain pending until exact downstream Flux, runtime and live checks succeed.
+
+#### Scenario: Managed Compose smoke fails after all tiers commit
+
+- **WHEN** shared smoke fails under the whole-environment lock
+- **THEN** no promotion occurs, candidate/outgoing ownership remains, and retry verifies/smokes the complete candidate without repeating committed swaps or migrations

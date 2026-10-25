@@ -2,6 +2,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { renderTemplate, siteCaddyTmpl } from '@tools/compose';
+import {
+  managedImageReferences,
+  prepareManagedDeployment,
+  readDeploymentEnrollment,
+} from '@tools/registry-publication';
 import { parseAllDocuments } from 'yaml';
 
 import {
@@ -21,8 +26,14 @@ import {
 } from './cutover-replay';
 import { parseDescriptor, releaseIdentityOf } from './descriptor';
 import { backendTaskJob, renderOverlay, run } from './execute';
-import { firstStartJournal, parseFirstStartRequest, startCutover } from './first-start';
+import {
+  firstStartJournal,
+  firstStartOperation,
+  parseFirstStartRequest,
+  startCutover,
+} from './first-start';
 import { fenceFirstStartManifests, firstStartEffects } from './first-start-adapter';
+import { sha256Of } from './migration-capture';
 
 const USAGE = [
   'usage: cutover-cli fenced-site --site <host> --backend <container:3100> --frontend <container:80>',
@@ -129,8 +140,48 @@ function readCutoverIdentity(args: readonly string[], exporting: boolean): Cutov
   );
 }
 
+/** Acquire the same durable operation before export execution or usable consumer manifests. */
+async function protectCutoverImages(
+  args: readonly string[],
+  descriptorBytes: string,
+  oldImage?: string,
+): Promise<void> {
+  const identity = releaseIdentityOf(parseDescriptor(JSON.parse(descriptorBytes) as unknown));
+  const target = args.includes('--registry-target') ? required(args, '--registry-target') : null;
+  const enrollment = await readDeploymentEnrollment(
+    [...Object.values(identity.images), ...(oldImage === undefined ? [] : [oldImage])],
+    target,
+  );
+  if (enrollment === undefined) return;
+  if (target === null) throw new Error('Managed cutover requires --registry-target');
+  const operation = await prepareManagedDeployment(
+    firstStartOperation(sha256Of(descriptorBytes), target),
+    Object.values(identity.images),
+    null,
+    target,
+  );
+  if (operation === undefined) throw new Error('Selected cutover registry enrollment disappeared');
+  if (oldImage !== undefined) {
+    const old = managedImageReferences([oldImage], enrollment.registryUrl);
+    if (
+      old.some(
+        (reference) =>
+          !operation.references.some(
+            (protectedImage) =>
+              reference.repository === protectedImage.repository &&
+              reference.digest === protectedImage.digest,
+          ),
+      )
+    )
+      throw new Error('Old export image lacks enrolled source protection');
+  }
+}
+
 /** The cutover's operator commands; each prints what the next step consumes. */
-export async function main(args: readonly string[]): Promise<string> {
+export async function main(
+  args: readonly string[],
+  protect: typeof protectCutoverImages = protectCutoverImages,
+): Promise<string> {
   const [command] = args;
   // Proof: restoring the descriptor-only route failed the CLI bypass refusal test.
   if (command === 'release-record')
@@ -175,6 +226,7 @@ export async function main(args: readonly string[]): Promise<string> {
   }
   if (command === 'export') {
     const identity = readCutoverIdentity(args, true);
+    await protect(args, identity.descriptorBytes, identity.oldBackendImage);
     const out = resolve(required(args, '--out'));
     // Refuses an existing directory: an export never overwrites an earlier one.
     mkdirSync(out, { recursive: false, mode: 0o700 });
@@ -199,6 +251,8 @@ export async function main(args: readonly string[]): Promise<string> {
       `PUNI_SQLITE_REPORT ${readFileSync(required(args, '--export-report'), 'utf8')}`,
     );
     const identity = readCutoverIdentity(args, false);
+    // Proof: omitting this guard emits a usable restore Job with a missing selected enrollment.
+    await protect(args, identity.descriptorBytes, identity.oldBackendImage);
     assertExportSound(report);
     return JSON.stringify(
       restoreJob(required(args, '--image'), report, 'wbs-cutover-restore', identity),
@@ -211,6 +265,7 @@ export async function main(args: readonly string[]): Promise<string> {
       JSON.parse(readFileSync(required(args, '--descriptor'), 'utf8')) as unknown,
     );
     const identity = releaseIdentityOf(descriptor);
+    await protect(args, readFileSync(required(args, '--descriptor'), 'utf8'));
     const environment = required(args, '--environment');
     if (environment !== 'staging' && environment !== 'prod') {
       throw new Error(`--environment must be staging or prod, got ${environment}`);
