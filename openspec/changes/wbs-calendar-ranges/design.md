@@ -88,8 +88,7 @@ The review (PR #726 comment, 2026-10-25) found 10 findings; each decision names 
 - **CR10. The term is Calendar period (F10).** Table `calendar_period`, routes
   `…/calendar-periods`, kinds unchanged, capability `calendar-periods`. Cheaper than renaming
   an established refusal: no existing contract changes, and the glossary gains no Calendar
-  overflow term. _Awaits Dany_: he said "ranges"; if he insists, CR9 returns with the
-  `calendar-horizon-guard` delta it needs.
+  overflow term. _Settled by Dany 2026-10-25: "calendar period is FINE"._ CR9 stays withdrawn.
 - **CR11. The migration runs inside `wbs-work-packages` slice 3a's stop-the-world window
   (F1).** This change already depends on 3a, which lifts markers to scope kinds under that
   window. Its migration copies every marker into `calendar_period` (id, scope kind, scope id,

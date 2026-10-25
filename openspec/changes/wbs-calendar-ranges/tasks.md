@@ -11,8 +11,7 @@
       Recommended: yes.
 - [ ] 0.6 **Q6 awaiting Dany:** explicit-date writes on an undated package accepted, the axis
       drag refused (CR19)? Recommended: yes.
-- [ ] 0.7 Dany confirms or amends CR1–CR19; CR10 (the term Calendar period, where he said
-      "ranges") especially. CR9 is withdrawn.
+- [ ] 0.7 Dany confirms or amends CR1–CR19 (Q1–Q6). CR10 (the term Calendar period) settled 2026-10-25; CR9 stays withdrawn.
 - [ ] 0.8 Landing order: `wbs-work-packages` slice 3a on `main` (scope kinds, the chain, the
       scoped marker table, the stop-the-world window) before slice 3 here; #723 (one space or
       none, P19 `organization.manage_settings`) before slices 2 and 4; the `wbs-permissions`
