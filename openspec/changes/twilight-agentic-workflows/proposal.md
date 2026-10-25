@@ -13,9 +13,8 @@ LangGraph, infrastructure and a Backlog.md migration before a working execution 
 - **WBS bridge:** guarded claims, progress, measures and exact-authority release under a machine
   credential (pinned to the coordinator's agent person), with typed refusals.
 - **S7a coordinator:** unified CTT hints, deferral and summary over a linear compatibility
-  workflow; abstract RunStore/ArtifactStore ports; intent/outbox reconciliation and safe
-  recovery of surviving workers or uncertain effects. SQLite is the current adapter choice;
-  any conformant provider can replace it.
+  workflow; a reconcile loop whose only store is WBS (claims, attempts, progress, measures;
+  G2, 2026-10-25); safe recovery of surviving workers or uncertain effects.
 - **S7b integration:** reuse the runtime for pinned type-specific DAGs, joins and repair.
   W0â€“W12 in the WBS planning project remain required product scope.
 - **Staged cutover:** S7a safety proofs precede deployment and real dogfood. A linear run does
@@ -29,8 +28,7 @@ plans the integration; the WBS editor, model and migration are delivered by W0â€
 ## Constraints
 
 Bun/Nx; pinned SDK packages; provider-prefixed model IDs; machine credentials (pinned to the coordinator's agent person); no credentials
-in retained manifests. Burokrat rules are pure. Storage engines and schemas stay behind
-semantic ports. Unknown worker/effect state blocks automatic retry. The laptop cap is two.
+in retained manifests. Burokrat rules are pure. The coordinator persists nothing outside WBS. Unknown worker/effect state blocks automatic retry. The laptop cap is two.
 
 ## Capabilities
 

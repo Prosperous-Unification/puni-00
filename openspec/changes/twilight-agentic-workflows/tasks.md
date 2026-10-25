@@ -63,26 +63,26 @@
 
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
-- [ ] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
-      capacity, revision and owner conflicts, immutable manifests, outcome/outbox atomicity,
-      inbox deduplication and receipt reconciliation. No SQL or engine-specific schema in ports.
-- [ ] 6a.2 Green: semantic ports and memory fixture, then the currently selected durable
-      adapter (SQLite). Keep physical schema/migrations in that adapter and select it by configuration.
+- [ ] 6a.1 Red: reconcile-loop tests over a fake WBS bridge: a tick rebuilds the frontier from
+      claims, attempts and progress; a running attempt is never admitted twice; a restart with
+      an empty working directory reaches the same frontier (G2, 2026-10-25).
+- [ ] 6a.2 Green: the loop over the bridge; no store of its own and no SQL in Dash.
 - [ ] 6a.3 Red/green: binding manifest retention and integrity, pinned prompt/tool-policy
       versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.
 - [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
       DEFER_READY, generation-checked settlement and callback-free summary. Require complete
       discovery/validation and filter durable waits/running/retry state before admission.
-- [ ] 6a.5 Red/green: persist admission/launch intent, exact claim receipts and operation-key
-      locators; commit outcomes and outbox atomically, reconcile WBS acceptance before successors.
+- [ ] 6a.5 Red/green: admission as one claim-and-attempt batch before launch, the locator on the
+      attempt's `reference`, the outcome as one batch retried next tick while unacknowledged;
+      successors wait for acceptance.
 - [ ] 6a.6 Red: coordinator-only crash with worker surviving, effect-before-result-save,
-      progress-before-ack, duplicate signals, stale owner and unresolved worker/effect state.
-      Fault injection must catch bypassed fencing, duplicate replacement and premature capacity release.
-- [ ] 6a.7 Green: ownership acquisition/fencing, worker lookup/reattach or verified quiescence,
-      receipt/effect reconciliation and explicit unresolved operator path. Never mass-mark running
-      attempts interrupted merely because the coordinator restarted.
+      outcome-before-reply, duplicate signals, stale claim and unresolved worker/effect state.
+      Fault injection must catch a bypassed claim check, duplicate replacement and premature capacity release.
+- [ ] 6a.7 Green: worker lookup by attempt reference, reattach or verified quiescence, effect
+      reconciliation and the explicit unresolved operator path. Never mass-cancel running
+      attempts merely because the coordinator restarted.
 - [ ] 6a.8 Provide run-coordinator, inspect-runs, resume-attempt, cancel-attempt and
-      reconcile-attempt operations over adapter configuration. Demonstrate safe compatibility
+      reconcile-attempt operations over the WBS bridge. Demonstrate safe compatibility
       execution with fake adapters before I5.02 deployment or I5.04 real dogfood.
 
 ## 6b. Type-specific workflows and provider proof (S7b)
@@ -91,8 +91,8 @@
       through the same hints/runtime path; no second interpreter and no flattened column chain.
 - [ ] 6b.2 Prove parallel joins, graph-aware claim races, repair epochs, adoption/re-pinning,
       retained artifacts and stale-result refusal across restart.
-- [ ] 6b.3 Run identical storage contracts against a second durable adapter chosen for deployment;
-      any conformant store is eligible. Prove versioned transfer with paused writers before claiming portability.
+- [ ] 6b.3 Run the loop against a second WBS deployment (dev and a local be-01) with paused
+      writers; the only portability is WBS's own export (G2).
 - [ ] 6b.4 Finish W0–W12 product acceptance: distinct type DAGs in one project, migrated facts,
       schedules, editor/boards, imports/exports and full recovery. Compatibility dogfood is not this gate.
 
