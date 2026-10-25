@@ -13,7 +13,7 @@ a **question**: an additive, never-deleted record beside one step node and one a
 same shape as step blockage (ADR 0053), and that the plan, not the agent, computes its
 disposition from declared risk facts, the project's topics and the step's phase. A blocked
 question writes the existing step blockage; an overturned one creates a work item. Priority
-is derived on read from the work item's priority and the sub-tree the node unlocks.
+is derived on read from the work item's priority and the node's downstream reach.
 
 ## Considered options
 

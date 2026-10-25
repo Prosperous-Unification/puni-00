@@ -1027,7 +1027,8 @@ _Avoid_: Activation acknowledgment, enable flag
 **Question**:
 An audited record, beside one step node and the attempt that raised it, of one thing the
 plan did not settle: what was asked, the agent's proposed answer, its declared risk facts and
-topics, the disposition the policy gave it and, later, the reviewer's verdict. Never deleted
+topics, who submitted it (always the attempt's executor), the disposition the policy gave it
+and, later, the reviewer's verdict. Never deleted by any command
 ([ADR 0059](docs/adr/0059-a-question-is-a-satellite-fact-judged-by-the-plan.md)).
 _Avoid_: assumption (a disposition), ticket, issue, decision log, open point, needs-Dany
 
@@ -1085,8 +1086,8 @@ _Avoid_: strictness, autonomy dial, away mode, blocker factor
 
 **Policy basis**:
 The snapshot a question keeps of what disposed of it — the policy's source and version, the
-hard-gate revision, the phase, the mode, the profile applied and the pushed topics — so the
-disposition replays without any policy row after the policy changes.
+hard-gate set, the phase, the mode, the profile applied and the pushed topics — so the
+disposition replays with no policy row and no current constant after any of them changes.
 _Avoid_: policy version (alone), audit, provenance
 
 **Fact condition**:
@@ -1101,26 +1102,27 @@ _Avoid_: stage, step kind, step type, period
 
 **Phase profile**:
 The part of a policy for one phase: the fact conditions that block and the fact conditions
-that notify. The planning profile is the stricter one so that questions arrive while they are
-cheap. Topic pushes sit on the topics, per phase, not here.
+that notify. The planning profile is stricter by default so that questions arrive while they
+are cheap. Topic pushes sit on the topics, per phase, not here.
 _Avoid_: ruleset, level, preset
 
 **Hard gate**:
 A risk fact that blocks under every mode and profile and that no policy can name or lift:
-spends, touches production, destructive, changes access. Fixed per deployment with a revision
-the basis records. What acting would do cannot be reviewed after.
+spends, touches production, destructive, changes access. Fixed per deployment; the basis
+records the set that applied. What acting would do cannot be reviewed after.
 _Avoid_: safety rule, forbidden action, always-block list
 
 **Reviewer**:
 An account a project lists to receive its notices, with a channel and address. Being listed
-decides notice only; answering a question is the permission to edit the plan, which a machine
-credential never holds. A project with an empty list writes no notices.
+decides notice only; answering a question is the permission to edit the plan, refused to an
+agent credential whatever it holds. A project with an empty list writes no notices.
 _Avoid_: author, approver, admin (which is a role), owner (a project has none)
 
 **Notice**:
 One row written for one reviewer when a question needs them — opened, aged past the
 unanswered age, or in the daily digest — leased by a delivery worker, reported attempt by
-attempt, rescheduled on a bounded schedule and never dropped; delivered at least once.
+attempt, rescheduled on a bounded schedule and never dropped. Delivered at least once: the
+lease owns the row, not the gateway.
 _Avoid_: notification, alert, push, message, event
 
 **Downstream reach**:
