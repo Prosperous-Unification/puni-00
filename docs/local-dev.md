@@ -27,18 +27,19 @@ socket and optimization reports itself unavailable. A shell that exports
 `HOSTNAME` overrides the file. A `be-01/.env` seeded before the line existed is
 diagnosed by `bun run dev:setup`: add `HOSTNAME=000000000000` to it.
 
-## Run all three at once
+## Run all four at once
 
-`bun run dev` runs `nx run-many -t serve --projects=wbs-be-01,wbs-gw-01,wbs-fe-01 --parallel=3`,
+`bun run dev` (`bin/dev.sh`) runs `nx run-many -t serve --projects=wbs-be-01,wbs-gw-01,wbs-fe-01,wbs-mcp-01`,
 which brings up:
 
-| App     | URL                     | Notes                                |
-| ------- | ----------------------- | ------------------------------------ |
-| `be-01` | <http://localhost:3100> | Bun + Elysia; SQLite at `./local.db` |
-| `gw-01` | <http://localhost:3200> | Bun + Elysia; WS on `/ws`            |
-| `fe-01` | <http://localhost:4200> | Vite dev server with HMR             |
+| App      | URL                     | Notes                                |
+| -------- | ----------------------- | ------------------------------------ |
+| `be-01`  | <http://localhost:3100> | Bun + Elysia; SQLite at `./local.db` |
+| `gw-01`  | <http://localhost:3200> | Bun + Elysia; WS on `/ws`            |
+| `fe-01`  | <http://localhost:4200> | Vite dev server with HMR             |
+| `mcp-01` | <http://localhost:3300> | MCP endpoint `/mcp`; see below       |
 
-Logs are interleaved. `Ctrl-C` stops all three.
+Logs are interleaved. `Ctrl-C` stops all four.
 
 ## Run one at a time
 
@@ -110,6 +111,32 @@ session token in `__Host-wbs_access`, the `__Host-wbs_organization` cookie that
 (`patch.accountId`), then `POST /api/organization/machine-credentials`
 `{ source: 'api_key', name, personId }`. The answer carries the key once; the agent sends it as
 `Authorization: Bearer`. Lease timing has no knob: claims hold for the real 15 minutes.
+
+These agents use HTTP only. An API key cannot reach the MCP endpoint: mcp-01 accepts only a JWT
+its own OAuth server issued or its trusted gateway verified, and an MCP agent comes from a human's consent
+([fleets and MCP](auth-integration.md#fleets-and-the-mcp-endpoint)). This stack does not run
+mcp-01, and could not serve a consent if it did: be-01 boots without `WBS_DELEGATION_VERIFY_KEY`,
+and there is no upstream login for mcp-01 to send the human to. `bun run dev` starts mcp-01, but
+its seeded `.env` leaves organization delegation off (`INTERNAL_AUTH_SECRET` commented out),
+points `WBS_API_URL` at the deployed dev backend and names a placeholder issuer, so a consent
+cannot complete there either. To
+exercise MCP consent and agents, use the booted fixture behind mcp-01's
+`organization-delegation.boot.test.ts`: `apps/wbs/be-01/src/testing/mcp-delegation-backend.ts`
+(production be-01 composition, fresh delegation key pair, a test JWKS for the upstream login).
+
+Caps come from the test defaults (50 agent persons, 200 concurrent claims, 10,000 units per
+resource). To show or change them, point `organization-limits-cli.ts` at the database path the
+server prints on start. The CLI reads the deployment defaults from the environment and exits 1
+with a `ValidationError` without all three, even for `show`, so set them to the same numbers:
+
+```bash
+DB_PATH=<printed database path> ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50 \
+  ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200 \
+  ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000 \
+  bun apps/wbs/be-01/src/organization-limits-cli.ts show --organization org-local
+```
+
+`set` and `reset` rehearse unless given `--apply`: [organization limits](runbook-organization-activation.md#organization-limits-after-activation).
 
 ## Tests / lint / typecheck
 

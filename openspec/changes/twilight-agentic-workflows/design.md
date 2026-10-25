@@ -170,7 +170,7 @@ Each Dash attempt corresponds one-to-one with a WBS step-node Attempt; this rema
 
 ## Run coordination
 
-The project owner selected durable execution records with receipt-based reconciliation on 2026-10-25 after comparing both recovery models. [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) records G2 and its limits. The existing implementation, recovery proofs and release gates remain separate acceptance work; architectural merges remain held.
+The project owner selected durable execution records with receipt-based reconciliation on 2026-10-25 after comparing both recovery models. [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) records G2 and its limits. The owner's subsequent 2026-10-25 instruction authorizes commit, push and merge after required evidence, review and release checks, superseding the earlier architectural publication hold. Implementation, recovery proofs and release gates remain separate acceptance work.
 
 ### Accepted boundaries
 

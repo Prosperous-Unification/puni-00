@@ -30,6 +30,11 @@
       — test: be-01 member and viewer refused `forbidden` on both command routes, admin and
       super-admin allowed; fe-01 Remove per role and a refused removal said in place;
       negative: skip the role check and the member's cascade lands. `verify.md` "Task 1.6".
+- [x] 1.7 The Resources section offers only what the role may send (swarm rehearsal S2,
+      2026-10-25) — test: a viewer gets no capacity box, Edit, Add or Remove; a member and a
+      viewer never request the providers list; a refused capacity shows the declared number
+      again and is said beside its row; negative: offer the writes whatever the role and the
+      viewer test fails. `verify.md` "Task 1.7".
 
 ## 2. Occupancy on claims (needs slice 1 and the claims change slice 1)
 

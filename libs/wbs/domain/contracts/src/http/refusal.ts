@@ -488,30 +488,32 @@ export type CommandRefusalDetail = {
             ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }
             : C extends 'taken'
               ? { name?: string }
-              : C extends 'mixed_rate_cards'
-                ? { bases: typeof mixedBases.infer }
-                : C extends 'not_startable'
-                  ? { status: string }
-                  : C extends 'step_done'
-                    ? { stepIds: string[] }
-                    : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
-                      ? { holders: ClaimRefusalHolder[] }
-                      : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
-                        ? { holder: ClaimRefusalHolder }
-                        : C extends 'below_declared_demand'
-                          ? { resourceId: string; asked: number; declared: number }
-                          : C extends 'below_held_occupancy'
-                            ? { resourceId: string; asked: number; held: number }
-                            : C extends 'resources_exhausted'
-                              ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
-                              : C extends 'agent_person_limit'
-                                ? LimitRefusalDetail
-                                : C extends 'claim_limit'
-                                  ? ClaimLimitRefusalDetail
-                                  : C extends 'capacity_limit'
-                                    ? CapacityLimitRefusalDetail
-                                    : C extends 'budget_exhausted'
-                                      ? BudgetExhaustedRefusalDetail
+              : C extends 'not_startable'
+                ? { status: string }
+                : C extends 'step_done'
+                  ? { stepIds: string[] }
+                  : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
+                    ? { holders: ClaimRefusalHolder[] }
+                    : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
+                      ? { holder: ClaimRefusalHolder }
+                      : C extends 'below_declared_demand'
+                        ? { resourceId: string; asked: number; declared: number }
+                        : C extends 'below_held_occupancy'
+                          ? { resourceId: string; asked: number; held: number }
+                          : C extends 'resources_exhausted'
+                            ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
+                            : C extends 'agent_person_limit'
+                              ? LimitRefusalDetail
+                              : C extends 'claim_limit'
+                                ? ClaimLimitRefusalDetail
+                                : C extends 'capacity_limit'
+                                  ? CapacityLimitRefusalDetail
+                                  : C extends 'budget_exhausted'
+                                    ? BudgetExhaustedRefusalDetail
+                                    : // Proof (type boundary only): omitting this arm produced TS2353 for bases
+                                      // and TS2578 for missing-bases negatives in assertMixedRateCardRefusalTypes.
+                                      C extends 'mixed_rate_cards'
+                                      ? { bases: typeof mixedBases.infer }
                                       : Record<never, never>);
 };
 

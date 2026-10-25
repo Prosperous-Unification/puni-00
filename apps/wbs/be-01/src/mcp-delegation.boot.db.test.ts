@@ -666,15 +666,20 @@ async function requestMint(
   );
 }
 
-/** Two activated organizations; ada's agent `claire` and eve's agent `rogue` in A, grace's `gw` in B. */
+/**
+ * Two activated organizations; ada's agents `claire` ("Claire") and `zeta`
+ * ("Ash") and eve's agent `rogue` in A, grace's `gw` in B. Each agent's local
+ * name differs from its id and root name, and the name order is not the id order.
+ */
 async function activateWithAgents(process: BootedBrowserProcess): Promise<void> {
   await activateTwoOrganizations(process);
   process.sqlite.run(
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'u-eve', 'member', 1)",
   );
-  addAgentPerson(process.sqlite, 'claire', 'org-a', 'u-ada');
-  addAgentPerson(process.sqlite, 'rogue', 'org-a', 'u-eve');
-  addAgentPerson(process.sqlite, 'gw', 'org-b', 'u-grace');
+  addAgentPerson(process.sqlite, 'claire', 'org-a', 'u-ada', 'Claire');
+  addAgentPerson(process.sqlite, 'zeta', 'org-a', 'u-ada', 'Ash');
+  addAgentPerson(process.sqlite, 'rogue', 'org-a', 'u-eve', 'Rogue');
+  addAgentPerson(process.sqlite, 'gw', 'org-b', 'u-grace', 'GW');
   process.sqlite.run(
     "INSERT INTO person (id, name, kind, account_id) VALUES ('ada-human', 'Ada', 'person', 'u-ada')",
   );
@@ -716,7 +721,10 @@ describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
             organizationId: 'org-a',
             name: 'org-a',
             role: 'member',
-            agents: [{ personId: 'claire', name: 'root-claire' }],
+            agents: [
+              { personId: 'zeta', name: 'Ash' },
+              { personId: 'claire', name: 'Claire' },
+            ],
           },
         ],
       },
