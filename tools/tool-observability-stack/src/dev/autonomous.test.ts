@@ -197,3 +197,56 @@ test('actual storage SSH fixture reports bounded malformed output, command failu
     rmSync(directory, { recursive: true });
   }
 });
+
+async function readStorageFixture(stdout: string) {
+  const { chmodSync, mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const directory = mkdtempSync(join(tmpdir(), 'puni-storage-header-'));
+  try {
+    const path = join(directory, 'ssh');
+    writeFileSync(
+      path,
+      `#!/usr/bin/env bun\nif(!Bun.argv.includes('h3mon')||!Bun.argv.some(arg=>arg.includes('df -Pk /var/lib/docker')))throw new Error('foreign source');\nconsole.log(${JSON.stringify(stdout)});\n`,
+    );
+    chmodSync(path, 0o700);
+    return await createStorageReader(path)(new AbortController().signal);
+  } finally {
+    rmSync(directory, { recursive: true });
+  }
+}
+
+test('actual padded df header survives the production SSH reader while ordered header tokens remain required', async () => {
+  const observedSeconds = Math.floor(Date.now() / 1000);
+  const body = `/dev/sda1 157149496 23500788 127227868 16% /\n${String(observedSeconds)}`;
+  const reading = await readStorageFixture(
+    `Filesystem     1024-blocks     Used Available Capacity Mounted on\n${body}`,
+  );
+  expect(reading).toMatchObject({
+    state: 'complete',
+    observedAt: observedSeconds * 1000,
+    availableBytes: 127227868 * 1024,
+    capacityBytes: 157149496 * 1024,
+  });
+  for (const header of [
+    'Filesystem 1024-blocks Available Used Capacity Mounted on',
+    'Filesystem 1024-blocks Used Available Capacity Mounted',
+  ]) {
+    expect((await readStorageFixture(`${header}\n${body}`)).state).toBe('unavailable');
+  }
+});
+
+test('production storage reader rejects just-next-second remote time with otherwise valid source evidence', async () => {
+  const clock = Date.now();
+  const nextSecond = Math.floor(clock / 1000) + 1;
+  const originalClock = Date.now;
+  Date.now = () => clock;
+  try {
+    const reading = await readStorageFixture(
+      `Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 157149496 23500788 127227868 16% /\n${String(nextSecond)}`,
+    );
+    expect(reading).toMatchObject({ state: 'unavailable', reason: 'invalid-reading' });
+  } finally {
+    Date.now = originalClock;
+  }
+});

@@ -25,12 +25,14 @@ export interface HealthCheckpoint {
   storage: StorageState;
 }
 
-/** Parses the one filesystem selected by the fixed remote command; observedAt is remote completion time. */
+/** Parses one fixed filesystem with df column padding; ordered header tokens and remote completion time stay required. */
 export function parseStorage(text: string, observedAt: number): StorageState {
   const lines = text.trim().split('\n');
+  // Proof: removing whitespace normalization rejects actual padded stdout; removing token equality accepts the reordered-header SSH fixture.
   if (
     lines.length !== 2 ||
-    lines[0].trim() !== 'Filesystem 1024-blocks Used Available Capacity Mounted on'
+    lines[0].trim().split(/\s+/).join(' ') !==
+      'Filesystem 1024-blocks Used Available Capacity Mounted on'
   )
     throw new Error('Invalid storage reading');
   const fields = lines[1].trim().split(/\s+/);
@@ -84,7 +86,9 @@ export function createStorageReader(sshExecutable = 'ssh') {
       if (timestamp === undefined || !/^\d+$/.test(timestamp))
         return { state: 'unavailable', reason: 'invalid-reading', checkedAt };
       const observedAt = Number(timestamp) * 1000;
-      if (observedAt < checkedAt - 1000 || observedAt > Date.now() + 1000)
+      // date +%s floors completion time: one second of lower-bound quantization is allowed, never future time.
+      // Proof: removing the upper bound accepts the otherwise-valid just-next-second SSH fixture.
+      if (observedAt < checkedAt - 1000 || observedAt > Date.now())
         return { state: 'unavailable', reason: 'invalid-reading', checkedAt };
       try {
         return parseStorage(lines.join('\n'), observedAt);
