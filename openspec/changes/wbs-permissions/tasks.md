@@ -16,7 +16,10 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       its backfill mapping is P7's decision on what E8 keeps; slice 2 also for P16; slice 3
       for P3, P4, P5 and P10; slice 4 for P11 and P17; slice 6 for P5, P7, P15 and P17.
       Slices 3 to 7 run after #698 slice 1; 3.2 (its listing statement joins
-      `work_package.project_id`) and 3.4 (slice 3's project rules) after #698 slice 2.
+      `work_package.project_id`) and 3.4 (slice 3's project rules) after #698 slice 2. The
+      full order is #698 design.md's "Dependency graph" (#698 E41): 4.1 lands before 3.3
+      (creation grants are audited as `access_granted`), and 3.3 and 4.1 land before #698
+      slice 2.
 
 ## 1. Catalogue, grant tables and backfill
 
@@ -33,7 +36,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       the credential copy and an `org-admin`'s credential receives `org-admin`; watched.
 - [ ] 1.2 Red: `access-role.test.ts` in `@wbs/domain` for the pure catalogue,
       the `ScopeChain` value type shared with #698 (design.md P13) and
-      `may(effective, permission)`: the 9 × 21 table of permission-matrix.md as a
+      `may(effective, permission)`: the matrix of permission-matrix.md as a
       property (every cell), kind filtering (a project role never satisfies an
       organization permission), and the cap — test: one case per permission plus the
       table; negative: lower `package.claim_for_others` to level 2 and the machine case
@@ -134,8 +137,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       through `listForInOrganization` and the hidden work package appears in the roll-up;
       answer `403` on the plain member's `GET /api/spaces` and the `[]` case fails;
       watched.
-- [ ] 3.3 Restricted work packages (P5, P6): the evaluator's read-only rule, creation
-      grants for creators, the flag clear through `organization.recover_restricted` with
+- [ ] 3.3 Restricted work packages (P5, P6), with work package targets built from
+      `InterimPackageChain` (P13): the evaluator's read-only rule, creation
+      grants for creators (each with its `access_granted` row, after 4.1), the flag clear through `organization.recover_restricted` with
       one `restricted_work_package_recovery` row, every other super-admin write refused —
       test: `restricted-work-package.controller.db.test.ts` for the five scenarios of the
       spec and organization-access's three; negatives: drop the creation grant and the
@@ -147,7 +151,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       names; `moveWorkPackage` at both projects; the `/api/projects` family
       (`organization.create_project`, `project.read` with the P3 shell,
       `project.manage_settings` for patch, delete, settings, project steps and the type
-      allow-list); `createProject` writes the creator's `project-manager` grant (P6) —
+      allow-list); `InterimPackageChain` replaced by `ProjectChain` and `WorkPackageChain`;
+      the creator's `project-manager` grant, written by #698 slice 2's `createProject` in its
+      transaction (#698 E41), is honoured —
       test: `project-permission.controller.db.test.ts` for every project row of
       permission-matrix.md and the "Moving a work package needs both projects" and "A
       role counts only for the kinds it governs" scenarios; negatives: check the move at

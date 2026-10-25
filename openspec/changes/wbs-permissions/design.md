@@ -232,9 +232,17 @@ keeps A23's "no claim-admin bypass for a machine".
 
 **P13. One port, one query, one listing.** `@wbs/domain` gains the pure
 `permissionsOf(level, kind)` and `may(effective, permission)`, and the `ScopeChain` value
-type shared with #698 (`{ organizationId, spaceId, projectId, workPackageId? }`, `spaceId`
-nullable since 2026-10-25, P14), which
-this change's slice 1 defines because it lands first; #698's `resolveSetting` walks it
+type shared with #698, which this change's slice 1 defines because it lands first. _Revised
+2026-10-25 after the Codex review of #723 (F6, #698 E42): was one record
+`{ organizationId, spaceId, projectId, workPackageId? }`, which could not name an
+organization or a space without a project._ `ScopeChain` is a union discriminated by
+`level` that ends at the target's own level: organization, space, project (with
+`spaceId: string | null`) or work package (with its project and `spaceId`). #698 reads the
+organization and space members for its settings routes, which resolve with no project. Until
+#698 slice 2 there is no project, so tasks 1.3 to 3.3 address a work package through
+`InterimPackageChain` (organization and work package ids only), which task 3.4 removes;
+`AccessTarget`'s `chain` fields narrow to the matching members (`ProjectChain`,
+`WorkPackageChain` or the interim chain); #698's `resolveSetting` walks it
 nearest-wins and `effectiveRoleAt` combines it strongest-wins. `@wbs/core` gains the port
 `AccessDecisions` with `effectiveRoleAt(principal, target)` and
 `readablePackageIds(principal, organizationId)`, implemented in `@wbs/store-sqlite` with
@@ -251,7 +259,8 @@ setting with different values in two of them resolves `ambiguous_space_value`, a
 grants combine strongest-wins over the set"._ `scope_kind`'s CHECK admits
 `organization`, `project`, `work_package` today; widening it to `space` is a CHECK change,
 not a reshape. A project sits in one space or none, so its chain has at most one space:
-`ScopeChain.spaceId: string | null`, where null is an organization-level project. There is
+the project and work package members carry `spaceId: string | null`, where null is an
+organization-level project, and a space member carries its `spaceId` (#698 E42). There is
 no ambiguity rule. Space grants, when the slot opens, combine strongest-wins with the other
 levels over that single slot, so opening it needs the CHECK widening and nothing else.
 Every effective-role read carries its
@@ -317,10 +326,12 @@ would name its own.
 planner, overrulable by id:_ #698 adds settings at the organization and at space (E18). A new
 organization-kind permission `organization.manage_settings` (level 4, held by
 `org-admin` and `org-super-admin`) gates `PATCH /api/organization/settings`, whose read
-`GET /api/organization/settings` is `organization.read`. `GET`/`PATCH
-/api/spaces/:id/settings` are `organization.manage_spaces` for the write; the read is
-`organization.navigate` for principals who reach a project of that space, and otherwise
-answers as P10. Project settings stay `project.manage_settings`. The combined create
+`GET /api/organization/settings` is `organization.read`. `PATCH /api/spaces/:id/settings`
+is `organization.manage_spaces`. `GET /api/spaces/:id/settings` is a space read, listed
+with the other space reads under `package.read` in permission-matrix.md: it needs
+`organization.navigate` and a readable project in that space, and otherwise answers
+`404 not_found` as P10 (_split 2026-10-25 after the Codex review of #723, F11: both rows sat
+under `organization.manage_spaces`_). Project settings stay `project.manage_settings`. The combined create
 `POST /api/projects { name, workPackage? }` (#698 E30) is `organization.create_project` and
 writes both the creator's `project-manager` grant and, for the first work package, their
 `package-manager` grant (P6), in the same transaction.
@@ -397,9 +408,10 @@ Invariants the store checks in the grant's transaction (each with a negative):
 
 ## Permission vocabulary
 
-Twenty-one permissions over four evaluation kinds. The full inventory of every
-plan-command kind (61), every directory command (21 of those 61) and every route family
-(133 contract endpoints today, 155 after #698 and this change; counted at `0b1dddaa0`) with
+Twenty-two permissions over four evaluation kinds (P19 added `organization.manage_settings`).
+The full inventory of every plan-command kind (61), every directory command (21 of those 61)
+and every route family (133 contract endpoints today, 159 after #698 and this change;
+counted at `0b1dddaa0`, corrected 2026-10-25 after the Codex review of #723, F11) with
 its permission is
 [permission-matrix.md](permission-matrix.md), which is the heart of this change and the
 source the tests enumerate.
@@ -452,12 +464,36 @@ interface EffectiveRole {
 }
 function may(effective: EffectiveRole | null, permission: Permission): boolean;
 
-interface ScopeChain {
+// shared with #698's resolveSetting; discriminated by level, ending at the target (P13)
+type ScopeChain = OrganizationChain | SpaceChain | ProjectChain | WorkPackageChain;
+interface OrganizationChain {
+  level: 'organization';
+  organizationId: string;
+}
+interface SpaceChain {
+  level: 'space';
+  organizationId: string;
+  spaceId: string;
+}
+interface ProjectChain {
+  level: 'project';
   organizationId: string;
   spaceId: string | null; // null = organization-level project (P14)
   projectId: string;
-  workPackageId?: string;
-} // shared with #698's resolveSetting
+}
+interface WorkPackageChain {
+  level: 'work_package';
+  organizationId: string;
+  spaceId: string | null;
+  projectId: string;
+  workPackageId: string;
+}
+/** Until #698 slice 2 only: a work package before projects exist; removed by task 3.4. */
+interface InterimPackageChain {
+  level: 'work_package';
+  organizationId: string;
+  workPackageId: string;
+}
 
 // @wbs/core ports/access-decisions.ts
 type AccessTarget =

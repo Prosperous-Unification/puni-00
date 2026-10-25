@@ -52,30 +52,70 @@ entries, history events and saved plans SHALL keep working.
 - **WHEN** one work package has no organization row
 - **THEN** the migration fails on its guard naming the count, and nothing is renamed
 
-### Requirement: A rename migration runs only inside a proven window
+### Requirement: A window migration runs only inside a proven window
 
-`migration-lint` SHALL refuse the slice 1 migration unless `bin/assert-rename-window.sh`
-exists. The gate SHALL pass only when no prod release is recorded or a backup report of the
-live database is fresh (its sha256 equals the file's now and its migration set equals the
-applied set), and SHALL refuse a missing, unreadable or stale report and a missing or
-unreadable state directory.
+Every non-additive migration of this change (design E39) SHALL carry an explicit
+`WAIVERS` entry naming its forbidden statements and the gate `bin/assert-rename-window.sh`,
+and `migration-lint` SHALL refuse it while that script is absent. None SHALL rely on the
+compatible-rebuild exemption. The gate SHALL pass only when no prod release is recorded,
+the application container is stopped, and a backup report written by
+`backup-db-cli.ts --report` matches the live database: source path, source sha256 after a
+WAL checkpoint, an empty `-wal`, the snapshot's own sha256, and the applied migration
+ledger by name and hash. It SHALL refuse a missing, unreadable or malformed report, any
+mismatch, and a missing or unreadable state directory, whatever the report says. Every
+window migration's `down.sql` SHALL refuse; the rollback is the snapshot restored with the
+previous code.
 
-#### Scenario: A write after the backup refuses the window
+#### Scenario: A WAL-only write after the backup refuses the window
 
-- **WHEN** a row is written after `backup-db-cli.ts` produced the report
-- **THEN** the gate exits 1 naming the sha mismatch
+- **WHEN** a connection with automatic checkpoints off writes one row after
+  `backup-db-cli.ts --report` produced the report, and keeps the connection open
+- **THEN** the gate exits 1 naming the non-empty `-wal`
 
-#### Scenario: Slices 2 and 3 need no waiver
+#### Scenario: A checkpointed write after the backup refuses the window
 
-- **WHEN** the slice 2 migration rebuilds `work_package` in the compatible rebuild form with
-  no `DROP COLUMN` or `RENAME COLUMN` statement
-- **THEN** `migration-lint` passes it without a `WAIVERS` entry, and its window still runs
-  the gate before deploy
+- **WHEN** a row is written and checkpointed after the report was produced
+- **THEN** the gate exits 1 naming the source sha256 mismatch
+
+#### Scenario: A report of another database refuses the window
+
+- **WHEN** the report's source path differs from `DB_PATH`
+- **THEN** the gate exits 1 naming `sourcePath`
+
+#### Scenario: An unreadable state directory refuses even with a valid report
+
+- **WHEN** the report matches the live database and the state directory cannot be read
+- **THEN** the gate exits 1 as unreadable state
+
+#### Scenario: A running application refuses the window
+
+- **WHEN** the report matches and the application container is still running
+- **THEN** the gate exits 1 naming the container
+
+#### Scenario: Two drops cannot pass as a compatible rebuild
+
+- **WHEN** slice 3a's `space_holds_projects_people_teams` shape, which drops `project` and
+  `space_work_package`, carries the compatible-rebuild marker instead of its waiver
+- **THEN** `migration-lint` refuses it on `DROP TABLE`; with its waiver and gate script
+  present it passes
 
 #### Scenario: The waiver needs its gate
 
 - **WHEN** `bin/assert-rename-window.sh` is deleted from the tree
-- **THEN** `migration-lint` refuses the waived migration
+- **THEN** `migration-lint` refuses every waived window migration
+
+#### Scenario: A window migration's down script refuses
+
+- **WHEN** `migrate-down-cli.ts` runs a window migration's `down.sql`
+- **THEN** it fails on its guard naming the restore step, and the schema and ledger are
+  unchanged
+
+#### Scenario: A rehearsed rollback restores the snapshot
+
+- **WHEN** a copy of the dev database carrying non-default settings goes through a window,
+  `/health` fails, and the runbook's rollback runs
+- **THEN** the restored file's sha256 equals the snapshot's, the ledger equals the report's,
+  and every work package reads its pre-window values
 
 ### Requirement: The plan document is version 12, then 13, then 14
 
@@ -99,9 +139,11 @@ shapes on read, and SHALL refuse a newer one with `400 unsupported_version`.
 
 ### Requirement: Saved plans read across the input schema bump
 
-`CANONICAL_PLAN_INPUT_SCHEMA_VERSION` SHALL be 10 after slice 1 and 11 after slice 3a. A body
-stored at 9 or earlier SHALL upgrade on read and compare equal to itself re-saved; no stored body SHALL
-be rewritten.
+`CANONICAL_PLAN_INPUT_SCHEMA_VERSION` SHALL be 10 after slice 1, 11 after slice 2 and 12
+after slice 3a. A body stored at an earlier version SHALL upgrade on read and compare equal to
+itself re-saved; no stored body SHALL be rewritten. From 11 the input SHALL carry no owner; a
+stored `ownerId` SHALL be kept as a retired field, compared only when both sides carry it,
+and never invented for a body that lacks it.
 
 #### Scenario: An old saved plan still compares
 
@@ -109,14 +151,27 @@ be rewritten.
   same unchanged work package
 - **THEN** the compare reports no difference
 
+#### Scenario: A retired owner is compared only on both sides
+
+- **WHEN** two version 10 bodies of one work package carry different `ownerId` values, and
+  one of them is compared with a version 11 body of the same package
+- **THEN** the first compare reports a `retired-field` difference and the second reports no
+  difference
+
 ### Requirement: A project is an organization's named collection of work packages
 
 `POST /api/projects` SHALL create a project with a unique name within the organization,
 and with `workPackage: { name }` SHALL create the project and its first work package in one
-transaction; `PATCH` renames it; `DELETE` removes it only while it holds no work package,
-the organization's only project included. Every work package SHALL reference exactly one
-project of its own organization, enforced in storage, and `POST /api/work-packages` and the
-import routes SHALL refuse `422 project_required` when the body names no `projectId`.
+transaction; the same transaction SHALL write the creator's `project-manager` grant, with a
+work package the creator's `package-manager` grant on it, and the audit rows
+`project_created` and one `access_granted` per grant, so that either all of them commit or
+none does. `PATCH` renames a project; `DELETE` removes it only while it holds no work
+package, the organization's only project included. Every work package SHALL reference
+exactly one project of its own organization, enforced in storage. `POST /api/work-packages`
+and the import route SHALL refuse `422 project_required` when `projectId` is missing or
+`null`, `422 invalid_body` when it is malformed, and `404 not_found` when it names no
+project of the caller's organization. The import body SHALL be `{ projectId, document }`;
+the document's own project fields SHALL be informational.
 
 #### Scenario: Duplicate name
 
@@ -135,15 +190,36 @@ import routes SHALL refuse `422 project_required` when the body names no `projec
 
 #### Scenario: Creating a work package without a project is refused
 
-- **WHEN** `POST /api/work-packages` is sent without `projectId`, and again with a foreign one
-- **THEN** the first answers `422 project_required`, the second answers `404`, and no work
-  package is created
+- **WHEN** `POST /api/work-packages` is sent without `projectId`, with `projectId: null`,
+  with `projectId: 42`, with the id of another organization's project, and with an id no
+  project has
+- **THEN** the first two answer `422 project_required`, the third `422 invalid_body`, the
+  last two `404 not_found` with identical bodies, and no work package is created
 
 #### Scenario: Importing without a project is refused
 
-- **WHEN** a plan document is imported through the import route, and again through mcp-01's
-  import tool, both naming no `projectId`
-- **THEN** both answer `422 project_required` and no work package is created
+- **WHEN** `{ document }` without `projectId` is posted to the import route, and mcp-01's
+  import tool is called without `projectId` over the MCP transport
+- **THEN** the route answers `422 project_required`, the tool answers an error naming
+  `project_required`, and no work package is created
+
+#### Scenario: The document does not choose the project
+
+- **WHEN** a version 13 document whose `project.id` is P2 is imported with `projectId: P1`
+- **THEN** the new work package belongs to P1
+
+#### Scenario: A failed creator grant leaves nothing
+
+- **WHEN** the insert of the creator's `package-manager` grant fails during
+  `POST /api/projects { name, workPackage }`
+- **THEN** the request fails and no project, work package, grant or audit row exists
+
+#### Scenario: The creator keeps a restricted package
+
+- **WHEN** an `org-admin` creates project P with work package W through the combined create
+  and then restricts W
+- **THEN** that admin still writes W through the `package-manager` grant, and another
+  `org-admin` cannot write W
 
 #### Scenario: A new project with its first work package
 
@@ -177,8 +253,9 @@ organization that holds work packages and none in an organization that holds non
 point every work package of the organization at it. A back-filled project's `created_by`
 SHALL be null (no actor); a project created through `POST /api/projects` SHALL carry its
 creator. The same migration SHALL drop `work_package.owner_id` after copying it into a null
-`work_package.created_by`, and SHALL refuse on a database where `access_grant` does not
-exist.
+`work_package.created_by`, SHALL then make `work_package.created_by` NOT NULL, and SHALL
+refuse on a database where `access_grant` does not exist. Where a list or space row showed
+the owner's name it SHALL show the creator's (`createdByName`).
 
 #### Scenario: Back-fill
 
@@ -213,10 +290,13 @@ migration of its own.
 ### Requirement: A work package moves between projects of its organization
 
 `POST /api/work-packages/:id/move { projectId }` SHALL re-home the work package in one
-transaction, bump both projects' revisions and append `work_package_moved` to the audit. It
-SHALL refuse `409 cross_organization`, `409 dependency_crosses_project { dependencyIds }`,
-`409 type_not_allowed_in_project { typeIds }` and `409 step_code_not_in_project { codes }`,
-and on success SHALL re-key W's per-step rows to the target project's steps by code.
+transaction, bump both projects' revisions and append `work_package_moved` to the audit.
+It SHALL answer `404 not_found`, with identical bodies, when the work package is missing or
+unreadable or the target project is missing or of another organization, checked in that
+order before any permission or content refusal; from slice 3a it SHALL refuse
+`409 type_not_allowed_in_project { typeIds }`. The project store SHALL refuse
+`cross_organization` when handed a project of another organization, and storage SHALL
+refuse such a row.
 
 #### Scenario: Move refused by a type
 
@@ -225,15 +305,30 @@ and on success SHALL re-key W's per-step rows to the target project's steps by c
 - **THEN** the move answers `409 type_not_allowed_in_project { typeIds: [<spike id>] }` and
   W stays
 
-#### Scenario: Move refused across organizations
+#### Scenario: A foreign target is not found
 
-- **WHEN** an admin of organization A moves W of A into a project of organization B
-- **THEN** the move answers `409 cross_organization` and W stays
+- **WHEN** an admin of organization A moves W of A into a project of organization B, and
+  again into a project id that does not exist
+- **THEN** both answer `404 not_found` with identical bodies and W stays
 
-#### Scenario: Move refused by a missing step code
+#### Scenario: The store refuses across organizations
 
-- **WHEN** W uses step codes `dev` and `qa` and the target project defines only `dev`
-- **THEN** the move answers `409 step_code_not_in_project { codes: ["qa"] }` and W stays
+- **WHEN** the project store is asked directly to move W of A into a project of B
+- **THEN** it refuses `cross_organization` and W stays
+
+#### Scenario: Move applied
+
+- **WHEN** the target exists in W's organization and allows W's types
+- **THEN** W's `projectId` is the target, the source project's and the target project's
+  revisions each rose by one, and the audit holds one `work_package_moved` row
+
+### Requirement: Move refusals deferred to other changes
+
+The move SHALL NOT implement dependency or step-code refusals in this change. When
+cross-work-package dependencies exist (`feat/cross-project-dependencies`), the move SHALL
+refuse `409 dependency_crosses_project { dependencyIds }`, proven by that branch's own
+mounted test; step-code matching and the re-key of per-step rows SHALL be defined by
+`wbs-step-catalogue` (design E21, E45).
 
 #### Scenario: Move refused by a dependency leaving the project
 
@@ -242,20 +337,22 @@ and on success SHALL re-key W's per-step rows to the target project's steps by c
 - **THEN** the move answers `409 dependency_crosses_project { dependencyIds: [D] }` and W
   stays
 
-#### Scenario: Move applied
-
-- **WHEN** the target allows W's types, has a step of every code W uses, and no dependency
-  leaves the project
-- **THEN** W's `projectId` is the target, the source project's and the target project's
-  revisions each rose by one, and the audit holds one `work_package_moved` row
-
 ### Requirement: Every setting resolves down the chain with provenance
 
-Every catalogue key SHALL resolve as work package → project → the project's space when it
-has one → organization → catalogue default; a settings read SHALL answer `{ value,
-provenance }` for every key; a write at a level the catalogue does not allow SHALL be refused
-`409 not_overridable_here`; `null` SHALL clear an override. `timezone`, `calendarMarkers` and
-`allowedWorkItemTypes` SHALL be writable at space; `pertWeights` and `budgetFactor` SHALL NOT.
+Every catalogue entry SHALL declare its resolution (`nearest` or `additive`) and its
+storage. A nearest key SHALL resolve from the read's own level upward, work package →
+project → the project's space when it has one → organization → catalogue default, and
+answer `{ value, provenance }`; an organization or space read SHALL resolve without any
+project. A write at a level the catalogue does not allow SHALL be refused
+`409 not_overridable_here`; `null` SHALL clear that level's value. `timezone`,
+`calendarMarkers` and `allowedWorkItemTypes` SHALL be writable at space; `pertWeights` and
+`budgetFactor` SHALL NOT. A stored value that fails its key's type, an unknown stored key
+or a scope row naming a missing entity SHALL fail the read, never read as inherited. A
+write at an organization, space or project, a project entering or leaving a space, and a
+space deletion SHALL change the resolved values beneath at once and announce
+`work_package_settings_changed` for each affected work package; any of them that would
+leave a work item with a type outside its resolved `allowedWorkItemTypes` SHALL be refused
+`409 types_in_use { count }` and change nothing.
 
 #### Scenario: Inherited, overridden, cleared
 
@@ -288,6 +385,34 @@ budgetFactor: 1.5 }`
 - **WHEN** `PATCH /api/spaces/S/settings { pertWeights: [1, 3, 1] }`
 - **THEN** `409 not_overridable_here` and no space row is written
 
+#### Scenario: An empty organization and an empty space resolve
+
+- **WHEN** organization O holds no project and space S of O holds no project, O sets
+  timezone `Europe/Kyiv`, and `GET /api/organization/settings` and
+  `GET /api/spaces/S/settings` are read
+- **THEN** both answer every catalogue key, timezone `Europe/Kyiv` with provenance
+  `{ organization, O }` and the rest with provenance `default`
+
+#### Scenario: A corrupt stored value fails the read
+
+- **WHEN** a `setting_value` row for `timezone` at work package W holds a value that is not
+  an IANA zone
+- **THEN** `GET /api/work-packages/W/settings` fails naming the row and does not answer the
+  inherited value
+
+#### Scenario: A narrowing that existing work violates is refused
+
+- **WHEN** work item I of W in project P carries type `spike` and
+  `PATCH /api/projects/P/settings { allowedWorkItemTypes: [<epic id>] }` is sent, and again
+  when P is added to a space whose list lacks `spike`
+- **THEN** both answer `409 types_in_use { count: 1 }` and nothing changes
+
+#### Scenario: A space change applies at once
+
+- **WHEN** project P sets no timezone, space S sets `Europe/Kyiv`, and P is added to S
+- **THEN** every work package of P reads `Europe/Kyiv` with provenance `{ space, S }` on the
+  next read, and each received `work_package_settings_changed`
+
 ### Requirement: The slice 3a migration lifts only real overrides
 
 `work_package.timezone` and the PERT weight columns SHALL become work-package `setting_value`
@@ -313,15 +438,36 @@ package SHALL read the same values as before.
 
 ### Requirement: Calendar markers add across levels
 
-A work package's calendar SHALL be the union of its organization's, its project's space's
-(when it has one), its project's and its own markers, each read with provenance; a marker of
-a level above SHALL NOT be removable through a lower level's route.
+`calendarMarkers` SHALL be the catalogue's additive key, stored only in `calendar_marker`. A
+work package's calendar SHALL be the union of its organization's, its project's space's
+(when it has one), its project's and its own markers, each read with its own provenance. A
+level's write SHALL add or remove only that level's own markers; `null` SHALL delete that
+level's own markers; no write SHALL remove a marker of another level. Export SHALL carry
+the union with provenance, and import SHALL write only the markers of provenance
+`work_package`.
 
-#### Scenario: Union
+#### Scenario: Union across four levels
 
-- **WHEN** P holds marker "Holiday 2026-12-25" and W of P holds "Demo 2026-11-03"
-- **THEN** `GET /api/work-packages/W/calendar-markers` answers both with their provenance and
-  `DELETE /api/work-packages/W/calendar-markers/<holiday>` answers `404`
+- **WHEN** organization O holds "New Year 2027-01-01", space S holds "Offsite 2026-11-20",
+  project P in S holds "Holiday 2026-12-25" and W of P holds "Demo 2026-11-03"
+- **THEN** `GET /api/work-packages/W/settings` answers the four markers with provenance
+  `{ organization, O }`, `{ space, S }`, `{ project, P }` and `{ work_package, W }`
+
+#### Scenario: Deleting a local marker keeps the inherited ones
+
+- **WHEN** W deletes "Demo 2026-11-03", then tries to delete "Holiday 2026-12-25" through
+  `DELETE /api/work-packages/W/calendar-markers/<holiday>`
+- **THEN** W reads the three inherited markers, and the second request answers `404`
+
+#### Scenario: Clearing a level's own set keeps the inherited ones
+
+- **WHEN** `PATCH /api/projects/P/settings { calendarMarkers: null }` is sent
+- **THEN** P's own markers are gone, and W reads O's, S's and its own markers
+
+#### Scenario: Markers never enter setting_value
+
+- **WHEN** a marker is written at any level
+- **THEN** a row is written in `calendar_marker` and none in `setting_value`
 
 ### Requirement: Steps are project entities
 
@@ -397,9 +543,11 @@ type_not_allowed_in_project { typeIds }`. The slice 3a migration SHALL write no 
 ### Requirement: A project sits in one space or none
 
 After slice 3a a project SHALL sit in at most one space (`spaceId`, null for an
-organization-level project); the back-fill SHALL keep, per project, the space where its
-earliest work package entry has the lowest position and SHALL write every other membership
-to `space_project_dropped`; adding a project that sits in another space SHALL be refused;
+organization-level project). The back-fill SHALL take, per (project, space) pair, the lowest
+`position` among the project's work packages in that space; SHALL keep, per project, the
+first pair by (that position, `space.created_at`, `space.id`); SHALL renumber each space's
+kept projects by (that position, `project.created_at`, `project.id`); and SHALL write every
+other pair once to `space_project_dropped` with its original position; adding a project that sits in another space SHALL be refused;
 deleting a space SHALL return its projects to none; roll-ups SHALL answer one row per
 project folded from its work packages' roll-ups with the work package rows beneath.
 
@@ -408,7 +556,31 @@ project folded from its work packages' roll-ups with the work package rows benea
 - **WHEN** space S1 held W1 (project P1) at position 2 and W3 (P2) at position 1, and space
   S2 held W2 (P1) at position 1
 - **THEN** P1 sits in S2, P2 sits in S1, and `space_project_dropped` holds exactly one row:
-  P1 in S1, kept in S2
+  P1 in S1 at position 2, kept in S2
+
+#### Scenario: Several packages of one project in one space make one pair
+
+- **WHEN** space S1 holds W1 and W4 of P1 at positions 5 and 3, and space S2 holds W2 of P1
+  at position 4
+- **THEN** P1 sits in S1, and `space_project_dropped` holds one row, P1 in S2 at position 4
+
+#### Scenario: Equal positions fall back to the space's age and id
+
+- **WHEN** P1's packages sit at position 1 in S1 and in S2, both spaces created at the same
+  instant, and S1's id sorts first
+- **THEN** P1 sits in S1 and the S2 pair is reported
+
+#### Scenario: Tied projects in one space renumber deterministically
+
+- **WHEN** P1 and P2 both keep S1 at candidate position 1 with equal `created_at`, and P1's
+  id sorts first
+- **THEN** P1's `space_position` is 10 and P2's is 20, on every run
+
+#### Scenario: A project with no membership sits in no space
+
+- **WHEN** no work package of P3 sits in any space
+- **THEN** P3 reads `spaceId: null` and has no report row, and the guard finds kept projects
+  plus reported rows equal to the distinct pairs
 
 #### Scenario: A project in another space is refused
 

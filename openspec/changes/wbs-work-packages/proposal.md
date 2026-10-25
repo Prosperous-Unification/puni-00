@@ -41,8 +41,9 @@ or document version alive.
 
 ## Constraints
 
-- Slice 1 renames under a migration-lint waiver; later slices rebuild tables. Each ships in
-  a stop-the-world window with a verified backup as the rollback.
+- Slices 1, 2 and 3a are a documented exception to the additive-migration rule: explicit
+  waivers, the application stopped, a backup report proving source, snapshot and ledger,
+  the snapshot as rollback.
 - Ids stay stable; one project per work package, one organization per project; no
   per-project access invented.
 - The rename is a rerunnable script under `tools/`; residuals are listed. Old
@@ -64,10 +65,9 @@ Work package, Project, Space, Space membership, Project settings, Setting proven
 
 ## Decisions Recorded
 
-E1 to E9 are Dany's; E10 onward assumed, overrulable by id; Dany revised several and
-withdrew E34 on 2026-10-25. ADR 0061 supersedes ADR 0033.
+E1 to E9 are Dany's; E10 onward assumed, overrulable by id; E47 to E49 await Dany. ADR
+0061 supersedes ADR 0033.
 
 ## Impact
 
-Every `@wbs/*` library, be-01, gw-01, mcp-01, fe-01, twilight-navigator, docs, the dev
-database.
+Every `@wbs/*` library, be-01, gw-01, mcp-01, fe-01, twilight-navigator, docs, dev data.
