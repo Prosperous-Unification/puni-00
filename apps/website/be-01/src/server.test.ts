@@ -1716,3 +1716,100 @@ test('versioned native intake redirects without visitor content and legacy remai
   ).toMatchObject({ scoping: { version: 'legacy' } });
   api.close();
 });
+
+for (const accept of ['text/html', 'application/json'] as const)
+  test(`starter forms omit bounded blank textarea content for ${accept}`, async () => {
+    const { config } = fixture();
+    const api = mountApi({ ...config, appBuildUrl: `${config.appOrigin}/studio` });
+    for (const description of ['', ' \t\n\r ', ' '.repeat(2000)]) {
+      const response = await api.fetch(
+        new Request('http://localhost:3101/intakes', {
+          method: 'POST',
+          headers: {
+            origin: config.publicOrigin,
+            accept,
+            'content-type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            description,
+            startingChoice: 'launch',
+            startConversation: 'true',
+          }).toString(),
+        }),
+      );
+      expect(response.status).toBe(accept === 'text/html' ? 303 : 201);
+      if (accept === 'text/html') {
+        expect(response.headers.get('location')).toBe(`${config.appOrigin}/studio`);
+        expect(await response.text()).toBe('');
+      } else expect(await response.json()).toEqual({ next: '/studio' });
+      const cookie = response.headers.get('set-cookie')?.split(';')[0];
+      expect(
+        await (
+          await api.fetch(request('/conversation', 'GET', config.appOrigin, undefined, cookie))
+        ).json(),
+      ).toMatchObject({
+        description: 'Launch an app or website',
+        scoping: { version: 1, startingChoice: 'launch', startConversation: true },
+      });
+    }
+    api.close();
+  });
+
+test('starter blank textarea normalization preserves raw bounds, JSON strictness and refusals', async () => {
+  const { config } = fixture();
+  const api = mountApi({ ...config, appBuildUrl: `${config.appOrigin}/studio` });
+  const refusedForms: Record<string, string>[] = [
+    { description: ' '.repeat(2001), startingChoice: 'launch', startConversation: 'true' },
+    { description: '', startingChoice: 'invented', startConversation: 'true' },
+    { description: '', startingChoice: 'launch', startConversation: 'yes' },
+    { description: '' },
+  ];
+  for (const fields of refusedForms) {
+    const response = await api.fetch(
+      new Request('http://localhost:3101/intakes', {
+        method: 'POST',
+        headers: {
+          origin: config.publicOrigin,
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams(fields).toString(),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  }
+  for (const description of ['', ' \t\n ']) {
+    const response = await api.fetch(
+      request('/intakes', 'POST', config.publicOrigin, {
+        description,
+        startingChoice: 'launch',
+        startConversation: true,
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  }
+  const database = new Database(config.databasePath, { readonly: true });
+  expect(database.query('SELECT count(*) AS count FROM intake_draft').get()).toEqual({ count: 0 });
+  database.close();
+  const typed = '  Exact typed explanation  ';
+  const response = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: { origin: config.publicOrigin, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        description: typed,
+        startingChoice: 'launch',
+        startConversation: 'false',
+      }).toString(),
+    }),
+  );
+  expect(response.status).toBe(201);
+  const cookie = response.headers.get('set-cookie')?.split(';')[0];
+  expect(
+    await (
+      await api.fetch(request('/conversation', 'GET', config.appOrigin, undefined, cookie))
+    ).json(),
+  ).toMatchObject({ description: typed, scoping: { startConversation: false } });
+  api.close();
+});

@@ -386,7 +386,9 @@ function refuseReservation(
  * hash; later operations, retries and replays never need a check because the row exists.
  * Versioned initial requests bind the key and opening to persisted intent. Automatic requests
  * require landing authorization and never retry unknown attempts. Selected-answer revisions
- * are matched only after completed/inflight replay and body conflict resolution.
+ * are matched only after completed/inflight replay and body conflict resolution. Versioned
+ * completed replay and body conflicts also precede exhaustion; new attempts still refuse
+ * before pricing. Legacy exhausted drafts retain their original early refusal.
  *
  * @throws when stored state contradicts its invariants (an exhausted row without a reason, a
  * completed operation without a reply) or the pricing returns a non-positive amount.
@@ -444,11 +446,13 @@ export function admitConversationOperation(
       }
       if (conversation.state === 'handed_off')
         throw new Error('Handed-off conversation has an unconsumed draft');
-      if (conversation.state === 'exhausted') {
-        if (conversation.exhausted_reason === null)
-          throw new Error('Exhausted conversation has no reason');
-        return { kind: 'exhausted', reason: conversation.exhausted_reason };
-      }
+      const exhaustedReason =
+        conversation.state === 'exhausted' ? conversation.exhausted_reason : null;
+      if (conversation.state === 'exhausted' && exhaustedReason === null)
+        throw new Error('Exhausted conversation has no reason');
+      // Proof: deferring this refusal for legacy drafts failed both legacy exhaustion replay fixtures.
+      if (exhaustedReason !== null && scoping.version === 'legacy')
+        return { kind: 'exhausted', reason: exhaustedReason };
       const visitorTurns = countVisitorTurns(database, conversation.id);
       const existing = database
         .query<OperationRow, [string, string]>(
@@ -466,9 +470,11 @@ export function admitConversationOperation(
             throw new Error('Completed conversation operation has no reply');
           return { kind: 'completed', reply: existing.reply };
         }
-        if (existing.state === 'inflight') return { kind: 'inflight' };
-        // An `unknown` attempt was settled at its ceiling; the same key may start a new attempt.
       }
+      // Proof: moving this refusal before lookup broke completed turn/spend replay and conflicts; omitting it made fresh exhausted requests throw in those same fixtures.
+      if (exhaustedReason !== null) return { kind: 'exhausted', reason: exhaustedReason };
+      if (existing?.state === 'inflight') return { kind: 'inflight' };
+      // An `unknown` attempt was settled at its ceiling; explicit Retry may start a new attempt.
       // Proof: bypassing this check made the mounted unknown-initial fixture reserve a second automatic attempt.
       if (request.automatic && existing?.state === 'unknown')
         return { kind: 'automatic_forbidden' };

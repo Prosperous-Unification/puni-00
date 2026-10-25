@@ -6,6 +6,7 @@ import {
   type ConversationView,
   deriveStage,
   type DraftView,
+  isStartingChoiceId,
   parseScopingIntake,
   type ScopingAnswerRequest,
 } from '@website/contracts';
@@ -800,6 +801,15 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       ) {
         const intent = body['startConversation'];
         if (intent === 'true' || intent === 'false') body['startConversation'] = intent === 'true';
+        const description = body['description'];
+        // Proof: removing this normalization made native/fetch starter forms with empty text answer 400; dropping the raw bound admitted the oversized-blank fixture.
+        if (
+          isStartingChoiceId(body['startingChoice']) &&
+          typeof description === 'string' &&
+          description.length <= 2000 &&
+          description.trim() === ''
+        )
+          delete body['description'];
       }
       // Proof: bypassing the shared unknown-choice guard accepted typed text with an invented choice in the mounted versioned-intake refusal test.
       const intake = parseScopingIntake(body);

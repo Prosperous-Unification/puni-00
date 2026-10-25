@@ -2492,3 +2492,93 @@ test('scoping selected Retry survives remount with exact persisted raw answer', 
   expect(operations(config.databasePath)).toHaveLength(3);
   api.close();
 });
+
+for (const exhaustion of ['turns', 'conversation_spend'] as const)
+  test(`scoping mounted completed replays survive ${exhaustion} exhaustion with no provider or pricing`, async () => {
+    let prices = 0;
+    const fake = fakeOpenRouter((call) => ({
+      reply: `Confirmed reply ${String(call)}`,
+      ...(exhaustion === 'conversation_spend'
+        ? { usage: { prompt_tokens: 4900, completion_tokens: 100 } }
+        : {}),
+    }));
+    const config = paidConfig(fake.providerFetch, {
+      ...(exhaustion === 'conversation_spend'
+        ? { openRouterInputUsdPerMillion: 10, openRouterOutputUsdPerMillion: 10 }
+        : {}),
+      openStore: (path) => {
+        const store = new WebsiteStore(path);
+        const admit = store.admitConversationOperation.bind(store);
+        store.admitConversationOperation = (request) => {
+          const pricing = request.pricing;
+          return admit({
+            ...request,
+            pricing:
+              pricing.kind === 'paid'
+                ? {
+                    kind: 'paid',
+                    price: (history, stage) => {
+                      prices++;
+                      return pricing.price(history, stage);
+                    },
+                  }
+                : pricing,
+          });
+        };
+        return store;
+      },
+    });
+    const api = mountApi(config);
+    const visitor = await beginScopingVisitor(api);
+    await (await sendInitial(api, visitor)).text();
+    setQuestion(config.databasePath, 1);
+    const fields = {
+      idempotencyKey: 'selected-exhaustion-key',
+      selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 },
+      message: 'Exact explanation',
+    };
+    const selected = await api.fetch(post('/conversation/stream', visitor, fields));
+    expect(selected.status).toBe(200);
+    await selected.text();
+    setQuestion(config.databasePath, 2, 'launch-stage');
+    if (exhaustion === 'turns')
+      for (let turn = 3; turn <= 8; turn++) {
+        const next = await sendMessage(
+          api,
+          visitor,
+          `fill-turn-${String(turn)}`,
+          `More ${String(turn)}`,
+        );
+        expect(next.status).toBe(200);
+        await next.text();
+      }
+    const exhausted = await sendMessage(api, visitor, 'exhaust-budget-key', 'One more');
+    expect(exhausted.status).toBe(429);
+    expect(await exhausted.json()).toMatchObject({ exhaustedReason: exhaustion });
+    const callsBeforeReplay = fake.bodies.length;
+    const pricesBeforeReplay = prices;
+    const ledger = operations(config.databasePath);
+    const before = await readConversation(api, visitor.cookie);
+    const initialReplay = await sendAutomatic(api, visitor);
+    expect(initialReplay.status).toBe(200);
+    expect(await initialReplay.text()).toContain('Confirmed reply 1');
+    const selectedReplay = await api.fetch(post('/conversation/stream', visitor, fields));
+    expect(selectedReplay.status).toBe(200);
+    expect(await selectedReplay.text()).toContain('Confirmed reply 2');
+    const conflict = await api.fetch(
+      post('/conversation/stream', visitor, { ...fields, message: 'Changed explanation' }),
+    );
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toEqual({ code: 'idempotency_conflict' });
+    const fresh = await sendMessage(api, visitor, 'fresh-exhausted-key', 'Fresh attempt');
+    expect(fresh.status).toBe(429);
+    expect(await fresh.json()).toMatchObject({ exhaustedReason: exhaustion });
+    expect(fake.bodies).toHaveLength(callsBeforeReplay);
+    expect(prices).toBe(pricesBeforeReplay);
+    expect(operations(config.databasePath)).toEqual(ledger);
+    const after = await readConversation(api, visitor.cookie);
+    expect(after.turns).toEqual(before.turns);
+    expect(after.scoping).toEqual(before.scoping);
+    expect(after.exhaustedReason).toBe(before.exhaustedReason);
+    api.close();
+  });
