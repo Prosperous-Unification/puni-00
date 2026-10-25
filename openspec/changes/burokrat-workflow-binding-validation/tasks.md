@@ -24,6 +24,10 @@
   Root freezes source/index/HEAD while the writer runs these and final checks.
 - Focused tests and uncached configured Burokrat source lint/typecheck are required.
   Full repository checks run only through the canonical host gate, root-owned.
+- Root may add the exact validator-proofs.json.gz inventory declaration to both shipped
+  Tool Wiki policies, an adjacent production-pilot Proof comment and text repair evidence.
+  CI run40159790962 established this missing metadata blocker; no classification algorithm,
+  policy boundary, activation, mode or authority changes are permitted.
 - No broad suite repetition without changed source, an actual failure or a named concern.
   Do not weaken tests, suppress diagnostics, hide failures or assume an exit proves selection.
 
@@ -42,3 +46,14 @@
 - [ ] 1.6 Root audits, commits normally, obtains independent task and whole-branch verdicts,
       runs scoped OpenSpec/format/diff plus canonical exact-SHA host gate/applicable CI, and merges
       only this reversible slice. Record actual merge and parent agentic milestones remaining open.
+
+## CI inventory repair
+
+- [x] 2.1 Inspect all eleven failed CI pilot assertions and reproduce both original policies
+      refusing the exact proof archive through production classify-candidate.
+- [x] 2.2 Add only that archive's exact-file declarations; preserve archive bytes and verify
+      both repaired policies classify it and still refuse a same-byte unlisted gzip.
+- [x] 2.3 Run the complete affected production-pilot test file and configured lint/typecheck,
+      formatting and OpenSpec checks; retain actual raw outcomes and source identities.
+- [ ] 2.4 Independently review the bounded repair, commit normally and rerun the canonical
+      exact-SHA gate and applicable CI before merging only the reversible validator slice.

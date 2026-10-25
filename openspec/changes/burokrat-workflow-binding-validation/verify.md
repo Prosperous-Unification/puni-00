@@ -85,3 +85,13 @@ The fractional-limit trial bypassed both redundant integer defenses. The broad J
 ## Review and merge acceptance
 
 Independent task/whole-branch review, canonical exact-SHA host gate and applicable CI are required before merge. They will run against the published candidate; this record does not predeclare their outcomes. No package release or production deployment is authorized or performed by this slice.
+
+## CI inventory repair
+
+CI run [40159790962](https://github.com/Prosperous-Unification/puni-00/actions/runs/40159790962) passed the workspace shard but failed Twilight with 2503 passing and 11 failing tests. All eleven failures were production-pilot assertions blocked by the new undeclared proof archive. The packed-package suite was skipped after that failure and has no passing verdict. The full uploaded log was inspected; the candidate was not merged.
+
+The existing exact-file binary declaration pattern was applied only to this proof archive in the full and bootstrap policies. No classification algorithm, boundary, activation, authority or mode changed. The [repair observations](evidence/inventory-repair.json) retain six real production classify-candidate invocations: both original policies refuse the archive; both repaired policies return its declared binary classification; both still refuse an unlisted path containing the identical gzip bytes. Each fixture commit contains only its named archive, so these are bounded inventory observations, not full repository lint. The original archive remains byte-identical at SHA-256 f86441e976b078228e0a89252733407c3601b1daf1471f9a78348b54ea9b8582.
+
+The canonical H4 run on 2f4a859d was intentionally stopped after the CI diagnosis, with its exact-SHA marker retained and actual exit 143. It supplies 187 completed task observations but no complete host-gate verdict. The corrected candidate requires fresh host gate and CI acceptance.
+
+Local repair verification passed: the complete production-pilot file ran 24 tests with 430 assertions, zero failures, in 193.97 seconds. The configured uncached source-lint target passed in 26.5 seconds with empty stderr; configured typecheck passed in 2.4 seconds. Exact repair formatting, scoped OpenSpec validation and diff whitespace checks passed. All 11,958 captured source and Git identities were unchanged during these checks. The [raw check record](evidence/inventory-checks.json) retains actual argv, exits and streams. The 179 binding-focused cases were not repeated because their source bytes are unchanged. Independent repair review, a new commit's canonical full host gate and applicable CI remain required before merge.
