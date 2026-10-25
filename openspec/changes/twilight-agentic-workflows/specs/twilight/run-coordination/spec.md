@@ -1,26 +1,23 @@
 ## ADDED Requirements
 
-### Requirement: Persistence is abstract and providers satisfy semantic contracts
+### Requirement: WBS is the coordinator's only store
 
-Twilight Dash SHALL depend on RunStore and ArtifactStore ports independent of storage
-engine, SQL, file layout and adapter schema migration mechanisms. SQLite MAY implement the
-current deployment adapter; any provider satisfying the same contracts MAY replace it.
-RunStore SHALL support atomic admission with identity/capacity/owner checks, immutable
-binding manifests, atomic outcome-plus-outbox writes, deduplicated signals/receipts, and
-consistent or revision-validated snapshots. ArtifactStore SHALL verify durable content
-before a successful outcome references it. Portable record versions SHALL be distinct from
-adapter schema versions. Memory SHALL NOT establish durability.
+The coordinator SHALL persist nothing about a run outside WBS: admission is a WBS claim and
+attempt written in one command batch before any external launch, outcomes are WBS attempt
+ends, progress and measures, and locators live on the attempt. On every tick and every
+restart it SHALL rebuild the walk from WBS and SHALL NOT replay a journal of its own.
+Memory SHALL NOT establish durability (G2, 2026-10-25).
 
-#### Scenario: Providers preserve semantics
+#### Scenario: The coordinator restarts with an empty working directory
 
-- **WHEN** the admission, outcome/outbox, fencing, revision and restart suite runs against
-  the current durable adapter and a second durable adapter
-- **THEN** both satisfy the same invariants without provider-specific types in core ports
+- **WHEN** the coordinator restarts on another host with no local state
+- **THEN** it rebuilds the frontier and the running attempts from WBS alone and admits no
+  duplicate of a running attempt
 
-#### Scenario: A provider lacks a required atomic operation
+#### Scenario: A launch is not recorded
 
-- **WHEN** an adapter cannot atomically reserve capacity and persist admission intent
-- **THEN** it is refused as nonconformant rather than weakening the coordinator's guarantee
+- **WHEN** the WBS claim-and-attempt batch is refused or never acknowledged
+- **THEN** no external launch happens for that step in that tick
 
 ### Requirement: Coordination uses the unified hints API
 
@@ -51,15 +48,15 @@ facts and WBS eligibility SHALL filter the kernel frontier before admission.
 
 Admission SHALL atomically reserve capacity and record intent before external launch.
 Claims, progress and release SHALL check exact current claim/run/attempt authority and
-expected revisions. Validated outcomes and outbound WBS commands SHALL commit atomically
-in RunStore. Successors SHALL wait for confirmed WBS acceptance. Effect success awaiting
-its progress receipt SHALL be retained without rerunning the effect. Retries SHALL use a
+expected revisions. Validated outcomes SHALL be written to WBS as one command batch. Successors SHALL wait
+for that write's acceptance. An effect that succeeded before its WBS write landed SHALL be
+written on the next tick, not rerun. Retries SHALL use a
 new attempt ID/ordinal within a durable budget and keep the logical operation identity.
 
 #### Scenario: Progress acknowledgement is lost
 
-- **WHEN** WBS applied a success update but the coordinator died before saving the receipt
-- **THEN** recovery reconciles the command receipt and never reruns the recorded successful effect
+- **WHEN** WBS applied the outcome batch but the coordinator died before reading the reply
+- **THEN** the next tick reads the ended attempt from WBS and never reruns the effect
 
 #### Scenario: A stale worker releases a claim
 
@@ -68,8 +65,8 @@ new attempt ID/ordinal within a durable budget and keep the logical operation id
 
 ### Requirement: Restart reconciles surviving workers and uncertain effects
 
-On boot the coordinator SHALL acquire or fence ownership before admitting work or changing
-attempt states. It SHALL inventory running attempts, locate surviving workers/sessions and
+On boot the coordinator SHALL read the running attempts from WBS before admitting work or
+ending attempts. It SHALL inventory running attempts, locate surviving workers/sessions and
 reconcile effects by operation identity. It SHALL reattach safely or verify cancellation
 and quiescence before replacement. It SHALL NOT infer interruption from coordinator death
 alone. Unresolved worker/effect state SHALL require operator reconciliation and SHALL NOT
@@ -87,13 +84,14 @@ be automatically retried. Capacity SHALL remain reserved while physical work may
 
 #### Scenario: The owner is stale
 
-- **WHEN** another coordinator holds a newer ownership generation
-- **THEN** the old owner cannot admit work or commit/release protected state
+- **WHEN** another coordinator's credential holds the claim
+- **THEN** this one's end, progress and release commands are refused by WBS and it admits
+  nothing on that step
 
 ### Requirement: Human waits and execution outcomes remain distinct
 
-The coordinator SHALL persist human prompts, correlation keys and allowed response shapes,
-consume authorized decisions through a deduplicated inbox and retain the configured claim.
+The coordinator SHALL record a human prompt and its correlation key on the WBS attempt,
+consume authorized decisions deduplicated by that key and retain the claim.
 Waiting SHALL NOT satisfy a dependency. Compute capacity SHALL be released only after
 physical execution settles. End-of-turn SHALL NOT itself mean business success.
 
@@ -104,8 +102,8 @@ physical execution settles. End-of-turn SHALL NOT itself mean business success.
 
 ### Requirement: Safe compatibility execution precedes deployment and dogfood
 
-S7a SHALL implement the abstract-port coordinator over a linear compatibility workflow,
-including surviving-worker, uncertain-effect, stale-owner and lost-receipt tests, before
+S7a SHALL implement the reconcile-loop coordinator over a linear compatibility workflow,
+including surviving-worker, uncertain-effect, stale-claim and lost-reply tests, before
 I5.02 deployment or I5.04 real dogfood. S7b SHALL reuse it for pinned type-specific instances,
 parallel joins and repair. W0–W12 SHALL remain the acceptance scope for type-specific DAGs.
 A linear dogfood SHALL NOT be presented as completion of that product scope.
