@@ -213,7 +213,13 @@ export function bindStartedSource(
 export function createFixtureDocker(options: FixtureDockerOptions): RunDocker {
   const { token, root, sourceName, sourceTag, runtime, caddyName, plans, run } = options;
   assertProof(/^[a-f0-9-]{36}$/.test(token), 'fixture UUID required');
-  assertProof(root.startsWith('/tmp/') && root.includes(token), 'fixture root must contain UUID');
+  // Proof: omitting only the allowed-parent predicate admitted /home with the
+  // correct UUID; the outside-parent constructor negative failed. Restoring the
+  // old /tmp-only predicate also reproduces the genuine /var/tmp mock refusal.
+  assertProof(
+    (root.startsWith('/tmp/') || root.startsWith('/var/tmp/')) && root.includes(token),
+    'fixture root must contain UUID',
+  );
   assertProof(runtime.startsWith(`${root}/`), 'fixture runtime outside root');
   assertProof(
     [sourceName, sourceTag, caddyName].every((name) => name.includes(token)),

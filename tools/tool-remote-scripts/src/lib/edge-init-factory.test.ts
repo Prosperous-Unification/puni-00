@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 
+import { allocateFactoryRoot } from '../fixtures/edge-init-factory-root';
+
 interface FactoryObservation {
   summary?: {
     stage: string;
@@ -72,7 +74,7 @@ afterAll(async () => {
   await rm(certificates, { recursive: true });
 });
 async function observe(action: string, classification = '', target = '', fault = '') {
-  const scratch = await mkdtemp(resolve(tmpdir(), 'edge-init-factory-'));
+  const scratch = await allocateFactoryRoot();
   const child = Bun.spawn([process.execPath, worker, action, classification, target, fault], {
     cwd: workspace,
     env: {

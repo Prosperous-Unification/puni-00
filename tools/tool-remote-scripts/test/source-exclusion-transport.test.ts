@@ -1,3 +1,7 @@
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { expect, test } from 'bun:test';
 
 import { readFields } from '../src/lib/managed-cohort';
@@ -62,6 +66,78 @@ function fixture(
   });
   return { docker, calls };
 }
+function rootedFixture(privateRoot: string, runtime: string, calls: string[][]) {
+  const physical = structuredClone(source);
+  physical.Mounts[0].Source = runtime;
+  return createFixtureDocker({
+    token,
+    root: privateRoot,
+    sourceName: `source-${token}`,
+    sourceTag: `source-${token}:1`,
+    runtime,
+    caddyName: `edge-${token}`,
+    plans: [
+      {
+        name: `source-${token}`,
+        id: source.Id,
+        imageRef: source.Config.Image,
+        imageId: source.Image,
+      },
+    ],
+    run: (args) => {
+      calls.push(args);
+      if (args[0] === 'ps') return Promise.resolve(source.Id);
+      if (args[0] === 'inspect') return Promise.resolve(JSON.stringify([physical]));
+      throw new Error('unexpected mocked Docker command');
+    },
+  });
+}
+
+for (const parent of ['/tmp', '/var/tmp']) {
+  test(`mocked fixture admits UUID descendants of ${parent} through census and inspection`, async () => {
+    const privateRoot = `${parent}/source-${token}`;
+    const calls: string[][] = [];
+    const docker = rootedFixture(privateRoot, `${privateRoot}/runtime`, calls);
+    expect(await docker(['ps', '-a', '--no-trunc', '--format', '{{.ID}}'])).toBe(source.Id + '\n');
+    const inspected: unknown = JSON.parse(await docker(['inspect', source.Id]));
+    expect(inspected).toMatchObject([
+      { Name: '/wbs-dev-src', Id: source.Id, Mounts: [{ Source: '/run/user/1000/wbs-solver' }] },
+    ]);
+    expect(calls.some((args) => args[0] === 'inspect')).toBe(true);
+    expect(
+      calls
+        .filter((args) => args[0] === 'ps')
+        .every((args) => args.includes(`label=puni.source-exclusion=${token}`)),
+    ).toBe(true);
+  });
+}
+
+for (const [label, privateRoot, runtime] of [
+  ['outside parent', `/home/source-${token}`, `/home/source-${token}/runtime`],
+  ['tmp sibling prefix', `/tmpx/source-${token}`, `/tmpx/source-${token}/runtime`],
+  ['var tmp sibling prefix', `/var/tmpx/source-${token}`, `/var/tmpx/source-${token}/runtime`],
+  ['missing token', '/tmp/source-missing', '/tmp/source-missing/runtime'],
+  [
+    'wrong token',
+    '/var/tmp/source-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    '/var/tmp/source-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/runtime',
+  ],
+  ['runtime outside root', `/var/tmp/source-${token}`, `/var/tmp/foreign-${token}/runtime`],
+  [
+    'runtime sibling prefix',
+    `/var/tmp/source-${token}`,
+    `/var/tmp/source-${token}-sibling/runtime`,
+  ],
+]) {
+  test(`mocked fixture refuses ${label} before any Docker callback`, () => {
+    const calls: string[][] = [];
+    expect(() => rootedFixture(privateRoot, runtime, calls)).toThrow(
+      label.startsWith('runtime') ? 'runtime outside root' : 'root must contain UUID',
+    );
+    expect(calls).toEqual([]);
+  });
+}
+
 test('fresh owner census preserves unrelated complete inventory and native startup', async () => {
   const unrelated = structuredClone(source);
   unrelated.Id = 'e'.repeat(64);
@@ -202,37 +278,65 @@ test('namespace audit native projection preserves exact owned argv', async () =>
   expect(f.calls).toContainEqual(['inspect', '--format', '{{json .}}', source.Id]);
 });
 
-test('source runner refuses option-like image pins before fixture effects', async () => {
-  const { runSourceExclusionAcceptance } = await import('./source-exclusion');
-  const previous = process.env['SOURCE_EXCLUSION_SOURCE_IMAGE'];
-  process.env['SOURCE_EXCLUSION_SOURCE_IMAGE'] = `--unsafe@sha256:${'a'.repeat(64)}`;
+// Proof: removing the Docker-stub directory from the child PATH failed the
+// option-like pin case before the real runner; the selected stub records and refuses effects.
+async function preflightChild(environment: Record<string, string>, expected: string) {
+  const directory = await mkdtemp(join(tmpdir(), 'source-preflight-'));
   try {
-    await refuses(
-      runSourceExclusionAcceptance(),
-      'independent local image pin required before fixture effects',
+    const docker = join(directory, 'docker');
+    const log = join(directory, 'docker-calls');
+    await writeFile(
+      docker,
+      '#!/bin/sh\nprintf "docker invoked\\n" >> "$PROBE_DOCKER_LOG"\nexit 74\n',
     );
+    await chmod(docker, 0o700);
+    const script = `
+      import { runSourceExclusionAcceptance } from ${JSON.stringify(new URL('./source-exclusion.ts', import.meta.url).pathname)};
+      if (Bun.which('docker') !== process.env['EXPECTED_DOCKER']) throw new Error('Docker stub not selected');
+      try { await runSourceExclusionAcceptance(); }
+      catch (cause) {
+        if (!(cause instanceof Error)) throw cause;
+        console.log(JSON.stringify({ refusal: cause.message }));
+        process.exit(78);
+      }
+    `;
+    const child = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
+      env: {
+        PATH: `${directory}:/usr/bin:/bin`,
+        TMPDIR: '/tmp',
+        BUN_TMPDIR: '/tmp',
+        EXPECTED_DOCKER: docker,
+        PROBE_DOCKER_LOG: log,
+        ...environment,
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 5000,
+    });
+    expect(child.exitCode).toBe(78);
+    expect(child.stderr.toString()).toBe('');
+    expect(JSON.parse(child.stdout.toString())).toEqual({ refusal: expected });
+    expect(await Bun.file(log).exists()).toBe(false);
   } finally {
-    if (previous === undefined) delete process.env['SOURCE_EXCLUSION_SOURCE_IMAGE'];
-    else process.env['SOURCE_EXCLUSION_SOURCE_IMAGE'] = previous;
+    await rm(directory, { recursive: true });
   }
+}
+
+test('source runner refuses option-like image pins before fixture effects', async () => {
+  await preflightChild(
+    { SOURCE_EXCLUSION_SOURCE_IMAGE: `--unsafe@sha256:${'a'.repeat(64)}` },
+    'independent local image pin required before fixture effects',
+  );
 });
 test('source runner refuses production receipt roots before fixture effects', async () => {
-  const { runSourceExclusionAcceptance } = await import('./source-exclusion');
-  const keys = ['SOURCE', 'BACKEND', 'GATEWAY', 'CADDY', 'SOLVER'].map(
-    (role) => `SOURCE_EXCLUSION_${role}_IMAGE`,
+  const environment = Object.fromEntries(
+    ['SOURCE', 'BACKEND', 'GATEWAY', 'CADDY', 'SOLVER'].map((role) => [
+      `SOURCE_EXCLUSION_${role}_IMAGE`,
+      `fixture@sha256:${'a'.repeat(64)}`,
+    ]),
   );
-  keys.push('SOURCE_EXCLUSION_RECEIPT');
-  const previous = new Map(keys.map((key) => [key, process.env[key]]));
-  for (const key of keys) process.env[key] = `fixture@sha256:${'a'.repeat(64)}`;
-  process.env['SOURCE_EXCLUSION_RECEIPT'] = '/home/puni1/wbs/state/forbidden.json';
-  try {
-    await refuses(runSourceExclusionAcceptance(), 'production receipt path refused');
-  } finally {
-    for (const [key, value] of previous) {
-      if (value === undefined) Reflect.deleteProperty(process.env, key);
-      else process.env[key] = value;
-    }
-  }
+  environment['SOURCE_EXCLUSION_RECEIPT'] = '/home/puni1/wbs/state/forbidden.json';
+  await preflightChild(environment, 'production receipt path refused');
 });
 
 test('source runner refuses production temporary roots before fixture effects', async () => {
