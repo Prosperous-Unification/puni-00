@@ -26,7 +26,10 @@ export interface HealthCheckpoint {
 }
 
 /** Parses one fixed filesystem with df column padding; ordered header tokens and remote completion time stay required. */
-export function parseStorage(text: string, observedAt: number): StorageState {
+export function parseStorage(
+  text: string,
+  observedAt: number,
+): Extract<StorageState, { state: 'complete' }> {
   const lines = text.trim().split('\n');
   // Proof: removing whitespace normalization rejects actual padded stdout; removing token equality accepts the reordered-header SSH fixture.
   if (
