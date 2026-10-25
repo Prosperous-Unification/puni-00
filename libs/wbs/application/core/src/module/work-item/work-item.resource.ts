@@ -9635,6 +9635,9 @@ export class WorkItemService {
     if (!incidents.ok) {
       if (incidents.reason === 'referenced_by_external_dependency') {
         const dependencyIds = incidents.dependencyIds;
+        // Proof: removing this guard made `undo-create reports missing trusted
+        // incident IDs` fail its exact diagnostic assertion on a generic .join
+        // TypeError; table/announcement atomicity still passed (2026-10-25).
         if (dependencyIds === undefined)
           throw new Error('incident refusal is missing relationship ids');
         return {

@@ -9,7 +9,10 @@ import {
   type CollectedRecording,
   WorkItemService,
 } from '@wbs/core/module/work-item/work-item.resource';
-import { AnnouncementCollector } from '@wbs/core/ports/announcement-collector';
+import {
+  AnnouncementCollector,
+  type HeldAnnouncement,
+} from '@wbs/core/ports/announcement-collector';
 import type { DependencyContext } from '@wbs/core/ports/dependency-context';
 import type { CompensatingCommand } from '@wbs/core/service/compensating';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
@@ -225,12 +228,18 @@ test('mounted external authoring stays dormant and rolls back an earlier success
   expect(effects()).toEqual(before);
 });
 
+interface AnnouncementSnapshot {
+  readonly pending: readonly HeldAnnouncement[];
+  readonly published: readonly HeldAnnouncement[];
+}
+
 async function semantic<T extends { readonly ok: boolean }>(
   fixture: Awaited<ReturnType<typeof open>>,
   act: (
     service: WorkItemService,
     graph: WritingServices,
     typedDependencies: TypedDependencyStore,
+    readAnnouncements: () => AnnouncementSnapshot,
   ) => Promise<T>,
   inspectCollected?: (recordings: CollectedRecording[]) => void,
   refusedProjectRead?: string,
@@ -472,7 +481,10 @@ async function semantic<T extends { readonly ok: boolean }>(
         broadcast: held,
       });
       const collected = await service.collect(() =>
-        act(service, graph, scope.stores.typedDependencies),
+        act(service, graph, scope.stores.typedDependencies, () => ({
+          pending: structuredClone(held.pending),
+          published: structuredClone(broadcast.published),
+        })),
       );
       inspectCollected?.(collected.recordings);
       if (collected.result.ok)
@@ -929,6 +941,90 @@ test('undo-create refuses a newly linked outgoing predecessor even when its loca
     ),
   ).toMatchObject({ ok: false, reason: 'stale_undo' });
   expect(effects()).toEqual(before);
+});
+
+test('undo-create reports missing trusted incident IDs without changing tables or announcements', async () => {
+  const fixture = await open();
+  const added = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+  );
+  if (!added.ok) throw new Error('fixture link refused');
+  harness.sqlite
+    .query('UPDATE work_item SET revision=0 WHERE id=?')
+    .run(fixture.predecessor.workItemId);
+  harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
+  const before = effects();
+  const genuineRefusals: string[][] = [];
+  const restorations: boolean[] = [];
+  const announcements: {
+    read?: () => AnnouncementSnapshot;
+    before?: AnnouncementSnapshot;
+  } = {};
+  const failure = await observed(
+    semantic(
+      { ...fixture, owner: fixture.predecessor },
+      async (service, _graph, _typedDependencies, readAnnouncements) => {
+        announcements.read = readAnnouncements;
+        if (typeof readAnnouncements === 'function') announcements.before = readAnnouncements();
+        const own = Object.getOwnPropertyDescriptor(service, 'deletionIncidents');
+        const genuine: unknown = Reflect.get(service, 'deletionIncidents');
+        if (typeof genuine !== 'function') throw new Error('genuine incident reader absent');
+        Object.defineProperty(service, 'deletionIncidents', {
+          configurable: true,
+          writable: true,
+          value: async (...args: unknown[]) => {
+            const answer: unknown = await Reflect.apply(genuine, service, args);
+            expect(answer).toMatchObject({
+              ok: false,
+              reason: 'referenced_by_external_dependency',
+              dependencyIds: [added.value],
+            });
+            if (
+              typeof answer !== 'object' ||
+              answer === null ||
+              !('dependencyIds' in answer) ||
+              !Array.isArray(answer.dependencyIds)
+            )
+              throw new Error('genuine incident refusal omitted IDs');
+            genuineRefusals.push(
+              answer.dependencyIds.map((dependencyId: unknown) => {
+                if (typeof dependencyId !== 'string')
+                  throw new Error('incident ID is not a string');
+                return dependencyId;
+              }),
+            );
+            const malformed = { ...answer };
+            Reflect.deleteProperty(malformed, 'dependencyIds');
+            return malformed;
+          },
+        });
+        try {
+          return await service.undoWithin(
+            fixture.predecessor.projectId,
+            fixture.principal.id,
+            fixture.expectedAccess,
+          );
+        } finally {
+          restorations.push(
+            own === undefined
+              ? Reflect.deleteProperty(service, 'deletionIncidents')
+              : Reflect.defineProperty(service, 'deletionIncidents', own),
+          );
+        }
+      },
+    ),
+  );
+  expect(genuineRefusals).toEqual([[added.value]]);
+  expect(restorations).toEqual([true]);
+  expect(effects()).toEqual(before);
+  expect(typeof announcements.read).toBe('function');
+  if (announcements.read === undefined || announcements.before === undefined)
+    throw new Error('announcement observer absent');
+  expect(announcements.read()).toEqual(announcements.before);
+  expect(announcements.read()).toEqual({ pending: [], published: [] });
+  expect(failure).toBeInstanceOf(Error);
+  if (!(failure instanceof Error)) throw new Error('compensation did not throw');
+  expect(failure.message).toBe('incident refusal is missing relationship ids');
 });
 
 test('undo-create refuses a newly linked incoming successor even when its local revision matches', async () => {

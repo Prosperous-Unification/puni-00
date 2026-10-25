@@ -7581,3 +7581,41 @@ the inherited 10,000ms hook allowance. All other CI jobs passed. The scoped
 cleanup correction and complete remote execution split have independent
 architecture approval and remain in their separately reviewed CI checkpoint;
 no full green CI or final host-gate success is claimed here.
+
+## Undo-create trusted incident diagnostic, 2026-10-25
+
+Base `10e5c40cddea421da1590dfb7183806f08c50b81`; Bun1.4.4 with independent frozen
+installs. The bounded change adds one genuine SQLite compensation test, a lazy
+observer of the existing collector's deep-copied pending/published announcements,
+and an adjacent production `Proof:` comment. Runtime behavior is unchanged.
+
+The per-instance wrapper first calls the genuine incident reader and verifies its
+actual relationship IDs, then omits only `dependencyIds`. Exact descriptor
+restoration, complete table equality and actual announcement equality are asserted
+after rejection, before the specific diagnostic assertion. The initial missing
+observer delivery failed the new test; supplying the lazy observer passed it.
+
+In an independent disposable checkout, removing only the existing undefined-ID
+guard failed the last assertion with a generic `.join` TypeError instead of
+`incident refusal is missing relationship ids`. All preceding branch, restoration,
+table and announcement assertions passed. This is a diagnostic proof: the mutant
+still fails closed. The production guard was restored byte-for-byte.
+
+From `apps/wbs/be-01`:
+
+```sh
+bun test src/controller/connected-command-admission.controller.db.test.ts --test-name-pattern='missing trusted incident IDs' --timeout=10000
+bun test src/controller/connected-command-admission.controller.db.test.ts --test-name-pattern='undo-create (reports missing trusted incident IDs|refuses a newly linked)' --timeout=10000
+bun test src/controller/connected-command-admission.controller.db.test.ts --timeout=10000
+```
+
+The guard mutant failed one case after17 assertions. Restored controls passed3
+tests/39 assertions. The final complete file passed133 tests/1859 assertions
+in53.02s. Backend TypeScript build, graph-backed scoped ESLint, formatting, unchanged
+package/lock comparisons and diff checks passed. Independent Astra source review
+approved the two frozen files and replayed3 cases/39 assertions.
+
+These observations belong to the isolated diagnostic packet. The separately
+published base's running CI/host gates do not verify this new test. Task4.4 remains
+open; no architectural main merge, native adoption, activation or deployment is
+approved by this proof.
