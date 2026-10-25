@@ -6,6 +6,16 @@ together is explained in [names and boundaries](names.md).
 
 ## Language
 
+**Release bundle**:
+The complete set of immutable product artifacts delivered together as one release,
+including every tier required by that product.
+_Avoid_: A single image tag as a release
+
+**Image protection**:
+An owned obligation to retain an image and everything needed to retrieve it for
+an environment, a rollback, a recovery or unfinished factory work.
+_Avoid_: Running images as the complete retention set
+
 **Prosperous Unification**:
 The company that owns the product, the tool suite and this monorepo. Short form PUNI.
 _Avoid_: Vesper Shipyards as a company name

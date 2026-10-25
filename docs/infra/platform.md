@@ -216,6 +216,12 @@ endpoint and per-node containerd trust without reprovisioning k3s. Its inputs,
 Flux ownership, recovery custody and rollback are in [registry operation](registry.md).
 The existing product registries remain authoritative until a separately verified migration.
 
+Continuous publishing adoption also requires the
+[storage lifecycle design](../../openspec/changes/bound-registry-storage/design.md)
+to be implemented and verified. The current local-path PVC size is not a hard cap.
+Publication, copy/import, deploy/rollback and backup must participate in the same
+protection and capacity protocol before automatic image retirement is enabled.
+
 Migrate by copying each image by tag without re-encoding it; the copier
 verifies every blob digest and requires the target to report the source
 manifest digest:
@@ -226,7 +232,12 @@ TARGET_USERNAME=puni-push TARGET_PASSWORD=... TARGET_CA_FILE=registry-ca.crt \
   https://<existing-registry> https://registry.puni.internal:5000 wbs/be-01:<tag> ...
 ```
 
-Garbage collection runs offline. Suspend Flux `platform`, set
+The following is the original local-lab GC rehearsal, not an automatic retention
+policy or a sufficient production maintenance procedure. Production requires the
+root/platform ownership barrier, protected-image inventory and recovery sequencing
+in the linked storage lifecycle design; these are not activated yet.
+
+For the local-lab rehearsal, suspend Flux `platform`, set
 `REGISTRY_STORAGE_MAINTENANCE_READONLY={"enabled": true}` and wait for the
 rollout, confirm pushes return 405, then run
 `registry garbage-collect /etc/docker/registry/config.yml` in the pod.

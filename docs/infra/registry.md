@@ -4,6 +4,20 @@ The platform registry is Distribution 2.8.3 with verified TLS and htpasswd authe
 
 The existing website images remain on GHCR and WBS keeps its existing registry. Making this endpoint usable does not migrate either product. See the [activation checklist](../../openspec/changes/activate-platform-registry/tasks.md).
 
+## Storage protection — designed, not active
+
+The 50 GiB local-path PVC request is **not an enforced storage limit**. Registry
+contents currently share the host root filesystem. Automatic image retirement,
+garbage collection and backup pruning are not enabled. Operational push/pull and
+recovery verification do not establish protection against filling the disk.
+
+The [storage workflow design](../../openspec/changes/bound-registry-storage/design.md)
+and [implementation plan](../../openspec/changes/bound-registry-storage/tasks.md)
+are prerequisites for continuous product publishing here. They define an enforced
+filesystem boundary, capacity admission, release-aware retention, protected
+rollback/recovery images and coordinated maintenance. Their thresholds and
+retention counts are proposed policy, not current runtime behavior.
+
 ## Reconcile the endpoint and clients
 
 Use `infra/ansible/playbooks/registry.yml` with an owner-only inventory/vars file. The two inventory groups are `registry_endpoints` and `registry_clients`; the matching tags are `registry_endpoint` and `registry_client`. Both plays serialize hosts.

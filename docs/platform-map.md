@@ -209,6 +209,13 @@ captured before migrate, step-code backfill before exposure; recovery after expo
 
 ### 5.9 Operate
 
+**2026-10-25 follow-up (proposed):** The operational platform registry needs the
+[storage lifecycle workflow](../openspec/changes/bound-registry-storage/design.md)
+before continuous product adoption. It links publishing, import, deployment,
+rollback, backup and retirement through enforced capacity and image protections.
+The design exists; runtime safeguards are not yet active. This follow-up does not
+change the historical capability states in the snapshot below.
+
 Runbooks: dev deploy, prod deploy, heavy-lock owner, organization DNS, activation, ownership
 preflight, email delivery, public email policy, Dagger registry DNS, tool-wiki activation,
 screen design. Triage in [HUMAN_README.md](../HUMAN_README.md). Findings in
