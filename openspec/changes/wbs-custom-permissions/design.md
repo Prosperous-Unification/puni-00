@@ -169,7 +169,7 @@ the reviewer's three product questions and await Dany.
   `org-admin` adds themselves to a group holding a custom organization role with
   `organization.manage_security` and is refused `403 forbidden` naming
   `organization.manage_organization_roles`, the group unchanged.
-- **CP14. One human keeps the built-in super-admin role.** _Awaits Dany._ The invariant is
+- **CP14. One human keeps the built-in super-admin role.** _Settled by Dany 2026-10-25 ("yes ok"); per organization, see `wbs-permissions` P20._ The invariant is
   "at least one current member of the organization, not a machine credential, holds the
   built-in `org-super-admin` through a direct `user` grant at organization scope". A
   group-held `org-super-admin`, a custom role with an equal set, and a credential's grant
