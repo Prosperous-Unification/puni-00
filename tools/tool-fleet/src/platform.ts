@@ -167,7 +167,7 @@ const signalGenerators = [
       'traces-template.json',
       'metrics-policy.json',
       'metrics-template.json',
-      'apply.sh',
+      'apply.js',
     ],
   },
 ];

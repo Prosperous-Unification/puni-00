@@ -272,3 +272,135 @@ it('production path requires the metrics write credential declaration', async ()
     /consumes Secret observability\/signal-metrics-write-auth/,
   );
 });
+
+/** Execute the committed Job program; only network and CA material are fixture boundaries. */
+async function runRetention(reply: string, at = 0, status = 200, password = 'fixture') {
+  const directory = await scratchAsync('observability-retention-');
+  const receipts = join(directory, 'requests.json');
+  const preload = join(directory, 'preload.js');
+  await writeFile(
+    preload,
+    `
+import { writeFileSync } from 'node:fs';
+const requests = [];
+const file = Bun.file;
+Bun.file = (path, ...options) => path === '/es-ca/ca.crt' ? new Blob(['fixture-ca']) : file(path, ...options);
+globalThis.fetch = async (url, options) => {
+  requests.push({url: String(url), method: options.method, body: options.body, redirect: options.redirect,
+    timeout: options.signal instanceof AbortSignal, ca: options.tls.ca, authorization: options.headers.authorization});
+  const response = requests.length === ${String(at + 1)} ? ${JSON.stringify(reply)} :
+    requests.length === 1 ? '{"status":"yellow","timed_out":false}' : '{"acknowledged":true}';
+  return new Response(response, {status: requests.length === ${String(at + 1)} ? ${String(status)} : 200});
+};
+process.on('exit', () => writeFileSync(${JSON.stringify(receipts)}, JSON.stringify(requests)));
+`,
+  );
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      '--preload',
+      preload,
+      join(root, 'infra/platform/observability/production/apply.js'),
+    ],
+    { env: { ...process.env, ELASTIC_PASSWORD: password }, stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [exitCode, stderr, requests] = await Promise.all([
+    child.exited,
+    new Response(child.stderr).text(),
+    child.exited.then(
+      async () =>
+        JSON.parse(await readFile(receipts, 'utf8')) as {
+          url: string;
+          method: string;
+          body?: string;
+          redirect: string;
+          timeout: boolean;
+          ca: string;
+          authorization: string;
+        }[],
+    ),
+  ]);
+  return { exitCode, stderr, requests };
+}
+
+it.each(['yellow', 'green'])(
+  'retention Job accepts confirmed %s health and all six acknowledgements',
+  async (status) => {
+    const receipt = await runRetention(JSON.stringify({ status, timed_out: false }));
+    expect(receipt.stderr).toBe('');
+    expect(receipt.exitCode).toBe(0);
+    expect(receipt.requests).toHaveLength(7);
+    expect(receipt.requests[0].url).toBe(
+      'https://elasticsearch-es-http.observability.svc:9200/_cluster/health?wait_for_status=yellow&timeout=120s&filter_path=status,timed_out',
+    );
+    expect(receipt.requests[0].method).toBe('GET');
+    for (const request of receipt.requests) {
+      expect(request.redirect).toBe('error');
+      expect(request.timeout).toBe(true);
+      expect(request.ca).toBe('fixture-ca');
+      expect(request.authorization).toBe(
+        `Basic ${Buffer.from('elastic:fixture').toString('base64')}`,
+      );
+    }
+    for (const [index, signal] of ['logs', 'traces', 'metrics'].entries()) {
+      for (const [offset, suffix] of ['policy', 'template'].entries()) {
+        const request = receipt.requests[1 + index * 2 + offset];
+        expect(request.method).toBe('PUT');
+        expect(request.body).toBe(
+          await readFile(
+            join(root, `infra/platform/observability/production/${signal}-${suffix}.json`),
+            'utf8',
+          ),
+        );
+        expect(request.url).toContain(offset === 0 ? '/_ilm/policy/' : '/_component_template/');
+      }
+    }
+  },
+);
+
+it.each([
+  ['health malformed JSON', '{', 0, 200],
+  ['health null', 'null', 0, 200],
+  ['health array', '[]', 0, 200],
+  ['health missing', '{}', 0, 200],
+  ['health unknown field', '{"status":"green","timed_out":false,"unexpected":true}', 0, 200],
+  ['health red', '{"status":"red","timed_out":false}', 0, 200],
+  ['health unknown status', '{"status":"unknown","timed_out":false}', 0, 200],
+  ['health timed out', '{"status":"yellow","timed_out":true}', 0, 200],
+  ['health wrong boolean', '{"status":"yellow","timed_out":"false"}', 0, 200],
+  ['health HTTP failure', '{"status":"green","timed_out":false}', 0, 503],
+  ['health HTTP unknown', '{"status":"green","timed_out":false}', 0, 202],
+  ...[1, 2].flatMap(
+    (at) =>
+      [
+        [`mutation ${String(at)} false acknowledgement`, '{"acknowledged":false}', at, 200],
+        [`mutation ${String(at)} missing acknowledgement`, '{}', at, 200],
+        [
+          `mutation ${String(at)} unknown field`,
+          '{"acknowledged":true,"unexpected":true}',
+          at,
+          200,
+        ],
+        [`mutation ${String(at)} wrong boolean`, '{"acknowledged":"true"}', at, 200],
+        [`mutation ${String(at)} null`, 'null', at, 200],
+        [`mutation ${String(at)} malformed JSON`, '{', at, 200],
+        [`mutation ${String(at)} HTTP failure`, '{"acknowledged":true}', at, 503],
+        [`mutation ${String(at)} HTTP unknown`, '{"acknowledged":true}', at, 202],
+      ] as const,
+  ),
+] as const)(
+  'retention Job rejects %s before further requests',
+  async (_fault, reply, at, status) => {
+    const receipt = await runRetention(reply, at, status);
+    expect(receipt.exitCode).not.toBe(0);
+    expect(receipt.requests).toHaveLength(at + 1);
+    expect(receipt.stderr).toMatch(/Invalid retention response|HTTP (503|202)|JSON Parse error/);
+  },
+);
+
+it('retention Job refuses missing credentials before network access', async () => {
+  const receipt = await runRetention('{"status":"yellow","timed_out":false}', 0, 200, '');
+  expect(receipt.exitCode).not.toBe(0);
+  expect(receipt.requests).toHaveLength(0);
+  expect(receipt.stderr).toContain('ELASTIC_PASSWORD is required');
+});

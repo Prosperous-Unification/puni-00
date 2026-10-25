@@ -82,3 +82,5 @@ infra/platform/observability/production/traces-template.json
 infra/platform/observability/production/metrics-policy.json
 infra/platform/observability/production/metrics-template.json
 infra/platform/observability/elastic/settings/settings.yaml
+infra/platform/observability/local/apply.js
+infra/platform/observability/production/apply.js

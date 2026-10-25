@@ -19,10 +19,10 @@ spec:
           type: RuntimeDefault
       containers:
         - name: apply
-          image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+          image: docker.io/oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a
           command:
-            - sh
-            - /settings/apply.sh
+            - bun
+            - /settings/apply.js
           env:
             - name: ELASTIC_PASSWORD
               valueFrom:

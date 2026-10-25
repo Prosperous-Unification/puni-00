@@ -400,7 +400,7 @@ function createRetentionJob(image: string) {
             {
               name: 'apply',
               image: image,
-              command: ['sh', '/settings/apply.sh'],
+              command: ['bun', '/settings/apply.js'],
               env: [
                 {
                   name: 'ELASTIC_PASSWORD',
@@ -487,7 +487,9 @@ export async function renderObservability(root: string): Promise<Record<string, 
   };
   const files: Record<string, string> = {
     'observability/elastic/settings/settings.yaml': stringify(
-      createRetentionJob(image(lock.charts.elasticsearch.images, 'node')),
+      createRetentionJob(
+        `${lock.runtimeImages.sqliteBackup.name}@${lock.runtimeImages.sqliteBackup.digest}`,
+      ),
     ),
     'observability/base/coexistence.json': JSON.stringify(await assessObservabilityBudget(root)),
     'observability/base/signals.yaml': documents([
@@ -543,10 +545,37 @@ export async function renderObservability(root: string): Promise<Record<string, 
       files[`observability/${environment}/${name}`] = content;
     const policies = configuration.retention;
     const statements = [
-      'set -eu',
-      'url=https://elasticsearch-es-http.observability.svc:9200',
-      'es() { curl --fail-with-body --silent --show-error --max-time 150 --cacert /es-ca/ca.crt --user "elastic:${ELASTIC_PASSWORD}" --header "content-type: application/json" "$@"; }',
-      'es "$url/_cluster/health?wait_for_status=yellow&timeout=120s"',
+      `const { Bun, process, Buffer, fetch, AbortSignal } = globalThis;
+const password = process.env.ELASTIC_PASSWORD;
+// Proof: retention Job refuses missing credentials; removing this check admits an empty credential.
+if (!password) throw new Error('ELASTIC_PASSWORD is required');
+const ca = await Bun.file('/es-ca/ca.crt').text();
+const url = 'https://elasticsearch-es-http.observability.svc:9200';
+/** The filtered health and acknowledgement contracts are closed; unknown outcomes fail the Job. */
+function assertResponse(response, contract) {
+  // Proof: retention Job rejects health/mutation missing, null, unknown fields and wrong values;
+  // removing this guard makes those production-program negative controls fail.
+  if (response === null || typeof response !== 'object' || Array.isArray(response) ||
+      Object.keys(response).length !== Object.keys(contract).length ||
+      !Object.entries(contract).every(([key, values]) => Object.hasOwn(response, key) && values.includes(response[key])))
+    throw new Error('Invalid retention response');
+}
+/** TLS, credentials, redirect refusal and timeout apply to every health/mutation exchange. */
+async function request(path, method, body) {
+  const response = await fetch(url + path, {
+    method, body, redirect: 'error', signal: AbortSignal.timeout(150000), tls: { ca },
+    headers: { authorization: 'Basic ' + Buffer.from('elastic:' + password).toString('base64'), 'content-type': 'application/json' },
+  });
+  // Proof: retention Job rejects health and mutation HTTP 503/202 even with otherwise valid JSON;
+  // removing this guard makes those production-program negative controls fail.
+  if (response.status !== 200) throw new Error('Retention HTTP ' + String(response.status));
+  return await response.json();
+}
+assertResponse(await request('/_cluster/health?wait_for_status=yellow&timeout=120s&filter_path=status,timed_out', 'GET'),
+  { status: ['yellow', 'green'], timed_out: [false] });
+async function mutate(path, filename) {
+  assertResponse(await request(path, 'PUT', await Bun.file(import.meta.dir + '/' + filename).text()), { acknowledged: [true] });
+}`,
     ];
     for (const [signal, policy] of Object.entries(policies.elastic)) {
       files[`observability/${environment}/${signal}-policy.json`] = JSON.stringify(policy.policy);
@@ -554,11 +583,11 @@ export async function renderObservability(root: string): Promise<Record<string, 
         policy.template,
       );
       statements.push(
-        `es --request PUT "$url/_ilm/policy/${policy.policyName}" --data-binary @/settings/${signal}-policy.json`,
-        `es --request PUT "$url/_component_template/${policy.templateName}" --data-binary @/settings/${signal}-template.json`,
+        `await mutate('/_ilm/policy/${policy.policyName}', '${signal}-policy.json');`,
+        `await mutate('/_component_template/${policy.templateName}', '${signal}-template.json');`,
       );
     }
-    files[`observability/${environment}/apply.sh`] = statements.join('\n') + '\n';
+    files[`observability/${environment}/apply.js`] = statements.join('\n') + '\n';
   }
   return files;
 }
