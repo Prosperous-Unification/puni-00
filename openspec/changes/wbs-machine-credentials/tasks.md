@@ -211,17 +211,25 @@ See `verify.md`, "Slice 3 record".
       reader of `external_identity.person_id` remains (grep in the test).
 - [ ] 4.3 Operator (not code): before the swap, an admin issues one API-key credential per
       fleet agent person on dev through the panel (slice 2) and each fleet harness holds
-      it; laptop Claude Code authorizes its agent at the consent page (slice 3); after the
+      it; laptop Claude Code authorizes its agent at the consent page (slice 3); the
+      panel shows a recent last use for every new key on the outgoing colour; a refreshed
+      dev browser access token is decoded and carries `wbs_groups` (Fable review S3-3:
+      the refresh grant must emit it too, else sessions end at the first refresh), recorded
+      in verify.md before the slice 4 PR merges; after the
       swap, confirm every fleet writes and record the applied state in puni-plan without
       secrets. The Auth0 machine-to-machine applications are deleted in the dashboard.
 
 Slice 4 as built (2026-10-25, PR into `main`, held until 4.3's pre-swap step):
 
-- 4.1: `authenticateOrRefuse` answers `unknown_identity` for a groups-less token of the
-  configured issuer before any read; `organizationCredentialEvidence` answers no evidence for
-  one. `readExistingOidcIdentity` itself stays: browser refresh and `sessionUser` read an
-  existing pair through it (never minting); only its use as a machine admission is deleted,
-  with `scopesOfRoles` and `membershipRolesOf`, which only that admission read.
+- 4.1: only the method's use as an admission is deleted: `readExistingOidcIdentity` itself
+  stays, because browser refresh and `sessionUser` need a never-minting exact-pair read. Every
+  caller checks `groupsClaimed` first: `authenticateOrRefuse` answers `unknown_identity` for a
+  groups-less token of the configured issuer with no identity read; `sessionUser` answers no
+  session for one (so a link start or callback under such a cookie is `401`, Fable review
+  S2-1); the refresh path refuses a refreshed token without groups before installing it; and
+  `organizationCredentialEvidence` throws on one, an invariant broken upstream.
+  `scopesOfRoles` and `membershipRolesOf`, which only the admission read, are deleted (the open
+  `wbs-permissions` change still names `scopesOfRoles`; left to its owner).
 - 4.1, the pin: `credentialPinOf` answers null for an upstream pair, `CredentialPin` is
   `{ personId }` only, and `DirectoryStore.credentialPinOf`, the memory pins
   (`pinCredential`) and the two conformance cases `directory.credentialPinOf:unlinked` and

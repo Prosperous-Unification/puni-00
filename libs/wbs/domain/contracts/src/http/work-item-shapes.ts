@@ -64,8 +64,8 @@ const usage = type({
     }).array(),
   }).array(),
   members: named.array(),
-  // Optional on the wire: an outgoing be-01 mid-swap counts none
-  // (`wbs-machine-credentials`).
+  // Optional on the wire: a be-01 older than `wbs-machine-credentials`
+  // slice 2 omits it; every later release sends it, 0 for a team.
   'machineCredentials?': 'number',
 });
 /**

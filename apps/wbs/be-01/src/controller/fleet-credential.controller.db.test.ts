@@ -224,6 +224,13 @@ describe('a browser token', () => {
  * `path: line`. Tests, test fixtures and migrations are not production
  * readers; the rollback guard of `20261019130100_add_external_identity_person`
  * counts the column but is a frozen migration.
+ *
+ * What it does not prove: it reads single lines, so a row selected whole
+ * (`select().from(externalIdentity)`) and then read for `.personId`, raw SQL
+ * split across lines, or an alias escapes it; and it says nothing about
+ * admission by `(issuer, subject)`, which is the real risk. The behavioural
+ * cases above and the groups-less link start and refresh in
+ * `oidc-identity.controller.db.test.ts` are the guards for that.
  */
 function personIdUses(): string[] {
   const uses: string[] = [];

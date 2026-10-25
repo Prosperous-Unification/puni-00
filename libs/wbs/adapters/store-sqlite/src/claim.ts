@@ -58,8 +58,9 @@ type StoredClaim = Claim & {
  * not the stamp: an undo of a release puts the claim back as its claimant's,
  * whoever pressed the key, so `parent_claim_foreign` keeps meaning the same.
  *
- * The identity reads are the directory's: `person.account_id` and
- * `external_identity.person_id` (`wbs-team-claims` D5, D6).
+ * The binding read is the directory's `person.account_id` (`wbs-team-claims`
+ * D5); the pin is the request credential's own person
+ * (`wbs-machine-credentials` A12, A18).
  *
  * Each claim's occupancy rows (`claim_occupancy`, `wbs-resources` R3) are
  * written with it and go with it by cascade.

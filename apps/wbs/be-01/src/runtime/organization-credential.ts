@@ -103,10 +103,17 @@ export function organizationCredentialEvidence(
     if (upstream !== undefined && principal.authentication?.kind !== 'first_party') {
       const evidence = await upstream(token);
       if (evidence !== null) {
-        // A token without a groups claim proves no account
-        // (`wbs-machine-credentials` A18), as `authenticateOrRefuse` refuses
-        // it, so it is no evidence and nothing is resolved or written for it.
-        if (!evidence.identity.groupsClaimed) return null;
+        // `authenticateOrRefuse` refuses a groups-less token of the configured
+        // issuer before any principal exists (`wbs-machine-credentials` A18),
+        // and the principal here was admitted on this very token, so reaching
+        // this is a broken invariant, not a credential to refuse.
+        // Proof: answering null instead left `throws for groups-less upstream
+        // evidence behind an admitted principal`
+        // (`organization-credential.test.ts`) resolving; watched 2026-10-25.
+        if (!evidence.identity.groupsClaimed)
+          throw new Error(
+            'a groups-less token of the configured issuer reached organization evidence',
+          );
         // The exact verified pair, never an email match, must resolve to the
         // account that authenticated the request.
         const user = await auth.resolveOidcIdentity(evidence.identity);

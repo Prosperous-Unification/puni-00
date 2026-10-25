@@ -775,3 +775,43 @@ fe-01 suites; CI carries them.
 | `plaintext-secrets.ts` `wbs_mk_` pattern (4.2)                         | pattern made unmatchable (`(?!)`)                                        | `aborts a commit staging a WBS API key, exit 1, …` exited 0; `detects a WBS API key …` scanned null                                                                  |
 
 Each fault was restored from a copy and the file's diff checked before moving on.
+
+### Slice 4 review fixes (Fable on #731 at 2cb8e3674: request changes, fixed)
+
+- **S2-1** `sessionUser` admitted a groups-less token whose pair a retired link maps, so a
+  fleet's Auth0 token as the session cookie could start and complete an account link (Fable
+  reproduced it). `sessionUser` now answers no session for a token without `wbs_groups`, and
+  the refresh path refuses a refreshed token without it before installing it. Red first: both
+  new `oidc-identity.controller.db.test.ts` cases failed on 2cb8e3674 (link start 200, refresh
+  204).
+- **S3-1** `organizationCredentialEvidence` throws for groups-less evidence (unreachable: the
+  principal was admitted on the same token), with a unit test.
+- **S3-2, S3-6** Runbook swap section: no person deletions during the window, the last-used
+  evidence step, the `wbs_groups`-on-refresh evidence step, the rollback caveat for rows that
+  person removals deleted, and the post-rollback cleanup of every CLI row (described, backup
+  first).
+- **S3-3** Task 4.3's pre-swap step now requires a decoded refreshed dev access token showing
+  `wbs_groups`, recorded here before the PR merges. Not done: it is Dany's operator step.
+- **S3-4** Stale comments fixed (`claim.ts`, `wbs-api.ts`, `work-item-shapes.ts`,
+  `refusal.ts`). The open `wbs-permissions` change still plans `scopesOfRoles` changes
+  (tasks.md:72; design.md:9, 296, 486, 639); left to its owner, listed in the PR.
+- **S3-5** The grep test's JSDoc states what it does not prove.
+- **S3-7** The h2puni/h4claw gate was not run by this slice's worker; CI on the PR is the
+  check of record until the coordinator runs the gate.
+
+| Guard (file)                                      | Injected fault           | Observed failure                                                                                                           |
+| ------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `authentication.feature.ts` `sessionUser` groups  | check removed            | `refuses a link start under a groups-less cookie whose pair is linked`: 1 of 80 failed                                     |
+| `auth-oidc-endpoints.ts` refresh groups           | check removed            | `refuses a refreshed access token without groups, leaving the lifecycle alone`: 1 of 80 failed                             |
+| `organization-credential.ts` groups-less evidence | throw replaced by `null` | `throws for groups-less upstream evidence behind an admitted principal` (`organization-credential.test.ts`): 1 of 4 failed |
+
+Fresh runs after the fixes (`env -u CLAUDECODE bun test`): fleet-credential,
+oidc-identity, organization-credential, machine-credential, organization-credential-rules,
+claim-identity, `boot.db.test.ts`, swarm rehearsal: 193 pass, 0 fail. The nine other suites
+that call link, `sessionUser` or refresh (boot-browser-session, auth-oidc, pending-membership,
+browser-lifecycle mounted process, enterprise-link, organization-audit-completeness,
+oidc.integration, auth-oidc-shapes, enterprise-email-trust): 114 pass, 0 fail. `nx run-many -t typecheck lint` over be-01, fe-01, core, contracts and store-sqlite: the
+first run failed lint on two `prefer-optional-chain` guards and an `await` in the new unit
+test; fixed (guards re-watched after the rewrite), then typecheck and lint of be-01 and core
+succeeded, the other three having passed in the first run. `nx test` for core and contracts:
+succeeded. `openspec validate --all --json`: 287/287. Burokrat `check-indexes`: exit 0.

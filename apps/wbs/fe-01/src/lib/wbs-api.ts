@@ -1179,7 +1179,8 @@ export interface DirectoryUsage {
   members: { id: string; name: string }[];
   /**
    * Unrevoked machine credentials of the person, which a confirmed removal
-   * revokes (`wbs-machine-credentials`). Optional: absent for a team.
+   * revokes (`wbs-machine-credentials`); 0 for a team. Optional: a be-01
+   * older than that change's slice 2 omits it.
    */
   machineCredentials?: number;
 }

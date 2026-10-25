@@ -1051,6 +1051,70 @@ describe('the OIDC callback after activation', () => {
     expect(all('SELECT * FROM external_identity')).toEqual([]);
   });
 
+  // A token without `wbs_groups` is a machine's (`wbs-machine-credentials`
+  // A18): it proves no browser session, so a retired link row cannot start a
+  // link that would add a sign-in method to the human's account.
+  // Proof: with `sessionUser`'s groups check removed, this started the link
+  // (200) and asked the provider for an authorization URL; watched 2026-10-25.
+  it('refuses a link start under a groups-less cookie whose pair is linked', async () => {
+    activate();
+    googleAccount('g', 'google-oauth2|1');
+    sql(
+      "INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('map-fleet', 'g', 'https://idp.test', 'claire-m2m@clients', 1)",
+    );
+    accessClaims.set('fleet-access', {
+      iss: 'https://idp.test',
+      sub: 'claire-m2m@clients',
+      exp: Math.floor((now + 900_000) / 1000),
+    });
+    const app = mounted(githubClaims);
+    const before = all('SELECT user_id, subject FROM external_identity ORDER BY subject');
+
+    const start = await startOidcLink(app, 'fleet-access', { method: 'github' });
+    expect(start.status).toBe(401);
+    expect(linkAuthorization).toBeNull();
+    expect(all('SELECT user_id, subject FROM external_identity ORDER BY subject')).toEqual(before);
+  });
+
+  // Proof: with the refresh path's groups check removed, this answered 204
+  // and replaced the lifecycle's credential; watched 2026-10-25.
+  it('refuses a refreshed access token without groups, leaving the lifecycle alone', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const credential = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', credential, { openedAt: 1, reauthenticatedAt: null });
+    const { wbs_groups: _groups, ...groupless } = claims;
+    refreshClaims = { ...groupless, exp: Math.floor((now + 900_000) / 1000) };
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential,
+    });
+
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: credential });
+  });
+
   it('refuses a verified refresh identity for another local user before lifecycle CAS', async () => {
     sql(
       "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",

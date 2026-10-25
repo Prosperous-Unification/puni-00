@@ -144,7 +144,9 @@ export class AuthService {
    * The account a browser session proves. A first-party password session wins
    * (its token cannot be an OIDC one); otherwise the token is verified with the
    * configured OIDC verifier and resolved through existing mappings only, so a
-   * session can never create or merge an account here. Verifier and store
+   * session can never create or merge an account here. A token without the
+   * groups claim is a machine's and proves no session (`wbs-machine-credentials`
+   * A18), whatever `external_identity` maps its pair to. Verifier and store
    * faults propagate.
    */
   async sessionUser(token: string | null): Promise<SessionAccount | null> {
@@ -152,7 +154,10 @@ export class AuthService {
     if (password !== null) return { kind: 'password', user: password };
     if (token === null || this.opts.oidc === undefined) return null;
     const identity = await this.opts.oidc.verify(token);
-    if (identity === null) return null;
+    // Proof: without this check, `refuses a link start under a groups-less
+    // cookie whose pair is linked` (`oidc-identity.controller.db.test.ts`)
+    // started the link (200); watched 2026-10-25.
+    if (identity?.groupsClaimed !== true) return null;
     const user = await this.readExistingOidcIdentity(identity);
     return user === null ? null : { kind: 'oidc', user };
   }
@@ -342,7 +347,11 @@ export class AuthService {
     return this.opts.account.resolveIdentity(identity);
   }
 
-  /** Resolves only a pre-existing exact verified pair; refresh may not create or link users. */
+  /**
+   * Resolves only a pre-existing exact verified pair; refresh may not create or
+   * link users. Callers check `groupsClaimed` first: a groups-less token's pair
+   * admits nothing (`wbs-machine-credentials` A18).
+   */
   readExistingOidcIdentity(
     identity: Pick<OidcIdentity, 'issuer' | 'subject'>,
   ): Promise<User | null> {

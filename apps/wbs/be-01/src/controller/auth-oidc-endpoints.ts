@@ -943,7 +943,13 @@ export function authOidcEndpoints(
             // an invented TTL made mounted malformed-evidence refresh return 204
             // instead of 401 (0/1, 2026-10-01).
             const evidence = await verifyEvidence(next.accessToken);
-            if (evidence === null) {
+            // A refreshed token without the groups claim proves no browser
+            // session (`wbs-machine-credentials` A18): refused, never installed.
+            // Proof: without the groups check, `refuses a refreshed access
+            // token without groups, leaving the lifecycle alone`
+            // (`oidc-identity.controller.db.test.ts`) answered 204; watched
+            // 2026-10-25.
+            if (evidence?.identity.groupsClaimed !== true) {
               if (spent) attempt.delete();
               return refused();
             }

@@ -397,7 +397,9 @@ in [local development](local-dev.md) and the OpenAPI document.
 
 A verified token of the configured issuer (Auth0) **without** the `wbs_groups`
 claim, such as an Auth0 machine-to-machine token, is refused
-`401 unknown_identity`. No `external_identity` row admits it, including a row
+`401 unknown_identity` as a Bearer, and proves no session as a browser cookie
+(link start and callback answer 401) or as a refreshed access token (refresh
+answers 401). No `external_identity` row admits it, including a row
 pinned by the retired operator link CLI, and no account is minted or changed.
 A token that carries the claim keeps the browser login path. Those pinned rows
 stay inert until a cleanup change drops `external_identity.person_id`;
