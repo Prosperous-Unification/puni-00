@@ -368,6 +368,26 @@ design and matrix rows, not a widening of `org-super-admin`. Rejected: a global 
 (one compromised login reaching every tenant; nothing in the product needs it while PUNI's
 fleets are tenants like any other, `wbs-machine-credentials` A18).
 
+**P21. Super-admins change through the product, and an operator CLI is the only other
+path.** _Added 2026-10-25 on Dany's question "how would i be able to change the org
+super-admins?"; assumed and overrulable by id._ Inside an organization a current
+`org-super-admin` grants `org-super-admin` to another current member and revokes it from
+anyone, themselves included, through the ordinary grant routes (P11,
+`organization.manage_organization_roles`); CP14 refuses the revoke that would leave no direct
+human holder, so the hand-over order is grant first, revoke second. Nothing else in the web
+API can create a super-admin: not `org-admin`, not a group, not a custom role, not a machine.
+For an organization where no super-admin can act (the only holder lost their account, left
+the company, or is not Dany in an organization Dany must reach) the host operator runs
+`apps/wbs/be-01/src/access-grant-cli.ts grant-super-admin --organization=<id> --user=<id>`
+(and `revoke-super-admin`, which obeys CP14 and refuses to leave zero). It needs the host,
+not a login; it refuses a user who is not a current member of that organization, a machine
+credential, and a missing or unreadable database; it writes the grant and one
+`access_granted` (or `access_revoked`) audit row with origin `operator` and actor
+`operator:<os login>` in one transaction, as `organization-limits-cli.ts` does, and prints
+the organization's super-admin count afterwards. Dev runbook gains the line. Rejected: a
+"PUNI staff" web role (P20) and a `--force` that bypasses the membership check (an operator
+who needs a non-member in charge first admits them through the ordinary onboarding path).
+
 ## Tables
 
 All additive, one migration `add_access_grants` with `down.sql`; names are SQLite.
