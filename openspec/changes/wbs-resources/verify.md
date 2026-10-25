@@ -1405,3 +1405,49 @@ Shots in `resource-delete-shots/`, page errors 0, overflow 0 px:
 - `resources-forbidden-alert-1280-light`: `adm` was demoted to member between opening the confirm
   and confirming. It shows the alert under the hint, no confirm, and 0 Remove buttons; the picker
   is gone after the reread.
+
+### Task 1.7: the Resources section offers only what the role may send, 2026-10-25
+
+The live swarm rehearsal on main 93b6f3555 found S2: a viewer got the capacity box, State,
+Edit and the Add form, and a refused State left the box showing 3 under `Declared 4`, with the
+refusal at the bottom of the list. A member's and a viewer's read also sent the always-refused
+`GET /api/organization/compute-providers` (S3). fe-01 now draws by a `Standing` read off
+`GET /api/organization/active`: admin or super-admin (and every caller without organizations)
+gets every control; a member gets capacity, Edit and Add, matching be-01
+(`admitEditInOrganization` for `setResourceCapacity`, `canWriteInOrganization` for
+`createResource` and `patchResource`); a viewer, a failed role read and another organization
+get nothing to change. The providers list is requested only for an admin. A refusal or failure
+is said in the row of the resource whose write caused it, and a refused capacity shows the
+declared number again; a local "not a whole number" keeps what was typed.
+
+Assumption: a member's capacity statement on a restricted project they did not create is still
+offered; be-01 refuses it `forbidden` and the row says so. The section does not read the
+project's restriction.
+
+#### Proofs (each fault injected alone, the named test watched failing, restored; 2026-10-25)
+
+| Fault injected                                        | Observed failing test                                                                                                                    |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| providers list requested whatever the role            | `never asks a member for the providers list`, its viewer twin, `names the instance on the row for a member…`, 3 more                     |
+| `mayWrite` true for every standing                    | `offers a viewer nothing to change, and says so`, `tells a viewer of an empty directory nothing about adding`, 2 more                    |
+| the box cleared only on a landed capacity (as before) | `shows the declared number again after a refused capacity, and says why beside its row`                                                  |
+| no notice passed to the row                           | the refused-capacity case, `says a refused rename beside its row`, `says a capacity that is not a number in place`, 5 refusal cases more |
+| `standingOf`: member as admin                         | `offers a member every write but Remove…`, `never asks a member for the providers list`, 3 more                                          |
+| `standingOf`: viewer as writer                        | `offers a viewer nothing to change…`, `tells a viewer of an empty directory…`                                                            |
+| `standingOf`: captured-organization check dropped     | `offers nothing to change when the active organization is another one`                                                                   |
+| `standingOf`: failed read as writer                   | `offers nothing to change while the role read failed, says so, and reads it again`                                                       |
+
+The new and changed cases were also run against the pre-change panel: 11 failed.
+
+#### Eye review (activated-organization stack, ports 7330/7331/7430, the rehearsal's seed)
+
+Shots in the session scratchpad `swarm-polish-shots/`, `settings-{view,mem,adm}-{1280-light,
+375-light,375-dark}` and `-slots`; overflow 0 px and no page error on each, and no response
+of 400 or more on any of them (no compute-providers 403 for `mem` or `view`):
+
+- `view`: 0 text boxes, 0 Edit, 0 Remove, no Add form, 0 pickers; declared numbers in the row
+  headers; "Your role can read these resources but not change them." under the list.
+- `mem`: 4 boxes, 4 Edit, 0 Remove, Add form, 0 pickers. `settings-mem-1280-light-refused-capacity`:
+  20000 slots refused `capacity_limit`; the box reads 4 again under `Declared 4 slots` and the
+  refusal stands in the agent slots row (the browser logs the 409 as a console error).
+- `adm`: 4 boxes, 4 Edit, 4 Remove, Add form, 4 pickers.

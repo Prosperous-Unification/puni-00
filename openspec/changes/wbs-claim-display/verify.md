@@ -1080,3 +1080,49 @@ postApiClaimsRenew has no declared validation refusal` (`apps/wbs/be-01/src/http
 - Seen and left: a released claim's `assign: true` assignees stay (claire on Sand, codex on Paint
   Dev). The `claimWorkItem` description says assignments are "undone with the claim", which this
   run reads as undo of the claim command, not release.
+
+### Swarm rehearsal polish (fe-01), 2026-10-25
+
+The live swarm rehearsal on main 93b6f3555 found three S3 items here, fixed on
+`fix/wbs-swarm-live-polish`:
+
+- The history read a sweep's reap as `w2 released 2 items`, with `lease expired` in small print
+  below. A reap is now worded by its reason: `w2’s lease expired, releasing 2 items`,
+  `finn’s credential was revoked`, `The leases of w2, a deleted person expired, …` for several
+  holders. The `claim-display` requirement and its "A reaped claim says why" scenario stated the
+  old sentence and are amended.
+- On a phone the Claims sheet cut the step (`Unit test shards · D…`), so a leaf's Dev and QA
+  rows read the same. The item name now truncates first; the step stays whole up to 60% of the
+  line.
+- A phone card's `LE 14m` subtree chip broke `16 d` over two lines. The total no longer shrinks
+  or wraps, and the chip takes its own header line: kept beside the number it clipped itself
+  to `LE 13r` (seen in `card-build-farm-375-light-pre`).
+- Initials take letters and digits only (`Mira (human)` was `M(`, now `MH`).
+
+#### Proofs (each fault injected alone, the named test watched failing, restored; 2026-10-25)
+
+| Fault injected                                                  | Observed failing test                                                                                     |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| a lease expiry worded `codex released`                          | `words a swept release by its reason…`, `lists the recent claims and releases…`, `stays, with no number…` |
+| `shrink-0` dropped from the held claim's step                   | `truncates a held claim’s item name before its step`                                                      |
+| total without `shrink-0 whitespace-nowrap`, chip on number line | `keeps the card’s total on one line, the subtree chip on its own`                                         |
+| initials word pattern `/\S+/gu`                                 | `takes letters and digits only, in any script`: `expected 'M(' to be 'MH'`                                |
+| no NFC composition                                              | same case: `expected 'ZA' to be 'ZÅ'`                                                                     |
+| `String#slice` for `Array.from`                                 | same case: two half surrogates for `𝔄𝔅`                                                                   |
+| `.trim()` dropped from the no-letter fallback                   | `answers a name without letters or digits with its first character`: `' '` for `🤖`                       |
+
+jsdom lays nothing out, so the two layout cases pin which element gives way; the 375 px shots
+show it holds.
+
+#### Eye review (activated-organization stack, ports 7330/7331/7430, the rehearsal's seed)
+
+Shots in the session scratchpad `swarm-polish-shots/` at 1280 light and 375 light and dark,
+before (`-pre2`) and after (`-post`) w2's lease expired (its claim went at 08:43:26 UTC, the
+sweep's history event `release/lease_expired`); overflow 0 px, no page error, no response of
+400 or more on any:
+
+- `claims-sheet-375-*-post`: held rows read `Integration s… · Dev` over `Integration suite · QA`;
+  the history's newest-but-one row reads `w2’s lease expired, releasing 2 items`.
+- `card-build-farm-375-*-pre2`: `▾ 020 Medium 50 … 16 d ⋯` on one line, the `LE 14m` chip on the
+  line under it; every card total measured 20 px high (one line).
+- `plan-1280-light-pre2`: Mira's assignee and chip read `MH`.

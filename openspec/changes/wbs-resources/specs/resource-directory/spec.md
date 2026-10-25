@@ -117,13 +117,17 @@ leaf's Resources cell (a column hidden by default) and the row menu's `Resources
 panel listing every resource with this work item's units, an exclusive one as needed or not,
 and saving SHALL send every changed demand as one batch, so the plan's Undo takes the edit back
 whole. A parent SHALL be offered no demand edit. Loading, an empty directory, a failed read
-and every refusal (a role that may not write included) SHALL be rendered in place. Remove
-SHALL be offered only to an organization admin or super-admin, read off
-`GET /api/organization/active` on each read of the section, and to every caller without
-organizations. A member and a viewer get no Remove and are told only an admin may remove a
-resource; a failed role read, or one naming another organization, offers no Remove and says so.
-A `forbidden` removal still arriving, on the plain delete or the cascade, SHALL be said in place,
-close its confirm and reread the role.
+and every refusal (a role that may not write included) SHALL be rendered in place, beside the
+resource row whose write caused it; a refused capacity SHALL leave the box showing the declared
+number. The section SHALL read the role off `GET /api/organization/active` on each read and
+offer only what that role may send. Remove SHALL be offered only to an organization admin or
+super-admin, and to every caller without organizations; a member gets no Remove and is told
+only an admin may remove a resource. A viewer SHALL be offered no write at all (no capacity
+box, Edit, Add or Remove) and is told the role can read the resources but not change them; a
+failed role read, or one naming another organization, likewise offers no write and says so.
+The compute providers list SHALL be requested only once the role read names an admin or
+super-admin. A `forbidden` removal still arriving, on the plain delete or the cascade, SHALL be
+said in place, close its confirm and reread the role.
 
 #### Scenario: A demand set from the table is undone in one step
 
@@ -136,6 +140,18 @@ close its confirm and reread the role.
 - **WHEN** a member opens the Resources section of a project
 - **THEN** each resource row offers Edit and no Remove, the section says only an organization
   admin can remove a resource, and the Add form is shown
+
+#### Scenario: A viewer is offered nothing to change
+
+- **WHEN** a viewer opens the Resources section of a project
+- **THEN** each row shows its declared number with no capacity box, Edit or Remove, no Add form
+  is shown, the section says the role can read the resources but not change them, and no
+  compute providers list is requested
+
+#### Scenario: A refused capacity is said beside its row
+
+- **WHEN** a member states 3 for a resource declared 4 and be-01 refuses it
+- **THEN** the refusal is said in that resource's row and its box shows 4 again
 
 #### Scenario: A demanded resource is removed only on confirm
 
