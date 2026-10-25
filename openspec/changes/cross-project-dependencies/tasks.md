@@ -953,6 +953,13 @@ The complete fixed builder, journal integration, capture, genuine preparation/me
 
 This source component does not complete the provider. Input authority, builder/capture, journal integration, genuine preparation/measurement, outer cleanup and authenticated archive remain required. Noncancellable IO may keep failure/close settlement pending after the original admission deadline. Exact accounting and reduced-threshold filesystem proofs do not establish full-capacity stress, physical ownership, native cleanup or application readiness. Parent 10.2 and architectural main merge stay open.
 
+### Stage B private archive container source checkpoint
+
+- [x] Implement the five closed private collector/index/serializer APIs, fixed fifteen-slot membership, detached byte ownership, original deadline and complete encoded-byte accounting. [A1 source evidence](verify-source-stageb-archive.md).
+- [x] Correct three fault-selector setup failures found by independent review; retain their original failed attempts, twenty-six valid earlier faults and three fresh consumer failures with restored controls. Obtain scoped source/proof approval.
+
+A1 emits private serialized bytes only. Actual producer joins, shared capture accounting, input authority, standard-age preflight/encryption, durable ciphertext readback and trusted seal custody remain required. Base64 overhead is charged; the separate 96 MiB reply ceiling does not guarantee a complete maximum-size capture fits the 128 MiB container. Full-capacity stress/performance and physical acceptance remain unexecuted; parent 10.2 and architectural main merge stay open.
+
 ### Published measures reconciliation
 
 - [x] Preserve ordinary document11/input9 and normalize historical bodies without rewriting bytes; move unpublished connected contracts to document12/input10.
@@ -961,3 +968,10 @@ This source component does not complete the provider. Input authority, builder/c
 - [x] Complete combined source verification and independent finite source review; evidence in [verify-main-measures.md](verify-main-measures.md).
 
 - [x] Reconcile published claim history from fresh main without weakening connected prerequisites, journal decoding or client admission; [verification](verify-main-claims.md).
+
+### Stage B input verifier and generated bootstrap source checkpoint
+
+- [x] Implement the four original-token input APIs and deterministic fixed-entry assembler: exact embedded review bytes, authenticated nine-role index joins under the approved-artifact premise, actual fixed-descriptor access/identity, permanent nonce-only durable claim, detached exact-byte inspection and original cutoff. [Source and bounded proofs](verify-source-stageb-inputs.md).
+- [x] Correct independent FD6 before-close oracle and required lint findings; retain the original mixed fault result, six newly executed affected proofs and earlier failures. Obtain scoped independent source approval and pass explicit compiler inclusion, graph-backed lint, formatting and actual journal/archive integration.
+
+This is source evidence under synthetic trusted-bootstrap fixtures. The fixed framed component witness is not a provider reply, approval, readiness or measurement, and does not establish actual C/shared-budget integration. Actual independent controller approval, persistent registry custody, standard-age recipient/tool validation, artifact provenance, G1 fixture authority, full B/K/P/O/A2/R, cross-process cutoff translation, native measurement/cleanup and authenticated final archive remain required. Parent 10.2 and architectural main merge remain open.
