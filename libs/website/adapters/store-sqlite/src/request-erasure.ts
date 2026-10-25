@@ -3,6 +3,7 @@ import type { Database } from 'bun:sqlite';
 import { busyTimeoutMilliseconds } from './checked-database';
 import { eraseConversationContent } from './conversation-store';
 import type { RetentionSubjectKind } from './request-retention';
+import { eraseScopingContent } from './scoping-store';
 
 /** A typed retention identity; see the website CONTEXT glossary. */
 export interface RetentionSubjectRef {
@@ -10,10 +11,10 @@ export interface RetentionSubjectRef {
   id: string;
 }
 
-/** The SQLite trigger message every content fence in migration 010 raises. */
+/** The SQLite trigger message every retention content fence raises. */
 export const contentFenceMessage = 'retention: subject content is fenced';
 
-/** True for the ABORT a migration-010 content fence raises; any other error is unexpected. */
+/** True for the ABORT a retention content fence raises; any other error is unexpected. */
 export function isContentFence(error: unknown): boolean {
   return error instanceof Error && error.message.includes(contentFenceMessage);
 }
@@ -51,9 +52,10 @@ interface SubmissionLineage {
 
 /**
  * True when software request `?1` still holds nonblank text in any current table that belongs
- * to it: description, brief, chat, operations, preview, its draft, conversation or submission.
+ * to it: description, brief, chat, operations, preview, its draft, scoping record, conversation or submission.
  * Empty `ensureBlankRequest` rows and migration 004 placeholders hold none.
  */
+// Proof: omitting scoping text erased the identity retained by another reference-only or candidate-only request.
 const requestRetainsContent = `(
   SELECT ${nonblank('request.description')} OR ${nonblank('request.brief')}
     OR EXISTS (SELECT 1 FROM chat_turn WHERE request_id = request.id AND ${nonblank('content')})
@@ -62,6 +64,8 @@ const requestRetainsContent = `(
     OR EXISTS (SELECT 1 FROM request_concept_preview WHERE request_id = request.id AND ${nonblank('body')})
     OR EXISTS (SELECT 1 FROM intake_draft WHERE id = request.draft_id
       AND (${nonblank('description')} OR ${nonblank('brief')}))
+    OR EXISTS (SELECT 1 FROM draft_scoping WHERE draft_id = request.draft_id
+      AND (${nonblank("coalesce(reference_text, '')")} OR ${nonblank("coalesce(candidate_brief, '')")}))
     OR EXISTS (SELECT 1 FROM proposal_submission WHERE draft_id = request.draft_id
       AND (${nonblank('brief')} OR ${nonblank('email')}))
     OR EXISTS (SELECT 1 FROM conversation AS talk JOIN conversation_turn AS turn ON turn.conversation_id = talk.id
@@ -116,7 +120,7 @@ function markOperationsUnknown(database: Database, subject: RetentionSubjectRef)
 /**
  * Starts an erasure (design D§7 step 1): moves a `non_client` subject from `none` to `fenced`
  * and makes its in-flight chat and conversation operations `unknown`, keeping each provider
- * reservation unsettled. From here the migration-010 triggers refuse every content write.
+ * reservation unsettled. From here the retention content triggers refuse every content write.
  *
  * @throws ErasureRefusedError when the subject is absent, not `non_client` or not `none`.
  */
@@ -214,6 +218,8 @@ function eraseRequestContent(database: Database, request: RequestLineage): void 
   database
     .query("UPDATE proposal_submission SET brief = '', email = '' WHERE draft_id = ?")
     .run(request.draft_id);
+  // Proof: omitting this call retained scoping sentinels in the software-request erasure fixture.
+  eraseScopingContent(database, request.draft_id);
   eraseConversationContent(database, request.draft_id);
 }
 
@@ -240,6 +246,8 @@ function eraseSubmissionContent(database: Database, submission: SubmissionLineag
   database
     .query("UPDATE submission_replay SET receipt = '', body_hash = '' WHERE claim_hash = ?")
     .run(submission.claim_hash);
+  // Proof: omitting this call retained scoping sentinels in the proposal-submission erasure fixture.
+  eraseScopingContent(database, submission.draft_id);
   eraseConversationContent(database, submission.draft_id);
 }
 
@@ -307,6 +315,8 @@ export function eraseSubjectContent(
   sequence: number,
   now: number,
 ): ErasureOutcome {
+  // Proof: restoring a pre-erasure snapshot left scoping-op inflight/unsettled without this step.
+  markOperationsUnknown(database, subject);
   let accountId: string | null = null;
   if (subject.kind === 'software_request') {
     const request = database

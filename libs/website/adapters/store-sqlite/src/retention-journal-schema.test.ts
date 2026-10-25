@@ -215,6 +215,11 @@ test('010 applies over 009 and rolls back to the exact 009 schema', () => {
         .all(),
     ).toEqual([{ erasure_state: 'none' }]);
     migrateBefore(expected, journalMigration);
+    // Startup applies newer additive migrations too; undo those before proving 010's exact rollback.
+    for (const later of websiteMigrations()
+      .filter(({ name }) => name > journalMigration)
+      .toReversed())
+      database.run(readFileSync(join(later.directory, 'down.sql'), 'utf8'));
     database.run(readFileSync(join(migration(journalMigration).directory, 'down.sql'), 'utf8'));
     const schema =
       "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name";

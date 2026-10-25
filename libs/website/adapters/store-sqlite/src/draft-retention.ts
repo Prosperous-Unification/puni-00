@@ -5,6 +5,7 @@ import { Database } from 'bun:sqlite';
 
 import { existingDatabasePath, validateDatabase } from './checked-database';
 import { eraseConversationContent } from './conversation-store';
+import { eraseScopingContent } from './scoping-store';
 
 interface CandidateRow {
   id: string;
@@ -172,6 +173,8 @@ export function purgeExpiredDrafts(
           ).changes;
           if (candidate.retained_operations > 0) {
             eraseConversationContent(database, candidate.id);
+            // Proof: omitting this call retained both text sentinels in the expired-accounting-draft fixture.
+            eraseScopingContent(database, candidate.id);
             blankDraft.run(candidate.id);
             outcome.retainedDrafts += 1;
             outcome.retainedOperations += candidate.retained_operations;

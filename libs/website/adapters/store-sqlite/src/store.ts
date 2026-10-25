@@ -59,6 +59,15 @@ import {
   type RetentionJournalOptions,
   type RetentionJournalSession,
 } from './retention-journal/session';
+import {
+  createScopingState,
+  type DraftScoping,
+  editScoping,
+  readDraftScoping,
+  type ScopingEdit,
+  type ScopingEditOutcome,
+  type ScopingIntent,
+} from './scoping-store';
 export { openMaintenanceDatabase } from './checked-database';
 export type {
   ConversationAdmission,
@@ -123,6 +132,14 @@ export type { RetentionJournalRemote } from './retention-journal/remote';
 export { JournalRemoteError } from './retention-journal/remote';
 export type { S3JournalConfig } from './retention-journal/s3-remote';
 export { readS3JournalConfig, S3JournalRemote } from './retention-journal/s3-remote';
+export type {
+  DraftScoping,
+  ScopingEdit,
+  ScopingEditOutcome,
+  ScopingIntent,
+  ScopingState,
+} from './scoping-store';
+export { applyScopingReply } from './scoping-store';
 /** Loopback S3 emulation for tests and the build smoke; never pointed at a real bucket. */
 export { S3StandIn } from './retention-journal/s3-stand-in';
 export type { RetentionJournalOptions, RetentionJournalStatus } from './retention-journal/session';
@@ -135,6 +152,9 @@ export {
 } from './retention-journal/session';
 
 interface DraftRow {
+  scoping_version: unknown;
+  start_conversation: unknown;
+  starting_choice: unknown;
   id: string;
   description: string;
   brief: string;
@@ -172,6 +192,7 @@ interface SubmissionRow {
 }
 
 export interface DraftRecord {
+  scoping: DraftScoping;
   id: string;
   description: string;
   brief: string;
@@ -405,6 +426,7 @@ export class WebsiteStore {
     now: number,
     expiresAt: number,
     sourceHash: string,
+    scoping?: ScopingIntent,
   ): DraftCreation {
     try {
       return this.database
@@ -415,6 +437,7 @@ export class WebsiteStore {
               'INSERT INTO intake_draft (id, description, claim_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
             )
             .run(id, description, claimHash, now, expiresAt);
+          if (scoping) createScopingState(this.database, id, scoping, now);
           return { kind: 'created', siteCount };
         })
         .immediate();
@@ -429,20 +452,27 @@ export class WebsiteStore {
     return hashEmailKey(readSourceSalt(this.database, utcDayOf(now)), email);
   }
 
+  /** Reads the canonical brief and its scoping revision from one coherent SQLite snapshot. */
   findDraft(claimHash: string, now: number): DraftRecord | null {
-    const draft = this.database
-      .query<DraftRow, [string, number]>(
-        'SELECT * FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
-      )
-      .get(claimHash, now);
-    return draft
-      ? {
-          id: draft.id,
-          description: draft.description,
-          brief: draft.brief,
-          expiresAt: draft.expires_at,
-        }
-      : null;
+    // Proof: without this read transaction, the concurrent-edit fixture paired the old brief with revision 2.
+    return this.database
+      .transaction(() => {
+        const draft = this.database
+          .query<DraftRow, [string, number]>(
+            'SELECT * FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
+          )
+          .get(claimHash, now);
+        return draft
+          ? {
+              scoping: readDraftScoping(this.database, draft.id, draft),
+              id: draft.id,
+              description: draft.description,
+              brief: draft.brief,
+              expiresAt: draft.expires_at,
+            }
+          : null;
+      })
+      .deferred();
   }
 
   /**
@@ -469,10 +499,22 @@ export class WebsiteStore {
       .immediate();
   }
 
+  /** See {@link editScoping}; the revision applies to references, candidates and canonical brief edits. */
+  editScoping(
+    claimHash: string,
+    revision: number,
+    edit: ScopingEdit,
+    now: number,
+  ): ScopingEditOutcome {
+    return editScoping(this.database, claimHash, revision, edit, now);
+  }
+
+  /** Legacy-only write; versioned drafts require {@link editScoping} and its revision precondition. */
   updateBrief(claimHash: string, brief: string, now: number): boolean {
+    // Proof: removing the version predicate allowed the legacy write to bypass revision protection.
     const write = this.database
       .query(
-        'UPDATE intake_draft SET brief = ? WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
+        'UPDATE intake_draft SET brief = ? WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL AND scoping_version IS NULL',
       )
       .run(brief, claimHash, now);
     return write.changes === 1;

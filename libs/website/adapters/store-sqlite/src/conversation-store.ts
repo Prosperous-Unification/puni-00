@@ -559,11 +559,12 @@ function settleConversationOperation(
       );
       insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'assistant', reply, now + 1);
       // Proof: storing the raw reply for an `empty` capture failed the empty-marked-body test.
+      // Proof: removing the version predicate captured Legacy model candidate in the versioned-draft fixture.
       if (capture && capture.kind !== 'empty')
         // Proof: dropping `brief = ''` overwrote the visitor's saved brief in the kept-brief test.
         database
           .query(
-            "UPDATE intake_draft SET brief = ? WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND brief = ''",
+            "UPDATE intake_draft SET brief = ? WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND brief = '' AND scoping_version IS NULL",
           )
           .run(capture.body.slice(0, 4_000), operation.conversation_id);
       return true;

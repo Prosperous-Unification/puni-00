@@ -25,5 +25,6 @@ export function websiteMigrations(): { name: string; directory: string }[] {
       name: '010_retention_journal',
       directory: join(import.meta.dir, 'migrations/010_retention_journal'),
     },
+    { name: '011_scoping', directory: join(import.meta.dir, 'migrations/011_scoping') },
   ];
 }

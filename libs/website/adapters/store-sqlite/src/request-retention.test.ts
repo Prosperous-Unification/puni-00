@@ -17,8 +17,12 @@ import {
 } from './store';
 import { seedLegacyRequest } from './testing/legacy-account-fixture';
 
-/** 006 and the 010 journal migration that extends its tables; tests that omit 006 omit both. */
-const retentionMigrations: readonly string[] = ['006_retention_subject', '010_retention_journal'];
+/** Retention and the later migrations whose content fences require its tables. */
+const retentionMigrations: readonly string[] = [
+  '006_retention_subject',
+  '010_retention_journal',
+  '011_scoping',
+];
 const leapDay = Date.UTC(2024, 1, 29, 15, 0, 0, 0);
 const leapDeadline = Date.UTC(2025, 1, 28, 15, 0, 0, 0);
 
@@ -132,7 +136,15 @@ function contentFingerprint(databasePath: string): string {
       'submission_replay',
     ];
     return JSON.stringify(
-      tables.map((table) => database.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
+      tables.map((table) =>
+        database
+          .query(
+            table === 'intake_draft'
+              ? 'SELECT id, description, brief, claim_hash, created_at, expires_at, consumed_at FROM intake_draft ORDER BY rowid'
+              : `SELECT * FROM ${table} ORDER BY rowid`,
+          )
+          .all(),
+      ),
     );
   } finally {
     database.close();
@@ -267,7 +279,7 @@ test('migration 006 rolls back to the 005 schema', () => {
           .map(({ name }) => name)
           .filter((name) => !retentionMigrations.includes(name)),
       );
-      // 010 extends 006's tables, so it rolls back first.
+      // Newer content fences depend on 006's tables, so undo them newest first.
       for (const name of [...retentionMigrations].reverse()) {
         const migration = websiteMigrations().find((candidate) => candidate.name === name);
         if (!migration) throw new Error(`Missing migration ${name}`);
