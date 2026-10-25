@@ -4,7 +4,8 @@ import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
-const providerKind = "'ssh_host' | 'docker' | 'kubernetes' | 'puni_pool'";
+/** The four instance kinds (`compute-providers` P1), as every provider shape spells them. */
+export const providerKind = "'ssh_host' | 'docker' | 'kubernetes' | 'puni_pool'";
 
 /**
  * One provider instance as listed (`compute-providers` P2): its kind, its name

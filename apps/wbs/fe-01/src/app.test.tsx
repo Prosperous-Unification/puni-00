@@ -1284,8 +1284,13 @@ describe('log out', () => {
       await waitFor(() => {
         expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
       });
-      // The sign-in card reads its public method list; log out itself sends nothing.
-      expect(paths.slice(sent)).toEqual(['/api/auth/methods']);
+      // The link renders before the passive effect reads the public method list.
+      // Proof: removing asyncWrapper's timer drain exposed loading with no request;
+      // the immediate equality failed, while this wait passed the same schedule.
+      await waitFor(() => {
+        // The sign-in card reads its public method list; log out itself sends nothing.
+        expect(paths.slice(sent)).toEqual(['/api/auth/methods']);
+      });
       expect(window.location.pathname).toBe('/directory');
 
       // A reload is a fresh document: the cookie the log out left alone restores the identity.

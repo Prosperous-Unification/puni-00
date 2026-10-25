@@ -54,6 +54,26 @@ yet take.
 The package installs two commands for the same program: `twilight-burokrat`, which documentation
 uses, and the short form `twib`.
 
+## Workflow bindings
+
+`twib validate workflow-binding .twilight/workflows.yaml --steps plan,impl,review,verify,integrate`
+checks the binding against the supplied unique project step codes and prints only its acceptance
+digest followed by a newline. Invoke it from the intended repository root: the working directory
+anchors prompt paths, even when the binding filename is absolute or inside `.twilight`.
+Every declared prompt file, including those of unused classes, must be present, readable and
+resolve to a regular file inside that root.
+
+An explicit type mapping must cover the complete project step set. The complete `default` mapping
+is selected only when the requested type is absent; explicit types never inherit missing steps.
+The digest covers canonical binding semantics, project steps and hashes of original prompt bytes,
+including BOM and newline bytes. YAML comments and key order do not change it.
+
+Malformed arguments and invalid bindings exit 1 with a named diagnostic on stderr and no success
+stdout. `validate-record` remains the JSON-only alias. Acceptance establishes static consistency
+and referenced-byte integrity; it grants no execution authority and does not establish backend
+availability, tool registration, approvals or spending authority. The strict version-1 contract
+and limits are in the [binding design](../../../../openspec/changes/burokrat-workflow-binding-validation/design.md).
+
 ## Diagnostic test reports
 
 `inspect-test-reports <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>`
