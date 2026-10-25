@@ -61,6 +61,7 @@ function options(): AppOptions {
     resourceRuntime: {
       bind: () => Promise.resolve({ ok: false, reason: 'not_found' }),
       read: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      admit: () => Promise.resolve({ ok: false, reason: 'not_found' }),
       ingest: () => Promise.resolve({ ok: false, reason: 'not_found' }),
       requests: () => Promise.resolve({ ok: false, reason: 'not_found' }),
     },
@@ -317,6 +318,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   'putApiOrganizationResourceAuthoritiesByAuthorityId',
   'putApiOrganizationSession-policy',
+  'putApiResourceAuthoritiesByAuthorityIdAdmissions',
   'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
 const INTERNAL_OPERATIONS = [
@@ -413,6 +415,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   'putApiOrganizationResourceAuthoritiesByAuthorityId',
   'putApiOrganizationSession-policy',
+  'putApiResourceAuthoritiesByAuthorityIdAdmissions',
   'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
@@ -1040,5 +1043,29 @@ describe('shared HTTP shape reachability through the production app', () => {
 
       expect(modeledNotFoundCount).toBeGreaterThan(0);
     });
+  }
+});
+
+it('returns explicit unavailability for admission in a composition without runtime storage', async () => {
+  const composition = options();
+  const authentication = spyOn(composition.auth, 'authenticateOrRefuse').mockResolvedValue({
+    id: 'runtime-actor',
+    username: 'runtime-actor',
+    scopes: ['read', 'write'],
+    authentication: { kind: 'machine', credentialId: 'runtime-key', personId: 'runtime-person' },
+  });
+  try {
+    const app = buildApp({ ...composition, resourceRuntime: undefined });
+    const response = await app.handle(
+      new Request('http://localhost/api/resource-authorities/dash/admissions', {
+        method: 'PUT',
+        headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' },
+        body: JSON.stringify(REQUEST_BODIES['putApiResourceAuthoritiesByAuthorityIdAdmissions']),
+      }),
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'resource_tracking_unavailable' });
+  } finally {
+    authentication.mockRestore();
   }
 });

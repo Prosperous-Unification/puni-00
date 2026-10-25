@@ -50,15 +50,21 @@ test('Resources distinguishes reports, queued cleanup, and verified Dash release
     await route.fulfill({
       json: {
         uses: [
-          { ...use('reported-pending', 'Reported scratch', 'reported'), state: 'cleanup_pending' },
+          {
+            ...use('reported-pending', 'Reported scratch', 'reported'),
+            state: 'cleanup_pending',
+            revision: 2,
+          },
           {
             ...use('reported-released', 'Reported archive', 'reported'),
             state: 'release_reported',
+            revision: 3,
           },
           {
             ...use('dash-queued', 'Dash queued volume', 'runtime'),
             runtimeId: 'dash-host-a',
-            runtimeRevision: 3,
+            runtimeRevision: 1,
+            revision: 2,
             incarnation: 'inc-7',
             // Proof: answering false here made the real browser fail on the missing
             // "Cleanup request queued for Dash" label (watched 2026-10-25).
@@ -69,7 +75,8 @@ test('Resources distinguishes reports, queued cleanup, and verified Dash release
             ...use('dash-verified', 'Dash verified volume', 'runtime'),
             state: 'release_verified',
             runtimeId: 'dash-host-a',
-            runtimeRevision: 4,
+            runtimeRevision: 3,
+            revision: 4,
             incarnation: 'inc-8',
             pendingCleanupRequest: false,
             reclaimedBytes: null,
@@ -93,7 +100,7 @@ test('Resources distinguishes reports, queued cleanup, and verified Dash release
           {
             id: 'event-verified',
             useId: 'dash-verified',
-            revision: 2,
+            revision: 4,
             kind: 'release_verified',
             source: 'runtime',
             actorId: 'dash-authority',

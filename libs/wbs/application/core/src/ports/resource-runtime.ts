@@ -1,6 +1,8 @@
 import type {
   ResourceAuthority,
   ResourceCleanupRequest,
+  ResourceRuntimeAdmission,
+  ResourceRuntimeAdmissionReceipt,
   ResourceRuntimeEvent,
 } from '@wbs/contracts';
 
@@ -20,6 +22,12 @@ export interface ResourceRuntime {
     authorityId: string,
     actor: ResourceRuntimeActor,
   ): Promise<ResourceUseAnswer<ResourceAuthority>>;
+  admit(
+    authorityId: string,
+    actor: ResourceRuntimeActor,
+    admission: ResourceRuntimeAdmission,
+    at: number,
+  ): Promise<ResourceUseAnswer<ResourceRuntimeAdmissionReceipt>>;
   ingest(
     authorityId: string,
     actor: ResourceRuntimeActor,

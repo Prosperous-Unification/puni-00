@@ -220,6 +220,7 @@ export function registerResourceUseIn(
     providerName: string;
     reason: string;
     observedAt: number;
+    admissionFingerprint?: string;
   },
 ): ResourceUseAnswer<ResourceUse> {
   const project = admitResourceUseProject(tx, projectId, actor, true, false);
@@ -311,7 +312,7 @@ export function registerResourceUseIn(
       : {
           source: 'runtime' as const,
           runtimeId: runtime.authorityId,
-          runtimeRevision: 1,
+          runtimeRevision: runtime.admissionFingerprint === undefined ? 1 : 0,
           incarnation: runtime.incarnation,
           pendingCleanupRequest: false,
           reclaimedBytes: null,
@@ -349,7 +350,7 @@ export function registerResourceUseIn(
       projectId,
       revision: 1,
       snapshot: event,
-      fingerprint: identity,
+      fingerprint: runtime?.admissionFingerprint ?? identity,
       response: use,
     })
     .run();

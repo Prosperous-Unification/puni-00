@@ -1,4 +1,4 @@
-import { resourceRuntimeEvent } from '@wbs/contracts';
+import { resourceRuntimeAdmission, resourceRuntimeEvent } from '@wbs/contracts';
 import { openDatabase } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
@@ -1049,6 +1049,16 @@ it.each(['unbound', 'rebound'] as const)(
       Date.now(),
     );
     const requests = h.resourceRuntime().requests(r.authorityId, actor, 0, 50);
+    const admission = h.resourceRuntime().admit(
+      r.authorityId,
+      actor,
+      resourceRuntimeAdmission.assert({
+        ...admissionOf(r.runtimeEvent),
+        useId: crypto.randomUUID(),
+        eventId: crypto.randomUUID(),
+      }),
+      Date.now(),
+    );
     try {
       h.sqlite.run('UPDATE person SET account_id=? WHERE id=?', [
         change === 'unbound' ? null : h.userId('viewer'),
@@ -1060,6 +1070,7 @@ it.each(['unbound', 'rebound'] as const)(
     await held;
     expect(await queued).toEqual({ ok: false, reason: 'forbidden' });
     expect(await requests).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await admission).toEqual({ ok: false, reason: 'forbidden' });
     expect(
       (await h.call('owner', 'GET', `/api/organization/resource-authorities/${r.authorityId}`))
         .body,
@@ -1135,4 +1146,179 @@ it('requires the whole original terminal evidence before acknowledging a pending
     uses: [{ state: 'release_verified', pendingCleanupRequest: true, runtimeRevision: 3 }],
   });
   expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, acknowledgment)).status).toBe(200);
+});
+
+function admissionOf(event: Awaited<ReturnType<typeof runtimeSetup>>['runtimeEvent']) {
+  return {
+    eventId: event.eventId,
+    epoch: event.epoch,
+    useId: event.useId,
+    incarnation: event.incarnation,
+    observedAt: event.observedAt,
+    reason: event.reason,
+    use: event.use,
+  };
+}
+it('durable admission survives task deletion and preserves pre-publication cleanup requests', async () => {
+  const r = await runtimeSetup();
+  const admission = admissionOf(r.runtimeEvent);
+  const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
+  const accepted = await h.callWith(r.issued.key, 'PUT', endpoint, admission);
+  expect(accepted.status).toBe(200);
+  expect((await h.call('owner', 'GET', path)).body).toMatchObject({
+    uses: [{ runtimeRevision: 0, revision: 1 }],
+  });
+  expect((await event(r.runtimeUseId, 'cleanup_requested', 1)).status).toBe(200);
+  expect(
+    (
+      await h.callWith(
+        r.issued.key,
+        'GET',
+        `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
+      )
+    ).body,
+  ).toMatchObject({ requests: [{ expectedRevision: 0 }] });
+  expect((await commands([{ kind: 'deleteWorkItem', workItemId: leaf }])).status).toBe(200);
+  expect(await h.callWith(r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
+  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await h.call('owner', 'GET', path)).body).toMatchObject({
+    uses: [{ workItemName: 'Leaf', revision: 2, runtimeRevision: 1, pendingCleanupRequest: true }],
+  });
+  expect((await h.call('owner', 'GET', `${path}/${r.runtimeUseId}/history`)).body).toMatchObject({
+    events: [
+      { kind: 'registered', revision: 1 },
+      { kind: 'cleanup_requested', revision: 2 },
+    ],
+  });
+  expect(await h.callWith(r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
+});
+it('provisional admission protects provider and resource deletion without consuming source sequence', async () => {
+  const r = await runtimeSetup();
+  const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
+  expect(
+    (await h.callWith(r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
+  ).toBe(200);
+  expect(
+    (
+      await h.call(
+        'owner',
+        'DELETE',
+        `/api/organization/compute-providers/${r.binding.providerId}?cascade=true`,
+      )
+    ).status,
+  ).toBe(409);
+  expect(
+    (
+      await h.call('owner', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'deleteResource', resourceId, cascade: true }],
+      })
+    ).status,
+  ).toBe(409);
+  expect(
+    (await h.call('owner', 'GET', `/api/organization/resource-authorities/${r.authorityId}`)).body,
+  ).toMatchObject({ acceptedSequence: 0 });
+});
+it('admission refuses foreign or missing attribution and changed replay while later valid publication advances', async () => {
+  const r = await runtimeSetup();
+  const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
+  const admission = admissionOf(r.runtimeEvent);
+  for (const use of [
+    { ...admission.use, workItemId: 'missing' },
+    { ...admission.use, responsiblePersonId: 'agent-b' },
+  ])
+    expect((await h.callWith(r.issued.key, 'PUT', endpoint, { ...admission, use })).status).toBe(
+      404,
+    );
+  expect((await h.call('owner', 'PUT', endpoint, admission)).status).toBe(403);
+  expect((await h.callWith(key, 'PUT', endpoint, admission)).status).toBe(403);
+  expect(
+    (await h.callWith(r.issued.key, 'PUT', endpoint, { ...admission, epoch: 'wrong' })).status,
+  ).toBe(409);
+  expect((await h.callWith(r.issued.key, 'PUT', endpoint, admission)).status).toBe(200);
+  expect(
+    (
+      await h.callWith(r.issued.key, 'PUT', endpoint, {
+        ...admission,
+        use: { ...admission.use, locator: '/changed' },
+      })
+    ).status,
+  ).toBe(409);
+  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  h.sqlite.run('UPDATE machine_credential SET revoked_at=? WHERE id=?', [Date.now(), r.issued.id]);
+  expect((await h.callWith(r.issued.key, 'PUT', endpoint, admission)).status).toBe(401);
+});
+
+it('admission replay survives project deletion with original organization authority and immutable history', async () => {
+  const r = await runtimeSetup();
+  const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
+  const admission = admissionOf(r.runtimeEvent);
+  const accepted = await h.callWith(r.issued.key, 'PUT', endpoint, admission);
+  expect(accepted.status).toBe(200);
+  expect((await commands([{ kind: 'deleteWorkItem', workItemId: leaf }])).status).toBe(200);
+  // Project deletion has no public route in this increment; mirror the existing orphan-history fixture.
+  h.sqlite.run('DELETE FROM project_access WHERE project_id=?', [projectId]);
+  h.sqlite.run('DELETE FROM step WHERE project_id=?', [projectId]);
+  h.sqlite.run('DELETE FROM project WHERE id=?', [projectId]);
+  expect(await h.callWith(r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
+  expect(
+    (
+      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+        ...r.runtimeEvent,
+        use: { ...r.runtimeEvent.use, locator: '/substituted' },
+      })
+    ).status,
+  ).toBe(409);
+  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await h.call('owner', 'GET', `${path}/${r.runtimeUseId}/history`)).body).toMatchObject({
+    events: [{ kind: 'registered', revision: 1 }],
+  });
+  expect((await h.call('other', 'GET', path)).status).toBe(404);
+});
+it('resource deletion before admission refuses without sequence allocation and the next resource can publish', async () => {
+  const r = await runtimeSetup();
+  const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
+  expect(
+    (
+      await h.call('owner', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'deleteResource', resourceId, cascade: true }],
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (await h.callWith(r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
+  ).toBe(404);
+  const created = await h.call('owner', 'POST', '/api/directory/commands', {
+    commands: [
+      { kind: 'createResource', name: 'Next disk', resourceKind: 'divisible', unitLabel: 'GB' },
+    ],
+  });
+  const nextResourceId = (created.body as { results: { id: string }[] }).results[0].id;
+  const next = { ...r.runtimeEvent, use: { ...r.runtimeEvent.use, resourceId: nextResourceId } };
+  expect((await h.callWith(r.issued.key, 'PUT', endpoint, admissionOf(next))).status).toBe(200);
+  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, next)).body).toMatchObject({
+    acceptedSequence: 1,
+  });
+});
+
+it('admission identities cannot reserve the same authority event for two different projects', async () => {
+  const r = await runtimeSetup();
+  const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
+  expect(
+    (await h.callWith(r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
+  ).toBe(200);
+  const project = await h.call('owner', 'POST', '/api/projects', { name: 'Second project' });
+  const secondProject = (project.body as { project: { id: string } }).project.id;
+  const created = await h.call('owner', 'POST', `/api/projects/${secondProject}/commands`, {
+    commands: [{ kind: 'createWorkItem', parentId: null, name: 'Second leaf' }],
+  });
+  const secondLeaf = (created.body as { results: { id: string }[] }).results[0].id;
+  const duplicate = {
+    ...admissionOf(r.runtimeEvent),
+    useId: crypto.randomUUID(),
+    use: { ...r.runtimeEvent.use, projectId: secondProject, workItemId: secondLeaf },
+  };
+  expect((await h.callWith(r.issued.key, 'PUT', endpoint, duplicate)).status).toBe(409);
+  expect(
+    (await h.call('owner', 'GET', `/api/projects/${secondProject}/resource-uses`)).body,
+  ).toMatchObject({ uses: [] });
 });

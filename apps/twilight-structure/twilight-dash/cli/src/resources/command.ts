@@ -85,7 +85,7 @@ export async function runResources(
         throw new Error('resource request file unreadable or malformed');
       }
       // ResourceRuntime.create validates this untrusted JSON once at its public boundary.
-      const use = runtime.create(request as CreationRequest);
+      const use = await runtime.create(request as CreationRequest);
       report(use);
       if (action === 'create') return 0;
       try {

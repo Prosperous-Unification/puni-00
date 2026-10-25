@@ -13,6 +13,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+    method: 'PUT',
+    path: '/api/resource-authorities/:authorityId/admissions',
+    kind: 'mutation',
+  },
+  {
     operationId: 'putApiResourceAuthoritiesByAuthorityIdEvents',
     method: 'PUT',
     path: '/api/resource-authorities/:authorityId/events',

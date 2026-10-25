@@ -120,20 +120,10 @@ try {
   runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), {
     read: () => Date.now(),
   });
-  const use = runtime.create({
-    projectId,
-    resourceId,
-    workItemId,
-    agentRun: 'proof-run',
-    responsiblePersonId: 'runtime-agent',
-    units: 1,
-    diskUnits: 1,
-    kind: 'temporary_directory',
-  });
-  writeFileSync(join(use.locator, 'disposable-output'), 'proof output');
   const send = async (request: Request) => {
-    const metadata =
-      request.method === 'PUT' ? resourceRuntimeEvent.assert(await request.clone().json()) : null;
+    const metadata = new URL(request.url).pathname.endsWith('/events')
+      ? resourceRuntimeEvent.assert(await request.clone().json())
+      : null;
     const reply = await h.app.handle(request);
     if (reply.status !== 200)
       console.error(
@@ -148,6 +138,20 @@ try {
       );
     return reply;
   };
+  const use = await runtime.create(
+    {
+      projectId,
+      resourceId,
+      workItemId,
+      agentRun: 'proof-run',
+      responsiblePersonId: 'runtime-agent',
+      units: 1,
+      diskUnits: 1,
+      kind: 'temporary_directory',
+    },
+    send,
+  );
+  writeFileSync(join(use.locator, 'disposable-output'), 'proof output');
   let lost = false;
   await assert.rejects(
     runtime.synchronize(async (request) => {
@@ -217,6 +221,204 @@ try {
     1,
   );
   assert.equal(runtime.outbox().length, 0);
+  // Local release can race an already queued WBS request. Its acknowledgment must reuse
+  // the complete durable proof through restart and an accepted-but-lost response.
+  const raced = await runtime.create({ ...use.request, agentRun: 'terminal-race' }, send);
+  await runtime.synchronize(send);
+  const racedPath = `${path}/${raced.id}`;
+  assert.equal(
+    (
+      await h.call('owner', 'POST', `${racedPath}/events`, {
+        eventId: crypto.randomUUID(),
+        expectedRevision: 1,
+        kind: 'cleanup_requested',
+        reason: 'Queued before local completion',
+      })
+    ).status,
+    200,
+  );
+  runtime.requestCleanup(raced.id, raced.revision, raced.incarnation, 'local completion');
+  runtime.sweep();
+  const original = runtime
+    .outbox()
+    .find((event) => event.useId === raced.id && event.kind === 'release_verified');
+  assert.ok(original?.evidence);
+  assert.equal(existsSync(raced.locator), false);
+  await runtime.synchronize(send);
+  runtime.close();
+  runtime = ResourceRuntime.open(loadResourceConfiguration(config), { read: () => retryClock });
+  const acknowledgment = runtime.outbox().find((event) => event.useId === raced.id);
+  assert.deepEqual(acknowledgment?.evidence, original.evidence);
+  // A replacement canary proves terminal acknowledgment performs no second removal.
+  mkdirSync(raced.locator);
+  writeFileSync(join(raced.locator, 'replacement'), 'must remain');
+  await assert.rejects(
+    runtime.synchronize(async (request) => {
+      const reply = await send(request);
+      if (request.method === 'PUT') {
+        assert.equal(reply.status, 200);
+        throw new Error('terminal acknowledgment loss');
+      }
+      return reply;
+    }),
+    /terminal acknowledgment loss/,
+  );
+  runtime.close();
+  runtime = ResourceRuntime.open(loadResourceConfiguration(config), { read: () => retryClock });
+  await runtime.synchronize(send);
+  runtime.sweep();
+  assert.equal(runtime.outbox().length, 0);
+  assert.equal(runtime.inspect(raced.id).releasedDiskUnits, 1);
+  assert.equal(runtime.inspect(raced.id).releasedWorkspaceUnits, 1);
+  assert.equal(existsSync(join(raced.locator, 'replacement')), true);
+  const racedProjection = uses
+    .assert((await h.call('owner', 'GET', path)).body)
+    .uses.find((entry) => entry.id === raced.id);
+  assert.equal(racedProjection?.pendingCleanupRequest, false);
+  assert.equal(
+    historyResponse
+      .assert((await h.call('owner', 'GET', `${racedPath}/history`)).body)
+      .events.filter((event) => event.kind === 'release_verified').length,
+    2,
+  );
+  // Admission must preserve authorization before task deletion and first source publication.
+  const delayed = await runtime.create(
+    { ...use.request, agentRun: 'deleted-before-publication' },
+    send,
+  );
+  runtime.requestCleanup(delayed.id, delayed.revision, delayed.incarnation, 'local completion');
+  runtime.sweep();
+  assert.equal(runtime.inspect(delayed.id).state, 'released');
+  assert.equal(
+    (
+      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+        commands: [{ kind: 'deleteWorkItem', workItemId }],
+      })
+    ).status,
+    200,
+  );
+  await runtime.synchronize(send);
+  assert.equal(runtime.outbox().length, 0);
+  const survivingWork = commandId(
+    (
+      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+        commands: [{ kind: 'createWorkItem', parentId: null, name: 'Following admission' }],
+      })
+    ).body,
+  );
+  const following = await runtime.create(
+    { ...use.request, workItemId: survivingWork, agentRun: 'following-use' },
+    send,
+  );
+  runtime.requestCleanup(following.id, following.revision, following.incarnation, 'done');
+  runtime.sweep();
+  await runtime.synchronize(send);
+  assert.equal(runtime.outbox().length, 0);
+  // WBS commits admission, then the response is lost and the creator disappears before
+  // any source sequence or path exists. Deletion cannot invalidate that original admission.
+  await assert.rejects(
+    runtime.create(
+      { ...use.request, workItemId: survivingWork, agentRun: 'lost-admission' },
+      async (request) => {
+        const response = await send(request);
+        assert.equal(response.status, 200);
+        throw new Error('admission response lost');
+      },
+    ),
+    /admission response lost/,
+  );
+  const uncertain = runtime.list().find((entry) => entry.request.agentRun === 'lost-admission');
+  assert.ok(uncertain);
+  assert.equal(uncertain.revision, 0);
+  assert.equal(existsSync(uncertain.locator), false);
+  assert.equal(runtime.outbox().length, 0);
+  assert.equal(
+    (
+      await h.call('owner', 'POST', `${path}/${uncertain.id}/events`, {
+        eventId: crypto.randomUUID(),
+        expectedRevision: 1,
+        kind: 'cleanup_requested',
+        reason: 'Cancelled before creation',
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+        commands: [{ kind: 'deleteWorkItem', workItemId: survivingWork }],
+      })
+    ).status,
+    200,
+  );
+  runtime.close();
+  runtime = ResourceRuntime.open(loadResourceConfiguration(config), {
+    read: () => retryClock + 120000,
+  });
+  runtime.sweep();
+  assert.equal(runtime.outbox().length, 0);
+  assert.equal(runtime.inspect(uncertain.id).releasedDiskUnits, 0);
+  await runtime.synchronize(send);
+  runtime.sweep();
+  await runtime.synchronize(send);
+  assert.equal(runtime.outbox().length, 0);
+  assert.equal(runtime.inspect(uncertain.id).state, 'released');
+  assert.equal(runtime.inspect(uncertain.id).releasedDiskUnits, 1);
+  assert.equal(runtime.list().find((entry) => entry.id === uncertain.id)?.dev, null);
+  const neverCreated = historyResponse.assert(
+    (await h.call('owner', 'GET', `${path}/${uncertain.id}/history`)).body,
+  ).events;
+  assert.equal(neverCreated.filter((event) => event.kind === 'registered').length, 1);
+  assert.equal(
+    uses
+      .assert((await h.call('owner', 'GET', path)).body)
+      .uses.find((entry) => entry.id === uncertain.id)?.pendingCleanupRequest,
+    false,
+  );
+
+  // A rejected admission reserves no authority sequence and cannot wedge another use's publication.
+  await assert.rejects(
+    runtime.create(
+      { ...use.request, workItemId: 'never-existed', agentRun: 'rejected-admission' },
+      (request) => h.app.handle(request),
+    ),
+    /admission HTTP 404/,
+  );
+  const rejected = runtime.list().find((entry) => entry.request.agentRun === 'rejected-admission');
+  assert.ok(rejected);
+  assert.equal(rejected.revision, 0);
+  assert.equal(existsSync(rejected.locator), false);
+  const finalWork = commandId(
+    (
+      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+        commands: [{ kind: 'createWorkItem', parentId: null, name: 'After refusal' }],
+      })
+    ).body,
+  );
+  const independent = await runtime.create(
+    { ...use.request, workItemId: finalWork, agentRun: 'independent' },
+    send,
+  );
+  runtime.requestCleanup(
+    independent.id,
+    independent.revision,
+    independent.incarnation,
+    'done during outage',
+  );
+  runtime.sweep();
+  assert.equal(runtime.inspect(independent.id).state, 'released');
+  await assert.rejects(
+    runtime.synchronize((request) => h.app.handle(request)),
+    /admission HTTP 404/,
+  );
+  assert.equal(runtime.outbox().length, 0);
+  assert.equal(
+    uses
+      .assert((await h.call('owner', 'GET', path)).body)
+      .uses.find((entry) => entry.id === independent.id)?.state,
+    'release_verified',
+  );
+  assert.equal(runtime.inspect(rejected.id).releasedDiskUnits, 0);
   console.log(
     JSON.stringify({
       verified: true,
@@ -230,6 +432,10 @@ try {
       restartRecovery: true,
       outageRecovery: true,
       uniqueReleaseHistory: true,
+      terminalRaceReplay: true,
+      admittedDeletionRecovery: true,
+      uncertainAdmissionRecovery: true,
+      rejectedAdmissionDoesNotBlockStream: true,
     }),
   );
 } finally {

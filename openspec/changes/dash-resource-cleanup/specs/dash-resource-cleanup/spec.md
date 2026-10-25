@@ -2,9 +2,41 @@
 
 ### Requirement: Durable managed creation and admission
 
-Dash SHALL persist resource identity and reserve its disk and workspace units atomically
-before creating a resource in an explicitly enrolled owner-only managed root. All projects
-using the root SHALL share the same reservation ledger. Unreleased uses SHALL remain charged.
+Dash SHALL atomically persist identity and reserve disk/workspace units before creation in
+an enrolled owner-only root. All projects SHALL share its ledger; unreleased uses SHALL
+remain charged. WBS SHALL durably admit exact runtime identity and authorized attribution
+before physical creation or ordered source sequence allocation. New allocations SHALL fail
+closed without admission; admitted cleanup SHALL continue during WBS outages.
+
+#### Scenario: Planning deletion before first source publication
+
+- **WHEN** a durably admitted task or project is deleted before its first ordered event arrives
+- **THEN** exact admission replay and ordered confirmation use immutable original attribution without duplicate registration history or loss of newer cleanup requests
+
+#### Scenario: Lost admission response or dead creator
+
+- **WHEN** WBS admitted a use but Dash did not durably receive its receipt
+- **THEN** no physical work or source sequence is created, the intent remains charged, and recovery replays exact admission before verified noncreation cleanup
+
+#### Scenario: Admission refused while another admitted use completes
+
+- **WHEN** an admission names missing or foreign references or its authority cannot be authenticated
+- **THEN** it creates no physical path or source sequence and does not block existing admitted cleanup or publication
+
+#### Scenario: Cleanup request arrives during provisional admission
+
+- **WHEN** WBS queues cleanup at source revision 0 before ordered confirmation
+- **THEN** confirmation preserves its pending status and projection history and Dash acknowledges it only with subsequent ordered events
+
+#### Scenario: Watcher observes a live admission in flight
+
+- **WHEN** a live creator awaits its first admission response
+- **THEN** the watcher does not recover or cancel that creation; parent sealing still prevents any later physical creation
+
+#### Scenario: Provisional provider or resource deletion
+
+- **WHEN** deletion would remove a resource or provider with an admitted runtime obligation
+- **THEN** deletion refuses even before the runtime publishes its first ordered event
 
 #### Scenario: Competing projects need the last workspace slot
 
@@ -62,6 +94,11 @@ Inconclusive required evidence SHALL block release. Nonterminal uses SHALL retai
 
 - **WHEN** a Git worktree contains unpreserved changes or required ignored files
 - **THEN** it remains retained with a responsible owner, reason and review date
+
+#### Scenario: Git index flags hide modified source
+
+- **WHEN** a worktree index has assume-unchanged or skip-worktree entries
+- **THEN** cleanup retains the worktree bytes, owner and review obligation, keeps capacity charged, and publishes no verified release
 
 #### Scenario: Explicit generated output policy
 

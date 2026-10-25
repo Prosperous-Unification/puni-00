@@ -41,6 +41,17 @@ export const resourceRuntimeEvent = type({
   'retention?': { ownerPersonId: label, reviewAt: 'number.integer > 0' },
 });
 export type ResourceRuntimeEvent = typeof resourceRuntimeEvent.infer;
+/** Durable attribution admission precedes physical work and ordered source publication. */
+export const resourceRuntimeAdmission = resourceRuntimeEvent
+  .pick('eventId', 'epoch', 'useId', 'incarnation', 'observedAt', 'reason', 'use')
+  .onUndeclaredKey('reject');
+export type ResourceRuntimeAdmission = typeof resourceRuntimeAdmission.infer;
+export const resourceRuntimeAdmissionReceipt = type({
+  eventId: label,
+  useId: label,
+  incarnation: label,
+});
+export type ResourceRuntimeAdmissionReceipt = typeof resourceRuntimeAdmissionReceipt.infer;
 export const resourceCleanupRequest = type({
   requestId: 'number',
   useId: 'string',
@@ -111,6 +122,22 @@ export const readResourceAuthority = defineEndpointShape({
   responses: [{ kind: 'json', status: 200, schema: responseSchema(resourceAuthority) }],
   refusals,
   document: { summary: 'Inspect one resource runtime authority binding, for organization admins.' },
+});
+export const admitResourceRuntimeUse = defineEndpointShape({
+  method: 'PUT',
+  path: '/api/resource-authorities/:authorityId/admissions',
+  operationId: 'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+  params,
+  policies: writes,
+  body: requestSchema(resourceRuntimeAdmission),
+  responses: [
+    { kind: 'json', status: 200, schema: responseSchema(resourceRuntimeAdmissionReceipt) },
+  ],
+  refusals,
+  document: {
+    summary:
+      'Durably admit immutable attribution before physical work; exact credential-bound replay survives planning deletion.',
+  },
 });
 export const ingestResourceRuntimeEvent = defineEndpointShape({
   method: 'PUT',

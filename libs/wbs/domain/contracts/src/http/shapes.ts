@@ -115,6 +115,7 @@ import {
   rotateProvisioningToken,
 } from './provisioning-token-shapes';
 import {
+  admitResourceRuntimeUse,
   bindResourceAuthority,
   ingestResourceRuntimeEvent,
   readResourceAuthority,
@@ -175,6 +176,7 @@ import {
 export const httpShapes = [
   bindResourceAuthority,
   readResourceAuthority,
+  admitResourceRuntimeUse,
   ingestResourceRuntimeEvent,
   readResourceCleanupRequests,
   registerResourceUse,

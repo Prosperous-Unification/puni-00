@@ -70,6 +70,22 @@ normal operation; recovery requires preserving the ledger and reconciling outsta
 Admission serializes all projects sharing this root. Every unresolved use counts, including
 pending, blocked and retained work. It checks reserved units and measured available bytes
 minus headroom, conservatively allowing the full reservation of every outstanding use to grow.
+New creation requires a successful durable WBS admission before Dash creates any path or
+allocates an ordered source event. Admission snapshots the authorized project/task/resource
+attribution so legitimate planning deletion cannot invalidate queued publication. WBS shows
+that provisional responsibility at source revision 0; it does not certify a physical path.
+Provider/resource deletion refuses while that responsibility remains outstanding.
+
+If the admission response is lost, unavailable, or refused, the local intent remains charged
+at revision 0 with no path and no source sequence. `sync` retries its exact identity, then
+requests cleanup and verifies noncreation; it does not resume the original command. A dead
+creator is recovered the same way, while a live creator awaiting its first reply is left
+alone. Persistently invalid attribution or credentials require operator repair; never edit
+the ledger or free that unknown hold manually. Such refusals do not occupy source sequences
+or block publication of other admitted uses. Inspect the saved intent after a failed create
+before submitting another allocation, which has a distinct identity and reservation.
+Already admitted uses still execute cleanup locally through WBS outages.
+
 These are reservation controls, **not hard disk quotas**. Arbitrary external writers and
 commands exceeding their reservation can still exhaust a filesystem. Separate managed roots
 are separate pools; this module does not aggregate reservations from independently configured
@@ -144,7 +160,10 @@ private worktree/bisect/rewritten refs are additionally pinned at
 orphan reflog commits or 1024 private refs blocks cleanup for owner review, without truncating
 required preservation. Required source is not archived by
 this initial provider: staged, unstaged, untracked or unknown ignored files cause retention
-with responsible owner, reason and a review date. Recovery refs remain in the stable source;
+with responsible owner, reason and a review date. The same applies to any Git index entry
+marked assume-unchanged or skip-worktree, including sparse checkout workflows: these flags
+hide modified bytes from both status and normal worktree removal. Resolve them through owner
+review before requesting a retry; a clean status alone is insufficient preservation proof. Recovery refs remain in the stable source;
 Dash does not prune them or claim their objects were reclaimed.
 
 `disposablePaths` explicitly authorizes reproducible **top-level directories** such as
@@ -193,7 +212,8 @@ dash resources sync --config /secure/resources.json
 `sync` publishes existing outbox events and accepts WBS requests without inventing completion.
 The next sweep applies their local intent. Request cursor and intent commit together. A stale
 WBS revision for the same immutable incarnation is reconciled against current state; a request
-for an already released use gets an attributable no-effect acknowledgment.
+for an already released use gets an attributable no-effect acknowledgment using the complete
+original durable release proof and locator, without another removal or reservation return.
 
 Inspect shows target identity, owner, reservation units, outcome, manifest sealing, blocker,
 retry schedule and retained evidence. A missing path without prior deletion intent is blocked;

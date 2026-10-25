@@ -1,4 +1,5 @@
 import {
+  admitResourceRuntimeUse,
   type AuthenticatedUser,
   bindResourceAuthority,
   ingestResourceRuntimeEvent,
@@ -68,6 +69,24 @@ export function resourceRuntimeRoutes(
         if (runtime === undefined) return unavailable;
         const read = await runtime.read(params.authorityId, actorOf(principal, resolved.access));
         return read.ok ? { ok: true, status: 200, body: read.value } : refusal(read.reason);
+      },
+    ),
+    bind(
+      admitResourceRuntimeUse,
+      async ({ principal, params, body }): Promise<HttpReply<typeof admitResourceRuntimeUse>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        if (principal.authentication?.kind !== 'machine') return forbidden;
+        if (runtime === undefined) return unavailable;
+        const admitted = await runtime.admit(
+          params.authorityId,
+          actorOf(principal, resolved.access),
+          body,
+          clock.now(),
+        );
+        return admitted.ok
+          ? { ok: true, status: 200, body: admitted.value }
+          : refusal(admitted.reason);
       },
     ),
     bind(

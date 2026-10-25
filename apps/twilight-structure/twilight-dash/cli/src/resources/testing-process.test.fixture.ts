@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { admitFixture } from './admission.test.fixture';
 import { termIgnoringChild } from './process-tree.test.fixture';
 import { type CreationRequest, loadResourceConfiguration, ResourceRuntime } from './runtime';
 const [config, requestPath] = process.argv.slice(2);
@@ -8,7 +9,10 @@ const runtime = ResourceRuntime.open(loadResourceConfiguration(config), {
   read: () => 1800000000000,
 });
 try {
-  const use = runtime.create(JSON.parse(readFileSync(requestPath, 'utf8')) as CreationRequest);
+  const use = await runtime.create(
+    JSON.parse(readFileSync(requestPath, 'utf8')) as CreationRequest,
+    admitFixture,
+  );
   process.stdout.write(`${JSON.stringify(use)}\n`);
   if (process.argv[4] === 'tree') {
     const ready = process.argv[5];

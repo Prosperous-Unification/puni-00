@@ -22,6 +22,9 @@ import { Writable } from 'node:stream';
 import { parseSecretsOrThrow, type } from '@shared/validation';
 import {
   resourceCleanupRequest,
+  type ResourceRuntimeAdmission,
+  resourceRuntimeAdmission,
+  resourceRuntimeAdmissionReceipt,
   type ResourceRuntimeEvent as ResourceEvent,
   resourceRuntimeEvent,
 } from '@wbs/contracts';
@@ -103,6 +106,7 @@ export interface ResourceUse {
   releasedDiskUnits: number;
   releasedWorkspaceUnits: number;
   evidence: string | null;
+  admission?: ResourceRuntimeAdmission;
 }
 const ProcessIdentityShape = type({
   pid: 'number.integer > 0',
@@ -137,6 +141,7 @@ const ResourceUseShape = type({
   releasedDiskUnits: 'number.integer >= 0',
   releasedWorkspaceUnits: 'number.integer >= 0',
   evidence: 'string | null',
+  'admission?': resourceRuntimeAdmission,
 }).onUndeclaredKey('reject');
 export type { ResourceRuntimeEvent as ResourceEvent } from '@wbs/contracts';
 /** Read trusted credentials without following links, exposing JSON parser excerpts, or defaulting missing state. */
@@ -546,33 +551,19 @@ export class ResourceRuntime {
       .get();
     if (!sequence) throw new Error('resource event sequence unavailable');
     const attribution = use.request;
+    const admission = kind === 'registered' ? use.admission : undefined;
     const event: ResourceEvent = {
-      eventId: randomUUID(),
+      eventId: admission?.eventId ?? randomUUID(),
       epoch: this.configuration.epoch,
       sequence: sequence.sequence,
       useId: use.id,
       incarnation: use.incarnation,
       revision: use.revision,
       kind,
-      observedAt: this.clock.read(),
-      reason: use.reason,
-      ...(use.requestId === undefined ? {} : { requestId: use.requestId }),
-      use: {
-        projectId: attribution.projectId,
-        resourceId: attribution.resourceId,
-        workItemId: attribution.workItemId,
-        agentRun: attribution.agentRun,
-        responsiblePersonId: attribution.responsiblePersonId,
-        units: attribution.units,
-        locator: use.locator,
-        kind: attribution.kind,
-        reservedDiskUnits: attribution.diskUnits,
-        reservedWorkspaceUnits: 1,
-        ...(attribution.stepId === undefined ? {} : { stepId: attribution.stepId }),
-        ...(attribution.attemptNumber === undefined
-          ? {}
-          : { attemptNumber: attribution.attemptNumber }),
-      },
+      observedAt: admission?.observedAt ?? this.clock.read(),
+      reason: admission?.reason ?? use.reason,
+      ...(use.requestId === undefined || kind === 'registered' ? {} : { requestId: use.requestId }),
+      use: this.declaration(use),
     };
     if (kind === 'release_verified') {
       const proof = JSON.stringify({
@@ -584,13 +575,26 @@ export class ResourceRuntime {
         boundary: 'linux-cooperating-owner',
         reclaimedBytes: null,
       });
-      use.evidence = proof;
-      event.evidence = {
-        digest: createHash('sha256').update(proof).digest('hex'),
-        locator: `dash-resource://${this.configuration.authorityId}/${use.id}/${String(use.revision)}`,
-        disposition: use.dev === null ? 'not_created' : 'removed',
-        reclaimedBytes: null,
-      };
+      const recorded = this.db
+        .query<{ event: string }, [string]>(
+          "SELECT event FROM events WHERE json_extract(event,'$.useId')=? AND json_extract(event,'$.kind')='release_verified' ORDER BY sequence LIMIT 1",
+        )
+        .get(use.id);
+      if (recorded !== null) {
+        const original = resourceRuntimeEvent.assert(JSON.parse(recorded.event));
+        if (original.evidence === undefined) throw new Error('terminal release evidence missing');
+        // Proof: regenerating the locator failed the real terminal-race smoke after restart (2026-10-25).
+        event.evidence = original.evidence;
+      } else {
+        if (use.evidence !== null) throw new Error('terminal release envelope missing');
+        use.evidence = proof;
+        event.evidence = {
+          digest: createHash('sha256').update(proof).digest('hex'),
+          locator: `dash-resource://${this.configuration.authorityId}/${use.id}/${String(use.revision)}`,
+          disposition: use.dev === null ? 'not_created' : 'removed',
+          reclaimedBytes: null,
+        };
+      }
     }
     if (kind === 'retained')
       event.retention = {
@@ -603,8 +607,74 @@ export class ResourceRuntime {
       .query('INSERT INTO events(sequence,event) VALUES (?,?)')
       .run(event.sequence, JSON.stringify(event));
   }
-  /** Atomic admission charges every unresolved use and conservatively reserves all possible disk growth. */
-  create(input: CreationRequest): ResourceUse {
+  private declaration(use: ResourceUse): ResourceEvent['use'] {
+    const attribution = use.request;
+    return {
+      projectId: attribution.projectId,
+      resourceId: attribution.resourceId,
+      workItemId: attribution.workItemId,
+      agentRun: attribution.agentRun,
+      responsiblePersonId: attribution.responsiblePersonId,
+      units: attribution.units,
+      locator: use.locator,
+      kind: attribution.kind,
+      reservedDiskUnits: attribution.diskUnits,
+      reservedWorkspaceUnits: 1,
+      ...(attribution.stepId === undefined ? {} : { stepId: attribution.stepId }),
+      ...(attribution.attemptNumber === undefined
+        ? {}
+        : { attemptNumber: attribution.attemptNumber }),
+    };
+  }
+  /** Persist an exact authorized admission before allocating a source sequence or creating a path. */
+  private async admit(
+    id: string,
+    send: (request: Request) => Promise<Response>,
+  ): Promise<ResourceUse> {
+    const use = this.inspect(id);
+    if (use.revision > 0) return use;
+    if (use.admission === undefined) throw new Error('resource admission intent missing');
+    const response = await send(
+      new Request(
+        `${this.configuration.wbsOrigin}/api/resource-authorities/${encodeURIComponent(this.configuration.authorityId)}/admissions`,
+        {
+          method: 'PUT',
+          redirect: 'error',
+          headers: {
+            authorization: this.configuration.credential.authorization(),
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(use.admission),
+          signal: AbortSignal.timeout(15000),
+        },
+      ),
+    );
+    if (response.status !== 200)
+      throw new Error(`resource admission HTTP ${String(response.status)}`);
+    const receipt = resourceRuntimeAdmissionReceipt.assert(await response.json());
+    // Proof: bypassing receipt identity made the exact-receipt fixture create a path (final-fix-mutations/admission-receipt.log).
+    if (
+      receipt.eventId !== use.admission.eventId ||
+      receipt.useId !== use.id ||
+      receipt.incarnation !== use.incarnation
+    )
+      throw new Error('resource admission acknowledgment mismatch');
+    return this.transaction(() => {
+      const current = this.inspect(id);
+      if (current.revision === 0) {
+        this.event(current, 'registered');
+        // Proof: parent sealing during admission otherwise stranded a creating child (2026-10-25).
+        if (current.sealed)
+          this.enqueue(current, current.revision, current.incarnation, current.reason);
+      }
+      return current;
+    });
+  }
+  /** Reserve locally, obtain durable WBS authorization, then create; failures remain charged for admission replay. */
+  async create(
+    input: CreationRequest,
+    send: (request: Request) => Promise<Response> = fetch,
+  ): Promise<ResourceUse> {
     const request = Creation.assert(input);
     try {
       inspectHolds(join(this.configuration.root, '.dash-inspection'));
@@ -623,7 +693,7 @@ export class ResourceRuntime {
       throw new Error('worktree source must be outside managed root');
     const creator = identifyProcess(process.pid);
     if (!creator) throw new Error('creator identity unavailable');
-    const use = this.transaction(() => {
+    const intent = this.transaction(() => {
       // Proof: charging only active uses failed the replacement-path capacity assertion (held-capacity.log).
       const held = this.list().filter((existing) => existing.state !== 'released');
       const disk = held.reduce(
@@ -679,12 +749,34 @@ export class ResourceRuntime {
         releasedWorkspaceUnits: 0,
         evidence: null,
       };
-      this.event(reserved, 'registered');
+      reserved.admission = {
+        eventId: randomUUID(),
+        epoch: this.configuration.epoch,
+        useId: reserved.id,
+        incarnation: reserved.incarnation,
+        observedAt: this.clock.read(),
+        reason: reserved.reason,
+        use: this.declaration(reserved),
+      };
+      this.save(reserved);
       return reserved;
     });
+    let use: ResourceUse;
+    try {
+      // Proof: bypassing admission stranded first publication after real deleteWorkItem (admission-before-effects.log).
+      use = await this.admit(intent.id, send);
+    } catch (cause) {
+      this.transaction(() => {
+        const pending = this.inspect(intent.id);
+        pending.sealed = true;
+        pending.reason = 'WBS admission unresolved; retry before verified noncreation';
+        this.save(pending);
+      });
+      throw cause;
+    }
     this.transaction(() => {
       const current = this.inspect(use.id);
-      if (current.state !== 'creating' || current.revision !== use.revision)
+      if (current.state !== 'creating' || current.sealed || current.revision !== use.revision)
         throw new Error('creation became stale');
       mkdirSync(use.locator, { mode: 0o700 });
       const identity = lstatSync(use.locator);
@@ -694,7 +786,7 @@ export class ResourceRuntime {
     });
     this.transaction(() => {
       const current = this.inspect(use.id);
-      if (current.state !== 'creating' || current.revision !== use.revision)
+      if (current.state !== 'creating' || current.sealed || current.revision !== use.revision)
         throw new Error('creation became stale');
       if (request.source !== undefined)
         git([
@@ -730,8 +822,14 @@ export class ResourceRuntime {
     use.sealed = true;
     use.cleanupAttempts = 0;
     use.nextRetryAt = null;
-    use.state = 'pending';
     use.reason = reason;
+    // Proof: removing this fence emitted pending/release before registration (unadmitted-source-fence.log).
+    if (use.revision === 0) {
+      // No source event exists until durable admission succeeds; uncertain obligations stay charged.
+      this.save(use);
+      return;
+    }
+    use.state = 'pending';
     this.event(use, 'cleanup_pending');
     for (const child of this.list().filter(
       (candidate) => candidate.request.parentId === use.id && candidate.state !== 'released',
@@ -808,7 +906,7 @@ export class ResourceRuntime {
   /** Reconcile dead creators and retry pending/blocked cleanup; retention requires an explicit retry. */
   sweep(): ResourceUse[] {
     for (const snapshot of this.list()) {
-      if (snapshot.state === 'released') continue;
+      if (snapshot.state === 'released' || snapshot.revision === 0) continue;
       this.transaction(() => {
         const use = this.inspect(snapshot.id);
         const parent =
@@ -868,6 +966,16 @@ export class ResourceRuntime {
   /** Preserve durable commit reachability; dirty, untracked and ignored files stay in their charged worktree. */
   private preserve(use: ResourceUse): boolean {
     if (use.request.source === undefined) return true;
+    const tracked = git(['-C', use.locator, 'ls-files', '-v', '-z']).split('\0');
+    // Proof: without this guard both real index-flag fixtures released unique modified bytes (2026-10-25).
+    if (tracked.some((entry) => /^[a-zS] /.test(entry))) {
+      use.state = 'retained';
+      use.deleteIntent = false;
+      use.reason = 'Git index has assume-unchanged or skip-worktree entries; owner review required';
+      use.retentionReviewAt = this.clock.read() + 86400000;
+      this.event(use, 'retained');
+      return false;
+    }
     for (const name of use.request.disposablePaths ?? []) {
       // Proof: bypassing tracked-source inspection removed protected source (tracked-generated-source.log).
       if (git(['-C', use.locator, 'ls-files', '--', name]) !== '')
@@ -1222,6 +1330,30 @@ export class ResourceRuntime {
   /** Ordered publication retries exact bytes; request acceptance and cursor advancement share one SQLite transaction. */
   async synchronize(send: (request: Request) => Promise<Response> = fetch): Promise<void> {
     const prefix = `${this.configuration.wbsOrigin}/api/resource-authorities/${encodeURIComponent(this.configuration.authorityId)}`;
+    let admissionFailure: Error | undefined;
+    // Proof: recovering a live in-flight admission failed the watcher/creator race fixture (2026-10-25).
+    for (const pending of this.list().filter(
+      (use) => use.revision === 0 && (use.sealed || !alive(use.creator)),
+    )) {
+      try {
+        await this.admit(pending.id, send);
+        this.transaction(() => {
+          const admitted = this.inspect(pending.id);
+          if (admitted.state === 'creating')
+            this.enqueue(
+              admitted,
+              admitted.revision,
+              admitted.incarnation,
+              'admission recovered without physical creation',
+            );
+        });
+      } catch (cause) {
+        // Admission failure must not block publication or cleanup of independently admitted uses.
+        admissionFailure ??=
+          cause instanceof Error ? cause : new Error('resource admission failed', { cause });
+      }
+    }
+
     for (const event of this.outbox()) {
       const response = await send(
         new Request(`${prefix}/events`, {
@@ -1287,5 +1419,6 @@ export class ResourceRuntime {
         throw new Error('resource request cursor mismatch');
       this.db.query('UPDATE cursor SET value=? WHERE id=1').run(cursor);
     });
+    if (admissionFailure !== undefined) throw admissionFailure;
   }
 }

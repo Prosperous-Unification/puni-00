@@ -1,5 +1,7 @@
 import {
   type ResourceAuthority,
+  type ResourceRuntimeAdmission,
+  type ResourceRuntimeAdmissionReceipt,
   type ResourceRuntimeEvent,
   resourceRuntimeEvent,
   resourceUse,
@@ -172,6 +174,111 @@ export class SqliteResourceRuntime implements ResourceRuntime {
         : { ok: true as const, value: authority };
     });
   }
+  /** The immutable registered history carries admission identity, even before a source sequence exists. */
+  admit(
+    authorityId: string,
+    actor: ResourceRuntimeActor,
+    admission: ResourceRuntimeAdmission,
+    at: number,
+  ): Promise<ResourceUseAnswer<ResourceRuntimeAdmissionReceipt>> {
+    return writeImmediately(this.db, this.gate, (tx) => {
+      const authority = authorityIn(tx, authorityId, actor, false);
+      if (typeof authority === 'string') return refused(authority);
+      // Proof: bypassing the epoch check admitted a wrong-epoch request (final-fix-mutations/admission-epoch.log).
+      if (admission.epoch !== authority.epoch) return refused('conflict');
+      if (!admission.reason.trim() || admission.observedAt > at + 300000)
+        return refused('invalid_body');
+      const fingerprint = admissionFingerprint(authorityId, admission);
+      const prior = tx
+        .select()
+        .from(resourceUseRecord)
+        .where(eq(resourceUseRecord.id, admission.useId))
+        .get();
+      if (prior !== undefined) {
+        const original = resourceUse.assert(prior.registrationResponse);
+        const history = tx
+          .select()
+          .from(resourceUseEventRecord)
+          .where(
+            and(
+              eq(resourceUseEventRecord.useId, admission.useId),
+              eq(resourceUseEventRecord.revision, 1),
+            ),
+          )
+          .get();
+        // Proof: omitting exact admission identity accepted changed replay (admission-replay-identity.log).
+        if (
+          prior.organizationId !== authority.organizationId ||
+          original.runtimeId !== authorityId ||
+          original.incarnation !== admission.incarnation ||
+          history?.fingerprint !== fingerprint
+        )
+          return refused('conflict');
+      } else {
+        // Proof: project-only event identity admitted two projects with one authority event (2026-10-25).
+        if (
+          tx.get<{ id: string } | undefined>(sql`
+          SELECT e.id FROM resource_use_event e JOIN resource_use u ON u.id=e.use_id
+          WHERE e.id=${admission.eventId}
+          AND (e.project_id=${admission.use.projectId} OR json_extract(u.registration_response,'$.runtimeId')=${authorityId})
+          LIMIT 1
+        `) !== undefined
+        )
+          return refused('conflict');
+        const resourceProvider = tx.get<{ providerId: string | null } | undefined>(
+          sql`SELECT provider_id AS providerId FROM resource WHERE id=${admission.use.resourceId}`,
+        );
+        if (
+          resourceProvider !== undefined &&
+          resourceProvider.providerId !== null &&
+          resourceProvider.providerId !== authority.providerId
+        )
+          return refused('conflict');
+        const provider = tx.get<{ name: string } | undefined>(
+          sql`SELECT name FROM compute_provider WHERE id=${authority.providerId}`,
+        );
+        if (provider === undefined) return refused('not_found');
+        const registered = registerResourceUseIn(
+          tx,
+          admission.use.projectId,
+          actor,
+          {
+            requestId: `runtime:${authorityId}:${admission.eventId}`,
+            resourceId: admission.use.resourceId,
+            workItemId: admission.use.workItemId,
+            stepId: admission.use.stepId,
+            attemptNumber: admission.use.attemptNumber,
+            agentRun: admission.use.agentRun,
+            responsiblePersonId: admission.use.responsiblePersonId,
+            locator: admission.use.locator,
+            units: admission.use.units,
+          },
+          at,
+          {
+            id: admission.useId,
+            authorityId,
+            incarnation: admission.incarnation,
+            eventId: admission.eventId,
+            providerId: authority.providerId,
+            providerName: provider.name,
+            reason: admission.reason,
+            observedAt: admission.observedAt,
+            admissionFingerprint: fingerprint,
+          },
+        );
+        if (!registered.ok) return registered;
+        queueEndedAttempt(tx, registered.value, actor, at);
+      }
+      return {
+        ok: true,
+        value: {
+          eventId: admission.eventId,
+          useId: admission.useId,
+          incarnation: admission.incarnation,
+        },
+      };
+    });
+  }
   ingest(
     authorityId: string,
     actor: ResourceRuntimeActor,
@@ -231,7 +338,12 @@ export class SqliteResourceRuntime implements ResourceRuntime {
         .where(eq(resourceUseRecord.id, event.useId))
         .get();
       let use: ResourceUse;
+      // Source revision 0 in the original response names provisional admission, not missing runtime authority.
+      const admitted =
+        stored !== undefined &&
+        resourceUse.assert(stored.registrationResponse).runtimeRevision === 0;
       if (
+        !(event.kind === 'registered' && admitted) &&
         tx
           .select()
           .from(resourceUseEventRecord)
@@ -247,53 +359,91 @@ export class SqliteResourceRuntime implements ResourceRuntime {
       if (event.kind === 'registered') {
         if (
           runtime !== undefined ||
-          stored !== undefined ||
+          (stored !== undefined && !admitted) ||
           event.revision !== 1 ||
           event.requestId !== undefined
         )
           return refused('conflict');
-        const resourceProvider = tx.get<{ providerId: string | null } | undefined>(
-          sql`SELECT provider_id AS providerId FROM resource WHERE id=${event.use.resourceId}`,
-        );
-        if (
-          resourceProvider !== undefined &&
-          resourceProvider.providerId !== null &&
-          resourceProvider.providerId !== authority.providerId
-        )
-          return refused('conflict');
-        const providerName = tx.get<{ name: string } | undefined>(
-          sql`SELECT name FROM compute_provider WHERE id=${authority.providerId}`,
-        );
-        if (providerName === undefined) return refused('not_found');
-        const registered = registerResourceUseIn(
-          tx,
-          event.use.projectId,
-          actor,
-          {
-            requestId: `runtime:${authorityId}:${event.eventId}`,
-            resourceId: event.use.resourceId,
-            workItemId: event.use.workItemId,
-            stepId: event.use.stepId,
-            attemptNumber: event.use.attemptNumber,
-            agentRun: event.use.agentRun,
-            responsiblePersonId: event.use.responsiblePersonId,
-            locator: event.use.locator,
-            units: event.use.units,
-          },
-          at,
-          {
-            id: event.useId,
-            authorityId,
-            incarnation: event.incarnation,
+        if (admitted) {
+          const original = resourceUse.assert(stored.registrationResponse);
+          const history = tx
+            .select()
+            .from(resourceUseEventRecord)
+            .where(
+              and(
+                eq(resourceUseEventRecord.useId, event.useId),
+                eq(resourceUseEventRecord.revision, 1),
+              ),
+            )
+            .get();
+          const admission: ResourceRuntimeAdmission = {
             eventId: event.eventId,
-            providerId: authority.providerId,
-            providerName: providerName.name,
-            reason: event.reason,
+            epoch: event.epoch,
+            useId: event.useId,
+            incarnation: event.incarnation,
             observedAt: event.observedAt,
-          },
-        );
-        if (!registered.ok) return registered;
-        use = registered.value;
+            reason: event.reason,
+            use: event.use,
+          };
+          // Proof: omitting confirmation identity accepted a substituted locator after project deletion (admission-confirmation-identity.log).
+          if (
+            stored.organizationId !== authority.organizationId ||
+            original.runtimeId !== authorityId ||
+            original.incarnation !== event.incarnation ||
+            history?.fingerprint !== admissionFingerprint(authorityId, admission)
+          )
+            return refused('conflict');
+          // Only source progress changes here; operator requests may already have advanced projection history.
+          // Proof: restoring the original admission snapshot erased revision 2/pending intent (admission-projection-preservation.log).
+          use = { ...resourceUse.assert(stored.snapshot), runtimeRevision: 1 };
+          tx.update(resourceUseRecord)
+            .set({ snapshot: use })
+            .where(eq(resourceUseRecord.id, use.id))
+            .run();
+        } else {
+          const resourceProvider = tx.get<{ providerId: string | null } | undefined>(
+            sql`SELECT provider_id AS providerId FROM resource WHERE id=${event.use.resourceId}`,
+          );
+          if (
+            resourceProvider !== undefined &&
+            resourceProvider.providerId !== null &&
+            resourceProvider.providerId !== authority.providerId
+          )
+            return refused('conflict');
+          const providerName = tx.get<{ name: string } | undefined>(
+            sql`SELECT name FROM compute_provider WHERE id=${authority.providerId}`,
+          );
+          if (providerName === undefined) return refused('not_found');
+          const registered = registerResourceUseIn(
+            tx,
+            event.use.projectId,
+            actor,
+            {
+              requestId: `runtime:${authorityId}:${event.eventId}`,
+              resourceId: event.use.resourceId,
+              workItemId: event.use.workItemId,
+              stepId: event.use.stepId,
+              attemptNumber: event.use.attemptNumber,
+              agentRun: event.use.agentRun,
+              responsiblePersonId: event.use.responsiblePersonId,
+              locator: event.use.locator,
+              units: event.use.units,
+            },
+            at,
+            {
+              id: event.useId,
+              authorityId,
+              incarnation: event.incarnation,
+              eventId: event.eventId,
+              providerId: authority.providerId,
+              providerName: providerName.name,
+              reason: event.reason,
+              observedAt: event.observedAt,
+            },
+          );
+          if (!registered.ok) return registered;
+          use = registered.value;
+        }
         tx.insert(resourceRuntimeUseRecord)
           .values({
             useId: use.id,
@@ -499,7 +649,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
         .set({ acceptedSequence: event.sequence })
         .where(eq(resourceAuthorityRecord.authorityId, authorityId))
         .run();
-      if (event.kind === 'registered') queueEndedAttempt(tx, use, actor, at);
+      if (event.kind === 'registered' && !admitted) queueEndedAttempt(tx, use, actor, at);
       return { ok: true, value: response };
     });
   }
@@ -569,4 +719,9 @@ function queueEndedAttempt(
     actor.personId,
   );
   if (!queued.ok) throw new Error('late runtime registration could not queue cleanup');
+}
+
+/** Includes authority/epoch and every immutable field; admission replay never resolves mutable planning rows. */
+function admissionFingerprint(authorityId: string, admission: ResourceRuntimeAdmission): string {
+  return JSON.stringify({ authorityId, admission });
 }
