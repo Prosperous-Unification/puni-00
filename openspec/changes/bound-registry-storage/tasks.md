@@ -41,7 +41,7 @@ reserve intact`, `missing mount cannot write root`, `wrong filesystem refuses
 startup`, `second convergence changes nothing`; negatives: replace mount with
       directory, remove capacity enforcement and fill the disposable volume. Never
       perform exhaustion tests on the live root filesystem.
-- [ ] 2.2 Add synchronous byte/inode admission and durable pressure fencing to new
+- [x] 2.2 Add synchronous byte/inode admission and durable pressure fencing to new
       `registry-capacity.ts` with paired tests. Wire startup to the journal's persistent
       fence so service restart and Flux reconciliation cannot reopen writes. Tests:
       `refuses oversized publication before upload`, `requires low water to resume`,

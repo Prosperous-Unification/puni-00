@@ -1,6 +1,6 @@
 ## Verification status
 
-Implementation in progress, 2026-10-25. Policy, journal and physical-storage slices have independent
+Implementation in progress, 2026-10-25. Policy, journal, physical-storage and capacity/fencing slices have independent
 review approval. These receipts do not establish live capacity enforcement,
 retirement, notifications or readiness for product adoption. Production has not
 been migrated by this change. Remaining task checkboxes are authoritative.
@@ -151,6 +151,99 @@ The authenticated host authority wrapper and persistent pressure fence remain ta
 2.2. Real account creation, systemd boot ordering, full host gate, production
 provisioning/migration and live startup/cutoff remain unverified until final rollout.
 
+## Capacity and write fencing — reviewed through aaef2aab7
+
+Initial public commit 72203f811 and private commit 974eb61 stage measured admission,
+explicit journal v2 upgrade, a fixed authenticated host wrapper and a nonroot
+Distribution supervisor. The authority grants a derived 30-second writable permit,
+renewed every 10 seconds and checked each second. Permission binds boot identity,
+monotonic time and canonical journal hash; ordinary healthy renewal leaves the
+journal revision unchanged. Explicit reconciliation below 70% is required to reopen.
+No live account, authority service or production volume was activated.
+
+```sh
+REGISTRY_STORAGE_SSH=/tmp/puni-registry-ssh \
+REGISTRY_STORAGE_HOST=10.1.0.4 \
+REGISTRY_TEST_BUN=/var/tmp/puni-registry-runtime-93kam935/bun \
+bunx nx run tool-fleet:test:registry-capacity
+```
+
+The exact-source initial native run exited 0: **1 pass, 0 fail, 23 assertions**,
+74.75 seconds. It used the actual command wrapper as UID 59001 and pinned
+Distribution on loopback with separate disposable registry, journal and scratch
+ext4 volumes. HTTP upload responses were 202 with valid permission and 405 after
+checker death beyond the production 30-second lifetime, expired restart, canonical
+hash drift, journal corruption, actual byte exhaustion and inode pressure. Killing
+PID1 removed its listener and container task. Repairing/freeing storage alone did
+not reopen writes. Oversized admission left no publication reservation; competing
+publisher and malformed-request refusal preserved the existing healthy writer.
+
+Actual registry ENOSPC still allowed an independent journal failure receipt.
+Journal ENOSPC stopped writes and required reconciliation after space was freed.
+The scratch fixture rejected registry/root aliases and excess bytes/inodes, reached
+real ENOSPC, and measured reserved ext4 blocks unavailable to the service UID.
+Observed removals admitted forbidden HTTP writes for missing/expired permission,
+unsafe scratch aliases/identity/receipt metadata/maximum, and an extra fixed-wrapper
+argument. Focused source removals made freshness, low-water and journal-heartbeat
+headroom tests fail. These production checks carry adjacent proof references.
+
+Defensive regressions also caught stale revocation acknowledgement reuse and a
+legacy upgrade that could hide inconsistent unfenced maintenance. Both tests first
+failed, then passed after correction. The final journal/capacity focused suite had
+**38 pass/274 assertions**; a prior combined policy suite had 75 passing cases.
+Affected lint, typecheck, strict infrastructure TypeScript, ShellCheck, public
+infrastructure checks and private fleet rendering/policy checks passed. Four
+classification cases passed 40 assertions after two missing pressure-unit selectors
+were added; the actual source-checksum staging negative and removal proof passed.
+
+The changed supervisor passed the physical-storage regression target in 46.78
+seconds: **3 pass, 0 fail, 32 assertions**, including private/public payload equality
+and Restricted server admission dry-run. A fixture-only guard-removal test had
+created an authority observation on its underlying directory; the provisioner
+correctly refused it. Cleanup now names that exact mutation-owned observation.
+A second fixture issue used an invalid trailing-underscore container ID; names now
+use UUIDs. Neither failed run was counted as success. Final fixtures dtscb_kb and
+urcxlldz, exact loops/containers and both temporary verified Bun runtimes were removed.
+
+Independent review identified one Important defect: startup read only the
+first line of a permit while authority validation covered the whole file. A valid
+record followed by corrupt trailing content was authority-rejected but accepted by
+the supervisor. The new native regression reproduced HTTP202 where405 was required.
+Fix commits 8e4142463 (public) and 7f4756293 (private) validate one complete record
+against the size of the same open inode, then enforce canonical single-space
+representation before existing boot/time/hash checks. The focused native test
+`registry-capacity.test.ts -t 'one complete writable permit'` first failed with
+HTTP202 instead of405, then passed **1 test/16 assertions** in 28.34 seconds.
+Nine malformed forms returned405: trailing content, blank second line, unterminated
+suffix, missing newline, doubled/leading/trailing space, embedded NUL and trailing
+NUL. Restart remained readonly; both valid transition-hash positions returned202.
+Removing byte-count validation admitted trailing content and a blank second line;
+removing canonical comparison admitted double spaces. All three returned202.
+The new production checks name those observed witnesses in adjacent proof comments.
+
+Both owned fixtures w251b0yy and gmt5ot7y were removed with their exact loop devices,
+containers and listeners. Public/private equality and staged patch/hold checks
+passed **1 test/12 assertions**. Changed-file lint, strict TypeScript, ShellCheck,
+format and normal hooks passed. Unchanged full capacity/storage suites were not
+repeated for the scoped parser fix. Independent re-review accepted the original
+finding's correction but found a new open-failure path: compound shell redirection
+could fail and continue with the previous iteration's record because the function
+runs as an if-condition. Focused shell reproductions confirmed this. Explicit
+failure propagation is now in public aaef2aab7/private b7e234415. The native test
+first observed HTTP202 instead of405 after an earlier valid iteration and a
+deterministically injected open failure. With the fix it returned405; removing
+only the explicit failure propagation restored202. The next poll was held so it
+could not hide stale-record reuse. The actual missing-file error was also required.
+
+The final focused native matrix passed **1 test/18 assertions** in 34.53 seconds,
+including all prior malformed-record and valid-transition cases. Equality and
+staged-patch checks passed **12 assertions**; changed-file static checks and normal
+hooks passed. Fixtures 710789k_ and _gqxlvxm were fully removed with their loop
+devices, containers, listeners and injected stat shim. Scoped re-review approved
+fix round2: every finding addressed, no new Important or Critical breakage. Actual
+builder provisioning/export integration belongs to task3.1; full gate and live
+activation remain pending.
+
 ## Checks and unverified work
 
 For each completed slice and fix, the affected files passed ESLint, Prettier and
@@ -162,3 +255,25 @@ pack and partial-source scenarios. They require the pinned real binary and remai
 unverified for this implementation. No exact-revision full host gate has run for
 this branch's new safeguards. Complete OCI lifecycle, live notification delivery, cutoff, staged migration
 and independent recovery receipts remain pending. Earlier registry activation evidence does not prove this change.
+
+## Requirement completion audit
+
+This is a requirement-level checkpoint, not a completion claim. Every row still
+needs final integrated and live evidence before the goal can be marked complete.
+The slice receipts above are narrower evidence and do not substitute for that audit.
+
+| Requirement                                     | Current evidence and remaining work                                                                    |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Enforced registry storage boundary              | Physical fixtures and scoped review passed; production provisioning/startup pending.                   |
+| Publication admission and pressure response     | Native authority/supervisor proofs and fix review passed; publication callers/live activation pending. |
+| Protect images before referring to them         | Journal primitives reviewed; publication/deploy/rollback callers pending.                              |
+| Complete trusted consumer inventory             | Registered adapter and complete census implementation pending.                                         |
+| Release-aware retirement eligibility            | Pure retention policy reviewed; exact manifest retirement integration pending.                         |
+| Complete image dependency closure               | Pure graph validation reviewed; native complete registry census pending.                               |
+| Serialized recoverable maintenance              | Durable authority reviewed; coordinated backup/delete/GC/recovery integration pending.                 |
+| Bounded backup lifecycle                        | Budget, retention and isolated post-prune restore pending.                                             |
+| Proven monitoring and adoption                  | Real alert destination/delivery, missed-check proof and staged adoption pending.                       |
+| Physical backup accounting                      | Provider version/multipart census and budget admission pending.                                        |
+| Early pressure response                         | Threshold policy reviewed; periodic service/retirement/notification integration pending.               |
+| Per-environment rollback coverage               | Pure minimum-retention policy reviewed; real environment history/protection integration pending.       |
+| Independent journal capacity and durable fences | Independent journal/HTTP fence proofs and parser review passed; live activation pending.               |
