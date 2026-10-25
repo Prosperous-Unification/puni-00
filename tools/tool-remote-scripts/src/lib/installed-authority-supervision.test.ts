@@ -74,10 +74,56 @@ def fixture_worker(request,host):
     fault=${JSON.stringify(fault)}
     if fault=='normal':return {'observed':'fresh'}
     if fault=='saturation':os.write(1,b' '*(33*1024*1024));return {}
+    if fault=='setsid':
+        worker_pid=os.getpid();worker_group=os.getpgrp()
+        acknowledgement=list(os.pipe())
+        def close_acknowledgement(index):
+            if acknowledgement[index]>=0:os.close(acknowledgement[index]);acknowledgement[index]=-1
+        def publish_participant(role):
+            record={'role':role,'pid':os.getpid(),'pgid':os.getpgrp(),'sid':os.getsid(0),'workerPid':worker_pid,'workerPgid':worker_group}
+            contents=(json.dumps(record)+'\n').encode()
+            require(len(contents)<=512,'fixture participant record oversized')
+            descriptor=os.open(${JSON.stringify(pidPath)},os.O_WRONLY|os.O_APPEND)
+            try:require(os.write(descriptor,contents)==len(contents),'fixture participant record incomplete')
+            finally:os.close(descriptor)
+        # Proof: neutralizing only this block under genuine pending supervisor TERM
+        # lost participation (>0 got0); restoring it published both roles and cleaned them.
+        prior_mask=signal.pthread_sigmask(signal.SIG_BLOCK,{signal.SIGTERM})
+        try:pid=os.fork()
+        except BaseException:
+            signal.pthread_sigmask(signal.SIG_SETMASK,prior_mask)
+            close_acknowledgement(0);close_acknowledgement(1)
+            raise
+        if pid!=0:
+            signal.pthread_sigmask(signal.SIG_SETMASK,prior_mask)
+            close_acknowledgement(0);close_acknowledgement(1)
+            time.sleep(0.1)
+            return {'observed':'worker-ended'}
+        try:
+            os.setsid()
+            grandchild=os.fork()
+            if grandchild==0:
+                try:
+                    close_acknowledgement(0)
+                    publish_participant('grandchild')
+                    require(os.write(acknowledgement[1],b'R')==1,'fixture participation acknowledgement incomplete')
+                finally:
+                    try:close_acknowledgement(1)
+                    finally:signal.pthread_sigmask(signal.SIG_SETMASK,prior_mask)
+                time.sleep(30);os._exit(0)
+            close_acknowledgement(1)
+            publish_participant('leader')
+            remaining=host.deadline-time.monotonic()
+            require(remaining>0,'fixture participation deadline exceeded')
+            ready,_,_=select.select([acknowledgement[0]],[],[],remaining)
+            require(ready and os.read(acknowledgement[0],1)==b'R','fixture grandchild participation absent')
+        finally:
+            try:close_acknowledgement(0);close_acknowledgement(1)
+            finally:signal.pthread_sigmask(signal.SIG_SETMASK,prior_mask)
+        os._exit(0)
     pid=os.fork()
     if pid==0:
-        if fault in ['grandchild','setsid']:
-            if fault=='setsid':os.setsid()
+        if fault=='grandchild':
             grandchild=os.fork()
             if grandchild!=0:os._exit(0)
         if fault=='term-ignored':signal.signal(signal.SIGTERM,signal.SIG_IGN)
@@ -105,9 +151,64 @@ supervisor_entry(fixture_worker)
       expect(refusal).toBe('');
       expect(JSON.parse(output)).toEqual({ observed: 'fresh' });
     } else expect(refusal).toContain('complete descendant cleanup');
-    const pids = (await readFile(pidPath, 'utf8')).trim().split('\n').filter(Boolean).map(Number);
+    const lines = (await readFile(pidPath, 'utf8')).trim().split('\n').filter(Boolean);
+    const participants =
+      fault === 'setsid'
+        ? lines.map(
+            (line) =>
+              JSON.parse(line) as {
+                role: string;
+                pid: number;
+                pgid: number;
+                sid: number;
+                workerPid: number;
+                workerPgid: number;
+              },
+          )
+        : [];
+    const pids = fault === 'setsid' ? participants.map(({ pid }) => pid) : lines.map(Number);
     if (!['normal', 'saturation'].includes(fault)) expect(pids.length).toBeGreaterThan(0);
+    if (fault === 'setsid') {
+      expect(participants).toHaveLength(2);
+      expect(participants.map(({ role }) => role).sort()).toEqual(['grandchild', 'leader']);
+      const leader = participants.find(({ role }) => role === 'leader');
+      const grandchild = participants.find(({ role }) => role === 'grandchild');
+      if (leader === undefined || grandchild === undefined)
+        throw new Error('setsid fixture participation absent');
+      for (const participant of participants) {
+        expect(Object.keys(participant).sort()).toEqual([
+          'pgid',
+          'pid',
+          'role',
+          'sid',
+          'workerPgid',
+          'workerPid',
+        ]);
+        for (const identity of [
+          participant.pid,
+          participant.pgid,
+          participant.sid,
+          participant.workerPid,
+          participant.workerPgid,
+        ]) {
+          expect(Number.isSafeInteger(identity)).toBe(true);
+          expect(identity).toBeGreaterThan(0);
+        }
+        expect(participant.workerPid).toBe(participant.workerPgid);
+        expect(participant.workerPid).toBe(leader.workerPid);
+        expect(participant.pgid).not.toBe(participant.workerPgid);
+      }
+      expect(leader.sid).toBe(leader.pid);
+      expect(leader.pgid).toBe(leader.pid);
+      expect(grandchild.sid).toBe(leader.pid);
+      expect(grandchild.pgid).toBe(leader.pid);
+      expect(grandchild.pid).not.toBe(leader.pid);
+    }
     for (const pid of pids) expect(exists(pid)).toBe(false);
+    if (fault === 'setsid')
+      console.log(
+        JSON.stringify({ fixture: 'setsid-participation', participants, cleanup: 'complete' }),
+      );
   },
   5000,
 );
