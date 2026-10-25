@@ -157,3 +157,9 @@ Planning allowance is $0.01/session. A five-call 15,000-input/2,500-output illus
 ## Open Questions
 
 No application-design question blocks implementation. Deployment/account eligibility, production analytics configuration and current cleanup/backup evidence are activation inputs tracked in verify.md. Owner-supplied identity and review coverage must remain attributed to that source; planning is not independent live verification.
+
+### Evaluation quality correction after the first full run
+
+The first full run exposed an evaluation assumption, not a structured transport failure: AI curiosity legitimately ended with browsing guidance and no forced brief. Add an explicit evaluation-only exploratory ending for the click/mixed curiosity cases, separate from the existing default brief and scripted continuation behavior. A committed terminal reply must have neither question nor saved/candidate brief and must contain bounded meaningful exploratory guidance. Unhelpful closure, forced project assertions and fabricated briefs fail. These English corpus checks are limited proxies; complete private qualitative review remains required.
+
+For structured question turns, the catalogue owns the question and choices. Strengthen the canonical/runtime prompt to require short contextual declarative acknowledgements, bump the independently recorded prompt identity to `puni-scoping-v2`, and preserve protocol1, old saved replay and legacy-v3 semantics. An evaluation-only acknowledgement assertion checks prose before the known catalogue suffix for question punctuation, including the observed paraphrase. It stops paid progression on failure but does not reject/rewrite live customer quotations or model text. It does not prove semantic non-repetition without punctuation; that remains qualitative evidence. Keep all36corpus cases and34paid-eligible cases, with no cap/accounting/routing changes. New paid work requires committed correction and scoped review.

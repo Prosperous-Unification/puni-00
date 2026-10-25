@@ -205,6 +205,22 @@ test('the shipped corpus holds the twelve reviewed scripts', () => {
     'early-email',
   ]);
   expect(corpus.filter((script) => script.protocol === 'scoping')).toHaveLength(24);
+  expect(corpus).toHaveLength(36);
+  expect(
+    corpus.filter((script) => script.protocol !== 'scoping' || script.transportFault === undefined),
+  ).toHaveLength(34);
+  expect(
+    corpus
+      .filter((script) => script.protocol === 'scoping' && script.ending === 'exploration')
+      .map((script) => script.name),
+  ).toEqual(['click-unsure', 'mixed-unsure']);
+  expect(
+    corpus
+      .filter((script) => script.protocol === 'scoping')
+      .every((script) =>
+        script.assertions.some((assertion) => assertion.kind === 'declarativeAcknowledgement'),
+      ),
+  ).toBe(true);
   expect(() =>
     parseSalesCorpus('{"scripts":[{"name":"x","turns":["a"],"assertions":[{"kind":"guess"}]}]}'),
   ).toThrow('malformed assertion');

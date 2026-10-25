@@ -157,3 +157,31 @@ Bounded evaluation SHALL validate complete cache and tier pricing before inferen
 
 - **WHEN** a bounded evaluation prepares to call the pinned endpoint but cache or tier pricing is missing or malformed
 - **THEN** host preflight refuses before any paid inference request
+
+### Requirement: Evaluation distinguishes exploratory closure from a project brief
+
+An explicitly exploratory scenario SHALL accept a committed structured ending without a question or brief only when it supplies meaningful exploratory guidance without inventing a project. Ordinary scenarios SHALL retain their brief or planned-answer expectations. Malformed or conflicting exploration settings SHALL fail before inference. Missing, invalid or uncommitted output SHALL NOT satisfy an exploratory ending.
+
+#### Scenario: Curiosity concludes without a forced project
+
+- **WHEN** an opted-in AI-curiosity scenario receives a committed browsing or example-oriented next step with neither question nor brief
+- **THEN** evaluation terminates that scenario successfully while retaining stored-text equality and safety checks
+
+#### Scenario: Ordinary scoping loses its next step
+
+- **WHEN** the same response occurs in a scenario requiring a brief or another selected answer
+- **THEN** evaluation fails instead of globally accepting null-question replies
+
+### Requirement: The catalogue owns selected-question wording
+
+The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. This prompt revision SHALL be recorded as `puni-scoping-v2`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
+
+#### Scenario: Evaluation catches the observed paraphrased question
+
+- **WHEN** a selected-question acknowledgement asks a prose question before the catalogue question is rendered
+- **THEN** the evaluator quality assertion fails and paid mode stops before another turn; a declarative acknowledgement passes
+
+#### Scenario: Historical structured output is replayed
+
+- **WHEN** an existing `puni-scoping-v1` operation is replayed under the new runtime
+- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v2`

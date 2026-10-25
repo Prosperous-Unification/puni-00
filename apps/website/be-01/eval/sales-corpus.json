@@ -316,6 +316,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -435,6 +438,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -533,6 +539,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -631,6 +640,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -729,6 +741,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -848,8 +863,12 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
-      ]
+      ],
+      "ending": "exploration"
     },
     {
       "name": "mixed-launch",
@@ -954,6 +973,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1081,6 +1103,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1187,6 +1212,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1293,6 +1321,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1399,6 +1430,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1526,8 +1560,12 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
-      ]
+      ],
+      "ending": "exploration"
     },
     {
       "name": "uncertainty",
@@ -1555,6 +1593,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1584,6 +1625,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1610,6 +1654,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1642,6 +1689,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1672,6 +1722,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1701,6 +1754,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1727,6 +1783,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1753,6 +1812,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1779,6 +1841,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1823,6 +1888,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ]
     },
@@ -1845,6 +1913,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ],
       "transportFault": "truncation"
@@ -1868,6 +1939,9 @@
         },
         {
           "kind": "noModelOrKey"
+        },
+        {
+          "kind": "declarativeAcknowledgement"
         }
       ],
       "transportFault": "refusal"

@@ -350,3 +350,256 @@ test('scoping safety includes the visible candidate brief as well as the chat pr
     passed: false,
   });
 });
+
+const exploratoryMessage =
+  'Since you are curious about AI rather than describing a specific project, there is no need to turn this into a project brief. You can keep browsing examples or come back when a particular task comes to mind.';
+const exploration = {
+  ...scenario,
+  name: 'curiosity',
+  startingChoice: 'unsure',
+  ending: 'exploration',
+  turns: [
+    { answers: { 'unsure-reason': 'ai-curiosity' } },
+    { answers: { 'explore-examples': 'assistant' } },
+  ],
+};
+
+test('declared exploration accepts committed guidance without forcing a brief or another paid answer', async () => {
+  let calls = 0;
+  const evaluation = await runSalesEvaluation({
+    scripts: parseSalesCorpus(JSON.stringify({ scripts: [exploration] })),
+    provider,
+    stopOnFailure: true,
+    providerFetch: () =>
+      stream(
+        JSON.stringify(
+          calls++ === 0
+            ? {
+                version: 1,
+                message: 'We can explore what brought you here.',
+                nextQuestionId: 'unsure-reason',
+                brief: null,
+              }
+            : { version: 1, message: exploratoryMessage, nextQuestionId: null, brief: null },
+        ),
+      ),
+    show: false,
+    write: () => undefined,
+    pause: () => Promise.resolve(),
+  });
+  expect(calls).toBe(2);
+  expect(evaluation.passed).toBe(true);
+  expect(evaluation.results).toContainEqual({
+    script: 'curiosity',
+    assertion: 'exploratoryEnding',
+    passed: true,
+  });
+  expect(evaluation.results).toContainEqual({
+    script: 'curiosity',
+    assertion: 'streamEqualsStored',
+    passed: true,
+  });
+  expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v2');
+});
+
+for (const ending of [undefined, 'exploration'] as const)
+  test(`exploratory closure stays explicit: ${String(ending)}`, async () => {
+    let calls = 0;
+    const evaluation = await runSalesEvaluation({
+      scripts: parseSalesCorpus(JSON.stringify({ scripts: [{ ...exploration, ending }] })),
+      provider,
+      stopOnFailure: true,
+      providerFetch: () => {
+        calls += 1;
+        return stream(
+          JSON.stringify({
+            version: 1,
+            message: exploratoryMessage,
+            nextQuestionId: null,
+            brief: null,
+          }),
+        );
+      },
+      show: false,
+      write: () => undefined,
+      pause: () => Promise.resolve(),
+    });
+    expect(calls).toBe(1);
+    expect(evaluation.passed).toBe(ending === 'exploration');
+  });
+
+for (const failure of [
+  'unhelpful',
+  'forced-brief',
+  'invented-project',
+  'invalid-envelope',
+  'missing-charge',
+  'unsafe-price',
+  'open-question',
+] as const)
+  test(`declared exploration refuses ${failure} without further paid turns`, async () => {
+    let calls = 0;
+    const envelope = JSON.stringify({
+      version: 1,
+      message:
+        failure === 'unhelpful'
+          ? 'Okay.'
+          : failure === 'invented-project'
+            ? 'Your project needs a new task app. You can browse examples.'
+            : failure === 'unsafe-price'
+              ? 'You can browse examples. It costs $5.'
+              : exploratoryMessage,
+      nextQuestionId: failure === 'open-question' ? 'unsure-reason' : null,
+      brief: failure === 'forced-brief' ? 'Build a task assistant for the business.' : null,
+    });
+    const evaluation = await runSalesEvaluation({
+      scripts: parseSalesCorpus(
+        JSON.stringify({
+          scripts: [{ ...exploration, ...(failure === 'open-question' ? { turns: [] } : {}) }],
+        }),
+      ),
+      provider,
+      stopOnFailure: true,
+      providerFetch: () => {
+        calls += 1;
+        return failure === 'missing-charge'
+          ? stream(envelope, { prompt_tokens: 100, completion_tokens: 20 })
+          : stream(failure === 'invalid-envelope' ? '{' : envelope);
+      },
+      show: false,
+      write: () => undefined,
+      pause: () => Promise.resolve(),
+    });
+    expect(calls).toBe(1);
+    expect(evaluation.passed).toBe(false);
+    expect(evaluation.results).not.toContainEqual({
+      script: 'curiosity',
+      assertion: 'exploratoryEnding',
+      passed: true,
+    });
+  });
+
+test('corpus rejects malformed or conflicting exploration expectations and legacy quality guards', () => {
+  for (const change of [
+    { ending: 'brief' },
+    { ending: false },
+    { ending: null },
+    { ending: { kind: 'exploration' } },
+    { stopOnBrief: true },
+    { stopOnBrief: false },
+    { transportFault: 'refusal' },
+  ]) {
+    expect(() =>
+      parseSalesCorpus(JSON.stringify({ scripts: [{ ...exploration, ...change }] })),
+    ).toThrow('ending');
+  }
+  expect(() =>
+    parseSalesCorpus(
+      JSON.stringify({
+        scripts: [
+          { name: 'legacy-ending', turns: ['A portal'], ending: 'exploration', assertions: [] },
+        ],
+      }),
+    ),
+  ).toThrow('scoping');
+  expect(() =>
+    parseSalesCorpus(
+      JSON.stringify({
+        scripts: [
+          {
+            name: 'legacy-quality',
+            turns: ['A portal'],
+            assertions: [{ kind: 'declarativeAcknowledgement' }],
+          },
+        ],
+      }),
+    ),
+  ).toThrow('scoping');
+});
+
+for (const message of [
+  'What would you most like the app to make possible next?',
+  'What would you like to make possible next?',
+  'Recurring bugs are the blocker; their cause needs inspection.',
+])
+  test(`selected-question quality checks acknowledgement: ${message}`, async () => {
+    let calls = 0;
+    const evaluation = await runSalesEvaluation({
+      scripts: parseSalesCorpus(
+        JSON.stringify({
+          scripts: [
+            {
+              ...scenario,
+              turns: [{ answers: { 'improve-outcome': 'payments' } }],
+              assertions: [{ kind: 'declarativeAcknowledgement' }],
+            },
+          ],
+        }),
+      ),
+      provider,
+      stopOnFailure: true,
+      providerFetch: () =>
+        stream(
+          calls++ === 0
+            ? JSON.stringify({
+                version: 1,
+                message,
+                nextQuestionId: 'improve-outcome',
+                brief: null,
+              })
+            : handoff,
+        ),
+      show: false,
+      write: () => undefined,
+      pause: () => Promise.resolve(),
+    });
+    const valid = !message.includes('?');
+    expect(calls).toBe(valid ? 2 : 1);
+    expect(evaluation.passed).toBe(valid);
+    expect(evaluation.results).toContainEqual({
+      script: 'click-improve',
+      assertion: 'declarativeAcknowledgement',
+      passed: valid,
+    });
+    expect(evaluation.results).toContainEqual({
+      script: 'click-improve',
+      assertion: 'streamEqualsStored',
+      passed: true,
+    });
+  });
+
+test('acknowledgement quality does not reinterpret a refusal as the previous catalogue question', async () => {
+  let calls = 0;
+  const evaluation = await runSalesEvaluation({
+    scripts: parseSalesCorpus(
+      JSON.stringify({
+        scripts: [
+          { ...scenario, stopOnBrief: false, assertions: [{ kind: 'declarativeAcknowledgement' }] },
+        ],
+      }),
+    ),
+    provider,
+    stopOnFailure: true,
+    providerFetch: async () => {
+      calls += 1;
+      if (calls === 1) return stream(question);
+      return new Response(
+        (await stream('partial').text()).replace(
+          '"finish_reason":"stop"',
+          '"finish_reason":"content_filter"',
+        ),
+        { headers: { 'content-type': 'text/event-stream' } },
+      );
+    },
+    show: false,
+    write: () => undefined,
+    pause: () => Promise.resolve(),
+  });
+  expect(calls).toBe(2);
+  expect(evaluation.passed).toBe(true);
+  expect(evaluation.results).toContainEqual({
+    script: 'click-improve',
+    assertion: 'streamEqualsStored',
+    passed: true,
+  });
+});

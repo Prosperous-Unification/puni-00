@@ -17,6 +17,7 @@ export interface ScopingScenario {
   description?: string;
   turns: ScopingTurn[];
   stopOnBrief: boolean;
+  ending?: 'exploration';
   transportFault?: 'truncation' | 'refusal';
 }
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,6 +43,7 @@ export function parseScopingScenario(
       'turns',
       'assertions',
       'stopOnBrief',
+      'ending',
       'transportFault',
     ])
   )
@@ -57,6 +59,15 @@ export function parseScopingScenario(
   if (startingChoice === undefined && description === undefined) refuse('opening');
   if (script['stopOnBrief'] !== undefined && typeof script['stopOnBrief'] !== 'boolean')
     refuse('stopOnBrief');
+  const ending = script['ending'];
+  // Proof: bypassing this predicate admitted malformed/conflicting endings in the corpus boundary test.
+  if (
+    ending !== undefined &&
+    (ending !== 'exploration' ||
+      script['stopOnBrief'] !== undefined ||
+      script['transportFault'] !== undefined)
+  )
+    refuse('ending');
   const transportFault = script['transportFault'];
   if (
     transportFault !== undefined &&
@@ -117,7 +128,9 @@ export function parseScopingScenario(
     ...(isStartingChoiceId(startingChoice) ? { startingChoice } : {}),
     ...(typeof description === 'string' ? { description } : {}),
     turns: parsed,
-    stopOnBrief: script['stopOnBrief'] !== false,
+    // Proof: implicitly opting ordinary scenarios into exploration failed the mounted undeclared-closure negative.
+    stopOnBrief: ending !== 'exploration' && script['stopOnBrief'] !== false,
+    ...(ending === 'exploration' ? { ending } : {}),
     ...(transportFault === 'truncation' || transportFault === 'refusal' ? { transportFault } : {}),
   };
 }
@@ -142,4 +155,30 @@ export function readScopingState(view: unknown) {
     emailInvitationDeclined: scoping['emailInvitationDeclined'],
     references: scoping['references'],
   };
+}
+
+/**
+ * Bounded English-corpus proxy for a browsing/example next step, never a model-quality verdict.
+ * A saved/candidate brief is checked separately; explicit invented project assertions also fail.
+ */
+export function hasExploratoryGuidance(reply: string): boolean {
+  // Proof: bypassing guidance passed the mounted unhelpful ending; removing the project guard passed invented-project.
+  return (
+    /\b(?:browse|browsing|explore|exploring)\b[^.!?\n]{0,100}\b(?:examples|options)\b|\b(?:come back|return)\b[^.!?\n]{0,100}\b(?:task|goal|idea)\b/i.test(
+      reply,
+    ) &&
+    !/\b(?:your|this) (?:project|business|app)\b[^.!?\n]{0,60}\b(?:will|needs?|requires?)\b/i.test(
+      reply,
+    )
+  );
+}
+
+/**
+ * The acknowledgement before the catalogue suffix in a freshly committed structured reply.
+ * {@link getScopingQuestion} supplies the exact label appended by the shared scopingReplyText renderer.
+ * Call only when the committed revision advanced; refusal replies retain an older question.
+ */
+export function readAcknowledgement(reply: string, questionId: QuestionId): string {
+  // Proof: keeping the catalogue suffix failed the mounted valid declarative-acknowledgement control.
+  return reply.slice(0, -(getScopingQuestion(questionId).label.length + 2));
 }

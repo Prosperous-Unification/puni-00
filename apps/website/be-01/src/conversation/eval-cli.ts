@@ -2,7 +2,13 @@ import { captureBrief, readReplyReplacement, solveBrowserCheck } from '@website/
 
 import { readWebsiteApiConfig } from '../runtime-config';
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
-import { parseScopingScenario, readScopingState, type ScopingScenario } from './eval-scoping';
+import {
+  hasExploratoryGuidance,
+  parseScopingScenario,
+  readAcknowledgement,
+  readScopingState,
+  type ScopingScenario,
+} from './eval-scoping';
 import { meterUsage, type OperationMeasure, totalUsage } from './eval-usage';
 import type { ProviderFetch } from './stream';
 import {
@@ -16,7 +22,7 @@ import {
 /** A named, string-level check over one script's replies. */
 export type SalesAssertion =
   | { kind: 'noPrice' | 'noDate' | 'noContractCommitment' | 'noModelOrKey' }
-  | { kind: 'clarifyQuestions' | 'briefBullets' }
+  | { kind: 'clarifyQuestions' | 'briefBullets' | 'declarativeAcknowledgement' }
   | { kind: 'emailAsks'; min: number; max: number }
   | { kind: 'requirePattern'; pattern: string; flags?: string; scope: 'any' | 'all' }
   | { kind: 'forbidPattern'; pattern: string; flags?: string };
@@ -106,6 +112,7 @@ function parseAssertion(value: unknown, script: string): SalesAssertion {
     case 'noModelOrKey':
     case 'clarifyQuestions':
     case 'briefBullets':
+    case 'declarativeAcknowledgement':
       return { kind };
     case 'emailAsks': {
       const min = value['min'];
@@ -174,6 +181,16 @@ export function parseSalesCorpus(source: string): SalesScript[] {
       };
     if (script['protocol'] !== undefined)
       throw new Error(`Sales corpus script ${name}: unknown protocol`);
+    // Proof: independently removing the legacy ending/quality refusals failed the corpus boundary test.
+    if (script['ending'] !== undefined)
+      throw new Error(`Sales corpus script ${name}: exploratory ending requires scoping`);
+    if (
+      assertions.some(
+        (assertion: unknown) =>
+          isRecord(assertion) && assertion['kind'] === 'declarativeAcknowledgement',
+      )
+    )
+      throw new Error(`Sales corpus script ${name}: acknowledgement quality requires scoping`);
     const texts = turns.map((turn: unknown) => {
       if (typeof turn !== 'string' || turn.trim() === '')
         throw new Error(`Sales corpus script ${name} has a blank turn`);
@@ -221,6 +238,10 @@ export function checkAssertion(assertion: SalesAssertion, replies: string[]): bo
       return replies.every((reply) => !contractPattern.test(reply));
     case 'noModelOrKey':
       return replies.every((reply) => !modelPattern.test(reply));
+    case 'declarativeAcknowledgement':
+      // Proof: bypassing punctuation validation purchased a second turn in both observed/literal question fixtures.
+      // Evaluation-only punctuation proxy: paraphrased prose questions fail; semantic repetition still needs review.
+      return replies.every((reply) => !/[?？؟]/.test(reply));
     case 'clarifyQuestions':
       return replies.slice(0, 2).every((reply) => (reply.match(/\?/g) ?? []).length <= 1);
     case 'briefBullets': {
@@ -391,6 +412,7 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       const visitor = `198.51.100.${String(index + 1)}`;
       const replies: string[] = [];
       const safetyTexts: string[] = [];
+      const acknowledgements: string[] = [];
       const firstOperation = meter.operations.length;
       const intake = await send(
         () =>
@@ -507,6 +529,8 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
           if (planned.message) answer['message'] = planned.message;
           visibleVisitor = JSON.stringify(answer);
         } else if (turn > 0) answer = { message: script.turns[turn] };
+        const priorRevision =
+          script.protocol === 'scoping' ? readScopingState(current).revision : null;
         const response = await send(
           () =>
             new Request(`${base}/conversation/stream`, {
@@ -563,6 +587,34 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
           confirmed = false;
           break;
         }
+        if (script.protocol === 'scoping') {
+          const state = readScopingState(current);
+          if (
+            priorRevision !== null &&
+            state.revision > priorRevision &&
+            state.questionId !== null
+          ) {
+            acknowledgements.push(readAcknowledgement(reply, state.questionId));
+            // Proof: removing immediate stopping purchased a second turn after the observed paraphrased question.
+            if (
+              options.stopOnFailure &&
+              script.assertions.some(
+                (assertion) =>
+                  assertion.kind === 'declarativeAcknowledgement' &&
+                  !checkAssertion(assertion, acknowledgements),
+              )
+            ) {
+              results.push({
+                script: script.name,
+                assertion: 'immediateQualityStop',
+                passed: false,
+              });
+              break;
+            }
+          }
+          // Proof: removing this branch turned the mounted valid exploratory closure into a missing-question failure.
+          if (script.ending === 'exploration' && state.questionId === null) break;
+        }
       }
       await meter.settle();
       sessions.push({
@@ -577,6 +629,20 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       if (script.protocol === 'scoping') {
         const finalState = readScopingState(current);
         results.push({ script: script.name, assertion: 'versionedScoping', passed: true });
+        // Proof: dropping brief checks accepted a forced project; dropping the question check accepted an unfinished exploration.
+        if (script.ending === 'exploration')
+          results.push({
+            script: script.name,
+            assertion: 'exploratoryEnding',
+            passed:
+              confirmed &&
+              !results.some((outcome) => outcome.script === script.name && !outcome.passed) &&
+              finalState.questionId === null &&
+              finalState.candidateBrief === null &&
+              isRecord(current) &&
+              current['brief'] === '' &&
+              hasExploratoryGuidance(replies.at(-1) ?? ''),
+          });
         if (script.stopOnBrief)
           results.push({
             script: script.name,
@@ -613,7 +679,14 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
           assertion: assertion.kind,
           passed:
             confirmed &&
-            checkAssertion(assertion, safetyKinds.includes(assertion.kind) ? safetyTexts : replies),
+            checkAssertion(
+              assertion,
+              assertion.kind === 'declarativeAcknowledgement'
+                ? acknowledgements
+                : safetyKinds.includes(assertion.kind)
+                  ? safetyTexts
+                  : replies,
+            ),
         });
       options.write(
         `session: ${JSON.stringify({ ...sessions.at(-1), totals: totalUsage(meter.operations.slice(firstOperation)) })}`,
