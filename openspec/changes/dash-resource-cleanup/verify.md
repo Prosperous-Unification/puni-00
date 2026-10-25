@@ -373,3 +373,15 @@ The temporary launcher reported a variable-shadowing error after the successful
 Playwright subprocess and completed cleanup; this was outside the test run.
 The original CI trace is the observed failure evidence; no synthetic delay was needed.
 A new GitHub run remains required to verify the complete shard.
+
+## Latest-main resource UI integration (2026-10-25)
+
+Main advanced to `2ca06fcf191be55289930d10f119a9c884fac564` during rollout. The sole merge
+conflict retained main's `mayWrite` gate for creating resources and this branch's
+`ResourceUsesPanel`, including its dirty/busy callbacks. The viewer test now explicitly
+allows the additional resource-use GET while continuing to reject every unexpected write;
+the two integration fixtures provide the admin role required by main's fail-closed role read.
+The first correctly configured frontend run exposed those two fixture mismatches (80 pass,
+2 fail); after their correction, both resource panel files passed all 82 tests. The frontend
+Nx typecheck and its dependency passed with cache bypassed (43.0s). Independent comparison
+against the incoming merge stage confirmed every upstream permission check was preserved.
