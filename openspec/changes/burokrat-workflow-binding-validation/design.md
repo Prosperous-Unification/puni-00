@@ -6,7 +6,7 @@ retained RunStore manifest, API and storage choices remain outside this merge.
 
 # Workflow binding validation and selection
 
-Accepted implementation supplement, 2026-10-22. This supplement implements parent tasks 1.1–1.2 only. The binding spec and parent design remain authoritative outside these clarifications. [binding-tasks.md](binding-tasks.md) gives three independent TDD slices. No repository defaults or gate rollout (1.3), executor implementation, network calls, credentials, compute-provider configuration, spending authority or WBS/RunStore writes belong to this packet.
+This command preserves the static contract reviewed on 2026-10-22. The current standalone extraction follows [tasks.md](tasks.md); its historical three-slice implementation is provenance, not the current plan. The broader agentic binding spec and parent design remain authoritative outside this static contract. No repository defaults or gate rollout (1.3), executor implementation, network calls, credentials, compute-provider configuration, spending authority or WBS/RunStore writes belong to this packet.
 
 ## Version 1 values
 
