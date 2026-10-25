@@ -211,17 +211,22 @@ Dany).** `setDirectoryCapacity { resourceId, units | null, confirm?: true }` is 
 both routes that carry directory commands, `POST /api/directory/commands` and
 `POST /api/projects/:id/commands`, in all-or-none batches like every other command, and the
 admin check sits in the one function both paths take, as R8a's removal check does. Allowed:
-an organization admin or super-admin acting in their own session. Refused `forbidden`: every
-other role; a machine principal (capped at member by `wbs-machine-credentials` A23); and an
-MCP consent delegation, whatever its role, by a `scope.delegated` check, since a delegation
-keeps its account's role (`store-sqlite` `organization-access.ts`). Not journalled. Every write
+an organization admin or super-admin, in a browser session or through their own MCP session
+(an MCP delegation consented as themselves keeps their role, authentication kind `upstream`),
+exactly as R8a's removal allows. Refused `forbidden`: every other role, and every agent: a
+machine credential and an MCP consent delegation that acts as an agent person
+(authentication kind `consent`) both resolve as at most a member through
+`organizationRoleOf` (`wbs-machine-credentials` A23), whatever their account's role. So the
+check is the role check alone, as `mayRemoveResourceInOrganization` is; no `scope.delegated`
+check. (Dany may choose the stricter rule, refusing a human's own MCP session too; then R8a
+should change with it, so both organization acts keep one rule.) Not journalled. Every write
 is one `organization_audit` row, `directory_capacity_changed` on subject kind `resource`; the
 action and subject kind are CHECK-constrained, so this needs a compatible table rebuild
 (Migration).
 
 **S12. Previewing a change and finding the holders (assumed, awaiting Dany).** Under Dany's
 rule to list what breaks before a config change, and both admin-only (others `forbidden`,
-delegations included):
+agents included, by the same role check as S11):
 
 - `POST /api/organization/resources/:resourceId/directory-capacity/preview`, body
   `{ units: number | null }`, writes nothing and answers `{ resourceId, before, after,

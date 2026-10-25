@@ -24,20 +24,27 @@ project resources read SHALL carry `directoryCapacity` (a number or null).
 
 `setDirectoryCapacity { resourceId, units | null, confirm?: true }` SHALL be accepted on
 `POST /api/directory/commands` and on `POST /api/projects/:id/commands`, in all-or-none
-batches, and only from an organization admin or super-admin acting in their own session; any
-other role, a machine credential and an MCP consent delegation of any role SHALL be refused
-`forbidden`. A resource with no organization SHALL be refused `organization_required`.
+batches, and only from an organization admin or super-admin, in a browser session or an MCP
+session consented as themselves; any other role, a machine credential and an MCP consent
+delegation acting as an agent person SHALL be refused `forbidden`, whatever their account's
+role. A resource with no organization SHALL be refused `organization_required`.
 
 #### Scenario: A member or an agent may not
 
 - **WHEN** a member, or a machine credential of an admin's agent, sends the command
 - **THEN** it is refused `forbidden` and the directory capacity is unchanged
 
-#### Scenario: An admin's MCP delegation may not
+#### Scenario: An admin's agent over MCP may not
 
-- **WHEN** an MCP client acting under an admin's consent delegation sends the command on
-  either route
+- **WHEN** an MCP client acting under a consent delegation as an agent person bound to an
+  admin's account sends the command on either route
 - **THEN** it is refused `forbidden` and the directory capacity is unchanged
+
+#### Scenario: An admin's own MCP session may
+
+- **WHEN** an MCP client acting under an admin's delegation consented as the admin sends the
+  command
+- **THEN** it is applied, as the admin's browser session's would be
 
 #### Scenario: A legacy resource
 

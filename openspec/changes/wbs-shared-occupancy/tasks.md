@@ -34,13 +34,13 @@
       `typeof` half and the text row is stored.
 - [ ] 1.2 `setDirectoryCapacity` on both `POST /api/directory/commands` and
       `POST /api/projects/:id/commands`, through one check: admin or super-admin in their own
-      session; `forbidden` for other roles, machine principals and every MCP consent
-      delegation (`scope.delegated`); `organization_required` for a legacy resource; not
+      session or own MCP session; `forbidden` for other roles, machine principals and MCP
+      consent delegations acting as an agent (both capped at member by `organizationRoleOf`); `organization_required` for a legacy resource; not
       journalled; one audit row; resource reads carry `directoryCapacity`; `deleteResource`
       counts and cascades it — test: route tests per role on both routes and both stores,
-      including "an admin's MCP delegation is refused forbidden". Fault lines: skip the role
-      check and the member's write lands; skip the `scope.delegated` check and the admin's
-      delegation writes 16; skip the audit write and the audit test finds no row; skip the
+      including "an admin's agent over MCP is refused forbidden" and "an admin's own MCP session
+      is applied". Fault lines: skip the role check and the member's write lands; answer the
+      stored role in place of `organizationRoleOf` and the admin's agent writes 16; skip the audit write and the audit test finds no row; skip the
       organization check and a legacy resource takes a capacity.
 - [ ] 1.3 Announce (S7): every applied `setDirectoryCapacity` publishes `directory_changed`
       through `DirectoryService.announce` to each project that demands or states the
@@ -48,7 +48,7 @@
       space roll-up serves the stale dates scheduled against 32.
 - [ ] 1.4 Preview endpoint `POST /api/organization/resources/:resourceId/directory-capacity/preview`
       (S12), admin only — test: the spec's preview scenario; row count and audit count
-      unchanged; a member and an admin's delegation refused `forbidden`. Fault line: write
+      unchanged; a member and an admin's agent refused `forbidden`. Fault line: write
       before answering and the unchanged-count assertion fails.
 - [ ] 1.5 Route inventory: add both new routes to `ORGANIZATION_ROUTE_INVENTORY`
       (`apps/wbs/be-01/src/testing/organization-route-inventory.ts`) with their policies
@@ -113,7 +113,7 @@
       deny (waiver asked in 0.1); the negative moves to the production path in the
       `wbs-permissions` slice that replaces the method's body.
 - [ ] 4.2 `GET /api/organization/resources/:resourceId/occupancy` (S12) with
-      `releasableBy` — test: the two spec scenarios; a member and an admin's delegation
+      `releasableBy` — test: the two spec scenarios; a member and an admin's agent
       refused `forbidden`. Fault lines: skip the role check and the member reads other
       projects' holders; answer `claimant_or_admin` for a restricted project and the
       restricted scenario fails.
