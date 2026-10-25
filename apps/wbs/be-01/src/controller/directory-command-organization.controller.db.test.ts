@@ -1182,6 +1182,33 @@ describe('after activation', () => {
     });
   });
 
+  interface ElsewhereChangedPair {
+    type: 'elsewhere_changed';
+    projectId: string;
+    causeProjectId: string;
+  }
+  const byProjectThenCause = (left: ElsewhereChangedPair, right: ElsewhereChangedPair) =>
+    left.projectId.localeCompare(right.projectId) ||
+    left.causeProjectId.localeCompare(right.causeProjectId);
+  /*
+    The ledger orders a project's events by seq, which for the two events a
+    third project receives from one cascade is the cascade's iteration order,
+    not the causing projects' id order. Projects get random ids, so an
+    expectation sorted by (projectId, causeProjectId) matched the ledger order
+    only when the ids happened to sort the same way; both sides are sorted the
+    same way now. Seen failing on PR #663's CI (run 40084221725) with the two
+    `third` pairs swapped, while the same tree passed locally and on h2puni.
+  */
+  const elsewhereChangedPairs = () =>
+    h.sqlite
+      .query<{ message: string }, []>(
+        "SELECT message FROM event_log WHERE message LIKE '%elsewhere_changed%' ORDER BY subscription, seq",
+      )
+      .all()
+      // The LIKE filter selects only elsewhere_changed messages, so the parse yields that shape.
+      .map(({ message }) => JSON.parse(message) as ElsewhereChangedPair)
+      .sort(byProjectThenCause);
+
   it('records every real pair in the three-project standalone cascade control', async () => {
     const second = await create('ada', 'Second A plan');
     const third = await create('ada', 'Third A plan');
@@ -1193,22 +1220,15 @@ describe('after activation', () => {
         scope: { organizationId: 'org-a', userId: actorId, role: 'member' },
       }),
     ).toEqual({ ok: true });
-    const pairs = h.sqlite
-      .query<{ message: string }, []>(
-        "SELECT message FROM event_log WHERE message LIKE '%elsewhere_changed%' ORDER BY subscription, seq",
-      )
-      .all()
-      .map(({ message }) => JSON.parse(message) as unknown);
+    const pairs = elsewhereChangedPairs();
     expect(pairs).toEqual(
-      [
-        { type: 'elsewhere_changed', projectId: second, causeProjectId: own },
-        { type: 'elsewhere_changed', projectId: third, causeProjectId: own },
-        { type: 'elsewhere_changed', projectId: third, causeProjectId: second },
-      ].sort(
-        (left, right) =>
-          left.projectId.localeCompare(right.projectId) ||
-          left.causeProjectId.localeCompare(right.causeProjectId),
-      ),
+      (
+        [
+          { type: 'elsewhere_changed', projectId: second, causeProjectId: own },
+          { type: 'elsewhere_changed', projectId: third, causeProjectId: own },
+          { type: 'elsewhere_changed', projectId: third, causeProjectId: second },
+        ] satisfies ElsewhereChangedPair[]
+      ).sort(byProjectThenCause),
     );
   });
 
@@ -1325,22 +1345,15 @@ describe('after activation', () => {
     }
     expect(response.status).toBe(200);
     expect(ownerCalls).toBe(1);
-    const pairs = h.sqlite
-      .query<{ message: string }, []>(
-        "SELECT message FROM event_log WHERE message LIKE '%elsewhere_changed%' ORDER BY subscription, seq",
-      )
-      .all()
-      .map(({ message }) => JSON.parse(message) as unknown);
+    const pairs = elsewhereChangedPairs();
     expect(pairs).toEqual(
-      [
-        { type: 'elsewhere_changed', projectId: lower, causeProjectId: own },
-        { type: 'elsewhere_changed', projectId: third, causeProjectId: own },
-        { type: 'elsewhere_changed', projectId: third, causeProjectId: lower },
-      ].sort(
-        (left, right) =>
-          left.projectId.localeCompare(right.projectId) ||
-          left.causeProjectId.localeCompare(right.causeProjectId),
-      ),
+      (
+        [
+          { type: 'elsewhere_changed', projectId: lower, causeProjectId: own },
+          { type: 'elsewhere_changed', projectId: third, causeProjectId: own },
+          { type: 'elsewhere_changed', projectId: third, causeProjectId: lower },
+        ] satisfies ElsewhereChangedPair[]
+      ).sort(byProjectThenCause),
     );
   });
 

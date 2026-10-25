@@ -23,6 +23,7 @@ import {
   type LimitRefusalDetail,
   listCalendarMarkers as listCalendarMarkersShape,
   listExternalSystems as listExternalSystemsShape,
+  listMeasures as listMeasuresShape,
   listPeople as listPeopleShape,
   listProjects as listProjectsShape,
   listServices as listServicesShape,
@@ -32,7 +33,10 @@ import {
   patchProject as patchProjectShape,
   type PlanDocument,
   type PlanDocumentRequest,
+  readClaimHistory as readClaimHistoryShape,
   readProject as readProjectShape,
+  readProjectClaims as readProjectClaimsShape,
+  readProjectResources as readProjectResourcesShape,
   readTimezones as readTimezonesShape,
   recordProjectOpen,
   redoProject as redoProjectShape,
@@ -291,6 +295,84 @@ export interface ElsewhereHolderView {
   name: string;
 }
 
+/**
+ * One measure definition as `GET /api/measures` lists it (`wbs-measure-budgets`
+ * D1). Declared for {@link EstimateMethod}'s reason; `currency` is set exactly
+ * on money, and a `derived` figure is computed on read and never typed.
+ */
+export interface MeasureDefinitionView {
+  id: string;
+  key: string;
+  name: string;
+  unit: string;
+  kind: 'duration' | 'count' | 'money';
+  scale: 'integer' | 'real';
+  threePoint: boolean;
+  showByDefault: boolean;
+  schedulesWork: boolean;
+  derived: boolean;
+  order: number;
+  currency: string | null;
+}
+
+/**
+ * What the measure list answered. `organization_required` is a **modeled
+ * state** (review S3-6): before organization activation, legacy access with no
+ * legacy organization holds no definitions, and the table says so rather than
+ * failing.
+ */
+export type MeasureDirectory =
+  { kind: 'ready'; measures: MeasureDefinitionView[] } | { kind: 'organization_required' };
+
+/** A summed trio in one measure on one step, as the row read folds it (design D29). */
+export interface MeasureEstimateView {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+  /** True only when every trio summed is a legacy single figure (design D28). */
+  singlePoint: boolean;
+  expected: number;
+  /** Facts minus expected on this step; absent where either side is. */
+  variance?: number;
+}
+
+/** A row's budget in one measure, stated or derived (design D39). */
+export interface BudgetView {
+  cap: number;
+  policy: 'strict' | 'advisory';
+  source: 'stated' | 'derived';
+  /** Cap less spent and held; negative past the cap. */
+  remaining: number;
+  /** Spent above the cap: facts alone, never holds. */
+  exceeded: boolean;
+  held?: number;
+  /** The stated hold per running attempt, only where one is stated (design D60). */
+  holdPerAttempt?: number;
+}
+
+/** A money basis: the currency and the rate card digest a figure was priced with (D43). */
+export interface MoneyBasisView {
+  currency: string;
+  rateCardDigest: string;
+}
+
+/** The first two bases a mixed sum names; `null` is an unpriced figure (D44). */
+export type MixedBasesView = readonly [MoneyBasisView | null, MoneyBasisView | null];
+
+/** A three-point estimate in a measure's own unit and scale. */
+export interface MeasureTrio {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+}
+
+/** A budget as `setBudget` states it (design D37). */
+export interface BudgetStatement {
+  cap: number;
+  policy: 'strict' | 'advisory';
+  holdPerAttempt?: number | null;
+}
+
 export interface WorkItemView {
   charged?: Record<string, ChargedEstimate>;
   id: string;
@@ -543,6 +625,31 @@ export interface WorkItemView {
    * refs"; `toTree` folds it to `[]`, which is the one place it may.
    */
   externalRefs?: ExternalRefView[];
+  /**
+   * Time's facts — the actual days — by step id (`wbs-measure-budgets` D27).
+   * Optional here for `tagIds`' swap reason; the measure panel reads it and
+   * nothing else does.
+   */
+  actuals?: Record<string, number>;
+  /**
+   * Facts per metric, then step id: `token_actual`, `hours_actual`,
+   * `token_estimate` (the legacy single figure) and every other definition by
+   * its key, `agent_minutes` derived (design D18, D20). A key mixing money bases
+   * is left out ({@link WorkItemView.mixedRateCards}). Required on the wire and
+   * optional here only so fixtures that predate measures stay valid.
+   */
+  measures?: Record<string, Record<string, number>>;
+  /**
+   * Trios per definition key, then step id, each with its expected figure and,
+   * beside a fact, its variance (design D29). Absent on a row with no trio.
+   */
+  measureEstimates?: Record<string, Record<string, MeasureEstimateView>>;
+  /** Budgets per definition key (design D39); absent on a row with none. */
+  budgets?: Record<string, BudgetView>;
+  /** Money keys whose sums mix bases, per kind, naming the first two (design D44). */
+  mixedRateCards?: Record<string, { facts?: MixedBasesView; estimates?: MixedBasesView }>;
+  /** The one priced basis of a money key's sums, per kind (design D49). */
+  moneyBases?: Record<string, { facts?: MoneyBasisView; estimates?: MoneyBasisView }>;
   /**
    * Who does this work, by step id.
    *
@@ -1555,6 +1662,97 @@ export interface CalendarMarkerView {
 }
 
 /**
+ * One **Claim** held in a project, as `GET /api/projects/:id/claims` answers it
+ * (`wbs-claim-display` C1, C2). `stepId` is null for a subtree claim;
+ * `leaseExpiresAt` is null for a claim no agent renews, and `leaseRevokedAt`
+ * names the instant the holder's last credential was revoked.
+ */
+export interface ClaimView {
+  claimId: string;
+  workItemId: string;
+  number: string;
+  numberIsFrozen: boolean;
+  name: string;
+  stepId: string | null;
+  holder: { personId: string; name: string };
+  runId: string | null;
+  parentClaimId: string | null;
+  claimedAt: number;
+  leaseExpiresAt: number | null;
+  leaseRevokedAt: number | null;
+}
+
+/**
+ * Every claim in one project with the server's clock at the read (`readAt`,
+ * epoch milliseconds): a lease's time left is counted from `readAt`, never from
+ * this browser's wall clock (C6).
+ */
+export interface ClaimsRead {
+  readAt: number;
+  claims: ClaimView[];
+}
+
+/**
+ * Refuses a claims read that does not hold together: two claims on one step or
+ * one subtree, or a delegated claim whose parent the read does not list. A
+ * claims read is one observation and be-01 releases a delegated claim with its
+ * parent (`wbs-team-claims` D8), so either is a malformed answer. Thrown here,
+ * at the read's boundary, it fails the claims resource and shows as its notice
+ * (C12) rather than as a chip that names nobody.
+ *
+ * @throws when two claims share a work item and step, or a parent is missing.
+ */
+export function checkClaimsRead(read: ClaimsRead): ClaimsRead {
+  const ids = new Set(read.claims.map((claim) => claim.claimId));
+  const places = new Set<string>();
+  for (const claim of read.claims) {
+    const place = `${claim.workItemId}/${claim.stepId ?? 'subtree'}`;
+    // Proof: this check removed, `refuses a claims read with two claims on one
+    // step` resolved instead of rejecting, and the table's `shows a read its
+    // boundary refuses as the claims notice` drew no notice; watched 2026-10-24.
+    if (places.has(place)) throw new Error(`claims read holds two claims on ${place}`);
+    places.add(place);
+    // Proof: this check removed, `refuses a claims read whose delegated claim
+    // names an unlisted parent` resolved instead of rejecting; watched 2026-10-24.
+    if (claim.parentClaimId !== null && !ids.has(claim.parentClaimId)) {
+      throw new Error(
+        `claim ${claim.claimId} names parent ${claim.parentClaimId}, not in its read`,
+      );
+    }
+  }
+  return read;
+}
+
+/**
+ * One claim named by a **Claim history** entry (`wbs-claim-display` C14).
+ * `holder.name` and `item` are null for a person or work item deleted since:
+ * history outlives both. `stepId` is null for a subtree claim.
+ */
+export interface ClaimHistoryClaimView {
+  claimId: string;
+  workItemId: string;
+  stepId: string | null;
+  runId: string | null;
+  holder: { personId: string; name: string | null };
+  item: { number: string; numberIsFrozen: boolean; name: string } | null;
+}
+
+/**
+ * One claim or release as `GET /api/projects/:id/claim-history` answers it,
+ * newest first (C13): the acts of one batch share `eventId` and differ by
+ * `act`. `reason` says why a release happened: a release command, or the lease
+ * sweep's `lease_expired` or `credential_revoked`.
+ */
+export interface ClaimHistoryEventView {
+  eventId: string;
+  act: number;
+  at: number;
+  kind: 'claim' | 'release';
+  reason: 'claimed' | 'released' | 'lease_expired' | 'credential_revoked';
+  claims: ClaimHistoryClaimView[];
+}
+
+/**
  * A marker as a client asks for it, which is not the same shape as one that
  * exists.
  *
@@ -1667,6 +1865,18 @@ export interface ProjectApi {
    * the table never looks at.
    */
   listCalendarMarkers(projectId: string): Promise<CalendarMarkerView[]>;
+  /**
+   * Every claim held in the project, its own read and not a member of
+   * {@link PlanRead}: a heartbeat moves a lease and nothing in the schedule, so
+   * folding claims into the tree would make every heartbeat a full plan read.
+   */
+  readClaims(projectId: string): Promise<ClaimsRead>;
+  /**
+   * The project's newest claims and releases, newest first, at be-01's default
+   * bound (the `readClaimHistory` shape in `@wbs/contracts` names it). Read by the Claims sheet alone, while it is open; not a plan
+   * resource, so no announcement rereads it (C13).
+   */
+  readClaimHistory(projectId: string): Promise<ClaimHistoryEventView[]>;
   /** Puts a marker on an absolute date, answering the one be-01 stored. */
   createCalendarMarker(
     projectId: string,
@@ -1980,6 +2190,36 @@ export interface ProjectApi {
    */
   clearEstimate(id: string, stepId: string): Promise<void>;
   /**
+   * The organization's measure definitions in list order, or the modeled
+   * `organization_required` answer before activation (review S3-6). Every
+   * other refusal throws its code.
+   */
+  listMeasures(): Promise<MeasureDirectory>;
+  /**
+   * Sets one step's trio in a measure other than time (`setMeasureEstimate`,
+   * design D33); `rateCardDigest` is required on money and refused elsewhere.
+   */
+  setMeasureEstimate(
+    id: string,
+    stepId: string,
+    measure: string,
+    estimate: MeasureTrio,
+    rateCardDigest?: string,
+  ): Promise<void>;
+  clearMeasureEstimate(id: string, stepId: string, measure: string): Promise<void>;
+  /** Records one step's fact in a measure by its key (`setMeasure`, design D18, D43). */
+  setMeasure(
+    id: string,
+    stepId: string,
+    metric: string,
+    value: number,
+    rateCardDigest?: string,
+  ): Promise<void>;
+  clearMeasure(id: string, stepId: string, metric: string): Promise<void>;
+  /** States a work item's budget in one measure (`setBudget`, design D37). */
+  setBudget(id: string, measure: string, budget: BudgetStatement): Promise<void>;
+  clearBudget(id: string, measure: string): Promise<void>;
+  /**
    * Puts every sibling group in the order its bars start.
    *
    * No arguments beyond the project: the order is the server's, taken from the
@@ -2013,6 +2253,33 @@ export interface ProjectApi {
     type: TypedDependencyType,
   ): Promise<void>;
   removeTypedDependency(projectId: string, dependencyId: string): Promise<void>;
+  /**
+   * The resources the caller's directory holds, this project's stated
+   * capacities and every demand on its work items (`wbs-resources`): what a
+   * row's Resources panel offers and states against. Every refusal throws its
+   * code.
+   */
+  readResources(projectId: string): Promise<ProjectResourcesView>;
+  /**
+   * States or clears (`units: null`) one work item's demand on each named
+   * resource, all as **one** batch: one journal entry, so the plan's Undo takes
+   * the whole edit back at once. Units are not validated here; be-01 answers
+   * `units_must_be_a_whole_number_from_1` and `exclusive_demand_is_one`.
+   */
+  setDemands(projectId: string, statements: readonly DemandStatement[]): Promise<void>;
+}
+
+/** What {@link ProjectApi.readResources} answers. */
+export type ProjectResourcesView = Extract<
+  ClientReply<typeof readProjectResourcesShape>,
+  { kind: 'success' }
+>['body'];
+
+/** One work item's demand on one resource as a `setDemand` states it; null removes it. */
+export interface DemandStatement {
+  workItemId: string;
+  resourceId: string;
+  units: number | null;
 }
 
 const WBS_SHAPES = [
@@ -2024,6 +2291,7 @@ const WBS_SHAPES = [
   getWorkItems,
   listCalendarMarkersShape,
   listExternalSystemsShape,
+  listMeasuresShape,
   listPeopleShape,
   listProjectsShape,
   listServicesShape,
@@ -2032,6 +2300,9 @@ const WBS_SHAPES = [
   listWorkItemTypesShape,
   patchProjectShape,
   readProjectShape,
+  readClaimHistoryShape,
+  readProjectClaimsShape,
+  readProjectResourcesShape,
   readTimezonesShape,
   recordProjectOpen,
   redoProjectShape,
@@ -2050,13 +2321,21 @@ type WbsShape = (typeof WBS_SHAPES)[number];
 export type WbsOperationId =
   WbsShape['operationId'] | (typeof PROJECT_TRANSFER_SHAPES)[number]['operationId'];
 type RefusalFor<S extends WbsShape> = Extract<ClientReply<S>, { kind: 'refusal' }>['body'];
-type WbsProblemFor<S extends WbsShape> = S extends WbsShape
-  ? | { kind: 'refusal'; operation: S['operationId']; refusal: RefusalFor<S> }
-    | { kind: 'failure'; operation: S['operationId']; failure: ClientFailure }
+type WbsRefusalProblemFor<S extends WbsShape> = S extends WbsShape
+  ? { kind: 'refusal'; operation: S['operationId']; refusal: RefusalFor<S> }
   : never;
 
-/** A validated operation-specific refusal or failure at the shared client boundary. */
-export type WbsProblem = WbsProblemFor<WbsShape>;
+/**
+ * A validated operation-specific refusal or failure at the shared client boundary.
+ *
+ * Only a refusal's body depends on its operation, so the failure arm is one
+ * member, not one per operation: TypeScript relates an object to a union by its
+ * discriminant only up to 25 members, and a per-operation failure arm stopped
+ * `throwReply` typechecking at the 26th shape (`readProjectClaims`).
+ */
+export type WbsProblem =
+  | WbsRefusalProblemFor<WbsShape>
+  | { kind: 'failure'; operation: WbsShape['operationId']; failure: ClientFailure };
 export type WbsRefusalFor<O extends WbsOperationId> = Extract<
   WbsProblem,
   { kind: 'refusal'; operation: O }
@@ -2390,8 +2669,12 @@ interface BatchAnswer {
     entity?: {
       id: string;
       name: string;
-      /** A person's kind, or a resource's on `createResource` (`wbs-resources`). */
-      kind?: PersonKindView | 'exclusive' | 'divisible';
+      /**
+       * A person's kind, a resource's on `createResource` (`wbs-resources`), or a
+       * measure definition's on `createMeasure` (`wbs-measure-budgets`); fe-01
+       * sends no measure command yet and reads none of its other fields.
+       */
+      kind?: PersonKindView | 'exclusive' | 'divisible' | 'duration' | 'count' | 'money';
       serviceIds?: string[];
       teamIds?: string[];
       unitLabel?: string;
@@ -2841,6 +3124,27 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         }),
       ).markers;
     },
+    async readClaims(projectId) {
+      return checkClaimsRead(
+        jsonBody(
+          readProjectClaimsShape,
+          await client.getApiProjectsByIdClaims({
+            params: { id: projectId },
+            headers: auth(token),
+          }),
+        ),
+      );
+    },
+    async readClaimHistory(projectId) {
+      return jsonBody(
+        readClaimHistoryShape,
+        await client['getApiProjectsByIdClaim-history']({
+          params: { id: projectId },
+          query: {},
+          headers: auth(token),
+        }),
+      ).events;
+    },
     async createCalendarMarker(projectId, marker) {
       const body = jsonBody(
         createCalendarMarkerShape,
@@ -2869,6 +3173,28 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
           params: { id: projectId, markerId },
           headers: auth(token),
         }),
+      );
+    },
+    async readResources(projectId) {
+      return jsonBody(
+        readProjectResourcesShape,
+        await client.getApiProjectsByIdResources({
+          params: { id: projectId },
+          headers: auth(token),
+        }),
+      );
+    },
+    async setDemands(projectId, statements) {
+      await postBatch(
+        client,
+        token,
+        projectId,
+        statements.map(({ workItemId, resourceId, units }) => ({
+          kind: 'setDemand',
+          workItemId,
+          resourceId,
+          units,
+        })),
       );
     },
     async setTeamCapacity(projectId, teamId, size) {
@@ -3068,6 +3394,55 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
     },
     async clearEstimate(id, stepId) {
       await onRow(id, { kind: 'clearEstimate', workItemId: id, stepId });
+    },
+    async listMeasures() {
+      const reply = await client.getApiMeasures({ headers: auth(token) });
+      if (reply.kind === 'success') return { kind: 'ready', measures: reply.body.measures };
+      // Proof: with this arm removed, `answers organization_required as a modeled
+      // state` (wbs-api.test.ts) rejected with WbsRequestError organization_required
+      // instead of resolving the state.
+      if (reply.kind === 'refusal' && reply.body.error === 'organization_required')
+        return { kind: 'organization_required' };
+      return throwReply(listMeasuresShape, reply);
+    },
+    async setMeasureEstimate(id, stepId, measure, estimate, rateCardDigest) {
+      await onRow(id, {
+        kind: 'setMeasureEstimate',
+        workItemId: id,
+        stepId,
+        measure,
+        estimate: { ...estimate },
+        ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+      });
+    },
+    async clearMeasureEstimate(id, stepId, measure) {
+      await onRow(id, { kind: 'clearMeasureEstimate', workItemId: id, stepId, measure });
+    },
+    async setMeasure(id, stepId, metric, value, rateCardDigest) {
+      await onRow(id, {
+        kind: 'setMeasure',
+        workItemId: id,
+        stepId,
+        metric,
+        value,
+        ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+      });
+    },
+    async clearMeasure(id, stepId, metric) {
+      await onRow(id, { kind: 'clearMeasure', workItemId: id, stepId, metric });
+    },
+    async setBudget(id, measure, budget) {
+      await onRow(id, {
+        kind: 'setBudget',
+        workItemId: id,
+        measure,
+        cap: budget.cap,
+        policy: budget.policy,
+        ...(budget.holdPerAttempt === undefined ? {} : { holdPerAttempt: budget.holdPerAttempt }),
+      });
+    },
+    async clearBudget(id, measure) {
+      await onRow(id, { kind: 'clearBudget', workItemId: id, measure });
     },
     async arrangeBySchedule(projectId) {
       await command(projectId, { kind: 'arrangeBySchedule' });

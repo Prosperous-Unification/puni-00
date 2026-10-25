@@ -2,6 +2,7 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { DEFAULT_PRIORITY_BANDS, haveSameSliceOrder, sliceKey } from '@wbs/domain';
 import type {
+  Demand,
   DependencyEndpoint,
   DependencyReach,
   EstimateMethod,
@@ -9,6 +10,7 @@ import type {
   IsoDate,
   PertWeights,
   PriorityBand,
+  Resource,
   ScheduledSlice,
 } from '@wbs/domain';
 
@@ -121,6 +123,15 @@ export interface PlanTree {
    * Present exactly when a displayed slice names one.
    */
   resourceLabels?: { id: string; name: string; unitLabel: string }[];
+  /**
+   * Every demand a work item of the project states (`wbs-resources` 1.5), in
+   * work-item then resource-id order, so a row says what it consumes in the
+   * same read it is drawn from. Present exactly when there is one, with
+   * {@link demandedResources}; set by the tree read alone, never by an export.
+   */
+  demands?: Demand[];
+  /** One entry per resource a {@link demands} entry names, under the caller's directory names. */
+  demandedResources?: Resource[];
   /**
    * Every slice the schedule placed, in the order the engine placed them.
    *

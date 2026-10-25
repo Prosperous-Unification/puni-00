@@ -290,7 +290,15 @@ async function refuses(port: number): Promise<boolean> {
     await fetch(`http://localhost:${String(port)}/health`, { signal: AbortSignal.timeout(2_000) });
     return false;
   } catch (failure) {
-    if (failure instanceof Error && 'code' in failure && failure.code === 'ConnectionRefused') {
+    // Bun 1.4.4 renamed fetch's refusal code from `ConnectionRefused` to Node's
+    // `ECONNREFUSED`; both mean a closed port, so both versions are accepted.
+    // Proof: under Bun 1.4.4 with only `ConnectionRefused` accepted, three
+    // `bootBe01` cases failed rethrowing a TypeError with code `ECONNREFUSED`.
+    if (
+      failure instanceof Error &&
+      'code' in failure &&
+      (failure.code === 'ConnectionRefused' || failure.code === 'ECONNREFUSED')
+    ) {
       return true;
     }
     throw failure;
@@ -876,6 +884,44 @@ describe('bootBe01', () => {
     expect(await trusted.configuredIssuer()).toBeNull();
   });
 
+  it('serves compute provider administration from the shared database once activated', async () => {
+    const dir = tempDir('wbs-compute-provider-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let providers: Parameters<typeof buildApp>[0]['computeProviders'];
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        providers = options.computeProviders;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (providers === undefined) throw new Error('boot did not wire compute providers');
+    expect(await providers.administration.list('org-a', 'ada')).toEqual([]);
+    expect(await providers.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await providers.reports.readingsOf(['absent'])).toEqual(new Map());
+  });
+
   it("refuses a stranger issuer's JWT invalid_token once booted", async () => {
     const dir = tempDir('wbs-trusted-issuer-token-boot-');
     const dbPath = join(dir, 'test.db');
@@ -958,6 +1004,16 @@ describe('bootBe01', () => {
 
     await be.stop();
     expect(be.services.retention.isRunning()).toBe(false);
+    running = null;
+  });
+
+  it('starts the claim lease sweep with the process', async () => {
+    const be = await boot();
+
+    expect(be.services.claimLeases.isRunning()).toBe(true);
+
+    await be.stop();
+    expect(be.services.claimLeases.isRunning()).toBe(false);
     running = null;
   });
 
@@ -1537,19 +1593,64 @@ describe('OIDC boot wiring', () => {
   });
 });
 
-for (const passwordLoginEnabled of [false, true]) {
-  it(`keeps boot verifier outages as 500 with password login ${String(passwordLoginEnabled)}`, async () => {
+// With password login on, a native session verifies on the JWT key and its
+// credential evidence never asks the verifier, so a discovery outage leaves
+// it working on data routes too (issue #669 F5). With password login off, or
+// for a token that is not native, the token reaches the verifier and its
+// outage stays a 500.
+describe('a native session under a verifier outage', () => {
+  async function bootWithOutage(passwordLoginEnabled: boolean) {
     const oidc = oidcOptions(passwordLoginEnabled);
     oidc.verifier = { verify: () => Promise.reject(new Error('discovery unavailable')) };
     const be = await boot(undefined, oidc);
     const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
     if (!registered.ok) throw new Error('password fixture was not registered');
-    const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
-      headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
+    return { port: be.port, token: registered.value.token };
+  }
+
+  for (const route of ['/api/auth/me', '/api/projects', '/api/people']) {
+    // Proof: with first-party principals still asking the upstream verifier
+    // in `organizationCredentialEvidence`, `/api/projects` and `/api/people`
+    // answered 500 for both carriers; watched 2026-10-24.
+    it(`answers ${route} 200 by cookie and by Bearer with password login on`, async () => {
+      const { port, token } = await bootWithOutage(true);
+      const byCookie = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { cookie: `__Host-wbs_access=${token}` },
+      });
+      const byBearer = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect([byCookie.status, byBearer.status]).toEqual([200, 200]);
+    });
+  }
+
+  it('answers 500 with password login off', async () => {
+    const { port, token } = await bootWithOutage(false);
+    const me = await fetch(`http://localhost:${String(port)}/api/people`, {
+      headers: { cookie: `__Host-wbs_access=${token}` },
     });
     expect(me.status).toBe(500);
   });
-}
+
+  it('still answers an RS256 token 500 rather than admitting it', async () => {
+    const { port } = await bootWithOutage(true);
+    const { privateKey } = await generateKeyPair('RS256');
+    const upstream = await new SignJWT({ sub: 'upstream-user' })
+      .setProtectedHeader({ alg: 'RS256' })
+      .setIssuer('https://idp.test')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(privateKey);
+    const statuses = [];
+    for (const route of ['/api/auth/me', '/api/people']) {
+      const answer = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { authorization: `Bearer ${upstream}` },
+      });
+      statuses.push(answer.status);
+    }
+    expect(statuses).toEqual([500, 500]);
+  });
+});
 
 it('refuses boot after migrations when blockage admission authority is missing', async () => {
   const dbPath = join(tempDir('wbs-blockage-boot-'), 'plan.db');

@@ -1,11 +1,13 @@
-import type { AllowancePercent, Days, MeasureMetric, StepState } from '@wbs/domain';
+import type { AllowancePercent, BudgetPolicy, Days, MoneyBasis, StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
+import type { StoredBudget } from '../ports/budget-store';
 import type { Claim, ClaimOccupancy } from '../ports/claim-store';
 import type { Demand } from '../ports/demand-store';
 import type { StoredDependency } from '../ports/dependency-store';
 import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
+import type { MeasureEstimateKey, StoredMeasureEstimate } from '../ports/measure-estimate-store';
 import type { MeasureKey, StoredMeasure } from '../ports/measure-store';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { StoredStepBlockage } from '../ports/step-blockage-store';
@@ -61,8 +63,54 @@ export type CompensatingCommand =
    * `recordedAt` is **not** carried, for `set_actual`'s reason exactly: an undo
    * is somebody recording the figure again, now.
    */
-  | { do: 'set_measure'; workItemId: string; stepId: string; metric: MeasureMetric; value: number }
-  | { do: 'clear_measure'; workItemId: string; stepId: string; metric: MeasureMetric }
+  | {
+      do: 'set_measure';
+      workItemId: string;
+      stepId: string;
+      metric: string;
+      value: number;
+      /**
+       * The currency and rate card a money fact was priced with
+       * (`wbs-measure-budgets` design D43); absent on every other measure and
+       * from journals written before bases existed.
+       */
+      basis?: MoneyBasis;
+    }
+  | { do: 'clear_measure'; workItemId: string; stepId: string; metric: string }
+  /**
+   * A three-point estimate in a measure other than time (`wbs-measure-budgets`
+   * D3), keyed by the definition `key`. `singlePoint` is carried because it is
+   * part of the figure: putting back a legacy token estimate puts back the
+   * flag that says nobody estimated a range (design D28). Unknown to releases
+   * before slice 3, which share no journal with this one (design D23).
+   */
+  | {
+      do: 'set_measure_estimate';
+      workItemId: string;
+      stepId: string;
+      key: string;
+      optimistic: number;
+      realistic: number;
+      pessimistic: number;
+      singlePoint: boolean;
+      /** A money trio's basis (design D43); absent elsewhere and from older journals. */
+      basis?: MoneyBasis;
+    }
+  | { do: 'clear_measure_estimate'; workItemId: string; stepId: string; key: string }
+  /**
+   * A stated budget on one work item in one measure (`wbs-measure-budgets`
+   * D5, design D37), keyed by the definition `key`. Unknown to releases before
+   * slice 4, which share no journal with this one (design D23).
+   */
+  | {
+      do: 'set_budget';
+      workItemId: string;
+      key: string;
+      cap: number;
+      policy: BudgetPolicy;
+      holdPerAttempt: number | null;
+    }
+  | { do: 'clear_budget'; workItemId: string; key: string }
   /**
    * Where the work has got to, as one of the two states a step may be **stored**
    * in. There is no `set_progress` carrying `unknown`: the way to say that
@@ -95,9 +143,17 @@ export type CompensatingCommand =
    * `occupancy` is every row the claims carried (`wbs-resources` R3); putting
    * them back re-acquires, so it passes the occupancy check a fresh claim does.
    * Absent on entries written before `20261020130000_add_claim_occupancy`,
-   * whose claims held nothing; every new entry writes it.
+   * whose claims held nothing; every new entry writes it. `leased` names the
+   * claims that carried a lease; a replay puts those back with a fresh one
+   * from its own instant (`wbs-claim-leases` L11). Absent: none was leased.
    */
-  | { do: 'add_claims'; claims: Claim[]; stated: ProgressKey[]; occupancy?: ClaimOccupancy[] }
+  | {
+      do: 'add_claims';
+      claims: Claim[];
+      stated: ProgressKey[];
+      occupancy?: ClaimOccupancy[];
+      leased?: string[];
+    }
   /**
    * Claims taken off by id, with the statements the claim had made: the undo
    * of a claim and the redo of a release. A release clears nothing.
@@ -261,6 +317,13 @@ export interface DeleteSubtree {
    * which hand nothing up.
    */
   setAttempts?: StoredAttempt[];
+  /**
+   * Trios in measures other than time handed **up** to the surviving parent,
+   * per key as they were folded, or back onto the leaf they came from for the
+   * undo of a first-child create. Absent from journals written before measure
+   * estimates existed, which hand none up.
+   */
+  setMeasureEstimates?: StoredMeasureEstimate[];
 }
 
 /**
@@ -385,6 +448,25 @@ export interface RestoreSubtree {
    * create hands them down again. Absent from older journals.
    */
   removedAttempts?: AttemptKey[];
+  /**
+   * The trios in measures other than time on the rows being restored, put
+   * back with them after the rows: every trio a delete's cascade took, the
+   * ones a first-child create handed down, or a duplicate's copies. Absent
+   * from journals written before measure estimates existed.
+   */
+  measureEstimates?: StoredMeasureEstimate[];
+  /**
+   * Trios to take off the surviving parent, one key per measure, for
+   * {@link RestoreSubtree.removedEstimates}' reason. Absent from older journals.
+   */
+  removedMeasureEstimates?: MeasureEstimateKey[];
+  /**
+   * The stated budgets on the rows being restored, put back with them: every
+   * budget a delete's cascade took, or a duplicate's copies (design D42).
+   * Budgets are never handed up or down, so nothing is taken off a surviving
+   * parent. Absent from journals written before budgets existed.
+   */
+  budgets?: StoredBudget[];
 }
 
 /** One attempt's identity: its node and its number. */

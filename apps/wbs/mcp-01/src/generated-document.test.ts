@@ -86,6 +86,18 @@ test('keeps trusted issuer administration out of the generated MCP tools', () =>
     expect(names).not.toContain(operation);
 });
 
+test('keeps compute provider administration and capacity reports out of the generated MCP tools', () => {
+  const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
+  for (const operation of [
+    'getApiOrganizationCompute-providers',
+    'postApiOrganizationCompute-providers',
+    'patchApiOrganizationCompute-providersById',
+    'deleteApiOrganizationCompute-providersById',
+    'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  ])
+    expect(names).not.toContain(operation);
+});
+
 test('pins every generated MCP operation name independently of the registry', () => {
   // Proof: removing importProject from httpShapes failed with
   // `postApiProjectsImport` as the one expected-only operation.
@@ -106,6 +118,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'deleteApiSpacesById',
     'deleteApiSpacesByIdProjectsByProjectId',
     'getApiExternal-systems',
+    'getApiMeasures',
     'getApiOnboarding',
     'getApiOrganization',
     'getApiOrganizationDomains',
@@ -121,7 +134,10 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiPeopleLoad',
     'getApiProjects',
     'getApiProjectsById',
+    'getApiProjectsByIdBudget-headroom',
     'getApiProjectsByIdCalendar-markers',
+    'getApiProjectsByIdClaim-history',
+    'getApiProjectsByIdClaims',
     'getApiProjectsByIdExport',
     'getApiProjectsByIdHistory',
     'getApiProjectsByIdPeopleByPersonIdWork',
@@ -133,6 +149,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiProjectsByIdWork-item-rows',
     'getApiProjectsByIdWork-items',
     'getApiProjectsByIdWork-itemsByWorkItemId',
+    'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
     'getApiSaved-plansById',
     'getApiServices',
     'getApiSpaces',
@@ -153,6 +170,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'patchApiProjectsByIdStepsByStepId',
     'patchApiSaved-plansById',
     'patchApiSpacesById',
+    'postApiClaimsRenew',
     'postApiDirectoryCommands',
     'postApiOnboardingEmailChallenges',
     'postApiOnboardingEmailChallengesConfirm',

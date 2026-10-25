@@ -58,6 +58,7 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { claimedPlan } from '@/testing/claims-fixture';
 import { fakeProjectApi as dependencyApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
@@ -2225,6 +2226,86 @@ describe('a step’s node reading, on a card', () => {
   });
 });
 
+describe('claims on a card (wbs-claim-display 7.1)', () => {
+  const cardOf = (number: string): HTMLElement => {
+    const card = screen.getByLabelText(`Name of ${number}`).closest('article');
+    if (card === null) throw new Error(`No card for ${number}`);
+    return card;
+  };
+  const chips = (scope: Element | null | undefined): string[] =>
+    [...(scope?.querySelectorAll('[data-claim-chip]') ?? [])].map((chip) => chip.textContent);
+
+  itDom('draws a step’s chip beside its assignee, with the lease text', async () => {
+    const { api } = await claimedPlan();
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    await waitFor(() => {
+      expect(chips(cardOf('010.1').querySelector(`[data-step="${DEV.id}"]`))).toEqual(['CO14m']);
+    });
+    const line = cardOf('010.1').querySelector(`[data-step="${DEV.id}"]`);
+    const assignee = line?.querySelector(`[data-card-assignee="${DEV.id}"]`);
+    const chip = line?.querySelector(`[data-card-claim="${DEV.id}"]`);
+    expect(assignee?.textContent).toBe('ada');
+    expect(
+      assignee !== null &&
+        assignee !== undefined &&
+        chip !== null &&
+        chip !== undefined &&
+        assignee.nextElementSibling === chip,
+    ).toBe(true);
+    // The table's text rules: under a minute, releasing, and no lease at all.
+    expect(chips(cardOf('020').querySelector(`[data-step="${DEV.id}"]`))).toEqual(['EV<1m']);
+    expect(chips(cardOf('020').querySelector(`[data-step="${QA.id}"]`))).toEqual(['FIreleasing']);
+    expect(chips(cardOf('030').querySelector(`[data-step="${DEV.id}"]`))).toEqual(['DA']);
+    expect(
+      screen
+        .getByRole('img', {
+          name: "Claimed by codex since 24 Oct 10:42, run r-7, under claire's claim on 010; lease 14 min left",
+        })
+        .getAttribute('data-claim-chip'),
+    ).toBe('c-codex');
+  });
+
+  itDom('draws a subtree claim’s chip in its card’s header, and none under it', async () => {
+    const { api } = await claimedPlan();
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    await waitFor(() => {
+      expect(chips(cardOf('010').querySelector('header'))).toEqual(['CL14m']);
+    });
+    expect(chips(cardOf('010.1').querySelector('header'))).toEqual([]);
+    expect(chips(cardOf('010'))).toEqual(['CL14m']);
+  });
+});
+
+describe('the Claims sheet on a phone (wbs-claim-display 9.2)', () => {
+  itDom('is offered on the Plan actions sheet, and opens over it', async () => {
+    const { api } = await claimedPlan();
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    openTheSheet();
+    const actions = await screen.findByRole('dialog', { name: 'Plan actions' });
+    const view = actions.querySelector<HTMLElement>('[data-sheet-group="View"]');
+    if (view === null) throw new Error('the sheet has no View group');
+    const offer = await within(view).findByRole('button', { name: 'Claims, 5 held' });
+
+    fireEvent.click(offer);
+
+    const sheet = await screen.findByRole('dialog', { name: 'Claims' });
+    expect(
+      [...sheet.querySelectorAll('[data-claims-holder]')].map((group) =>
+        group.getAttribute('data-claims-holder'),
+      ),
+    ).toEqual(['claire', 'codex', 'dana', 'eve', 'finn']);
+  });
+});
+
 describe('the trio behind a step’s figure, on a card', () => {
   const trioOnCard = (stepId: string): HTMLElement | null =>
     document.querySelector(`[data-step-trio="${stepId}"]`);
@@ -2576,6 +2657,10 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
         'Add child',
         'Move under…',
         'Duplicate',
+        // The table's own Measures… (`wbs-measure-budgets` task 4.3).
+        'Measures…',
+        // A leaf's Resources… (`wbs-resources` 1.5).
+        'Resources…',
         'Unfreeze',
         'Delete',
       ]);
@@ -2663,6 +2748,7 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
       serviceIds: [],
       typeIds: [],
       externalRefs: [],
+      demands: [],
     },
     overrides,
   );

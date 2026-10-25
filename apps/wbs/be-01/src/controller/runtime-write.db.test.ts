@@ -16,6 +16,7 @@ import {
   createRuntimeReceiver,
 } from '@wbs/core/module/plan-commands/composition';
 import type { RuntimeContext } from '@wbs/core/module/plan-commands/runtime-state';
+import { type Clock, clockOf } from '@wbs/core/ports/clock';
 import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import type { EditAdmission } from '@wbs/core/ports/edit-admission';
 import { NO_ADMISSION } from '@wbs/core/ports/edit-admission';
@@ -25,6 +26,7 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -48,7 +50,7 @@ function value<T>(reply: RuntimeReply<T>): T {
   if (!reply.ok) throw new Error(`runtime refused: ${JSON.stringify(reply)}`);
   return reply.value;
 }
-async function seeded(shared = false) {
+async function seeded(shared = false, runtimeContext = context, clock: Clock = testClock) {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-runtime-write-'));
   const dbPath = await openSpaceDatabase(directory);
   let forbidCapture = false;
@@ -111,7 +113,7 @@ async function seeded(shared = false) {
   const broadcast = recordingBroadcaster();
   const options = {
     admission: NO_ADMISSION,
-    clock: testClock,
+    clock,
     broadcast,
     scheduler: fastScheduler,
   };
@@ -168,17 +170,17 @@ async function seeded(shared = false) {
             },
             { kind: 'setAssignee', workItemId, stepId, personId: 'agent' },
           ],
-          context.access,
+          runtimeContext.access,
           null,
         ),
       ).toMatchObject({ ok: true });
     }
   }
   const receiver = createRuntimeReceiver(source.uow, nodeDigest);
-  const state = () => receiver.readRuntimeState(context, {}).then(value);
+  const state = () => receiver.readRuntimeState(runtimeContext, {}).then(value);
   const ledger = await source.stores.runtimeCommands.inspectLedger();
   const authority = value(
-    await receiver.acquireRuntimeAuthority(context, {
+    await receiver.acquireRuntimeAuthority(runtimeContext, {
       schemaVersion: 1,
       commandId: 'grant',
       expectedLedgerId: ledger.ledgerId,
@@ -207,7 +209,11 @@ async function seeded(shared = false) {
   });
   const snapshot = async () => ({
     claims: await source.stores.claims.listByProject('a1'),
+    claims2: await source.stores.claims.listByProject('a2'),
+    claimRows: sqlite.db.all('SELECT * FROM claim ORDER BY id'),
     ledger: await source.stores.runtimeCommands.inspectLedger(),
+    ledgerRows: sqlite.db.all('SELECT * FROM runtime_ledger'),
+    authorities: sqlite.db.all('SELECT * FROM runtime_authority'),
     rows: await source.stores.workItems.listByProject('a1'),
     journal: sqlite.db.all('SELECT * FROM command_journal'),
     progress: sqlite.db.all('SELECT * FROM step_progress'),
@@ -231,6 +237,7 @@ async function seeded(shared = false) {
     snapshot,
     dbPath,
     delivered,
+    published: broadcast.published,
     captures: () => captures,
     turns: () => turns,
     blockCapture: () => {
@@ -239,9 +246,11 @@ async function seeded(shared = false) {
   };
 }
 
-async function held(shared = false) {
-  const fixture = await seeded(shared);
-  const accepted = value(await fixture.runner.claimRuntime(context, await fixture.request()));
+async function held(shared = false, runtimeContext = context, clock: Clock = testClock) {
+  const fixture = await seeded(shared, runtimeContext, clock);
+  const accepted = value(
+    await fixture.runner.claimRuntime(runtimeContext, await fixture.request()),
+  );
   const claim = accepted.acceptance.claim;
   const write = async (
     commands: readonly RuntimePlanCommand[] = [progress],
@@ -282,6 +291,147 @@ const refs = (url: string) =>
     workItemId: 'leaf',
     patch: { externalRefs: [{ systemId: 'sys-github-pr', url, name: 'Code' }] },
   }) as const;
+
+const T = 1_900_000_000_000;
+// Verified-principal dependency seam: these runner tests do not exercise credential cryptography.
+const machineContext: RuntimeContext = {
+  ...context,
+  actor: {
+    ...actor,
+    authentication: { kind: 'machine', credentialId: 'verified-machine', personId: 'agent' },
+  },
+};
+
+async function leased() {
+  let now = T;
+  let identities = 0;
+  const clock = clockOf({
+    now: () => now,
+    newId: () => `leased-runtime-${String(++identities)}`,
+  });
+  const fixture = await held(true, machineContext, clock);
+  expect(
+    await fixture.runner.runWithin(
+      'a2',
+      'ada',
+      [
+        {
+          kind: 'claimWorkItem',
+          workItemId: 'leaf2',
+          personId: 'agent',
+          steps: ['dev2'],
+          runId: 'ordinary-second-project',
+        },
+      ],
+      machineContext.access,
+      { personId: 'agent' },
+    ),
+  ).toMatchObject({ ok: true });
+  const leases = () =>
+    fixture.sqlite.db.all<{ projectId: string; personId: string; leaseExpiresAt: number }>(
+      'SELECT work_item.project_id AS projectId, claim.person_id AS personId, claim.lease_expires_at AS leaseExpiresAt FROM claim JOIN work_item ON work_item.id=claim.work_item_id ORDER BY work_item.project_id',
+    );
+  expect(leases()).toEqual([
+    { projectId: 'a1', personId: 'agent', leaseExpiresAt: T + CLAIM_LEASE_MS },
+    { projectId: 'a2', personId: 'agent', leaseExpiresAt: T + CLAIM_LEASE_MS },
+  ]);
+  return {
+    ...fixture,
+    leases,
+    advanceTo: (at: number) => {
+      now = at;
+    },
+  };
+}
+
+describe('leased runtime write transaction', () => {
+  it('renews both project leases on acceptance and replays without renewal or effects', async () => {
+    const fixture = await leased();
+    fixture.advanceTo(T + 120_000);
+    const request = await fixture.write([{ ...progress, state: 'done' }]);
+    const publishedBefore = fixture.published.length;
+    const accepted = value(await fixture.runner.writeRuntime(machineContext, request));
+    expect(fixture.leases()).toEqual([
+      { projectId: 'a1', personId: 'agent', leaseExpiresAt: T + 120_000 + CLAIM_LEASE_MS },
+      { projectId: 'a2', personId: 'agent', leaseExpiresAt: T + 120_000 + CLAIM_LEASE_MS },
+    ]);
+    const published = fixture.published.slice(publishedBefore);
+    expect(published.filter(({ event }) => event.type === 'claims_changed')).toEqual([
+      { projectId: 'a2', event: { type: 'claims_changed' } },
+    ]);
+    expect(published.filter(({ event }) => event.type === 'tree_replaced')).toMatchObject([
+      { projectId: 'a1', event: { type: 'tree_replaced' } },
+    ]);
+    expect(
+      await fixture.receiver.lookupRuntimeReceipt(machineContext, {
+        commandId: request.commandId,
+        expectedLedgerId: request.expectedLedgerId,
+      }),
+    ).toEqual({ ok: true, value: accepted });
+    const beforeReplay = await fixture.snapshot();
+    fixture.advanceTo(T + 240_000);
+    expect(await fixture.runner.writeRuntime(machineContext, request)).toEqual({
+      ok: true,
+      value: accepted,
+    });
+    expect(await fixture.snapshot()).toEqual(beforeReplay);
+  });
+
+  it('rolls back renewed leases and announcements after a late runtime receipt failure', async () => {
+    const fixture = await leased();
+    fixture.advanceTo(T + 120_000);
+    const request = await fixture.write([{ ...progress, state: 'done' }]);
+    const {
+      published: publishedBefore,
+      delivered: deliveredBefore,
+      ...before
+    } = await fixture.snapshot();
+    const journalBefore = fixture.sqlite.db.get<{ count: number }>(
+      'SELECT count(*) AS count FROM command_journal',
+    );
+    const expiry = T + 120_000 + CLAIM_LEASE_MS;
+    fixture.sqlite.db.run(
+      `CREATE TRIGGER reject_leased_runtime_receipt BEFORE INSERT ON runtime_command_receipt BEGIN SELECT CASE WHEN (SELECT count(*) FROM claim JOIN work_item ON work_item.id=claim.work_item_id WHERE work_item.project_id IN ('a1','a2') AND claim.person_id='agent' AND claim.lease_expires_at=${String(expiry)})=2 AND (SELECT count(*) FROM claim)=2 AND (SELECT count(*) FROM step_progress WHERE work_item_id='leaf' AND step_id='dev' AND state='done')=1 AND (SELECT count(*) FROM command_journal)>${String(journalBefore.count)} THEN RAISE(ABORT,'late runtime receipt after lease renewal') ELSE RAISE(ABORT,'late runtime receipt missing staged renewal or progress') END; END`,
+    );
+    try {
+      await fixture.runner.writeRuntime(machineContext, request).then(
+        () => {
+          throw new Error('leased receipt INSERT unexpectedly resolved');
+        },
+        (fault: unknown) => {
+          expect(fault).toBeInstanceOf(Error);
+          if (!(fault instanceof Error)) throw fault;
+          expect(fault.message).toContain('INSERT INTO runtime_command_receipt');
+          expect(fault.cause).toMatchObject({
+            message: 'late runtime receipt after lease renewal',
+          });
+        },
+      );
+      const { published, delivered, ...after } = await fixture.snapshot();
+      expect(after).toEqual(before);
+      expect(published).toEqual(publishedBefore);
+      expect(delivered).toEqual(deliveredBefore);
+    } finally {
+      fixture.sqlite.db.run('DROP TRIGGER reject_leased_runtime_receipt');
+    }
+    const accepted = value(await fixture.runner.writeRuntime(machineContext, request));
+    expect(fixture.leases()).toEqual([
+      { projectId: 'a1', personId: 'agent', leaseExpiresAt: expiry },
+      { projectId: 'a2', personId: 'agent', leaseExpiresAt: expiry },
+    ]);
+    expect(
+      fixture.published
+        .slice(publishedBefore.length)
+        .filter(({ event }) => event.type === 'claims_changed'),
+    ).toEqual([{ projectId: 'a2', event: { type: 'claims_changed' } }]);
+    expect(
+      await fixture.receiver.lookupRuntimeReceipt(machineContext, {
+        commandId: request.commandId,
+        expectedLedgerId: request.expectedLedgerId,
+      }),
+    ).toEqual({ ok: true, value: accepted });
+  });
+});
 
 describe('conditional exact runtime write', () => {
   it('commits restricted ordered commands and retains the actual post-write basis', async () => {

@@ -75,6 +75,13 @@ export function bandRangeWords(drafts: readonly BandDraft[], at: number): string
   return `${own.startsAt} to ${String(ends)}`;
 }
 
+/**
+ * A number box's own word on a phone, where the ladder's header is not drawn:
+ * the header's muted xs, beside the box as Steps puts Allowance. Hidden from a
+ * screen reader, which hears the box's own label.
+ */
+const PHONE_LABEL = 'text-muted-foreground shrink-0 text-xs font-medium sm:hidden';
+
 export interface PrioritiesPanelProps extends SettingsSectionReport {
   /** This plan's ladder as be-01 has it — five rungs, most important first. */
   bands: readonly PriorityBandView[];
@@ -218,8 +225,15 @@ export function PrioritiesPanel({
       return;
     }
     // Escape over an edit puts the ladder back; the modal reads the section as
-    // dirty for this keystroke, so the same key does not also close it.
-    if (event.key === 'Escape' && dirty) {
+    // dirty for this keystroke, so the same key does not also close it. Not
+    // while the ladder travels: the read-only boxes then show what was sent,
+    // which is what be-01 is about to hold, so there is nothing to put back,
+    // and reverting them left the landed ladder looking like an unsaved edit
+    // (ui-review F-110).
+    // Proof: on 2026-10-17, without `!section.busy`, `Escape while the ladder
+    // travels leaves the sent ladder in the boxes` (priorities-panel.test.tsx)
+    // failed on `expected 'Critical' to be 'Blocker'`.
+    if (event.key === 'Escape' && dirty && !section.busy) {
       setDrafts(draftsOf(bands));
       section.clear();
     }
@@ -238,21 +252,22 @@ export function PrioritiesPanel({
       {/*
         The columns' names, drawn once over the ladder as Steps and Estimating
         head theirs (ui-review F-120). Hidden from a screen reader, which hears
-        each box's own label (`Critical starts at`) instead. The cells take the
-        rows' widths and wrap as a row does, so on a phone the second line of
-        the header stands over the second line of every band. The list loses the
-        platform's 40px indent for the same reason, which also puts the ladder on
-        the paragraph's edge, where Steps' grid stands.
+        each box's own label (`Critical starts at`) instead. Not on a phone,
+        where a band is two lines: a wrapped header stood over band 1's name,
+        far above the numbers it named, and bands 2–5 had no words at all
+        (F-148). There every band's number line says its own words, as Steps
+        says Allowance. The list loses the platform's 40px indent, which puts
+        the ladder on the paragraph's edge, where Steps' grid stands.
       */}
       <div className="flex flex-col gap-2">
         <div
           aria-hidden="true"
           data-priority-header=""
-          className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs font-medium sm:flex-nowrap"
+          className="text-muted-foreground flex items-center gap-2 text-xs font-medium max-sm:hidden"
         >
           <span className="size-3 shrink-0" />
-          <span className="min-w-0 flex-1 max-sm:basis-[calc(100%-1.25rem)]">Band</span>
-          <span className="w-16 shrink-0 text-right max-sm:ml-5">Starts at</span>
+          <span className="min-w-0 flex-1">Band</span>
+          <span className="w-16 shrink-0 text-right">Starts at</span>
           <span className="w-24 shrink-0 text-right">Holds</span>
           <span className="w-16 shrink-0 text-right">Writes</span>
         </div>
@@ -294,40 +309,52 @@ export function PrioritiesPanel({
                     edit(at, 'label', event.currentTarget.value);
                   }}
                 />
-                <Input
-                  className="h-8 w-16 shrink-0 text-right max-sm:ml-5"
-                  aria-label={`${draft.label} starts at`}
-                  inputMode="numeric"
-                  value={draft.startsAt}
-                  readOnly={section.busy}
-                  onBlur={onLadderBlur}
-                  onKeyDown={onLadderKey}
-                  onChange={(event) => {
-                    edit(at, 'startsAt', event.currentTarget.value);
-                  }}
-                />
-                <span
-                  data-priority-range={at}
-                  className="text-muted-foreground w-24 shrink-0 text-right text-sm"
-                  // The range a start amounts to, recomputed as the boxes change.
-                  // A band is stored as a start and read as a range, and this is
-                  // the only place the reader is shown the second.
-                  data-fact={`${draft.label} holds priorities ${bandRangeWords(drafts, at)}.`}
-                >
-                  {bandRangeWords(drafts, at)}
-                </span>
-                <Input
-                  className="h-8 w-16 shrink-0 text-right"
-                  aria-label={`${draft.label} writes`}
-                  inputMode="numeric"
-                  value={draft.defaultValue}
-                  readOnly={section.busy}
-                  onBlur={onLadderBlur}
-                  onKeyDown={onLadderKey}
-                  onChange={(event) => {
-                    edit(at, 'defaultValue', event.currentTarget.value);
-                  }}
-                />
+                {/*
+                  The number line, which only a phone draws as a box of its
+                  own: from `sm` it is `contents`, and its cells are the row's.
+                */}
+                <div className="flex items-center gap-2 max-sm:ml-5 max-sm:basis-[calc(100%-1.25rem)] sm:contents">
+                  <span aria-hidden="true" data-priority-phone-label="" className={PHONE_LABEL}>
+                    Starts at
+                  </span>
+                  <Input
+                    className="h-8 w-16 shrink-0 text-right"
+                    aria-label={`${draft.label} starts at`}
+                    inputMode="numeric"
+                    value={draft.startsAt}
+                    readOnly={section.busy}
+                    onBlur={onLadderBlur}
+                    onKeyDown={onLadderKey}
+                    onChange={(event) => {
+                      edit(at, 'startsAt', event.currentTarget.value);
+                    }}
+                  />
+                  <span
+                    data-priority-range={at}
+                    className="text-muted-foreground w-24 shrink-0 text-right text-sm max-sm:w-auto max-sm:min-w-0 max-sm:flex-1 max-sm:text-center"
+                    // The range a start amounts to, recomputed as the boxes change.
+                    // A band is stored as a start and read as a range, and this is
+                    // the only place the reader is shown the second.
+                    data-fact={`${draft.label} holds priorities ${bandRangeWords(drafts, at)}.`}
+                  >
+                    {bandRangeWords(drafts, at)}
+                  </span>
+                  <span aria-hidden="true" data-priority-phone-label="" className={PHONE_LABEL}>
+                    Writes
+                  </span>
+                  <Input
+                    className="h-8 w-16 shrink-0 text-right"
+                    aria-label={`${draft.label} writes`}
+                    inputMode="numeric"
+                    value={draft.defaultValue}
+                    readOnly={section.busy}
+                    onBlur={onLadderBlur}
+                    onKeyDown={onLadderKey}
+                    onChange={(event) => {
+                      edit(at, 'defaultValue', event.currentTarget.value);
+                    }}
+                  />
+                </div>
               </li>
             );
           })}

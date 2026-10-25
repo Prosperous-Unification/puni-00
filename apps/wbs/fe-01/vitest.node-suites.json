@@ -21,6 +21,9 @@
       "file": "src/components/wbs/cell-card-store.test.ts"
     },
     {
+      "file": "src/components/wbs/claim-lease-view.test.ts"
+    },
+    {
       "file": "src/components/wbs/claim-limit-words.test.ts"
     },
     {
@@ -93,6 +96,9 @@
       "file": "src/components/wbs/project-picker.test.ts"
     },
     {
+      "file": "src/components/wbs/resource-demand-words.test.ts"
+    },
+    {
       "file": "src/components/wbs/short-date.test.ts"
     },
     {
@@ -104,6 +110,9 @@
     {
       "file": "src/deadline-copy.test.ts",
       "reason": "`work-item-deadline` 8.9's repository assertion. It parses `.tsx` sources with the TypeScript parser and reads them off disk, which is a file-system job and not a browser one."
+    },
+    {
+      "file": "src/lib/compute-provider-words.test.ts"
     },
     {
       "file": "src/lib/local-write.test.ts"
@@ -243,7 +252,16 @@
       "file": "src/components/wbs/capacity-limit-words.test.ts"
     },
     {
+      "file": "src/components/wbs/compute-provider-refusal-words.test.ts"
+    },
+    {
       "file": "src/components/wbs/organization-limit-words.test.ts"
+    },
+    {
+      "file": "src/components/wbs/measure-reading.test.ts"
+    },
+    {
+      "file": "src/components/wbs/plan-refusal-measures.test.ts"
     }
   ]
 }

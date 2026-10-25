@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { fakeProjectApi } from '../testing/fake-project-api';
 import { createPlanRefresh, resourcesFor } from './plan-refresh';
-import { type PlanRead, WbsRequestError } from './wbs-api';
+import { type ClaimsRead, type ClaimView, type PlanRead, WbsRequestError } from './wbs-api';
 
 function held<T>() {
   let resolve!: (value: T) => void;
@@ -16,7 +16,7 @@ function held<T>() {
 
 async function setup() {
   const api = fakeProjectApi();
-  const owner = createPlanRefresh({ projectId: 'p1', routes: api });
+  const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
   expect((await owner.initialize()).status).toBe('installed');
   return { api, owner };
 }
@@ -27,6 +27,25 @@ describe('plan refresh obligations', () => {
   });
   it('refetches only the tree when bookings above move', () => {
     expect(resourcesFor('elsewhere_changed')).toEqual(['tree']);
+  });
+  it('refreshes claims alone for a heartbeat', () => {
+    expect(resourcesFor('claims_changed')).toEqual(['claims']);
+  });
+  it('refreshes the tree and claims after a claim, release or reap', () => {
+    expect(resourcesFor('tree_replaced')).toEqual(['tree', 'claims']);
+  });
+  it('keeps a plan-unavailable event to the tree, which the claims read does not need', () => {
+    expect(resourcesFor('plan_unavailable')).toEqual(['tree']);
+  });
+  it('refreshes every resource, claims included, for an unknown event', () => {
+    expect(resourcesFor('claims_invented_next_year')).toEqual([
+      'tree',
+      'steps',
+      'directory',
+      'markers',
+      'claims',
+    ]);
+    expect(resourcesFor(null)).toContain('claims');
   });
   it('refetches only the tree for a peer plan-unavailable event and retains the installed plan', async () => {
     const { api, owner } = await setup();
@@ -66,7 +85,7 @@ describe('plan refresh obligations', () => {
       markers += 1;
       return Promise.resolve([]);
     };
-    const owner = createPlanRefresh({ projectId: 'p1', routes: api });
+    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
     const ready = owner.initialize();
     expect(markers).toBe(0);
     anchor.resolve(before);
@@ -259,4 +278,180 @@ it('does not install or complete a superseded read while its covering read is he
   await Promise.all([older, newer]);
   expect(owner.getSnapshot().tree.installed?.value.seq).toBe(22);
   owner.dispose();
+});
+
+describe('claims as a refresh resource', () => {
+  const claim: ClaimView = {
+    claimId: 'claim-1',
+    workItemId: 'w1',
+    number: '1',
+    numberIsFrozen: false,
+    name: 'Build',
+    stepId: 'step-dev',
+    holder: { personId: 'kat', name: 'Kat' },
+    runId: 'run-1',
+    parentClaimId: null,
+    claimedAt: 1_000,
+    leaseExpiresAt: 901_000,
+    leaseRevokedAt: null,
+  };
+
+  async function claimsSetup() {
+    const api = fakeProjectApi();
+    let now = 0;
+    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => now });
+    expect((await owner.initialize()).status).toBe('installed');
+    const reads: string[] = [];
+    const tree = api.tree.bind(api);
+    const steps = api.steps.bind(api);
+    const teams = api.listTeams.bind(api);
+    const markers = api.listCalendarMarkers.bind(api);
+    const claims = api.readClaims.bind(api);
+    api.tree = (projectId) => (reads.push('tree'), tree(projectId));
+    api.steps = (projectId) => (reads.push('steps'), steps(projectId));
+    api.listTeams = () => (reads.push('directory'), teams());
+    api.listCalendarMarkers = (projectId) => (reads.push('markers'), markers(projectId));
+    api.readClaims = (projectId) => (reads.push('claims'), claims(projectId));
+    return {
+      api,
+      owner,
+      reads,
+      setNow: (instant: number) => {
+        now = instant;
+      },
+    };
+  }
+
+  it('reads claims alone for a heartbeat and installs readAt beside the monotonic instant', async () => {
+    const { api, owner, reads, setNow } = await claimsSetup();
+    const read = api.readClaims.bind(api);
+    api.readClaims = async (projectId) => {
+      const answer = await read(projectId);
+      setNow(4_200);
+      return { ...answer, readAt: 777_000, claims: [claim] };
+    };
+    const outcome = await owner.invalidate({ resources: resourcesFor('claims_changed') });
+    expect(outcome.status).toBe('installed');
+    expect(reads).toEqual(['claims']);
+    expect(owner.getSnapshot().claims.installed?.value).toEqual({
+      readAt: 777_000,
+      claims: [claim],
+      installedAt: 4_200,
+    });
+    owner.dispose();
+  });
+
+  it('installs a tree while a claims read for the same event is held', async () => {
+    const { api, owner } = await claimsSetup();
+    const before = await api.tree('p1');
+    const previous = owner.getSnapshot().claims.installed;
+    const claims = held<ClaimsRead>();
+    api.readClaims = () => claims.promise;
+    api.tree = () => Promise.resolve({ ...before, seq: before.seq + 5 });
+    const reap = owner.invalidate({ resources: resourcesFor('tree_replaced') });
+    await vi.waitFor(() => {
+      expect(owner.getSnapshot().tree.installed?.value.seq).toBe(before.seq + 5);
+    });
+    expect(owner.getSnapshot().claims.reading).toBe(true);
+    expect(owner.getSnapshot().claims.installed).toBe(previous);
+    claims.resolve({ readAt: 5, claims: [claim] });
+    expect((await reap).status).toBe('installed');
+    expect(owner.getSnapshot().claims.installed?.value.claims).toEqual([claim]);
+    owner.dispose();
+  });
+
+  it('keeps the last claims and their stale state across a later tree success', async () => {
+    const { api, owner } = await claimsSetup();
+    api.readClaims = () => Promise.resolve({ readAt: 1, claims: [claim] });
+    await owner.invalidate({ resources: ['claims'] });
+    const drawn = owner.getSnapshot().claims.installed;
+    api.readClaims = () => Promise.reject(new Error('claims outage'));
+    expect((await owner.invalidate({ resources: resourcesFor('tree_replaced') })).status).toBe(
+      'failed',
+    );
+    expect(owner.getSnapshot().staleResources).toEqual(['claims']);
+    expect((await owner.invalidate({ resources: ['tree'] })).status).toBe('installed');
+    expect(owner.getSnapshot().staleResources).toEqual(['claims']);
+    expect(owner.getSnapshot().claims.installed).toBe(drawn);
+    api.readClaims = () => Promise.resolve({ readAt: 2, claims: [] });
+    await owner.invalidate({ resources: ['claims'] });
+    expect(owner.getSnapshot().staleResources).toEqual([]);
+    owner.dispose();
+  });
+
+  it('reads claims for an unsequenced announcement and leaves the acknowledgment alone', async () => {
+    const { api, owner, reads } = await claimsSetup();
+    const initial = owner.getSnapshot().acknowledged;
+    expect((await owner.invalidate({ resources: resourcesFor('claims_changed') })).status).toBe(
+      'installed',
+    );
+    expect(reads).toEqual(['claims']);
+    expect(owner.getSnapshot().acknowledged).toBe(initial);
+    // The next durable event is not a gap: an unsequenced one moved nothing.
+    const tree = await api.tree('p1');
+    api.tree = () => Promise.resolve({ ...tree, seq: initial + 1 });
+    await owner.invalidate({ resources: resourcesFor('tree_replaced'), seq: initial + 1 });
+    expect(owner.getSnapshot().acknowledged).toBe(initial + 1);
+    expect(reads.filter((read) => read === 'directory')).toEqual([]);
+    owner.dispose();
+  });
+
+  it('reads claims during an initialize whose anchor fails', async () => {
+    const api = fakeProjectApi();
+    const anchor = held<PlanRead>();
+    api.tree = () => anchor.promise;
+    let claimsReads = 0;
+    api.readClaims = () => {
+      claimsReads += 1;
+      return Promise.resolve({ readAt: 0, claims: [] });
+    };
+    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
+    const ready = owner.initialize();
+    const claims = owner.invalidate({ resources: ['claims'] });
+    anchor.reject(new Error('offline'));
+    expect((await ready).status).toBe('failed');
+    // Raced so a claims obligation that waits on the anchor reads `pending`.
+    const settled = await Promise.race([claims, Promise.resolve({ status: 'pending' as const })]);
+    expect(settled.status).toBe('installed');
+    expect(claimsReads).toBe(1);
+    expect(owner.getSnapshot().staleResources).not.toContain('claims');
+    owner.dispose();
+  });
+
+  it('reads claims, not the tree, for heartbeats while unanchored', async () => {
+    const { api, owner, reads } = await claimsSetup();
+    // A resynchronisation whose anchor is refused leaves the owner unanchored.
+    api.tree = () => {
+      reads.push('tree');
+      return Promise.reject(new Error('engine_unavailable'));
+    };
+    expect((await owner.initialize()).status).toBe('failed');
+    reads.length = 0;
+    const heartbeats = Array.from({ length: 10 }, () =>
+      owner.invalidate({ resources: resourcesFor('claims_changed') }),
+    );
+    const outcomes = await Promise.all(heartbeats);
+    expect(reads.filter((read) => read === 'tree')).toEqual([]);
+    expect(reads.filter((read) => read === 'claims').length).toBeGreaterThan(0);
+    expect(outcomes.every((outcome) => outcome.status === 'installed')).toBe(true);
+    owner.dispose();
+  });
+
+  it('anchors the baseline without claims when the claims read is refused', async () => {
+    const api = fakeProjectApi();
+    let claimsReads = 0;
+    api.readClaims = () => {
+      claimsReads += 1;
+      return Promise.reject(new Error('not_found'));
+    };
+    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
+    expect((await owner.initialize()).status).toBe('installed');
+    await vi.waitFor(() => {
+      expect(owner.getSnapshot().staleResources).toEqual(['claims']);
+    });
+    expect(claimsReads).toBe(1);
+    expect(owner.getSnapshot().baseline).not.toBeNull();
+    expect(owner.getSnapshot().claims.installed).toBeNull();
+    owner.dispose();
+  });
 });

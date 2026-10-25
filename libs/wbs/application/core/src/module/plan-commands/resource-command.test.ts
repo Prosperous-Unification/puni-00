@@ -62,10 +62,15 @@ async function seeded() {
     listByProject: (id) => claims.listByProject(id),
     listStampedByProject: (id) => claims.listStampedByProject(id),
     findById: (id, claimId) => claims.findById(id, claimId),
+    observeProject: (id, access) => claims.observeProject(id, access),
     occupancyOf: (id) => claims.occupancyOf(id),
-    add: (written, stated, stamp, occupancy) => claims.add(written, stated, stamp, occupancy),
+    add: (written, stated, stamp, occupancy, leases) =>
+      claims.add(written, stated, stamp, occupancy, leases),
     remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),
     moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
+    renewLeases: (personId, now) => claims.renewLeases(personId, now),
+    expiredLeasesOf: (id, at) => claims.expiredLeasesOf(id, at),
+    projectsWithExpiredLeases: (at, limit) => claims.projectsWithExpiredLeases(at, limit),
     boundAccountOf: (personId) => Promise.resolve(personId === 'claire' ? F : null),
     pinnedPersonOf: () => Promise.resolve(null),
   });

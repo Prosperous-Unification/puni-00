@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { RetentionTimer } from '@wbs/core/module/bounded-replay-sweep/retention-timer';
+import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, expect, spyOn, test } from 'bun:test';
@@ -132,7 +133,7 @@ test('boot audit excludes a second connection commit between marker and history 
   }
 });
 
-test('holds listener, retention and proof workers until actual ledger inspection settles', async () => {
+test('holds listener, retention, claim sweep and proof workers until actual ledger inspection settles', async () => {
   const configured = createOptions();
   runMigrations(configured.dbPath, folder);
   const entered = Promise.withResolvers<undefined>();
@@ -141,6 +142,7 @@ test('holds listener, retention and proof workers until actual ledger inspection
   let workers = 0;
   const retention = spyOn(RetentionTimer.prototype, 'start');
   const optimizer = spyOn(OptimizationCoordinator.prototype, 'start');
+  const claimSweep = spyOn(ClaimLeaseSweep.prototype, 'start');
   const booting = bootBe01(configured, {
     openSource: (settings) => {
       const source = openSqliteSource(settings);
@@ -192,12 +194,25 @@ test('holds listener, retention and proof workers until actual ledger inspection
     expect(listeners).toBe(0);
     expect(workers).toBe(0);
     expect(optimizer).not.toHaveBeenCalled();
+    expect(claimSweep).not.toHaveBeenCalled();
   } finally {
     release.resolve(undefined);
-    running = await booting;
-    expect(optimizer).toHaveBeenCalledTimes(1);
-    optimizer.mockRestore();
-    retention.mockRestore();
+    try {
+      running = await booting;
+      try {
+        expect(optimizer).toHaveBeenCalledTimes(1);
+        expect(claimSweep).toHaveBeenCalledTimes(1);
+        expect(running.services.claimLeases.isRunning()).toBe(true);
+      } finally {
+        await running.stop();
+      }
+      expect(running.services.claimLeases.isRunning()).toBe(false);
+      running = undefined;
+    } finally {
+      optimizer.mockRestore();
+      retention.mockRestore();
+      claimSweep.mockRestore();
+    }
   }
   expect(listeners).toBe(1);
   expect(workers).toBe(1);
@@ -218,6 +233,7 @@ for (const fault of ['missing', 'corrupt'] as const) {
     let workers = 0;
     const optimizer = spyOn(OptimizationCoordinator.prototype, 'start');
     const retention = spyOn(RetentionTimer.prototype, 'start');
+    const claimSweep = spyOn(ClaimLeaseSweep.prototype, 'start');
     try {
       await expectBootFailure(
         bootBe01(configured, {
@@ -246,9 +262,11 @@ for (const fault of ['missing', 'corrupt'] as const) {
       expect(closes).toBe(1);
       expect(workers).toBe(0);
       expect(optimizer).not.toHaveBeenCalled();
+      expect(claimSweep).not.toHaveBeenCalled();
     } finally {
       retention.mockRestore();
       optimizer.mockRestore();
+      claimSweep.mockRestore();
     }
   });
 }

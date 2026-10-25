@@ -13,7 +13,7 @@ import type {
  * given once this delivery is applied.
  *
  * Pure, and exported for its own suite: it is the whole of the generation
- * ledger, the four comparisons are the feed's most important decision, and no
+ * ledger, the five comparisons are the feed's most important decision, and no
  * suite that drives a page can separate them from the setters they feed.
  */
 export function nextDelivery(
@@ -44,6 +44,7 @@ export function nextDelivery(
         tree: null,
         steps: null,
         markers: null,
+        claims: null,
       },
       applied,
     };
@@ -77,6 +78,12 @@ export function nextDelivery(
     snapshot.markers.installed !== null && snapshot.markers.installed.generation > applied.markers
       ? snapshot.markers.installed
       : null;
+  // Proof: dropping the claims generation comparison redelivered the claims
+  // instead of null in `carries each generation exactly once` (2026-10-24).
+  const claims =
+    snapshot.claims.installed !== null && snapshot.claims.installed.generation > applied.claims
+      ? snapshot.claims.installed
+      : null;
   return {
     delivery: {
       staleResources,
@@ -85,12 +92,14 @@ export function nextDelivery(
       tree: tree === null ? null : { value: tree.value, generation: tree.generation },
       steps: steps === null ? null : steps.value,
       markers: markers === null ? null : markers.value,
+      claims: claims === null ? null : claims.value,
     },
     applied: {
       tree: tree?.generation ?? applied.tree,
       steps: steps?.generation ?? applied.steps,
       directory: directory?.generation ?? applied.directory,
       markers: markers?.generation ?? applied.markers,
+      claims: claims?.generation ?? applied.claims,
     },
   };
 }
@@ -117,7 +126,7 @@ export function createPlanReading({
   // left zero subscriptions instead of one in `creates a live second owner
   // after StrictMode cleans up its first setup` (2026-09-20).
   const owner = openOwner();
-  let applied: AppliedGenerations = { tree: 0, steps: 0, directory: 0, markers: 0 };
+  let applied: AppliedGenerations = { tree: 0, steps: 0, directory: 0, markers: 0, claims: 0 };
   let stream: ProjectStream | null = null;
   let streamSequence = -1;
   const apply = (): void => {
@@ -147,11 +156,26 @@ export function createPlanReading({
             if (changed == null && seq === undefined) void owner.initialize();
             else void owner.invalidate({ resources: resourcesFor(changed), seq });
           },
+          onClaims: () => {
+            // A transient announcement: claims alone, and never a sequence.
+            // Proof: a handler that invalidates nothing left no claims invalidation in
+            // `reads claims alone for a claims announcement`; watched 2026-10-23. It
+            // also left `moves the chip to the renewed minutes once claims_changed
+            // is read` (`plan-claims.test.tsx`) at `lease 3 min left`; watched
+            // 2026-10-24.
+            if (isLive()) void owner.invalidate({ resources: ['claims'] });
+          },
           onConnectionChange: (connected) => {
             // Proof: calling `reportConnection(connected)` unguarded reported
             // [false] instead of [] in `ignores a change and a connection that
             // arrive after it stops being live` (2026-09-20).
-            if (isLive()) reportConnection(connected);
+            if (!isLive()) return;
+            reportConnection(connected);
+            // Every (re)synchronised socket rereads claims: their announcements
+            // are transient (C21), so a resume replays none of the gap's.
+            // Proof: deleting this line left no claims invalidation in `rereads
+            // claims each time the stream synchronises`; watched 2026-10-23.
+            if (connected) void owner.invalidate({ resources: ['claims'] });
           },
         },
         snapshot.baseline.seq,

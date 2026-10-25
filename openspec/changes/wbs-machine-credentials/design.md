@@ -168,7 +168,9 @@ A matched credential yields a principal with `id = person.account_id`, scopes `r
 `write`, `delegation`-slot direct context `{ organizationId }` of the credential,
 `pinnedPersonId`, and `authentication` per A10. `last_used_at` is written in the same request
 when older than 60 s (coarse on purpose: one write per credential per minute, not per
-request) and a failed write is a server fault like any other. Membership of the account in
+request) and a failed write is a server fault like any other. The age is read first, outside
+the write turn; only a due use takes the turn (#668), so a fresh use never waits behind
+another write. Membership of the account in
 the credential's organization is rechecked by `resolve` as today; an account removed from the
 organization is `403 not_a_member` with the credential intact.
 

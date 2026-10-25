@@ -714,6 +714,14 @@ describe('conditional exact runtime claim', () => {
         asked: 1,
         free: 0,
         holders: [{ workItemId: 'other', personId: 'agent', name: 'Agent', runId: 'ordinary' }],
+        resources: [
+          {
+            resourceId,
+            asked: 1,
+            free: 0,
+            holders: [{ workItemId: 'other', personId: 'agent', name: 'Agent', runId: 'ordinary' }],
+          },
+        ],
       },
     };
     expect(await runner.claimRuntime(context, claimRequest)).toEqual(refusal);

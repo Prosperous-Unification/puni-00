@@ -1,13 +1,16 @@
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import {
+  bodyMediaFor,
   completeAuth0Link,
   completeOidcLogin,
+  type EndpointShape,
   httpShapes,
   logoutOidcSession,
   refreshOidcSession,
   type RequestPolicy,
   startAuth0Link,
   startOidcLogin,
+  validateSchema,
 } from '@wbs/contracts';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
@@ -16,6 +19,12 @@ import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { AppOptions } from './app';
 import { buildApp, mountedEndpoints } from './app';
+import {
+  type BoundEndpoint,
+  EMPTY,
+  type EndpointReply,
+  type RequestFailure,
+} from './http/endpoint';
 import { bunPasswordHasher, joseTokenCodec } from './runtime/bun-runtime';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
@@ -179,6 +188,7 @@ const PUBLIC_OPERATIONS = [
 ] as const;
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
+  'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganization',
   'getApiOrganizationDomains',
@@ -194,22 +204,27 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationSession-policy',
   'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
+  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
   'getApiProjectsByIdCalendar-markers',
+  'getApiProjectsByIdClaim-history',
+  'getApiProjectsByIdClaims',
   'getApiProjectsByIdHistory',
   'getApiProjectsByIdPeopleByPersonIdWork',
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
   'getApiProjectsByIdWork-itemsByWorkItemId',
+  'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
   'getApiSaved-plansById',
   'getApiServices',
   'getApiSpaces',
@@ -231,6 +246,7 @@ const READ_SCOPE_OPERATIONS = [
 const WRITE_SCOPE_OPERATIONS = [
   'acquireRuntimeAuthority',
   'applyRuntimeCommands',
+  'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationInvitationsById',
   'deleteApiOrganizationMachine-credentialsById',
@@ -244,6 +260,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'deleteApiSpacesById',
   'deleteApiSpacesByIdProjectsByProjectId',
   'patchApiOrganization',
+  'patchApiOrganizationCompute-providersById',
   'patchApiOrganizationMembersByUserId',
   'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
@@ -251,12 +268,14 @@ const WRITE_SCOPE_OPERATIONS = [
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
   'patchApiSpacesById',
+  'postApiClaimsRenew',
   'postApiDirectoryCommands',
   'postApiOnboardingEmailChallenges',
   'postApiOnboardingEmailChallengesConfirm',
   'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
@@ -284,6 +303,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   'putApiOrganizationSession-policy',
 ] as const;
 const INTERNAL_OPERATIONS = [
@@ -323,6 +343,7 @@ const ALWAYS_ORIGIN_OPERATIONS = [
 const COOKIE_ORIGIN_OPERATIONS = [
   'acquireRuntimeAuthority',
   'applyRuntimeCommands',
+  'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMachine-credentialsById',
   'deleteApiOrganizationMembersByUserId',
@@ -336,6 +357,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiSpacesByIdProjectsByProjectId',
   'getApiProjectsByIdHistory',
   'patchApiOrganization',
+  'patchApiOrganizationCompute-providersById',
   'patchApiOrganizationMembersByUserId',
   'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
@@ -347,7 +369,9 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiAuthLinkAuth0',
   'postApiAuthLogout',
   'postApiAuthRefresh',
+  'postApiClaimsRenew',
   'postApiDirectoryCommands',
+  'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
@@ -373,6 +397,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   'putApiOrganizationSession-policy',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
@@ -385,6 +410,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiAuthMethods',
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
+  'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganizationMemberships',
   'getApiOrganizationActive',
@@ -399,22 +425,27 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationMachine-credentials',
   'getApiOrganizationSession-policy',
   'getApiOrganizationTrusted-issuers',
+  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
   'getApiProjectsByIdCalendar-markers',
+  'getApiProjectsByIdClaim-history',
+  'getApiProjectsByIdClaims',
   'getApiProjectsByIdExport',
   'getApiProjectsByIdPeopleByPersonIdWork',
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
   'getApiProjectsByIdWork-itemsByWorkItemId',
+  'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
   'getApiSaved-plansById',
   'getApiServices',
   'getApiSpaces',
@@ -547,6 +578,47 @@ function requestFor(shape: (typeof httpShapes)[number]): Request {
   });
 }
 
+/**
+ * The structurally valid request plus an undeclared query parameter, and, for
+ * a body-less write, an empty JSON object: input a raw client sends by habit.
+ */
+function strayInputRequests(
+  shape: (typeof httpShapes)[number],
+): { part: 'query' | 'body'; request: Request }[] {
+  const valid = requestFor(shape);
+  const url = new URL(valid.url);
+  url.searchParams.append('stray', '1');
+  const strays: { part: 'query' | 'body'; request: Request }[] = [
+    { part: 'query', request: new Request(url, valid) },
+  ];
+  if (bodyMediaFor(shape).length === 0 && shape.method !== 'GET') {
+    const headers = new Headers(valid.headers);
+    headers.set('content-type', 'application/json');
+    strays.push({
+      part: 'body',
+      request: new Request(valid.url, { method: valid.method, headers, body: '{}' }),
+    });
+  }
+  return strays;
+}
+
+/**
+ * Stray-input probes not answered `400 invalid_<part>`, each for a modeled
+ * reason: the import classifier names the part in `path`; a gateway delegation
+ * is refused before input (the declaration audit covers its input); the OIDC
+ * callbacks classify into their own browser outcomes; saved-plan compare
+ * declares its query refusal as 422.
+ */
+const STRAY_INPUT_EXCEPTIONS: ReadonlyMap<string, { status: number; error: string | null }> =
+  new Map([
+    ['postApiProjectsImport query', { status: 400, error: 'invalid_body' }],
+    ['postInternalGatewayProjectAccess query', { status: 401, error: 'unauthenticated' }],
+    ['postInternalGatewayProjectAccess body', { status: 401, error: 'unauthenticated' }],
+    ['getApiAuthLinkAuth0Callback query', { status: 302, error: null }],
+    ['getApiAuthOktaCallback query', { status: 400, error: null }],
+    ['getApiProjectsByIdSaved-plansCompare query', { status: 422, error: 'invalid_query' }],
+  ]);
+
 interface WireReply {
   status: number;
   contentType: string | null;
@@ -629,6 +701,115 @@ it('binds each shared HTTP shape once in every configuration that owns it', () =
       expect(endpoints.filter((endpoint) => endpoint.shape === shape)).toHaveLength(1);
     }
   }
+});
+
+type BoundaryCode = RequestFailure['code'];
+
+/** The request-boundary failure codes the mount can raise for this shape. */
+function boundaryCodes(shape: EndpointShape): BoundaryCode[] {
+  const codes: BoundaryCode[] = ['invalid_query', 'invalid_body'];
+  if (shape.params !== undefined) codes.push('invalid_params');
+  if (bodyMediaFor(shape).includes('application/json')) codes.push('invalid_json');
+  return codes;
+}
+
+/** A failure as the mount builds it, for a classifier that inspects nothing beyond its fields. */
+function syntheticFailure(shape: EndpointShape, code: BoundaryCode): RequestFailure {
+  const request = {
+    url: new URL(shape.path, ORIGIN),
+    method: shape.method,
+    headers: new Headers(),
+    signal: new AbortController().signal,
+  };
+  const issues = [{ message: 'synthetic boundary failure' }];
+  if (code === 'invalid_params') return { part: 'params', code, rejected: {}, issues, request };
+  if (code === 'invalid_query') return { part: 'query', code, rejected: {}, issues, request };
+  if (code === 'invalid_json') return { part: 'body', code, rejected: '{', request };
+  return { part: 'body', code, rejected: {}, issues, request };
+}
+
+/**
+ * The status `renderReply` would answer a refusal with, or null when the shape
+ * declares no refusal for it (the mount then throws: a 500).
+ */
+async function declaredStatus(shape: EndpointShape, reply: EndpointReply): Promise<number | null> {
+  if (reply.ok) return null;
+  for (const refusal of shape.refusals) {
+    if (refusal.status !== reply.status) continue;
+    if ('kind' in refusal) {
+      if (refusal.kind === 'empty') {
+        if (reply.body === EMPTY) return refusal.status;
+        continue;
+      }
+      if ((await validateSchema(refusal.schema, reply.body)).issues === undefined)
+        return refusal.status;
+      continue;
+    }
+    if ((await validateSchema(refusal.schema, reply.body)).issues === undefined)
+      return refusal.status;
+  }
+  return null;
+}
+
+/**
+ * The status `refuse` answers `{ error: code }` with: the first untagged
+ * refusal accepting it, or null when none does (the mount then throws: a 500).
+ */
+async function refusedStatus(shape: EndpointShape, code: BoundaryCode): Promise<number | null> {
+  for (const refusal of shape.refusals) {
+    if ('kind' in refusal) continue;
+    if ((await validateSchema(refusal.schema, { error: code })).issues === undefined)
+      return refusal.status;
+  }
+  return null;
+}
+
+/**
+ * Every request-boundary failure the mount can raise is answered with a
+ * declared 4xx, in both endpoint tables: through `refuse` (the first refusal
+ * accepting `{ error: code }`) or through the endpoint's own classifier. Every
+ * endpoint refuses a stray query and a stray or invalid body; a declared params
+ * schema adds `invalid_params`, and JSON media adds `invalid_json`.
+ * Proof: removing the 400 from `renewClaimLeases` made this audit list
+ * `postApiClaimsRenew invalid_query` and `invalid_body` (watched 2026-10-24).
+ * Proof: the batch classifier (`classifyCommand`) answering its fallback with an
+ * undeclared 422 made it list `postApiProjectsByIdCommands` and
+ * `postApiDirectoryCommands` `invalid_query`/`invalid_json` (and params) as null;
+ * the earlier audit skipped every classified endpoint (watched 2026-10-24).
+ * Proof: a `503 { error: string }` placed before renew's 400 made it list
+ * `postApiClaimsRenew invalid_query: 503` and `invalid_body: 503` (watched 2026-10-24).
+ */
+it('answers every request-boundary failure the mount can raise with a declared 4xx', async () => {
+  const local = mountedEndpoints(options());
+  const oidc = mountedEndpoints({ ...options(), oidc: oidcOptions() });
+  const tableOf = (endpoints: readonly BoundEndpoint[]): string[] =>
+    endpoints
+      .filter(
+        ({ shape }) =>
+          ![...OIDC_SHAPES].some(({ operationId }) => operationId === shape.operationId),
+      )
+      .map(
+        ({ shape, classifyRequestFailure }) =>
+          `${shape.operationId} ${classifyRequestFailure === undefined ? 'refuse' : 'classified'}`,
+      )
+      .sort();
+  expect(tableOf(local)).toEqual(tableOf(oidc));
+  const undeclared: string[] = [];
+  for (const endpoint of [...local, ...oidc]) {
+    const { shape } = endpoint;
+    for (const code of boundaryCodes(shape)) {
+      const status =
+        endpoint.classifyRequestFailure === undefined
+          ? await refusedStatus(shape, code)
+          : await declaredStatus(
+              shape,
+              await endpoint.classifyRequestFailure(syntheticFailure(shape, code)),
+            );
+      if (status === null || status < 400 || status >= 500)
+        undeclared.push(`${shape.operationId} ${code}: ${String(status)}`);
+    }
+  }
+  expect([...new Set(undeclared)]).toEqual([]);
 });
 
 it('keeps OIDC health readiness live after the endpoint table is built', async () => {
@@ -800,6 +981,23 @@ describe('shared HTTP shape reachability through the production app', () => {
       let modeledNotFoundCount = 0;
 
       for (const shape of composition.shapes) {
+        // Proof: removing the 400 from `renewClaimLeases` made both modes fail
+        // here on `postApiClaimsRenew` query, status 500 (watched 2026-10-24).
+        for (const stray of strayInputRequests(shape)) {
+          const strayReply = await wireReply(await app.handle(stray.request));
+          const probe = `${shape.operationId} ${stray.part}`;
+          expect({
+            probe,
+            status: strayReply.status,
+            error: boundaryError(strayReply) ?? null,
+          }).toEqual({
+            probe,
+            ...(STRAY_INPUT_EXCEPTIONS.get(probe) ?? {
+              status: 400,
+              error: `invalid_${stray.part}`,
+            }),
+          });
+        }
         const reply = await wireReply(await app.handle(requestFor(shape)));
         const refusal = boundaryError(reply);
         expect({

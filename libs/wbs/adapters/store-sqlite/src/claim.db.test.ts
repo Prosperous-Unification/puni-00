@@ -130,7 +130,9 @@ describe('ClaimRepository', () => {
       accountId: 'u',
     };
     expect(await store.add([claim], [], { at: 7, by: 'u' }, [])).toBe('written');
-    expect(await store.listStampedByProject('p')).toEqual([{ ...claim, claimedAt: 7 }]);
+    expect(await store.listStampedByProject('p')).toEqual([
+      { ...claim, claimedAt: 7, leaseExpiresAt: null, leaseRevokedAt: null },
+    ]);
   });
 
   it('writes the claim as its claimant’s account, whoever applies it', async () => {

@@ -132,6 +132,9 @@ export function projectSourceOver(
           // project’s stream says is here, and its connection` on `expected { users: [ 'kat', 'lee' ],
           // …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`, `connected` staying `false`.
           onConnectionChange: handlers.onConnectionChange,
+          // The plan feed is the one subscriber that opts into claims
+          // announcements; the saved-plan shelf's socket does not (C21).
+          onClaims: handlers.onClaims,
           // Proof: on 2026-09-24, `() => undefined` here failed `hands the presence slot who the
           // project’s stream says is here, and its connection` on `expected { users: [], connected:
           // false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`.

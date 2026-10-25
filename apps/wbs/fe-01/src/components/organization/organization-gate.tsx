@@ -1,3 +1,4 @@
+import { Button } from '@ui/saas-01';
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
@@ -198,7 +199,9 @@ export function OrganizationGate({
           </p>
         ))}
       {switcher}
-      <button
+      <Button
+        variant="outline"
+        size="sm"
         type="button"
         disabled={state.kind === 'switching' || state.kind === 'loading'}
         onClick={() => {
@@ -206,10 +209,10 @@ export function OrganizationGate({
         }}
       >
         Check current organization
-      </button>
-      <button type="button" onClick={signOut}>
+      </Button>
+      <Button variant="outline" size="sm" type="button" onClick={signOut}>
         Sign out
-      </button>
+      </Button>
     </main>
   );
 }

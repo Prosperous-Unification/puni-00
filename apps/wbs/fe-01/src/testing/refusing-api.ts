@@ -18,6 +18,7 @@ import {
   importProject,
   listCalendarMarkers,
   listExternalSystems,
+  listMeasures,
   listPeople,
   listProjects,
   listServices,
@@ -26,7 +27,10 @@ import {
   listWorkItemTypes,
   patchProject,
   preflightRequest,
+  readClaimHistory,
   readProject,
+  readProjectClaims,
+  readProjectResources,
   readTimezones,
   recordProjectOpen,
   redoProject,
@@ -190,6 +194,8 @@ const PROJECT_API_OPERATIONS = {
   setTimezone: 'patchApiProjectsById',
   listTimezones: 'getApiTimezones',
   listCalendarMarkers: 'getApiProjectsByIdCalendar-markers',
+  readClaims: 'getApiProjectsByIdClaims',
+  readClaimHistory: 'getApiProjectsByIdClaim-history',
   createCalendarMarker: 'postApiProjectsByIdCalendar-markers',
   renameCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
   recolorCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
@@ -228,6 +234,13 @@ const PROJECT_API_OPERATIONS = {
   removeWorkItem: 'postApiProjectsByIdCommands',
   setEstimate: 'postApiProjectsByIdCommands',
   clearEstimate: 'postApiProjectsByIdCommands',
+  listMeasures: 'getApiMeasures',
+  setMeasureEstimate: 'postApiProjectsByIdCommands',
+  clearMeasureEstimate: 'postApiProjectsByIdCommands',
+  setMeasure: 'postApiProjectsByIdCommands',
+  clearMeasure: 'postApiProjectsByIdCommands',
+  setBudget: 'postApiProjectsByIdCommands',
+  clearBudget: 'postApiProjectsByIdCommands',
   arrangeBySchedule: 'postApiProjectsByIdCommands',
   freezeProject: 'postApiProjectsByIdCommands',
   unfreezeProject: 'postApiProjectsByIdCommands',
@@ -237,6 +250,8 @@ const PROJECT_API_OPERATIONS = {
   addTypedDependency: 'postApiProjectsByIdCommands',
   updateTypedDependency: 'postApiProjectsByIdCommands',
   removeTypedDependency: 'postApiProjectsByIdCommands',
+  readResources: 'getApiProjectsByIdResources',
+  setDemands: 'postApiProjectsByIdCommands',
 } as const satisfies Record<keyof ProjectApi, WbsOperationId>;
 
 function isProjectApiMethod(key: string): key is keyof ProjectApi {
@@ -947,6 +962,90 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
     };
   }
 
+  const readClaimsAnswer = answers.readClaims;
+  if (readClaimsAnswer !== undefined) {
+    checked.readClaims = async (projectId) => {
+      const client = clientFromShapes([readProjectClaims], async () => ({
+        kind: 'json',
+        status: 200,
+        body: await readClaimsAnswer(projectId),
+      }));
+      const reply = await client.getApiProjectsByIdClaims({ params: { id: projectId } });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body;
+    };
+  }
+
+  const readResourcesAnswer = answers.readResources;
+  if (readResourcesAnswer !== undefined) {
+    checked.readResources = async (projectId) => {
+      const client = clientFromShapes([readProjectResources], async () => ({
+        kind: 'json',
+        status: 200,
+        body: await readResourcesAnswer(projectId),
+      }));
+      const reply = await client.getApiProjectsByIdResources({ params: { id: projectId } });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body;
+    };
+  }
+
+  const setDemandsAnswer = answers.setDemands;
+  if (setDemandsAnswer !== undefined) {
+    checked.setDemands = async (projectId, statements) => {
+      const commands = statements.map(({ workItemId, resourceId, units }) => ({
+        kind: 'setDemand' as const,
+        workItemId,
+        resourceId,
+        units,
+      }));
+      const preflight = preflightFakeRequest(applyProjectCommands, {
+        params: { id: projectId },
+        body: { commands },
+      });
+      const prepared = isPromiseLike(preflight) ? await preflight : preflight;
+      const mutation = setDemandsAnswer(prepared.params.id, statements);
+      const client = clientFromShapes([applyProjectCommands], async () => {
+        await mutation;
+        return {
+          kind: 'json' as const,
+          status: 200,
+          body: {
+            results: commands.map((_, index) => ({ index })),
+            undoable: true,
+            redoable: false,
+          },
+        };
+      });
+      const reply = await client.postApiProjectsByIdCommands({
+        params: prepared.params,
+        body: prepared.body,
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+    };
+  }
+
+  const readClaimHistoryAnswer = answers.readClaimHistory;
+  if (readClaimHistoryAnswer !== undefined) {
+    checked.readClaimHistory = async (projectId) => {
+      const client = clientFromShapes([readClaimHistory], async () => ({
+        kind: 'json',
+        status: 200,
+        body: { events: await readClaimHistoryAnswer(projectId) },
+      }));
+      const reply = await client['getApiProjectsByIdClaim-history']({
+        params: { id: projectId },
+        query: {},
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body.events;
+    };
+  }
+
   const createCalendarMarkerAnswer = answers.createCalendarMarker;
   if (createCalendarMarkerAnswer !== undefined) {
     checked.createCalendarMarker = async (projectId, marker) => {
@@ -1441,6 +1540,135 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         { kind: 'setEstimate', workItemId, stepId, days },
         (_normalizedProjectId, normalized) =>
           setEstimateAnswer(normalized.workItemId, normalized.stepId, normalized.days),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const listMeasuresAnswer = answers.listMeasures;
+  if (listMeasuresAnswer !== undefined) {
+    // Through the real shape, so a definition be-01 could not send is refused
+    // here, and `organization_required` travels as the 409 it is on the wire.
+    checked.listMeasures = async () => {
+      const client = clientFromShapes([listMeasures], async () => {
+        const directory = await listMeasuresAnswer();
+        return directory.kind === 'ready'
+          ? { kind: 'json' as const, status: 200, body: { measures: directory.measures } }
+          : { kind: 'json' as const, status: 409, body: { error: 'organization_required' } };
+      });
+      const reply = await client.getApiMeasures({});
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'success') return { kind: 'ready', measures: reply.body.measures };
+      if (reply.body.error === 'organization_required') return { kind: 'organization_required' };
+      throw new Error(reply.body.error);
+    };
+  }
+
+  const setMeasureEstimateAnswer = answers.setMeasureEstimate;
+  if (setMeasureEstimateAnswer !== undefined) {
+    checked.setMeasureEstimate = (workItemId, stepId, measure, estimate, rateCardDigest) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        {
+          kind: 'setMeasureEstimate',
+          workItemId,
+          stepId,
+          measure,
+          estimate: { ...estimate },
+          ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+        },
+        (_normalizedProjectId, normalized) =>
+          setMeasureEstimateAnswer(
+            workItemId,
+            stepId,
+            normalized.measure,
+            normalized.estimate,
+            normalized.rateCardDigest,
+          ),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const clearMeasureEstimateAnswer = answers.clearMeasureEstimate;
+  if (clearMeasureEstimateAnswer !== undefined) {
+    checked.clearMeasureEstimate = (workItemId, stepId, measure) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'clearMeasureEstimate', workItemId, stepId, measure },
+        (_normalizedProjectId, normalized) =>
+          clearMeasureEstimateAnswer(workItemId, stepId, normalized.measure),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const setMeasureAnswer = answers.setMeasure;
+  if (setMeasureAnswer !== undefined) {
+    checked.setMeasure = (workItemId, stepId, metric, value, rateCardDigest) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        {
+          kind: 'setMeasure',
+          workItemId,
+          stepId,
+          metric,
+          value,
+          ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
+        },
+        (_normalizedProjectId, normalized) =>
+          setMeasureAnswer(
+            workItemId,
+            stepId,
+            normalized.metric,
+            normalized.value,
+            normalized.rateCardDigest,
+          ),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const clearMeasureAnswer = answers.clearMeasure;
+  if (clearMeasureAnswer !== undefined) {
+    checked.clearMeasure = (workItemId, stepId, metric) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'clearMeasure', workItemId, stepId, metric },
+        (_normalizedProjectId, normalized) =>
+          clearMeasureAnswer(workItemId, stepId, normalized.metric),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const setBudgetAnswer = answers.setBudget;
+  if (setBudgetAnswer !== undefined) {
+    checked.setBudget = (workItemId, measure, budget) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        {
+          kind: 'setBudget',
+          workItemId,
+          measure,
+          cap: budget.cap,
+          policy: budget.policy,
+          ...(budget.holdPerAttempt === undefined ? {} : { holdPerAttempt: budget.holdPerAttempt }),
+        },
+        (_normalizedProjectId, normalized) =>
+          setBudgetAnswer(workItemId, normalized.measure, {
+            cap: normalized.cap,
+            policy: normalized.policy,
+            ...(normalized.holdPerAttempt === undefined
+              ? {}
+              : { holdPerAttempt: normalized.holdPerAttempt }),
+          }),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const clearBudgetAnswer = answers.clearBudget;
+  if (clearBudgetAnswer !== undefined) {
+    checked.clearBudget = (workItemId, measure) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'clearBudget', workItemId, measure },
+        (_normalizedProjectId, normalized) => clearBudgetAnswer(workItemId, normalized.measure),
         () => VOID_COMMAND_RESULT,
       );
   }

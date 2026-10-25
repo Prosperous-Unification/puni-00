@@ -10,6 +10,7 @@ import {
   changeSavedPlanCaptureTypedDependencies,
   CLAIM_IN_USE,
   completeSubtreeCopy,
+  CONFORMANCE_MEASURE_ORGANIZATIONS,
   createFaultControl,
   defineFault,
   DELEGATED_CLAIMS,
@@ -24,6 +25,8 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  isMeasureDefinitionCase,
+  isMeasureFactCase,
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
@@ -35,6 +38,7 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedMeasureFactCase,
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
@@ -99,7 +103,10 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   routeJournalEventToIndependent(eventId: string): PlanEvent;
   storeDependencyById(dependency: StoredDependency): void;
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
+  addOrganization: ReturnType<typeof openMemorySourceFixture>['addOrganization'];
+  ownProjectInOrganization: ReturnType<typeof openMemorySourceFixture>['ownProjectInOrganization'];
   pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
+  endLeasesOf: ReturnType<typeof openMemorySourceFixture>['endLeasesOf'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
   setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
@@ -171,9 +178,16 @@ function conformanceMemorySource(
     ) => {
       fixture.ownPersonInOrganization(personId, organizationId, memberIds);
     },
+    addOrganization: (organizationId: string, options: { legacy: boolean }) => {
+      fixture.addOrganization(organizationId, options);
+    },
+    ownProjectInOrganization: (projectId: string, organizationId: string) => {
+      fixture.ownProjectInOrganization(projectId, organizationId);
+    },
     pinCredential: (issuer: string, subject: string, personId: string) => {
       fixture.pinCredential(issuer, subject, personId);
     },
+    endLeasesOf: (personId: string, at: number) => fixture.endLeasesOf(personId, at),
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
       fixture.source.uow.run(async ({ stores }) => {
         await stores.subtrees.insertSubtree(copy, stamp);
@@ -209,6 +223,8 @@ function readersOf(source: MemorySource): SourceReaders {
     estimates: source.stores.estimates,
     actuals: source.stores.actuals,
     measures: source.stores.measures,
+    measureEstimates: source.stores.measureEstimates,
+    budgets: source.stores.budgets,
     progress: source.stores.progress,
     dependencies: source.stores.dependencies,
     typedDependencies: source.stores.typedDependencies,
@@ -389,6 +405,17 @@ async function openMemoryCase<Family extends ExistingFamily>(
         DETERMINISTIC_SEED.ownerIds[0],
       ]);
     }
+    if (isMeasureDefinitionCase(caseId) || isMeasureFactCase(caseId)) {
+      seeded.addOrganization(CONFORMANCE_MEASURE_ORGANIZATIONS.legacy, { legacy: true });
+      seeded.addOrganization(CONFORMANCE_MEASURE_ORGANIZATIONS.other, { legacy: false });
+    }
+    if (isMeasureFactCase(caseId)) {
+      seeded.ownProjectInOrganization(
+        DETERMINISTIC_SEED.projectIds[0],
+        CONFORMANCE_MEASURE_ORGANIZATIONS.legacy,
+      );
+      await seedMeasureFactCase(seeded.stores, caseId, DETERMINISTIC_SEED);
+    }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
     if (caseId === 'directory.removePerson:delegated-claims')
@@ -448,6 +475,15 @@ async function openMemoryCase<Family extends ExistingFamily>(
             },
       close: () => source.close(),
     } as unknown as CaseFixture<TransactionalStores[Family]>;
+  }
+  if (caseId === 'claims.lease:revoked-instant-read') {
+    return {
+      ...memoryFixture(source, family, caseId),
+      scenario: {
+        kind: 'lease-revocation',
+        endLeasesOf: (personId, at) => Promise.resolve(source.endLeasesOf(personId, at)),
+      },
+    };
   }
   return memoryFixture(source, family, caseId);
 }
@@ -850,6 +886,7 @@ function transactionalJournal(source: MemorySource): CommandJournalStore {
     });
   return {
     append: (entry, event) => commit((journal) => journal.append(entry, event)),
+    appendEvent: (event) => commit((journal) => journal.appendEvent(event)),
     entriesFor: (projectId, userId) => source.stores.journal.entriesFor(projectId, userId),
     flip: (id, undone, preconditions) =>
       commit((journal) => journal.flip(id, undone, preconditions)),
@@ -930,6 +967,8 @@ const openers: ExistingStoreOpeners = {
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   actuals: (caseId) => openMemoryCase('actuals', caseId),
   measures: (caseId) => openMemoryCase('measures', caseId),
+  measureEstimates: (caseId) => openMemoryCase('measureEstimates', caseId),
+  budgets: (caseId) => openMemoryCase('budgets', caseId),
   progress: (caseId) => openMemoryCase('progress', caseId),
   attempts: (caseId) => openMemoryCase('attempts', caseId),
   blockages: (caseId) => openMemoryCase('blockages', caseId),
@@ -1077,6 +1116,8 @@ const declaration: SourceDeclaration = {
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     actuals: { kind: 'offered', gaps: [actualUnknownStepGap], open: openers.actuals },
     measures: { kind: 'offered', gaps: [measureUnknownStepGap], open: openers.measures },
+    measureEstimates: { kind: 'offered', gaps: [], open: openers.measureEstimates },
+    budgets: { kind: 'offered', gaps: [], open: openers.budgets },
     progress: { kind: 'offered', gaps: [progressUnknownStepGap], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
@@ -1164,6 +1205,7 @@ function emptyMissingCapture(): PlanInputReads {
       optimizationEnabled: false,
       solutionRef: null,
       timezone: 'UTC',
+      budgetFactor: 1,
     },
     steps: [],
     workItems: [],
@@ -1173,6 +1215,8 @@ function emptyMissingCapture(): PlanInputReads {
     stepBlockages: [],
     stepParallels: [],
     measures: [],
+    measureEstimates: [],
+    budgets: [],
     dependencies: [],
     typedDependencies: [],
     assignments: [],
@@ -4379,6 +4423,8 @@ async function proveFault(
         estimates: (caseId) => takeFixture('estimates', caseId),
         actuals: (caseId) => takeFixture('actuals', caseId),
         measures: (caseId) => takeFixture('measures', caseId),
+        measureEstimates: (caseId) => takeFixture('measureEstimates', caseId),
+        budgets: (caseId) => takeFixture('budgets', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),

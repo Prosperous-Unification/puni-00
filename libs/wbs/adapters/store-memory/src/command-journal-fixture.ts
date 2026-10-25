@@ -71,6 +71,14 @@ export function inMemoryCommandJournal(
       afterHistoryInsert(events.filter(({ id }) => id === event.id).map(({ id }) => id));
       return Promise.resolve();
     },
+    appendEvent(event: PlanEvent) {
+      // Proof: with an entry pushed beside the event, the memory certification's
+      // `journal.appendEvent:history-only` case found it on the stack (74 pass,
+      // 1 fail); watched 2026-10-23.
+      events.push(event);
+      afterHistoryInsert([event.id]);
+      return Promise.resolve();
+    },
     entriesFor(projectId, userId) {
       return Promise.resolve(mine(projectId, userId).sort((a, b) => a.seq - b.seq));
     },

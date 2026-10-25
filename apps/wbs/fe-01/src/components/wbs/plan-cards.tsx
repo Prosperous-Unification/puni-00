@@ -1,3 +1,4 @@
+import { Button } from '@ui/saas-01';
 import type { SettableStatus } from '@wbs/domain/progress';
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
@@ -23,6 +24,7 @@ import { ActionsMenu, type MenuAction } from './actions-menu';
 import { type AttemptActions, AttemptsSection } from './attempts-section';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
+import { ClaimChip, type DrawnClaim } from './claim-chip';
 import { DEADLINE_EFFECT_HINT } from './column-hints';
 import {
   type PickableEntry,
@@ -41,6 +43,7 @@ import { type CommitOutcome, didLand, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
+import { demandSummary } from './resource-demand-words';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { statusActions } from './status-cell';
 import { StepBlockageSection } from './step-blockage';
@@ -161,6 +164,14 @@ export interface PlanCardsProps {
   /** What the `@` list in one box is offering, or nothing while it is closed. */
   mentionOptions: (row: TreeRow, stepId: string) => PickerOption[];
   assigneeOn: (row: TreeRow, stepId: string) => CardAssignee | null;
+  /**
+   * The step claim drawn beside this step's assignee, the table's own
+   * (`wbs-claim-display` C17). Absent, as a suite drawing the cards for
+   * something else leaves it, the cards draw no chips.
+   */
+  stepClaimOn?: (row: TreeRow, stepId: string) => DrawnClaim | null;
+  /** The subtree claim drawn in this card's header, the table's Name-cell chip. */
+  subtreeClaimOn?: (row: TreeRow) => DrawnClaim | null;
   /**
    * A leaf node's reading and attempts, for its step line's `Attempts`
    * details (`step-node-attempts` D7): `null` on a parent and from an older
@@ -463,6 +474,10 @@ export interface CardRowActionHandlers {
   addChild: (row: TreeRow) => void;
   /** Opens the Move under… picker over the row, by id — the table's own. */
   moveUnder: (rowId: string) => void;
+  /** Opens the row's Measures panel, the table's own; absent where none is offered. */
+  measures?: (rowId: string) => void;
+  /** Opens a leaf's Resources panel, the table's own; absent where none is offered. */
+  resources?: (rowId: string) => void;
   unfreeze: (rowId: string) => void;
   remove: (row: TreeRow) => void;
   /** The table's own `chooseStatus`: Done and In progress ask first, the rest are sent at once. */
@@ -479,8 +494,8 @@ export interface CardRowActionHandlers {
  */
 const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuAction[] => [
   // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
-  // same order: the status entries, Add child, Move under…, Duplicate, Unfreeze where it applies, and
-  // Delete last in the destructive tint.
+  // same order: the status entries, Add child, Move under…, Duplicate, Measures…, Unfreeze where it
+  // applies, and Delete last in the destructive tint.
   ...statusActions(handlers.statusOffers(row), (status) => {
     handlers.chooseStatus(row.id, status);
   }),
@@ -505,6 +520,29 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
       handlers.duplicate(row.id);
     },
   },
+  ...(handlers.measures === undefined
+    ? []
+    : [
+        {
+          id: 'measures',
+          label: 'Measures…',
+          run: () => {
+            handlers.measures?.(row.id);
+          },
+        },
+      ]),
+  // A leaf's only: a parent's demand charges nothing (`wbs-resources` R2).
+  ...(handlers.resources === undefined || row.subRows.length > 0
+    ? []
+    : [
+        {
+          id: 'resources',
+          label: 'Resources…',
+          run: () => {
+            handlers.resources?.(row.id);
+          },
+        },
+      ]),
   ...(row.frozenNumber === null
     ? []
     : [
@@ -1285,7 +1323,7 @@ function CardNotBeforeField({
               aria-label={`Earliest start for ${row.number}`}
               data-cell={cellKey(row.id, 'not-before')}
               data-card-not-before-input
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={draftDay}
               onChange={(event) => {
                 setDraftDay(event.target.value);
@@ -1305,7 +1343,7 @@ function CardNotBeforeField({
               type="text"
               aria-label={`Why ${row.number} may not start earlier`}
               data-card-not-before-reason
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={draftReason}
               onChange={(event) => {
                 setDraftReason(event.target.value);
@@ -1316,7 +1354,7 @@ function CardNotBeforeField({
             <button
               type="button"
               data-card-not-before-save
-              className={`${TAP} inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
+              className={`${TAP} border-control-edge inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
               onClick={save}
             >
               Save
@@ -1332,7 +1370,7 @@ function CardNotBeforeField({
               <button
                 type="button"
                 data-card-not-before-clear
-                className={`${TAP} inline-flex items-center justify-center rounded-md border px-3`}
+                className={`${TAP} border-control-edge inline-flex items-center justify-center rounded-md border px-3`}
                 onClick={() => {
                   setNotBefore(row, null, null);
                   setOpen(false);
@@ -1526,7 +1564,7 @@ function CardDeadlineField({
               aria-invalid={impossible || undefined}
               data-cell={cellKey(row.id, 'deadline')}
               data-card-deadline-input
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={draftDay}
               onChange={(event) => {
                 setDraftDay(event.target.value);
@@ -1537,7 +1575,7 @@ function CardDeadlineField({
             <button
               type="button"
               data-card-deadline-save
-              className={`${TAP} inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
+              className={`${TAP} border-control-edge inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
               onClick={save}
             >
               Save
@@ -1552,7 +1590,7 @@ function CardDeadlineField({
               <button
                 type="button"
                 data-card-deadline-clear
-                className={`${TAP} inline-flex items-center justify-center rounded-md border px-3`}
+                className={`${TAP} border-control-edge inline-flex items-center justify-center rounded-md border px-3`}
                 onClick={() => {
                   setDeadline(row, null);
                   setOpen(false);
@@ -1896,7 +1934,7 @@ function CardPriorityField({
                     // in a list, not options in a listbox — nothing here owns a
                     // focus the way a combobox owns its list's.
                     aria-pressed={paint !== null && paint.rank === rank}
-                    className={`${TAP} flex w-full items-center justify-between rounded-md border px-3 text-left`}
+                    className={`${TAP} border-control-edge flex w-full items-center justify-between rounded-md border px-3 text-left`}
                     style={
                       paint !== null && paint.rank === rank ? { background: line?.tint } : undefined
                     }
@@ -1933,7 +1971,7 @@ function CardPriorityField({
               aria-label={`Priority for ${row.number}, as a number`}
               data-cell={cellKey(row.id, 'priority')}
               data-card-priority-input
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={draft}
               onChange={(event) => {
                 setDraft(event.target.value);
@@ -1944,7 +1982,7 @@ function CardPriorityField({
             <button
               type="button"
               data-card-priority-save
-              className={`${TAP} inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
+              className={`${TAP} border-control-edge inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
               onClick={() => {
                 void send(draft);
               }}
@@ -1963,7 +2001,7 @@ function CardPriorityField({
               <button
                 type="button"
                 data-card-priority-clear
-                className={`${TAP} inline-flex items-center justify-center rounded-md border px-3`}
+                className={`${TAP} border-control-edge inline-flex items-center justify-center rounded-md border px-3`}
                 onClick={() => {
                   void send('');
                 }}
@@ -2232,7 +2270,7 @@ function CardDependsField({
                     </span>
                     <button
                       type="button"
-                      className={`${TAP} rounded-md border px-3`}
+                      className={`${TAP} border-control-edge rounded-md border px-3`}
                       aria-label={`Edit ${words.label}`}
                       onClick={() => {
                         setEditing({
@@ -2245,7 +2283,7 @@ function CardDependsField({
                     </button>
                     <button
                       type="button"
-                      className={`${TAP} rounded-md border px-3`}
+                      className={`${TAP} border-control-edge rounded-md border px-3`}
                       data-card-wait-remove={wholeWait ? predecessorNumber : undefined}
                       aria-label={
                         wholeWait
@@ -2283,7 +2321,7 @@ function CardDependsField({
                     // it with a `title` no finger can reach.
                     aria-label={`Stop ${row.number} waiting for ${each.number}`}
                     disabled={removing.has(each.id)}
-                    className={`${TAP} inline-flex shrink-0 items-center justify-center rounded-md border px-3 disabled:opacity-50`}
+                    className={`${TAP} border-control-edge inline-flex shrink-0 items-center justify-center rounded-md border px-3 disabled:opacity-50`}
                     onClick={() => {
                       onRemove(each.id);
                     }}
@@ -2306,14 +2344,16 @@ function CardDependsField({
                 return (
                   <p role="alert">
                     This dependency was removed.{' '}
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       type="button"
                       onClick={() => {
                         setEditing(null);
                       }}
                     >
                       Back to dependency picker
-                    </button>
+                    </Button>
                   </p>
                 );
               const predecessor = dependencyRows.find(
@@ -2325,14 +2365,16 @@ function CardDependsField({
                 return (
                   <p role="alert">
                     This predecessor was removed.{' '}
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       type="button"
                       onClick={() => {
                         setEditing(null);
                       }}
                     >
                       Back to dependency picker
-                    </button>
+                    </Button>
                   </p>
                 );
               if (
@@ -2386,7 +2428,7 @@ function CardDependsField({
               placeholder="search by number or name"
               data-cell={cellKey(row.id, 'depends')}
               data-card-depends-input
-              className={`${TAP} border-input bg-background box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={typed}
               onChange={(event) => {
                 setTyped(event.target.value);
@@ -2435,7 +2477,7 @@ function CardDependsField({
                     // cannot send the same edge twice — `onAdd` is the guard
                     // and the `disabled` is the thing a finger hits.
                     disabled={entry.refusal !== undefined || adding.has(entry.id)}
-                    className={`${TAP} flex min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50`}
+                    className={`${TAP} border-control-edge flex min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50`}
                     onClick={() => {
                       onAdd(entry);
                     }}
@@ -2450,7 +2492,7 @@ function CardDependsField({
                   </button>
                   <button
                     type="button"
-                    className={`${TAP} min-w-11 shrink-0 rounded-md border px-3`}
+                    className={`${TAP} border-control-edge min-w-11 shrink-0 rounded-md border px-3`}
                     aria-label={`Customize ${entry.number} - ${entry.name}`}
                     onClick={() => {
                       setEditing({ predecessorId: entry.id });
@@ -2584,7 +2626,7 @@ function CardTrioField({
                 aria-label={`${stepName} ${point} for ${row.number}`}
                 data-cell={cellKey(row.id, `${stepId}-${point}`)}
                 data-card-trio-input={point}
-                className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+                className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
                 value={draft[point] ?? ''}
                 onChange={(event) => {
                   const typed = event.target.value;
@@ -2597,7 +2639,7 @@ function CardTrioField({
             <button
               type="button"
               data-card-trio-save
-              className={`${TAP} inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
+              className={`${TAP} border-control-edge inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
               onClick={() => {
                 // Composed into the shorthand the cell above takes, so the
                 // three boxes are a keypad-shaped way of typing one string and
@@ -2620,7 +2662,7 @@ function CardTrioField({
               <button
                 type="button"
                 data-card-trio-clear
-                className={`${TAP} inline-flex items-center justify-center rounded-md border px-3`}
+                className={`${TAP} border-control-edge inline-flex items-center justify-center rounded-md border px-3`}
                 onClick={() => {
                   send('');
                 }}
@@ -2688,6 +2730,8 @@ export function PlanCards({
   leaveEstimate,
   mentionOptions,
   assigneeOn,
+  stepClaimOn,
+  subtreeClaimOn,
   attemptsOn,
   attemptActionsOn,
   setStepBlocked,
@@ -2762,6 +2806,10 @@ export function PlanCards({
         const slack = cardSlackOf(row, showDay);
         const mismatches = cardMismatchesOf(row, steps, nonOwner, assigneeOn);
         const typedWaits = typedWaitsFor?.(row) ?? [];
+        // Proof: no chip read here made `draws a subtree claim’s chip in its
+        // card’s header` fail on `expected [] to deeply equal [ 'CL14m' ]`;
+        // watched 2026-10-24.
+        const subtreeClaim = subtreeClaimOn?.(row) ?? null;
         const offered = offering.has(row.id);
         const folds = !offered;
         // The same emptiness each field's own trigger reads; it only decides
@@ -2831,6 +2879,11 @@ export function PlanCards({
                 separate attributes.
               */}
               <CardPriorityField row={row} bands={priorityBands} setPriority={setPriority} />
+              {subtreeClaim !== null && (
+                <span data-card-subtree-claim={row.id} className="min-w-0 shrink overflow-hidden">
+                  <ClaimChip drawn={subtreeClaim} form="full" tap />
+                </span>
+              )}
               <span data-final-total className="text-muted-foreground ml-auto text-sm">
                 {showDay(row.finalTotal)} d
               </span>
@@ -2871,6 +2924,10 @@ export function PlanCards({
               const options = mentionOptions(row, step.id);
               const listId = `card-mention-${row.id}-${step.id}`;
               const assignee = assigneeOn(row, step.id);
+              // Proof: no chip read here made `draws a step’s chip beside its
+              // assignee` fail on `expected [] to deeply equal [ 'CO14m' ]`;
+              // watched 2026-10-24.
+              const claim = stepClaimOn?.(row, step.id) ?? null;
               const trio = cardTrioOf(row, step, showDay);
               // The table's folded cell, on the face a phone reads: the box
               // holds the trio shorthand and the figure the estimate method
@@ -3003,6 +3060,11 @@ export function PlanCards({
                         }`}
                       >
                         {assignee.assumed ? `(${assignee.name})` : assignee.name}
+                      </span>
+                    )}
+                    {claim !== null && (
+                      <span data-card-claim={step.id} className="shrink-0">
+                        <ClaimChip drawn={claim} form="full" tap />
                       </span>
                     )}
                     {options.length > 0 && (
@@ -3276,6 +3338,26 @@ export function PlanCards({
                   createValue={createService}
                   foldsWhenEmpty={folds}
                 />
+              )}
+              {/*
+                What the leaf holds while it runs (`wbs-resources` 1.5), after
+                the labels as the table's Resources column sits after Types.
+                Only where it states some: the ⋯ menu's `Resources…` offers the
+                panel on every leaf, so an empty chip would be a second offer.
+              */}
+              {row.demands.length > 0 && row.subRows.length === 0 && (
+                <button
+                  type="button"
+                  data-card-resources={row.id}
+                  aria-label={`Resources for ${row.number}: ${demandSummary(row.demands)}`}
+                  disabled={rowActions?.resources === undefined}
+                  className={fieldTriggerClass(false, folds)}
+                  onClick={() => {
+                    rowActions?.resources?.(row.id);
+                  }}
+                >
+                  {demandSummary(row.demands)}
+                </button>
               )}
               {/*
                 What the plan was asked to run this row at, where somebody asked

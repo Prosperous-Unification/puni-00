@@ -90,6 +90,8 @@ for (const mode of ['isolated', 'shared'] as const) {
         return parsed.value as unknown as {
           slices: ReadSlice[];
           resourceLabels?: { id: string; name: string; unitLabel: string }[];
+          demands?: { workItemId: string; resourceId: string; units: number }[];
+          demandedResources?: { id: string; name: string; kind: string; unitLabel: string }[];
         };
       };
       const overlapping = (slices: readonly ReadSlice[]) =>
@@ -104,6 +106,9 @@ for (const mode of ['isolated', 'shared'] as const) {
       const unlevelled = await readTree();
       expect(overlapping(unlevelled.slices)).toBe(true);
       expect(unlevelled.resourceLabels).toBeUndefined();
+      // A plan stating no demand keeps its payload shape.
+      expect(unlevelled.demands).toBeUndefined();
+      expect(unlevelled.demandedResources).toBeUndefined();
 
       await batch([
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
@@ -119,6 +124,17 @@ for (const mode of ['isolated', 'shared'] as const) {
       // The bar's resource, labelled under the organization's own name.
       expect(levelledTree.resourceLabels).toEqual([
         { id: staging, name: 'staging', unitLabel: 'env' },
+      ]);
+      // Each leaf's own demand and the resource it names, under the
+      // organization's own name, so a row's Resources cell reads the tree alone.
+      // Proof: with the demands left off the read (`withDemands` answering the
+      // tree unchanged), this failed on `expected undefined to deeply equal
+      // [ { workItemId: …, resourceId: …, units: 1 }, … ]` in both modes.
+      expect(levelledTree.demands).toEqual(
+        [...leaves].sort().map((workItemId) => ({ workItemId, resourceId: staging, units: 1 })),
+      );
+      expect(levelledTree.demandedResources).toEqual([
+        { id: staging, name: 'staging', kind: 'exclusive', unitLabel: 'env' },
       ]);
       expect(overlapping(levelled)).toBe(false);
       const waited = levelled.filter((slice) => slice.capacityResource !== undefined);

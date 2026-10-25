@@ -13,6 +13,7 @@ import {
   type CaseId,
   changeSavedPlanCaptureTypedDependencies,
   CLAIM_IN_USE,
+  CONFORMANCE_MEASURE_ORGANIZATIONS,
   createFaultControl,
   defineFault,
   DELEGATED_CLAIMS,
@@ -26,6 +27,8 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  isMeasureDefinitionCase,
+  isMeasureFactCase,
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
@@ -37,6 +40,7 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedMeasureFactCase,
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
@@ -71,11 +75,13 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { DEFAULT_ESTIMATE_RULE, schedule } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, isLegacyMetric, schedule } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
 import { asc, eq, sql } from 'drizzle-orm';
 
+import { endLeasesOfUncredentialed } from '../claim';
+import { writeImmediately } from '../immediate-write';
 import type { SqliteLateWriteEvidence } from '../late-write-seam';
 import { runMigrations } from '../migrate';
 import { OrganizationLimitGaugeRepository } from '../organization-limits';
@@ -176,6 +182,8 @@ function readersOf(source: SqliteSource): SourceReaders {
     estimates: source.stores.estimates,
     actuals: source.stores.actuals,
     measures: source.stores.measures,
+    measureEstimates: source.stores.measureEstimates,
+    budgets: source.stores.budgets,
     progress: source.stores.progress,
     dependencies: source.stores.dependencies,
     typedDependencies: source.stores.typedDependencies,
@@ -386,6 +394,22 @@ async function openSqliteCase<Family extends ExistingFamily>(
         sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${organizationId}, ${DETERMINISTIC_SEED.ownerIds[0]}, 'member', 1)`,
       );
     }
+    if (isMeasureDefinitionCase(caseId) || isMeasureFactCase(caseId)) {
+      // The organization trigger seeds each one's five definitions.
+      const { legacy, other } = CONFORMANCE_MEASURE_ORGANIZATIONS;
+      seeded.db.run(
+        sql`INSERT INTO organization (id, name, legacy, created_at) VALUES (${legacy}, ${legacy}, 1, 1)`,
+      );
+      seeded.db.run(
+        sql`INSERT INTO organization (id, name, created_at) VALUES (${other}, ${other}, 1)`,
+      );
+    }
+    if (isMeasureFactCase(caseId)) {
+      seeded.db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${DETERMINISTIC_SEED.projectIds[0]}, ${CONFORMANCE_MEASURE_ORGANIZATIONS.legacy})`,
+      );
+      await seedMeasureFactCase(seeded.stores, caseId, DETERMINISTIC_SEED);
+    }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
     if (caseId === 'directory.removePerson:delegated-claims')
@@ -437,6 +461,19 @@ async function openSqliteCase<Family extends ExistingFamily>(
               reached: () => lateControl.reached(),
               evidence: () => lateControl.observedSavedPlan(),
             },
+    };
+  }
+  if (caseId === 'claims.lease:revoked-instant-read') {
+    return {
+      ...sqliteFixture(source, directory, family, caseId),
+      scenario: {
+        kind: 'lease-revocation',
+        // The revoking transaction's own lease end, as both revocation paths run it.
+        endLeasesOf: (personId, at) =>
+          writeImmediately(source.db, source.gate, (tx) =>
+            endLeasesOfUncredentialed(tx, personId, at),
+          ),
+      },
     };
   }
   return sqliteFixture(source, directory, family, caseId);
@@ -860,6 +897,8 @@ const openers: ExistingStoreOpeners = {
   estimates: (caseId) => openSqliteCase('estimates', caseId),
   actuals: (caseId) => openSqliteCase('actuals', caseId),
   measures: (caseId) => openSqliteCase('measures', caseId),
+  measureEstimates: (caseId) => openSqliteCase('measureEstimates', caseId),
+  budgets: (caseId) => openSqliteCase('budgets', caseId),
   progress: (caseId) => openSqliteCase('progress', caseId),
   attempts: (caseId) => openSqliteCase('attempts', caseId),
   blockages: (caseId) => openSqliteCase('blockages', caseId),
@@ -919,6 +958,8 @@ const declaration: SourceDeclaration = {
     estimates: { kind: 'offered', gaps: [], open: openers.estimates },
     actuals: { kind: 'offered', gaps: [], open: openers.actuals },
     measures: { kind: 'offered', gaps: [], open: openers.measures },
+    measureEstimates: { kind: 'offered', gaps: [], open: openers.measureEstimates },
+    budgets: { kind: 'offered', gaps: [], open: openers.budgets },
     progress: { kind: 'offered', gaps: [], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
@@ -1006,6 +1047,7 @@ function emptyMissingCapture(): PlanInputReads {
       optimizationEnabled: false,
       solutionRef: null,
       timezone: 'UTC',
+      budgetFactor: 1,
     },
     steps: [],
     workItems: [],
@@ -1015,6 +1057,8 @@ function emptyMissingCapture(): PlanInputReads {
     stepBlockages: [],
     stepParallels: [],
     measures: [],
+    measureEstimates: [],
+    budgets: [],
     dependencies: [],
     typedDependencies: [],
     assignments: [],
@@ -1961,7 +2005,11 @@ const measureUnknownStepFault = defineFault({
         }
         source.db.run(sql.raw('PRAGMA foreign_keys = OFF'));
         try {
-          source.db.insert(measureTable).values(measure).run();
+          if (!isLegacyMetric(measure.metric)) throw new Error('the fault writes legacy metrics');
+          source.db
+            .insert(measureTable)
+            .values({ ...measure, metric: measure.metric })
+            .run();
         } finally {
           source.db.run(sql.raw('PRAGMA foreign_keys = ON'));
         }
@@ -1983,7 +2031,8 @@ const measureUnknownStepFault = defineFault({
             })
             .from(measureTable)
             .where(eq(measureTable.stepId, 'no-such-step'));
-          return [...escaped, ...rows];
+          // The fault writes legacy rows, which always carry their name.
+          return [...escaped.map((row) => ({ ...row, metric: row.metric! })), ...rows];
         };
       }),
     });
@@ -4819,6 +4868,8 @@ async function proveFault(
         estimates: (caseId) => takeFixture('estimates', caseId),
         actuals: (caseId) => takeFixture('actuals', caseId),
         measures: (caseId) => takeFixture('measures', caseId),
+        measureEstimates: (caseId) => takeFixture('measureEstimates', caseId),
+        budgets: (caseId) => takeFixture('budgets', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),

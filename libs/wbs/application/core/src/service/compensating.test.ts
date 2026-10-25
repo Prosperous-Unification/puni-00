@@ -419,6 +419,20 @@ describe('claim replay vocabulary', () => {
     ])
       expect(() => readCommand(malformed)).toThrow(/claim replay/);
   });
+
+  it('reads a claim replay naming its leased claims back', () => {
+    const leased: CompensatingCommand = { ...add, leased: ['c1'] };
+    expect(readCommand(leased)).toEqual(leased);
+  });
+
+  it('refuses a claim replay whose leased list is malformed or names a claim it does not carry', () => {
+    for (const malformed of [
+      { ...add, leased: null },
+      { ...add, leased: 'c1' },
+      { ...add, leased: ['other'] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim replay/);
+  });
 });
 
 describe('demand replay vocabulary', () => {
@@ -449,6 +463,131 @@ describe('demand replay vocabulary', () => {
       { do: 'set_demand', resourceId: 'ram', units: 2 },
     ])
       expect(() => readCommand(malformed)).toThrow(/demand replay/);
+  });
+
+  it('refuses a malformed measure estimate replay', () => {
+    const trio = {
+      workItemId: 'w1',
+      stepId: 's1',
+      key: 'tokens',
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+      singlePoint: false,
+    };
+    const subtree = (field: string, value: unknown) => ({
+      do: 'restore_subtree',
+      rows: [],
+      [field]: value,
+    });
+    expect(readCommand({ do: 'set_measure_estimate', ...trio })).toMatchObject(trio);
+    expect(
+      readCommand({ do: 'clear_measure_estimate', workItemId: 'w1', stepId: 's1', key: 'kwh' }),
+    ).toMatchObject({ key: 'kwh' });
+    for (const malformed of [
+      { do: 'set_measure_estimate', ...trio, realistic: 5 },
+      { do: 'set_measure_estimate', ...trio, optimistic: -1 },
+      { do: 'set_measure_estimate', ...trio, singlePoint: 'no' },
+      { do: 'set_measure_estimate', ...trio, singlePoint: true },
+      {
+        do: 'set_measure_estimate',
+        ...trio,
+        key: 'cost',
+        realistic: 1,
+        pessimistic: 1,
+        singlePoint: true,
+      },
+      { do: 'set_measure_estimate', ...trio, key: undefined },
+      { do: 'clear_measure_estimate', workItemId: 'w1', stepId: 's1' },
+      subtree('measureEstimates', 'trios'),
+      subtree('measureEstimates', [{ ...trio, pessimistic: 0 }]),
+      subtree('removedMeasureEstimates', [{ workItemId: 'w1', stepId: 's1' }]),
+      { do: 'delete_subtree', setMeasureEstimates: [{ ...trio, optimistic: Number.NaN }] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(
+        /measure estimate|measureEstimates|MeasureEstimates/,
+      );
+  });
+
+  it('refuses a budget clear that names no whole budget', () => {
+    expect(readCommand({ do: 'clear_budget', workItemId: 'w1', key: 'tokens' })).toMatchObject({
+      key: 'tokens',
+    });
+    for (const malformed of [
+      { do: 'clear_budget', workItemId: 'w1' },
+      { do: 'clear_budget', workItemId: 7, key: 'tokens' },
+    ])
+      expect(() => readCommand(malformed)).toThrow('a journal budget clear is malformed');
+  });
+
+  it('refuses a measure estimate clear that names no whole step node and key', () => {
+    for (const malformed of [
+      { do: 'clear_measure_estimate', workItemId: 'w1', stepId: 's1' },
+      { do: 'clear_measure_estimate', workItemId: 'w1', key: 'tokens' },
+    ])
+      expect(() => readCommand(malformed)).toThrow('a journal measure estimate clear is malformed');
+  });
+
+  it('refuses a subtree replay whose removed trios name no whole step node and key', () => {
+    const removed = (value: unknown) => ({
+      do: 'restore_subtree',
+      rows: [],
+      removedMeasureEstimates: value,
+    });
+    expect(readCommand(removed([{ workItemId: 'w1', stepId: 's1', key: 'tokens' }]))).toMatchObject(
+      { removedMeasureEstimates: [{ key: 'tokens' }] },
+    );
+    for (const malformed of [removed('trios'), removed([{ workItemId: 'w1', stepId: 's1' }])])
+      expect(() => readCommand(malformed)).toThrow(
+        'a journal subtree replay holds malformed removedMeasureEstimates',
+      );
+  });
+
+  it('refuses a malformed budget or basis replay', () => {
+    const budget = {
+      workItemId: 'w1',
+      key: 'tokens',
+      cap: 10,
+      policy: 'strict',
+      holdPerAttempt: null,
+    };
+    const basis = { currency: 'USD', rateCardDigest: 'card-a' };
+    const fact = { workItemId: 'w1', stepId: 's1', metric: 'cost', value: 3 };
+    expect(readCommand({ do: 'set_budget', ...budget })).toMatchObject(budget);
+    expect(readCommand({ do: 'set_budget', ...budget, holdPerAttempt: 2 })).toMatchObject({
+      holdPerAttempt: 2,
+    });
+    expect(readCommand({ do: 'clear_budget', workItemId: 'w1', key: 'kwh' })).toMatchObject({
+      key: 'kwh',
+    });
+    expect(readCommand({ do: 'set_measure', ...fact, basis })).toMatchObject({ basis });
+    expect(readCommand({ do: 'restore_subtree', rows: [], budgets: [budget] })).toMatchObject({
+      budgets: [budget],
+    });
+    for (const malformed of [
+      { do: 'set_budget', ...budget, cap: -1 },
+      { do: 'set_budget', ...budget, cap: Number.POSITIVE_INFINITY },
+      { do: 'set_budget', ...budget, holdPerAttempt: -1 },
+      { do: 'set_budget', ...budget, policy: 'firm' },
+      { do: 'set_budget', ...budget, key: undefined },
+      { do: 'clear_budget', workItemId: 'w1' },
+      { do: 'set_measure', ...fact, basis: { currency: 'USD' } },
+      { do: 'set_measure', ...fact, basis: { currency: 'USD', rateCardDigest: '' } },
+      {
+        do: 'set_measure_estimate',
+        workItemId: 'w1',
+        stepId: 's1',
+        key: 'cost',
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+        singlePoint: false,
+        basis: 'card-a',
+      },
+      { do: 'restore_subtree', rows: [], budgets: 'caps' },
+      { do: 'restore_subtree', rows: [], budgets: [{ ...budget, policy: 'firm' }] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/budget|basis|measure estimate/);
   });
 
   const restore: CompensatingCommand = {

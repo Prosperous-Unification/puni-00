@@ -38,7 +38,12 @@ them against reference models under scheduler-ordered deliveries and re-entrant 
 - Acknowledging a covered sequence to the stream, and only ever forwards.
 - Routing what a frame said changed: an unsequenced frame asks for a fresh baseline, a named one
   asks for the resources it names.
-- The generation ledger: which of the four resources has something the reader has not had, and
+- Claims as the fifth resource (`wbs-claim-display` C3, C12, C20, C21): read beside the anchored
+  reads but never anchored, installed with the monotonic instant the lease display counts from,
+  reread for a tree change and for the stream's transient claims announcement (and on every
+  synchronisation, since that announcement is never replayed), failing as their own stale state
+  and never holding an acknowledgement.
+- The generation ledger: which of the five resources has something the reader has not had, and
   the rule that nothing below the anchor is published before the anchor is.
 - What "read again" means when nothing is anchored yet and something is stale.
 

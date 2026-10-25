@@ -914,20 +914,36 @@ describe('accepted runtime lifecycle', () => {
       receipts: sqlite.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
     });
     const installed = readInstallation();
-    expect(installed.migrations.slice(-2)).toMatchObject([
+    expect(installed.migrations.slice(-9)).toMatchObject([
       { name: '20261022130000_add_organization_limits' },
       { name: '20261022130100_widen_organization_audit_organization_limits' },
+      { name: '20261022140000_add_resource_provider' },
+      { name: '20261022140100_widen_organization_audit_compute_providers' },
+      { name: '20261023100000_add_claim_lease' },
+      { name: '20261023140000_add_measure' },
+      { name: '20261023150000_key_step_measure' },
+      { name: '20261023160000_add_measure_estimate' },
+      { name: '20261023170000_add_work_item_budget' },
     ]);
     expect(rollbackTo(dbPath, migrations, '20261022121000_add_runtime_commands')).toEqual([
+      '20261023170000_add_work_item_budget',
+      '20261023160000_add_measure_estimate',
+      '20261023150000_key_step_measure',
+      '20261023140000_add_measure',
+      '20261023100000_add_claim_lease',
+      '20261022140100_widen_organization_audit_compute_providers',
+      '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
     ]);
     const before = readInstallation();
-    expect(before.migrations).toEqual(installed.migrations.slice(0, -2));
+    expect(before.migrations).toEqual(installed.migrations.slice(0, -9));
     expect(() => rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toThrow(
       'runtime history',
     );
     expect(readInstallation()).toEqual(before);
+    runMigrations(dbPath, migrations);
+    expect(readInstallation()).toEqual(installed);
     expect(
       await receiver.lookupRuntimeReceipt(context, {
         commandId: 'first',

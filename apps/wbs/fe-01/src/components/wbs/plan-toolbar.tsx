@@ -15,7 +15,13 @@ import {
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import { cn } from '@/lib/utils';
-import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
+import type {
+  MeasureDefinitionView,
+  PersonView,
+  PriorityBandView,
+  TeamCapacityView,
+  TeamView,
+} from '@/lib/wbs-api';
 import { isEstimateMethod, type StepView } from '@/lib/wbs-api';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 
@@ -23,6 +29,7 @@ import { MenuControl } from './actions-menu';
 import { useClosedOnDismiss } from './close-on-dismiss';
 import { DateField } from './date-field';
 import { ImportWithAiHelp } from './import-with-ai-help';
+import { isMeasureShown, type MeasureToggles, unitLabelOf } from './measure-reading';
 import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
 import { describeGaps } from './plan-completeness';
@@ -51,6 +58,7 @@ import {
   isFiltering,
   NO_FACETS,
 } from './tree-search';
+import type { MeasureDefinitionsState } from './use-measure-definitions';
 import type { FacetOption } from './use-plan-filter';
 import { facetsChosen, toggledIn } from './use-plan-filter';
 import type { GapLanding } from './use-plan-keyboard';
@@ -82,6 +90,7 @@ export function FilterFacets({
   teams,
   tags,
   services,
+  resources,
   people,
   bands,
   steps,
@@ -93,6 +102,8 @@ export function FilterFacets({
   teams: readonly FacetOption[];
   tags: readonly FacetOption[];
   services: readonly FacetOption[];
+  /** The resources the plan's leaves demand (`wbs-resources` task 3.4). */
+  resources: readonly FacetOption[];
   people: readonly FacetOption[];
   bands: readonly FacetOption[];
   steps: readonly FacetOption[];
@@ -205,7 +216,7 @@ export function FilterFacets({
   return (
     <details ref={useClosedOnDismiss()} data-facets className="relative">
       <summary
-        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        className="border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
       >
         Filters{chosen > 0 ? ` (${String(chosen)})` : ''}
@@ -236,6 +247,14 @@ export function FilterFacets({
         {group('Service', 'service', services, facets.serviceIds, (serviceIds) => ({
           ...facets,
           serviceIds,
+        }))}
+        {/*
+          What a leaf needs while it runs, beside who runs it. Gone on a plan
+          stating no demand, as every group with nothing to offer is.
+        */}
+        {group('Resource', 'resource', resources, facets.resourceIds, (resourceIds) => ({
+          ...facets,
+          resourceIds,
         }))}
         {group('Assignee', 'assignee', people, facets.assigneeIds, (assigneeIds) => ({
           ...facets,
@@ -337,6 +356,7 @@ export const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['tag', 'Tags'],
   ['service', 'Services'],
   ['type', 'Types'],
+  ['resources', 'Resources'],
   ['in-parallel', 'People at once'],
   ['final-total', 'Days'],
   ['not-before', 'Not before'],
@@ -367,16 +387,19 @@ export function ColumnsControl({
   offered,
   hiddenColumnIds,
   onToggle,
+  measures,
 }: {
   offered: readonly { id: string; label: string }[];
   hiddenColumnIds: readonly string[];
   onToggle: (columnId: string) => void;
+  /** The Measures group below the columns; absent where no table offers one. */
+  measures?: MeasureChooser;
 }) {
   const prefix = useId();
   return (
     <details ref={useClosedOnDismiss()} data-columns className="relative">
       <summary
-        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        className="border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Choose which columns are on the table. Number, Name and the row's controls always are."
       >
         Columns
@@ -392,7 +415,7 @@ export function ColumnsControl({
           // is written on exactly that shape, and the row is the tap target.
           // `htmlFor` as well, so the name can be read off `label[for]`.
           return (
-            <label key={id} htmlFor={boxId} className="flex min-h-6 items-center gap-1.5">
+            <label key={id} htmlFor={boxId} className={CHOOSER_ROW}>
               <input
                 id={boxId}
                 type="checkbox"
@@ -405,8 +428,95 @@ export function ColumnsControl({
             </label>
           );
         })}
+        {measures !== undefined && <MeasureChoices prefix={prefix} chooser={measures} />}
       </div>
     </details>
+  );
+}
+
+/**
+ * One row of the Columns control: the tap target, with a hover tint, a focus
+ * ring around the box it wraps and a pressed tint, eased unless the reader asks
+ * for reduced motion. The same height in every state, so nothing moves.
+ */
+const CHOOSER_ROW =
+  'flex min-h-6 cursor-pointer items-center gap-1.5 rounded-sm px-1 -mx-1 transition-colors duration-150 ease-out motion-reduce:transition-none hover:bg-accent active:bg-accent/70 focus-within:ring-2 focus-within:ring-ring/60';
+
+/**
+ * What the Columns control offers for measures (`wbs-measure-budgets` D7):
+ * the definitions as the table read them, the reader's answers, and the two
+ * writers. Time is the scheduling measure; its toggle drives the step columns
+ * and Days rather than columns of its own.
+ */
+export interface MeasureChooser {
+  state: MeasureDefinitionsState;
+  toggles: MeasureToggles;
+  onToggle: (definition: MeasureDefinitionView) => void;
+  timeShown: boolean;
+  onToggleTime: () => void;
+}
+
+/**
+ * The Measures group: one box per definition in the organization's order, or
+ * the sentence for why there are none. Before organization activation the
+ * read answers `organization_required` (review S3-6), which is said here as a
+ * state, never as an error.
+ */
+function MeasureChoices({ prefix, chooser }: { prefix: string; chooser: MeasureChooser }) {
+  const { state } = chooser;
+  return (
+    <section data-measure-choices aria-label="Measures" className="mt-2 border-t pt-2">
+      <h3 className="text-muted-foreground mb-1 text-xs font-medium">Measures</h3>
+      {state.kind === 'loading' && (
+        // No live region: the group sits in a closed menu, and the page's own
+        // status line is the one a reader is told about.
+        <p data-measures-loading className="text-muted-foreground text-xs">
+          Reading this organization’s measures…
+        </p>
+      )}
+      {state.kind === 'organization_required' && (
+        <p data-measures-unavailable className="text-muted-foreground text-xs">
+          Measure columns need an organization. Once this workspace belongs to one, tokens, cost and
+          agent minutes can be shown here.
+        </p>
+      )}
+      {state.kind === 'failed' && (
+        // A sentence and not an alert: the group sits in a closed menu, and an
+        // alert nobody opened is noise in front of whatever the page is saying.
+        <p data-measures-failed className="text-destructive text-xs">
+          {state.sentence}
+        </p>
+      )}
+      {state.kind === 'ready' &&
+        state.measures.map((definition) => {
+          const boxId = `${prefix}-measure-${definition.key}`;
+          const shown = definition.schedulesWork
+            ? chooser.timeShown
+            : isMeasureShown(definition, chooser.toggles);
+          return (
+            <label
+              key={definition.key}
+              htmlFor={boxId}
+              className={CHOOSER_ROW}
+              data-measure-choice={definition.key}
+            >
+              <input
+                id={boxId}
+                type="checkbox"
+                checked={shown}
+                onChange={() => {
+                  if (definition.schedulesWork) chooser.onToggleTime();
+                  else chooser.onToggle(definition);
+                }}
+              />
+              <span className="truncate">{definition.name}</span>
+              <span className="text-quiet-ink ml-auto shrink-0 text-xs">
+                {definition.schedulesWork ? 'steps · Days' : unitLabelOf(definition)}
+              </span>
+            </label>
+          );
+        })}
+    </section>
   );
 }
 
@@ -505,7 +615,7 @@ export function SavedViews({
   return (
     <details ref={useClosedOnDismiss()} data-saved-views className="relative">
       <summary
-        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        className="border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Name the current filter, or pick one already named"
       >
         Views{views.length > 0 ? ` (${String(views.length)})` : ''}
@@ -633,6 +743,7 @@ export function PlanToolbar({
   facetTeams,
   facetTags,
   facetServices,
+  facetResources,
   facetPeople,
   facetBands,
   facetSteps,
@@ -644,6 +755,7 @@ export function PlanToolbar({
   setStoredHiddenColumns,
   offeredColumns,
   toggleColumn,
+  measureChooser,
   shownRows,
   search,
   gaps,
@@ -667,6 +779,7 @@ export function PlanToolbar({
   startDate,
   chooseEstimateMethod,
   sheetExtras,
+  claimsSheet,
 }: {
   criteria: FilterCriteria;
   freezeMenuOpen: boolean;
@@ -703,6 +816,7 @@ export function PlanToolbar({
   facetTeams: FacetOption[];
   facetTags: FacetOption[];
   facetServices: FacetOption[];
+  facetResources: FacetOption[];
   facetPeople: FacetOption[];
   facetBands: { id: string; label: string }[];
   facetSteps: { id: string; label: string }[];
@@ -714,6 +828,8 @@ export function PlanToolbar({
   setStoredHiddenColumns: React.Dispatch<React.SetStateAction<readonly string[]>>;
   offeredColumns: { id: string; label: string }[];
   toggleColumn: (columnId: string) => void;
+  /** The Columns control's Measures group, or absent where the table offers none. */
+  measureChooser?: MeasureChooser;
   shownRows: Row<PlanTableFeatures, PlanRenderRow>[];
   search: TreeNarrowing;
   gaps: EstimateGaps;
@@ -747,6 +863,11 @@ export function PlanToolbar({
    * the app header and the reset is on the chart's own strip.
    */
   sheetExtras?: { view?: React.ReactNode; schedule?: React.ReactNode };
+  /**
+   * The Claims sheet's button and sheet (`wbs-claim-display` C16), built by the
+   * table, which holds the claims; it draws nothing while no claim is held.
+   */
+  claimsSheet?: React.ReactNode;
 }) {
   /** Whether this is the phone's `Plan actions` sheet, where every control carries its words. */
   const sheet = renderer === 'cards';
@@ -1097,6 +1218,12 @@ export function PlanToolbar({
           // removed the refused step`. Watched, 2026-09-13.
           onRefused: () => refreshOrMarkStale(),
         }}
+        resources={{
+          projectId,
+          // A declared capacity moves dates, so an adopt rereads the plan
+          // the way a team's capacity does.
+          onChanged: () => refreshOrMarkStale('tree'),
+        }}
         estimating={{
           // The method is reported, not set: `Plan with` on the bar is the one
           // control for it, and a second would be two answers to one question.
@@ -1216,6 +1343,7 @@ export function PlanToolbar({
         teams={facetTeams}
         tags={facetTags}
         services={facetServices}
+        resources={facetResources}
         people={facetPeople}
         bands={facetBands}
         steps={facetSteps}
@@ -1286,6 +1414,7 @@ export function PlanToolbar({
         offered={offeredColumns}
         hiddenColumnIds={hiddenColumnIds}
         onToggle={toggleColumn}
+        {...(measureChooser === undefined ? {} : { measures: measureChooser })}
       />
     </>
   );
@@ -1394,7 +1523,10 @@ export function PlanToolbar({
           void stepStack('undo');
         }}
       >
-        ↶{sheet && ' Undo'}
+        <span data-glyph aria-hidden="true">
+          ↶
+        </span>
+        {sheet && 'Undo'}
       </Button>
     </>
   );
@@ -1412,7 +1544,10 @@ export function PlanToolbar({
           void stepStack('redo');
         }}
       >
-        ↷{sheet && ' Redo'}
+        <span data-glyph aria-hidden="true">
+          ↷
+        </span>
+        {sheet && 'Redo'}
       </Button>
     </>
   );
@@ -1481,7 +1616,7 @@ export function PlanToolbar({
       {exportAvailable && (
         <details ref={exportMenu} data-export className="relative">
           <summary
-            className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs whitespace-nowrap select-none"
+            className="border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs whitespace-nowrap select-none"
             data-hint="Copy, download, or import the plan as Markdown, Mermaid, CSV, JSON, or what is on screen"
           >
             {/*
@@ -1642,7 +1777,7 @@ export function PlanToolbar({
             <label className="flex items-center justify-between gap-1 px-3 text-xs">
               Mermaid lanes
               <select
-                className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+                className="border-control-edge bg-background h-8 rounded-md border px-2 text-xs"
                 // No `aria-label`: the `<label>` wrapping it already names it,
                 // which is where it parts from `Final estimate` below — that one
                 // reads `Plan with` on screen and needs the name spelling out.
@@ -1696,7 +1831,7 @@ export function PlanToolbar({
         */}
         <span data-start-box className="group relative inline-flex">
           <DateField
-            className="border-input bg-background h-8 rounded-md border px-2 text-sm not-focus:text-transparent"
+            className="border-control-edge bg-background h-8 rounded-md border px-2 text-sm not-focus:text-transparent"
             aria-label="Project start date"
             disabled={busy}
             {...busyAffordance(busy)}
@@ -1731,7 +1866,7 @@ export function PlanToolbar({
         dates off one plan is the failure this must not have.
       */}
         <select
-          className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+          className="border-control-edge bg-background h-8 rounded-md border px-2 text-sm"
           aria-label="Final estimate"
           value={estimateMethod}
           disabled={busy}
@@ -1774,6 +1909,10 @@ export function PlanToolbar({
           {arrange}
           {columns}
           {shortcuts}
+          {/* Proof: left off this sheet, `is offered on the Plan actions sheet,
+          and opens over it` (plan-cards.test.tsx) found no `Claims, 5 held`
+          button; watched 2026-10-24. */}
+          {claimsSheet}
           {sheetExtras?.view}
         </PlanSheetGroup>
         <PlanSheetGroup title="Find and filter">
@@ -1817,6 +1956,7 @@ export function PlanToolbar({
       {filterCount}
       {noMatches}
       {unestimated}
+      {claimsSheet}
       {/*
         The end of the bar as one flex item (UI review F-056, after F-005): the
         icon buttons that act on the plan as a whole — Undo, Redo, Keyboard

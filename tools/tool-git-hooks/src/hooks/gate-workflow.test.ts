@@ -23,10 +23,12 @@ interface Workflow {
 type JobResult = 'success' | 'failure' | 'cancelled' | 'skipped';
 
 interface GateNeeds {
-  modeResult: JobResult;
+  modeResult: JobResult | '';
+  mode: string;
+  docsResult: JobResult | '';
   twilight: string;
-  workspaceResult: JobResult;
-  twilightResult: JobResult;
+  workspaceResult: JobResult | '';
+  twilightResult: JobResult | '';
 }
 
 const workflowPath = join(
@@ -61,6 +63,8 @@ const reduceGate = (needs: GateNeeds): number => {
     env: {
       PATH: process.env['PATH'] ?? '',
       MODE_RESULT: needs.modeResult,
+      MODE: needs.mode,
+      DOCS_RESULT: needs.docsResult,
       TWILIGHT: needs.twilight,
       WORKSPACE_RESULT: needs.workspaceResult,
       TWILIGHT_RESULT: needs.twilightResult,
@@ -72,26 +76,29 @@ const reduceGate = (needs: GateNeeds): number => {
 
 const green: GateNeeds = {
   modeResult: 'success',
+  mode: 'affected',
+  docsResult: 'skipped',
   twilight: 'run',
   workspaceResult: 'success',
   twilightResult: 'success',
 };
 
-const notSuccess = ['failure', 'cancelled', 'skipped'] as const;
+const notSuccess = ['failure', 'cancelled', 'skipped', ''] as const;
 
 /**
- * `gate` is the one required check over three jobs. It must report on every shard, including
- * one that failed, was cancelled or never ran, and accept a skipped Twilight shard only when
- * the scope job succeeded and said the Twilight suite is out of scope.
+ * `gate` reduces selection, docs and runtime jobs. It rejects failed, cancelled or absent
+ * selected checks and permits skipped jobs only when the successful plan explains them.
  */
 describe('the CI gate check', () => {
   test('waits on every shard even when one fails', () => {
     const gate = readWorkflow().jobs?.['gate'];
 
-    expect(gate?.needs).toEqual(['gate_mode', 'gate_workspace', 'gate_twilight']);
+    expect(gate?.needs).toEqual(['gate_mode', 'gate_docs', 'gate_workspace', 'gate_twilight']);
     expect(gate?.if).toBe('${{ always() }}');
     expect(requireStep().env).toEqual({
       MODE_RESULT: '${{ needs.gate_mode.result }}',
+      MODE: '${{ needs.gate_mode.outputs.mode }}',
+      DOCS_RESULT: '${{ needs.gate_docs.result }}',
       TWILIGHT: '${{ needs.gate_mode.outputs.twilight }}',
       WORKSPACE_RESULT: '${{ needs.gate_workspace.result }}',
       TWILIGHT_RESULT: '${{ needs.gate_twilight.result }}',
@@ -100,7 +107,45 @@ describe('the CI gate check', () => {
 
   test('passes when every shard in scope succeeded', () => {
     expect(reduceGate(green)).toBe(0);
+    expect(reduceGate({ ...green, mode: 'full' })).toBe(0);
+    expect(
+      reduceGate({
+        ...green,
+        mode: 'docs',
+        docsResult: 'success',
+        twilight: 'skip',
+        workspaceResult: 'skipped',
+        twilightResult: 'skipped',
+      }),
+    ).toBe(0);
     expect(reduceGate({ ...green, twilight: 'skip', twilightResult: 'skipped' })).toBe(0);
+  });
+
+  test('refuses unknown modes and unexplained docs executions', () => {
+    for (const mode of ['', 'unknown']) expect(reduceGate({ ...green, mode })).not.toBe(0);
+    for (const docsResult of ['success', 'failure', 'cancelled', ''] as const) {
+      expect(reduceGate({ ...green, docsResult }), docsResult).not.toBe(0);
+    }
+  });
+
+  test('requires docs success and explicitly skipped runtime shards for prose', () => {
+    const docs: GateNeeds = {
+      ...green,
+      mode: 'docs',
+      docsResult: 'success',
+      twilight: 'skip',
+      workspaceResult: 'skipped',
+      twilightResult: 'skipped',
+    };
+    for (const docsResult of notSuccess)
+      expect(reduceGate({ ...docs, docsResult }), docsResult).not.toBe(0);
+    for (const field of ['workspaceResult', 'twilightResult'] as const) {
+      for (const outcome of ['success', 'failure', 'cancelled', ''] as const) {
+        expect(reduceGate({ ...docs, [field]: outcome }), `${field}/${outcome}`).not.toBe(0);
+      }
+    }
+    for (const twilight of ['', 'run', 'unknown'])
+      expect(reduceGate({ ...docs, twilight })).not.toBe(0);
   });
 
   test('refuses a workspace shard that did not succeed', () => {
@@ -183,5 +228,184 @@ describe('the CI private-nesting step', () => {
         Bun.spawnSync(['git', '-C', root, 'add', '-f', 'private/puni-fleet/README.md']);
       }),
     ).not.toBe(0);
+  });
+});
+
+const base = '1'.repeat(40);
+const head = '2'.repeat(40);
+const affectedPlan = {
+  schemaVersion: 1,
+  base,
+  head,
+  mode: 'affected',
+  twilight: 'run',
+  projects: ['twilight-burokrat', 'wbs-be-01'],
+  workspaceProjects: ['wbs-be-01'],
+  twilightProjects: ['twilight-burokrat'],
+  reasons: ['runtime input'],
+};
+
+/** Executes the shipped scope step with controlled resolver and planner boundaries. */
+const selectGate = (
+  plan: unknown,
+  event = 'pull_request',
+  fault: Record<string, string | undefined> = {},
+) => {
+  const root = scratchSync('ci-selection-step-');
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(
+    join(bin, 'bun'),
+    `#!/bin/bash
+case "$*" in
+  *pr-merge-base.ts*) printf '%s\\n' "$STUB_BASE"; exit "\${RESOLVER_STATUS:-0}" ;;
+  *ci-plan.ts*) printf '%s\\n' "$STUB_PLAN"; exit "\${PLANNER_STATUS:-0}" ;;
+  *) exit 90 ;;
+esac
+`,
+    { mode: 0o755 },
+  );
+  const output = join(root, 'output');
+  writeFileSync(output, '');
+  const script = readWorkflow().jobs?.['gate_mode']?.steps?.find(
+    ({ name }) => name === 'Gate mode',
+  )?.run;
+  if (script === undefined) throw new Error('missing Gate mode script');
+  const execution = Bun.spawnSync(['bash', '-c', script], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+      GITHUB_OUTPUT: output,
+      GITHUB_SHA: head,
+      EVENT_NAME: event,
+      STUB_BASE: base,
+      STUB_PLAN: typeof plan === 'string' ? plan : JSON.stringify(plan),
+      ...fault,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  return { execution, output: readFileSync(output, 'utf8'), root };
+};
+
+describe('the validated CI selection step', () => {
+  test('extracts affected and docs plans and retains the exact plan artifact', () => {
+    for (const plan of [
+      affectedPlan,
+      {
+        ...affectedPlan,
+        twilight: 'skip',
+        projects: [],
+        workspaceProjects: [],
+        twilightProjects: [],
+        reasons: ['lint-only module requires independent workspace lint'],
+      },
+      {
+        ...affectedPlan,
+        mode: 'docs',
+        twilight: 'skip',
+        projects: [],
+        workspaceProjects: [],
+        twilightProjects: [],
+      },
+    ]) {
+      const selection = selectGate(plan);
+      expect(selection.execution.exitCode, selection.execution.stderr.toString()).toBe(0);
+      expect(selection.output).toContain(`mode=${plan.mode}\n`);
+      expect(selection.output).toContain(`base=${base}\n`);
+      expect(selection.output).toContain(`twilight=${plan.twilight}\n`);
+      expect(selection.output).toContain(`projects=${JSON.stringify(plan.projects)}\n`);
+      expect(JSON.parse(readFileSync(join(selection.root, 'ci-selection.json'), 'utf8'))).toEqual(
+        plan,
+      );
+    }
+  });
+
+  test('refuses failed dependencies before publishing any scope', () => {
+    for (const fault of [{ RESOLVER_STATUS: '9' }, { PLANNER_STATUS: '9' }]) {
+      const selection = selectGate(affectedPlan, 'pull_request', fault);
+      expect(selection.execution.exitCode).not.toBe(0);
+      expect(selection.output).toBe('');
+    }
+  });
+
+  test('refuses malformed, inconsistent and polluted plans before publishing scope', () => {
+    for (const plan of [
+      '',
+      'not json',
+      '{}',
+      `${JSON.stringify(affectedPlan)}\n{}`,
+      [],
+      ...Object.keys(affectedPlan).map((field) => ({ ...affectedPlan, [field]: null })),
+      { ...affectedPlan, schemaVersion: 2 },
+      { ...affectedPlan, base: head },
+      { ...affectedPlan, head: base },
+      { ...affectedPlan, mode: 'full' },
+      { ...affectedPlan, twilight: 'unknown' },
+      { ...affectedPlan, projects: [1] },
+      { ...affectedPlan, workspaceProjects: [1] },
+      { ...affectedPlan, twilightProjects: [1] },
+      { ...affectedPlan, reasons: [1] },
+      { ...affectedPlan, reasons: [] },
+      { ...affectedPlan, projects: [] },
+      { ...affectedPlan, twilight: 'skip' },
+      { ...affectedPlan, workspaceProjects: [] },
+      {
+        ...affectedPlan,
+        projects: ['twilight-burokrat', 'wbs-be-01', 'wbs-be-01'],
+        workspaceProjects: ['wbs-be-01', 'wbs-be-01'],
+      },
+      {
+        ...affectedPlan,
+        projects: ['wbs-be-01'],
+        workspaceProjects: [],
+        twilightProjects: ['wbs-be-01'],
+      },
+      {
+        ...affectedPlan,
+        workspaceProjects: ['twilight-burokrat', 'wbs-be-01'],
+        twilightProjects: [],
+        twilight: 'skip',
+      },
+      { ...affectedPlan, twilightProjects: ['wbs-be-01'] },
+      { ...affectedPlan, projects: ['twilight-burokrat', 'twilight-burokrat', 'wbs-be-01'] },
+      { ...affectedPlan, mode: 'docs' },
+      { ...affectedPlan, mode: 'docs', projects: [], workspaceProjects: [], twilightProjects: [] },
+    ]) {
+      const selection = selectGate(plan);
+      expect(selection.execution.exitCode, JSON.stringify(plan)).not.toBe(0);
+      expect(selection.output, JSON.stringify(plan)).toBe('');
+    }
+  });
+
+  test('retains full event scope and refuses unknown events', () => {
+    for (const event of ['push', 'merge_group', 'workflow_dispatch']) {
+      const selection = selectGate({}, event, { RESOLVER_STATUS: '9', PLANNER_STATUS: '9' });
+      expect(selection.execution.exitCode).toBe(0);
+      expect(selection.output).toBe('mode=full\ntwilight=run\n');
+    }
+    expect(selectGate(affectedPlan, 'unknown').execution.exitCode).not.toBe(0);
+  });
+
+  test('routes prose to focused validation and retains mandatory security checks', () => {
+    const workflow = readWorkflow();
+    expect(workflow.jobs?.['gate_workspace']?.if).toBe(
+      "${{ needs.gate_mode.outputs.mode != 'docs' }}",
+    );
+    const docs = workflow.jobs?.['gate_docs'];
+    expect(docs?.needs).toBe('gate_mode');
+    expect(docs?.if).toBe("${{ needs.gate_mode.outputs.mode == 'docs' }}");
+    const commands = docs?.steps?.map(({ run }) => run ?? '').join('\n') ?? '';
+    expect(commands).toContain('bun install --frozen-lockfile');
+    expect(commands).toContain('bunx nx format:check --all');
+    expect(commands).toContain('bunx nx run tool-devsync:check:docs --skip-nx-cache');
+    for (const name of ['Secrets scan', 'Private nesting', 'Doc caps', 'OpenSpec']) {
+      const original = workflow.jobs?.['gate_workspace']?.steps?.find((step) => step.name === name);
+      expect(docs?.steps?.find((step) => step.name === name)?.run, name).toBe(original?.run);
+    }
+    expect(commands).not.toMatch(
+      /nx (?:affected|run-many)|e2e|test:package|integration|tool-wiki-lint/,
+    );
   });
 });

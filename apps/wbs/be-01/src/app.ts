@@ -1,3 +1,5 @@
+import type { DeliveryReader } from '@shared/delivery';
+import { createGitHubDeliveryReader } from '@shared/delivery-github';
 import type { SessionFeatures } from '@wbs/contracts';
 import type { StepParallelStore } from '@wbs/core';
 import type {
@@ -26,6 +28,8 @@ import type {
   SpaceStore,
 } from '@wbs/core';
 import type {
+  CapacityReports,
+  ComputeProviderAdministration,
   MachineCredentialAdministration,
   Scope,
   TrustedIssuerAdministration,
@@ -36,8 +40,12 @@ import {
   clockOf,
   INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
   INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
+  NO_COMPUTE_PROVIDERS,
 } from '@wbs/core';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
+import { claimLeaseRoutes } from '@wbs/core/http/claim-lease.routes';
+import { computeProviderRoutes } from '@wbs/core/http/compute-provider.routes';
+import { deliveryRoutes } from '@wbs/core/http/delivery.routes';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
@@ -59,6 +67,7 @@ import type { LoginThrottle } from '@wbs/core/module/authentication/login-thrott
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
 import type { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import type { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { createRuntimeReceiver } from '@wbs/core/module/plan-commands/composition';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
@@ -70,6 +79,11 @@ import type { BeforeProjectUpdate, BeforeStepRemoval } from '@wbs/core/ports/fan
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
+import {
+  DELIVERY_GATE_LIMITS,
+  DeliveryGate,
+  type DeliveryGateLimits,
+} from '@wbs/core/service/delivery-gate';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { ScimService } from '@wbs/core/service/scim.feature';
@@ -77,6 +91,7 @@ import { ScimAdmission } from '@wbs/core/service/scim-admission';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { type CapacityMode, SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
+import { systemTimers } from '@wbs/runtime-portable';
 import { Elysia } from 'elysia';
 
 import {
@@ -151,6 +166,10 @@ const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
 };
 
 export interface AppOptions {
+  /** Overrides the anonymous public GitHub reader for a trusted composition. */
+  delivery?: DeliveryReader;
+  /** Overrides the delivery cache, per-organization and in-flight limits; production uses the defaults. */
+  deliveryLimits?: DeliveryGateLimits;
   clock: Pick<Clock, 'now'>;
   /** Trusted browser origin, resolved from operator configuration before boot. */
   appOrigin: string;
@@ -228,6 +247,13 @@ export interface AppOptions {
    */
   machineCredentials?: MachineCredentialAdministration;
   /**
+   * The claim lease sweep (`wbs-claim-leases` L8): a revoke asks it for a tick
+   * at once. Absent (an app built without boot), a revoked agent's claims go
+   * on the next scheduled tick of whatever sweep runs, or not at all where
+   * none does, as before leases existed.
+   */
+  claimLeases?: Pick<ClaimLeaseSweep, 'requestSweep'>;
+  /**
    * Trusted issuer administration (`wbs-machine-credentials` A16): the store,
    * the one discovery fetch at registration, and the configured sign-in
    * issuer it refuses. Absent, every route answers as before activation.
@@ -236,6 +262,17 @@ export interface AppOptions {
     readonly administration: TrustedIssuerAdministration;
     readonly discovery: TrustedIssuerDiscovery;
     readonly configuredIssuer: () => Promise<string | null>;
+  };
+  /**
+   * Compute provider instances and capacity reports (`compute-providers`).
+   * Absent (the memory twin), no instance exists: administration answers as
+   * before activation, every resource reads `providerId: null`, and a report
+   * names no instance. Production and the organization harnesses wire the
+   * SQLite store (`boot.db.test.ts`).
+   */
+  computeProviders?: {
+    readonly administration: ComputeProviderAdministration;
+    readonly reports: CapacityReports;
   };
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
@@ -562,12 +599,20 @@ export function mountedEndpoints(
       opts.organizations,
       opts.machineCredentials ?? INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
       opts.clock,
+      () => opts.claimLeases?.requestSweep(),
     ),
+    ...claimLeaseRoutes(opts.organizations, commands),
     ...trustedIssuerRoutes(
       opts.organizations,
       opts.trustedIssuers?.administration ?? INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
       opts.trustedIssuers?.discovery ?? UNUSED_DISCOVERY,
       opts.trustedIssuers?.configuredIssuer ?? (() => Promise.resolve(null)),
+      opts.clock,
+    ),
+    ...computeProviderRoutes(
+      opts.organizations,
+      (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).administration,
+      (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
       opts.clock,
     ),
     ...onboardingRoutes(opts.onboarding, opts.clock),
@@ -650,7 +695,20 @@ export function mountedEndpoints(
       opts.stepParallels,
       opts.optimizer,
     ),
-    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
+    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations, {
+      reports: (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
+      clock: opts.clock,
+    }),
+    ...deliveryRoutes(
+      opts.workItems,
+      opts.organizations,
+      new DeliveryGate(
+        opts.delivery ?? createGitHubDeliveryReader({ clock: () => opts.clock.now() }),
+        () => opts.clock.now(),
+        (ms, fire) => systemTimers.schedule(ms, fire),
+        opts.deliveryLimits ?? DELIVERY_GATE_LIMITS,
+      ),
+    ),
     ...runtimeCommandRoutes(
       createRuntimeReceiver(opts.writes.uow, nodeDigest),
       commands,

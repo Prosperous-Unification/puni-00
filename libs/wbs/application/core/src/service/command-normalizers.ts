@@ -6,16 +6,23 @@ import { capacityOf } from '../http/capacity-body';
 import { ladderOf } from '../http/priority-ladder-body';
 import {
   asIdOrNull,
+  asMeasureKey,
+  asMeasureKind,
+  asMeasureScale,
+  asMeasureUnit,
+  asOptionalCurrency,
   asOptionalFlag,
   asOptionalId,
   asOptionalIds,
   asOptionalInstant,
+  asOptionalMeasureOrder,
   asOptionalPriority,
   asOptionalResourceUnits,
   asOptionalRunId,
   asOptionalStepIds,
   asOptionalText,
   asOptionalTypeIds,
+  asRateCardDigest,
   asResourceKind,
   assertRecord,
   asText,
@@ -32,6 +39,7 @@ import {
   normalizeTypedEndpoint,
   parseActual,
   parseAttemptNumber,
+  parseBudget,
   parseFactStart,
   parseMeasure,
   parseOn,
@@ -210,11 +218,41 @@ export const commandNormalizers = {
     ...normalizeStepAddress(raw),
     metric: asText(raw.metric, 'metric'),
     value: parseMeasure(raw),
+    ...present({ rateCardDigest: asRateCardDigest(raw.rateCardDigest) }),
   }),
   clearMeasure: (raw: CommandInput<'clearMeasure'>) => ({
     kind: 'clearMeasure' as const,
     ...normalizeStepAddress(raw),
     metric: asText(raw.metric, 'metric'),
+  }),
+  setMeasureEstimate: (raw: CommandInput<'setMeasureEstimate'>) => ({
+    kind: 'setMeasureEstimate' as const,
+    ...normalizeStepAddress(raw),
+    measure: asText(raw.measure, 'measure'),
+    // The time trio's parse and its ordering rule, refused as `invalid_estimate`.
+    // Proof: with `raw.estimate` passed through unparsed, `refuses an unordered
+    // trio and stores nothing` (measure-estimate-command.test.ts) admitted
+    // 5/2/9; watched 2026-10-23.
+    estimate: parseOrThrow(EstimateTrio, raw.estimate),
+    ...present({ rateCardDigest: asRateCardDigest(raw.rateCardDigest) }),
+  }),
+  setBudget: (raw: CommandInput<'setBudget'>) =>
+    present({
+      kind: 'setBudget' as const,
+      ...target(raw),
+      measure: asText(raw.measure, 'measure'),
+      ...parseBudget(raw),
+    }),
+  clearBudget: (raw: CommandInput<'clearBudget'>) =>
+    present({
+      kind: 'clearBudget' as const,
+      ...target(raw),
+      measure: asText(raw.measure, 'measure'),
+    }),
+  clearMeasureEstimate: (raw: CommandInput<'clearMeasureEstimate'>) => ({
+    kind: 'clearMeasureEstimate' as const,
+    ...normalizeStepAddress(raw),
+    measure: asText(raw.measure, 'measure'),
   }),
   setAssignee: (raw: CommandInput<'setAssignee'>) =>
     present({
@@ -336,6 +374,7 @@ export const commandNormalizers = {
       ...normalizeNamed('createPerson', raw),
       teamIds: asOptionalIds(raw.teamIds, 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
       teamRefs: asOptionalIds(raw.teamRefs, 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
+      personKind: asOptionalText(raw.personKind, 'personKind'),
     }),
   patchPerson(raw: CommandInput<'patchPerson'>) {
     const patch = raw.patch;
@@ -441,6 +480,7 @@ export const commandNormalizers = {
       patch: present({
         name: asOptionalText(patch.name, 'name'),
         unitLabel: patch.unitLabel === undefined ? undefined : asUnitLabel(patch.unitLabel),
+        providerId: 'providerId' in patch ? asIdOrNull(patch.providerId, 'providerId') : undefined,
       }),
     });
   },
@@ -450,6 +490,48 @@ export const commandNormalizers = {
       resourceId: asOptionalId(raw.resourceId, 'resourceId'),
       resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
       cascade: asOptionalFlag(raw.cascade, 'cascade'),
+    }),
+  createMeasure: (raw: CommandInput<'createMeasure'>) =>
+    present({
+      kind: 'createMeasure' as const,
+      ...ref(raw),
+      key: asMeasureKey(raw.key),
+      name: asText(raw.name, 'name'),
+      unit: asMeasureUnit(raw.unit),
+      measureKind: asMeasureKind(raw.measureKind),
+      scale: asMeasureScale(raw.scale),
+      threePoint: asOptionalFlag(raw.threePoint, 'threePoint'),
+      showByDefault: asOptionalFlag(raw.showByDefault, 'showByDefault'),
+      schedulesWork: asOptionalFlag(raw.schedulesWork, 'schedulesWork'),
+      order: asOptionalMeasureOrder(raw.order),
+      currency: asOptionalCurrency(raw.currency),
+    }),
+  patchMeasure(raw: CommandInput<'patchMeasure'>) {
+    const patch = raw.patch;
+    assertRecord(patch);
+    return present({
+      kind: 'patchMeasure' as const,
+      measureId: asOptionalId(raw.measureId, 'measureId'),
+      measureRef: asOptionalId(raw.measureRef, 'measureRef'),
+      patch: present({
+        key: patch.key === undefined ? undefined : asMeasureKey(patch.key),
+        name: asOptionalText(patch.name, 'name'),
+        unit: patch.unit === undefined ? undefined : asMeasureUnit(patch.unit),
+        kind: patch.measureKind === undefined ? undefined : asMeasureKind(patch.measureKind),
+        scale: patch.scale === undefined ? undefined : asMeasureScale(patch.scale),
+        threePoint: asOptionalFlag(patch.threePoint, 'threePoint'),
+        showByDefault: asOptionalFlag(patch.showByDefault, 'showByDefault'),
+        schedulesWork: asOptionalFlag(patch.schedulesWork, 'schedulesWork'),
+        order: asOptionalMeasureOrder(patch.order),
+        currency: asOptionalCurrency(patch.currency),
+      }),
+    });
+  },
+  deleteMeasure: (raw: CommandInput<'deleteMeasure'>) =>
+    present({
+      kind: 'deleteMeasure' as const,
+      measureId: asOptionalId(raw.measureId, 'measureId'),
+      measureRef: asOptionalId(raw.measureRef, 'measureRef'),
     }),
 } as const satisfies CommandNormalizerRecord<typeof commandDefinitions>;
 

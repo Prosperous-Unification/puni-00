@@ -13,6 +13,7 @@ import {
   readPasswordSession,
   registerPassword,
 } from './auth-password-shapes';
+import { readBudgetHeadroom } from './budget-headroom-shapes';
 import {
   createCalendarMarker,
   listCalendarMarkers,
@@ -20,6 +21,16 @@ import {
   updateCalendarMarker,
 } from './calendar-marker-shapes';
 import { readCapacityMode, switchCapacityMode } from './capacity-mode-shapes';
+import { readClaimHistory } from './claim-history-shapes';
+import { renewClaimLeases } from './claim-lease-shapes';
+import {
+  listComputeProviders,
+  putCapacityReport,
+  registerComputeProvider,
+  removeComputeProvider,
+  updateComputeProvider,
+} from './compute-provider-shapes';
+import { getWorkItemDelivery } from './delivery-shapes';
 import {
   listExternalSystems,
   listPeople,
@@ -67,6 +78,7 @@ import {
   mintMcpConsentCredential,
   readMcpAuthority,
 } from './mcp-delegation-shapes';
+import { listMeasures } from './measure-shapes';
 import {
   confirmEmailChallenge,
   createEmailChallenge,
@@ -85,6 +97,7 @@ import {
 } from './organization-shapes';
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
 import { readPersonWork } from './person-work-shapes';
+import { readProjectClaims } from './project-claims-shapes';
 import { moveProjectRank, readProjectRank } from './project-rank-shapes';
 import {
   createProject,
@@ -187,6 +200,11 @@ const ordinaryHttpShapes = [
   listTrustedIssuers,
   registerTrustedIssuer,
   removeTrustedIssuer,
+  listComputeProviders,
+  registerComputeProvider,
+  updateComputeProvider,
+  removeComputeProvider,
+  putCapacityReport,
   rotateDomainProof,
   readSessionPolicy,
   setSessionPolicy,
@@ -234,10 +252,17 @@ const ordinaryHttpShapes = [
   getWorkItems,
   getWorkItemRows,
   getWorkItem,
+  // Proof: removing this entry made the delivery client/OpenAPI contract test find no client operation.
+  getWorkItemDelivery,
   getStepReference,
   readStartableWork,
+  readBudgetHeadroom,
   readPersonWork,
+  readProjectClaims,
+  readClaimHistory,
+  renewClaimLeases,
   readProjectResources,
+  listMeasures,
   applyProjectCommands,
   applyDirectoryCommands,
   undoProject,

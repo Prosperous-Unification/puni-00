@@ -13,6 +13,11 @@ import type {
   WorkItemType,
 } from '@wbs/core';
 
+import {
+  memoryMeasureDefinitions,
+  type MemoryMeasureDefinitionTables,
+  memoryMeasureDefinitionTables,
+} from './measure-definition-fixture';
 import { type MemoryResourceTables, memoryResourceTables } from './resource-fixture';
 
 /** The empty usage, both halves present — what this fixture can honestly say. */
@@ -94,6 +99,8 @@ export interface MemoryDirectoryTables {
   readonly credentialPins: Map<string, string>;
   /** The resources and what plans state about them (`wbs-resources`). */
   readonly resources: MemoryResourceTables;
+  /** The organizations and their measure definitions (`wbs-measure-budgets`). */
+  readonly measureDefinitions: MemoryMeasureDefinitionTables;
 }
 
 /** The {@link MemoryDirectoryTables.credentialPins} key of one `(issuer, subject)`. */
@@ -123,6 +130,7 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
     organizationMembers: new Map(),
     credentialPins: new Map(),
     resources: memoryResourceTables(),
+    measureDefinitions: memoryMeasureDefinitionTables(),
   };
 }
 
@@ -163,6 +171,7 @@ export function inMemoryDirectory(
    */
 
   const store: DirectoryStore = {
+    ...memoryMeasureDefinitions(tables.measureDefinitions),
     // Organization-local writes exist only over SQLite, where the ownership
     // side tables and their freeze live; the in-memory directory models the
     // mapping for reads alone.
@@ -244,6 +253,21 @@ export function inMemoryDirectory(
         ),
       ].sort();
       return Promise.resolve({ ok: true, resource: { ...patched }, projectIds });
+    },
+    // The memory twin holds no provider instance (compute providers are
+    // SQLite's alone), so every id is unknown and only clearing succeeds.
+    setResourceProvider(resourceId, providerId, _organizationId, _stamp) {
+      if (!resourceTables.resources.has(resourceId))
+        return Promise.resolve({ ok: false, reason: 'not_found' });
+      if (providerId !== null) return Promise.resolve({ ok: false, reason: 'unknown_provider' });
+      const projectIds = [
+        ...new Set(
+          [...resourceTables.capacities.values()]
+            .filter((each) => each.resourceId === resourceId)
+            .map((each) => each.projectId),
+        ),
+      ].sort();
+      return Promise.resolve({ ok: true, projectIds });
     },
     // The counts are the tables' own; the rows naming a demand's project are
     // not, for `usageOfTag`'s reason, and the bound source answers them.
@@ -654,5 +678,7 @@ function resourceUsageOf(tables: MemoryResourceTables, resourceId: string) {
       .map(({ projectId, units }) => ({ projectId, units }))
       .sort((left, right) => left.projectId.localeCompare(right.projectId)),
     occupancies: 0,
+    // The memory twin holds no provider instance (`compute-providers` P3).
+    providerId: null,
   };
 }

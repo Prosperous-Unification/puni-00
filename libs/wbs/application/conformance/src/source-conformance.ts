@@ -16,6 +16,13 @@ import { directoryRegistrations } from './stores/directory';
 import { estimateRegistrations } from './stores/estimates';
 import { eventLogRegistrations } from './stores/event-log';
 import { journalRegistrations } from './stores/journal';
+import { directoryMeasureRegistrations } from './stores/measure-definitions';
+import {
+  budgetRegistrations,
+  directoryMeasureFactRegistrations,
+  measureEstimateRegistrations,
+  measureFactRegistrations,
+} from './stores/measure-facts';
 import { measureRegistrations } from './stores/measures';
 import { organizationLimitRegistrations } from './stores/organization-limits';
 import { planEventRegistrations } from './stores/plan-events';
@@ -61,6 +68,8 @@ export interface ExistingStoreOpeners {
   readonly estimates: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['estimates']>>;
   readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
   readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
+  readonly measureEstimates: OpenCase<'measureEstimates'>;
+  readonly budgets: OpenCase<'budgets'>;
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
   readonly stepParallels: OpenCase<'stepParallels'>;
@@ -179,6 +188,9 @@ export function existingStoreRegistrations(
     ...estimateRegistrations(openers.estimates),
     ...actualRegistrations(openers.actuals),
     ...measureRegistrations(openers.measures),
+    ...measureFactRegistrations(openers.measures),
+    ...measureEstimateRegistrations(openers.measureEstimates),
+    ...budgetRegistrations(openers.budgets),
     ...progressRegistrations(openers.progress),
     ...attemptRegistrations(openers.attempts),
     storeCase(
@@ -302,8 +314,8 @@ export function existingStoreRegistrations(
         expect(await port.add([second], [], seed.stamps[1], [])).toBe('written');
         expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
           [
-            { ...first, claimedAt: seed.stamps[0].at },
-            { ...second, claimedAt: seed.stamps[1].at },
+            { ...first, claimedAt: seed.stamps[0].at, leaseExpiresAt: null, leaseRevokedAt: null },
+            { ...second, claimedAt: seed.stamps[1].at, leaseExpiresAt: null, leaseRevokedAt: null },
           ].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
         );
         expect(await port.listStampedByProject(seed.projectIds[1])).toEqual([]);
@@ -372,8 +384,14 @@ export function existingStoreRegistrations(
       await port.moveAll(leaf, child, seed.stamps[1]);
       expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
         [
-          { ...moved, workItemId: child, claimedAt: seed.stamps[0].at },
-          { ...under, claimedAt: seed.stamps[0].at },
+          {
+            ...moved,
+            workItemId: child,
+            claimedAt: seed.stamps[0].at,
+            leaseExpiresAt: null,
+            leaseRevokedAt: null,
+          },
+          { ...under, claimedAt: seed.stamps[0].at, leaseExpiresAt: null, leaseRevokedAt: null },
         ].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
       );
       const clash = { ...moved, id: 'claim-clash', workItemId: leaf, stepId: otherStepId };
@@ -385,6 +403,245 @@ export function existingStoreRegistrations(
       await port.remove([moved], [], seed.stamps[1]);
       expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
     }),
+    // `wbs-claim-leases` L1, L4, L5: a lease is written with its claim,
+    // renewed only while in force and due, and read as expired at exactly
+    // its instant.
+    storeCase(
+      'claims',
+      'claims.lease:write-renew-expire',
+      openers.claims,
+      async ({ port, seed }) => {
+        const [leaf] = seed.workItemIds[0];
+        const [otherLeaf] = seed.workItemIds[1];
+        const [stepId, otherStepId] = seed.stepIds[0];
+        const [otherProjectStep] = seed.stepIds[1];
+        const [agent, human] = seed.personIds;
+        const leased = {
+          id: 'claim-leased',
+          workItemId: leaf,
+          stepId,
+          personId: agent,
+          runId: 'run-1',
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        const unleased = { ...leased, id: 'claim-human', stepId: otherStepId, personId: human };
+        const elsewhere = {
+          ...leased,
+          id: 'claim-elsewhere',
+          workItemId: otherLeaf,
+          stepId: otherProjectStep,
+        };
+        expect(
+          await failureOf(
+            port.add([leased], [], seed.stamps[0], [], [{ claimId: 'stray', expiresAt: 1 }]),
+          ),
+        ).toContain('not added');
+        expect(
+          await port.add(
+            [leased],
+            [],
+            seed.stamps[0],
+            [],
+            [{ claimId: leased.id, expiresAt: 10_000 }],
+          ),
+        ).toBe('written');
+        expect(await port.add([unleased], [], seed.stamps[0], [])).toBe('written');
+        expect(
+          await port.add(
+            [elsewhere],
+            [],
+            seed.stamps[0],
+            [],
+            [{ claimId: elsewhere.id, expiresAt: 860_000 }],
+          ),
+        ).toBe('written');
+        expect(
+          (await port.listStampedByProject(seed.projectIds[0])).map(({ id, leaseExpiresAt }) => [
+            id,
+            leaseExpiresAt,
+          ]),
+        ).toEqual([
+          ['claim-leased', 10_000],
+          ['claim-human', null],
+        ]);
+        // At 5,000 a lease is due below 845,000 (`renewalAt`): the first moves
+        // to 905,000, the second was renewed within the resolution and stays.
+        // Only the first project's lease moved, so only it is named.
+        expect(await port.renewLeases(agent, () => 5_000)).toEqual({
+          standing: { leases: 2, leaseExpiresAt: 860_000 },
+          renewedProjectIds: [seed.projectIds[0]],
+        });
+        // At 860,000 the second lease has run out: it is not revived.
+        expect(await port.renewLeases(agent, () => 860_000)).toEqual({
+          standing: { leases: 1, leaseExpiresAt: 1_760_000 },
+          renewedProjectIds: [seed.projectIds[0]],
+        });
+        expect(await port.renewLeases(human, () => 860_000)).toEqual({
+          standing: { leases: 0, leaseExpiresAt: null },
+          renewedProjectIds: [],
+        });
+        expect(await port.expiredLeasesOf(seed.projectIds[1], 860_000)).toEqual([
+          { claimId: elsewhere.id, reason: 'lease_expired' },
+        ]);
+        expect(await port.expiredLeasesOf(seed.projectIds[0], 1_759_999)).toEqual([]);
+        expect(await port.expiredLeasesOf(seed.projectIds[0], 1_760_000)).toEqual([
+          { claimId: leased.id, reason: 'lease_expired' },
+        ]);
+        expect(await port.projectsWithExpiredLeases(860_000, 10)).toEqual([seed.projectIds[1]]);
+        // Oldest expired lease first: the second project's ran out at 860,000.
+        expect(await port.projectsWithExpiredLeases(1_760_000, 10)).toEqual([
+          seed.projectIds[1],
+          seed.projectIds[0],
+        ]);
+        expect(await port.projectsWithExpiredLeases(1_760_000, 1)).toEqual([seed.projectIds[1]]);
+        // One renewal moving leases in both projects names each once, in
+        // code-unit order whatever order the claims were written in.
+        const [, secondLeaf] = seed.workItemIds[0];
+        const [, otherSecondLeaf] = seed.workItemIds[1];
+        const lateElsewhere = {
+          ...elsewhere,
+          id: 'claim-late-elsewhere',
+          workItemId: otherSecondLeaf,
+        };
+        const lateHere = { ...leased, id: 'claim-late-here', workItemId: secondLeaf };
+        const lateLeases = [
+          lateElsewhere,
+          lateHere,
+          { ...lateHere, id: 'claim-late-here-2', stepId: otherStepId },
+        ];
+        for (const late of lateLeases) {
+          expect(
+            await port.add(
+              [late],
+              [],
+              seed.stamps[0],
+              [],
+              [{ claimId: late.id, expiresAt: 2_000_000 }],
+            ),
+          ).toBe('written');
+        }
+        expect(await port.renewLeases(agent, () => 1_800_000)).toEqual({
+          standing: { leases: 3, leaseExpiresAt: 2_700_000 },
+          renewedProjectIds: [seed.projectIds[0], seed.projectIds[1]].sort((left, right) =>
+            left < right ? -1 : Number(left > right),
+          ),
+        });
+      },
+    ),
+    // `wbs-claim-display` C1: one observation answers the rows, steps, claims
+    // and holder names the claims read joins, so every claim sits on a row
+    // and a step it answers.
+    storeCase(
+      'claims',
+      'claims.observeProject:legacy-observation',
+      openers.claims,
+      async ({ port, seed, readers }) => {
+        const [projectId] = seed.projectIds;
+        const [leaf, child] = seed.workItemIds[0];
+        const [stepId, otherStepId] = seed.stepIds[0];
+        const [agent] = seed.personIds;
+        const held = {
+          id: 'claim-observed',
+          workItemId: child,
+          stepId: otherStepId,
+          personId: agent,
+          runId: 'run-observed',
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        expect(await port.add([held], [], seed.stamps[0], [])).toBe('written');
+        const observed = await port.observeProject(projectId, { kind: 'legacy' });
+        if (observed.kind !== 'observed')
+          throw new Error(`the observation answered ${observed.kind}`);
+        const placement = (row: {
+          id: string;
+          parentId: string | null;
+          position: number;
+          frozenNumber: string | null;
+          name: string;
+        }) => [row.id, row.parentId, row.position, row.frozenNumber, row.name];
+        const byId = (left: unknown[], right: unknown[]) =>
+          String(left[0]) < String(right[0]) ? -1 : 1;
+        expect(observed.rows.map(placement).sort(byId)).toEqual(
+          (await readers.workItems.listByProject(projectId)).map(placement).sort(byId),
+        );
+        expect(observed.rows.map(({ id }) => id).sort()).toEqual([leaf, child].sort());
+        expect(observed.stepIds).toEqual(
+          (await readers.projects.stepsOf(projectId)).map(({ id }) => id),
+        );
+        expect(observed.stepIds).toContain(stepId);
+        expect(observed.claims).toEqual([
+          { ...held, claimedAt: seed.stamps[0].at, leaseExpiresAt: null, leaseRevokedAt: null },
+        ]);
+        const named = (await readers.directory.listPeople()).find(({ id }) => id === agent);
+        if (named === undefined) throw new Error('the seed holds no such person');
+        expect([...observed.personNames]).toEqual([[agent, named.name]]);
+        const other = await port.observeProject(seed.projectIds[1], { kind: 'legacy' });
+        if (other.kind !== 'observed') throw new Error(`the observation answered ${other.kind}`);
+        expect(other.claims).toEqual([]);
+        expect(other.personNames.size).toBe(0);
+        expect(await port.observeProject('project-absent', { kind: 'legacy' })).toEqual({
+          kind: 'not_found',
+        });
+      },
+    ),
+    // `wbs-claim-leases` L8 and `wbs-claim-display` C2: a revocation ends the
+    // lease at its instant, and the stamped read answers that instant beside
+    // the expiry, so a client can say why the claim is releasing.
+    storeCase(
+      'claims',
+      'claims.lease:revoked-instant-read',
+      openers.claims,
+      async ({ port, seed, scenario }) => {
+        if (scenario.kind !== 'lease-revocation')
+          throw new Error(
+            `the revoked-instant case needs a lease revocation, not ${scenario.kind}`,
+          );
+        const [leaf] = seed.workItemIds[0];
+        const [stepId, otherStepId] = seed.stepIds[0];
+        const [agent, human] = seed.personIds;
+        const leased = {
+          id: 'claim-revoked',
+          workItemId: leaf,
+          stepId,
+          personId: agent,
+          runId: 'run-revoked',
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        const unleased = { ...leased, id: 'claim-kept', stepId: otherStepId, personId: human };
+        expect(
+          await port.add(
+            [leased],
+            [],
+            seed.stamps[0],
+            [],
+            [{ claimId: leased.id, expiresAt: 900_000 }],
+          ),
+        ).toBe('written');
+        expect(await port.add([unleased], [], seed.stamps[0], [])).toBe('written');
+        const stamped = (leaseExpiresAt: number | null, leaseRevokedAt: number | null) => [
+          { ...leased, claimedAt: seed.stamps[0].at, leaseExpiresAt, leaseRevokedAt },
+          { ...unleased, claimedAt: seed.stamps[0].at, leaseExpiresAt: null, leaseRevokedAt: null },
+        ];
+        expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(stamped(900_000, null));
+        expect(await scenario.endLeasesOf(human, 5_000)).toBe(0);
+        expect(await scenario.endLeasesOf(agent, 5_000)).toBe(1);
+        expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(stamped(5_000, 5_000));
+        // A revoked lease is never renewed again, and expires as revoked.
+        expect(await port.renewLeases(agent, () => 4_000)).toEqual({
+          standing: { leases: 0, leaseExpiresAt: null },
+          renewedProjectIds: [],
+        });
+        expect(await port.expiredLeasesOf(seed.projectIds[0], 5_000)).toEqual([
+          { claimId: leased.id, reason: 'credential_revoked' },
+        ]);
+        // The plain reads stay unstamped: the journal stores what they answer.
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([leased, unleased]);
+        expect(await port.findById(seed.projectIds[0], leased.id)).toEqual(leased);
+      },
+    ),
     storeCase(
       'claims',
       'claims.occupancy:hold-read-cascade',
@@ -445,6 +702,8 @@ export function existingStoreRegistrations(
     ...typedDependencyRegistrations(openers.typedDependencies),
     ...directoryRegistrations(openers.directory),
     ...directoryResourceRegistrations(openers.directory),
+    ...directoryMeasureRegistrations(openers.directory),
+    ...directoryMeasureFactRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
     ...planEventRegistrations(openers.planEvents),
     ...subtreeRegistrations(openers.subtrees),

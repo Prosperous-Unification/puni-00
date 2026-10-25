@@ -33,6 +33,8 @@ async function seeded() {
       estimates: stores.estimates,
       actuals: stores.actuals,
       measures: stores.measures,
+      measureEstimates: stores.measureEstimates,
+      budgets: stores.budgets,
       progress: stores.progress,
       attempts: stores.attempts,
       blockages: stores.blockages,
@@ -71,6 +73,10 @@ const hostRequirements = () => {
     }),
     actualStore: DiBag.createProvider(() => stores.actuals, { factoryReturnKind: 'sync-value' }),
     measureStore: DiBag.createProvider(() => stores.measures, { factoryReturnKind: 'sync-value' }),
+    measureEstimateStore: DiBag.createProvider(() => stores.measureEstimates, {
+      factoryReturnKind: 'sync-value',
+    }),
+    budgetStore: DiBag.createProvider(() => stores.budgets, { factoryReturnKind: 'sync-value' }),
     progressStore: DiBag.createProvider(() => stores.progress, { factoryReturnKind: 'sync-value' }),
     attemptStore: DiBag.createProvider(() => stores.attempts, { factoryReturnKind: 'sync-value' }),
     blockageStore: DiBag.createProvider(() => stores.blockages, {
@@ -97,6 +103,9 @@ const hostRequirements = () => {
     }),
     subtreeStore: DiBag.createProvider(() => stores.subtrees, { factoryReturnKind: 'sync-value' }),
     journalStore: DiBag.createProvider(() => stores.journal, { factoryReturnKind: 'sync-value' }),
+    planEventStore: DiBag.createProvider(() => stores.planEvents, {
+      factoryReturnKind: 'sync-value',
+    }),
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),

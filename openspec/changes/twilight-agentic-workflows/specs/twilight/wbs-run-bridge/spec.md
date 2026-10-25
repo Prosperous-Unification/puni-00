@@ -1,9 +1,9 @@
 ## ADDED Requirements
 
-### Requirement: Dash claims, reports and releases through WBS as a fleet
+### Requirement: Dash claims, reports and releases through WBS as one agent person
 
 Twilight Dash SHALL read startable work and write claims, progress, measures, releases and
-external refs through the WBS HTTP API under one fleet credential pinned to one agent person,
+external refs through the WBS HTTP API under one machine credential pinned to the coordinator's agent person,
 using the shared contracts shapes. Each execution write SHALL be one conditional runtime
 plan command batch. Every refusal code the WBS specs name SHALL be a typed outcome; an
 unlisted code SHALL throw. A claim SHALL carry the attempt's agent run. `token_actual`
@@ -12,7 +12,7 @@ SHALL be written only when usage is measured. Ordinary WBS APIs SHALL retain the
 #### Scenario: A startable step is claimed with the run id
 
 - **WHEN** the bridge claims step `impl` of leaf `080.25` for an attempt whose adapter session is `sess-42`
-- **THEN** WBS holds one claim on that step with the fleet's agent person and run id `sess-42`
+- **THEN** WBS holds one claim on that step with the coordinator's agent person and run id `sess-42`
 - **AND** the step's progress reads `in_progress`
 
 #### Scenario: A conditional claim loses its observed revision

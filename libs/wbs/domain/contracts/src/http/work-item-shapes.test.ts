@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { validateSchema } from './schema-shape';
+import { type SchemaShape, validateSchema } from './schema-shape';
 import { applyProjectCommands, commandParserRefusal, commandResults } from './work-item-shapes';
 
 test('command replies reserve every known entity field across untagged variants', async () => {
@@ -18,6 +18,36 @@ test('command replies reserve every known entity field across untagged variants'
       })
     ).issues,
   ).toBeUndefined();
+});
+
+test('assignSubtree replies declare each claimed step they reassigned', async () => {
+  const reassigned = {
+    workItemId: 'b',
+    stepId: 'review',
+    previousPersonId: null,
+    holder: { claimId: 'c1', personId: 'claire', runId: null },
+  };
+  expect(
+    (
+      await validateSchema(commandResults, {
+        results: [{ index: 0, reassignedClaimedSteps: [reassigned] }],
+      })
+    ).issues,
+  ).toBeUndefined();
+  const { holder: _dropped, ...withoutHolder } = reassigned;
+  for (const malformed of [
+    withoutHolder,
+    { ...reassigned, previousPersonId: 1 },
+    { ...reassigned, holder: { personId: 'claire', runId: null } },
+    { ...reassigned, holder: [reassigned.holder] },
+  ])
+    expect(
+      (
+        await validateSchema(commandResults, {
+          results: [{ index: 0, reassignedClaimedSteps: [malformed] }],
+        })
+      ).issues,
+    ).toBeDefined();
 });
 
 test('parser vocabulary is closed and preserves recognized command context', async () => {
@@ -48,4 +78,33 @@ test('deadline refusal requires both fields in its exact status declaration', as
   expect((await validateSchema(refusal.schema, body)).issues).toBeUndefined();
   const { projectDayZero, ...missing } = body;
   expect((await validateSchema(refusal.schema, missing)).issues).toBeDefined();
+});
+
+test('resources_exhausted declares every short resource, each with its numbers and holders', async () => {
+  const conflicts: readonly { schema: SchemaShape<unknown> }[] =
+    applyProjectCommands.refusals.filter((entry) => entry.status === 409);
+  /** Whether any 409 arm of the batch accepts `body`. */
+  const declared = async (body: unknown): Promise<boolean> => {
+    for (const { schema } of conflicts)
+      if ((await validateSchema(schema, body)).issues === undefined) return true;
+    return false;
+  };
+  const holders = [{ personId: 'p', name: 'Ada', runId: null, workItemId: 'w' }];
+  const ram = { resourceId: 'ram', asked: 6, free: 2, holders };
+  const body = {
+    error: 'resources_exhausted',
+    at: 0,
+    kind: 'claimWorkItem',
+    ...ram,
+    resources: [ram, { resourceId: 'worktree', asked: 1, free: 0, holders }],
+  };
+  expect(await declared(body)).toBe(true);
+  // Proof: with `resources` dropped from this arm, the body without it was
+  // accepted (3 pass, 1 fail); watched 2026-10-23.
+  const { resources, ...unlisted } = body;
+  expect(resources).toHaveLength(2);
+  expect(await declared(unlisted)).toBe(false);
+  const { free, ...freeless } = ram;
+  expect(free).toBe(2);
+  expect(await declared({ ...body, resources: [ram, freeless] })).toBe(false);
 });

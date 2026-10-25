@@ -16,7 +16,7 @@ const NAMESPACES = { app: 'wbs', backend: 'wbs-solver' };
 const KNOWN = 'f11-backup-known-row';
 const LAB_S3 = { user: 'f11-lab-only', password: 'f11-lab-only-password-000000' };
 const OLD_BACKUP_IMAGE =
-  'docker.io/oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f';
+  'docker.io/oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a';
 
 const state = resolve(process.env['PUNI_F11_BACKUP_STATE'] ?? join(ROOT, 'tmp/puni-f11-backup'));
 const kubectl = process.env['KUBECTL'] ?? 'kubectl';

@@ -31,6 +31,7 @@ import type {
   ProjectStore,
   ProjectWithAccess,
 } from '../../ports/project-store';
+import { isBudgetFactor } from '../../ports/project-values';
 import type { OptimizerAvailability } from '../../ports/scheduler';
 import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
@@ -59,6 +60,8 @@ export type UpdateOutcome =
         | 'forbidden'
         | 'bad_start_date'
         | 'bad_pert_weights'
+        /** A budget factor that is not finite, above 0 and at most 1000 (design D38). */
+        | 'bad_budget_factor'
         /** A zone the runtime does not support — `isTimezone` refuses it. */
         | 'invalid_timezone'
         /**
@@ -429,6 +432,13 @@ export class ProjectService {
     // 200`; watched 2026-08-30.
     if (patch.pertWeights !== undefined && PertWeights(patch.pertWeights) instanceof type.errors) {
       return { ok: false, reason: 'bad_pert_weights' };
+    }
+    // Refused before it is stored, for `bad_pert_weights`' reason: a factor of
+    // 0 or below would derive budgets nothing could be spent under.
+    // Proof: with this check removed, `refuses a budget factor of 0 and keeps
+    // the one it had` (budget-command.test.ts) stored 0; watched 2026-10-23.
+    if (patch.budgetFactor !== undefined && !isBudgetFactor(patch.budgetFactor)) {
+      return { ok: false, reason: 'bad_budget_factor' };
     }
     const found = await this.find(id, access);
     if (found === null) return { ok: false, reason: 'not_found' };

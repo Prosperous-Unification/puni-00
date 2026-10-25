@@ -54,6 +54,17 @@ const fixture = (): FixtureDocument => ({
     '/api/organization/trusted-issuers/{id}': {
       delete: { operationId: 'deleteApiOrganizationTrusted-issuersById' },
     },
+    '/api/organization/compute-providers': {
+      post: { operationId: 'postApiOrganizationCompute-providers' },
+    },
+    '/api/organization/compute-providers/{id}': {
+      delete: { operationId: 'deleteApiOrganizationCompute-providersById' },
+    },
+    '/api/compute-providers/{providerId}/resources/{resourceId}/capacity-report': {
+      put: {
+        operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+      },
+    },
     '/api/auth/login': { post: { operationId: 'postApiAuthLogin' } },
     '/internal/forward': { post: { operationId: 'postInternalForward' } },
     '/api/projects/': {
@@ -238,6 +249,14 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(tools.map((tool) => tool.name).sort()).toEqual([...expected].sort());
   });
 
+  it('tells a raw HTTP agent to heartbeat with no body and no query string', () => {
+    // Proof: dropping the sentence from the renewClaimLeases summary made this
+    // production-generated description miss it (watched 2026-10-24).
+    expect(byName(tools, 'postApiClaimsRenew').description).toContain(
+      'Send no request body (not even {}) and no query string',
+    );
+  });
+
   it('exposes the import document tool', () => {
     // Proof: removing importProject from httpShapes made this production-generated
     // lookup throw `no tool named postApiProjectsImport was derived`.
@@ -264,7 +283,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'workItems',
     ]);
     expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
-    expect(EXCLUDED_PATHS).toHaveLength(11);
+    expect(EXCLUDED_PATHS).toHaveLength(14);
   });
 
   it('never offers the sign-in method list as a tool', () => {
@@ -348,6 +367,10 @@ describe('toolsFromDocument, on the generated document', () => {
       'setStepBlocked',
       'setMeasure',
       'clearMeasure',
+      'setMeasureEstimate',
+      'clearMeasureEstimate',
+      'setBudget',
+      'clearBudget',
       'setAssignee',
       // `wbs-resources` R7: one more batch kind; the tool count does not move for it.
       'assignSubtree',
@@ -388,6 +411,9 @@ describe('toolsFromDocument, on the generated document', () => {
       'createResource',
       'patchResource',
       'deleteResource',
+      'createMeasure',
+      'patchMeasure',
+      'deleteMeasure',
     ];
     const emittedKinds = list.items.anyOf.map((variant) => variant.properties.kind.const);
     const emittedCounts = Object.fromEntries(

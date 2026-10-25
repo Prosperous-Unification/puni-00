@@ -1,5 +1,6 @@
 import type {
   DirectoryRead,
+  InstalledClaims,
   PlanRefresh,
   PlanRefreshSnapshot,
   RefreshFailure,
@@ -31,6 +32,7 @@ export interface AppliedGenerations {
   readonly steps: number;
   readonly directory: number;
   readonly markers: number;
+  readonly claims: number;
 }
 
 /**
@@ -52,6 +54,7 @@ export interface PlanFeedDelivery {
   readonly tree: { readonly value: PlanRead; readonly generation: number } | null;
   readonly steps: readonly StepView[] | null;
   readonly markers: readonly CalendarMarkerView[] | null;
+  readonly claims: InstalledClaims | null;
 }
 
 /** A refusal this feed owes the reader, in the terms its words are built from. */
@@ -72,6 +75,8 @@ export interface PlanFeedStreamHandlers {
   /** See `ProjectStreamOptions.onChange`: what the frame said changed, or `null`. */
   onChange: (changed?: string | null, seq?: number) => void;
   onConnectionChange: (connected: boolean) => void;
+  /** See `ProjectStreamOptions.onClaims`: a transient claims announcement, opted into here. */
+  onClaims: () => void;
 }
 
 /**

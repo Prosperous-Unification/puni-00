@@ -8,9 +8,12 @@ import type {
   OrganizationRole,
   ReleaseRefusal,
   ResourcesExhausted,
+  ResourceShortage,
   ResourceUnits,
+  TreePlacement,
   WorkItemStatus,
 } from '@wbs/domain';
+import { byTreeOrder, treeOrder } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { WorkItem } from '../../ports/work-item-store';
@@ -48,6 +51,11 @@ export interface NamedOccupancyHolder extends OccupancyHolder {
   readonly name: string;
 }
 
+/** A short resource as the wire names it: its holders named. */
+export interface NamedResourceShortage extends Omit<ResourceShortage, 'holders'> {
+  readonly holders: readonly NamedOccupancyHolder[];
+}
+
 /** Claim and release refusals that carry nothing beside their reason. */
 export type PlainClaimReason =
   | 'resources_on_subtree'
@@ -78,8 +86,9 @@ export type ClaimRefusalOutcome =
     }
   | ({ readonly ok: false } & BelowDeclaredDemand)
   | ({ readonly ok: false } & BelowHeldOccupancy)
-  | ({ readonly ok: false } & Omit<ResourcesExhausted, 'holders'> & {
+  | ({ readonly ok: false } & Omit<ResourcesExhausted, 'holders' | 'resources'> & {
         readonly holders: readonly NamedOccupancyHolder[];
+        readonly resources: readonly NamedResourceShortage[];
       })
   /**
    * The claim would add one more bound claim than the organization's cap
@@ -147,6 +156,66 @@ export function lineageOf(
   };
 }
 
+/**
+ * One leaf step `assignSubtree` gave a new assignee while another person holds
+ * the step's claim (issue #669 F6): reported, never refused.
+ */
+export interface ReassignedClaimedStep {
+  readonly workItemId: string;
+  readonly stepId: string;
+  /** The assignee before the command, or null where the step had none. */
+  readonly previousPersonId: string | null;
+  /** The step's one claim (the `claim_step` unique index allows no second). */
+  readonly holder: {
+    readonly claimId: string;
+    readonly personId: string;
+    readonly runId: string | null;
+  };
+}
+
+/**
+ * The leaves among `leafIds`, in tree order over `rows`, whose `stepId`
+ * assignee changed from `previous` to `personId` while a person other than
+ * `personId` holds the claim on that very step. A subtree claim (`stepId` null)
+ * or a claim on another step of the leaf never counts.
+ *
+ * Proof: without the tree-order sort, `lists reassigned claimed steps in tree
+ * order…` (reassigned-claimed-steps.test.ts) listed `claim-a` first, and step 9
+ * of swarm-end-to-end.db.test.ts failed in 4 of 8 runs; watched 2026-10-24.
+ *
+ * @throws when a leaf is not among `rows` ({@link byTreeOrder}).
+ */
+export function findReassignedClaimedSteps(input: {
+  readonly rows: readonly TreePlacement[];
+  readonly leafIds: readonly string[];
+  readonly stepId: string;
+  readonly personId: string | null;
+  readonly previous: ReadonlyMap<string, string>;
+  readonly claims: readonly Claim[];
+}): ReassignedClaimedStep[] {
+  const { stepId, personId } = input;
+  const leaves = input.leafIds
+    .map((id) => ({ id }))
+    .toSorted(byTreeOrder(treeOrder(input.rows)))
+    .map((leaf) => leaf.id);
+  return leaves.flatMap((workItemId) => {
+    const previousPersonId = input.previous.get(workItemId) ?? null;
+    if (previousPersonId === personId) return [];
+    const claim = input.claims.find(
+      (each) => each.workItemId === workItemId && each.stepId === stepId,
+    );
+    if (claim === undefined || claim.personId === personId) return [];
+    return [
+      {
+        workItemId,
+        stepId,
+        previousPersonId,
+        holder: { claimId: claim.id, personId: claim.personId, runId: claim.runId },
+      },
+    ];
+  });
+}
+
 /** The claims a decision reads: on the item, its ancestors and its descendants. */
 export function claimsAround(
   claims: readonly Claim[],
@@ -192,7 +261,15 @@ export function refusalOf(
     case 'below_held_occupancy':
       return { ok: false, ...refusal };
     case 'resources_exhausted':
-      return { ok: false, ...refusal, holders: refusal.holders.map(occupant) };
+      return {
+        ok: false,
+        ...refusal,
+        holders: refusal.holders.map(occupant),
+        resources: refusal.resources.map((short) => ({
+          ...short,
+          holders: short.holders.map(occupant),
+        })),
+      };
     default:
       return { ok: false, reason: refusal.reason };
   }

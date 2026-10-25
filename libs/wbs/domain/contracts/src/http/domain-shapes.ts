@@ -75,9 +75,14 @@ export const createDomainChallenge = defineEndpointShape({
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,
+    // Proof: with this file's stray-input codes undeclared, be-01's audit `answers every
+    // request-boundary failure the mount can raise with a declared 4xx` listed
+    // `postApiOrganizationDomainsChallenges invalid_query` and the verify, rotate and release `invalid_body` (watched 2026-10-24); it guards each widened 400 here.
     {
       status: 400,
-      schema: responseSchema(type({ error: "'invalid_json' | 'invalid_body' | 'invalid_domain'" })),
+      schema: responseSchema(
+        type({ error: "'invalid_json' | 'invalid_body' | 'invalid_query' | 'invalid_domain'" }),
+      ),
     },
     {
       status: 403,
@@ -105,7 +110,12 @@ export const verifyDomainClaim = defineEndpointShape({
     },
   ],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,
@@ -147,7 +157,12 @@ export const rotateDomainProof = defineEndpointShape({
     },
   ],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,
@@ -171,7 +186,12 @@ export const releaseDomainClaim = defineEndpointShape({
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body'" }),
+      ),
+    },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
     organizationContextRefusal,

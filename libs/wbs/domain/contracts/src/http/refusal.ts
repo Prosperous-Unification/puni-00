@@ -1,4 +1,5 @@
 import type { PlanCommandKind } from '../commands/definitions';
+import type { mixedBases } from './work-item-response';
 
 /**
  * Modeled HTTP failures; status/code pairing is narrowed by each endpoint shape.
@@ -26,6 +27,10 @@ export type ParserRefusalCode =
   | 'externalRefs_entry_name_is_too_long'
   | 'invalid_actual'
   | 'invalid_measure'
+  /** A `setBudget` cap or hold that is not a number at or above 0, or a policy outside the two. */
+  | 'invalid_budget'
+  /** A `rateCardDigest` that is not text of 1 to 128 characters. */
+  | 'rateCardDigest_must_be_1_to_128_characters'
   | 'invalid_progress'
   /** An `endAttempt` outcome outside `ATTEMPT_OUTCOMES`. */
   | 'invalid_outcome'
@@ -55,9 +60,9 @@ export type ParserRefusalCode =
   | 'first_band_must_start_at_1'
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
-  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId'}_must_be_id_or_null`
-  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
-  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef'}_must_be_an_id`
+  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId' | 'providerId'}_must_be_id_or_null`
+  | `${'name' | 'notes' | 'kind' | 'personKind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
+  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef' | 'measureId' | 'measureRef'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
   | `${'tagIds' | 'tagRefs'}_must_be_at_most_50`
@@ -96,7 +101,19 @@ export type ParserRefusalCode =
   | 'units_required'
   | 'units_must_be_a_whole_number_from_0'
   | 'units_must_be_at_most_1000000000'
-  | 'unitLabel_must_be_at_most_40_characters';
+  | 'unitLabel_must_be_at_most_40_characters'
+  // Measure definitions (`wbs-measure-budgets` D1): a key that is not a
+  // lowercase slug, a unit that is not short text, a kind or scale outside its
+  // vocabulary, a flag that is not a boolean, an order outside its bound, and a
+  // currency not shaped like an ISO 4217 code.
+  | 'key_must_be_a_measure_key'
+  | 'unit_must_be_text'
+  | 'unit_must_be_at_most_40_characters'
+  | 'measureKind_must_be_duration_count_or_money'
+  | 'scale_must_be_integer_or_real'
+  | `${'threePoint' | 'showByDefault' | 'schedulesWork'}_must_be_true_or_false`
+  | 'order_must_be_a_whole_number_from_0_to_1000000'
+  | 'currency_must_be_three_capital_letters';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -137,6 +154,24 @@ export type CommandRefusalCode =
   | 'minutes_not_integer'
   | 'minutes_above_max'
   | 'rolled_up'
+  /** `setMeasure` or `clearMeasure` on a derived measure (`agent_minutes`). */
+  | 'derived_measure'
+  /** `setMeasure` or `clearMeasure` in the scheduling measure; its fact is `setActual`'s days. */
+  | 'scheduling_measure_fact'
+  /** A fraction in a measure whose scale is `integer`. */
+  | 'scale_mismatch'
+  /** `setMeasureEstimate` or `clearMeasureEstimate` in the scheduling measure; its trio is `setEstimate`'s. */
+  | 'scheduling_measure_estimate'
+  /** `setMeasureEstimate` on a definition whose `threePoint` is false (`hours`, `agent_minutes`). */
+  | 'three_point_forbidden'
+  /** `setBudget` or `clearBudget` in the scheduling measure (`wbs-measure-budgets` D35). */
+  | 'scheduling_measure_budget'
+  /** A money fact or trio written without a rate card digest. */
+  | 'rate_card_required'
+  /** A rate card digest on a measure that is not money. */
+  | 'rate_card_forbidden'
+  /** A sum that would add money figures priced under two bases; `bases` names both. */
+  | 'mixed_rate_cards'
   | 'has_children'
   | 'ancestor'
   /** A typed dependency resolving a step node onto itself. */
@@ -149,7 +184,10 @@ export type CommandRefusalCode =
   | 'unsupported_relationship_type'
   | 'too_large'
   | 'unknown_step'
+  /** Retired by `wbs-measure-budgets` slice 2; an outgoing be-01 still answers it mid-swap. */
   | 'unknown_metric'
+  /** A metric naming no measure definition of the project's organization. */
+  | 'unknown_measure'
   | 'unknown_person'
   /** `patchPerson.accountId` naming no account that is a member of the person's organization. */
   | 'unknown_account'
@@ -160,6 +198,14 @@ export type CommandRefusalCode =
   | 'unknown_system'
   /** A resource the directory does not hold, or one another organization owns (`wbs-resources`). */
   | 'unknown_resource'
+  /** `patchResource.providerId` naming no provider instance (`compute-providers` P3). */
+  | 'unknown_provider'
+  /**
+   * `patchResource.providerId` naming another organization's provider
+   * instance: the caller already holds the id, so confirming it exists leaks
+   * nothing (`compute-providers` P3).
+   */
+  | 'provider_not_in_organization'
   /** `setDemand` of other than 1 unit on an `exclusive` resource. */
   | 'exclusive_demand_is_one'
   /** A patch whose bound `typeIds` and `typeRefs` name more than one type. */
@@ -231,7 +277,30 @@ export type CommandRefusalCode =
    * organization's cap on the sum over its projects (`wbs-organization-limits`
    * L2, L9); names the resource, cap, the other projects' units and the asked.
    */
-  | 'capacity_limit';
+  | 'capacity_limit'
+  /**
+   * `startAttempt` past a strict budget of the work item or an ancestor
+   * (`wbs-measure-budgets` D69): nothing remains, this attempt's hold would
+   * take it below zero, or a rate-card mix blocks it (`blocked`, `remaining`
+   * null). Names the budget's work item, measure, remainder and hold.
+   */
+  | 'budget_exhausted'
+  /**
+   * A measure definition write under legacy access while no organization is
+   * marked legacy: definitions belong to an organization (`wbs-measure-budgets`).
+   */
+  | 'organization_required'
+  // Measure definitions (`wbs-measure-budgets` D1, D2), each a 409 naming what
+  // the organization's own definitions refuse.
+  | 'measure_key_taken'
+  | 'measure_key_immutable'
+  | 'measure_shape_immutable'
+  | 'second_scheduling_measure'
+  | 'scheduling_measure_fixed'
+  | 'currency_required'
+  | 'currency_forbidden'
+  | 'unit_required'
+  | 'measure_in_use';
 
 /** What a refused capacity statement names: the resource, the cap, the others' units and the asked. */
 export interface CapacityLimitRefusalDetail {
@@ -239,6 +308,19 @@ export interface CapacityLimitRefusalDetail {
   cap: number;
   declared: number;
   asked: number;
+}
+
+/**
+ * What `budget_exhausted` names (`wbs-measure-budgets` D69): the work item
+ * stating the strict budget, its measure key, what remained before the
+ * refused start (null when `blocked`) and what the start would have held.
+ */
+export interface BudgetExhaustedRefusalDetail {
+  workItemId: string;
+  measure: string;
+  remaining: number | null;
+  hold: number;
+  blocked: boolean;
 }
 
 /** What a refused claim names: the organization's cap on bound claims and how many it holds. */
@@ -271,6 +353,18 @@ export interface OccupancyRefusalHolder {
 }
 
 /**
+ * One resource `resources_exhausted` names: the units asked, the units free
+ * and who holds the rest. The refusal's own fields are its first short
+ * resource; `resources` lists every one in resource-id order.
+ */
+export interface ResourceShortageDetail {
+  resourceId: string;
+  asked: number;
+  free: number;
+  holders: OccupancyRefusalHolder[];
+}
+
+/**
  * Proof (type boundary only): making kind optional produces TS2578 for both the
  * runtime and global incomplete-command fixtures. Production binding is pending.
  */
@@ -297,6 +391,12 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  /**
+   * The provider instance the resource names, whose reference and report a
+   * confirmed removal takes with it (`compute-providers` P3), or null.
+   * Optional on the wire: an outgoing be-01 mid-swap names none.
+   */
+  providerId?: string | null;
 }
 
 /** Both affected-project and directory-member lists are present, including when empty. */
@@ -388,32 +488,31 @@ export type CommandRefusalDetail = {
             ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }
             : C extends 'taken'
               ? { name?: string }
-              : C extends 'not_startable'
-                ? { status: string }
-                : C extends 'step_done'
-                  ? { stepIds: string[] }
-                  : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
-                    ? { holders: ClaimRefusalHolder[] }
-                    : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
-                      ? { holder: ClaimRefusalHolder }
-                      : C extends 'below_declared_demand'
-                        ? { resourceId: string; asked: number; declared: number }
-                        : C extends 'below_held_occupancy'
-                          ? { resourceId: string; asked: number; held: number }
-                          : C extends 'resources_exhausted'
-                            ? {
-                                resourceId: string;
-                                asked: number;
-                                free: number;
-                                holders: OccupancyRefusalHolder[];
-                              }
-                            : C extends 'agent_person_limit'
-                              ? LimitRefusalDetail
-                              : C extends 'claim_limit'
-                                ? ClaimLimitRefusalDetail
-                                : C extends 'capacity_limit'
-                                  ? CapacityLimitRefusalDetail
-                                  : Record<never, never>);
+              : C extends 'mixed_rate_cards'
+                ? { bases: typeof mixedBases.infer }
+                : C extends 'not_startable'
+                  ? { status: string }
+                  : C extends 'step_done'
+                    ? { stepIds: string[] }
+                    : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
+                      ? { holders: ClaimRefusalHolder[] }
+                      : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
+                        ? { holder: ClaimRefusalHolder }
+                        : C extends 'below_declared_demand'
+                          ? { resourceId: string; asked: number; declared: number }
+                          : C extends 'below_held_occupancy'
+                            ? { resourceId: string; asked: number; held: number }
+                            : C extends 'resources_exhausted'
+                              ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
+                              : C extends 'agent_person_limit'
+                                ? LimitRefusalDetail
+                                : C extends 'claim_limit'
+                                  ? ClaimLimitRefusalDetail
+                                  : C extends 'capacity_limit'
+                                    ? CapacityLimitRefusalDetail
+                                    : C extends 'budget_exhausted'
+                                      ? BudgetExhaustedRefusalDetail
+                                      : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -438,6 +537,11 @@ type BareRefusalCode =
    * person is no longer bound to the account (`wbs-machine-credentials` A20).
    */
   | 'credential_revoked'
+  /**
+   * `POST /api/claims/renew` from a caller whose credential is pinned to no
+   * person (a session, an upstream pair): it holds no lease (`wbs-claim-leases` L13).
+   */
+  | 'not_pinned'
   | 'email_verification_required'
   | 'password_account_required'
   | 'address_conflict'
@@ -474,6 +578,8 @@ type BareRefusalCode =
   | 'unsupported_format'
   | 'bad_start_date'
   | 'bad_pert_weights'
+  /** A project budget factor that is not finite, above 0 and at most 1000. */
+  | 'bad_budget_factor'
   | 'optimizer_unavailable'
   /** Another of the organization's projects holds the requested solution slug. */
   | 'solution_taken'
@@ -511,10 +617,9 @@ type BareRefusalCode =
   // A project reach change or a step removal that would close a step-node
   // dependency cycle. Outside a batch, so it carries no command position.
   | 'dependency_cycle'
-  // Spaces (`add-spaces`): legacy access with no legacy organization to own a
-  // space; a space name the organization already holds; a project already in
-  // the space; a write addressed to the virtual All projects.
-  | 'organization_required'
+  // Spaces (`add-spaces`): a space name the organization already holds; a
+  // project already in the space; a write addressed to the virtual All
+  // projects. `organization_required` is a shared command code below.
   | 'name_taken'
   | 'already_in_space'
   | 'virtual_space'
@@ -573,7 +678,10 @@ type BareRefusalCode =
   // A25: another organization registered the issuer with this audience; an
   // organization at its trusted issuer cap.
   | 'audience_taken'
-  | 'trusted_issuer_limit';
+  | 'trusted_issuer_limit'
+  // Delivery observation (`track-work-delivery`): every provider read slot
+  // stayed taken for the bounded wait.
+  | 'delivery_busy';
 
 type SharedCommandCode =
   | 'person_not_bound'
@@ -589,7 +697,9 @@ type SharedCommandCode =
   | 'unknown_team'
   | 'unknown_person'
   | 'agent_person_limit'
-  | 'capacity_limit';
+  | 'capacity_limit'
+  | 'organization_required'
+  | 'unknown_provider';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -624,11 +734,40 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     agent_person_limit: LimitRefusalDetail | CommandRefusalDetail['agent_person_limit'];
     /** Without a command position from the plan import; with one from a batch. */
     capacity_limit: CapacityLimitRefusalDetail | CommandRefusalDetail['capacity_limit'];
+    /**
+     * Legacy access with no legacy organization: bare from a space, rank or
+     * capacity-mode route; with its command context from a measure batch.
+     */
+    organization_required: undefined | CommandContext;
     /** Naming the person from a machine credential create; with its command context from a batch. */
     person_not_bound: undefined | { personId: string } | CommandRefusalDetail['person_not_bound'];
     credential_not_for_person: undefined | CommandRefusalDetail['credential_not_for_person'];
-    /** Also a trusted issuer that unrevoked machine credentials name (`wbs-machine-credentials` A16). */
-    in_use: { inUse: StepInUse } | { machineCredentials: number } | CommandRefusalDetail['in_use'];
+    /**
+     * Also a trusted issuer that unrevoked machine credentials name
+     * (`wbs-machine-credentials` A16), and a provider instance resources name
+     * (`compute-providers` P2).
+     */
+    in_use:
+      | { inUse: StepInUse }
+      | { machineCredentials: number }
+      | { resources: { id: string; name: string }[] }
+      | CommandRefusalDetail['in_use'];
+    /** Bare from the compute provider routes; with its command context from a `patchResource` batch. */
+    unknown_provider: undefined | CommandRefusalDetail['unknown_provider'];
+    /**
+     * A capacity report from a principal that is no machine credential of an
+     * agent person (`compute-providers` P6): which carrier it was, or the
+     * pinned person's kind.
+     */
+    not_an_agent_principal: { authentication: 'session' | 'delegation' } | { personKind: 'person' };
+    /** The organization spent its delivery provider reads; whole seconds until the next one. */
+    delivery_rate_limited: { retryAfterSeconds: number };
+    /** A capacity report observed further ahead of WBS's clock than the tolerance, by this much. */
+    observedAt_in_future: { skewMs: number };
+    /** A capacity report for a resource that names another instance, or none. */
+    provider_mismatch: { providerId: string | null };
+    /** A capacity report not newer than the stored one, naming the stored instant. */
+    report_superseded: { storedObservedAt: number };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.

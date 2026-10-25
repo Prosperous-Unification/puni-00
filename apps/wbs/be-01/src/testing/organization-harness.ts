@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { DeliveryReader } from '@shared/delivery';
 import {
   buildOidcVerifier,
   type IssuerFetch,
@@ -21,6 +22,7 @@ import {
 } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import type { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
@@ -29,9 +31,11 @@ import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
+import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
+  computeProvidersOver,
   currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
@@ -64,12 +68,15 @@ import {
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
-import type { Connection } from '@wbs/store-sqlite/db';
+import { type Connection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
+import { PlanEventRepository } from '@wbs/store-sqlite/plan-event';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
+import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
 
 import { buildApp } from '../app';
 import type { ReservedSpawner } from '../module/optimization/contract';
@@ -207,10 +214,21 @@ export class OrganizationHarness {
     private readonly optimizerCoordinator?: OptimizationCoordinator,
     private readonly savedPlanCapture?: SavedPlanCaptureStore,
     private readonly composedSource?: SqliteSource,
+    private readonly composedClaimLeases?: ClaimLeaseSweep,
   ) {}
+
+  /**
+   * The composed claim lease sweep (`wbs-claim-leases` L7), unstarted: boot
+   * starts it in production; a test starts it to watch a revoke's tick.
+   */
+  claimLeaseSweep(): ClaimLeaseSweep {
+    if (this.composedClaimLeases === undefined) throw new Error('composed claim leases are absent');
+    return this.composedClaimLeases;
+  }
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
   async closeComposed(): Promise<void> {
+    await this.composedClaimLeases?.stop();
     await this.optimizerCoordinator?.stop();
     await this.composedSource?.close();
     this.close();
@@ -428,10 +446,19 @@ export class OrganizationHarness {
         estimates: new EstimateRepository(db, OPEN),
         actuals: new ActualRepository(db, OPEN),
         measures: new StepMeasureRepository(db, OPEN),
+        measureEstimates: new MeasureEstimateRepository(db, OPEN),
+        budgets: new WorkItemBudgetRepository(db, OPEN),
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),
-        claims: new ClaimRepository(db, OPEN),
+        // The claims read observes committed state on a read-only connection
+        // of its own, as openSqliteSource's public catalogs do. This copy of the
+        // binding has no negative of its own: no harness test opens a batch
+        // beside a read. The source's binding is proven in
+        // claim-observation.db.test.ts.
+        claims: new ClaimRepository(db, OPEN, {
+          openConnection: () => openReadOnlyConnection(path),
+        }),
         demands: new DemandRepository(db, OPEN),
         resourceCapacity: new ResourceCapacityRepository(db, OPEN),
         stepParallels: new StepParallelRepository(db, OPEN),
@@ -442,6 +469,7 @@ export class OrganizationHarness {
         priorityBands: inMemoryPriorityBands(),
         subtrees: new SubtreeRepository(db, OPEN),
         journal: new CommandJournalRepository(db, OPEN),
+        planEvents: new PlanEventRepository(db, OPEN),
         broadcast: recordingBroadcaster(),
       }),
     };
@@ -480,6 +508,7 @@ export class OrganizationHarness {
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
       machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
+      computeProviders: computeProvidersOver(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -577,6 +606,8 @@ export class OrganizationHarness {
    */
   static openComposedWith({
     withOptimizer = false,
+    delivery,
+    deliveryLimits,
     afterResolve,
     spawn = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
@@ -672,6 +703,8 @@ export class OrganizationHarness {
       () => services.clock.now(),
     );
     const app = buildApp({
+      ...(delivery === undefined ? {} : { delivery }),
+      ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
       appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,
@@ -708,6 +741,15 @@ export class OrganizationHarness {
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
+      claimLeases: services.claimLeases,
+      computeProviders: computeProvidersOver(source.db, services.gate),
+      // As `boot.ts` wires it, so the composed boundary serves the limits read too.
+      // Proof: without it, `swarm-end-to-end.db.test.ts` read the limits 403
+      // no_active_organization on an activated organization; watched 2026-10-23.
+      organizationLimits: new OrganizationLimitsRepository(
+        source.db,
+        TEST_ORGANIZATION_DEFAULT_LIMITS,
+      ),
       ...(trustedIssuers === undefined
         ? {}
         : {
@@ -788,6 +830,7 @@ export class OrganizationHarness {
       services.optimizer,
       source.history.savedPlanCapture,
       source,
+      services.claimLeases,
     );
     harness.federated = provider !== undefined;
     return harness;
@@ -969,6 +1012,10 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  /** Trusted external delivery reader; absent exercises production composition. */
+  readonly delivery?: DeliveryReader;
+  /** Delivery gate limits; absent uses the production defaults. */
+  readonly deliveryLimits?: DeliveryGateLimits;
   readonly sessionBinding?: boolean;
   /** The services clock's time source; real time unless a test fixes it. */
   readonly now?: () => number;

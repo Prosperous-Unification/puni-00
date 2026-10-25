@@ -5,13 +5,14 @@ import { CalendarMarkerRepository } from './calendar-marker';
 import { CapacityRepository } from './capacity';
 import { ClaimRepository } from './claim';
 import { CommandJournalRepository } from './command-journal';
-import type { Drizzle } from './db';
+import type { Connection, Drizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { DrizzleEventLogStore } from './event-log';
 import type { Gate } from './gate';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
+import { MeasureEstimateRepository } from './measure-estimate';
 import { PlanEventRepository } from './plan-event';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
@@ -27,6 +28,7 @@ import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 /** Builds the complete transactional SQLite catalog over one write gate. */
 export function buildStores(
@@ -34,6 +36,11 @@ export function buildStores(
   gate: Gate,
   lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
   livePlans?: LivePlanStore,
+  /**
+   * The connection the claims read observes committed state through; absent
+   * for a batch's own catalog, whose reads must see its uncommitted writes.
+   */
+  claimObservation?: { readonly openConnection: () => Connection },
 ) {
   return {
     ...(livePlans === undefined ? {} : { livePlans }),
@@ -52,10 +59,12 @@ export function buildStores(
     estimates: new EstimateRepository(db, gate),
     actuals: new ActualRepository(db, gate),
     measures: new StepMeasureRepository(db, gate),
+    measureEstimates: new MeasureEstimateRepository(db, gate),
+    budgets: new WorkItemBudgetRepository(db, gate),
     progress: new StepProgressRepository(db, gate),
     blockages: new StepBlockageRepository(db, gate),
     stepParallels: new StepParallelRepository(db, gate),
-    claims: new ClaimRepository(db, gate),
+    claims: new ClaimRepository(db, gate, claimObservation),
     // Proof: P26 committed instead of rolling back the borrowed UoW; late duplicate receipt retained prior runtime writes.
     runtimeCommands: new RuntimeCommandRepository(db, gate),
     demands: new DemandRepository(db, gate),

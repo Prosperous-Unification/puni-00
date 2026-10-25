@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
 import { POINTS } from './estimate-draft';
+import { isMeasureColumnId } from './measure-reading';
 
 /**
  * Every fact about the plan a column's width is allowed to depend on, in one
@@ -387,6 +388,14 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // type is created **in the cell** by naming one. A column that appears once you
   // have used it, and cannot be used until it appears, is not a column.
   ['type', 120],
+  // The resources a leaf demands (`wbs-resources` 1.5): `h2puni ram 6 GB ·
+  // staging` is a phrase, and operators name machine resources after their
+  // host, so 120 like the label columns clipped the first name in the eye
+  // review (`h2puni agent sl…`); 168 holds one host-named resource and its
+  // units. Hidden by default, on the `type` column's terms: the folded budget
+  // at 1280 has no room, and resources are stated on the plans a swarm runs,
+  // which turn the column on in Columns. The cell's hover fact says it whole.
+  ['resources', 168],
   // People at once, and this is the tightest column in the table: a two-person
   // icon for a heading and three digits of value, right-aligned. 32px is 24px of
   // mark room plus the 8px of padding the declared width includes — enough for
@@ -680,6 +689,7 @@ export const INITIAL_HIDDEN_COLUMNS: readonly string[] = [
   'team',
   'service',
   'type',
+  'resources',
   // The work item deadline, hidden for the same reason `type` is: the folded
   // table has 29px of slack at 1280 and this column is 84, so on by default it
   // would overflow the budget test measures — and a deadline is a thing a
@@ -747,6 +757,7 @@ export function hideableColumnIds(stepIds: readonly string[]): readonly string[]
     'tag',
     'service',
     'type',
+    'resources',
     'in-parallel',
     ...stepIds,
     'final-total',
@@ -862,6 +873,14 @@ export const FLEXIBLE_CAP = 420;
 const STEP_FINAL_WIDTH = 104;
 const STEP_POINT_WIDTH = 44;
 const STEP_ASSIGNEE_WIDTH = 120;
+/**
+ * A measure column's width (`wbs-measure-budgets` D7): room for `$1,234.56`,
+ * `-12,000` or `12,345 ·` beside its marker in the table's figure font, and a
+ * two-line heading of the measure's name over its facet and unit. Never shown
+ * by default (only `time` is, through the step columns), so the folded budget
+ * `e2e/layout.spec.ts` measures is unchanged.
+ */
+const MEASURE_FIGURE_WIDTH = 96;
 
 /** An id the width table has never heard of — a typo, or a new column nobody sized. */
 export class UnknownColumnError extends Error {
@@ -893,6 +912,12 @@ export function defaultWidthFor(columnId: string, state: FrameLayoutState): numb
   if (declared !== undefined) return declared;
   const fromPlan = PLAN_WIDTHS.get(columnId);
   if (fromPlan !== undefined) return fromPlan(state);
+  // Before the step suffixes: a measure facet is never one of them, and a
+  // measure id is the only one that starts with this prefix.
+  // Proof: with this arm removed, `lays every measure column at its declared
+  // width` (table-frame.test.ts) threw UnknownColumnError for
+  // `measure-tokens-estimate`.
+  if (isMeasureColumnId(columnId)) return MEASURE_FIGURE_WIDTH;
   if (columnId.includes('-')) {
     if (columnId.endsWith('-final')) return STEP_FINAL_WIDTH;
     if (columnId.endsWith('-assignee')) return STEP_ASSIGNEE_WIDTH;

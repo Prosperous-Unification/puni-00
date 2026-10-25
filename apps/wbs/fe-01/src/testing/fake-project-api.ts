@@ -15,17 +15,21 @@ import { byTreeOrder, treeOrder } from '@wbs/domain/tree-order';
 import type {
   AssumedAssigneeFlipView,
   CalendarMarkerView,
+  ClaimHistoryEventView,
+  ClaimView,
   Days,
   EstimateMethod,
   ProjectApi,
+  ProjectResourcesView,
   ScheduleView,
   StepView,
   TypedDependencyView,
   UndoResult,
   WorkItemView,
 } from '@/lib/wbs-api';
-import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW, WbsRequestError } from '@/lib/wbs-api';
 
+import { SEEDED_MEASURES } from './measure-fixtures';
 import { EstimateUnitConflict, refusingApi } from './refusing-api';
 
 /**
@@ -42,6 +46,14 @@ import { EstimateUnitConflict, refusingApi } from './refusing-api';
  * be-01 refuses. That is the point. A fake that answered whatever the caller
  * asked for would let a broken table pass every one of these suites.
  */
+
+/**
+ * Where be-01 files a fact by definition key (design D18): tokens and hours
+ * under their legacy names. A copy of `factKeyOf`, because this fake is
+ * type-checked inside module projects that may not reach a component.
+ */
+const factKeyOf = (key: string): string =>
+  key === 'tokens' ? 'token_actual' : key === 'hours' ? 'hours_actual' : key;
 
 /** The first step every fixture starts with. */
 export const DEV: StepView = {
@@ -79,6 +91,10 @@ export function fakeProjectApi(): ProjectApi & {
    * only observable against a list a create would have grown.
    */
   markers: CalendarMarkerView[];
+  /** The claims this fake answers `readClaims` with; a test pushes what it needs. */
+  claims: ClaimView[];
+  /** The claim history this fake answers `readClaimHistory` with, newest first. */
+  claimHistory: ClaimHistoryEventView[];
   stack: { undoable: boolean; redoable: boolean };
   stackCalls: ('undo' | 'redo')[];
   answerStackWith: (answer: UndoResult) => void;
@@ -119,6 +135,14 @@ export function fakeProjectApi(): ProjectApi & {
    * on a button that never re-read.
    */
   retries: readonly { objective: 'pri' | 'time'; inputHash: string }[];
+  /**
+   * The directory's resources and this project's capacities and demands
+   * (`wbs-resources`), a store like {@link markers}: a test pushes the
+   * resources it needs and reads the demands `setDemands` wrote back.
+   */
+  resources: ProjectResourcesView['resources'];
+  resourceCapacities: ProjectResourcesView['capacities'];
+  demands: ProjectResourcesView['demands'];
 } {
   const retries: { objective: 'pri' | 'time'; inputHash: string }[] = [];
   const rows: WorkItemView[] = [];
@@ -146,6 +170,11 @@ export function fakeProjectApi(): ProjectApi & {
    * of the API, and be-01's answer side has no `null` in it.
    */
   const markers: CalendarMarkerView[] = [];
+  const claims: ClaimView[] = [];
+  const resources: ProjectResourcesView['resources'] = [];
+  const resourceCapacities: ProjectResourcesView['capacities'] = [];
+  const demands: ProjectResourcesView['demands'] = [];
+  const claimHistory: ClaimHistoryEventView[] = [];
   const typedDependencies: TypedDependencyView[] = [];
   let nextDependencyId = 0;
   /** Minted here when the caller names none, as be-01 mints one. */
@@ -434,6 +463,11 @@ export function fakeProjectApi(): ProjectApi & {
   return refusingApi({
     rows,
     markers,
+    resources,
+    resourceCapacities,
+    demands,
+    claims,
+    claimHistory,
     stack,
     stackCalls,
     /** What the next undo or redo answers, for the refusals be-01 models. */
@@ -533,11 +567,11 @@ export function fakeProjectApi(): ProjectApi & {
           serviceIds: [...(r.serviceIds ?? [])],
           typeIds: [...(r.typeIds ?? [])],
           externalRefs: (r.externalRefs ?? []).map((ref) => ({ ...ref })),
-          actuals: {},
+          actuals: r.actuals ?? {},
           // The row's own, written by this fake's `setStatus` — the fold be-01
           // derives, stored here because a fake has no steps to fold.
           status: r.status,
-          measures: {},
+          measures: r.measures ?? {},
           dependsOn: edges.filter((e) => e.successorId === r.id).map((e) => e.predecessorId),
           schedule: scheduleOf(r),
           // A parent carries the sum of its descendants' trios, per step and
@@ -649,6 +683,16 @@ export function fakeProjectApi(): ProjectApi & {
         projectRevision: 0,
         undoable: stack.undoable,
         redoable: stack.redoable,
+        // Present exactly when a work item states a demand, as be-01's tree read
+        // sends them (`wbs-resources` 1.5).
+        ...(demands.length === 0
+          ? {}
+          : {
+              demands: demands.map((demand) => ({ ...demand })),
+              demandedResources: resources
+                .filter((resource) => demands.some((each) => each.resourceId === resource.id))
+                .map(({ id, name, kind, unitLabel }) => ({ id, name, kind, unitLabel })),
+            }),
         optimization: {
           enabled: optimizationEnabled,
           engine: scheduleEngine,
@@ -791,6 +835,64 @@ export function fakeProjectApi(): ProjectApi & {
       return Promise.resolve();
     },
     listCalendarMarkers: () => Promise.resolve(markers.map((marker) => ({ ...marker }))),
+    readClaims: () =>
+      Promise.resolve({
+        readAt: Date.now(),
+        claims: claims.map((claim) => ({ ...claim, holder: { ...claim.holder } })),
+      }),
+    readClaimHistory: () => Promise.resolve(structuredClone(claimHistory)),
+    readResources: () =>
+      Promise.resolve({
+        resources: structuredClone(resources),
+        capacities: structuredClone(resourceCapacities),
+        demands: structuredClone(demands),
+      }),
+    /**
+     * Applies the batch whole or not at all, refusing what be-01's `setDemand`
+     * refuses: an unknown resource, units that are not a whole number from 1,
+     * and any units but 1 on an exclusive one.
+     */
+    setDemands(_projectId, statements) {
+      /** be-01's refusal of the command at `at`, as the batch route answers it. */
+      const refused = (
+        error:
+          'unknown_resource' | 'units_must_be_a_whole_number_from_1' | 'exclusive_demand_is_one',
+        at: number,
+      ) =>
+        Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'postApiProjectsByIdCommands',
+            refusal: { error, at, kind: 'setDemand' },
+          }),
+        );
+      // A row a peer deleted: be-01's scoped 404, which names no command.
+      if (statements.some(({ workItemId }) => !rows.some((row) => row.id === workItemId)))
+        return Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'postApiProjectsByIdCommands',
+            refusal: { error: 'not_found' },
+          }),
+        );
+      for (const [at, { resourceId, units }] of statements.entries()) {
+        const resource = resources.find((each) => each.id === resourceId);
+        if (resource === undefined) return refused('unknown_resource', at);
+        if (units !== null && (!Number.isInteger(units) || units < 1))
+          return refused('units_must_be_a_whole_number_from_1', at);
+        if (units !== null && resource.kind === 'exclusive' && units !== 1)
+          return refused('exclusive_demand_is_one', at);
+      }
+      for (const { workItemId, resourceId, units } of statements) {
+        const at = demands.findIndex(
+          (each) => each.workItemId === workItemId && each.resourceId === resourceId,
+        );
+        if (at !== -1) demands.splice(at, 1);
+        if (units !== null) demands.push({ workItemId, resourceId, units });
+      }
+      renumber();
+      return Promise.resolve();
+    },
     createCalendarMarker(_projectId, marker) {
       const id = marker.markerId ?? `marker-${String(nextMarkerId++)}`;
       const stored: CalendarMarkerView = {
@@ -1133,6 +1235,101 @@ export function fakeProjectApi(): ProjectApi & {
       const index = rows.findIndex((r) => r.id === id);
       if (index >= 0) rows.splice(index, 1);
       renumber();
+      return Promise.resolve();
+    },
+    /**
+     * The five seeded definitions, as an activated organization answers. A
+     * suite that needs the pre-activation answer replaces this method.
+     */
+    listMeasures: () => Promise.resolve({ kind: 'ready', measures: [...SEEDED_MEASURES] }),
+    /**
+     * A leaf's trio, folded as be-01 folds it (design D29): the project's PERT
+     * weights, rounded half up on an integer measure, and the variance beside
+     * a fact on the same step. No roll-up: the suites that drive this write
+     * one leaf.
+     */
+    setMeasureEstimate(id, stepId, measure, estimate) {
+      const row = rows.find((r) => r.id === id);
+      if (row === undefined) return Promise.reject(new Error('not_found'));
+      const definition = SEEDED_MEASURES.find((each) => each.key === measure);
+      if (definition === undefined) return Promise.reject(new Error('unknown_measure'));
+      const weights = DEFAULT_PERT_WEIGHTS_VIEW;
+      const raw =
+        (estimate.optimistic * weights.optimistic +
+          estimate.realistic * weights.realistic +
+          estimate.pessimistic * weights.pessimistic) /
+        (weights.optimistic + weights.realistic + weights.pessimistic);
+      const expected = definition.scale === 'integer' ? Math.round(raw) : raw;
+      const fact = row.measures?.[factKeyOf(measure)]?.[stepId];
+      row.measureEstimates = {
+        ...row.measureEstimates,
+        [measure]: {
+          ...row.measureEstimates?.[measure],
+          [stepId]: {
+            ...estimate,
+            singlePoint: false,
+            expected,
+            ...(fact === undefined ? {} : { variance: fact - expected }),
+          },
+        },
+      };
+      return Promise.resolve();
+    },
+    clearMeasureEstimate(id, stepId, measure) {
+      const row = rows.find((r) => r.id === id);
+      const kept = Object.entries(row?.measureEstimates?.[measure] ?? {}).filter(
+        ([key]) => key !== stepId,
+      );
+      if (row !== undefined)
+        row.measureEstimates = { ...row.measureEstimates, [measure]: Object.fromEntries(kept) };
+      return Promise.resolve();
+    },
+    setMeasure(id, stepId, metric, value) {
+      const row = rows.find((r) => r.id === id);
+      if (row === undefined) return Promise.reject(new Error('not_found'));
+      const key = factKeyOf(metric);
+      row.measures = { ...row.measures, [key]: { ...row.measures?.[key], [stepId]: value } };
+      const trio = row.measureEstimates?.[metric]?.[stepId];
+      if (trio !== undefined) trio.variance = value - trio.expected;
+      return Promise.resolve();
+    },
+    clearMeasure(id, stepId, metric) {
+      const row = rows.find((r) => r.id === id);
+      const key = factKeyOf(metric);
+      if (row !== undefined)
+        row.measures = {
+          ...row.measures,
+          [key]: Object.fromEntries(
+            Object.entries(row.measures?.[key] ?? {}).filter(([step]) => step !== stepId),
+          ),
+        };
+      return Promise.resolve();
+    },
+    setBudget(id, measure, budget) {
+      const row = rows.find((r) => r.id === id);
+      if (row === undefined) return Promise.reject(new Error('not_found'));
+      const spent = Object.values(row.measures?.[factKeyOf(measure)] ?? {}).reduce(
+        (total, value) => total + value,
+        0,
+      );
+      row.budgets = {
+        ...row.budgets,
+        [measure]: {
+          cap: budget.cap,
+          policy: budget.policy,
+          source: 'stated',
+          remaining: budget.cap - spent,
+          exceeded: spent > budget.cap,
+        },
+      };
+      return Promise.resolve();
+    },
+    clearBudget(id, measure) {
+      const row = rows.find((r) => r.id === id);
+      if (row !== undefined)
+        row.budgets = Object.fromEntries(
+          Object.entries(row.budgets ?? {}).filter(([key]) => key !== measure),
+        );
       return Promise.resolve();
     },
     setEstimate(id, stepId, days: Days) {

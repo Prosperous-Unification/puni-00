@@ -104,6 +104,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'forbidden':
     case 'bad_start_date':
     case 'bad_pert_weights':
+    case 'bad_budget_factor':
     case 'invalid_timezone':
     case 'optimizer_unavailable':
     case 'solution_taken':
@@ -133,6 +134,44 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
     case 'reauthentication_required':
     case 'not_found':
     case 'engine_unavailable':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
+function claimsReadCode(refusal: RefusalOf<'getApiProjectsByIdClaims'>): string {
+  switch (refusal.error) {
+    case 'invalid_params':
+    case 'invalid_query':
+    case 'invalid_body':
+    case 'invalid_json':
+    case 'unauthenticated':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+    case 'not_found':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
+function claimHistoryReadCode(refusal: RefusalOf<'getApiProjectsByIdClaim-history'>): string {
+  switch (refusal.error) {
+    case 'invalid_params':
+    case 'invalid_query':
+    case 'invalid_body':
+    case 'invalid_json':
+    case 'unauthenticated':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+    case 'not_found':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -334,6 +373,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'invalid_progress':
     case 'invalid_status':
     case 'invalid_estimate':
+    case 'invalid_budget':
+    case 'rateCardDigest_must_be_1_to_128_characters':
     case 'conflicting_step_address':
     case 'invalid_step_node_id':
     case 'unknown_step_node_encoding':
@@ -364,6 +405,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'name_must_be_text':
     case 'notes_must_be_text':
     case 'kind_must_be_text':
+    case 'personKind_must_be_text':
     case 'startNoEarlierThanReason_must_be_text':
     case 'stepId_must_be_text':
     case 'metric_must_be_text':
@@ -429,6 +471,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_step':
     case 'unknown_dependency':
     case 'unknown_metric':
+    case 'unknown_measure':
     case 'unknown_person':
     case 'unknown_account':
     case 'unknown_team':
@@ -441,6 +484,15 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'schedule_not_ready':
     case 'engine_unavailable':
     case 'rolled_up':
+    case 'derived_measure':
+    case 'scheduling_measure_fact':
+    case 'scale_mismatch':
+    case 'scheduling_measure_estimate':
+    case 'three_point_forbidden':
+    case 'scheduling_measure_budget':
+    case 'rate_card_required':
+    case 'rate_card_forbidden':
+    case 'mixed_rate_cards':
     case 'ancestor':
     case 'self_node':
     case 'not_a_parent':
@@ -470,6 +522,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'attemptNumber_must_be_a_whole_number_from_1':
     case 'node_done':
     case 'attempt_running':
+    case 'budget_exhausted':
     case 'attempt_in_future':
     case 'no_running_attempt':
     case 'attempt_ends_before_start':
@@ -521,8 +574,10 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'below_held_occupancy':
     case 'resources_exhausted':
       return refusal.error;
-    // Resources (`wbs-resources`): the table sends none of these until 1.5, so
-    // they arrive only from a batch another client wrote.
+    // Resources (`wbs-resources`): the row's Resources panel sends `setDemand`
+    // and the project settings' Resources section sends the directory's three
+    // resource commands, `setResourceCapacity` and a provider reference (1.5,
+    // `compute-providers` slice 5); the sentences are in {@link PLAN_REFUSALS}.
     case 'kind_is_immutable':
     case 'resourceKind_must_be_exclusive_or_divisible':
     case 'units_required':
@@ -535,6 +590,34 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'resourceRef_must_be_an_id':
     case 'unknown_resource':
     case 'exclusive_demand_is_one':
+    case 'providerId_must_be_id_or_null':
+    case 'unknown_provider':
+    case 'provider_not_in_organization':
+      return refusal.error;
+    // Measure definitions (`wbs-measure-budgets` slice 1): the table sends none
+    // of these until task 4.2, so they arrive only from a batch another client wrote.
+    case 'measureId_must_be_an_id':
+    case 'measureRef_must_be_an_id':
+    case 'key_must_be_a_measure_key':
+    case 'unit_must_be_text':
+    case 'unit_must_be_at_most_40_characters':
+    case 'measureKind_must_be_duration_count_or_money':
+    case 'scale_must_be_integer_or_real':
+    case 'threePoint_must_be_true_or_false':
+    case 'showByDefault_must_be_true_or_false':
+    case 'schedulesWork_must_be_true_or_false':
+    case 'order_must_be_a_whole_number_from_0_to_1000000':
+    case 'currency_must_be_three_capital_letters':
+    case 'organization_required':
+    case 'measure_key_taken':
+    case 'measure_key_immutable':
+    case 'measure_shape_immutable':
+    case 'second_scheduling_measure':
+    case 'scheduling_measure_fixed':
+    case 'currency_required':
+    case 'currency_forbidden':
+    case 'unit_required':
+    case 'measure_in_use':
       return refusal.error;
     // The organization limits (`wbs-organization-limits` L9): worded with the
     // body's numbers by `limitSentence` before this code is ever read.
@@ -587,6 +670,44 @@ function timezonesReadCode(refusal: RefusalOf<'getApiTimezones'>): string {
   }
 }
 
+function measuresReadCode(refusal: RefusalOf<'getApiMeasures'>): string {
+  switch (refusal.error) {
+    case 'invalid_query':
+    case 'invalid_params':
+    case 'invalid_body':
+    case 'unauthenticated':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+    case 'organization_required':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
+/** The project resources read's refusals (`wbs-resources` 1.5), each its own word. */
+function resourcesReadCode(refusal: RefusalOf<'getApiProjectsByIdResources'>): string {
+  switch (refusal.error) {
+    case 'invalid_query':
+    case 'invalid_params':
+    case 'invalid_body':
+    case 'invalid_json':
+    case 'unauthenticated':
+    case 'not_found':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
 function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string {
   switch (problem.operation) {
     case 'getApiPeople':
@@ -615,6 +736,10 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return historyCode(problem.refusal);
     case 'getApiProjectsByIdCalendar-markers':
       return markerListCode(problem.refusal);
+    case 'getApiProjectsByIdClaims':
+      return claimsReadCode(problem.refusal);
+    case 'getApiProjectsByIdClaim-history':
+      return claimHistoryReadCode(problem.refusal);
     case 'postApiProjectsByIdCalendar-markers':
     case 'patchApiProjectsByIdCalendar-markersByMarkerId':
       return markerWriteCode(problem.refusal);
@@ -629,6 +754,10 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return optimizationRetryCode(problem.refusal);
     case 'getApiTimezones':
       return timezonesReadCode(problem.refusal);
+    case 'getApiMeasures':
+      return measuresReadCode(problem.refusal);
+    case 'getApiProjectsByIdResources':
+      return resourcesReadCode(problem.refusal);
     default:
       return unreachable(problem);
   }
@@ -799,6 +928,16 @@ export const PLAN_REFUSALS: RefusalWords = {
     // `capacity_limit`; watched 2026-10-22.
     capacity_limit:
       'Organization limit: your projects together would state more units of that resource than your organization may. Lower another project’s capacity first. Nothing was changed.',
+    // A resource's compute provider reference (`compute-providers` P3): the
+    // settings' Resources section offers only the organization's own
+    // instances, so each is reachable when the list moved under an open picker.
+    // Proof: 2026-10-23, with both entries struck, `words both provider
+    // reference refusals` (compute-provider-refusal-words.test.ts) read the
+    // fallback carrying the code.
+    unknown_provider:
+      'That compute provider is no longer registered — someone may have removed it. Nothing was changed.',
+    provider_not_in_organization:
+      'That compute provider belongs to another organization, so this resource cannot name it. Nothing was changed.',
     children_claimed:
       'Deleting that would hand more than one claim holder’s work back to its parent. Release the claims first. Nothing was changed.',
     node_done:
@@ -808,9 +947,69 @@ export const PLAN_REFUSALS: RefusalWords = {
     no_running_attempt:
       'No attempt at this step is running any more — someone may have ended it. Nothing was changed.',
     attempt_in_future: 'An attempt cannot start or end after now. Nothing was changed.',
+    // A strict budget refusing the start inside its write (`wbs-measure-budgets`
+    // D69); reachable from the attempt button whenever another start took the rest.
+    // Proof: with this entry struck, `words each attempt refusal rather than
+    // naming its code` (attempt-actions.test.tsx) read the fallback carrying
+    // `budget_exhausted`; watched 2026-10-24.
+    budget_exhausted:
+      'A strict budget above this step has nothing left for another attempt — wait for a running attempt to report or end, or raise the budget. Nothing was changed.',
     attempt_ends_before_start: 'An attempt cannot end before it started. Nothing was changed.',
     unknown_attempt:
       'That attempt is no longer here — someone may have removed it. Nothing was changed.',
+    // The measure refusals (`wbs-measure-budgets` slices 1–5), as the Measures
+    // panel reaches them. The panel keeps no copy of be-01's rules — it sends
+    // what was typed — so each of these is reachable from one form there.
+    // Proof: with these entries struck, `words every measure refusal the panel
+    // can reach` (plan-refusal-measures.test.ts) read the fallback carrying the
+    // code for each; watched 2026-10-23.
+    unknown_measure:
+      'That measure is no longer defined in your organization — reopen the plan to see the current ones. Nothing was changed.',
+    derived_measure:
+      'Agent minutes are read from ended attempts and cannot be typed. Nothing was changed.',
+    scheduling_measure_fact:
+      'Time’s fact is the actual days, recorded when work is marked done. Nothing was changed.',
+    scheduling_measure_estimate:
+      'Time is estimated in the step columns, not here. Nothing was changed.',
+    scheduling_measure_budget:
+      'Time takes no budget: its figures are the step estimates and the actual days. Nothing was changed.',
+    three_point_forbidden:
+      'This measure takes a single fact, not three points. Nothing was changed.',
+    scale_mismatch:
+      'This measure counts in whole units — type a whole number. Nothing was changed.',
+    rate_card_required:
+      'A cost is priced on a rate card: type the card’s digest before saving. Nothing was changed.',
+    rate_card_forbidden:
+      'Only money is priced on a rate card; leave the digest empty here. Nothing was changed.',
+    mixed_rate_cards:
+      'That would add figures priced on different rate cards, which WBS never does. Nothing was changed.',
+    invalid_measure: 'A fact is a figure of 0 or more. Nothing was changed.',
+    invalid_estimate:
+      'Three points are figures of 0 or more, with optimistic ≤ realistic ≤ pessimistic. Nothing was changed.',
+    invalid_budget:
+      'A budget’s cap and hold are figures of 0 or more, and its policy strict or advisory. Nothing was changed.',
+    rolled_up:
+      'This row’s figures are the sums of the rows beneath it; estimate on those. Nothing was changed.',
+    organization_required:
+      'Measures belong to an organization, and this workspace does not belong to one yet. Nothing was changed.',
+    // The demand and resource refusals (`wbs-resources` 1.5), as the Resources
+    // panel and the settings' Resources section reach them. Neither keeps a copy
+    // of be-01's rules, so each is reachable from one box.
+    // Proof: with these entries struck, `words every resource refusal the
+    // panels can reach` (resource-demand-panel.test.tsx) read the fallback
+    // carrying the code; watched 2026-10-25.
+    exclusive_demand_is_one:
+      'A resource used one at a time is needed or not — it takes no number. Nothing was changed.',
+    units_must_be_a_whole_number_from_1:
+      'Units are a whole number of 1 or more; leave the box blank for none. Nothing was changed.',
+    units_must_be_a_whole_number_from_0:
+      'A stated capacity is a whole number of 0 or more; leave it blank for unstated. Nothing was changed.',
+    unknown_resource:
+      'That resource is no longer in the directory — someone may have removed it. Nothing was changed.',
+    unitLabel_must_be_at_most_40_characters:
+      'A unit label is at most 40 characters. Nothing was changed.',
+    kind_is_immutable:
+      'A resource’s kind never changes; remove it and add it again to change it. Nothing was changed.',
     // {@link INVALID_REQUEST}'s three, worded from the one list that also decides
     // whether the plan is read again.
     ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),
@@ -824,6 +1023,11 @@ export const PLAN_REFUSALS: RefusalWords = {
       // to fall silently back to printing the wire code the day it did.
       prefix: 'maxParallel_must_be_at_most_',
       says: (limit) => `People at once is at most ${limit}.`,
+    },
+    {
+      // be-01 spells `MOST_RESOURCE_UNITS` into the code, `maxParallel`'s bargain.
+      prefix: 'units_must_be_at_most_',
+      says: (limit) => `Units are at most ${limit}. Nothing was changed.`,
     },
   ],
   // Matched as a family rather than listed: a proxy in front of be-01 can answer
@@ -858,17 +1062,43 @@ export function limitSentence(thrown: unknown): string | null {
     problem.operation !== 'postApiDirectoryCommands'
   )
     return null;
-  const refusal = problem.refusal;
+  return batchLimitSentence(problem.refusal);
+}
+
+/**
+ * A refused command batch. The project and the directory commands routes
+ * answer one refusal union (`batchRefusals` in the contract), so either
+ * route's body is this type.
+ */
+export type BatchRefusal = RefusalOf<'postApiProjectsByIdCommands'>;
+
+/**
+ * The organization-limit sentence of a refused batch body, or null for any
+ * other refusal. `resourceName` names a `capacity_limit`'s resource when the
+ * surface holds it.
+ */
+function batchLimitSentence(refusal: BatchRefusal, resourceName?: string): string | null {
   switch (refusal.error) {
     case 'agent_person_limit':
       return agentPersonLimitSentence(refusal);
     case 'claim_limit':
       return claimLimitSentence(refusal);
     case 'capacity_limit':
-      return capacityLimitSentence(refusal);
+      return capacityLimitSentence(refusal, resourceName);
     default:
       return null;
   }
+}
+
+/**
+ * The sentence for a refused batch body, for a surface that reads the reply
+ * rather than catching a thrown {@link WbsRequestError}: the limit sentences
+ * with the body's numbers first, then {@link PLAN_REFUSALS}.
+ */
+export function batchRefusalSentence(refusal: BatchRefusal, resourceName?: string): string {
+  return (
+    batchLimitSentence(refusal, resourceName) ?? sentenceForRefusal(PLAN_REFUSALS, refusal.error)
+  );
 }
 
 /**

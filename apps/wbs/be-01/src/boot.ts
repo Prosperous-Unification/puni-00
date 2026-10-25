@@ -9,6 +9,7 @@ import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import {
+  computeProvidersOver,
   ConsentCredentialRepository,
   currentMembershipAccess,
   DomainClaimRepository,
@@ -481,6 +482,32 @@ export async function bootBe01(
         // test report `Expected: false`, `Received: true` for timer activity.
         disposeService: (retention) => retention.stop(),
       }),
+      // The claim lease sweep (`wbs-claim-leases` L7), registered as retention
+      // is so it stops before the source it releases through closes.
+      claimLeases: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          async ({
+            services,
+            readiness,
+          }: {
+            services: BeServices;
+            readiness: Promise<void>;
+          }): Promise<BeServices['claimLeases']> => {
+            // The sweep reads and writes claims; it starts only after the ledger is ready.
+            // Proof: F1 omitted this await; `holds listener, retention, claim sweep and proof
+            // workers until actual ledger inspection settles` (runtime-command.boot.db.test.ts)
+            // saw one sweep start while inspection was held (0 pass, 1 fail), 2026-10-25.
+            await readiness;
+            // Proof: with this start removed, `starts the claim lease sweep with
+            // the process` (boot.db.test.ts) read it stopped (36 pass, 1 fail);
+            // watched 2026-10-23.
+            services.claimLeases.start();
+            return services.claimLeases;
+          },
+          { factoryReturnKind: 'native-promise' },
+        ),
+        disposeService: (sweep) => sweep.stop(),
+      }),
       // The listener is the last thing acquired and the first thing released.
       // `providerWithDisposal` owns the app this returns; the pushed disposers own what
       // the factory took on the way, so a failure between `listen` and the
@@ -495,9 +522,13 @@ export async function bootBe01(
               source,
               services,
               retention,
+              claimLeases,
             }: {
               source: OwnedSource;
               services: BeServices;
+              // Read for its edge as `retention` is (its disposer runs after the
+              // listener's), and handed to the app so a revoke asks it for a tick.
+              claimLeases: Promise<BeServices['claimLeases']>;
               // Await startup and keep the timer's disposer after the listener's.
               // Dropping this edge also prevents timer acquisition.
               // Proof: on 2026-09-20, dropping this edge made the timer test
@@ -509,6 +540,7 @@ export async function bootBe01(
             // Proof: P6-03 removed this await; the held-inspection test
             // observed one listener before inspection settled.
             await retention;
+            const claimLeaseSweep = await claimLeases;
             const db = source.db;
             // Proof: removing this resolver binding made the activated
             // `immediate configured sweep` fail instead of recording DNS absence.
@@ -567,6 +599,7 @@ export async function bootBe01(
               // credentials`: the fallback answers every route
               // no_active_organization; watched 2026-10-22.
               machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
+              claimLeases: claimLeaseSweep,
               // Proof: omitting this binding made `serves trusted issuer
               // administration from the shared database once activated`
               // (boot.db.test.ts) throw `boot did not wire trusted issuers`:
@@ -577,6 +610,11 @@ export async function bootBe01(
                 discovery: trustedIssuerDiscovery({ fetch: globalThis.fetch }),
                 configuredIssuer: configuredIssuerOf(opts.oidc),
               },
+              // Proof: omitting this binding made `serves compute provider
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire compute providers`;
+              // watched 2026-10-22.
+              computeProviders: computeProvidersOver(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),

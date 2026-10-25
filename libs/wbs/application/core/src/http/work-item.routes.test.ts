@@ -1,6 +1,7 @@
 import { expect, spyOn, test } from 'bun:test';
 
 import { createPlanCommandRunner } from '../module/plan-commands/composition';
+import { NO_COMPUTE_PROVIDERS } from '../ports/compute-providers';
 import { inMemoryServices } from '../testing/harness';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
@@ -22,6 +23,7 @@ function fixture() {
       runner,
       { sha256: () => Promise.resolve('0'.repeat(64)) },
       legacyOrganizationAccess,
+      { reports: NO_COMPUTE_PROVIDERS.reports, clock: { now: () => 0 } },
     ),
   };
 }
@@ -45,7 +47,12 @@ test('typed undo and redo preserve actor and details without exposing journal en
         query: undefined,
         body: undefined,
         principal: actor,
-        request: { method: 'POST', url: new URL('http://localhost'), headers: new Headers() },
+        request: {
+          method: 'POST',
+          url: new URL('http://localhost'),
+          headers: new Headers(),
+          signal: new AbortController().signal,
+        },
       }),
     ).toEqual({ ok: true, status: 200, body: { done: 'Undo change', detail: 'Work' } });
     expect(call).toHaveBeenCalledWith('p', 'owner', { kind: 'legacy' });

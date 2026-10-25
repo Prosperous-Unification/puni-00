@@ -4,7 +4,8 @@
  * activation check runner under `check-runs/` and the review invoker under `review/` reach
  * Burokrat's judges through the exact
  * `@twilight-burokrat/judge` alias. Every other cross-product, app-to-app and app-to-infrastructure
- * dependency retains the workspace fences. The two exact progress paths additionally reach
+ * dependency retains the workspace fences. The compute providers under `compute/` reach the
+ * fleet's pinned SSH transport through the exact `@tools/fleet-ssh-transport` alias. The two exact progress paths additionally reach
  * `@twilight-burokrat/contracts` alone, as do the two exact run storage codec/planner paths.
  * Tests may additionally reach the shared scratch helper
  * and the shared clock-read detector.
@@ -92,6 +93,13 @@ export default ({
       rules: boundary(['^@twilight-burokrat/judge$']),
     },
     {
+      files: ['apps/twilight-structure/twilight-dash/cli/src/compute/**/*.ts'],
+      // The compute providers reach the fleet's pinned SSH transport through its exact facade.
+      // Proof: see `Dash compute reaches only the SSH transport facade` in
+      // tools/tool-devsync/src/eslint-boundaries.test.ts.
+      rules: boundary(['^@tools/fleet-ssh-transport$']),
+    },
+    {
       files: ['apps/twilight-structure/twilight-dash/cli/src/**/*.test.ts'],
       // Proof: omitting this override made uncached Dash lint fail on the alias-surface test's
       // `@tools/fleet-plan` import and the fixture's `@tools/test-scratch` import (2026-10-11).
@@ -108,10 +116,13 @@ export default ({
       files: [
         'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.ts',
         'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/ledger/account-outcomes.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/ledger/rate-card.ts',
       ],
       // Proof: removing this allowance rejected the legitimate progress import. Widening its
       // alias, relative specifier or file scope independently broke the sibling, relative or
-      // peer refusals in the effective-policy production test (2026-10-15).
+      // peer refusals in the effective-policy production test (2026-10-15). The two ledger
+      // paths reach the same alias for canonical JSON and digests (2026-10-22).
       rules: boundary(['^@twilight-burokrat/contracts$']),
     },
     {

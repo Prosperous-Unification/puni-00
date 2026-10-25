@@ -207,6 +207,8 @@ export default defineConfig(({ command, mode }) => ({
       // through; it is `runtime:isomorphic` and has no Node import, so the same
       // module serves the browser build and both test tiers.
       '@shared/failures': resolve(__dirname, '../../../libs/shared/domain/failures/src/index.ts'),
+      // Proof: removing this alias failed delivery-panel.test.tsx collection and alias parity.
+      '@shared/delivery': resolve(__dirname, '../../../libs/shared/domain/delivery/src/index.ts'),
       // The UI kit WBS paints with, and the core its primitives take `cn` from.
       // Both are `product:shared` browser libraries, read from source like
       // every alias here.
@@ -259,6 +261,13 @@ export default defineConfig(({ command, mode }) => ({
       '@wbs/domain/saved-plan-default-name': resolve(
         __dirname,
         '../../../libs/wbs/domain/domain/src/saved-plan-default-name.ts',
+      ),
+      // And an eighth, for compute providers: `compute-provider.ts` holds the
+      // stale-at-three-cadences rule be-01 states a report with, and imports
+      // only a type, so the settings section reads a report as be-01 does.
+      '@wbs/domain/compute-provider': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/compute-provider.ts',
       ),
     },
   },

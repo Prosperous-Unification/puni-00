@@ -16,14 +16,17 @@ let foreign: string;
 
 beforeEach(async () => {
   h = OrganizationHarness.openComposed();
-  for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
+  // Five registrations: a sixth in one window is refused rate_limited.
+  for (const username of ['ada', 'grace', 'vic', 'nell', 'sue']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
   h.member('org-a', 'ada', 'member');
   h.member('org-a', 'vic', 'viewer');
+  h.member('org-a', 'sue', 'admin');
   h.member('org-b', 'grace', 'member');
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
+  h.bind('sue', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
   own = await create('ada', 'A plan');
@@ -80,7 +83,9 @@ describe('resources in an organization', () => {
     expect(read).toEqual({
       status: 200,
       body: {
-        resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
+        resources: [
+          { id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB', providerId: null },
+        ],
         capacities: [],
         demands: [],
       },
@@ -101,7 +106,9 @@ describe('resources in an organization', () => {
     expect(await h.call('ada', 'GET', `/api/projects/${own}/resources`)).toEqual({
       status: 200,
       body: {
-        resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
+        resources: [
+          { id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB', providerId: null },
+        ],
         capacities: [{ resourceId: ram, units: 32 }],
         demands: [{ workItemId: 'w-a', resourceId: ram, units: 4 }],
       },
@@ -125,12 +132,14 @@ describe('resources in an organization', () => {
           status: 404,
           body: { at: 0, kind: command.kind, error: 'unknown_resource' },
         });
-      for (const command of [
-        { kind: 'patchResource', resourceId, patch: { unitLabel: 'TB' } },
-        { kind: 'deleteResource', resourceId, cascade: true },
-      ])
+      // A member's patch, and an admin's removal (only an admin may remove), so
+      // each refusal is about the id.
+      for (const [username, command] of [
+        ['ada', { kind: 'patchResource', resourceId, patch: { unitLabel: 'TB' } }],
+        ['sue', { kind: 'deleteResource', resourceId, cascade: true }],
+      ] as const)
         expect(
-          await h.call('ada', 'POST', '/api/directory/commands', { commands: [command] }),
+          await h.call(username, 'POST', '/api/directory/commands', { commands: [command] }),
         ).toEqual({ status: 404, body: { at: 0, kind: command.kind, error: 'not_found' } });
     }
     expect(h.sqlite.query('SELECT count(*) AS n FROM work_item_resource_demand').get()).toEqual({
@@ -173,7 +182,7 @@ describe('resources in an organization', () => {
     await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
       commands: [{ kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 }],
     });
-    const refused = await h.call('ada', 'POST', '/api/directory/commands', {
+    const refused = await h.call('sue', 'POST', '/api/directory/commands', {
       commands: [{ kind: 'deleteResource', resourceId: ram }],
     });
     expect(refused).toMatchObject({
@@ -193,7 +202,7 @@ describe('resources in an organization', () => {
       },
     });
     expect(
-      await h.call('ada', 'POST', '/api/directory/commands', {
+      await h.call('sue', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'deleteResource', resourceId: ram, cascade: true }],
       }),
     ).toMatchObject({ status: 200 });
@@ -202,6 +211,100 @@ describe('resources in an organization', () => {
       body: { resources: [], capacities: [], demands: [] },
     });
   });
+
+  it('refuses a member removing a resource on either route, an admin and a super-admin allowed', async () => {
+    const ram = await declare('ada', 'h2puni ram');
+    const staging = await declare('ada', 'staging');
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [{ kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 }],
+    });
+    const demands = () =>
+      h.sqlite.query('SELECT count(*) AS n FROM work_item_resource_demand').get();
+    for (const path of ['/api/directory/commands', `/api/projects/${own}/commands`])
+      for (const command of [
+        { kind: 'deleteResource', resourceId: ram, cascade: true },
+        { kind: 'deleteResource', resourceId: ram },
+      ]) {
+        expect(await h.call('ada', 'POST', path, { commands: [command] }), path).toEqual({
+          status: 403,
+          body: { at: 0, kind: 'deleteResource', error: 'forbidden' },
+        });
+        expect(await h.call('vic', 'POST', path, { commands: [command] }), path).toEqual({
+          status: 403,
+          body: { error: 'forbidden' },
+        });
+      }
+    expect(demands()).toEqual({ n: 1 });
+    expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 2 });
+    // Refused before the lookup: a foreign or absent id answers the member as
+    // their own does, never `not_found`.
+    // Proof: with the role check moved after the lookup in
+    // `removeResourceWithin`, these answered 404 not_found; watched 2026-10-25.
+    const theirs = await declare('grace', 'b ram');
+    for (const resourceId of [theirs, 'no-such-resource'])
+      expect(
+        await h.call('ada', 'POST', '/api/directory/commands', {
+          commands: [{ kind: 'deleteResource', resourceId }],
+        }),
+      ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
+    // Creating and editing stay open to a member.
+    expect(
+      await h.call('ada', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'patchResource', resourceId: ram, patch: { unitLabel: 'TB' } }],
+      }),
+    ).toMatchObject({ status: 200 });
+    expect(
+      await h.call('sue', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'deleteResource', resourceId: ram, cascade: true }],
+      }),
+    ).toMatchObject({ status: 200 });
+    expect(demands()).toEqual({ n: 0 });
+    h.sqlite.run(
+      "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
+      [h.userId('sue')],
+    );
+    expect(
+      await h.call('sue', 'POST', `/api/projects/${own}/commands`, {
+        commands: [{ kind: 'deleteResource', resourceId: staging }],
+      }),
+    ).toMatchObject({ status: 200 });
+    expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 1 }); // grace's, in org-b
+  });
+
+  /** Every top-level key of a version 11 document but `optimization`, the same in both modes. */
+  const EXPORT_KEYS = [
+    'assignedPeople',
+    'budgets',
+    'calendarMarkers',
+    'capacity',
+    'demands',
+    'depReach',
+    'directory',
+    'document',
+    'estimateMethod',
+    'estimateRounding',
+    'measureDefinitions',
+    'measureEstimates',
+    'measureFacts',
+    'pertWeights',
+    'priorityBands',
+    'project',
+    'projectRevision',
+    'resourceCapacities',
+    'scheduleError',
+    'seq',
+    'settings',
+    'slices',
+    'startDate',
+    'stepBlockages',
+    'stepNodes',
+    'steps',
+    'teamCapacities',
+    'typedDependencies',
+    'waitingForCapacity',
+    'waitingForPerson',
+    'workItems',
+  ];
 
   // Both export paths: an isolated organization's direct read, and a shared one's
   // single snapshot (`chain-snapshot.ts`), which reads resources beside the tree.
@@ -224,7 +327,7 @@ describe('resources in an organization', () => {
       expect(exported).toMatchObject({
         status: 200,
         body: {
-          document: { version: 10 },
+          document: { version: 11 },
           directory: {
             resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
           },
@@ -232,6 +335,18 @@ describe('resources in an organization', () => {
           demands: [{ workItemId: 'w-a', resourceId: ram, units: 4 }],
         },
       });
+      // The tree read's `demandedResources` is not a document field: the two
+      // modes write the same keys.
+      // Proof: with `buildDocument` spreading the tree whole, the isolated case
+      // failed on `expect(received).not.toHaveProperty(path)` for
+      // `demandedResources`; watched 2026-10-25.
+      expect(exported.body).not.toHaveProperty('demandedResources');
+      // `optimization` rides the live read on one mode only, as before this change.
+      expect(
+        Object.keys(exported.body as object)
+          .filter((key) => key !== 'optimization')
+          .sort(),
+      ).toEqual(EXPORT_KEYS);
       const imported = await h.call('ada', 'POST', '/api/projects/import', exported.body);
       expect(imported.status).toBe(201);
       const { projectId } = imported.body as { projectId: string };

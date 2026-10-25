@@ -459,6 +459,10 @@ describe('the row actions menu', () => {
       'Add child',
       'Move under…',
       'Duplicate',
+      // `wbs-measure-budgets` task 4.3: the row's Measures panel.
+      'Measures…',
+      // `wbs-resources` 1.5: a leaf's Resources panel.
+      'Resources…',
       'Delete',
     ]);
     expect(screen.getByRole('button', { name: 'Actions for 020' })).toHaveAttribute(

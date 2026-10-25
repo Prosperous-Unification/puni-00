@@ -28,11 +28,13 @@ import {
   type Connection,
   type Drizzle,
   drizzleReadTransaction,
+  observeCommitted,
   openReadOnlyConnection,
 } from './db';
 import { DirectoryRepository } from './directory';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
+import { MeasureEstimateRepository } from './measure-estimate';
 import {
   type ActiveOrganizationOf,
   currentMembershipAccess,
@@ -47,9 +49,11 @@ import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
 import { projectOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
 import { StepBlockageRepository } from './step-blockage';
+import { StepMeasureRepository } from './step-measure';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepParallelRepository } from './step-parallel';
 import { WorkItemRepository } from './work-item';
+import { WorkItemBudgetRepository } from './work-item-budget';
 
 export interface ChainSnapshotOptions {
   /** A dedicated openReadOnlyConnection, closed on every outcome. */
@@ -292,26 +296,7 @@ export function createLivePlanStore(
       // Proof: replacing this borrowed db with a fresh snapshot fails mounted staged arrangement/preflight.
       return read(options.db);
     }
-    const connection = options.openConnection();
-    try {
-      const transaction = drizzleReadTransaction(connection.db);
-      // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
-      transaction.begin();
-      try {
-        const captured = await read(connection.db);
-        // Proof: omitting commit failed owned success/refusal close-time BEGIN assertions (transaction still active).
-        transaction.commit();
-        return captured;
-      } catch (failure) {
-        // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
-        transaction.rollback();
-        throw failure;
-      }
-    } finally {
-      // Proof: omitting close failed all three owned lifecycle cases and the
-      // mounted admission check saw one open snapshot at both launch handoffs.
-      connection.close();
-    }
+    return observeCommitted(options.openConnection, read);
   }
   return {
     read: (projectId, access) => observe((db) => readLivePlanIn(db, projectId, access, options)),
@@ -337,6 +322,10 @@ export function createLivePlanStore(
           resources,
           capacities,
           demands,
+          definitions,
+          facts,
+          estimates,
+          budgets,
         ] = await Promise.all([
           directory.listInOrganization('teams', captured.organizationId),
           directory.listInOrganization('people', captured.organizationId),
@@ -352,6 +341,16 @@ export function createLivePlanStore(
           directory.listInOrganization('resources', captured.organizationId),
           new ResourceCapacityRepository(db, OPEN).listFor(projectId),
           new DemandRepository(db, OPEN).listByProject(projectId),
+          // The measures version 11 carries, on the tree's snapshot
+          // (`wbs-measure-budgets` design D63).
+          // Proof: with these four read as empty, the shared `round-trips a
+          // version-11 plan byte for byte into an organization lacking a
+          // measure` (measure-export.controller.db.test.ts) failed; watched
+          // 2026-10-23.
+          new StepMeasureRepository(db, OPEN).definitionsFor(projectId),
+          new StepMeasureRepository(db, OPEN).listByProject(projectId),
+          new MeasureEstimateRepository(db, OPEN).listByProject(projectId),
+          new WorkItemBudgetRepository(db, OPEN).listByProject(projectId),
         ]);
         return {
           ...captured,
@@ -365,6 +364,7 @@ export function createLivePlanStore(
               maxParallel,
             })),
             resources: { resources, capacities, demands },
+            measures: { definitions, facts, estimates, budgets },
           },
         };
       }),

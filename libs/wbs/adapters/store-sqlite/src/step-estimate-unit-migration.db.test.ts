@@ -132,6 +132,13 @@ it.each([
     // Proof: removing the damaged-journal CASE guard failed all eight cases on a missing throw;
     // persisting optimistic=241 after rollback failed all eight exact-state comparisons (2026-10-14).
     expect(rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit')).toEqual([
+      '20261023170000_add_work_item_budget',
+      '20261023160000_add_measure_estimate',
+      '20261023150000_key_step_measure',
+      '20261023140000_add_measure',
+      '20261023100000_add_claim_lease',
+      '20261022140100_widen_organization_audit_compute_providers',
+      '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
       '20261022121000_add_runtime_commands',

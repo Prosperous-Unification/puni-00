@@ -462,6 +462,8 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  /** The provider instance the resource names, or null (`compute-providers` P3). */
+  providerId: string | null;
 }
 
 /**
@@ -488,6 +490,7 @@ export function directoryUsageOfResource(rows: ResourceUsageRows): {
       demands: rows.demands.length,
       capacities: rows.capacities.length,
       occupancies: rows.occupancies,
+      providerId: rows.providerId,
     },
   };
 }

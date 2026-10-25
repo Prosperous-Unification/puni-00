@@ -4,6 +4,7 @@ import {
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
+import { isLegacyMetric, SEEDED_MEASURE_DEFINITIONS } from '@wbs/domain';
 import { expect, test } from 'bun:test';
 
 import type { CalendarMarker, DirectoryStore, Project } from '../../index';
@@ -26,6 +27,8 @@ const PROJECT: Project & { timezone: string } = {
   optimizationEnabled: true,
   scheduleEngine: 'optimized',
   scheduleObjective: 'time',
+  // The default factor; the measure cases below state 1.5 (design D67).
+  budgetFactor: 1,
   timezone: 'Europe/Kyiv',
 };
 
@@ -72,7 +75,11 @@ const TREE: WorkItemTree = {
       actuals: { 'step-1': 1 },
       progress: { 'step-1': 'in_progress' },
       status: 'in_progress',
-      measures: { hours: { 'step-1': 4 } },
+      // A legacy metric: the export keeps legacy metrics only (wbs-measure-budgets
+      // design D22); the golden hashes below moved from 61243efa/f8bf291a when
+      // this fixture's made-up `hours` key became `hours_actual`, and match the
+      // export with the filter removed.
+      measures: { hours_actual: { 'step-1': 4 } },
       dependsOn: [],
       finalDays: { 'step-1': 2 },
       finalTotal: 2,
@@ -237,6 +244,17 @@ function directory(): Pick<
   };
 }
 
+/** A plan that holds no measures, as every plan before `wbs-measure-budgets` did. */
+const NO_MEASURE_FACTS = {
+  measureDefinitionsOf: () => Promise.resolve(null),
+  measuresOf: () => Promise.resolve([]),
+  measureEstimatesOf: () => Promise.resolve([]),
+  budgetsOf: () => Promise.resolve([]),
+};
+
+/** {@link NO_MEASURE_FACTS} as captured export evidence. */
+const NO_MEASURE_READS = { definitions: null, facts: [], estimates: [], budgets: [] };
+
 /** A plan that states nothing about resources, as every plan before `wbs-resources` did. */
 const NO_RESOURCE_FACTS = {
   resourceCapacitiesOf: () => Promise.resolve([]),
@@ -248,6 +266,9 @@ function service(
   resourceFacts: ConstructorParameters<
     typeof PlanDocumentService
   >[0]['resourceFacts'] = NO_RESOURCE_FACTS,
+  measureFacts: ConstructorParameters<
+    typeof PlanDocumentService
+  >[0]['measureFacts'] = NO_MEASURE_FACTS,
 ) {
   return new PlanDocumentService({
     directory: directorySource,
@@ -255,6 +276,7 @@ function service(
     markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
     clock: { now: () => Date.parse('2026-09-13T12:30:00.000Z') },
     resourceFacts,
+    measureFacts,
   });
 }
 
@@ -272,6 +294,24 @@ async function exportError(tree: WorkItemTree): Promise<string> {
   return outcome.message;
 }
 
+// Proof: with every metric kept, this case exported `cost` and
+// `agent_minutes` beside `hours_actual`; watched 2026-10-23.
+test('exports legacy metrics only, leaving defined and derived measures out', async () => {
+  const tree = structuredClone(TREE);
+  tree.workItems = tree.workItems.map((row) => ({
+    ...row,
+    measures: {
+      hours_actual: { 'step-1': 4 },
+      cost: { 'step-1': 2_500_000 },
+      agent_minutes: { 'step-1': 30 },
+    },
+  }));
+  const exported = await exportDocument(tree);
+  expect(exported.workItems.map(({ measures }) => measures)).toEqual(
+    tree.workItems.map(() => ({ hours_actual: { 'step-1': 4 } })),
+  );
+});
+
 test('preserves the existing JSON export fields', async () => {
   const exported = await exportDocument();
   const {
@@ -284,10 +324,16 @@ test('preserves the existing JSON export fields', async () => {
     stepBlockages,
     resourceCapacities,
     demands,
+    measureDefinitions,
+    measureFacts,
+    measureEstimates,
+    budgets,
     ...existing
   } = exported;
+  // The budget factor travels in `settings`, never in the embedded project (design D63, D71).
+  const { budgetFactor: _factor, ...exportedProject } = PROJECT;
   expect(existing).toEqual<unknown>({
-    project: PROJECT,
+    project: exportedProject,
     ...TREE,
     workItems: TREE.workItems.map(({ blockages: _blockages, ...row }) => row),
   });
@@ -298,6 +344,8 @@ test('preserves the existing JSON export fields', async () => {
     demands: [],
     resources: [],
   });
+  // A plan with no measures writes the four lists empty (design D71).
+  expect([measureDefinitions, measureFacts, measureEstimates, budgets]).toEqual([[], [], [], []]);
   expect(existing.workItems[0]?.deadline).toBe('2026-09-18');
   expect(existing.optimization).toEqual(TREE.optimization);
   expect({ document, settings, capacity, calendarMarkers, names, stepNodes }).toBeDefined();
@@ -308,7 +356,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 10,
+    version: 11,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -324,6 +372,7 @@ test('JSON export is a versioned plan document and settings says what project sa
     scheduleEngine: PROJECT.scheduleEngine,
     scheduleObjective: PROJECT.scheduleObjective,
     timezone: 'Europe/Kyiv',
+    budgetFactor: PROJECT.budgetFactor,
   });
   expect(exported.capacity).toEqual([{ teamId: 'team-capacity', size: 4 }]);
   expect(exported.calendarMarkers).toEqual([
@@ -378,7 +427,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 11);
+  Reflect.set(future.document, 'version', 12);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -465,7 +514,7 @@ test('the current export keeps SS and FF types from the trusted tree', async () 
   expect(exported).toMatchObject({
     ok: true,
     value: {
-      document: { version: 10 },
+      document: { version: 11 },
       typedDependencies: [
         { id: 'start-link', type: 'SS' },
         { id: 'finish-link', type: 'FF' },
@@ -656,7 +705,7 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
 
 test('version 6 carries each row’s readiness and hold, and earlier versions read as nothing said', async () => {
   const exported = structuredClone(await exportDocument());
-  expect(exported.document.version).toBe(10);
+  expect(exported.document.version).toBe(11);
   const row = exported.workItems.find(
     (each) => !exported.workItems.some((c) => c.parentId === each.id),
   );
@@ -889,7 +938,7 @@ test('version 8 keeps minute step units and refuses missing or unknown written u
   const tree = structuredClone(TREE);
   tree.steps = tree.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
   const document = await exportDocument(tree);
-  expect(document.document.version).toBe(10);
+  expect(document.document.version).toBe(11);
   const classified = await classifyPlanDocument(document);
   expect(classified.ok).toBe(true);
   if (!classified.ok) throw new Error('minute document refused');
@@ -923,7 +972,7 @@ test('v9 exports detached direct blockage facts and excludes row aliases', async
   const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
   expect(exported.ok).toBe(true);
   if (!exported.ok) return;
-  expect(exported.value.document.version).toBe(10);
+  expect(exported.value.document.version).toBe(11);
   expect(Reflect.get(exported.value, 'stepBlockages')).toEqual([
     { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
   ]);
@@ -977,6 +1026,7 @@ test('v9 excludes derived blockage causes and captured exports retain the same f
     markers: MARKERS,
     stepParallels: [],
     resources: { resources: await directory().listResources(), capacities: [], demands: [] },
+    measures: NO_MEASURE_READS,
   });
   expect(captured).toEqual({ ok: true, value: exported });
 });
@@ -1086,6 +1136,7 @@ test('v9 refuses authored sparse parallelism on direct and captured JSON exports
     markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
     clock: { now: () => 0 },
     resourceFacts: NO_RESOURCE_FACTS,
+    measureFacts: NO_MEASURE_FACTS,
     stepParallels: {
       listByProject: (projectId) => {
         if (projectId !== PROJECT.id) throw new Error('wrong sparse project');
@@ -1102,6 +1153,7 @@ test('v9 refuses authored sparse parallelism on direct and captured JSON exports
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
       resources: { resources: [], capacities: [], demands: [] },
+      measures: NO_MEASURE_READS,
       stepParallels: [parallel],
     }),
   ).toEqual({ ok: false, error: 'unsupported_step_parallelism' });
@@ -1157,6 +1209,7 @@ for (const [name, sparse, message] of [
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
       resources: { resources: [], capacities: [], demands: [] },
+      measures: NO_MEASURE_READS,
       stepParallels: sparse,
     };
     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
@@ -1170,6 +1223,7 @@ test('v9 direct export propagates unreadable sparse state', async () => {
     markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
     clock: { now: () => 0 },
     resourceFacts: NO_RESOURCE_FACTS,
+    measureFacts: NO_MEASURE_FACTS,
     stepParallels: { listByProject: () => Promise.reject(failure) },
   });
   const caught = await writer.export(PROJECT, TREE, LEGACY_ACCESS).catch((cause: unknown) => cause);
@@ -1184,6 +1238,7 @@ test('v9 refuses construction without its sparse read capability', () => {
         markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
         clock: { now: () => 0 },
         resourceFacts: NO_RESOURCE_FACTS,
+        measureFacts: NO_MEASURE_FACTS,
       } as never),
   ).toThrow(/step parallelism reader/);
 });
@@ -1227,6 +1282,7 @@ for (const [name, mutate, message] of [
         markers: [],
         stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
         resources: { resources: [], capacities: [], demands: [] },
+        measures: NO_MEASURE_READS,
       }),
     ).toThrow(message);
   });
@@ -1250,6 +1306,7 @@ test('v9 sparse pair identities never alias at colons', () => {
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
       resources: { resources: [], capacities: [], demands: [] },
+      measures: NO_MEASURE_READS,
       stepParallels: [
         { workItemId: 'a', stepId: 'b:c', maxParallel: 1 },
         { workItemId: 'a:b', stepId: 'c', maxParallel: 1 },
@@ -1258,25 +1315,52 @@ test('v9 sparse pair identities never alias at colons', () => {
   ).toEqual({ ok: false, error: 'unsupported_step_parallelism' });
 });
 
+/**
+ * A version-11 export with what version 11 adds taken off (the factor in
+ * `settings` and the four measure lists, each empty here) and its version read
+ * as `version`: what the export wrote before design D71 for a plan without
+ * measures. The v9 and v10 goldens hash this, so they now pin that version 11
+ * changed nothing else.
+ */
+function withoutVersion11(exported: PlanDocument, version: number): Record<string, unknown> {
+  const { budgetFactor, ...settings } = exported.settings;
+  expect({
+    budgetFactor,
+    lists: [
+      exported.measureDefinitions,
+      exported.measureFacts,
+      exported.measureEstimates,
+      exported.budgets,
+    ],
+  }).toEqual({ budgetFactor: 1, lists: [[], [], [], []] });
+  const added = new Set(['measureDefinitions', 'measureFacts', 'measureEstimates', 'budgets']);
+  // Key order is part of the bytes, so every other field keeps its place.
+  return Object.fromEntries(
+    Object.entries<unknown>(exported)
+      .filter(([key]) => !added.has(key))
+      .map(([key, value]): [string, unknown] => {
+        if (key === 'settings') return [key, settings];
+        if (key === 'document') return [key, { ...exported.document, version }];
+        return [key, value];
+      }),
+  );
+}
+
 test('v9 zero-fact export retains canonical bytes', async () => {
-  // Version 10 adds three lists and changes nothing else: a plan that states no
-  // resource facts, with those lists taken off and its version read as 9, is
-  // the v9 golden byte for byte.
-  const exported = structuredClone(await exportDocument());
-  const { resources, ...directoryBefore } = exported.directory;
+  // Versions 10 and 11 add lists and the factor and change nothing else: a
+  // plan that states no resource facts and no measures, with those taken off
+  // and its version read as 9, is the v9 golden byte for byte.
+  const exported = withoutVersion11(structuredClone(await exportDocument()), 9);
+  const { resources, ...directoryBefore } = exported['directory'] as PlanDocument['directory'];
   const { resourceCapacities, demands, ...rest } = exported;
   expect({ resources, resourceCapacities, demands }).toEqual({
     resources: [],
     resourceCapacities: [],
     demands: [],
   });
-  const bytes = JSON.stringify({
-    ...rest,
-    document: { ...rest.document, version: 9 },
-    directory: directoryBefore,
-  });
+  const bytes = JSON.stringify({ ...rest, directory: directoryBefore });
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    '61243efaf10088375accb4ab8c3e449255c2fd3483558282dfc6f8e0e793f6a2',
+    '016181aa4021ca4b8b400feac0780e135635c49d149f2fd13e655015ceb1e6e5',
   );
 });
 
@@ -1290,6 +1374,7 @@ test('uncoded steps retain precedence over unreadable sparse export evidence', a
     markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
     clock: { now: () => 0 },
     resourceFacts: NO_RESOURCE_FACTS,
+    measureFacts: NO_MEASURE_FACTS,
     stepParallels: {
       listByProject: () => Promise.reject(new Error('must not read before uncoded refusal')),
     },
@@ -1305,6 +1390,7 @@ test('uncoded steps retain precedence over unreadable sparse export evidence', a
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
       resources: { resources: [], capacities: [], demands: [] },
+      measures: NO_MEASURE_READS,
       stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
     }),
   ).toEqual({
@@ -1337,7 +1423,7 @@ async function exportWithResources(): Promise<PlanDocument> {
 
 test('exports only the resources its capacities and demands name (wbs-resources)', async () => {
   const exported = await exportWithResources();
-  expect(exported.document.version).toBe(10);
+  expect(exported.document.version).toBe(11);
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.directory.resources).toEqual([
     { id: 'resource-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
@@ -1354,9 +1440,9 @@ test('exports only the resources its capacities and demands name (wbs-resources)
 });
 
 test('v10 resources export retains canonical bytes', async () => {
-  const bytes = JSON.stringify(await exportWithResources());
+  const bytes = JSON.stringify(withoutVersion11(await exportWithResources(), 10));
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    'f8bf291a161b40edf3bf9cd4ef05677d8b86bd775fa709bbd253799037763024',
+    'f2308a55167653345d85178e2253675097c1ee00956f34c4df933da06163fa4a',
   );
 });
 
@@ -1444,4 +1530,404 @@ test('refuses resources in a file older than version 10', async () => {
     capacities: classified.value.resourceCapacities,
     demands: classified.value.demands,
   }).toEqual({ resources: [], capacities: [], demands: [] });
+});
+
+/** An organization's definitions: the seeded five and one it defined. */
+const DEFINITIONS = [
+  ...SEEDED_MEASURE_DEFINITIONS.map((each) => ({ ...each, id: `measure-${each.key}` })),
+  {
+    id: 'measure-gpu',
+    key: 'gpu_minutes',
+    name: 'GPU minutes',
+    unit: 'minutes',
+    kind: 'duration' as const,
+    scale: 'integer' as const,
+    threePoint: true,
+    showByDefault: false,
+    schedulesWork: false,
+    derived: false,
+    order: 6,
+    currency: null,
+  },
+];
+
+const CARD = { currency: 'USD', rateCardDigest: 'sha256:card-a' };
+
+/**
+ * A plan holding every kind of figure version 11 adds, beside the legacy ones
+ * version 10 already carried: facts in `cost` (priced) and `gpu_minutes`, a
+ * three-point tokens trio and a priced cost trio, a strict tokens budget with
+ * a hold and an advisory one in `gpu_minutes`; the single-point tokens trio and
+ * the legacy facts stay in the row's `measures`.
+ */
+const MEASURE_FACTS = {
+  measureDefinitionsOf: () => Promise.resolve(DEFINITIONS),
+  measuresOf: () =>
+    Promise.resolve([
+      { workItemId: 'row-1', stepId: 'step-1', metric: 'hours_actual', value: 4, recordedAt: 1 },
+      {
+        workItemId: 'row-1',
+        stepId: 'step-1',
+        metric: 'gpu_minutes',
+        value: 90,
+        recordedAt: 2,
+      },
+      {
+        workItemId: 'row-1',
+        stepId: 'step-1',
+        metric: 'cost',
+        value: 2_500_000,
+        recordedAt: 3,
+        basis: CARD,
+      },
+      {
+        workItemId: 'row-1',
+        stepId: 'step-1',
+        metric: 'token_estimate',
+        value: 500,
+        recordedAt: 4,
+      },
+    ]),
+  measureEstimatesOf: () =>
+    Promise.resolve([
+      {
+        workItemId: 'row-1',
+        stepId: 'step-1',
+        key: 'tokens',
+        optimistic: 500,
+        realistic: 500,
+        pessimistic: 500,
+        singlePoint: true,
+      },
+      {
+        workItemId: 'row-1',
+        stepId: 'step-1',
+        key: 'gpu_minutes',
+        optimistic: 30,
+        realistic: 60,
+        pessimistic: 120,
+        singlePoint: false,
+      },
+      {
+        workItemId: 'row-1',
+        stepId: 'step-1',
+        key: 'cost',
+        optimistic: 1_000_000,
+        realistic: 2_000_000,
+        pessimistic: 4_000_000,
+        singlePoint: false,
+        basis: CARD,
+      },
+    ]),
+  budgetsOf: () =>
+    Promise.resolve([
+      {
+        workItemId: 'row-1',
+        key: 'tokens',
+        cap: 10_000,
+        policy: 'strict' as const,
+        holdPerAttempt: 2_000,
+      },
+      {
+        workItemId: 'row-1',
+        key: 'gpu_minutes',
+        cap: 600,
+        policy: 'advisory' as const,
+        holdPerAttempt: null,
+      },
+    ]),
+};
+
+const FACTORED: typeof PROJECT = { ...PROJECT, budgetFactor: 1.5 };
+
+async function exportWithMeasures(
+  project: typeof PROJECT = FACTORED,
+  measureFacts: ConstructorParameters<
+    typeof PlanDocumentService
+  >[0]['measureFacts'] = MEASURE_FACTS,
+): Promise<PlanDocument> {
+  const tree = structuredClone(TREE);
+  tree.workItems = tree.workItems.map((row) => ({
+    ...row,
+    measures: { hours_actual: { 'step-1': 4 }, token_estimate: { 'step-1': 500 } },
+  }));
+  const exported = await service(directory(), NO_RESOURCE_FACTS, measureFacts).export(
+    project,
+    tree,
+    LEGACY_ACCESS,
+  );
+  if (!exported.ok) throw new Error(`export refused: ${exported.error}`);
+  return exported.value;
+}
+
+test('exports version 11 with every measure the plan holds', async () => {
+  const exported = await exportWithMeasures();
+  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect({
+    version: exported.document.version,
+    factor: exported.settings.budgetFactor,
+    rowMeasures: exported.workItems[0]?.measures,
+    definitions: exported.measureDefinitions.map(({ key }) => key),
+    facts: exported.measureFacts,
+    estimates: exported.measureEstimates,
+    budgets: exported.budgets,
+  }).toEqual({
+    version: 11,
+    factor: 1.5,
+    // The legacy fact and the single-point tokens trio stay the row's legacy names.
+    rowMeasures: { hours_actual: { 'step-1': 4 }, token_estimate: { 'step-1': 500 } },
+    definitions: ['tokens', 'cost', 'gpu_minutes'],
+    facts: [
+      { workItemId: 'row-1', stepId: 'step-1', measure: 'cost', value: 2_500_000, basis: CARD },
+      { workItemId: 'row-1', stepId: 'step-1', measure: 'gpu_minutes', value: 90, basis: null },
+    ],
+    estimates: [
+      {
+        workItemId: 'row-1',
+        stepId: 'step-1',
+        measure: 'cost',
+        optimistic: 1_000_000,
+        realistic: 2_000_000,
+        pessimistic: 4_000_000,
+        basis: CARD,
+      },
+      {
+        workItemId: 'row-1',
+        stepId: 'step-1',
+        measure: 'gpu_minutes',
+        optimistic: 30,
+        realistic: 60,
+        pessimistic: 120,
+        basis: null,
+      },
+    ],
+    budgets: [
+      {
+        workItemId: 'row-1',
+        measure: 'gpu_minutes',
+        cap: 600,
+        policy: 'advisory',
+        holdPerAttempt: null,
+      },
+      {
+        workItemId: 'row-1',
+        measure: 'tokens',
+        cap: 10_000,
+        policy: 'strict',
+        holdPerAttempt: 2_000,
+      },
+    ],
+  });
+  // A definition travels whole but for the organization's id.
+  expect(exported.measureDefinitions.at(2)).toEqual({
+    key: 'gpu_minutes',
+    name: 'GPU minutes',
+    unit: 'minutes',
+    kind: 'duration',
+    scale: 'integer',
+    threePoint: true,
+    showByDefault: false,
+    schedulesWork: false,
+    derived: false,
+    order: 6,
+    currency: null,
+  });
+});
+
+test('v11 measures export retains canonical bytes', async () => {
+  const bytes = JSON.stringify(await exportWithMeasures());
+  expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
+    '62708699bd8f40d78f3f4f6e30ee80aa976adba58c24b8a84cace87747cc25e4',
+  );
+});
+
+test('a factor other than 1 alone exports version 11 with empty measure lists', async () => {
+  const exported = await exportWithMeasures(FACTORED, NO_MEASURE_FACTS);
+  expect({
+    version: exported.document.version,
+    factor: exported.settings.budgetFactor,
+    lists: [
+      exported.measureDefinitions,
+      exported.measureFacts,
+      exported.measureEstimates,
+      exported.budgets,
+    ],
+  }).toEqual({ version: 11, factor: 1.5, lists: [[], [], [], []] });
+});
+
+// Proof: with the export's version put back on `measures !== null ||
+// budgetFactor !== 1 ? 11 : 10` (design D63's dual rule), this case and eight
+// more read version 10 (80 pass, 9 fail); watched 2026-10-24.
+test('a plan whose measures are all legacy exports version 11 with empty lists (design D71)', async () => {
+  const legacyOnly = {
+    ...MEASURE_FACTS,
+    measureEstimatesOf: async () =>
+      (await MEASURE_FACTS.measureEstimatesOf()).filter(({ singlePoint }) => singlePoint),
+    measuresOf: async () =>
+      (await MEASURE_FACTS.measuresOf()).filter(({ metric }) => isLegacyMetric(metric)),
+    budgetsOf: () => Promise.resolve([]),
+  };
+  const exported = await exportWithMeasures(PROJECT, legacyOnly);
+  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect({
+    version: exported.document.version,
+    factor: exported.settings.budgetFactor,
+    lists: [
+      exported.measureDefinitions,
+      exported.measureFacts,
+      exported.measureEstimates,
+      exported.budgets,
+    ],
+  }).toEqual({ version: 11, factor: 1, lists: [[], [], [], []] });
+});
+
+test('a plan without measures exports canonical version-11 bytes', async () => {
+  const bytes = JSON.stringify(await exportDocument());
+  expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
+    'f8ed917417cae0509dc4fb4d1f5faacc49c246a2e108ebee04b638e045590a64',
+  );
+});
+
+// Proof: with the four readings kept in `documentWorkItems`, this case
+// exported `budgets` and `measureEstimates` on the row; watched 2026-10-23.
+test('leaves the row’s measure readings out of the document', async () => {
+  const tree = structuredClone(TREE);
+  tree.workItems = tree.workItems.map((row) => ({
+    ...row,
+    measureEstimates: {
+      tokens: {
+        'step-1': {
+          optimistic: 5,
+          realistic: 5,
+          pessimistic: 5,
+          singlePoint: true,
+          expected: 5,
+        },
+      },
+    },
+    budgets: {
+      tokens: { cap: 8, policy: 'advisory', source: 'derived', remaining: 8, exceeded: false },
+    },
+    moneyBases: { cost: { facts: CARD } },
+    mixedRateCards: { cost: { estimates: [null, CARD] } },
+  }));
+  const exported = await exportDocument(tree);
+  for (const key of ['measureEstimates', 'budgets', 'moneyBases', 'mixedRateCards'])
+    expect(exported.workItems[0]).not.toHaveProperty(key);
+});
+
+test('reads a version-11 file’s measures and factor back', async () => {
+  const exported = await exportWithMeasures();
+  const classified = await classifyPlanDocument(exported);
+  if (!classified.ok) throw new Error(`refused at ${classified.path}`);
+  const read: unknown = {
+    factor: classified.value.settings.budgetFactor,
+    definitions: classified.value.measureDefinitions,
+    facts: classified.value.measureFacts,
+    estimates: classified.value.measureEstimates,
+    budgets: classified.value.budgets,
+  };
+  expect(read).toEqual({
+    factor: 1.5,
+    definitions: exported.measureDefinitions,
+    facts: exported.measureFacts,
+    estimates: exported.measureEstimates,
+    budgets: exported.budgets,
+  });
+  // A version-10 file reads with a factor of 1 and no measures.
+  const legacy = await classifyPlanDocument(await exportDocument());
+  if (!legacy.ok) throw new Error(`refused at ${legacy.path}`);
+  expect({
+    factor: legacy.value.settings.budgetFactor,
+    lists: [
+      legacy.value.measureDefinitions,
+      legacy.value.measureFacts,
+      legacy.value.measureEstimates,
+      legacy.value.budgets,
+    ],
+  }).toEqual({ factor: 1, lists: [[], [], [], []] });
+});
+
+test('refuses a version-11 file with a malformed measure entry or factor', async () => {
+  const exported = await exportWithMeasures();
+  for (const [path, damage] of [
+    [
+      'settings.budgetFactor',
+      (file: PlanDocument) => Reflect.set(file.settings, 'budgetFactor', 0),
+    ],
+    [
+      'settings.budgetFactor',
+      (file: PlanDocument) => Reflect.set(file.settings, 'budgetFactor', 1001),
+    ],
+    [
+      'settings.budgetFactor',
+      (file: PlanDocument) => Reflect.deleteProperty(file.settings, 'budgetFactor'),
+    ],
+    [
+      'measureDefinitions[0]',
+      (file: PlanDocument) => Reflect.set(file.measureDefinitions.at(0) ?? {}, 'kind', 'weight'),
+    ],
+    [
+      'measureFacts[0]',
+      (file: PlanDocument) =>
+        Reflect.set(file.measureFacts.at(0) ?? {}, 'basis', { currency: 'USD' }),
+    ],
+    [
+      'measureEstimates[0]',
+      (file: PlanDocument) =>
+        Reflect.set(file.measureEstimates.at(0) ?? {}, 'pessimistic', Number.POSITIVE_INFINITY),
+    ],
+    ['budgets[0]', (file: PlanDocument) => Reflect.set(file.budgets.at(0) ?? {}, 'policy', 'hard')],
+    ['budgets', (file: PlanDocument) => Reflect.deleteProperty(file, 'budgets')],
+    ['measureFacts', (file: PlanDocument) => Reflect.set(file, 'measureFacts', {})],
+  ] as const) {
+    const file = structuredClone(exported);
+    damage(file);
+    expect({ path, outcome: await classifyPlanDocument(file) }).toEqual({
+      path,
+      outcome: { ok: false, code: 'invalid_body', path },
+    });
+  }
+});
+
+test('refuses measures in a file older than version 11', async () => {
+  const exported = await exportWithMeasures();
+  for (const path of [
+    'measureDefinitions',
+    'measureFacts',
+    'measureEstimates',
+    'budgets',
+    'settings.budgetFactor',
+  ]) {
+    const file = structuredClone(exported);
+    Reflect.set(file.document, 'version', 10);
+    // Every earlier field emptied, so only `path` still names something.
+    for (const other of ['measureDefinitions', 'measureFacts', 'measureEstimates', 'budgets'])
+      if (other !== path) Reflect.deleteProperty(file, other);
+    if (path !== 'settings.budgetFactor') Reflect.deleteProperty(file.settings, 'budgetFactor');
+    expect({ path, outcome: await classifyPlanDocument(file) }).toEqual({
+      path,
+      outcome: { ok: false, code: 'invalid_body', path },
+    });
+  }
+  // A factor of 1 is what an earlier version reads as, so it is accepted.
+  const named = structuredClone(await exportDocument());
+  Reflect.set(named.settings, 'budgetFactor', 1);
+  expect((await classifyPlanDocument(named)).ok).toBe(true);
+});
+
+test('throws when a stored figure names a measure, row or step the reads do not hold', async () => {
+  const faults = [
+    ['undefined measure "gone"', 'gone', 'row-1', 'step-1'],
+    ['work item "row-gone"', 'gpu_minutes', 'row-gone', 'step-1'],
+    ['step "step-gone"', 'gpu_minutes', 'row-1', 'step-gone'],
+  ] as const;
+  for (const [message, metric, workItemId, stepId] of faults) {
+    const reads = {
+      ...MEASURE_FACTS,
+      measuresOf: () => Promise.resolve([{ workItemId, stepId, metric, value: 1, recordedAt: 1 }]),
+    };
+    const outcome = await exportWithMeasures(FACTORED, reads).catch((caught: unknown) => caught);
+    expect(outcome instanceof Error ? outcome.message : 'exported').toContain(message);
+  }
 });

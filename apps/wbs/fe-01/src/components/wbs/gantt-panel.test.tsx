@@ -3892,6 +3892,14 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     duplicateWorkItem: () => notImplemented('duplicateWorkItem'),
     removeWorkItem: () => notImplemented('removeWorkItem'),
     clearEstimate: () => notImplemented('clearEstimate'),
+    // The chart reads no measure; the table asks once and draws no measure column.
+    listMeasures: () => Promise.resolve({ kind: 'organization_required' }),
+    setMeasureEstimate: () => notImplemented('setMeasureEstimate'),
+    clearMeasureEstimate: () => notImplemented('clearMeasureEstimate'),
+    setMeasure: () => notImplemented('setMeasure'),
+    clearMeasure: () => notImplemented('clearMeasure'),
+    setBudget: () => notImplemented('setBudget'),
+    clearBudget: () => notImplemented('clearBudget'),
     arrangeBySchedule: () => notImplemented('arrangeBySchedule'),
     freezeProject: () => notImplemented('freezeProject'),
     unfreezeProject: () => notImplemented('unfreezeProject'),
@@ -3918,6 +3926,10 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     // create would turn that assertion into "the composer happened to be
     // closed" — `notImplemented` makes the write audible instead.
     listCalendarMarkers: () => Promise.resolve([]),
+    readClaims: () => Promise.resolve({ readAt: 0, claims: [] }),
+    readClaimHistory: () => Promise.resolve([]),
+    readResources: () => notImplemented('readResources'),
+    setDemands: () => notImplemented('setDemands'),
     createCalendarMarker: () => notImplemented('createCalendarMarker'),
     renameCalendarMarker: () => notImplemented('renameCalendarMarker'),
     recolorCalendarMarker: () => notImplemented('recolorCalendarMarker'),

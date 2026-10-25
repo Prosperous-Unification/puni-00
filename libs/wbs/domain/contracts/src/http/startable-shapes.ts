@@ -61,6 +61,7 @@ const claimedStep = type({
   runId: 'string | null',
   parentClaimId: 'string | null',
   claimedAt: 'number',
+  leaseExpiresAt: 'number | null',
 });
 const heldSubtree = type({
   ...address,
@@ -69,6 +70,7 @@ const heldSubtree = type({
   runId: 'string | null',
   parentClaimId: 'string | null',
   claimedAt: 'number',
+  leaseExpiresAt: 'number | null',
 });
 
 /**
@@ -123,6 +125,6 @@ export const readStartableWork = defineEndpointShape({
   document: {
     summary: 'List the steps a team may claim now, and the steps already claimed.',
     description:
-      'Startable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim and write instant; `subtreeClaims` lists every subtree claim of the project with its holder and write instant. A leaf is listed under `leaves` only when its resource demand fits the project’s free units now; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, and the shortfall. `resources` lists each resource the project states a capacity for with capacity, occupied and free units; an unstated capacity is not listed and constrains nothing. Occupancy is counted within this project only (`occupancyScope: project`): claims in other projects on the same host are not subtracted. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
+      'Startable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim, write instant and lease expiry (null for a claim no agent renews); `subtreeClaims` lists every subtree claim of the project with its holder, write instant and lease expiry. A leaf is listed under `leaves` only when its resource demand fits the project’s free units now; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, and the shortfall. `resources` lists each resource the project states a capacity for with capacity, occupied and free units; an unstated capacity is not listed and constrains nothing. Occupancy is counted within this project only (`occupancyScope: project`): claims in other projects on the same host are not subtracted. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
   },
 });

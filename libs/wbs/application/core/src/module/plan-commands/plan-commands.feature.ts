@@ -8,7 +8,14 @@ import {
   type RuntimeWriteRequest,
   type WriteReceipt,
 } from '@wbs/contracts';
-import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
+import type {
+  BudgetExhausted,
+  LeaseStanding,
+  MeasureDefinition,
+  MixedRateCards,
+  ResourceUnits,
+  WorkItemStatus,
+} from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
@@ -38,8 +45,18 @@ import type {
   RemoveDirectoryOutcome,
   RemoveResourceOutcome,
 } from '../directory/directory.resource';
-import type { NamedClaimHolder, NamedOccupancyHolder, PlainClaimReason } from '../work-item/claims';
-import type { Collected, UndoOutcome, WorkItemOutcome } from '../work-item/work-item.resource';
+import type {
+  NamedClaimHolder,
+  NamedOccupancyHolder,
+  PlainClaimReason,
+  ReassignedClaimedStep,
+} from '../work-item/claims';
+import type {
+  BudgetExhaustedOutcome,
+  Collected,
+  UndoOutcome,
+  WorkItemOutcome,
+} from '../work-item/work-item.resource';
 import type {
   CommandAdmission,
   CommandDecision,
@@ -87,6 +104,8 @@ interface CommandEntities {
   patchWorkItemType: WorkItemType;
   createResource: Resource;
   patchResource: Resource;
+  createMeasure: MeasureDefinition;
+  patchMeasure: MeasureDefinition;
 }
 type EntityKind = keyof CommandEntities;
 type PlainKind = Exclude<PlanCommandKind, EntityKind>;
@@ -100,9 +119,16 @@ export type MintedBase = AppliedBase & { id: string };
 /** Internal kind identifies the producer's exact entity contract; controllers erase it from the unchanged wire. */
 export type AppliedCommand =
   | (AppliedBase & {
-      kind: Exclude<PlainKind, MintedKind | 'claimWorkItem'>;
+      kind: Exclude<PlainKind, MintedKind | 'claimWorkItem' | 'assignSubtree'>;
       entity?: never;
       alreadyHeld?: never;
+    })
+  /** A subtree assignment names the leaf steps it reassigned while someone else held their claim (issue #669 F6). */
+  | (AppliedBase & {
+      kind: 'assignSubtree';
+      entity?: never;
+      alreadyHeld?: never;
+      reassignedClaimedSteps: ReassignedClaimedStep[];
     })
   /** A claim says whether it wrote nothing and which claims hold the steps. */
   | (AppliedBase & {
@@ -134,6 +160,8 @@ export type Refusal =
       detail: { nodes: { workItemId: string; stepId: string }[] };
     }
   | { reason: 'taken'; detail: { name: string } }
+  /** A sum across two rate cards (`wbs-measure-budgets` D44), both named, null unpriced. */
+  | { reason: 'mixed_rate_cards'; detail: { bases: MixedRateCards } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } }
   /** A resource removal's refusal also counts what names it (`wbs-resources` R8). */
   | { reason: 'in_use'; detail: { usage: DirectoryUsage; counts: ResourceUsageCounts } }
@@ -158,7 +186,19 @@ export type Refusal =
     }
   | {
       reason: 'resources_exhausted';
-      detail: { resourceId: string; asked: number; free: number; holders: NamedOccupancyHolder[] };
+      detail: {
+        resourceId: string;
+        asked: number;
+        free: number;
+        holders: NamedOccupancyHolder[];
+        /** Every short resource in resource-id order; the fields above repeat the first. */
+        resources: {
+          resourceId: string;
+          asked: number;
+          free: number;
+          holders: NamedOccupancyHolder[];
+        }[];
+      };
     }
   /** One more agent person than the organization's cap allows (`wbs-organization-limits` L9). */
   | { reason: 'agent_person_limit'; detail: { cap: number; current: number; added: number } }
@@ -168,7 +208,9 @@ export type Refusal =
   | {
       reason: 'capacity_limit';
       detail: { resourceId: string; cap: number; declared: number; asked: number };
-    };
+    }
+  /** A start a strict budget refuses (`wbs-measure-budgets` D69). */
+  | { reason: 'budget_exhausted'; detail: BudgetExhausted };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
@@ -183,6 +225,7 @@ export type ServiceRefusal =
       holders: readonly NamedClaimHolder[];
     }
   | Extract<WorkItemOutcome<never>, { ok: false }>
+  | BudgetExhaustedOutcome
   | { ok: false; reason: PlainReason }
   | {
       ok: false;
@@ -658,6 +701,42 @@ export class PlanCommandRunner {
             } else {
               applied = collected;
             }
+            // A committed batch by an agent renews its leases in this same
+            // transaction, so the renewal takes no write turn of its own
+            // (`wbs-claim-leases` L4).
+            // Proof: with this renewal skipped, `renews an agent's lease on
+            // every committed write, and not on a refused one`
+            // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
+            // watched 2026-10-23.
+            if (!('ok' in applied) && credential !== null && 'personId' in credential) {
+              const renewal = await graph.workItems.renewLeases(credential.personId);
+              // The renewal moves the agent's leases in every project. Each
+              // moved project hears `claims_changed` through the collector, so
+              // only after the commit and never for a rolled-back batch
+              // (`wbs-claim-display` C19), except the batch's own project when
+              // the batch is dirty: its `tree_replaced` refreshes the claims.
+              // A batch that changed no row (empty, directory-only) announces
+              // no tree, so its own project hears `claims_changed` too.
+              // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23):
+              // with this loop removed, three announcing cases recorded none
+              // (8 pass, 3 fail); with the own-project filter removed, `announces
+              // once to each other project, none extra to its own` recorded the
+              // batch's project too (9/2); with the dirty test removed,
+              // `announces its own project for a batch that changed no row`
+              // recorded none (10/1); with the SQLite store answering its due
+              // projects before its write, `announces nothing when the batch
+              // rolls back` recorded one. Publishing through the outer
+              // broadcaster in place of the collector left every case green:
+              // the ordinary-only runner then had no receipt hook after renewal.
+              // That historical run did not prove the collector's after-commit send.
+              // Proof: F2 published renewal through this.opts.announcements; `rolls back renewed
+              // leases and announcements after a late runtime receipt failure` (runtime-write.db.test.ts)
+              // reached the intended receipt INSERT cause and SQL rollback equality, then saw
+              // one escaped a2 claims_changed (0 pass, 1 fail); watched 2026-10-25.
+              for (const renewedProjectId of renewal.renewedProjectIds)
+                if (renewedProjectId !== projectId || !applied.dirty)
+                  await collector.publish(renewedProjectId, { type: 'claims_changed' });
+            }
             // A refusal rolls the unit of work back, so whatever this batch collected
             // describes writes that will not be there. Dropped rather than sent —
             // which is one `if`, because the collector is this batch's alone.
@@ -701,6 +780,59 @@ export class PlanCommandRunner {
     if ('runtimeApplied' in done) return { runtime: { ok: true, value: done.runtimeApplied } };
     const state = await afterCommit.workItems.undoState(projectId, actorId);
     return { ok: true, results: collected.result, ...state };
+  }
+
+  /**
+   * Releases the project's claims whose lease has run out, as one unit of
+   * work of its own (`wbs-claim-leases` L7): expiry is read inside the turn,
+   * so a renewal admitted before it has moved the lease and one admitted after
+   * finds the claim gone. It admits no user's write (`NO_ADMISSION`): what it
+   * writes is the coordinator's, recorded in history alone. Its announcement
+   * leaves after the commit, as a batch's does. Answers the claims released.
+   */
+  async releaseExpiredLeases(projectId: string): Promise<number> {
+    const collector = new AnnouncementCollector(this.opts.announcements);
+    const released = await this.opts.transaction.run<number>(
+      async (scope): Promise<CommandDecision<number>> => {
+        const workingPlan = scope.openCommandGraph(projectId, collector, NO_ADMISSION);
+        try {
+          const count = await workingPlan.services.workItems.releaseExpiredLeases(projectId);
+          return { commit: true, value: count };
+        } finally {
+          workingPlan.close();
+        }
+      },
+    );
+    await collector.send();
+    return released;
+  }
+
+  /**
+   * Renews `personId`'s leases outside any batch: the heartbeat route's
+   * write, through the public graph, which reads first and takes the write
+   * turn only when a lease is due (L4). Once the renewal has committed and let
+   * go of the turn, it announces one type-only `claims_changed` to each
+   * project in which it moved a lease (`wbs-claim-display` C4); a renewal
+   * that moved nothing, or threw, announces nothing. A batch's own renewal
+   * is announced by the batch (C19). Each announcement is transient (C21).
+   *
+   * The projects are announced in turn: a publish that throws answers 500
+   * although the renewal committed, and leaves the later projects
+   * unannounced until their next heartbeat. In production it does not throw:
+   * the gateway broadcaster reports and swallows a failed transient push.
+   */
+  async renewLeases(personId: string): Promise<LeaseStanding> {
+    const renewal = await this.opts.publicServices.workItems.renewLeases(personId);
+    // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23): with the
+    // SQLite store answering its due projects before its turn and not awaiting
+    // the write (announced before the commit), `announces nothing when the
+    // renewal rolls back` recorded one (7 pass, 4 fail); answering every
+    // project the person holds a lease in, moved or not (announced
+    // unconditionally), `announces nothing for a heartbeat within the minute,
+    // nor a refused one` recorded a second (4 pass, 7 fail).
+    for (const projectId of renewal.renewedProjectIds)
+      await this.opts.announcements.publish(projectId, { type: 'claims_changed' });
+    return renewal.standing;
   }
 
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {

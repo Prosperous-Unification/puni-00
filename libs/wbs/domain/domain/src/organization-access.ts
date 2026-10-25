@@ -45,6 +45,28 @@ export function mayBindAccountInOrganization(role: OrganizationRole): boolean {
 }
 
 /**
+ * Whether `role` may define, change or remove the organization's measure
+ * definitions, directly or by importing a plan that names one the
+ * organization lacks (`wbs-measure-budgets` D70, superseding D16): an admin
+ * or a super-admin. A definition changes what every project's figures mean,
+ * so it is an organization act, like ranking projects.
+ */
+export function mayDefineMeasuresInOrganization(role: OrganizationRole): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
+/**
+ * Whether `role` may remove a directory resource (`wbs-resources` R8a, Dany's
+ * decision of 2026-10-25): an admin or a super-admin. A removal cascades into
+ * every project of the organization, dropping each demand and capacity that
+ * names it, so it is an organization act; creating and editing one stays open
+ * to every writing role ({@link canWriteInOrganization}).
+ */
+export function mayRemoveResourceInOrganization(role: OrganizationRole): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
+/**
  * Whether the scoped user may write to a project of that organization: a writing
  * role, and for a restricted project its creator.
  *

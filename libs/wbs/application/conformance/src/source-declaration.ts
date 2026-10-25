@@ -128,6 +128,15 @@ export type ScenarioControl =
       readonly expectedRival: 'quota-refused' | 'snapshot_busy';
     }
   | {
+      readonly kind: 'lease-revocation';
+      /**
+       * Ends every lease of `personId` at `at` as revoking the person's last
+       * live credential does (`wbs-claim-leases` L8), through the source's own
+       * revocation path; answers how many leases it ended.
+       */
+      endLeasesOf(personId: string, at: number): Promise<number>;
+    }
+  | {
       readonly kind: 'batch-settlement';
       begin(): Promise<void>;
       readonly entered: Promise<void>;
@@ -141,6 +150,8 @@ export interface SourceReaders {
   readonly estimates: Pick<Stores['estimates'], 'listByProject'>;
   readonly actuals: Pick<Stores['actuals'], 'listByProject'>;
   readonly measures: Pick<Stores['measures'], 'listByProject'>;
+  readonly measureEstimates: Pick<Stores['measureEstimates'], 'listByProject'>;
+  readonly budgets: Pick<Stores['budgets'], 'listByProject'>;
   readonly progress: Pick<Stores['progress'], 'listByProject'>;
   readonly dependencies: Pick<Stores['dependencies'], 'listByProject'>;
   readonly typedDependencies: Pick<Stores['typedDependencies'], 'listByProject'>;

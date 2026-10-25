@@ -1,4 +1,5 @@
 import type { ActualStore } from './actual-store';
+import type { BudgetStore } from './budget-store';
 import type { CalendarMarkerStore } from './calendar-marker-store';
 import type { CapacityStore } from './capacity-store';
 import type { LivePlanStore } from './chain-snapshot-store';
@@ -9,6 +10,7 @@ import type { DependencyStore } from './dependency-store';
 import type { DirectoryStore } from './directory-store';
 import type { EstimateStore } from './estimate-store';
 import type { EventLogStore } from './event-log-store';
+import type { MeasureEstimateStore } from './measure-estimate-store';
 import type { MeasureStore } from './measure-store';
 import type { OrganizationLimitGauge } from './organization-limits';
 import type { PlanEventStore } from './plan-event-store';
@@ -62,6 +64,10 @@ export interface PlanTransactionalStores {
   estimates: EstimateStore;
   actuals: ActualStore;
   measures: MeasureStore;
+  /** Three-point estimates in measures other than time (`wbs-measure-budgets` D3). */
+  measureEstimates: MeasureEstimateStore;
+  /** Stated budgets per work item and measure (`wbs-measure-budgets` D5). */
+  budgets: BudgetStore;
   progress: StepProgressStore;
   /** Sparse direct blockage facts used by live node readings. */
   blockages: StepBlockageStore;

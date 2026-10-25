@@ -3,6 +3,7 @@ import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 import { inMemoryActuals } from './actual-fixture';
 import { inMemoryAttempts } from './attempt-fixture';
 import { inMemoryUsers } from './auth-fixture';
+import { inMemoryBudgets } from './budget-fixture';
 import { inMemoryCalendarMarkers } from './calendar-marker-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
 import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
@@ -11,11 +12,12 @@ import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryDirectory, memoryDirectoryTables } from './directory-fixture';
 import { inMemoryEstimates, memoryEstimateTable } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
-import { inMemoryMeasures } from './measure-fixture';
-import { inMemoryWorkItems } from './memory-work-item-fixture';
+import { inMemoryMeasureEstimates, memoryMeasureEstimateTable } from './measure-estimate-fixture';
+import { inMemoryMeasures, memoryMeasureTable } from './measure-fixture';
+import { inMemoryWorkItems, memoryWorkItemTables } from './memory-work-item-fixture';
 import { inMemoryPriorityBands } from './priority-band-fixture';
 import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
-import { inMemoryProjects } from './project-fixture';
+import { inMemoryProjects, memoryProjectTables } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
 import { inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
 import { inMemoryRuntimeCommands, memoryRuntimeTable } from './runtime-command';
@@ -41,18 +43,34 @@ export function inMemoryStores(): TransactionalStores {
     (projectId): Promise<readonly { id: string }[]> => workItems.listByProject(projectId),
     directoryTables,
   );
-  const workItems = inMemoryWorkItems(directory);
+  const workItemTables = memoryWorkItemTables();
+  const workItems = inMemoryWorkItems(directory, workItemTables);
   const estimateTable = memoryEstimateTable();
   const parallelTable = memoryStepParallelTable();
   // Proof: a separate parallel table let legacy fixture removal erase the step; both cascade tests failed, 2026-10-17.
   const steps = inMemorySteps([], undefined, estimateTable, { table: parallelTable, workItems });
   const estimates = inMemoryEstimates(workItems, estimateTable, steps);
   const actuals = inMemoryActuals(workItems, undefined, steps);
-  const measures = inMemoryMeasures(workItems, undefined, steps);
+  const measureTable = memoryMeasureTable();
+  const measureEstimateTable = memoryMeasureEstimateTable();
+  const measures = inMemoryMeasures(
+    workItems,
+    measureTable,
+    steps,
+    undefined,
+    measureEstimateTable,
+  );
+  const measureEstimates = inMemoryMeasureEstimates(
+    workItems,
+    measureTable,
+    measureEstimateTable,
+    steps,
+  );
   const progressTable = memoryProgressTable();
   const progress = inMemoryProgress(workItems, progressTable, steps);
   const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
-  const projects = inMemoryProjects(users);
+  const projectTables = memoryProjectTables();
+  const projects = inMemoryProjects(users, projectTables);
   const dependencies = inMemoryDependencies([], undefined, workItems);
   const demands = inMemoryDemands(directoryTables.resources, workItems);
   return {
@@ -64,6 +82,8 @@ export function inMemoryStores(): TransactionalStores {
     estimates,
     actuals,
     measures,
+    measureEstimates,
+    budgets: inMemoryBudgets(workItems),
     progress,
     attempts,
     stepParallels: inMemoryStepParallels(workItems, steps, parallelTable),
@@ -73,6 +93,7 @@ export function inMemoryStores(): TransactionalStores {
       memoryClaimTable(),
       claimIdentityOf(directory),
       (resourceId) => directoryTables.resources.resources.has(resourceId),
+      { projects: projectTables, workItems: workItemTables, people: directoryTables.people },
     ),
     blockages: inMemoryStepBlockages(workItems, {
       async findById(stepId) {

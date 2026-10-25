@@ -1,11 +1,17 @@
 import {
   addWorkdays,
+  agentMinutesOf,
   allowanceOf,
   type AllowancePercent,
   assumedAssignee,
   type Attempt,
   type AttemptOutcome,
   type AuthoredDependencyGraph,
+  type BudgetExhausted,
+  type BudgetPolicy,
+  type BudgetRead,
+  type BudgetReading,
+  type BudgetReads,
   byTreeOrder,
   CalendarRangeError,
   canDepend,
@@ -15,17 +21,26 @@ import {
   chargedWorkdays,
   chargedWorkdaysOf,
   type Claim,
+  CLAIM_LEASE_MS,
   type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
+  decideBudget,
   decideClaim,
+  decideMeasureEstimate,
+  decideMeasureFact,
+  decideRateCard,
   decideRelease,
+  DEFAULT_PERT_WEIGHTS,
+  definitionKeyOf,
+  definitionsOrUnowned,
   type Demand,
   type DependencyEndpoint,
   deriveNumbers,
   effectiveTeamsOf,
   type EstimateRule,
   estimateUnitOf,
+  findExhaustedBudget,
   findTypedEndpointDefect,
   firstWorkdayOf,
   formatStepNodeId,
@@ -34,17 +49,26 @@ import {
   freeUnitsOf,
   haveSameSliceOrder,
   type Hold,
+  isLegacyMetric,
   type IsoDate,
   isoDateOfInstantIn,
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  leaseOf,
+  type LeaseReleaseReason,
   type LimitCrossed,
   MAX_ESTIMATE_DAYS,
-  MEASURE_METRICS,
+  type MeasureDefinition,
   type MeasureMetric,
+  type MeasureTrio,
+  metricsIn,
   minuteTrioProblem,
+  type MixedRateCards,
+  mixedRateCardsOf,
+  type MoneyBasis,
   nextWorkday,
+  type NodeAttempt,
   type NodeReading,
   nodeResourcesOf,
   occupancyByResource,
@@ -55,6 +79,7 @@ import {
   placeAfter,
   POSITION_STEP,
   type PriorityBand,
+  readBudgets,
   type Readiness,
   refuseDemand,
   refuseLimit,
@@ -68,6 +93,7 @@ import {
   rollUp,
   rollUpActuals,
   rollUpCharged,
+  rollUpMeasureEstimates,
   rollUpMeasures,
   rollUpProgress,
   rollUpWorkItemStatuses,
@@ -78,6 +104,7 @@ import {
   type Sibling,
   type Slice,
   sliceKey,
+  soleMoneyBasesOf,
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
   type Span,
@@ -87,6 +114,7 @@ import {
   type StepNodeRef,
   type StepPolicy,
   type StepState,
+  TOKEN_ESTIMATE_KEY,
   treeOrder,
   type TypedDependency,
   UNKNOWN,
@@ -99,13 +127,17 @@ import { arrangeBySchedule as arrangeSiblingsBySchedule } from '@wbs/domain/arra
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
+import type { BudgetKey, BudgetStore, StoredBudget } from '../../ports/budget-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
-import type {
-  ClaimIdentity,
-  ClaimOccupancy,
-  ClaimStore,
-  CredentialPin,
+import {
+  type ClaimIdentity,
+  type ClaimLease,
+  type ClaimOccupancy,
+  type ClaimStore,
+  type CredentialPin,
+  type LeaseRenewal,
+  unstampClaim,
 } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
@@ -118,6 +150,11 @@ import type { DependencyStore, StoredDependency } from '../../ports/dependency-s
 import type { Assignment, DirectoryCatalog, DirectoryStore } from '../../ports/directory-store';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore, StoredEstimate } from '../../ports/estimate-store';
+import type {
+  MeasureEstimateKey,
+  MeasureEstimateStore,
+  StoredMeasureEstimate,
+} from '../../ports/measure-estimate-store';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
 import {
   findProjectWithin,
@@ -125,6 +162,7 @@ import {
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
+import type { PlanEventStore } from '../../ports/plan-event-store';
 import type {
   IdentifiedSlice,
   PlanOptimization,
@@ -193,19 +231,33 @@ import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/depe
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
+import { type BudgetHeadroom, findBudgetHeadroom } from './budget-headroom';
+import { withBudgets } from './budget-read';
+import {
+  CLAIM_HISTORY_COMMANDS,
+  CLAIM_HISTORY_KINDS,
+  type ClaimHistoryEvent,
+  decodeClaimEvents,
+  nameClaimHistory,
+} from './claim-history';
 import {
   type Claimed,
   type ClaimInput,
   type ClaimRefusalOutcome,
   claimsAround,
+  findReassignedClaimedSteps,
   isClaimAdmin,
   lineageOf,
   type NamedClaimHolder,
+  type ReassignedClaimedStep,
   refusalOf,
   type ReleaseInput,
 } from './claims';
+import { withMeasureEstimates } from './measure-estimate-read';
 import { findPersonWork, type PersonWork } from './person-work';
+import { findProjectClaims, type ProjectClaims } from './project-claims';
 import { findStartableWork, type StartableWork } from './startable';
+import { namedDemandFields, readUntilNamed, withDemands } from './tree-demands';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -794,17 +846,45 @@ export type WorkItemRefusal =
   | 'invalid_estimate'
   | 'unknown_step'
   /**
-   * A figure in a unit this release does not keep — anything outside
-   * {@link MEASURE_METRICS}.
+   * A metric naming no measure definition of the project's organization, and
+   * none of the legacy names (`wbs-measure-budgets` D4; was `unknown_metric`
+   * before definitions existed).
    *
    * A **404** and not a 400, which is the one refusal in `token-tracking` that
-   * is not cloned from the actual pair. The metric is in the path, and it names
-   * a thing: `/measures/tokens_estimate/step-dev` is a request for a figure that
-   * does not exist in the same way a work item id nobody holds does not exist.
-   * A 400 would say the request was malformed, and it is not — it is
-   * well-formed about a unit this release has never heard of.
+   * is not cloned from the actual pair. The metric names a thing:
+   * `story_points` is a request for a figure that does not exist in the same
+   * way a work item id nobody holds does not exist. A 400 would say the
+   * request was malformed, and it is not — it is well-formed about a measure
+   * this organization has never defined.
    */
-  | 'unknown_metric'
+  | 'unknown_measure'
+  /** A fact or a clear on a derived measure (`agent_minutes`): nobody types it (409). */
+  | 'derived_measure'
+  /**
+   * A fact in the scheduling measure (`time`) (409): its fact is the actual
+   * days, recorded with `setActual`.
+   */
+  | 'scheduling_measure_fact'
+  /** A fraction on an integer-scale measure (409). */
+  | 'scale_mismatch'
+  /**
+   * A trio or a clear in the scheduling measure (`time`) through
+   * `setMeasureEstimate` (409): its trio is `setEstimate`'s, in `estimate`.
+   */
+  | 'scheduling_measure_estimate'
+  /** A trio on a definition whose `threePoint` is false (`hours`, `agent_minutes`) (409). */
+  | 'three_point_forbidden'
+  /** A budget or its clear in the scheduling measure (`time`) (409, design D35). */
+  | 'scheduling_measure_budget'
+  /** A write in a money measure without a rate card digest (409, design D43). */
+  | 'rate_card_required'
+  /** A rate card digest on a measure that is not money (409, design D43). */
+  | 'rate_card_forbidden'
+  /**
+   * A write that would add money figures priced under two rate cards (409,
+   * design D44), naming both in {@link WorkItemOutcome}'s `digests`.
+   */
+  | 'mixed_rate_cards'
   /**
    * A person the directory no longer holds, decided inside the write's own
    * transaction — see {@link AssignmentWritten}. Without it the same
@@ -919,6 +999,13 @@ export type WorkItemRefusal =
   /** `removeAttempt` naming a number the node does not hold. */
   | 'unknown_attempt';
 
+/**
+ * `startAttempt` refused by a strict budget of its work item or an ancestor
+ * (`wbs-measure-budgets` D69): {@link findExhaustedBudget}'s answer beside
+ * the code.
+ */
+export type BudgetExhaustedOutcome = { ok: false; reason: 'budget_exhausted' } & BudgetExhausted;
+
 export type WorkItemOutcome<T> =
   | { ok: true; value: T }
   | {
@@ -942,6 +1029,8 @@ export type WorkItemOutcome<T> =
       projectDayZero?: IsoDate;
       /** Relationships that prevent a structural change from changing endpoint scope. */
       dependencyIds?: string[];
+      /** The two bases a `mixed_rate_cards` refusal would add (null: unpriced). */
+      bases?: MixedRateCards;
     };
 
 /** Orders relationship removal before a structural delete and restoration after it. */
@@ -987,22 +1076,18 @@ function withClaimsRestored(restore: CompensatingCommand, taken: ClaimsTaken): C
   };
 }
 
+/**
+ * The `leased` field of an `add_claims` naming `ids`, or nothing when none is
+ * leased, so an entry of human claims is written as it was before leases.
+ */
+function leasedOf(ids: readonly string[]): { leased?: string[] } {
+  return ids.length === 0 ? {} : { leased: [...ids] };
+}
+
 /** The claims a delete takes, parents before the claims delegated under them, and their occupancy. */
 interface ClaimsTaken {
   claims: Claim[];
   occupancy: ClaimOccupancy[];
-}
-
-/**
- * Whether this release keeps figures in the unit a caller named.
- *
- * A function rather than an inline `includes`, because both write methods ask
- * and both must answer the same way; and it narrows, so the `MeasureMetric`
- * reaching the store is checked rather than asserted. The value arrives from a
- * URL path, so it is genuinely `string` no matter what the signature says.
- */
-function holdsMetric(metric: string): metric is MeasureMetric {
-  return (MEASURE_METRICS as readonly string[]).includes(metric);
 }
 
 /**
@@ -1020,6 +1105,11 @@ const MEASURE_LABELS: Record<MeasureMetric, string> = {
   token_actual: 'tokens spent',
   hours_actual: 'hours spent',
 };
+
+/** {@link MEASURE_LABELS} for a legacy metric; a defined measure is named by its key. */
+function measureLabelOf(metric: string): string {
+  return isLegacyMetric(metric) ? MEASURE_LABELS[metric] : metric;
+}
 
 export interface CreateWorkItem {
   parentId: string | null;
@@ -1074,6 +1164,19 @@ export interface WorkItemServiceOptions {
    * ships and therefore an invisible mistake for a week.
    */
   measures: MeasureStore;
+  /**
+   * Where the three-point estimates in measures other than time are kept
+   * (`wbs-measure-budgets` D3). Required for {@link measures}' reason: a
+   * service built without one would leave a leaf's trios behind at the
+   * hand-down and answer every read with none.
+   */
+  measureEstimates: MeasureEstimateStore;
+  /**
+   * Where the stated budgets are kept (`wbs-measure-budgets` D5). Required for
+   * {@link measures}' reason: a service built without one would answer every
+   * read with derived budgets only and lose a deleted branch's on undo.
+   */
+  budgets: BudgetStore;
   /**
    * Where each step says its work on a work item has got to.
    *
@@ -1145,6 +1248,12 @@ export interface WorkItemServiceOptions {
    * exists to keep out of this repo.
    */
   journal: CommandJournalStore;
+  /**
+   * The project's plan events, read by {@link WorkItemService.claimHistoryWithin}
+   * (`wbs-claim-display` C13). Optional only for fixtures that predate the
+   * claim history: without it that read throws rather than answering.
+   */
+  planEvents?: Pick<PlanEventStore, 'listFor'>;
   broadcast: Broadcaster;
   /**
    * Who may write a project through this service: `CREATOR_ADMISSION`
@@ -1927,6 +2036,46 @@ export class WorkItemService {
   }
 
   /**
+   * The remaining budget per measure of every claimed or startable step of a
+   * project, through the caller's access (`wbs-measure-budgets` task 3.2,
+   * {@link findBudgetHeadroom}): the steps {@link startableWithin} reads, every
+   * team's, each with the tightest budget among its work item and ancestors,
+   * holds for running attempts of unknown usage taken off (design D39–D41).
+   *
+   * `teamId` narrows the steps to one team's allotment, as the startable
+   * read does. Null for a project the caller cannot read; `unknown_team` for
+   * a team the caller's organization does not hold. Never refused as a whole:
+   * a budget that a rate-card mix keeps from being read is named on its own
+   * step and key (design D44). Served by `GET /api/projects/:id/budget-headroom`
+   * (task 4.1).
+   */
+  async budgetHeadroomWithin(
+    projectId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+  ): Promise<BudgetHeadroom | { readonly kind: 'unknown_team' } | null> {
+    const startable = await this.startableWithin(projectId, access, teamId);
+    if (startable === null) return null;
+    if ('kind' in startable) return startable;
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const estimates = await this.opts.measureEstimates.listByProject(projectId);
+    const budgets = await this.opts.budgets.listByProject(projectId);
+    const facts = await this.opts.measures.listByProject(projectId);
+    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const moneyKeys = moneyKeysOf(definitions);
+    const read = await this.budgetReadingsOf(projectId, {
+      rows,
+      definitions,
+      budgets,
+      facts,
+      estimates,
+      mixedFacts: mixedRateCardsOf(rows, pricedFactsOf(facts), moneyKeys),
+      mixedEstimates: mixedRateCardsOf(rows, estimates, moneyKeys),
+    });
+    return findBudgetHeadroom(rows, startable, read);
+  }
+
+  /**
    * One person's assignments and claims in one project
    * (`wbs-resources` R7, {@link findPersonWork}), admitted as the tree read is:
    * `null` for a project the caller may not read, `unknown_person` for a
@@ -1969,6 +2118,96 @@ export class WorkItemService {
     });
   }
 
+  /**
+   * Every claim of a project (`wbs-claim-display` C1, C2,
+   * {@link findProjectClaims}), admitted as the tree read is: `null` for a
+   * project the caller may not read, refused alike with an absent one.
+   *
+   * Rows, steps, claims and holder names are one observation
+   * (`ClaimStore.observeProject`), which also rechecks the caller's
+   * membership as the tree read's snapshot does: a member removed after
+   * admission is refused `not_a_member`, not answered. It reads no schedule,
+   * so it answers while the tree read is refused `engine_unavailable`.
+   * `readAt` is this service's clock after the observation, so a lease's
+   * remaining time is never overstated.
+   */
+  async claimsWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<ProjectClaims | AccessRefused | null> {
+    // Proof: with this admission removed, `refuses a stranger exactly as the
+    // tree read does` (project-claims-organization.controller.db.test.ts)
+    // answered 200 with the foreign project's claims; watched 2026-10-23.
+    if (!(await this.admits(projectId, access))) return null;
+    // Every claim, unfiltered by status: a stopped leaf's holder is still on it.
+    // Proof: with the claims filtered to leaves whose status is not blocked,
+    // on hold, blocked by proxy or done, `lists every claim whatever its leaf
+    // status, …` (project-claims.test.ts) read none of them; watched 2026-10-23.
+    // One observation, never separate awaited reads of rows, steps, claims
+    // and names: a batch landing between them made a claim name a row the
+    // read did not hold, a 500.
+    // Proof: with the four separate reads back in place of the observation,
+    // `answers whatever a racing claim on a new row lands before or after`
+    // (claim-observation.db.test.ts) threw `claim claim-w-8 is on no row of
+    // this read` (3 pass, 2 fail with the snapshot case); watched 2026-10-23.
+    const observed = await this.claiming().claims.observeProject(projectId, access);
+    if (observed.kind === 'not_found') return null;
+    if (observed.kind === 'access_refused') return observed;
+    return findProjectClaims({ ...observed, readAt: this.clock.now() });
+  }
+
+  /**
+   * The newest `limit` claim and release acts of a project
+   * (`wbs-claim-display` C13, C14): its `claim` and `release` plan events and
+   * the acts of the `batch` events that claimed or released, admitted as the tree read is: `null` for a
+   * project the caller may not read, refused alike with an absent one. Each
+   * stored command is decoded with the journal's decoder
+   * ({@link decodeClaimEvents}); holders and work items are named as the plan
+   * holds them now, `null` once deleted ({@link nameClaimHistory}). Undo and
+   * redo write no plan event, so neither is listed.
+   *
+   * @throws when this service was built without plan events, or a stored
+   * event does not decode: corrupt history fails the read whole.
+   */
+  async claimHistoryWithin(
+    projectId: string,
+    access: ResourceAccess,
+    limit: number,
+  ): Promise<ClaimHistoryEvent[] | null> {
+    // Proof: with this admission removed, `refuses a stranger exactly as the
+    // tree read does` (claim-history-organization.controller.db.test.ts)
+    // failed: the foreign and absent projects were read (5 pass, 1 fail);
+    // watched 2026-10-24.
+    if (!(await this.admits(projectId, access))) return null;
+    const { planEvents } = this.opts;
+    if (planEvents === undefined)
+      throw new Error('this work-item service was built without plan events');
+    // Proof: with the kinds left out, `lists no undo, redo or other command`
+    // (claim-history.test.ts) failed on the `estimate` event; watched 2026-10-24.
+    // The batches that claimed or released beside other commands are kept by
+    // the store, before its limit, so non-claim batches never use up a place.
+    // Proof: with batches read as a kind and filtered here after the store's
+    // limit, `finds a claim batch under newer batches that claim nothing`
+    // (claim-history.test.ts) answered nothing; watched 2026-10-24.
+    const events = await planEvents.listFor(projectId, {
+      kinds: CLAIM_HISTORY_KINDS,
+      batchesHolding: CLAIM_HISTORY_COMMANDS,
+      limit,
+    });
+    // Every kept event yields at least one act, so the first `limit` acts are
+    // exactly the newest `limit`.
+    // Proof: with this cut removed, `lists a batch that released one claim and
+    // took another as two acts` (claim-history.test.ts) answered two acts for
+    // `limit` 1; watched 2026-10-24.
+    const decoded = decodeClaimEvents(events).slice(0, limit);
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const names = await this.personNamesWithin(
+      access,
+      decoded.flatMap(({ claims }) => claims.map(({ personId }) => personId)),
+    );
+    return nameClaimHistory(decoded, rows, names);
+  }
+
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
   async treeWithin(
     projectId: string,
@@ -1977,7 +2216,19 @@ export class WorkItemService {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.read(projectId, access);
       if (captured.kind !== 'isolated') {
-        const tree = projectSharedTree(captured);
+        const projected = await this.withMeasureEstimates(projectId, projectSharedTree(captured));
+        // The snapshot's own demands and catalog, already under the
+        // organization's names, so a row's demand and its bar are one observation.
+        const tree =
+          captured.kind === 'shared' &&
+          captured.chain.kind !== 'engine_unavailable' &&
+          projected !== null &&
+          !('kind' in projected)
+            ? {
+                ...projected,
+                ...withDemands(captured.chain.reads.demands, captured.chain.reads.resources),
+              }
+            : projected;
         if (
           captured.kind === 'shared' &&
           captured.chain.kind === 'scheduled' &&
@@ -2002,10 +2253,34 @@ export class WorkItemService {
     }
     if (!(await this.admits(projectId, access))) return null;
     // Proof: bypassing the public isolated fixture read failed mounted disappearance (200 vs 404) and malformed-core export (200 vs 500).
-    const tree = await (this.opts.livePlans === undefined
-      ? this.tree(projectId)
-      : this.treeIsolated(projectId));
-    if (access.kind === 'legacy' || tree === null || 'kind' in tree) return tree;
+    const readTree = () =>
+      this.opts.livePlans === undefined ? this.tree(projectId) : this.treeIsolated(projectId);
+    if (access.kind === 'legacy') {
+      const tree = await readTree();
+      if (tree === null || 'kind' in tree) return tree;
+      return {
+        ...tree,
+        ...(await namedDemandFields(
+          () => this.opts.demands.listByProject(projectId),
+          () => this.opts.directory.listResources(),
+        )),
+      };
+    }
+    const organizationId = access.scope.organizationId;
+    const readCatalog = () => this.opts.directory.listInOrganization('resources', organizationId);
+    // The labels' catalog is read after the tree, so a removal between them is
+    // read again once (`readUntilNamed`, its proof in tree-demands.test.ts)
+    // before `withResourceLabels` may throw.
+    const { answer: tree, catalog: labelCatalog } = await readUntilNamed(
+      readTree,
+      readCatalog,
+      (answer) =>
+        answer === null || 'kind' in answer || answer.resourceLabels === undefined
+          ? []
+          : answer.resourceLabels.map(({ id }) => id),
+    );
+    if (tree === null || 'kind' in tree) return tree;
+    const readDemands = () => this.opts.demands.listByProject(projectId);
     // Assignees under their organization-local names, as the scoped people
     // list shows them; the tree read itself knows only the legacy name.
     // Proof: returning the tree's legacy names made `shows assignees under the
@@ -2032,14 +2307,12 @@ export class WorkItemService {
       ...(tree.resourceLabels === undefined
         ? {}
         : {
-            resourceLabels: withResourceLabels(
-              tree,
-              await this.opts.directory.listInOrganization(
-                'resources',
-                access.scope.organizationId,
-              ),
-            ).resourceLabels,
+            resourceLabels: withResourceLabels(tree, labelCatalog).resourceLabels,
           }),
+      // Proof: answering `tree` here unchanged failed `levels a demanded
+      // resource (isolated)` (resource-schedule.controller.db.test.ts) on
+      // `expected undefined to deeply equal [ … ]`; watched 2026-10-25.
+      ...(await namedDemandFields(readDemands, readCatalog)),
     };
   }
 
@@ -2275,12 +2548,153 @@ export class WorkItemService {
   async tree(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.readProject(projectId);
-      if (captured.kind !== 'isolated') return projectSharedTree(captured);
+      if (captured.kind !== 'isolated')
+        return this.withMeasureEstimates(projectId, projectSharedTree(captured));
     }
     return this.treeIsolated(projectId);
   }
 
-  private async treeIsolated(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
+  /**
+   * `tree` with each row's `measureEstimates` attached
+   * ({@link withMeasureEstimates}): the trios read here, the definitions'
+   * scales and the tree's own PERT weights and facts. Read after the plan, so
+   * a shared capture's rows meet trios read a moment later outside it, the one
+   * figure a coherent capture does not hold (design D29); nothing the schedule
+   * reads comes from here. A refusal or an absent plan reads nothing.
+   *
+   * Proof: with this attachment skipped, `reads expected and variance per
+   * step node and rolled up` (measure-estimate-command.test.ts) read no
+   * `measureEstimates`; watched 2026-10-23.
+   */
+  private async withMeasureEstimates<T extends PlanTree | EngineUnavailable | AccessRefused | null>(
+    projectId: string,
+    tree: T,
+  ): Promise<T> {
+    if (tree === null || 'kind' in tree) return tree;
+    const estimates = await this.opts.measureEstimates.listByProject(projectId);
+    const budgets = await this.opts.budgets.listByProject(projectId);
+    const facts = await this.opts.measures.listByProject(projectId);
+    // Nothing to estimate, budget or mix: a mix needs a priced figure.
+    if (estimates.length === 0 && budgets.length === 0 && !facts.some(({ basis }) => basis))
+      return tree;
+    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const moneyKeys = moneyKeysOf(definitions);
+    // Facts and trios fold apart (design D44): a mix in one never strips the other.
+    const mixedFacts = mixedRateCardsOf(tree.workItems, pricedFactsOf(facts), moneyKeys);
+    const mixedEstimates = mixedRateCardsOf(tree.workItems, estimates, moneyKeys);
+    const estimated =
+      estimates.length === 0
+        ? tree.workItems
+        : withMeasureEstimates(
+            tree.workItems,
+            estimates,
+            definitions,
+            // Proof: with `DEFAULT_PERT_WEIGHTS` here, `weighs the trio by the
+            // project's own PERT weights` (measure-estimate-command.test.ts) read
+            // 250 where 300 was owed; watched 2026-10-23.
+            tree.pertWeights,
+          );
+    const readings =
+      estimates.length === 0 && budgets.length === 0
+        ? new Map<string, Map<string, BudgetReading>>()
+        : (
+            await this.budgetReadingsOf(projectId, {
+              rows: tree.workItems,
+              definitions,
+              budgets,
+              facts,
+              estimates,
+              mixedFacts,
+              mixedEstimates,
+            })
+          ).readings;
+    // Proof: with the budgets left unattached, `sets, replaces and clears a
+    // budget, undoably` (budget-command.test.ts) read no `budgets`; watched 2026-10-23.
+    return {
+      ...tree,
+      workItems: withBudgets(
+        estimated,
+        readings,
+        { facts: mixedFacts, estimates: mixedEstimates },
+        {
+          facts: soleMoneyBasesOf(tree.workItems, pricedFactsOf(facts), moneyKeys),
+          estimates: soleMoneyBasesOf(tree.workItems, estimates, moneyKeys),
+        },
+      ),
+    };
+  }
+
+  /**
+   * {@link readBudgets} over what the caller already read, with the attempts
+   * (for the holds and the derived `agent_minutes`) and the project's budget
+   * factor read here.
+   *
+   * @throws when the project has gone between the plan read and this one: the
+   * plan was just read, so a miss is a store that lost it.
+   */
+  private async budgetReadingsOf(
+    projectId: string,
+    reads: Omit<BudgetReads, 'attempts' | 'factor' | 'facts'> & {
+      facts: readonly StoredMeasure[];
+    },
+  ): Promise<BudgetRead> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error(`project ${projectId} vanished during its plan read`);
+    const attempts = await this.opts.attempts.listByProject(projectId);
+    return readBudgets({
+      ...reads,
+      facts: [...reads.facts, ...agentMinutesOf(attempts)],
+      attempts,
+      // Proof: with 1 in place of the project's factor, `derives a budget from
+      // the pessimistic points times the project's budget factor`
+      // (budget-command.test.ts) read 600 where 900 was owed; watched 2026-10-23.
+      factor: project.budgetFactor,
+    });
+  }
+
+  /**
+   * The strict budget that refuses `attempt`'s start, or null to admit it
+   * ({@link findExhaustedBudget}, `wbs-measure-budgets` D69): the project's
+   * budgets, facts, trios and attempts as the headroom read folds them, read
+   * through this graph's stores so a batch reads them inside its own unit of
+   * work. A project without a strict budget reads nothing past its budgets.
+   *
+   * @throws when the project has gone since the start's own context read.
+   */
+  private async exhaustedBudgetFor(
+    projectId: string,
+    rows: readonly { readonly id: string; readonly parentId: string | null }[],
+    attempt: NodeAttempt,
+  ): Promise<BudgetExhausted | null> {
+    const budgets = await this.opts.budgets.listByProject(projectId);
+    if (!budgets.some((each) => each.policy === 'strict')) return null;
+    const estimates = await this.opts.measureEstimates.listByProject(projectId);
+    const facts = await this.opts.measures.listByProject(projectId);
+    const definitions = definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId));
+    const moneyKeys = moneyKeysOf(definitions);
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error(`project ${projectId} vanished during an attempt start`);
+    const attempts = await this.opts.attempts.listByProject(projectId);
+    return findExhaustedBudget(
+      {
+        rows,
+        definitions,
+        budgets,
+        facts: [...facts, ...agentMinutesOf(attempts)],
+        estimates,
+        attempts,
+        factor: project.budgetFactor,
+        mixedFacts: mixedRateCardsOf(rows, pricedFactsOf(facts), moneyKeys),
+        mixedEstimates: mixedRateCardsOf(rows, estimates, moneyKeys),
+      },
+      attempt,
+    );
+  }
+
+  private async treeIsolated(
+    projectId: string,
+    isRetry = false,
+  ): Promise<PlanTree | EngineUnavailable | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
     const seq = await this.opts.broadcast.latestSeq(projectId);
@@ -2376,10 +2790,18 @@ export class WorkItemService {
       },
       scheduling,
     );
+    const estimated = await this.withMeasureEstimates(projectId, tree);
     // The resource labels are read only for a schedule that names a resource,
     // so a plan stating none reads no catalog and keeps its payload shape.
-    if ('kind' in tree || !namesAResource(tree)) return tree;
-    return withResourceLabels(tree, await this.opts.directory.listResources());
+    if ('kind' in estimated || !namesAResource(estimated)) return estimated;
+    const catalog = await this.opts.directory.listResources();
+    // A resource removed between the schedule's read and this one: the whole
+    // read is taken again once, then `withResourceLabels` throws (bounded).
+    // Proof: with the re-read skipped, `labels a bar of a resource removed
+    // between the two reads` (legacy-demands-read.test.ts) threw `a bar waited
+    // for resource …`; watched 2026-10-25.
+    if (!isRetry && !slicesNamedIn(estimated, catalog)) return this.treeIsolated(projectId, true);
+    return withResourceLabels(estimated, catalog);
   }
 
   /**
@@ -2623,6 +3045,15 @@ export class WorkItemService {
         : (await this.opts.measures.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // The trios in measures other than time go down with the facts, every key
+    // at once. Read before the move, like the facts; afterwards they are the
+    // child's.
+    const estimatedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.measureEstimates.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
     // The attempts go down with the statements, numbers kept. Read before the
     // move for the undo: the child's delete would cascade them away, so the
     // undo writes these back onto the parent verbatim.
@@ -2705,6 +3136,10 @@ export class WorkItemService {
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.progress.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.measures.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipped, `hands a leaf's trios down to its first child and back
+      // up on undo` (measure-estimate-command.test.ts) read the three-point
+      // trio on the parent; watched 2026-10-23.
+      await this.opts.measureEstimates.moveAll(gainsFirstChild, workItem.id, stamp);
       // Proof: skipped, `hands a leaf’s attempts down to its first child,
       // numbers kept` read none on the child; watched 2026-10-12.
       await this.opts.attempts.moveAll(gainsFirstChild, workItem.id, stamp);
@@ -2798,6 +3233,10 @@ export class WorkItemService {
         stepId,
         attemptNumber,
       })),
+      ...measureEstimateReplay(
+        estimatedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+        estimatedHandedDown,
+      ),
     };
     const inverse: CompensatingCommand = {
       do: 'delete_subtree',
@@ -2826,6 +3265,8 @@ export class WorkItemService {
       // create is undone` in `work-item.resource.test.ts` read `[]` on the
       // parent (`- Expected - 24 / + Received + 1`); watched 2026-10-12.
       setAttempts: attemptedHandedDown,
+      // And the trios, back on the row they came from.
+      ...(estimatedHandedDown.length === 0 ? {} : { setMeasureEstimates: estimatedHandedDown }),
     };
     // The subtree commands remain readable by older binaries. Assignment changes
     // are ordinary journal steps, so their owners also enter undo/redo revisions.
@@ -3095,8 +3536,13 @@ export class WorkItemService {
    * is a leaf — journalled as one entry whose undo puts back exactly the
    * assignee each leaf had, `null` where it had none (`wbs-resources` R7).
    *
-   * Like {@link assign} it reads neither team labels nor claims: labelling is
-   * not assigning (Dany, 2026-08-06), and a claim is beside an assignment (D1).
+   * Like {@link assign} it never reads team labels (labelling is not
+   * assigning, Dany, 2026-08-06) and no claim refuses it, because a claim is
+   * beside an assignment (D1). It does report the step claims it reassigns
+   * away from their holders, {@link findReassignedClaimedSteps}, so a swarm
+   * coordinator can tell (issue #669 F6), as of this command inside its
+   * batch. A redo reassigns again without listing. Throws when the service was
+   * built without a claim store.
    * `unknown_step` answers before any write; `unknown_person` comes from the
    * first write, inside its transaction, so nothing is written when it fires.
    */
@@ -3105,7 +3551,7 @@ export class WorkItemService {
     actorId: string,
     stepId: string,
     personId: string | null,
-  ): Promise<WorkItemOutcome<null>> {
+  ): Promise<WorkItemOutcome<{ reassignedClaimedSteps: ReassignedClaimedStep[] }>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3164,7 +3610,20 @@ export class WorkItemService {
         before: rows,
       },
     );
-    return { ok: true, value: null };
+    const claims = await this.claiming().claims.listByProject(workItem.projectId);
+    return {
+      ok: true,
+      value: {
+        reassignedClaimedSteps: findReassignedClaimedSteps({
+          rows,
+          leafIds,
+          stepId,
+          personId,
+          previous,
+          claims,
+        }),
+      },
+    };
   }
 
   /**
@@ -3225,6 +3684,30 @@ export class WorkItemService {
   /** Every demand stated on a work item of the project, by work item then resource. */
   demandsOf(projectId: string): Promise<Demand[]> {
     return this.opts.demands.listByProject(projectId);
+  }
+
+  /**
+   * The measure definitions of the organization owning the project, null when
+   * none owns it (`wbs-measure-budgets` D19): what the export names its
+   * measures by.
+   */
+  measureDefinitionsOf(projectId: string): Promise<MeasureDefinition[] | null> {
+    return this.opts.measures.definitionsFor(projectId);
+  }
+
+  /** Every stored fact of the project with its basis; derived `agent_minutes` are not stored. */
+  measuresOf(projectId: string): Promise<StoredMeasure[]> {
+    return this.opts.measures.listByProject(projectId);
+  }
+
+  /** Every trio of the project in measures other than time, single-point tokens trios included. */
+  measureEstimatesOf(projectId: string): Promise<StoredMeasureEstimate[]> {
+    return this.opts.measureEstimates.listByProject(projectId);
+  }
+
+  /** Every stated budget of the project; derived budgets are computed on read. */
+  budgetsOf(projectId: string): Promise<StoredBudget[]> {
+    return this.opts.budgets.listByProject(projectId);
   }
 
   /**
@@ -3344,6 +3827,7 @@ export class WorkItemService {
     );
     const status = (await this.statusesOf(projectId, rows)).get(id);
     if (status === undefined) throw new Error(`work item ${id} has no derived status`);
+    const pinnedPersonId = await identity.pinnedPersonOf(credential);
     const decided = decideClaim({
       target: {
         workItemId: id,
@@ -3358,7 +3842,7 @@ export class WorkItemService {
       caller: {
         accountId: actorId,
         isAdmin: isClaimAdmin(access),
-        pinnedPersonId: await identity.pinnedPersonOf(credential),
+        pinnedPersonId,
       },
       claimant: {
         personId: input.personId,
@@ -3426,7 +3910,14 @@ export class WorkItemService {
     const copies = written.flatMap((each) =>
       decided.occupancy.map(({ resourceId, units }) => ({ claimId: each.id, resourceId, units })),
     );
-    const outcome = await claims.add(written, statements, stamp, copies);
+    // An agent's claim for itself is leased; anybody else's is not (L1).
+    // Proof: with `leaseOf` answering null, `leases an agent's claim for
+    // itself and nobody else's` and eight more cases of claim-lease.db.test.ts
+    // failed (1 pass, 9 fail); watched 2026-10-23.
+    const expiresAt = leaseOf(pinnedPersonId, input.personId, stamp.at);
+    const leases: ClaimLease[] =
+      expiresAt === null ? [] : written.map((each) => ({ claimId: each.id, expiresAt }));
+    const outcome = await claims.add(written, statements, stamp, copies, leases);
     // Read in this same unit of work a moment ago: a refusal here is the
     // write coordinator failing to serialize, not an outcome to model.
     if (outcome !== 'written') throw new Error(`claim of ${id} was refused at write: ${outcome}`);
@@ -3458,7 +3949,16 @@ export class WorkItemService {
     }));
     await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
       forward: oneCommandOf([
-        { do: 'add_claims', claims: written, stated: statements, occupancy: copies },
+        {
+          do: 'add_claims',
+          claims: written,
+          stated: statements,
+          occupancy: copies,
+          // Proof: with this field left out, `refuses the holder’s undo after a
+          // reap, and redoes a claim with a fresh lease` (claim-lease.db.test.ts)
+          // redid it leaseless (9 pass, 1 fail); watched 2026-10-23.
+          ...leasedOf(leases.map(({ claimId }) => claimId)),
+        },
         ...assigning,
       ]),
       // Proof: with `unassigning` left out, `undo clears both the claim and the
@@ -3532,15 +4032,120 @@ export class WorkItemService {
     const occupancy = (await claims.occupancyOf(projectId))
       .filter((row) => ids.has(row.claimId))
       .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units }));
+    const leased = await this.leasedAmong(projectId, ids);
     await claims.remove(removed, [], stamp);
     await this.announceTree(projectId);
     await this.record(projectId, stamp, 'release', `release ${quoteName(workItem.name)}`, {
       forward: { do: 'remove_claims', claims: removed, cleared: [] },
-      inverse: { do: 'add_claims', claims: removed, stated: [], occupancy },
+      inverse: { do: 'add_claims', claims: removed, stated: [], occupancy, ...leasedOf(leased) },
       touched: [...new Set(removed.map((each) => each.workItemId))],
       before: rows,
     });
     return { ok: true, value: null };
+  }
+
+  /**
+   * Renews every lease of `personId` due at this instant, in every project
+   * (`wbs-claim-leases` L4), and answers the person's standing after it. The
+   * store writes only when one is due, so a call within the resolution of the
+   * last one writes nothing, and names the projects whose leases it moved.
+   */
+  renewLeases(personId: string): Promise<LeaseRenewal> {
+    return this.claiming().claims.renewLeases(personId, () => this.clock.now());
+  }
+
+  /**
+   * Releases every claim of the project whose lease has run out now
+   * (`wbs-claim-leases` L5–L10, L15), with every claim delegated under one,
+   * and answers how many claims went. Expiry is read here, so a caller that
+   * holds the write turn decides against the state its turn commits: a renewal
+   * admitted before it has moved the lease, one admitted after finds the
+   * claim gone. Each writing account's claims of one reason go in one store
+   * call, stamped by that account, and one history event (kind `release`, the
+   * reason in its label and its `after`) that no account's undo reaches.
+   */
+  async releaseExpiredLeases(projectId: string): Promise<number> {
+    const { claims } = this.claiming();
+    const at = this.clock.now();
+    const expired = await claims.expiredLeasesOf(projectId, at);
+    if (expired.length === 0) return 0;
+    const stored = await claims.listStampedByProject(projectId);
+    const byId = new Map(stored.map((each) => [each.id, each]));
+    const taken = new Set<string>();
+    const groups = new Map<
+      string,
+      { accountId: string; reason: LeaseReleaseReason; ids: string[] }
+    >();
+    for (const { claimId, reason } of expired) {
+      if (taken.has(claimId)) continue;
+      const root = byId.get(claimId);
+      if (root === undefined)
+        throw new Error(`expired claim ${claimId} is not a claim of ${projectId}`);
+      const key = JSON.stringify([root.accountId, reason]);
+      const group = groups.get(key) ?? { accountId: root.accountId, reason, ids: [] };
+      groups.set(key, group);
+      // A subtree claim takes every claim delegated under it, transitively (L15).
+      // Proof: with the cascade loop skipped, `releases the claims delegated
+      // under an expired subtree claim` (claim-lease.db.test.ts) counted one:
+      // the foreign key took the delegated claim unrecorded (9 pass, 1 fail);
+      // watched 2026-10-23.
+      const frontier = [claimId];
+      for (let next = frontier.pop(); next !== undefined; next = frontier.pop()) {
+        if (taken.has(next)) continue;
+        taken.add(next);
+        group.ids.push(next);
+        for (const each of stored) if (each.parentClaimId === next) frontier.push(each.id);
+      }
+    }
+    const occupancy = await claims.occupancyOf(projectId);
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const nameOf = new Map(rows.map((row) => [row.id, row.name]));
+    for (const { accountId, reason, ids } of groups.values()) {
+      const going = new Set(ids);
+      const removed = stored.filter((each) => going.has(each.id)).map(unstampClaim);
+      const leased = removed.flatMap((each) =>
+        byId.get(each.id)?.leaseExpiresAt === null ? [] : [each.id],
+      );
+      const stamp: WriteStamp = { at, by: accountId };
+      await claims.remove(removed, [], stamp);
+      const items = [...new Set(removed.map((each) => each.workItemId))];
+      const [only] = items;
+      const what =
+        items.length === 1
+          ? quoteName(nameOf.get(only) ?? only)
+          : `${String(removed.length)} claims`;
+      const why = reason === 'lease_expired' ? 'lease expired' : 'credential revoked';
+      const inverse: CompensatingCommand = {
+        do: 'add_claims',
+        claims: removed,
+        stated: [],
+        occupancy: occupancy
+          .filter((row) => going.has(row.claimId))
+          .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units })),
+        ...leasedOf(leased),
+      };
+      await this.opts.journal.appendEvent({
+        id: this.clock.newId(),
+        projectId,
+        userId: accountId,
+        kind: 'release',
+        label: `release ${what} (${why})`,
+        workItemId: items.length === 1 ? only : null,
+        stepId: null,
+        before: inverse,
+        after: { do: 'remove_claims', claims: removed, cleared: [], reason },
+        createdAt: at,
+      });
+    }
+    await this.announceTree(projectId);
+    return taken.size;
+  }
+
+  /** The ids among `ids` of the project's claims that carry a lease (L11). */
+  private async leasedAmong(projectId: string, ids: ReadonlySet<string>): Promise<string[]> {
+    return (await this.claiming().claims.listStampedByProject(projectId))
+      .filter((each) => ids.has(each.id) && each.leaseExpiresAt !== null)
+      .map(({ id }) => id);
   }
 
   /**
@@ -4340,6 +4945,18 @@ export class WorkItemService {
     const copiedMeasures = (await this.opts.measures.listByProject(workItem.projectId))
       .filter((each) => inside.has(each.workItemId) && each.metric === 'token_estimate')
       .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
+    // Every trio in a measure other than time copies, for the days estimate's
+    // reason: it describes the work. The single-point tokens trios ride with
+    // the copied legacy token estimates above as well, and agree with them.
+    const copiedMeasureEstimates = (
+      await this.opts.measureEstimates.listByProject(workItem.projectId)
+    )
+      .filter((each) => inside.has(each.workItemId))
+      .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
+    // And every stated budget of the branch, with its trios (design D42).
+    const copiedBudgets = (await this.opts.budgets.listByProject(workItem.projectId))
+      .filter((each) => inside.has(each.workItemId))
+      .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     const copiedAssignments = assigned.map((each) => ({
       ...each,
       workItemId: copyOf(each.workItemId),
@@ -4420,6 +5037,16 @@ export class WorkItemService {
     for (const dependency of copiedTyped) {
       await this.opts.typedDependencies.add(dependency, stamp);
     }
+    // Proof: skipped, `copies a duplicated branch's trios and takes them with
+    // the copy on undo` (measure-estimate-command.test.ts) read none on the
+    // copy; watched 2026-10-23.
+    // The single-point ones were copied as legacy token estimates above.
+    for (const each of copiedMeasureEstimates.filter(isRanged))
+      await this.opts.measureEstimates.set(each, stamp);
+    // Proof: skipped, `copies a duplicated branch's budgets and takes them with
+    // the copy on undo` (budget-command.test.ts) read none on the copy;
+    // watched 2026-10-23.
+    for (const each of copiedBudgets) await this.opts.budgets.set(each, stamp);
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
     // than the rows that were written.
@@ -4442,6 +5069,8 @@ export class WorkItemService {
       removedActuals: [],
       removedProgress: [],
       removedMeasures: [],
+      ...measureEstimateReplay(copiedMeasureEstimates, []),
+      ...budgetReplay(copiedBudgets),
     };
     const deleteCopy: CompensatingCommand = {
       do: 'delete_subtree',
@@ -4568,6 +5197,17 @@ export class WorkItemService {
     // `listByProject` takes no metric for.
     const storedMeasures = await this.opts.measures.listByProject(workItem.projectId);
     // Read before anything is deleted, for the same cascade:
+    // `measure_estimate.work_item_id` cascades, and an undo must put the branch
+    // back with its estimates in every measure, not only the days.
+    const storedMeasureEstimates = await this.opts.measureEstimates.listByProject(
+      workItem.projectId,
+    );
+    // Read before anything is deleted, for the same cascade:
+    // `work_item_budget.work_item_id` cascades, and an undo must put the
+    // branch back with its budgets (design D42). Never handed up: the parent
+    // keeps its own.
+    const storedBudgets = await this.opts.budgets.listByProject(workItem.projectId);
+    // Read before anything is deleted, for the same cascade:
     // `step_node_attempt.work_item_id` cascades, and an undo must put the
     // branch back with the history of every attempt at it.
     const storedAttempts = await this.opts.attempts.listByProject(workItem.projectId);
@@ -4630,6 +5270,25 @@ export class WorkItemService {
       survivor !== null &&
       (children.length === 0 || strategy === 'cascade') &&
       rows.filter((row) => row.parentId === survivor).length === 1;
+    // A promoting delete adds the branch's money figures up onto the parent,
+    // which cannot be done across two rate cards (design D44): refused before
+    // any write, naming both.
+    if (promotes) {
+      const moneyKeys = moneyKeysOf(await this.opts.measures.definitionsFor(workItem.projectId));
+      // Facts and trios hand up apart, so a mix counts within one kind only
+      // (design D44): a fact on one card beside a trio on another adds nothing.
+      // Proof: with the two kinds folded together, `hands up a fact on one card
+      // beside a trio on another` (budget-command.test.ts) refused the delete;
+      // watched 2026-10-23.
+      const mixed =
+        mixedRateCardsOf(rows, pricedFactsOf(storedMeasures), moneyKeys).get(id)?.values().next()
+          .value ??
+        mixedRateCardsOf(rows, storedMeasureEstimates, moneyKeys).get(id)?.values().next().value;
+      // Proof: with this refusal skipped, `refuses a last-child delete whose
+      // hand-up would add two rate cards, naming both` (budget-command.test.ts)
+      // handed the mixed sum up; watched 2026-10-23.
+      if (mixed !== undefined) return { ok: false, reason: 'mixed_rate_cards', bases: mixed };
+    }
     const claimedRows = promotes
       ? [
           ...new Set(
@@ -4725,6 +5384,11 @@ export class WorkItemService {
       // written nowhere: absence is per metric, and the hand-up is not the place
       // that rule stops holding.
       const measuredHandedUp: StoredMeasure[] = [];
+      // And the trios in measures other than time, summed per key the way the
+      // days' trios are: the parent becomes the leaf holding the branch's work,
+      // so it holds the branch's estimate in every measure. Single-point only
+      // when every trio summed was (design D28).
+      const estimatedHandedUp: StoredMeasureEstimate[] = [];
       // And the demands, the mirror of the split's hand-down (`wbs-resources`):
       // the parent becomes the leaf that holds the work, so it states what the
       // work needs. Per resource the **largest** units any former leaf
@@ -4794,7 +5458,7 @@ export class WorkItemService {
           statedHandedUp.push({ workItemId: parentId, stepId, state, statedAt: latest });
         }
         const measuredInside = storedMeasures.filter((each) => inside.has(each.workItemId));
-        for (const metric of MEASURE_METRICS) {
+        for (const metric of metricsIn(storedMeasures)) {
           for (const [stepId, value] of rollUpMeasures(rows, storedMeasures, metric).get(id) ??
             []) {
             // The newest stamp **in this metric**, not the newest in the branch.
@@ -4804,12 +5468,47 @@ export class WorkItemService {
             const latest = measuredInside
               .filter((each) => each.stepId === stepId && each.metric === metric)
               .reduce((newest, each) => Math.max(newest, each.recordedAt), 0);
+            // One basis in the branch, or none (the mix was refused above).
+            // Proof: with the basis left off, `hands a branch's priced figures
+            // up under their one rate card` (budget-command.test.ts) read the
+            // parent's fact unpriced; watched 2026-10-23.
+            const basis = measuredInside.find(
+              (each) => each.stepId === stepId && each.metric === metric,
+            )?.basis;
             measuredHandedUp.push({
               workItemId: parentId,
               stepId,
               metric,
               value,
               recordedAt: latest,
+              ...(basis === undefined ? {} : { basis }),
+            });
+          }
+        }
+        for (const key of [...new Set(storedMeasureEstimates.map((each) => each.key))].sort()) {
+          // Weights and scale shape only `expected`, which a hand-up drops.
+          for (const [stepId, figure] of rollUpMeasureEstimates(
+            rows,
+            storedMeasureEstimates,
+            key,
+            DEFAULT_PERT_WEIGHTS,
+            'real',
+          ).get(id) ?? []) {
+            // Proof: with the basis left off, `hands a branch's priced figures
+            // up under their one rate card` (budget-command.test.ts) read
+            // the parent's trio unpriced; watched 2026-10-23.
+            const basis = storedMeasureEstimates.find(
+              (each) => inside.has(each.workItemId) && each.stepId === stepId && each.key === key,
+            )?.basis;
+            estimatedHandedUp.push({
+              workItemId: parentId,
+              stepId,
+              key,
+              optimistic: figure.optimistic,
+              realistic: figure.realistic,
+              pessimistic: figure.pessimistic,
+              singlePoint: figure.singlePoint,
+              ...(basis === undefined ? {} : { basis }),
             });
           }
         }
@@ -4818,6 +5517,14 @@ export class WorkItemService {
       for (const each of recordedHandedUp) await this.opts.actuals.set(each, stamp);
       for (const each of statedHandedUp) await this.opts.progress.set(each, stamp);
       for (const each of measuredHandedUp) await this.opts.measures.set(each, stamp);
+      // After the facts, whose legacy token estimate a mixed tokens sum retires.
+      // Proof: skipped, `hands a deleted last child's trios up to the parent and
+      // takes them off again on undo` (measure-estimate-command.test.ts) read no
+      // trio on the parent; watched 2026-10-23.
+      // Single-point trios ride with the legacy rows just written, whose
+      // `recordedAt` a second write would restamp (design D28).
+      for (const each of estimatedHandedUp.filter(isRanged))
+        await this.opts.measureEstimates.set(each, stamp);
       // Proof: skipped, `hands the last child’s demand back up when its delete
       // promotes the parent, and back on undo` (resource-occupancy.db.test.ts)
       // read no demand on the parent, on both stores; watched 2026-10-20.
@@ -4940,6 +5647,11 @@ export class WorkItemService {
                   setActuals: recordedHandedUp,
                   setProgress: statedHandedUp,
                   setMeasures: measuredHandedUp,
+                  // Present only when there are any, so a plan without measure
+                  // estimates journals the shape it always did.
+                  ...(estimatedHandedUp.length === 0
+                    ? {}
+                    : { setMeasureEstimates: estimatedHandedUp }),
                 },
                 removedTyped,
                 false,
@@ -5018,6 +5730,20 @@ export class WorkItemService {
                       stepId: each.stepId,
                       metric: each.metric,
                     })),
+                    // Every trio in the branch, put back after the rows, and the
+                    // hand-up taken off the parent; absent when there are none.
+                    // Proof: with these left out, `puts a deleted branch's trios
+                    // back on undo` (measure-estimate-command.test.ts) read none;
+                    // watched 2026-10-23.
+                    ...measureEstimateReplay(
+                      storedMeasureEstimates.filter((each) => inside.has(each.workItemId)),
+                      estimatedHandedUp,
+                    ),
+                    // Every budget in the branch, put back with its rows; absent
+                    // when there are none.
+                    // Proof: with these left out, `puts a deleted branch's budgets
+                    // back on undo` (budget-command.test.ts) read none; watched 2026-10-23.
+                    ...budgetReplay(storedBudgets.filter((each) => inside.has(each.workItemId))),
                   },
                   claimsTaken,
                 ),
@@ -5638,16 +6364,21 @@ export class WorkItemService {
 
   /**
    * Writes one figure in one unit that is not days — tokens estimated, tokens
-   * spent, hours spent — for one step on one work item.
+   * spent, hours spent, or a fact in any measure the organization defines —
+   * for one step on one work item.
    *
-   * Guarded exactly as {@link WorkItemService.setActual} is, plus **one refusal
-   * that pair does not have**: a `metric` outside {@link MEASURE_METRICS} is
-   * `unknown_metric`, which the controller answers 404 to. See
-   * {@link WorkItemRefusal} for why it is not a 400.
+   * Guarded exactly as {@link WorkItemService.setActual} is, plus **the
+   * refusals that pair does not have**, decided by {@link decideMeasureFact}
+   * against the definitions of the organization owning the project
+   * (`wbs-measure-budgets` D4): `unknown_measure` (404, see
+   * {@link WorkItemRefusal} for why it is not a 400), `derived_measure` and
+   * `scale_mismatch` (409). `token_actual` and `hours_actual` stay aliases of
+   * `tokens` and `hours` for one release, and the fact is journalled under
+   * the legacy name either way (design D18), so the outgoing release can undo it.
    *
-   * The check is here rather than left to the database, even though the column
-   * carries a `CHECK`: a constraint failure is a 500, and a client asking for a
-   * unit this release does not keep is out of date rather than broken.
+   * The check is here rather than left to the database: a constraint failure
+   * is a 500, and a client asking for a measure the organization does not
+   * define is out of date rather than broken.
    *
    * **Nothing about this reaches the schedule**, for
    * {@link WorkItemService.setActual}'s reason and one more of its own: the
@@ -5663,27 +6394,46 @@ export class WorkItemService {
     actorId: string,
     stepId: string,
     /**
-     * `string`, not {@link MeasureMetric}, and that is the honest type: this
-     * value arrives as a path segment, so the caller genuinely has a string and
-     * a narrower signature would only move the assertion to the route — where
-     * `unknown_metric` would then be unreachable through the API it exists for.
-     * {@link holdsMetric} narrows it here, once, for both methods.
+     * `string`, and that is the honest type: the value arrives from a command
+     * body, and which strings name a measure is the organization's data,
+     * decided once below.
      */
-    metric: string,
+    requested: string,
     value: number,
+    /** The rate card a money fact was priced with (design D43); absent elsewhere. */
+    rateCardDigest?: string,
   ): Promise<WorkItemOutcome<null>> {
-    if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
+    const definitions = await this.opts.measures.definitionsFor(workItem.projectId);
+    // Proof: with this refusal skipped, `refuses a fact in a measure the
+    // organization does not define, in a derived measure or in the wrong
+    // scale` (measure-fact-command.test.ts) reached the store and threw
+    // (5 pass, 1 fail); watched 2026-10-23.
+    const decided = decideMeasureFact(definitions, requested, value);
+    if (!decided.ok) return decided;
+    const { metric } = decided;
+    // Proof: with this refusal skipped, `requires a rate card on a cost fact
+    // and refuses one on tokens` (budget-command.test.ts) stored an
+    // unpriced cost; watched 2026-10-23.
+    const priced = rateCardOf(definitions, metric, rateCardDigest, true);
+    if (!priced.ok) return priced;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
+    // A legacy token estimate written over a three-point tokens trio replaces
+    // the trio (design D28), so the undo puts the trio back, not an absence.
+    const replacedTrio =
+      metric === 'token_estimate'
+        ? await this.storedMeasureEstimate(workItem.projectId, id, stepId, TOKEN_ESTIMATE_KEY)
+        : null;
     const stamp = this.clock.stampFor(actorId);
     // `recordedAt` off the act's own stamp — {@link setActual}'s reading.
+    const basis = priced.basis === null ? {} : { basis: priced.basis };
     const written = await this.opts.measures.set(
-      { workItemId: id, stepId, metric, value, recordedAt: stamp.at },
+      { workItemId: id, stepId, metric, value, recordedAt: stamp.at, ...basis },
       stamp,
     );
     if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
@@ -5692,18 +6442,23 @@ export class WorkItemService {
       workItem.projectId,
       stamp,
       'measure',
-      `record ${MEASURE_LABELS[metric]} on ${quoteName(workItem.name)}`,
+      `record ${measureLabelOf(metric)} on ${quoteName(workItem.name)}`,
       {
-        forward: { do: 'set_measure', workItemId: id, stepId, metric, value },
+        forward: { do: 'set_measure', workItemId: id, stepId, metric, value, ...basis },
         // The figure that was there **in this metric**, or its absence. The
         // inverse of a first recording is `clear_measure` and never
         // `set_measure 0`, for the reason `set_actual` gives: zero is somebody
         // saying the work cost nothing, and this table must never hold it as a
         // stand-in for nobody having said. verify.md F7 watches it.
+        // Proof: with the trio branch removed, `undoes a legacy token
+        // estimate written over a three-point trio by putting the trio back`
+        // (measure-estimate-command.test.ts) read no tokens trio; watched 2026-10-23.
         inverse:
-          before === null
-            ? { do: 'clear_measure', workItemId: id, stepId, metric }
-            : { do: 'set_measure', workItemId: id, stepId, metric, value: before },
+          replacedTrio !== null && !replacedTrio.singlePoint
+            ? { do: 'set_measure_estimate', ...replacedTrio }
+            : before === null
+              ? { do: 'clear_measure', workItemId: id, stepId, metric }
+              : { do: 'set_measure', ...measureReplay(before) },
         touched: [id],
         before: context.value.rows,
       },
@@ -5717,22 +6472,29 @@ export class WorkItemService {
    *
    * Idempotent and not refused on a rolled-up row, exactly as
    * {@link WorkItemService.clearActual} is and for its reasons. A missing
-   * **work item** is still `not_found`, and a metric outside the set is still
-   * `unknown_metric` — a clear of a unit that does not exist is not the state
-   * the caller asked for, it is a caller who believes in a unit this release
-   * has never kept.
+   * **work item** is still `not_found`, and a metric naming no definition is
+   * still `unknown_measure` — a clear of a measure that does not exist is not
+   * the state the caller asked for, it is a caller who believes in a measure
+   * the organization never defined. A derived measure is `derived_measure`:
+   * nothing typed is there to clear.
    */
   async clearMeasure(
     id: string,
     actorId: string,
     stepId: string,
     /** `string` for {@link WorkItemService.setMeasure}'s reason. */
-    metric: string,
+    requested: string,
   ): Promise<WorkItemOutcome<null>> {
-    if (!holdsMetric(metric)) return { ok: false, reason: 'unknown_metric' };
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.value;
+    const decided = decideMeasureFact(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      null,
+    );
+    if (!decided.ok) return decided;
+    const { metric } = decided;
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
     const stamp = this.clock.stampFor(actorId);
     await this.opts.measures.remove(id, stepId, metric, stamp);
@@ -5744,15 +6506,253 @@ export class WorkItemService {
         workItem.projectId,
         stamp,
         'clear_measure',
-        `clear the recorded ${MEASURE_LABELS[metric]} on ${quoteName(workItem.name)}`,
+        `clear the recorded ${measureLabelOf(metric)} on ${quoteName(workItem.name)}`,
         {
           forward: { do: 'clear_measure', workItemId: id, stepId, metric },
-          inverse: { do: 'set_measure', workItemId: id, stepId, metric, value: before },
+          inverse: { do: 'set_measure', ...measureReplay(before) },
           touched: [id],
           before: context.value.rows,
         },
       );
     }
+    return { ok: true, value: null };
+  }
+
+  /**
+   * Writes one step node's three-point estimate in one measure other than
+   * time (`wbs-measure-budgets` D3, task 2.1), in that measure's unit.
+   *
+   * Decided by {@link decideMeasureEstimate} against the definitions of the
+   * organization owning the project: `unknown_measure` (404),
+   * `scheduling_measure_estimate`, `three_point_forbidden` and
+   * `scale_mismatch` (409). The ordering was parsed at the command boundary
+   * with the time trio's `EstimateTrio`. Leaf only, like
+   * {@link WorkItemService.setEstimate}: a row with children is `rolled_up`.
+   *
+   * A write here is a three-point write: it clears the single-point flag a
+   * legacy token estimate carried (design D28). The time trio and its table
+   * are untouched, and **nothing here reaches the schedule** (D2, task 2.4).
+   */
+  async setMeasureEstimate(
+    id: string,
+    actorId: string,
+    stepId: string,
+    /** `string` for {@link WorkItemService.setMeasure}'s reason: definitions are data. */
+    requested: string,
+    trio: MeasureTrio,
+    /** The rate card a money trio was priced with (design D43); absent elsewhere. */
+    rateCardDigest?: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.value;
+    // Proof: with this refusal skipped, `refuses an unknown, scheduling,
+    // two-point-only or fractional measure estimate and stores nothing`
+    // (measure-estimate-command.test.ts) reached the store and threw; watched
+    // 2026-10-23.
+    const decided = decideMeasureEstimate(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      trio,
+    );
+    if (!decided.ok) return decided;
+    const { key } = decided.definition;
+    // Proof: with this refusal skipped, `requires a rate card on a cost trio
+    // and refuses one on tokens` (budget-command.test.ts) stored an
+    // unpriced cost trio; watched 2026-10-23.
+    const priced = decideRateCard(decided.definition, rateCardDigest, true);
+    if (!priced.ok) return priced;
+    // Proof: with this refusal skipped, `refuses a trio on a parent as
+    // rolled_up` (measure-estimate-command.test.ts) stored one on `P`;
+    // watched 2026-10-23.
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const before = await this.storedMeasureEstimate(workItem.projectId, id, stepId, key);
+    const stamp = this.clock.stampFor(actorId);
+    const estimate: StoredMeasureEstimate = {
+      workItemId: id,
+      stepId,
+      key,
+      optimistic: trio.optimistic,
+      realistic: trio.realistic,
+      pessimistic: trio.pessimistic,
+      singlePoint: false,
+      ...(priced.basis === null ? {} : { basis: priced.basis }),
+    };
+    const written = await this.opts.measureEstimates.set(estimate, stamp);
+    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'measure_estimate',
+      `estimate ${key} on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_measure_estimate', ...estimate },
+        // The trio that was there, flag and all, or its absence: undoing a
+        // re-estimate of a legacy token estimate puts the single figure back.
+        inverse:
+          before === null
+            ? { do: 'clear_measure_estimate', workItemId: id, stepId, key }
+            : { do: 'set_measure_estimate', ...before },
+        touched: [id],
+        before: context.value.rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
+   * Takes one step node's trio in one measure back off, leaving its other
+   * measures alone. Idempotent and not refused on a rolled-up row, exactly as
+   * {@link WorkItemService.clearEstimate}; a key the organization does not
+   * define and `time` are refused as on the write. A definition without three
+   * points is not: one patched since may still hold trios to clear.
+   */
+  async clearMeasureEstimate(
+    id: string,
+    actorId: string,
+    stepId: string,
+    requested: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.value;
+    const decided = decideMeasureEstimate(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      null,
+    );
+    // A definition patched to `threePoint: false` may still hold trios stored
+    // before; clearing them is how they go (and what down.sql asks for).
+    // Proof: with this exception removed, `clears a trio stored before its
+    // measure stopped allowing three points` (measure-estimate-command.test.ts)
+    // answered three_point_forbidden; watched 2026-10-23.
+    if (!decided.ok && decided.reason !== 'three_point_forbidden') return decided;
+    const key = requested;
+    const before = await this.storedMeasureEstimate(workItem.projectId, id, stepId, key);
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.measureEstimates.remove(id, stepId, key, stamp);
+    await this.announceTree(workItem.projectId);
+    if (before !== null) {
+      await this.record(
+        workItem.projectId,
+        stamp,
+        'clear_measure_estimate',
+        `clear the ${key} estimate on ${quoteName(workItem.name)}`,
+        {
+          forward: { do: 'clear_measure_estimate', workItemId: id, stepId, key },
+          inverse: { do: 'set_measure_estimate', ...before },
+          touched: [id],
+          before: context.value.rows,
+        },
+      );
+    }
+    return { ok: true, value: null };
+  }
+
+  /**
+   * States one work item's budget in one measure (`wbs-measure-budgets` D5,
+   * task 3.1): a cap in the measure's unit bounding the whole subtree on every
+   * step, strict or advisory, with an optional hold per running attempt of
+   * unknown usage (design D40). Parents and leaves alike; a stated budget
+   * replaces the derived one the row read would otherwise show (design D38).
+   *
+   * Decided by {@link decideBudget}: `unknown_measure` (404),
+   * `scheduling_measure_budget` (409) and
+   * `scale_mismatch` (409). Undoable, one journal entry; **nothing here
+   * reaches the schedule** (D2).
+   */
+  async setBudget(
+    id: string,
+    actorId: string,
+    requested: string,
+    figures: { cap: number; policy: BudgetPolicy; holdPerAttempt: number | null },
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.value;
+    // Proof: with this refusal skipped, `refuses an unknown, scheduling,
+    // negative or fractional budget and stores nothing`
+    // (budget-command.test.ts) reached the store; watched 2026-10-23.
+    const decided = decideBudget(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      figures,
+    );
+    if (!decided.ok) return decided;
+    const { key } = decided.definition;
+    const before = await this.storedBudget(workItem.projectId, id, key);
+    const stamp = this.clock.stampFor(actorId);
+    const budget: StoredBudget = {
+      workItemId: id,
+      key,
+      cap: figures.cap,
+      policy: figures.policy,
+      holdPerAttempt: figures.holdPerAttempt,
+    };
+    await this.opts.budgets.set(budget, stamp);
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'budget',
+      `budget ${key} on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_budget', ...budget },
+        // Proof: with the stored budget's inverse replaced by a clear, `sets,
+        // replaces and clears a budget, undoably` (budget-command.test.ts)
+        // read no budget after undoing the replacement; watched 2026-10-23.
+        inverse:
+          before === null
+            ? { do: 'clear_budget', workItemId: id, key }
+            : { do: 'set_budget', ...before },
+        touched: [id],
+        before: context.value.rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
+   * Takes one work item's stated budget in one measure away, leaving the
+   * derived one, if any, to show again. Idempotent: an absent budget writes
+   * and journals nothing. Refused as on the write for an unknown key or the
+   * scheduling measure.
+   */
+  async clearBudget(
+    id: string,
+    actorId: string,
+    requested: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.value;
+    const decided = decideBudget(
+      await this.opts.measures.definitionsFor(workItem.projectId),
+      requested,
+      null,
+    );
+    if (!decided.ok) return decided;
+    const { key } = decided.definition;
+    const before = await this.storedBudget(workItem.projectId, id, key);
+    if (before === null) return { ok: true, value: null };
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.budgets.remove(id, key, stamp);
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'clear_budget',
+      `clear the ${key} budget on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'clear_budget', workItemId: id, key },
+        inverse: { do: 'set_budget', ...before },
+        touched: [id],
+        before: context.value.rows,
+      },
+    );
     return { ok: true, value: null };
   }
 
@@ -5948,8 +6948,11 @@ export class WorkItemService {
    * must be reopened first); `attempt_running` while one runs, which the
    * store's unique partial index also refuses; `attempt_in_future` when `at` is
    * after this act's own write stamp — the server's clock, never the client's;
-   * `unknown_person` for an executor the directory does not hold. `at` absent
-   * is the stamp.
+   * `unknown_person` for an executor the directory does not hold;
+   * `budget_exhausted` last, when a strict budget of the work item or an
+   * ancestor has nothing left or this attempt's hold would take it below zero,
+   * or a rate-card mix blocks it ({@link findExhaustedBudget},
+   * `wbs-measure-budgets` D69). `at` absent is the stamp.
    *
    * Writes no statement: an attempt is history, and the progress a reader sees
    * stays whatever was said. One journal entry, whose inverse removes the
@@ -5965,7 +6968,7 @@ export class WorkItemService {
       reference?: string;
       note?: string;
     },
-  ): Promise<WorkItemOutcome<{ attemptNumber: number }>> {
+  ): Promise<WorkItemOutcome<{ attemptNumber: number }> | BudgetExhaustedOutcome> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
@@ -5998,14 +7001,36 @@ export class WorkItemService {
     const executorPersonId = start.executorPersonId ?? null;
     if (executorPersonId !== null && !(await this.holdsPerson(executorPersonId)))
       return { ok: false, reason: 'unknown_person' };
+    const reference = start.reference ?? null;
+    const note = start.note ?? null;
+    // Last of the refusal order, and read inside the batch's unit of work: the
+    // write coordinator admits one batch at a time, so a concurrent start's
+    // hold is already here or not yet written (`wbs-measure-budgets` D69,
+    // budget-admission-race.db.test.ts).
+    // Proof: with this refusal skipped, `refuses the second start of a strict
+    // 500 holding 300, naming the budget` and two more cases of
+    // budget-admission.controller.db.test.ts started the attempts (1 pass,
+    // 3 fail); watched 2026-10-24.
+    const exhausted = await this.exhaustedBudgetFor(workItem.projectId, rows, {
+      workItemId: id,
+      stepId,
+      attemptNumber: 0,
+      startedAt,
+      executorPersonId,
+      reference,
+      note,
+      endedAt: null,
+      outcome: null,
+    });
+    if (exhausted !== null) return { ok: false, reason: 'budget_exhausted', ...exhausted };
     const started = await this.opts.attempts.start(
       {
         workItemId: id,
         stepId,
         startedAt,
         executorPersonId,
-        reference: start.reference ?? null,
-        note: start.note ?? null,
+        reference,
+        note,
       },
       stamp,
     );
@@ -7310,6 +8335,26 @@ export class WorkItemService {
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
         }
+        // A defined measure may have been deleted since its fact was cleared;
+        // the store would throw on a key its organization no longer defines.
+        // Proof: with this check skipped, `refuses an undo that would put a
+        // fact back in a measure deleted since` (measure-fact-command.test.ts)
+        // threw from the store instead of refusing; watched 2026-10-23.
+        if (
+          !decideMeasureFact(
+            await this.opts.measures.definitionsFor(projectId),
+            command.metric,
+            null,
+          ).ok
+        ) {
+          return { ok: false, detail: 'that measure is no longer defined.' };
+        }
+        // A money figure goes back only with its rate card (design D44): an
+        // unpriced one would be a basis of its own beside every priced figure.
+        // Proof: with this refusal skipped, `refuses an undo that would put an
+        // unpriced cost fact back` (budget-command.test.ts) wrote it; watched 2026-10-23.
+        const unpriced = await this.unpricedRefusal(projectId, command.metric, command.basis);
+        if (unpriced !== null) return unpriced;
         const restored = await this.opts.measures.set(
           {
             workItemId: command.workItemId,
@@ -7319,6 +8364,11 @@ export class WorkItemService {
             // Now, not the instant the row carried — `set_actual`'s reading of
             // `recordedAt`, and the same one `compensating.ts` states.
             recordedAt: stamp.at,
+            // The basis the figure was priced with goes back with it (D43).
+            // Proof: with this spread removed, `undoes a cost fact back to the
+            // figure and rate card it replaced` (budget-command.test.ts)
+            // read the restored fact unpriced; watched 2026-10-23.
+            ...(command.basis === undefined ? {} : { basis: command.basis }),
           },
           stamp,
         );
@@ -7328,6 +8378,53 @@ export class WorkItemService {
       }
       case 'clear_measure':
         await this.opts.measures.remove(command.workItemId, command.stepId, command.metric, stamp);
+        return { ok: true, detail: null };
+      case 'set_measure_estimate': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        if (rows.some((row) => row.parentId === command.workItemId)) {
+          return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
+        }
+        if (!(await this.holdsStep(projectId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this project.' };
+        }
+        // A defined measure deleted since: the store would throw on a key the
+        // organization no longer defines.
+        // Proof: with this check skipped, `refuses an undo that would put a
+        // trio back in a measure deleted since` (measure-estimate-command.test.ts)
+        // threw from the store instead of refusing; watched 2026-10-23.
+        const refused = await this.measureEstimatesRefusal(projectId, [command]);
+        if (refused !== null) return refused;
+        // Proof: with this refusal skipped, `refuses an undo that would put an
+        // unpriced cost trio back` (budget-command.test.ts) wrote it; watched 2026-10-23.
+        const unpriced = await this.unpricedRefusal(projectId, command.key, command.basis);
+        if (unpriced !== null) return unpriced;
+        const { do: _kind, ...estimate } = command;
+        const restored = await this.opts.measureEstimates.set(estimate, stamp);
+        if (restored === 'unknown_step')
+          return { ok: false, detail: 'that step is no longer in this project.' };
+        return { ok: true, detail: null };
+      }
+      case 'clear_measure_estimate':
+        await this.opts.measureEstimates.remove(
+          command.workItemId,
+          command.stepId,
+          command.key,
+          stamp,
+        );
+        return { ok: true, detail: null };
+      case 'set_budget': {
+        // A measure deleted since (D24 for budgets): the store would throw.
+        // Proof: with this check skipped, `refuses an undo that would put a
+        // budget back in a measure deleted since` (budget-command.test.ts)
+        // threw from the store instead of refusing; watched 2026-10-23.
+        const refused = await this.budgetsRefusal(projectId, [command]);
+        if (refused !== null) return refused;
+        const { do: _kind, ...budget } = command;
+        await this.opts.budgets.set(budget, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'clear_budget':
+        await this.opts.budgets.remove(command.workItemId, command.key, stamp);
         return { ok: true, detail: null };
       case 'set_progress': {
         const rows = await this.opts.workItems.listByProject(projectId);
@@ -7426,12 +8523,21 @@ export class WorkItemService {
               detail: `claim_limit: cap ${String(crossed.cap)}, current ${String(crossed.current)}.`,
             };
         }
+        // A leased claim comes back with a lease from this replay's instant (L11).
+        // Proof: with these leases left out, `refuses the holder’s undo after a
+        // reap, and redoes a claim with a fresh lease` (claim-lease.db.test.ts)
+        // put it back leaseless (9 pass, 1 fail); watched 2026-10-23.
+        const leases = (command.leased ?? []).map((claimId) => ({
+          claimId,
+          expiresAt: stamp.at + CLAIM_LEASE_MS,
+        }));
         const added = await claims.add(
           command.claims,
           command.stated,
           stamp,
           // Absent on an entry written before claim occupancy: its claims held nothing.
           command.occupancy ?? [],
+          leases,
         );
         // Proof: answering ok here made `refuses a redo of a claim once another
         // holder took the step` (claim-command.test.ts) answer the redo ok; watched 2026-10-19.
@@ -7889,6 +8995,23 @@ export class WorkItemService {
         ok: false,
         detail: 'a removed work item has step parallelism stated since this command.',
       };
+    // The hand-up below writes facts; one in a measure deleted since would
+    // throw from the store.
+    // Proof: with this refusal removed, `refuses an undo of a first-child create
+    // whose handed-down fact is in a measure deleted since`
+    // (measure-fact-command.test.ts) threw from the store; watched 2026-10-23.
+    const measuresRefused = await this.measuresRefusal(projectId, command.setMeasures);
+    if (measuresRefused !== null) return measuresRefused;
+    // The hand-up below writes trios too; one in a measure deleted since would
+    // throw from the store.
+    // Proof: with this refusal removed, `refuses an undo of a first-child
+    // create whose handed-down trio is in a measure deleted since`
+    // (measure-estimate-command.test.ts) threw from the store; watched 2026-10-23.
+    const estimatesRefused = await this.measureEstimatesRefusal(
+      projectId,
+      command.setMeasureEstimates ?? [],
+    );
+    if (estimatesRefused !== null) return estimatesRefused;
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     if (command.deletionState !== undefined)
@@ -7914,6 +9037,13 @@ export class WorkItemService {
     // re-applied delete that handed up the days and not the tokens would leave
     // the surviving parent reporting a fortnight of work that cost nothing.
     for (const each of command.setMeasures) await this.opts.measures.set(each, stamp);
+    // And the trios in every other measure, after the facts for the order the
+    // original hand-up wrote them in.
+    // Proof: skipped, `hands a leaf's trios down to its first child and back up
+    // on undo` (measure-estimate-command.test.ts) read no three-point trio on
+    // the parent after the undo; watched 2026-10-23.
+    for (const each of (command.setMeasureEstimates ?? []).filter(isRanged))
+      await this.opts.measureEstimates.set(each, stamp);
     // And the attempts, verbatim with their numbers, onto the leaf they came
     // from: the undo of a first-child create, whose child's delete above has
     // already cascaded the child's copies away.
@@ -7944,6 +9074,91 @@ export class WorkItemService {
     }
     await this.opts.attempts.restore(attempt, stamp);
     return { ok: true, detail: null };
+  }
+
+  /**
+   * Why these facts cannot be written back: one is in a measure the project's
+   * organization no longer defines (design D24). Null when nothing stands in
+   * the way, and without a read when there are none.
+   */
+  private async measuresRefusal(
+    projectId: string,
+    measures: readonly StoredMeasure[],
+  ): Promise<ApplyOutcome | null> {
+    if (measures.length === 0) return null;
+    const definitions = await this.opts.measures.definitionsFor(projectId);
+    return measures.some(({ metric }) => !decideMeasureFact(definitions, metric, null).ok)
+      ? { ok: false, detail: 'a measure it recorded is no longer defined.' }
+      : null;
+  }
+
+  /**
+   * Why a `set_measure` or `set_measure_estimate` replay in `metric` (a fact's
+   * metric or a definition key) cannot be written: it is in a money measure
+   * and carries no basis, `rate_card_required` (design D44). Null otherwise.
+   */
+  private async unpricedRefusal(
+    projectId: string,
+    metric: string,
+    basis: MoneyBasis | undefined,
+  ): Promise<ApplyOutcome | null> {
+    if (basis !== undefined) return null;
+    const key = definitionKeyOf(metric);
+    if (key === null) return null;
+    const definition = definitionsOrUnowned(
+      await this.opts.measures.definitionsFor(projectId),
+    ).find((each) => each.key === key);
+    return definition?.kind === 'money'
+      ? {
+          ok: false,
+          detail: 'rate_card_required: a money figure goes back only with its rate card.',
+        }
+      : null;
+  }
+
+  /**
+   * Why these budgets cannot be written back: one is in a measure the
+   * project's organization no longer defines (design D37). Null when nothing
+   * stands in the way, and without a read when there are none.
+   */
+  private async budgetsRefusal(
+    projectId: string,
+    budgets: readonly BudgetKey[],
+  ): Promise<ApplyOutcome | null> {
+    if (budgets.length === 0) return null;
+    const definitions = await this.opts.measures.definitionsFor(projectId);
+    return budgets.some(({ key }) => !decideBudget(definitions, key, null).ok)
+      ? { ok: false, detail: 'a measure it budgeted is no longer defined.' }
+      : null;
+  }
+
+  /**
+   * Why these trios cannot be written back: one is in a measure the project's
+   * organization no longer defines (design D32, D24 for estimates). Null when
+   * nothing stands in the way, and without a read when there are none.
+   *
+   * Only absence refuses. A replay puts back what was there, so a definition
+   * that stopped allowing three points since is not a reason: refusing it
+   * would strand every undo carrying a legacy single-point token estimate
+   * once `tokens` is patched to `threePoint: false`.
+   *
+   * Proof: with `decideMeasureEstimate` deciding here again, `undoes a delete
+   * and a first-child create after tokens stops allowing three points`
+   * (measure-estimate-command.test.ts) answered the undo stale; watched 2026-10-23.
+   */
+  private async measureEstimatesRefusal(
+    projectId: string,
+    estimates: readonly MeasureEstimateKey[],
+  ): Promise<ApplyOutcome | null> {
+    if (estimates.length === 0) return null;
+    const held = new Set(
+      definitionsOrUnowned(await this.opts.measures.definitionsFor(projectId)).map(
+        ({ key }) => key,
+      ),
+    );
+    return estimates.some(({ key }) => !held.has(key))
+      ? { ok: false, detail: 'a measure it estimated is no longer defined.' }
+      : null;
   }
 
   /**
@@ -8036,6 +9251,26 @@ export class WorkItemService {
     if (stepGone !== null) return stepGone;
     const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
+    // A fact in a defined measure deleted since the subtree went: the store
+    // would throw on a key the organization no longer defines.
+    // Proof: with this refusal removed, `refuses an undo of a delete whose
+    // fact is in a measure deleted since` (measure-fact-command.test.ts) threw
+    // from the store instead of refusing; watched 2026-10-23.
+    const measuresRefused = await this.measuresRefusal(projectId, command.measures);
+    if (measuresRefused !== null) return measuresRefused;
+    // Proof: with this refusal removed, `refuses an undo of a delete whose trio
+    // is in a measure deleted since` (measure-estimate-command.test.ts) threw
+    // from the store instead of refusing; watched 2026-10-23.
+    const estimatesRefused = await this.measureEstimatesRefusal(
+      projectId,
+      command.measureEstimates ?? [],
+    );
+    if (estimatesRefused !== null) return estimatesRefused;
+    // Proof: with this refusal removed, `refuses an undo of a delete whose
+    // budget is in a measure deleted since` (budget-command.test.ts) threw from
+    // the store instead of refusing; watched 2026-10-23.
+    const budgetsRefused = await this.budgetsRefusal(projectId, command.budgets ?? []);
+    if (budgetsRefused !== null) return budgetsRefused;
     const demands = command.demands ?? [];
     if (demands.length > 0) {
       const held = new Set((await this.opts.directory.listResources()).map(({ id }) => id));
@@ -8115,6 +9350,26 @@ export class WorkItemService {
       // Proof: skipping this restore lost the exact done-leaf blockage on mounted undo; watched 2026-10-14.
       await this.replaceDeletionBlockages(projectId, command.deletionState.blockages, false, stamp);
     }
+    // The trios after the rows they hang off: off the surviving parent first
+    // (undoing a hand-up, or the redo of a first-child create), then onto the
+    // restored rows. After `insertSubtree`, whose legacy token estimates they
+    // agree with (design D28).
+    // Proof: skipped, `puts a deleted branch's trios back on undo`
+    // (measure-estimate-command.test.ts) read none on the restored leaf;
+    // watched 2026-10-23.
+    for (const key of command.removedMeasureEstimates ?? [])
+      await this.opts.measureEstimates.remove(key.workItemId, key.stepId, key.key, stamp);
+    // Single-point trios came back with their legacy rows in `insertSubtree`,
+    // `recordedAt` verbatim; writing them again would restamp it (design D28).
+    // Proof: with the filter removed, `restores a deleted leaf's legacy token
+    // estimate with its recordedAt verbatim` (measure-estimate-command.test.ts)
+    // read the undo's instant; watched 2026-10-23.
+    for (const each of (command.measureEstimates ?? []).filter(isRanged))
+      await this.opts.measureEstimates.set(each, stamp);
+    // The budgets after the rows they hang off (design D42).
+    // Proof: skipped, `puts a deleted branch's budgets back on undo`
+    // (budget-command.test.ts) read none on the restored leaf; watched 2026-10-23.
+    for (const each of command.budgets ?? []) await this.opts.budgets.set(each, stamp);
     // The attempts after the rows they hang off: off the surviving parent
     // first (the redo of a first-child create), then onto the restored rows,
     // verbatim with their numbers.
@@ -8414,6 +9669,33 @@ export class WorkItemService {
     return found?.days ?? null;
   }
 
+  /** One step node's trio in one measure as stored, or null when it has none. */
+  private async storedMeasureEstimate(
+    projectId: string,
+    workItemId: string,
+    stepId: string,
+    key: string,
+  ): Promise<StoredMeasureEstimate | null> {
+    return (
+      (await this.opts.measureEstimates.listByProject(projectId)).find(
+        (each) => each.workItemId === workItemId && each.stepId === stepId && each.key === key,
+      ) ?? null
+    );
+  }
+
+  /** One work item's stated budget in one key, or null when it states none. */
+  private async storedBudget(
+    projectId: string,
+    workItemId: string,
+    key: string,
+  ): Promise<StoredBudget | null> {
+    return (
+      (await this.opts.budgets.listByProject(projectId)).find(
+        (each) => each.workItemId === workItemId && each.key === key,
+      ) ?? null
+    );
+  }
+
   /**
    * One work item's recorded figure in one metric for one step, or null when it
    * holds none in that metric.
@@ -8427,12 +9709,14 @@ export class WorkItemService {
     projectId: string,
     workItemId: string,
     stepId: string,
-    metric: MeasureMetric,
-  ): Promise<number | null> {
-    const found = (await this.opts.measures.listByProject(projectId)).find(
-      (each) => each.workItemId === workItemId && each.stepId === stepId && each.metric === metric,
+    metric: string,
+  ): Promise<StoredMeasure | null> {
+    return (
+      (await this.opts.measures.listByProject(projectId)).find(
+        (each) =>
+          each.workItemId === workItemId && each.stepId === stepId && each.metric === metric,
+      ) ?? null
     );
-    return found?.value ?? null;
   }
 
   /**
@@ -8668,6 +9952,107 @@ function projectSharedTree(
   return 'kind' in tree || !namesAResource(tree) ? tree : withResourceLabels(tree, reads.resources);
 }
 
+/**
+ * Whether a trio is held apart from the legacy token estimate: every trio
+ * but a single-point one, which is its legacy row (design D28) and travels
+ * with the measures.
+ */
+function isRanged(estimate: StoredMeasureEstimate): boolean {
+  return !estimate.singlePoint;
+}
+
+/**
+ * The basis a figure in `metric` (a fact's metric or a definition key) is
+ * written under ({@link decideRateCard}) against the project's definitions:
+ * none for `token_estimate`, which names no definition, and a digest sent
+ * with one is refused there as on any measure that is not money. Called after
+ * the measure itself was decided, so the definition is held.
+ *
+ * @throws when `metric` names no definition: decided first by the caller.
+ */
+function rateCardOf(
+  definitions: readonly MeasureDefinition[] | null,
+  metric: string,
+  rateCardDigest: string | undefined,
+  writing: boolean,
+):
+  | { ok: true; basis: MoneyBasis | null }
+  | { ok: false; reason: 'rate_card_required' | 'rate_card_forbidden' } {
+  const key = definitionKeyOf(metric);
+  if (key === null)
+    return rateCardDigest === undefined
+      ? { ok: true, basis: null }
+      : { ok: false, reason: 'rate_card_forbidden' };
+  const definition = definitionsOrUnowned(definitions).find((each) => each.key === key);
+  if (definition === undefined) throw new Error(`measure ${key} was decided but is not defined`);
+  return decideRateCard(definition, rateCardDigest, writing);
+}
+
+/** A stored fact as a `set_measure` replay carries it: its basis only when it has one. */
+function measureReplay(measure: StoredMeasure): {
+  workItemId: string;
+  stepId: string;
+  metric: string;
+  value: number;
+  basis?: MoneyBasis;
+} {
+  const { workItemId, stepId, metric, value, basis } = measure;
+  return { workItemId, stepId, metric, value, ...(basis === undefined ? {} : { basis }) };
+}
+
+/** A restore's budgets: absent when there are none, so older journal shapes stay. */
+function budgetReplay(budgets: readonly StoredBudget[]): { budgets?: StoredBudget[] } {
+  return budgets.length === 0 ? {} : { budgets: budgets.map((each) => ({ ...each })) };
+}
+
+/** Every fact as {@link mixedRateCardsOf} reads it: its definition key and basis. */
+function pricedFactsOf(
+  facts: readonly StoredMeasure[],
+): { workItemId: string; key: string; basis?: MoneyBasis }[] {
+  return facts.flatMap(({ workItemId, metric, basis }) => {
+    const key = definitionKeyOf(metric);
+    return key === null ? [] : [{ workItemId, key, ...(basis === undefined ? {} : { basis }) }];
+  });
+}
+
+/** The keys of the money definitions a project's figures are in. */
+function moneyKeysOf(definitions: readonly MeasureDefinition[] | null): Set<string> {
+  return new Set(
+    definitionsOrUnowned(definitions)
+      .filter((each) => each.kind === 'money')
+      .map(({ key }) => key),
+  );
+}
+
+/**
+ * A restore's measure estimate fields: the trios it puts back and the keys it
+ * takes off a surviving parent. Both absent when both are empty, so a journal
+ * of a plan holding no measure estimates keeps the shape it had before they
+ * existed.
+ */
+function measureEstimateReplay(
+  restored: readonly StoredMeasureEstimate[],
+  removed: readonly MeasureEstimateKey[],
+): { measureEstimates?: StoredMeasureEstimate[]; removedMeasureEstimates?: MeasureEstimateKey[] } {
+  if (restored.length === 0 && removed.length === 0) return {};
+  return {
+    measureEstimates: [...restored],
+    removedMeasureEstimates: removed.map(({ workItemId, stepId, key }) => ({
+      workItemId,
+      stepId,
+      key,
+    })),
+  };
+}
+
+/** Whether every resource a bar waited for is in `catalog`. */
+function slicesNamedIn(tree: PlanTree, catalog: readonly Resource[]): boolean {
+  const held = new Set(catalog.map(({ id }) => id));
+  return tree.slices.every(
+    (slice) => slice.capacityResource === undefined || held.has(slice.capacityResource.resourceId),
+  );
+}
+
 /** Whether any bar of the displayed schedule waited for a resource's pool. */
 function namesAResource(tree: PlanTree): boolean {
   return tree.slices.some((slice) => slice.capacityResource !== undefined);
@@ -8730,13 +10115,22 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   const numbers = deriveNumbers(rows);
   const totals = rollUp(rows, stored);
   const recordedTotals = rollUpActuals(rows, recorded);
-  // Three folds over a tree already in memory, one per metric, because adding
+  // One fold over a tree already in memory per metric held, because adding
   // a token to an hour is the thing `rollUpMeasures` exists to make
   // impossible. Built as a map of metric to the whole fold rather than as a
   // per-row object here, so the recursion runs once per metric for the project
   // instead of once per metric per row.
+  //
+  // `agent_minutes` joins the stored facts here, derived from the ended
+  // attempts on every read and never stored (`wbs-measure-budgets` task 1.4).
+  // Proof: with the derived facts left out, `reads agent minutes from ended
+  // attempts and rolls them up; a running attempt adds nothing`
+  // (measure-fact-command.test.ts) read no `agent_minutes`; watched 2026-10-23.
+  const measuredWithDerived = [...measured, ...agentMinutesOf(attempts)];
   const measuredTotals = new Map(
-    MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
+    metricsIn(measuredWithDerived).map(
+      (metric) => [metric, rollUpMeasures(rows, measuredWithDerived, metric)] as const,
+    ),
   );
   // Which steps have work on each leaf: the ones with an estimate, the ones
   // with a recorded day, and the ones somebody has already spoken about.

@@ -2,7 +2,8 @@
 
 Three things exist and do not meet. WBS holds the plan: leaves, project steps in one order,
 per-step progress and measures, claims with run ids, a startable read filtered by team, and
-fleet credentials (`wbs-team-claims`, merged 2026-10-20). Twilight names the execution side:
+machine credentials pinned to agent persons (`wbs-team-claims`, merged 2026-10-20;
+`wbs-machine-credentials`). Twilight names the execution side:
 coordinator, worker, activity class, activity executor, compiled workflow
 (`docs/twilight-structure/CONTEXT.md`), with a 51-task plan that has not started.
 `tools/harness-example` proves one ACP agent can be driven through a plan, implement, revise
@@ -28,7 +29,7 @@ recovery and delivery order; other product assumptions remain proposed.
 
 - **A1 WBS placement.** WBS stays its own product (names.md, 2026-09-19). Navigator writes
   the plan; Dash writes execution facts: claims, progress, measures, external refs. Dash
-  reaches WBS only over HTTP under a fleet credential, so folding WBS into either tool later
+  reaches WBS only over HTTP under a machine credential (pinned to the coordinator's agent person), so folding WBS into either tool later
   changes deployment, not this port.
 - **A2 Runtime.** The AI SDK is the agent-integration layer and an interpreter over Dash's
   run store is the coordinator. LangGraph is retired when the interpreter passes the
@@ -53,8 +54,11 @@ recovery and delivery order; other product assumptions remain proposed.
 - **A8 Capacity.** The coordinator holds a configured cap on active attempts (2 on the
   laptop). It never computes resource fit; it reads WBS's startable rows and, once the
   resources change ships, its fit, and refuses to start what WBS does not list.
-- **A9 Identity.** One coordinator runs under one fleet credential pinned to one agent
-  person. Each attempt records as its agent run the session id its adapter returns.
+  Budget admission is WBS's (`wbs-measure-budgets` D68): the claim or attempt start takes the
+  spend hold inside the write and refuses `budget_exhausted`; the coordinator never admits
+  from a headroom read.
+- **A9 Identity.** One coordinator runs under one machine credential (pinned to the coordinator's
+  agent person). Each attempt records as its agent run the session id its adapter returns.
 - **A10 Retirement.** `tools/harness-example`'s ACP client, fake agent and log move into
   Dash; the example project and the LangGraph dependency go when S7a and the replacement adapter conformance suite are green.
 - **A11 Dogfood.** The first governed change is a small real work item in the puni-00 WBS
@@ -65,13 +69,13 @@ recovery and delivery order; other product assumptions remain proposed.
 Everything new is Twilight Dash's: it takes time, holds credentials and changes the world.
 The one static piece, the binding's schema and validator, is Burokrat's.
 
-| Unit                                                      | Responsibility                                                                                                            |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `twilight-burokrat/cli/src/contracts/workflow-binding.ts` | ArkType schema of the binding; `twib validate workflow-binding <file> --steps <codes>`                                    |
-| `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port and adapters consuming injected model/tool capabilities                                           |
-| `twilight-dash/cli/src/bridge/`                           | WBS HTTP client over `@wbs/contracts` shapes under a fleet credential; every refusal typed                                |
-| `twilight-dash/cli/src/runs/`                             | RunStore/ArtifactStore ports and adapters, attempt states, the interpreter, `run-coordinator` and `inspect-runs` commands |
-| `.twilight/workflows.yaml`                                | puni-00's own binding                                                                                                     |
+| Unit                                                      | Responsibility                                                                                                                        |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `twilight-burokrat/cli/src/contracts/workflow-binding.ts` | ArkType schema of the binding; `twib validate workflow-binding <file> --steps <codes>`                                                |
+| `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port and adapters consuming injected model/tool capabilities                                                       |
+| `twilight-dash/cli/src/bridge/`                           | WBS HTTP client over `@wbs/contracts` shapes under a machine credential pinned to the coordinator's agent person; every refusal typed |
+| `twilight-dash/cli/src/runs/`                             | RunStore/ArtifactStore ports and adapters, attempt states, the interpreter, `run-coordinator` and `inspect-runs` commands             |
+| `.twilight/workflows.yaml`                                | puni-00's own binding                                                                                                                 |
 
 Dash does not import WBS app internals; the shared contracts package is the boundary, as
 `twin` already does with the export.
@@ -156,10 +160,13 @@ need not map one-to-one onto all five executor kinds; contract fixtures cover ev
 One client, one credential, the shared shapes. Reads: the startable read for the team, the
 work item, its export for step codes. Writes, each a plan command batch: `claimWorkItem`,
 `setProgress`, `setMeasure` (`token_estimate` untouched, `token_actual` written when measured),
-`releaseWorkItem`, and the `github-branch` and `github-pr` external refs. Every refusal code
-the specs name (`already_claimed`, `inside_subtree_claim`, `person_not_bound`, `blocked`,
-`held`, `done`, `unknown_team`) is a typed outcome the interpreter decides on; an unlisted
-code throws.
+`releaseWorkItem`, and the `github-branch` and `github-pr` external refs. Every code of the
+`claimWorkItem`, `setProgress` and `releaseWorkItem` refusal unions in `@wbs/contracts` at the
+pinned revision (today including `not_startable`, `item_done`, `step_done`, `claim_limit`,
+`resources_exhausted`; `budget_exhausted` once `wbs-measure-budgets` lands) is a typed outcome
+the interpreter decides on; an unlisted code throws.
+
+Each Dash attempt corresponds one-to-one with a WBS step-node Attempt; this remains a deferred host integration requirement. Runtime attempt IDs and WBS numeric business attempt numbers are distinct; the receiver packet adds no business start/end commands. The retry claim protocol remains [ADR0058](../../../docs/adr/0058-wbs-owns-runtime-fences.md): continuation keeps the exact claim, while a genuinely new execution attempt requires predecessor reconciliation and a new exact claim.
 
 ## Run coordination
 
@@ -228,6 +235,10 @@ attempt ordinal within the persisted budget while retaining the logical operatio
 Human waits persist prompts/correlation keys and use an authorized deduplicated inbox;
 release running capacity only after work settles. WBS business progress stays authoritative.
 
+Budget admission is WBS's (`wbs-measure-budgets` D68): the claim or attempt start takes the
+spend hold inside the write and refuses `budget_exhausted`; the coordinator never admits from
+a headroom read.
+
 ### Binding pinning and repair
 
 Before admission, retain the complete canonical binding manifest, its digest, schema
@@ -250,9 +261,7 @@ follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already
 
 The shared planning project is
 [Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
-CTT main [94ff58f5](https://github.com/dany-fedorov/configurable-tree-traversal/commit/94ff58f5a797278be30a89c0c7d468a1a56d0a53) contains the unified API; the integrity-verified published 0.8.0 declarations lack it.
-A usable pinned package remains required before coordinator admission. CTT owns no durable
-journal, storage provider or agent SDK.
+Current main targets CTT0.11.0: unified completed-work seeds, DEFER_READY, settle and ID-keyed summary, with prerequisite resolution and native ESM. Exact dependency acquisition and compatibility conformance remain required before coordinator admission in this candidate. CTT owns no durable journal, storage provider or agent SDK.
 
 The internal [runtime authority history](runtime-authority-design.md) retains sender intent
 and acceptance before run creation, keeping local epochs separate from receiver grants.
@@ -278,14 +287,14 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike              | Fallback                                                          |
-| -------------------------------------------------------- | ------------------ | ----------------------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                | Claude Agent SDK direct behind the same port                      |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                | plain tool calling for `plan`                                     |
-| Harness packages break between 1.0.x releases            | 0.3                | exact pins, one renovate lane, the port absorbs                   |
-| ACP attempts report no usage                             | modelled           | `Usage.unknown`, shown, never defaulted                           |
-| Concurrent or surviving owners                           | S7a recovery proof | fence ownership, inspect workers/effects; unresolved blocks retry |
-| Unified CTT deferral/summary not implemented             | issue #2           | complete S2 before coordinator admission                          |
+| Risk                                                     | Spike                           | Fallback                                                          |
+| -------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                             | Claude Agent SDK direct behind the same port                      |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                             | plain tool calling for `plan`                                     |
+| Harness packages break between 1.0.x releases            | 0.3                             | exact pins, one renovate lane, the port absorbs                   |
+| ACP attempts report no usage                             | modelled                        | `Usage.unknown`, shown, never defaulted                           |
+| Concurrent or surviving owners                           | S7a recovery proof              | fence ownership, inspect workers/effects; unresolved blocks retry |
+| CTT minor releases change the hints API                  | exact pin0.11.0 and conformance | the compatibility adapter absorbs                                 |
 
 ## Conditional WBS runtime receiver
 
@@ -303,3 +312,11 @@ The bounded [runtime request design](runtime-request-design.md) publishes the ex
 The bounded [receipt design](runtime-receipt-design.md) shares complete content matching and existing identity predicates for the receiver and future durable sender. Authenticated transport, trusted artifact decoding and sender persistence remain separate.
 
 [Runtime limits integration](limits-integration-design.md) reconciles the existing receiver with current main's separately owned organization limits; no new limit policy or coordinator behavior is proposed.
+
+### Pending renames
+
+Vocabulary ahead: per the 2026-10-24 decisions (`wbs-work-packages`, `wbs-permissions`, drafts
+in flight), today's Project becomes Work package and a new Project is the engagement. "A
+puni-00 project in WBS holds the work" reads as work package; step codes are
+work-package-unique; the coordinator's identity becomes a package- or project-contributor
+grant. Nothing here is renamed until those changes land.

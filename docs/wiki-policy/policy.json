@@ -475,6 +475,15 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/burokrat-workflow-binding-validation/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/burokrat-workflow-binding-validation/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
         "path": "openspec/changes/twilight-agentic-workflows/evidence/runtime-sql-recovered-history.json.gz",
         "format": "application/gzip",
         "consumer": "openspec/changes/twilight-agentic-workflows/verify.md",
@@ -4756,6 +4765,150 @@
         "regenerationAuthority": {
           "kind": "external",
           "authority": "Historical execution recorded in openspec/changes/set-step-node-parallelism/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-column-chooser.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-at-cap-tiny-cost.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-empty.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-forms.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-mixed.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-panel-strict-advisory.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/desktop-table-tokens-cost.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/interaction-toggle-estimate-variance.webm",
+        "format": "video/webm",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-cards.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-column-chooser.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-at-cap-tiny-cost.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-empty.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-forms.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-mixed.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-measure-budgets/evidence/slice-6/mobile-panel-strict-advisory.png",
+        "format": "image/png",
+        "consumer": "openspec/changes/wbs-measure-budgets/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/wbs/fe-01/e2e/measure-columns.spec.ts"
+        }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/current-main-integration-20261025.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
         }
       }
     ],

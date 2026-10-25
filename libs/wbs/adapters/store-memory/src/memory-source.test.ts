@@ -5,6 +5,8 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
+import { memoryProgressTable } from './progress-fixture';
 import {
   openMemorySource,
   openMemorySourceFixture,
@@ -16,6 +18,7 @@ const STORE_BINDINGS = [
   'actuals',
   'attempts',
   'blockages',
+  'budgets',
   'calendarMarkers',
   'capacity',
   'claims',
@@ -25,6 +28,7 @@ const STORE_BINDINGS = [
   'estimates',
   'eventLog',
   'journal',
+  'measureEstimates',
   'measures',
   'planEvents',
   'priorityBands',
@@ -1134,3 +1138,45 @@ for (const cascade of [false, true])
     expect(await source.stores.steps.findById('st-1')).toMatchObject({ name: 'Dev' });
     expect(await source.stores.stepParallels.listByProject('p1')).toEqual([fact]);
   });
+
+describe('the memory claims renewal', () => {
+  it('renews nothing when a due claim names an absent work item', async () => {
+    const table = memoryClaimTable();
+    const due = {
+      runId: 'run-1',
+      parentClaimId: null,
+      accountId: 'owner',
+      personId: 'codex',
+      claimedAt: 0,
+      leaseExpiresAt: 1_000,
+      leaseRevokedAt: null,
+    };
+    table.rows.push(
+      { ...due, id: 'claim-kept', workItemId: 'item-kept', stepId: 'step-1' },
+      { ...due, id: 'claim-gone', workItemId: 'item-gone', stepId: 'step-1' },
+    );
+    const before = structuredClone(table.rows);
+    // The claims store reads only `findById` here; the rest of each stub is
+    // never reached by a renewal.
+    const claims = inMemoryClaims(
+      {
+        findById: (id: string) =>
+          Promise.resolve(id === 'item-kept' ? workItemRow({ id, projectId: 'p-1' }) : null),
+        listByProject: () => Promise.resolve([]),
+      },
+      memoryProgressTable(),
+      table,
+      {} as Parameters<typeof inMemoryClaims>[3],
+      () => true,
+      {} as Parameters<typeof inMemoryClaims>[5],
+    );
+    const refusal = await claims
+      .renewLeases('codex', () => 500)
+      .then(
+        () => '(renewed)',
+        (error: unknown) => String(error),
+      );
+    expect(refusal).toContain('absent work item item-gone');
+    expect(table.rows).toEqual(before);
+  });
+});

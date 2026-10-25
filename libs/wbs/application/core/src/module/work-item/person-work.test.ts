@@ -16,7 +16,9 @@ const rows = [
   labelledRow({ id: 'w-090', position: POSITION_STEP * 2, name: 'Later' }),
 ];
 
-function stamped(over: Partial<StampedClaim> & Pick<StampedClaim, 'id' | 'workItemId'>) {
+function stamped(
+  over: Partial<StampedClaim> & Pick<StampedClaim, 'id' | 'workItemId'>,
+): StampedClaim {
   return {
     stepId: null,
     personId: 'kat',
@@ -24,6 +26,8 @@ function stamped(over: Partial<StampedClaim> & Pick<StampedClaim, 'id' | 'workIt
     parentClaimId: null,
     accountId: 'account-f',
     claimedAt: 100,
+    leaseExpiresAt: null,
+    leaseRevokedAt: null,
     ...over,
   };
 }
@@ -56,6 +60,7 @@ describe('findPersonWork', () => {
             runId: 'run-7',
             parentClaimId: 'c-0',
             claimedAt: 300,
+            leaseExpiresAt: 900,
           }),
         ],
       }),
@@ -96,6 +101,7 @@ describe('findPersonWork', () => {
           runId: 'run-7',
           parentClaimId: 'c-0',
           claimedAt: 300,
+          leaseExpiresAt: 900,
         },
       ],
     });

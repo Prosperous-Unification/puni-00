@@ -1,3 +1,7 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'bun:test';
 
 /**
@@ -88,5 +92,82 @@ describe('the production entrypoint', () => {
     const graph = productionGraph();
     expect(graph).toContain('solverSupervisorSpawner');
     expect(graph).toContain('/run/wbs-solver/supervisor.sock');
+  });
+
+  /**
+   * The development server that activates an organization with fixture
+   * secrets (`dev/activated-organization-server.ts`) is a separate file for
+   * the same reason the local solver is; `.dockerignore` keeps `src/dev` out
+   * of the image as well.
+   *
+   * Proof: importing that file from `main.ts` failed this case, listing both
+   * markers; watched 2026-10-24.
+   */
+  it('cannot reach the activated organization development server', () => {
+    const graph = productionGraph();
+    expect(
+      ['activated organization server (development only)', 'serveActivatedOrganization'].filter(
+        (marker) => graph.includes(marker),
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * `.dockerignore` keeps `src/testing` and `src/dev` out of the image, which
+   * holds only while nothing the image runs imports them: `main.ts`, the
+   * `src/*-cli.ts` commands the runbooks `docker exec`, and the
+   * `scripts/solver-supervisor-*-client.ts` clients that `solver-image-smoke.sh`
+   * and `optimization-orphan.proc.db.test.ts` run inside the image. Each bundle
+   * carries a `// <path>` comment per module, so a reached module is named.
+   *
+   * Proof: importing `testing/auth-fixture` from `main.ts` failed this case,
+   * naming `apps/wbs/be-01/src/main.js`; watched 2026-10-25.
+   * Proof: importing `../src/testing/auth-fixture` from
+   * `solver-supervisor-orphan-client.ts`, which the earlier fixed list missed,
+   * failed it naming that client; watched 2026-10-25.
+   * Proof: importing `./dev/local-solver-spawner` from `main.ts` failed it
+   * naming `apps/wbs/be-01/src/main.js`; watched 2026-10-25.
+   */
+  it('runs nothing from src/testing or src/dev, which the image leaves out', () => {
+    const appRoot = 'apps/wbs/be-01';
+    const solverClients = readdirSync(join(REPO_ROOT, appRoot, 'scripts'))
+      .filter((name) => /^solver-supervisor-.+-client\.ts$/.test(name))
+      .map((name) => `${appRoot}/scripts/${name}`);
+    // The image and orphan clients both run in the image; a renamed pattern
+    // that matched neither would quietly drop them from the guard.
+    expect(solverClients.length).toBeGreaterThanOrEqual(2);
+    const entrypoints = [
+      `${appRoot}/src/main.ts`,
+      ...readdirSync(join(REPO_ROOT, appRoot, 'src'))
+        .filter((name) => name.endsWith('-cli.ts'))
+        .map((name) => `${appRoot}/src/${name}`),
+      ...solverClients,
+    ];
+    const outdir = mkdtempSync(join(tmpdir(), 'wbs-production-graph-'));
+    try {
+      const built = Bun.spawnSync({
+        cmd: ['bun', 'build', ...entrypoints, '--target=bun', `--outdir=${outdir}`],
+        cwd: REPO_ROOT,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      if (built.exitCode !== 0) {
+        throw new Error(`bundling the image entrypoints failed: ${built.stderr.toString()}`);
+      }
+      const bundles = readdirSync(outdir, { recursive: true, encoding: 'utf8' }).filter((name) =>
+        name.endsWith('.js'),
+      );
+      // An empty output directory would make the list below pass.
+      expect(bundles).toHaveLength(entrypoints.length);
+      const excluded = [`// ${appRoot}/src/testing/`, `// ${appRoot}/src/dev/`];
+      expect(
+        bundles.filter((name) => {
+          const bundle = readFileSync(join(outdir, name), 'utf8');
+          return excluded.some((marker) => bundle.includes(marker));
+        }),
+      ).toEqual([]);
+    } finally {
+      rmSync(outdir, { recursive: true, force: true });
+    }
   });
 });

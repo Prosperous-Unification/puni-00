@@ -207,3 +207,48 @@ it('admits a password session as link proof only when password sessions are expl
   expect(await omitted.passwordSessionUser(login.value.token)).toBeNull();
   expect((await enabled.passwordSessionUser(login.value.token))?.id).toBe('legacy');
 });
+
+it('verifies a native session without reading the OIDC verifier', async () => {
+  const legacyUser = {
+    id: 'legacy',
+    username: 'legacy',
+    passwordHash: await Bun.password.hash('legacy-password'),
+    email: null,
+    idpIssuer: null,
+    idpSub: null,
+    createdAt: 1,
+  };
+  const users: UserStore = {
+    create: () => Promise.resolve(legacyUser),
+    findByUsername: () => Promise.resolve(legacyUser),
+    findById: () => Promise.resolve(legacyUser),
+  };
+  const key = 'x'.repeat(32);
+  // What lazy discovery of an unreachable issuer rejects with (issue #669 F5).
+  const undiscoverable = {
+    verify: () => Promise.reject(new Error('only requests to HTTPS are allowed')),
+  };
+  const auth = new AuthService({
+    clock: testClock,
+    users,
+    tokens: joseTokenCodec(key),
+    passwords: bunPasswordHasher,
+    oidc: undiscoverable,
+    passwordSessions: true,
+  });
+  const login = await auth.login('legacy', 'legacy-password');
+  if (!login.ok) throw new Error('legacy fixture did not issue a token');
+
+  const native = await auth.authenticate(login.value.token);
+  expect(native?.id).toBe('legacy');
+  expect(native?.authentication?.kind).toBe('first_party');
+  // A token that is not native still reaches the verifier and its failure.
+  let failure: unknown;
+  try {
+    await auth.authenticate('not.a.native-token');
+  } catch (cause) {
+    failure = cause;
+  }
+  expect(failure).toBeInstanceOf(Error);
+  expect((failure as Error).message).toBe('only requests to HTTPS are allowed');
+});

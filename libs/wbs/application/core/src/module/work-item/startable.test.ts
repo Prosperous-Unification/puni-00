@@ -119,6 +119,7 @@ describe('the startable read', () => {
         runId: 'run-c-dev',
         parentClaimId: null,
         claimedAt: 500,
+        leaseExpiresAt: null,
       },
       {
         workItemId: 'taken',
@@ -132,6 +133,7 @@ describe('the startable read', () => {
         runId: 'run-c-qa',
         parentClaimId: null,
         claimedAt: 600,
+        leaseExpiresAt: null,
       },
     ]);
   });
@@ -267,6 +269,7 @@ describe('the startable read', () => {
         runId: 'run-subtree',
         parentClaimId: null,
         claimedAt: 700,
+        leaseExpiresAt: null,
       },
     ]);
   });
@@ -281,7 +284,13 @@ describe('the startable read', () => {
     expect(every.leaves).toEqual([]);
     expect(every.claimed).toEqual([]);
     expect(every.subtreeClaims).toMatchObject([
-      { workItemId: '080', claimId: 'subtree', holder: { personId: 'claire' }, claimedAt: 700 },
+      {
+        workItemId: '080',
+        claimId: 'subtree',
+        holder: { personId: 'claire' },
+        claimedAt: 700,
+        leaseExpiresAt: null,
+      },
     ]);
     // Apart from the team filter: the operator sees it whatever team is asked about.
     expect(answered(await read(PLATFORM)).subtreeClaims).toHaveLength(1);

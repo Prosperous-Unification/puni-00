@@ -55,6 +55,30 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'deleteApiOrganizationCompute-providersById',
+    method: 'DELETE',
+    path: '/api/organization/compute-providers/:id',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'patchApiOrganizationCompute-providersById',
+    method: 'PATCH',
+    path: '/api/organization/compute-providers/:id',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationCompute-providers',
+    method: 'POST',
+    path: '/api/organization/compute-providers',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+    method: 'PUT',
+    path: '/api/compute-providers/:providerId/resources/:resourceId/capacity-report',
+    kind: 'mutation',
+  },
+  {
     operationId: 'deleteApiOrganizationMachine-credentialsById',
     method: 'DELETE',
     path: '/api/organization/machine-credentials/:id',
@@ -174,6 +198,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiOrganizationCompute-providers',
+    method: 'GET',
+    path: '/api/organization/compute-providers',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiOrganizationMachine-credentials',
     method: 'GET',
     path: '/api/organization/machine-credentials',
@@ -226,6 +256,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdClaim-history',
+    method: 'GET',
+    path: '/api/projects/:id/claim-history',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdClaims',
+    method: 'GET',
+    path: '/api/projects/:id/claims',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdPeopleByPersonIdWork',
     method: 'GET',
     path: '/api/projects/:id/people/:personId/work',
@@ -244,9 +286,21 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiMeasures',
+    method: 'GET',
+    path: '/api/measures',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdResources',
     method: 'GET',
     path: '/api/projects/:id/resources',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdBudget-headroom',
+    method: 'GET',
+    path: '/api/projects/:id/budget-headroom',
     kind: 'read',
   },
   {
@@ -271,6 +325,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiProjectsByIdWork-items',
     method: 'GET',
     path: '/api/projects/:id/work-items',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+    method: 'GET',
+    path: '/api/projects/:id/work-items/:workItemId/refs/:refId/delivery',
     kind: 'read',
   },
   {
@@ -375,6 +435,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     method: 'POST',
     path: '/api/auth/register',
     kind: 'control',
+  },
+  {
+    operationId: 'postApiClaimsRenew',
+    method: 'POST',
+    path: '/api/claims/renew',
+    kind: 'mutation',
   },
   {
     operationId: 'postApiDirectoryCommands',

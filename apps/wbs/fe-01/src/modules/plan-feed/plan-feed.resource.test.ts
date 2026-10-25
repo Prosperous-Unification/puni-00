@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type {
   DirectoryRead,
+  InstalledClaims,
   PlanRefresh,
   RefreshOutcome,
   RefreshResource,
@@ -33,6 +34,7 @@ function snapshotOf(over: Partial<PlanRefreshSnapshot> = {}): PlanRefreshSnapsho
     steps: NOTHING_READ,
     directory: NOTHING_READ,
     markers: NOTHING_READ,
+    claims: NOTHING_READ,
     staleResources: [],
     baseline: null,
     acknowledged: -1,
@@ -41,7 +43,13 @@ function snapshotOf(over: Partial<PlanRefreshSnapshot> = {}): PlanRefreshSnapsho
 }
 
 const ANCHORED = { seq: 7, epoch: 1 };
-const NOTHING_APPLIED: AppliedGenerations = { tree: 0, steps: 0, directory: 0, markers: 0 };
+const NOTHING_APPLIED: AppliedGenerations = {
+  tree: 0,
+  steps: 0,
+  directory: 0,
+  markers: 0,
+  claims: 0,
+};
 const VOCABULARY: DirectoryRead = {
   teams: [],
   tags: [],
@@ -60,6 +68,7 @@ const STEPS: readonly StepView[] = [
  * the view type requires, which prove nothing here.
  */
 const MARKERS: readonly CalendarMarkerView[] = [];
+const CLAIMS: InstalledClaims = { readAt: 1, installedAt: 1, claims: [] };
 
 describe('what the plan feed has to deliver', () => {
   it('carries no installed resource before an anchor exists', () => {
@@ -82,6 +91,7 @@ describe('what the plan feed has to deliver', () => {
       steps: installedAt(STEPS, 1),
       directory: installedAt(VOCABULARY, 1),
       markers: installedAt(MARKERS, 1),
+      claims: installedAt(CLAIMS, 1),
     });
 
     const first = nextDelivery(snapshot, NOTHING_APPLIED);
@@ -89,12 +99,14 @@ describe('what the plan feed has to deliver', () => {
     expect(first.delivery.steps).toBe(STEPS);
     expect(first.delivery.directory).toBe(VOCABULARY);
     expect(first.delivery.markers).toBe(MARKERS);
+    expect(first.delivery.claims).toBe(CLAIMS);
 
     const second = nextDelivery(snapshot, first.applied);
     expect(second.delivery.tree).toBeNull();
     expect(second.delivery.steps).toBeNull();
     expect(second.delivery.directory).toBeNull();
     expect(second.delivery.markers).toBeNull();
+    expect(second.delivery.claims).toBeNull();
     expect(second.applied).toEqual(first.applied);
   });
 
@@ -106,12 +118,12 @@ describe('what the plan feed has to deliver', () => {
         tree: installedAt(plan, 2),
         directory: installedAt(VOCABULARY, 1),
       }),
-      { tree: 2, steps: 0, directory: 0, markers: 0 },
+      { tree: 2, steps: 0, directory: 0, markers: 0, claims: 0 },
     );
 
     expect(delivery.tree).toBeNull();
     expect(delivery.directory).toBe(VOCABULARY);
-    expect(applied).toEqual({ tree: 2, steps: 0, directory: 1, markers: 0 });
+    expect(applied).toEqual({ tree: 2, steps: 0, directory: 1, markers: 0, claims: 0 });
   });
 
   it('says which resources are stale and carries the failed tree read’s cause', () => {
@@ -316,7 +328,36 @@ describe('one project’s reading', () => {
     handlers.onChange('tree_replaced', 8);
 
     expect(fake.asked).toEqual(['initialize', 'initialize', 'invalidate']);
-    expect(fake.invalidations).toEqual([{ resources: ['tree'], seq: 8 }]);
+    expect(fake.invalidations).toEqual([{ resources: ['tree', 'claims'], seq: 8 }]);
+  });
+
+  it('rereads claims each time the stream synchronises', () => {
+    // C21: claims announcements are transient, so a resume replays none from
+    // the gap; an accepted resume and a refused one alike reread them.
+    const fake = fakeOwner();
+    const recorded = portsOver(fake.owner);
+
+    createPlanReading(recorded.ports);
+    fake.show(ANCHORED_SNAPSHOT);
+    const handlers = handlersOf(recorded.opened);
+    handlers.onConnectionChange(true);
+    handlers.onConnectionChange(false);
+    handlers.onConnectionChange(true);
+
+    expect(fake.invalidations).toEqual([{ resources: ['claims'] }, { resources: ['claims'] }]);
+    expect(recorded.connections).toEqual([true, false, true]);
+  });
+
+  it('reads claims alone for a claims announcement', () => {
+    const fake = fakeOwner();
+    const recorded = portsOver(fake.owner);
+
+    createPlanReading(recorded.ports);
+    fake.show(ANCHORED_SNAPSHOT);
+    handlersOf(recorded.opened).onClaims();
+
+    expect(fake.asked).toEqual(['initialize', 'invalidate']);
+    expect(fake.invalidations).toEqual([{ resources: ['claims'] }]);
   });
 
   it('ignores a change and a connection that arrive after it stops being live', () => {

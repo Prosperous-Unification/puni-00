@@ -249,3 +249,94 @@ repository) and needs the operator to re-authenticate. Live claims, agent person
 occupancy and attempt rows on dev were therefore not re-read; the 2026-10-21 bound-claim
 proof in the private plan repository is cited as dated evidence, not refreshed.
 Everything listed under "What remains unverified" above still stands.
+
+## W02 resolution — 2026-10-23
+
+Read and changed on 2026-10-23 between 20:17Z and 22:00Z on h1claw (`claw` user), h2puni
+and the Hetzner bucket `puni-01`; the code change is claire PR #135.
+
+**Cause.** The hourly unit's `TimeoutStartSec=900` was reached once the `wbs-dev`
+generation grew to 883 MB (the live `wbs-dev/data/wbs.db` is 985 MB for 8,982 `event_log`
+rows) at the measured ~1 MiB/s upload rate from Ashburn to hel1. The 2026-10-19 16:17Z run
+completed in 14 m 31 s; every run from 17:17Z was killed by systemd at 15 minutes after
+promoting its set but before archive acceptance and local pruning. Local generations grew by
+one set per hour to 108 files and 24 GB, `/dev/sda1` reached 100 % on 2026-10-20 16:17Z,
+and every later run failed at the `scp` pull with ENOSPC. This is the "failing step" the
+rerun named; the step was the symptom.
+
+**Bucket state.** `puni01:puni-01/backups/sqlite/generations` held 3,223 objects and
+145.0 GiB, every hourly generation since 2026-08-24 (144.7 GiB of it `wbs-dev`), with
+68 incomplete multipart uploads initiated 2026-10-18 to 2026-10-20 by the killed runs.
+Versioning is enabled; the only lifecycle rule expires noncurrent versions after 30 days.
+No job pruned current objects. `puni-01/sqlite/website-dev` (puni-00's k3s runner) held
+808 objects and 141 MiB, also unpruned. `puni-bkt-02` is empty.
+
+**Newest usable generation.** `status.json` `lastSuccessful` names 2026-10-19 16:17Z
+(wbs-dev sha256 `e5a258…`, 882,352,128 bytes, sanity 8,643). Older complete sets for every
+hour from 2026-08-24 remain in the bucket; the 2026-10-19 17:17Z to 2026-10-20 00:17Z sets
+reached the bucket in full from the killed runs.
+
+**Repair.** Claire PR #135: `TimeoutStartSec=3000`; rclone `--transfers=2
+--s3-chunk-size=32M --s3-upload-concurrency=8` (200 MiB stream: 59 s against 192 s with the
+old flags); new `prune-remote` command with a tiered policy (every set for 48 h, the last
+set of each UTC day for 60 days, the last set of each UTC week for 52 weeks, newest and
+status-named sets always kept, refusal on a failed or empty listing, re-list after deletion,
+then `rclone backend cleanup` of multipart uploads older than 24 h) on a daily
+`sqlite-backup-remote-prune.timer` at 04:47Z under the hourly job's lock. Local recovery
+followed the script's own verified `prune` path after every local generation was uploaded:
+108 files re-downloaded and matched, 92 removed, four sets retained, `/dev/sda1` from
+705 MB to 21 GB free. A manual run at 21:54Z completed in 5 m 56 s and the next scheduled
+run at 22:17Z in 5 m 24 s, each with a 985 MB `wbs-dev` generation, a healthy `status.json`
+and `check` exit 0. The first `prune-remote --dry-run` planned to keep 38 sets (152 files,
+8.4 GiB) and expire 775 sets (3,097 files, 143.5 GiB); the timer applies it on 2026-10-24.
+Claire PR #138 extended the same run to the plain `sqlite/<database>/` prefixes written by
+puni-00's k3s runner.
+
+**First retention run, 2026-10-24 04:47Z.** `sqlite-backup-remote-prune.service` ran
+19 m 3 s, exit 0, `remote-retention.json` `ok: true` with no alerts. `sqlitecrypt:generations`:
+3,304 files listed, 44 sets kept (176 files, 14.9 GiB; oldest 2026-08-25 23:17Z), 782 sets
+expired (3,128 files, 150.4 GiB). `sqlite/website-dev`: 824 files listed, 63 stamps kept
+(126 files, 22.7 MiB), 350 expired (698 files, 121 MiB). Read back from the bucket afterwards:
+`puni01:puni-01/backups/sqlite` holds exactly 176 objects and 14.86 GiB, `website-dev` 126
+objects, and `list-multipart-uploads` reports 0 (down from 68). The 05:17Z hourly backup
+after the prune was green.
+
+**Alert delivery, restore proof and coverage, 2026-10-25.** Claire PR #140 (merged, live on
+h1claw). Why the outage was silent: the `check` freshness gate only answered when asked, and the
+OpenClaw heartbeat meant to ask had last run on 2026-09-09. Now `backup-freshness-alert.timer`
+(every 15 min, systemd, not a gateway cron job) judges each backup set fail-closed from four
+records (status age, newest stamp actually in the bucket, retention record, restore-drill
+record) and pushes to the owner's WhatsApp through the gateway: new or changed alerts at once,
+unchanged every 6 h, one recovery message, a failed push fails the unit. Proof at 04:25Z: a
+healthy pass delivered nothing; an injected 250-minute-old status in a scratch root delivered
+`[sqlite] newest backup is 250 minutes old (limit 90)` (WhatsApp message `3EB0E2ED354F317B39B426`);
+the repeat was deduplicated; the pass back on the real roots delivered the recovery message.
+`sqlite-backup-restore-drill.timer` (Sun 05:47) downloads the newest set from the bucket,
+checks size and SHA-256 against the status record, opens every member (python3
+`integrity_check` plus the sanity query, `tar -tzf`) and requires the snapshot's answer; first
+drill at 04:22Z: sqlite set 987 MB verified in 56.2 s (download 54.2 s, verify 2.0 s), mlflow
+set 701 MB in 41.3 s. Coverage: the hourly set gained an `h2puni-config` tarball (blue/green
+state, compose, Caddy sites, env files; 55 members, 12 KiB) and a new daily `mlflow` set
+snapshots the root-owned h3mon MLflow volume (first generation 04:11Z, 700,915,712 bytes, 34
+tables, 4 m 59 s); `prune-remote` covers both directories. The first five-member hourly set
+(04:25Z) carried the tarball at 12,306 bytes with 55 members and uploaded in 5 m 22 s. Its
+start stamp had been set to 00:00Z, which flagged that morning's four-file sets as incomplete
+for one run and pushed one alert; claire PR #142 moved the stamp to the deploy time. Store
+table and RPO rows: [recovery](../../infra/recovery.md).
+
+**wbs-dev size, explained.** 865 MB of the 987 MB generation is `event_log.message`: 5,288
+`tree_replaced` events each carry the whole work-item tree of their project (largest 1.4 MB),
+and `EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000` (`apps/wbs/be-01/src/services.ts`) keeps the last
+thousand per project, so one project holds 764 MB in 1,000 rows. Beside the live database,
+`/home/puni1/wbs-dev/data` holds two 0.9 GB pre-deploy copies from 2026-10-20 and 2026-10-21
+that no backup or retention covers. The remedy is a smaller `tree_replaced` payload or a
+byte-bounded replay log in the WBS code, not a backup change.
+
+**Not done here.** The bucket lifecycle rule still lacks `AbortIncompleteMultipartUpload`
+and `ExpiredObjectDeleteMarker` (the session's permission classifier refused direct bucket
+mutations; the daily `rclone backend cleanup` covers stale multipart uploads meanwhile);
+the 150 GiB of expired generations stay billable as noncurrent versions until the 30-day
+rule releases them around 2026-11-23; the alert's remote check uses the read-write object
+storage credentials because no read-only token exists; the alert path still depends on the
+OpenClaw gateway for delivery (a dead gateway shows as a failed unit, not a message); putting a
+drilled generation back into a running h2puni container is not yet drilled.

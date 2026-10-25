@@ -21,6 +21,7 @@ const request = {
   method: 'POST',
   url: new URL('https://backend.example/internal/forward'),
   headers: new Headers({ 'X-Client-Id': 'client', 'X-Connection-Id': 'connection' }),
+  signal: new AbortController().signal,
 };
 const common = {
   params: {},

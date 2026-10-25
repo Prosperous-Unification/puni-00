@@ -158,7 +158,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 10, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 11, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     stepBlockages: [],
     settings: {
@@ -174,6 +174,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
       scheduleEngine: PROJECT.scheduleEngine,
       scheduleObjective: PROJECT.scheduleObjective,
       timezone: 'Europe/Kyiv',
+      budgetFactor: 1,
     },
     capacity: [],
     resourceCapacities: [],
@@ -188,6 +189,10 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
       externalSystems: [],
       resources: [],
     },
+    measureDefinitions: [],
+    measureFacts: [],
+    measureEstimates: [],
+    budgets: [],
   };
 };
 
@@ -220,6 +225,57 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('the measure list (wbs-measure-budgets D17, review S3-6)', () => {
+  const definition = {
+    id: 'm1',
+    key: 'tokens',
+    name: 'Tokens',
+    unit: 'tokens',
+    kind: 'count',
+    scale: 'integer',
+    threePoint: true,
+    showByDefault: false,
+    schedulesWork: false,
+    derived: false,
+    order: 2,
+    currency: null,
+  };
+
+  it('reads the definitions through the generated client', async () => {
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(response(200, JSON.stringify({ measures: [definition] }))),
+    );
+    vi.stubGlobal('fetch', fetched);
+    await expect(httpProjectApi('token').listMeasures()).resolves.toEqual({
+      kind: 'ready',
+      measures: [definition],
+    });
+    expect(fetched.mock.calls.at(0)?.[0]).toBe('/api/measures');
+  });
+
+  it('answers organization_required as a modeled state', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(response(409, JSON.stringify({ error: 'organization_required' }))),
+    );
+    await expect(httpProjectApi('token').listMeasures()).resolves.toEqual({
+      kind: 'organization_required',
+    });
+  });
+
+  it('throws any other refusal, and a definition be-01 could not send', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(response(401, JSON.stringify({ error: 'unauthenticated' }))),
+    );
+    await expect(httpProjectApi('token').listMeasures()).rejects.toThrow('unauthenticated');
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(
+        response(200, JSON.stringify({ measures: [{ ...definition, kind: 'volume' }] })),
+      ),
+    );
+    await expect(httpProjectApi('token').listMeasures()).rejects.toThrow('invalid_response');
+  });
 });
 
 describe('plan JSON transfer', () => {
@@ -1097,6 +1153,12 @@ describe('the browser writes through command batches (plan-commands)', () => {
       [() => api.removeWorkItem('w1', { strategy: 'cascade' }), 'deleteWorkItem'],
       [() => api.setEstimate('w1', 'r1', days), 'setEstimate'],
       [() => api.clearEstimate('w1', 'r1'), 'clearEstimate'],
+      [() => api.setMeasureEstimate('w1', 'r1', 'cost', days, 'card-a'), 'setMeasureEstimate'],
+      [() => api.clearMeasureEstimate('w1', 'r1', 'tokens'), 'clearMeasureEstimate'],
+      [() => api.setMeasure('w1', 'r1', 'tokens', 300), 'setMeasure'],
+      [() => api.clearMeasure('w1', 'r1', 'tokens'), 'clearMeasure'],
+      [() => api.setBudget('w1', 'tokens', { cap: 1000, policy: 'strict' }), 'setBudget'],
+      [() => api.clearBudget('w1', 'tokens'), 'clearBudget'],
       [() => api.assignPerson('w1', 'r1', 'k'), 'setAssignee'],
       [() => api.addDependency('w2', 'w1'), 'addDependency'],
       [
@@ -1380,6 +1442,51 @@ describe('the calendar-marker client', () => {
   });
 });
 
+describe('the claims client', () => {
+  const claim = (claimId: string, stepId: string | null, parentClaimId: string | null = null) => ({
+    claimId,
+    workItemId: 'w1',
+    number: '010',
+    numberIsFrozen: false,
+    name: 'Strip',
+    stepId,
+    holder: { personId: 'p-codex', name: 'codex' },
+    runId: 'r-7',
+    parentClaimId,
+    claimedAt: 0,
+    leaseExpiresAt: null,
+    leaseRevokedAt: null,
+  });
+  const answering = (claims: unknown[]) =>
+    stub(() => response(200, JSON.stringify({ readAt: 5, claims })));
+
+  it('reads a coherent claims read whole', async () => {
+    const fetched = answering([claim('c-sub', null), claim('c-dev', 's-dev', 'c-sub')]);
+
+    await expect(httpProjectApi('t').readClaims('p1')).resolves.toEqual({
+      readAt: 5,
+      claims: [claim('c-sub', null), claim('c-dev', 's-dev', 'c-sub')],
+    });
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/claims');
+  });
+
+  it('refuses a claims read with two claims on one step', async () => {
+    answering([claim('c-1', 's-dev'), claim('c-2', 's-dev')]);
+
+    await expect(httpProjectApi('t').readClaims('p1')).rejects.toThrow(
+      'claims read holds two claims on w1/s-dev',
+    );
+  });
+
+  it('refuses a claims read whose delegated claim names an unlisted parent', async () => {
+    answering([claim('c-dev', 's-dev', 'c-gone')]);
+
+    await expect(httpProjectApi('t').readClaims('p1')).rejects.toThrow(
+      'claim c-dev names parent c-gone, not in its read',
+    );
+  });
+});
+
 describe('read ownership across API lifetimes', () => {
   it('rejects a malformed optimization variant before the tree reaches its screen', async () => {
     const tree = JSON.parse(TREE('p1', [])) as { optimization?: unknown };
@@ -1567,6 +1674,7 @@ const FULL_SCOPE_PUTS_ON_THE_WIRE = [
   'GET /api/projects/p1/work-items',
   'GET /api/projects/p1',
   'GET /api/projects/p1/calendar-markers',
+  'GET /api/projects/p1/claims',
   'GET /api/teams',
   'GET /api/tags',
   'GET /api/services',
@@ -1577,7 +1685,7 @@ const FULL_SCOPE_PUTS_ON_THE_WIRE = [
 
 describe('what a full-scope read puts on the wire', () => {
   it('spends exactly one request per read, so a second one inside a method is red', async () => {
-    // Answered by path rather than in call order: the nine run concurrently, so
+    // Answered by path rather than in call order: the ten run concurrently, so
     // a positional `mockResolvedValueOnce` chain would bind an answer to
     // whichever request happened to be third and turn an ordering change into a
     // shape failure somewhere else.
@@ -1585,6 +1693,7 @@ describe('what a full-scope read puts on the wire', () => {
       '/api/projects/p1/work-items': TREE('p1', []),
       '/api/projects/p1': JSON.stringify({ project: PROJECT, steps: [] }),
       '/api/projects/p1/calendar-markers': '{"markers":[]}',
+      '/api/projects/p1/claims': '{"readAt":0,"claims":[]}',
       '/api/teams': '{"teams":[]}',
       '/api/tags': '{"tags":[]}',
       '/api/services': '{"services":[]}',
@@ -1600,7 +1709,7 @@ describe('what a full-scope read puts on the wire', () => {
       // it cannot pass as a plausible empty answer.
       return response(body === undefined ? 404 : 200, body ?? '{}');
     });
-    // All nine on the object a socket-driven refresh is actually handed.
+    // All ten on the object a socket-driven refresh is actually handed.
     // `httpProjectApi` builds its own `httpDirectoryApi` and spreads those six
     // methods into what it returns (`wbs-api.ts:2197`, `:2237-2239`), so calling
     // them on a separately constructed directory would exercise the shared
@@ -1618,6 +1727,7 @@ describe('what a full-scope read puts on the wire', () => {
       project.tree('p1'),
       project.steps('p1'),
       project.listCalendarMarkers('p1'),
+      project.readClaims('p1'),
       project.listTeams(),
       project.listTags(),
       project.listServices(),
@@ -1650,7 +1760,7 @@ describe('what a full-scope read puts on the wire', () => {
    * `FULL_SCOPE_PUTS_ON_THE_WIRE` also keeps the claim readable as two places
    * rather than three.
    */
-  it('spends the same nine on an optimized project, and again on the same client', async () => {
+  it('spends the same ten on an optimized project, and again on the same client', async () => {
     const optimized = JSON.parse(TREE('p1', [])) as Record<string, unknown>;
     optimized['optimization'] = {
       enabled: true,
@@ -1669,6 +1779,7 @@ describe('what a full-scope read puts on the wire', () => {
       '/api/projects/p1/work-items': JSON.stringify(optimized),
       '/api/projects/p1': JSON.stringify({ project: PROJECT, steps: [] }),
       '/api/projects/p1/calendar-markers': '{"markers":[]}',
+      '/api/projects/p1/claims': '{"readAt":0,"claims":[]}',
       '/api/teams': '{"teams":[]}',
       '/api/tags': '{"tags":[]}',
       '/api/services': '{"services":[]}',
@@ -1688,6 +1799,7 @@ describe('what a full-scope read puts on the wire', () => {
         project.tree('p1'),
         project.steps('p1'),
         project.listCalendarMarkers('p1'),
+        project.readClaims('p1'),
         project.listTeams(),
         project.listTags(),
         project.listServices(),
@@ -1701,8 +1813,8 @@ describe('what a full-scope read puts on the wire', () => {
     expect([...requests].sort()).toEqual([...FULL_SCOPE_PUTS_ON_THE_WIRE].sort());
 
     // Cleared rather than summed, so the second refresh is measured on its own.
-    // Summing would still go red under a second-read-only guard — nineteen
-    // actual against eighteen expected — so this is about the failure being
+    // Summing would still go red under a second-read-only guard — twenty-one
+    // actual against twenty expected — so this is about the failure being
     // readable, not about catching it at all: an aggregate mismatch names
     // neither pass, while a cleared log points at the refresh that grew.
     requests = [];

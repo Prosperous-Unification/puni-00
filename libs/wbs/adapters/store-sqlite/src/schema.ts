@@ -2,12 +2,17 @@ import {
   allowanceHundredthsOf,
   type AllowancePercent,
   ATTEMPT_OUTCOMES,
+  BUDGET_POLICIES,
+  CAPACITY_REPORT_OUTCOMES,
+  COMPUTE_PROVIDER_KINDS,
   DOMAIN_CLAIM_STATUSES,
   type EstimateUnit,
   HOLDS,
   INVITABLE_ROLES,
   JOIN_REQUEST_STATUSES,
+  MEASURE_KINDS,
   MEASURE_METRICS,
+  MEASURE_SCALES,
   ORGANIZATION_ROLES,
   PERSON_KINDS,
   READINESSES,
@@ -333,6 +338,14 @@ export const project = sqliteTable(
      * is not one.
      */
     timezone: text('timezone').notNull().default('UTC'),
+    /**
+     * What a derived budget multiplies the pessimistic point by
+     * (`wbs-measure-budgets` design D38), created by
+     * `20261023170000_add_work_item_budget` with a column CHECK keeping it
+     * above 0 and at most 1000. Defaulted to 1, which the outgoing release's
+     * insert relies on.
+     */
+    budgetFactor: real('budget_factor').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
@@ -1129,13 +1142,33 @@ export const stepMeasure = sqliteTable(
     stepId: text('step_id')
       .notNull()
       .references(() => step.id),
-    metric: text('metric', { enum: MEASURE_METRICS }).notNull(),
+    // Nullable since `20261023150000_key_step_measure`: a fact on a defined
+    // measure has no legacy name and is keyed by `measureId` alone.
+    metric: text('metric', { enum: MEASURE_METRICS }),
+    /**
+     * The definition a fact is in (`wbs-measure-budgets` D4): set by the store
+     * for a defined measure, and by the `step_measure_keys_legacy_fact` trigger
+     * for a `token_actual` or `hours_actual` row of a project an organization
+     * owns. NULL on a `token_estimate` row and on an unowned project's facts.
+     */
+    measureId: text('measure_id').references(() => measure.id),
     value: real('value').notNull(),
     recordedAt: integer('recorded_at').notNull(),
+    /**
+     * What a money fact was priced with (`wbs-measure-budgets` D43), both or
+     * neither: a column CHECK on `rate_card_digest` from
+     * `20261023170000_add_work_item_budget`. NULL on every other measure.
+     */
+    currency: text('currency'),
+    rateCardDigest: text('rate_card_digest'),
     ...auditColumns(),
   },
   (t) => [
-    primaryKey({ columns: [t.workItemId, t.stepId, t.metric] }),
+    // The old primary key's three columns, still unique: the outgoing
+    // release's upsert names exactly this conflict target.
+    uniqueIndex('step_measure_metric_key').on(t.workItemId, t.stepId, t.metric),
+    uniqueIndex('step_measure_measure_key').on(t.workItemId, t.stepId, t.measureId),
+    index('step_measure_by_measure').on(t.measureId),
     // Declared here and created by `20260831120000_rename_role_to_step`, which is
     // the awkward half of that rename: the index was rebuilt under its new name
     // in SQL and never written back into this file, so the next
@@ -1149,10 +1182,90 @@ export const stepMeasure = sqliteTable(
       'role_measure_metric',
       sql`${t.metric} IN ('token_estimate', 'token_actual', 'hours_actual')`,
     ),
+    check('step_measure_addressed', sql`${t.metric} IS NOT NULL OR ${t.measureId} IS NOT NULL`),
   ],
 );
 
 export type StepMeasureRow = typeof stepMeasure.$inferSelect;
+
+/**
+ * One step node's three-point estimate in one measure other than time
+ * (`wbs-measure-budgets` D3), created by `20261023160000_add_measure_estimate`.
+ *
+ * `measureKey` is the identity and `measureId` the reference, NULL while no
+ * organization owns the project (design D19). A `tokens` row with
+ * `singlePoint` stands for the legacy `token_estimate` row of
+ * {@link stepMeasure}, which the `step_measure_mirrors_token_estimate_*`
+ * triggers keep it in step with (design D28). `work_item_id` cascades and
+ * `step_id` does not, as on {@link stepMeasure}.
+ */
+export const measureEstimate = sqliteTable(
+  'measure_estimate',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => step.id),
+    measureKey: text('measure_key').notNull(),
+    measureId: text('measure_id').references(() => measure.id),
+    optimistic: real('optimistic').notNull(),
+    realistic: real('realistic').notNull(),
+    pessimistic: real('pessimistic').notNull(),
+    singlePoint: integer('single_point', { mode: 'boolean' }).notNull().default(false),
+    /** What a money trio was priced with, as on {@link stepMeasure} (design D43). */
+    currency: text('currency'),
+    rateCardDigest: text('rate_card_digest'),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId, t.measureKey] }),
+    index('measure_estimate_by_step').on(t.stepId),
+    index('measure_estimate_by_measure').on(t.measureId),
+    check(
+      'measure_estimate_ordered',
+      sql`0 <= ${t.optimistic} AND ${t.optimistic} <= ${t.realistic} AND ${t.realistic} <= ${t.pessimistic}`,
+    ),
+    check(
+      'measure_estimate_single_point',
+      sql`${t.singlePoint} IN (0, 1) AND (${t.singlePoint} = 0 OR (${t.measureKey} = 'tokens' AND ${t.optimistic} = ${t.realistic} AND ${t.realistic} = ${t.pessimistic}))`,
+    ),
+  ],
+);
+
+/**
+ * One work item's stated budget in one measure (`wbs-measure-budgets` D5,
+ * design D36), created by `20261023170000_add_work_item_budget`.
+ *
+ * `measureKey` is the identity and `measureId` the reference, NULL while no
+ * organization owns the project (design D30). Derived budgets are computed on
+ * read and never stored here. `work_item_id` cascades: a deleted work item's
+ * budgets go with it and an undo writes them back.
+ */
+export const workItemBudget = sqliteTable(
+  'work_item_budget',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    measureKey: text('measure_key').notNull(),
+    measureId: text('measure_id').references(() => measure.id),
+    cap: real('cap').notNull(),
+    policy: text('policy', { enum: BUDGET_POLICIES }).notNull(),
+    holdPerAttempt: real('hold_per_attempt'),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.measureKey] }),
+    index('work_item_budget_by_measure').on(t.measureId),
+    check('work_item_budget_policy', sql`${t.policy} IN ('strict', 'advisory')`),
+    check(
+      'work_item_budget_figures',
+      sql`${t.cap} >= 0 AND (${t.holdPerAttempt} IS NULL OR ${t.holdPerAttempt} >= 0)`,
+    ),
+  ],
+);
 
 /**
  * One **attempt** (`CONTEXT.md`): one run at a step node's work, numbered from
@@ -1852,10 +1965,17 @@ export const resource = sqliteTable(
     name: text('name').notNull(),
     kind: text('kind', { enum: RESOURCE_KINDS }).notNull(),
     unitLabel: text('unit_label').notNull(),
+    /**
+     * The provider instance that fulfils this resource, or null
+     * (`compute-providers` P3, `20261022140000_add_resource_provider`). Never
+     * read by a schedule, a claim or an export (P4).
+     */
+    providerId: text('provider_id').references((): AnySQLiteColumn => computeProvider.id),
     ...auditColumns(),
   },
   (t) => [
     uniqueIndex('resource_name').on(t.name),
+    index('resource_provider').on(t.providerId),
     check('resource_kind', sql`${t.kind} IN ('exclusive', 'divisible')`),
   ],
 );
@@ -2142,6 +2262,13 @@ export const claim = sqliteTable(
     parentClaimId: text('parent_claim_id').references((): AnySQLiteColumn => claim.id, {
       onDelete: 'cascade',
     }),
+    /**
+     * The instant the claim must be renewed by, null for a claim nobody renews
+     * (`20261023100000_add_claim_lease`, `wbs-claim-leases` L1, L3).
+     */
+    leaseExpiresAt: integer('lease_expires_at'),
+    /** When the holder's last live machine credential was revoked (L8); never renewed after. */
+    leaseRevokedAt: integer('lease_revoked_at'),
     ...auditColumns(),
   },
   (t) => [
@@ -2152,6 +2279,9 @@ export const claim = sqliteTable(
     index('claim_by_step').on(t.stepId),
     index('claim_by_person').on(t.personId),
     index('claim_by_parent').on(t.parentClaimId),
+    index('claim_by_lease')
+      .on(t.leaseExpiresAt)
+      .where(sql`${t.leaseExpiresAt} IS NOT NULL`),
     check(
       'claim_run_id_length',
       sql`${t.runId} IS NULL OR (typeof(${t.runId}) = 'text' AND length(${t.runId}) BETWEEN 1 AND 256)`,
@@ -3358,9 +3488,11 @@ export const savedPlanOrganization = sqliteTable(
  * widened the vocabulary for enterprise SSO and made the table append-only
  * through triggers, which this declaration cannot express;
  * `20261022110000_widen_organization_audit_machine_credentials` added the
- * machine-credential and trusted-issuer acts, and
+ * machine-credential and trusted-issuer acts;
  * `20261022130100_widen_organization_audit_organization_limits` the
- * operator's limits changes.
+ * operator's limits changes; and
+ * `20261022140100_widen_organization_audit_compute_providers` the compute
+ * provider acts.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3379,11 +3511,11 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
   ],
@@ -4035,5 +4167,119 @@ export const runtimeCommandReceipt = sqliteTable(
     ),
     check('runtime_receipt_identity', sql`length(${table.commandId}) > 0`),
     check('runtime_receipt_json', sql`json_valid(${table.accepted})`),
+  ],
+);
+/**
+ * One **Provider instance** (`compute-providers` P2): what one organization
+ * registered as fulfilling its resources' units, with a display-only locator
+ * WBS never dials. Added by `20261022140000_add_resource_provider`, whose
+ * `down.sql` refuses while any instance, reference or report exists.
+ */
+export const computeProvider = sqliteTable(
+  'compute_provider',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    kind: text('kind', { enum: COMPUTE_PROVIDER_KINDS }).notNull(),
+    name: text('name').notNull(),
+    locator: text('locator').notNull(),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [uniqueIndex('compute_provider_name').on(t.organizationId, t.name)],
+);
+
+export type ComputeProviderRow = typeof computeProvider.$inferSelect;
+
+/**
+ * The latest **Capacity report** of one resource (`compute-providers` P5):
+ * one row per resource, replaced by a newer `observed_at`, never a history.
+ * Which unit columns are set is fixed by `outcome` (the migration's
+ * `resource_capacity_report_outcome_columns` CHECK).
+ */
+export const resourceCapacityReport = sqliteTable(
+  'resource_capacity_report',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => computeProvider.id),
+    observedAt: integer('observed_at').notNull(),
+    cadenceSeconds: integer('cadence_seconds').notNull(),
+    outcome: text('outcome', { enum: CAPACITY_REPORT_OUTCOMES }).notNull(),
+    capacityUnits: integer('capacity_units'),
+    usageUnits: integer('usage_units'),
+    reason: text('reason'),
+    reportedByPersonId: text('reported_by_person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+    reportedAt: integer('reported_at').notNull(),
+  },
+  (t) => [
+    index('resource_capacity_report_provider').on(t.providerId),
+    index('resource_capacity_report_person').on(t.reportedByPersonId),
+  ],
+);
+
+export type ResourceCapacityReportRow = typeof resourceCapacityReport.$inferSelect;
+
+/**
+ * One organization's measure definitions (`wbs-measure-budgets` D1, D2), the
+ * rows `MeasureDefinition` in `@wbs/domain` reads. Added by
+ * `20261023140000_add_measure`, which seeds the five definitions for every
+ * existing organization and, by its `organization_seed_measures` trigger, for
+ * every organization inserted later; its `measure_shape_frozen` trigger keeps
+ * `key`, `organization_id`, `kind`, `scale` and `derived` unchanged, and its
+ * `down.sql` refuses while any definition beyond the seeded keys, or any seeded
+ * definition edited away from its seed, exists. `order` is quoted by drizzle and
+ * must be quoted in raw SQL.
+ */
+export const measure = sqliteTable(
+  'measure',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    name: text('name').notNull(),
+    unit: text('unit').notNull(),
+    kind: text('kind', { enum: MEASURE_KINDS }).notNull(),
+    scale: text('scale', { enum: MEASURE_SCALES }).notNull(),
+    threePoint: integer('three_point', { mode: 'boolean' }).notNull(),
+    showByDefault: integer('show_by_default', { mode: 'boolean' }).notNull(),
+    schedulesWork: integer('schedules_work', { mode: 'boolean' }).notNull(),
+    derived: integer('derived', { mode: 'boolean' }).notNull(),
+    order: integer('order').notNull(),
+    currency: text('currency'),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex('measure_organization_key').on(t.organizationId, t.key),
+    uniqueIndex('measure_one_scheduling')
+      .on(t.organizationId)
+      .where(sql`${t.schedulesWork} = 1`),
+    check(
+      'measure_key',
+      sql`length(${t.key}) BETWEEN 1 AND 40 AND ${t.key} GLOB '[a-z]*' AND ${t.key} NOT GLOB '*[^a-z0-9_]*'`,
+    ),
+    check('measure_kind', sql`${t.kind} IN ('duration', 'count', 'money')`),
+    check('measure_scale', sql`${t.scale} IN ('integer', 'real')`),
+    check(
+      'measure_flags',
+      sql`${t.threePoint} IN (0, 1) AND ${t.showByDefault} IN (0, 1) AND ${t.schedulesWork} IN (0, 1) AND ${t.derived} IN (0, 1)`,
+    ),
+    check(
+      'measure_order',
+      sql`typeof(${t.order}) = 'integer' AND ${t.order} BETWEEN 0 AND 1000000`,
+    ),
+    check(
+      'measure_currency',
+      sql`(${t.kind} = 'money') = (${t.currency} IS NOT NULL) AND (${t.currency} IS NULL OR (length(${t.currency}) = 3 AND ${t.currency} NOT GLOB '*[^A-Z]*'))`,
+    ),
   ],
 );
