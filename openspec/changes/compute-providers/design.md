@@ -237,7 +237,9 @@ fulfils; register, rename or relocate, remove with the `in_use` confirmation car
 resources' names), the resources section of project settings (`wbs-resources` task 1.5:
 the report sits beside each capacity, with the adopt action for admins), and the directory
 resource row of that section (provider chip: kind and name,
-for every reader, off the read's `provider { kind, name }`; task 5.3). The loading, query-failure
+for every reader, off the read's `provider { kind, name }`; task 5.3). **Confirmed by Dany on
+2026-10-25:** members and viewers may see an instance's kind and name, the locator stays
+admin-only, and an admin keeps both the chip and the picker. The loading, query-failure
 and empty states are rendered; an impossible report union reaches the Error Boundary.
 
 **P13. The first two instances are PUNI's own.** Slice 2 ends by registering `h2puni` and

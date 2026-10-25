@@ -555,6 +555,26 @@ describe("a resource's provider reference", () => {
     });
   });
 
+  it('refuses an agent key of a super-admin removing a resource, as a member', async () => {
+    // A machine credential acts as at most a member (`organizationRoleOf`, A23),
+    // so no agent removes a resource whatever its account's role (R8a).
+    // Proof: with the role refusal in `removeResourceWithin` skipped, the
+    // agent's removal answered 200; watched 2026-10-25.
+    const { agent } = await keys();
+    const command = { kind: 'deleteResource', resourceId: staging, cascade: true };
+    expect(
+      await h.callWith(agent, 'POST', '/api/directory/commands', { commands: [command] }),
+    ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
+    expect(
+      await h.callWith(agent, 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'patchResource', resourceId: staging, patch: { unitLabel: 'env' } }],
+      }),
+    ).toMatchObject({ status: 200 });
+    expect(
+      await h.call('dany', 'POST', '/api/directory/commands', { commands: [command] }),
+    ).toMatchObject({ status: 200 });
+  });
+
   it('drops the old instance report when the reference moves', async () => {
     const h4claw = await registered('dany', 'h4claw');
     const h2puni = await registered('dany', 'h2puni');

@@ -199,3 +199,35 @@ replayed20 fixture/bundle cases/110 assertions and16 smoke controls/119 assertio
 and inspected the13 omission logs. Its first smoke replay hit a sandbox Unix-socket
 permission refusal; the approved exact replay passed. This approval permits a normal
 draft checkpoint and further verification, not architectural merge or activation.
+
+## Pinned fresh-main integration
+
+Normal fix checkpoint `83ddd2de7c208155eb84af6e47f19a8376e59785` committed the exact
+reviewed17 source/test files and this receipt, with every hook enabled. The clean
+commit's18 path set and every blob hash matched the frozen precommit manifest.
+Tool Wiki remained visibly inactive; migration/doc-cap hooks reported no matching
+files rather than certifying an executed migration or document-cap check.
+
+Main `93b6f3555ede68c08d3d83b571f1fcd15a44f37b` then merged without conflicts into
+the draft. Its15-path automatic source tree was
+`c4d7708c4793715e55b158cf13b938172af022c8`, before this receipt addition. Independent
+Astra review checked the exact index tree:12 paths equal main byte-for-byte, and
+the three automatically combined files preserve feature command context/endpoint
+semantics alongside main's admin-only resource deletion. The admin check remains
+before lookup and machine credentials retain their effective member role. No
+manual source resolution, new version, migration or adoption decision was added.
+
+Fresh working-tree checks on that automatic tree passed:
+
+- Resource and compute-provider controller files:41 tests/207 assertions,25.98s.
+- Legacy demand fixture:2 tests/11 assertions,4.24s.
+- ResourcesPanel Vitest file:46 tests,5.39s.
+- Contracts, core, backend and frontend TypeScript build:exit0 in one sequential
+  build process.
+- Required OpenSpec validation:291 passed,zero failed.
+- `nx format:check --all`:exit0.
+
+These are working-tree checks and retain that attribution. The next committed
+head still needs its own full CI, actual Docker smoke and isolated host gate.
+The update is solely to the existing draft; PR630 main merge, activation and
+deployment remain held under the user's instruction.
