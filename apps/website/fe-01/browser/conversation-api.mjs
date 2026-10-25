@@ -197,6 +197,8 @@ function providerFetch(_input, init) {
             isRefused
               ? refusalChunk(id)
               : chunk(id, {}, 'stop', {
+                  // Proof: omitting this synthetic charge left both browser-fixture SDK tests unknown at full reservation.
+                  cost: 0.0007,
                   prompt_tokens: 1200,
                   completion_tokens: 80,
                   total_tokens: 0,

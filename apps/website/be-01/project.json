@@ -17,7 +17,8 @@
         "default",
         "^production",
         "{workspaceRoot}/openspec/changes/build-ai-chat-harness/system-prompt.md",
-        "{workspaceRoot}/openspec/changes/conversion-scoping/system-prompt.md"
+        "{workspaceRoot}/openspec/changes/conversion-scoping/system-prompt.md",
+        "{workspaceRoot}/apps/website/fe-01/browser/conversation-api.mjs"
       ],
       "executor": "nx:run-commands",
       "options": {
