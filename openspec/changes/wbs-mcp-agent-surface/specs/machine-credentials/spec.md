@@ -33,9 +33,10 @@ Verification of the sources SHALL remain reachable only through
 `POST /api/organization/trusted-issuers` SHALL be accepted from an admin with an `issuer`
 HTTPS URL on a public name (a literal IP address, `localhost`, or a name under `.internal`,
 `.local` or `.localhost` is `400 invalid_body`), a required `audience` and an optional
-`ssoConnectionId`. The `audience` SHALL equal be-01's `WBS_MCP_RESOURCE_URL` or start with it
-followed by `/`, else `400 audience_not_wbs`; a credential-level audience narrowing (A25 (a))
-SHALL meet the same rule. `(issuer, audience)` SHALL be unique across the deployment (`409
+`ssoConnectionId`. For a registration
+made after this change, the `audience` SHALL equal be-01's `WBS_MCP_AUTHORIZATION_SERVER` (mcp-01's
+issuer, `<MCP_PUBLIC_URL>/oauth`) or start with it followed by `/`, else `400 audience_not_wbs`;
+a credential-level audience narrowing (A25 (a)) SHALL meet the same rule. `(issuer, audience)` SHALL be unique across the deployment (`409
 audience_taken`), and an organization SHALL hold at most eight trusted issuers (`409
 trusted_issuer_limit`). The list and the registration answer SHALL carry the audience. WBS SHALL fetch
 the issuer's OIDC discovery document once, require its `issuer` to equal the given URL and
@@ -50,28 +51,28 @@ be removed with it in the same transaction, their audit rows kept. Every trusted
 route SHALL refuse a `member` or `viewer` `403 forbidden`, a delegation or a machine
 credential `403 insufficient_scope`, and answer `403 no_active_organization` before
 activation. Each act SHALL write its audit row in the same
-transaction. A registration or credential whose stored audience breaks the rule (for example
-a `wbs:org:<id>` row, or any row after `WBS_MCP_RESOURCE_URL` changes) SHALL be refused at use
-with `invalid_grant` and listed by `trusted-issuer-audience-check-cli.ts`. That CLI is a dry
-run by default, and the deploy preflight SHALL refuse a swap while it lists any row not named
-in `--accept-breaking`.
+transaction. Once be-01 refuses machine bearers on `/api`, a stored audience that breaks the rule SHALL be
+refused at use with `invalid_grant`. Until then it SHALL keep verifying. The deploy preflight
+(`trusted-issuer-audience-check-cli.ts`, a dry run by default) SHALL refuse a swap while it
+lists any row not named in `WBS_ACCEPT_BREAKING_AUDIENCES`.
 
 #### Scenario: Registering a workload identity issuer
 
 - **WHEN** an admin posts `https://token.actions.githubusercontent.com` with audience
-  `https://wbs.example/mcp/org/A`, where `WBS_MCP_RESOURCE_URL` is `https://wbs.example/mcp`
+  `https://wbs.example/mcp/oauth/org/A`, where `WBS_MCP_AUTHORIZATION_SERVER` is
+  `https://wbs.example/mcp/oauth`
 - **THEN** the trusted issuer is listed with the discovered `jwks_uri`, and one
   `trusted_issuer_registered` row records it
 
 #### Scenario: A look-alike audience
 
-- **WHEN** an admin posts the audience `https://wbs.example/mcp.evil.example` or `wbs:org:A`
+- **WHEN** an admin posts the audience `https://wbs.example/mcp/oauth.evil.example` or `wbs:org:A`
 - **THEN** WBS answers `400 audience_not_wbs` and stores nothing
 
 #### Scenario: The preflight lists what would break
 
 - **WHEN** a store holds one registration with audience `wbs:org:A` and the preflight runs
-  without `--accept-breaking`
+  with `WBS_ACCEPT_BREAKING_AUDIENCES` unset
 - **THEN** it lists that registration and its credentials, changes nothing, and exits non-zero
 
 #### Scenario: A SAML connection as the gate

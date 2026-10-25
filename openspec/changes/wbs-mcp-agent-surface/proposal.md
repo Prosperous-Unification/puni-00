@@ -4,7 +4,7 @@ Agents reach WBS two ways: a human-consented MCP session, or be-01's HTTP API wi
 credential. An API key or trusted-issuer token gets `401 invalid_token` on `/mcp`, and one
 connector entry holds one consent, so a swarm cannot get per-agent identities over MCP
 without a browser sign-in each. Two surfaces mean two sets of tools and docs to maintain;
-Dany chose MCP as the one (2026-10-25).
+Dany chose MCP (2026-10-25).
 
 ## What Changes
 
@@ -12,8 +12,8 @@ Dany chose MCP as the one (2026-10-25).
 
 - From: HTTP with a `wbs_mk_` key or a trusted-issuer token.
 - To: MCP. A `headersHelper`, app or orchestrator gets a short-lived mcp-01 token with its
-  API key (OAuth client credentials) or its workload's OIDC token (JWT bearer). claude.ai Team
-  and Enterprise connectors stay consent-only.
+  API key (OAuth client credentials) or its workload's OIDC token (JWT bearer). claude.ai stays
+  consent-only.
 
 **Who it is on MCP**
 
@@ -60,8 +60,9 @@ compatibility window.
 
 ### Modified Capabilities
 
-- `machine-credentials` (`wbs-machine-credentials`): be-01 refuses machine bearers on `/api`.
-  This reverses that change's non-goal "MCP `client_credentials`".
+- `machine-credentials` (`wbs-machine-credentials`): be-01 refuses machine bearers on `/api`;
+  trusted-issuer audiences must sit under mcp-01's issuer (amends A25). Reverses its non-goal
+  "MCP `client_credentials`".
 
 ## Domain Terms
 

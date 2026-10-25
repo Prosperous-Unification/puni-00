@@ -3,11 +3,15 @@
 ### Requirement: A machine credential obtains an MCP access token through the client credentials grant
 
 mcp-01's token endpoint SHALL accept `grant_type=client_credentials` in standalone mode from a
-live `api_key` machine credential of an activated deployment. It SHALL verify the
-credential only through be-01's `POST /internal/mcp/machine-grants`. It SHALL answer an
-mcp-01-signed access token with `aud` equal to the canonical `MCP_PUBLIC_URL`, `token_use`
-`machine`, scope `wbs:read wbs:write`, the machine grant as a claim, `exp` 60 s before the
-grant's, and no refresh token.
+live `api_key` machine credential of an activated deployment, verified only through be-01's
+`POST /internal/mcp/machine-grants`. It SHALL answer an mcp-01-signed access token for the
+canonical `MCP_PUBLIC_URL` that carries the machine grant, and no refresh token.
+
+#### Scenario: The token's shape
+
+- **WHEN** a live key gets a token
+- **THEN** the token has `aud` = the canonical `MCP_PUBLIC_URL`, `token_use: machine`, the
+  scopes be-01 returned in the grant, the grant as a claim, and `exp` 60 s before the grant's
 
 #### Scenario: An SDK client gets a token and lists tools
 
@@ -18,16 +22,29 @@ grant's, and no refresh token.
 
 #### Scenario: Before activation nothing is issued
 
-- **WHEN** a token request arrives before organization activation
-- **THEN** be-01 answers `409 not_activated` and mcp-01 answers `401 invalid_client`
+- **WHEN** a `client_credentials` request and a JWT-bearer request arrive before organization
+  activation
+- **THEN** be-01 answers `409 not_activated`, and mcp-01 answers `401 invalid_client` and
+  `400 invalid_grant` respectively
+
+#### Scenario: A read-only credential cannot write
+
+- **WHEN** a key whose person is bound to a `viewer` account gets a token and calls a write
+  tool
+- **THEN** the token's scope is `wbs:read`, and mcp-01 refuses the write as `insufficient_scope`
+  without asking be-01
+
+#### Scenario: An assertion is not client authentication
+
+- **WHEN** a `client_credentials` request carries only a `client_assertion` and no secret
+- **THEN** the answer is `401 invalid_client`
 
 ### Requirement: A workload obtains an MCP access token through the JWT-bearer grant
 
 The token endpoint SHALL accept `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer` with
 an `assertion` from a trusted issuer, without client authentication. It SHALL identify the
-`oidc` credential by `(iss, aud, sub)` per A25, SHALL consume the assertion's `jti` once when
-present, and SHALL answer every assertion failure, a replayed `jti` included, with the same
-`400 invalid_grant`.
+`oidc` credential by `(iss, aud, sub)` per A25, SHALL NOT consume the assertion's `jti`, and
+SHALL answer every assertion failure with the same `400 invalid_grant`.
 
 #### Scenario: A GitHub Actions workload
 
@@ -42,10 +59,28 @@ present, and SHALL answer every assertion failure, a replayed `jti` included, wi
 - **THEN** the provider reads a fresh workload token for the next token request, and the run's
   next tool call succeeds
 
-#### Scenario: A replayed assertion
+#### Scenario: A reused Kubernetes token
 
-- **WHEN** the same assertion, with the same `jti`, is presented twice
-- **THEN** the second request is `400 invalid_grant`
+- **WHEN** three processes present the same projected service-account token, with the same
+  `jti`, within one minute
+- **THEN** all three answer `200`
+
+### Requirement: The JWT-bearer grant never authenticates a client
+
+A `client_id` sent on the JWT-bearer grant, in the body or by Basic, SHALL equal the matched
+credential's id and SHALL never be looked up in the registered-client store. A Basic secret on
+this grant SHALL be `400 invalid_request`. An assertion whose `typ` is neither absent nor `JWT`
+SHALL be `400 invalid_grant`.
+
+#### Scenario: A client_id the registered-client store has never seen
+
+- **WHEN** the provider sends `client_id` equal to the credential id with the assertion
+- **THEN** the answer is `200`, and the registered-client store was not read
+
+#### Scenario: An ID-JAG assertion
+
+- **WHEN** an assertion with `typ: oauth-id-jag+jwt` is presented
+- **THEN** the answer is `400 invalid_grant` naming ID-JAG as unsupported
 
 ### Requirement: Token requests are parsed strictly
 
@@ -90,7 +125,8 @@ a client that asks for either machine grant (new behaviour).
 
 #### Scenario: Registration refuses a machine
 
-- **WHEN** a dynamic registration asks for `grant_types: ['client_credentials']`
+- **WHEN** a dynamic registration that would otherwise be accepted (auth method `none`, a valid
+  loopback redirect URI) asks for `grant_types: ['client_credentials']`
 - **THEN** it is refused `400 invalid_client_metadata` and no client is stored
 
 #### Scenario: Consent clients still register
@@ -133,8 +169,15 @@ write other than the coarse last-use touch.
 #### Scenario: Revocation at the next call
 
 - **WHEN** an admin revokes a credential while its token still has 10 hours to run
-- **THEN** the next tool call is HTTP `401 invalid_token` from mcp-01 (be-01 answered
-  `unknown_identity`), and the next token request is `401 invalid_client`
+- **THEN** the next tool call answers the tool error `machine_credential_refused` (be-01
+  answered `unknown_identity`), the next HTTP request with that token to the same replica is
+  `401 invalid_token`, and the next token request is `401 invalid_client`
+
+#### Scenario: Revocation inside a batch
+
+- **WHEN** a JSON-RPC batch of three tool calls meets the refusal at its second call
+- **THEN** the first call's result stands, and the second and third answer
+  `machine_credential_refused`, the third without any be-01 request
 
 #### Scenario: No write per call
 
@@ -159,15 +202,16 @@ signed with or verified by the delegation key.
 
 ### Requirement: A machine grant yields the API-key principal
 
-An admitted grant SHALL yield `authentication.kind` `machine`, the pinned person, scopes `read`
-and `write` derived from the reread credential alone, and the A23 role cap.
+An admitted grant SHALL yield `authentication.kind` `machine`, the pinned person, the grant's
+run when one was opted in, scopes derived from the reread credential alone, and the A23 role
+cap.
 
 #### Scenario: Parity with a raw key
 
 - **WHEN** the same credential claims a step through a grant, and through its raw key on `/api`
   in the test-only composition seam
 - **THEN** both claims carry the same person, are leased, are renewed by `postApiClaimsRenew`,
-  and meet the same `claim_limit` refusal
+  and meet the same `claim_limit` refusal, given no `wbs_run`
 
 ### Requirement: Machine token lifetimes have one owner
 
@@ -261,21 +305,20 @@ and `Retry-After`.
 ### Requirement: Gateway mode offers no machine admission
 
 With `MCP_AUTH_MODE=gateway`, both machine grants SHALL be `400 unsupported_grant_type` and
-the metadata SHALL omit them. On `/mcp`, a bearer with the `wbs_mk_` prefix, detected before
-any JWT parse, and a JWT carrying `token_use: machine` SHALL be `401 invalid_token` and SHALL
-never be forwarded.
+the metadata SHALL omit them. On `/mcp`, a JWT carrying `token_use: machine` SHALL be
+`401 invalid_token` and SHALL never be forwarded.
 
-#### Scenario: A raw key in gateway mode
+#### Scenario: A machine token in gateway mode
 
-- **WHEN** gateway-mode mcp-01 receives `Bearer wbs_mk_…` on `/mcp`
-- **THEN** it answers `401 invalid_token` and forwards nothing
+- **WHEN** gateway-mode mcp-01 receives a validly signed machine token on `/mcp`
+- **THEN** it answers `401 invalid_token`, and be-01's fake records no request
 
 ### Requirement: Secrets never reach logs or reports
 
 No API key, base64 Basic form of it, workload assertion, machine grant or access token SHALL
 appear in route evidence, unexpected-failure reports, audit details, error bodies, or the
-`toString`/`toJSON` of their carriers. Every grant issued through a token grant SHALL write one
-`machine_token_issued` audit row without them.
+`toString`/`toJSON` of their carriers. `machine_token_issued` SHALL be written at most once per credential,
+run and UTC day, without them.
 
 #### Scenario: A failing token request
 
@@ -284,18 +327,28 @@ appear in route evidence, unexpected-failure reports, audit details, error bodie
   `base64(id:key)`, nor the assertion, checked with the `plaintext-secrets` pattern and by
   exact substring
 
-### Requirement: Leases of a machine grant are scoped to its run
+### Requirement: Run scoping is opt-in through wbs_run
 
-A grant SHALL carry a run: the token request's `wbs_run` (1 to 128 characters), or else the
-token's `jti`. A claim taken under a grant SHALL carry that run, and a command naming another
-`runId` SHALL be refused `run_mismatch`. Renewal by a grant principal, whether by
+A token request MAY carry `wbs_run` (1 to 256 characters), which be-01 SHALL sign into the
+grant. Without it, a grant SHALL carry no run, and renewal and `runId` SHALL behave as for an
+API key today. A run SHALL never be defaulted from the token's `jti`.
+
+#### Scenario: Re-fetching without wbs_run orphans nothing
+
+- **WHEN** a `ClientCredentialsProvider` client claims a step, its token expires, it re-fetches
+  and heartbeats
+- **THEN** the claim is renewed, and claiming the same step again answers `alreadyHeld`
+
+### Requirement: An opted-in run scopes renewal, claims and release
+
+With a run, a claim SHALL take that run as its `runId`. A command naming another `runId`, or a
+`releaseWorkItem` of another run's claim, SHALL be refused `run_mismatch`. Renewal, by
 `postApiClaimsRenew` or by a committed batch, SHALL renew only that person's leases of that
-run.
+run. Undo SHALL stay per person.
 
 #### Scenario: Two processes on one credential
 
-- **WHEN** processes A and B share one credential with runs `a` and `b`, and only A
-  heartbeats
+- **WHEN** processes A and B share one credential with runs `a` and `b`, and only A heartbeats
 - **THEN** A's leases are renewed and B's lapse at their lease end with reason `lease expired`
 
 #### Scenario: A re-fetch keeps the run
@@ -305,5 +358,18 @@ run.
 
 #### Scenario: A forged run id
 
-- **WHEN** a grant principal sends `claimWorkItem` with a `runId` other than its grant's run
-- **THEN** the batch is refused `run_mismatch` and nothing is applied
+- **WHEN** a grant principal with run `a` sends `claimWorkItem` with `runId: 'b'`, or releases
+  run `b`'s claim
+- **THEN** each is refused `run_mismatch` and nothing is applied
+
+### Requirement: A pinned principal claims only under its own or its human's parent claims
+
+`parent_claim_foreign` SHALL refuse a pinned principal whose parent claim was written by
+another pinned person, even of the same account. A parent written by the same person, or by
+the account unpinned, SHALL be admitted.
+
+#### Scenario: Two pool agents
+
+- **WHEN** pool agent B claims under agent A's subtree claim
+- **THEN** the claim is refused `parent_claim_foreign`; under the admin's own unpinned subtree
+  claim it is admitted

@@ -1,7 +1,7 @@
 ## Context
 
-Read on 2026-10-25 at `origin/main` 277fdf03c. Amended after the Fable reviews of 24dcae0a5
-and 58e0cea79 (every item is mapped in verify.md).
+Read on 2026-10-25 at `origin/main` 277fdf03c. Amended after the Fable reviews of 24dcae0a5,
+58e0cea79 and 948d6e668 (every item is mapped in verify.md).
 
 | Need                              | Exists today                                                                                                                                                                                                                                                                                                                                                                                                                          | Missing                                                                                               |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -11,8 +11,8 @@ and 58e0cea79 (every item is mapped in verify.md).
 | be-01 learning who an MCP call is | `/internal/mcp/delegation`: a single-use `wbs-be-01/via-mcp-01` delegation, at most `MOST_DELEGATION_SECONDS` = 300 (`delegation.ts` 12, 286), no `kid` and no previous key, with one consume write per use. `directAudienceOf` (`identity.ts` 164–172) sends every non-`direct` audience to the via-mcp-01 verifier.                                                                                                                 | a separately keyed, separately verified per-call bearer                                               |
 | The service secret                | `x-internal-auth`. It is shared with gw-01, tool-smoke and tool-devsync, and compared with `===` (`identity.ts` 35, 42, 71).                                                                                                                                                                                                                                                                                                          | a dedicated, constant-time-compared mcp-01↔be-01 secret                                               |
 | Tool path values                  | `wbs-client.ts` 199–212 encodes each value with `encodeURIComponent`, which leaves `.` and `..` intact, so `/api/projects/{..}/claims` normalises to `/api/claims`.                                                                                                                                                                                                                                                                   | a refusal of dot segments                                                                             |
-| Leases                            | `claim-lease.routes.ts` 30 `renewLeases(pin.personId)`: one heartbeat renews every lease of the **person**.                                                                                                                                                                                                                                                                                                                           | a stated rule for one person serving several processes                                                |
-| Account-keyed state               | `command_journal` (undo) is keyed by `(project_id, user_id)` (`command-journal.ts` 27, 75). A12 makes a machine act as its person's **account**. A separate bug-fix PR makes undo per person (M16).                                                                                                                                                                                                                                   | per-person undo once one account serves many persons                                                  |
+| Leases                            | `claim-lease.routes.ts` 30 `renewLeases(pin.personId)`: one heartbeat renews every lease of the **person**; nothing scopes it to a process.                                                                                                                                                                                                                                                                                           | opt-in run scoping (M15)                                                                              |
+| Account-keyed state               | `command_journal` (undo) is keyed by `(project_id, user_id)` (`command-journal.ts` 27, 75). A12 makes a machine act as its person's **account**. Undo per person is in progress on branch `fix/wbs-undo-per-person`; it makes undo per person (M16).                                                                                                                                                                                  | per-person undo once one account serves many persons                                                  |
 | Docs                              | `docs/auth-integration.md` "Fleets and the MCP endpoint" and `docs/local-dev.md` (PR #738) tell fleets to use HTTP.                                                                                                                                                                                                                                                                                                                   | their reversal                                                                                        |
 
 **MCP authorization (2025-11-25, read from modelcontextprotocol.io on 2026-10-25).**
@@ -154,6 +154,17 @@ speaks it).
 - _OIDC: the RFC 7523 §2.1 JWT-bearer authorization grant._
   - The request is `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer` with the workload
     token as `assertion`, and client authentication is optional.
+  - _`client_id` on this grant._ mcp-01 never looks a `client_id` up in its registered-client
+    store for this grant, whether it arrives in the body or in a Basic header (today's code at
+    `oauth.ts` 598–632 would answer `invalid_client`). A `client_id` that is sent must equal
+    the matched credential's id. A Basic **secret** on this grant is `invalid_request`.
+  - _Assertion type._ The grant dispatches on the assertion's `typ`: absent or `JWT` is
+    admitted. `oauth-id-jag+jwt` (the identity assertion of MCP's Enterprise-Managed
+    Authorization extension, named from memory) is refused `invalid_grant` with a description
+    saying ID-JAG is not supported. Every other `typ` is also `invalid_grant`.
+  - _Undefined cases defined._ Before activation the JWT-bearer grant answers `invalid_grant`.
+    `client_credentials` carrying only a `client_assertion`, with no secret, is
+    `invalid_client`, because WBS supports no assertion-based client authentication.
   - be-01 identifies the credential by `(iss, aud, sub)` per A25. The assertion's `sub` is the
     workload subject, which is what §2.1 means by the principal.
   - This is conformant, unlike the client-assertion profile of the first draft. RFC 7523 §3
@@ -163,10 +174,20 @@ speaks it).
   - That client-assertion profile is the recorded alternative, as a documented deviation.
 - _A fresh workload token per request._ `StaticPrivateKeyJwtProvider` fixes its assertion at
   construction (SDK 1.31.0 `auth-extensions.js` 237–254), so a run outliving the workload
-  token would die. WBS documents a `WorkloadJwtBearerProvider`, which Dash ships and which a
-  `headersHelper` script can mirror. Its token request reads a fresh workload token every
-  time: from the GitHub Actions token URL, or by rereading the projected service-account
-  token file.
+  token would die. **`WorkloadJwtBearerProvider` lives in Twilight Dash**
+  (`apps/twilight-structure/twilight-dash/cli/src/mcp/`). Dash also exposes it as
+  `twilight-dash mcp token`, which a `headersHelper` calls. Its shape:
+  - `clientInformation()` returns `{ client_id: <credential id> }` stamped with the
+    authorization server's issuer, so the SDK never falls back to dynamic registration
+    (`auth.js` 295ff);
+  - `addClientAuthentication` is a no-op;
+  - `prepareTokenRequest` returns `grant_type`, a **freshly read** `assertion` (the GitHub
+    Actions token URL, or a reread of the projected service-account token file), `resource`
+    and, when configured, `wbs_run`.
+  - _It caches the access token._ The provider and `twilight-dash mcp token` reuse it until
+    5 minutes before `exp`. That way a `headersHelper` run per connection, or a batch of
+    `claude -p` runs, does not issue a token each.
+
 - _Metadata._ It advertises:
   - `grant_types_supported`: `client_credentials` and the JWT-bearer URN, beside the consent
     grants;
@@ -185,20 +206,34 @@ speaks it).
   - A failed machine verification never falls through to `verifyUpstream`.
 - _Registration._ Dynamic client registration refusing `client_credentials` and the
   JWT-bearer grant is new behaviour, with its own test.
-- _A WBS-unique audience (amends A25; see the machine-credentials delta)._ be-01 gains
-  `WBS_MCP_RESOURCE_URL`, boot-checked to be a canonical HTTPS URL and set to the same value
-  as mcp-01's `MCP_PUBLIC_URL`.
+- _A WBS-unique audience that names the authorization server (amends A25; see the
+  machine-credentials delta)._ RFC 7523 §3 says an assertion's `aud` identifies the
+  authorization server. WBS therefore sets the audience root to mcp-01's issuer,
+  `<MCP_PUBLIC_URL>/oauth`, rather than the resource URL.
+  - be-01 gains `WBS_MCP_AUTHORIZATION_SERVER`. It is boot-checked with the same
+    canonicalisation function `oauth.ts` 270 uses, which moves to `@wbs/contracts`.
+  - mcp-01 sends its own canonical issuer in every grant request. be-01 compares it with its
+    setting, and a mismatch is a reported server fault, not a refusal.
   - A registration's audience, and any credential-level narrowing (A25 (a)), must **equal**
-    that URL or start with that URL followed by `/`. A bare prefix would admit
+    the issuer or start with it followed by `/`. A bare prefix would admit
     `https://<host>.evil.example`.
   - Existing `wbs:org:<id>` rows are not rewritten, because the IdP side must change too.
-    Each one is refused at use (`invalid_grant`) until an admin re-registers it.
-  - `bun run src/trusted-issuer-audience-check-cli.ts` is a dry run by default. It lists every
-    registration and credential the rule, or a changed `WBS_MCP_RESOURCE_URL`, would break.
-    The deploy preflight runs it and refuses a swap that would break any, unless
-    `--accept-breaking=<ids>` names them (Dany's list-what-breaks rule).
-  - Changing `MCP_PUBLIC_URL` is therefore a breaking change for every OIDC registration, and
-    the preflight shows which ones.
+  - **Ordering.** Until M9 lands (slice 7), the rule applies only to **new** registrations.
+    Existing rows keep verifying on `/api`, so OIDC fleets there are not broken before MCP
+    serves them. With slice 7, a non-conforming row is refused at use (`invalid_grant`).
+  - **The preflight.** `trusted-issuer-audience-check-cli.ts` is a dry run by default and lists
+    every registration and credential that the rule, or a changed issuer, would break. Where
+    it runs:
+    - Compose: inside the **candidate** colour's be-01 container before the swap, with the
+      shared SQLite volume and the candidate's `WBS_MCP_AUTHORIZATION_SERVER`.
+    - Kubernetes: in the schema Job, with the candidate image and the same environment.
+
+    Both refuse the swap while any row is listed and not named in
+    `WBS_ACCEPT_BREAKING_AUDIENCES` (comma-separated ids). The deploy CLI sets that from its
+    own `--accept-breaking=<ids>` flag (Dany's list-what-breaks rule).
+
+  - Changing `MCP_PUBLIC_URL` therefore breaks every OIDC registration, and the preflight shows
+    which ones.
 
 _Alternatives:_ the federated client-assertion profile (a documented deviation from RFC 7523
 §3, but it fits the extension's `client_credentials`); `private_key_jwt` with keys
@@ -222,21 +257,35 @@ assertion minted for WBS could also be valid elsewhere).
 - _Admission._ It needs M14's secret. It rereads the credential through a new
   `PresentedMachineProof` variant inside `admitMachineCredential`, so revocation, binding,
   membership and pool expiry (M7) are judged in one place.
-- _Scopes._ They are derived **only** from the reread credential (`read`, `write`), never from
-  the token or the metadata's `scopes_supported`. `http.ts` still advertises `wbs:editor` for
+- _Scopes._ They are derived **only** from the reread credential (`read`, `write`, or `read`
+  for a viewer-bound one), never from the token or the metadata's `scopes_supported`. be-01
+  returns them in the grant, and mcp-01 **narrows the access token to them**, so a read-only
+  credential fails mcp-01's own write check before be-01 is asked. `http.ts` still advertises `wbs:editor` for
   consent (`MCP_SCOPES` at line 11, used at lines 40 and 56).
-- _Failures._ A refused grant is `401 unknown_identity` (A5; there is no `credential_revoked`
-  here). mcp-01 turns it into HTTP `401 invalid_token` on `/mcp`, so a helper or SDK client
-  re-fetches, then meets `invalid_client` or `invalid_grant`.
+- _Failures, and how revocation reaches the client._ A refused grant is
+  `401 unknown_identity` at be-01 (A5; there is no `credential_revoked` here). Today a be-01
+  401 becomes an in-band tool error inside an HTTP 200 (`wbs-client.ts` 288–291, with
+  `enableJsonResponse` at `http.ts` 156), and the first refusal keeps that shape:
+  - the refused call answers a tool error `machine_credential_refused`;
+  - in a JSON-RPC batch, calls already answered keep their results (their writes are
+    committed), and the calls after the refusal are **not sent** and answer the same error;
+  - mcp-01 records the token's `jti` in a per-replica refused set until the token's `exp`;
+  - every later HTTP request with that token gets HTTP `401 invalid_token` with
+    `WWW-Authenticate`, so a helper or SDK client re-fetches and then meets `invalid_client`
+    or `invalid_grant`. Another replica learns it at its own first refused call.
 - _Cost._ The grant is multi-use until `exp`. Its only write is the coarse last-use touch.
-- _Assertion replay guard._ When an assertion carries a `jti`, be-01 consumes `(iss, jti)` once
-  in the existing delegation-use table, held until the assertion's `exp`; a replay is
-  `invalid_grant`. An assertion without a `jti` is admitted, because the guard is optional by
-  RFC 7523. GitHub and Kubernetes tokens carry one. That is one write per issuance and none
-  per call.
-- _Audit._ Each grant issued through a token grant (M1 (i)) writes one `machine_token_issued`
-  audit row. It names the credential, person, source and grant `exp`, never a secret. That is
-  about 2 rows per agent per day at the 12 h default.
+- _No single-use consume of workload assertions._ RFC 7523 makes `jti` replay protection a
+  MAY, and a consume would break Kubernetes. The kubelet keeps the same token, and so the same
+  `jti`, until it rotates at about 80% of the token's lifetime. A second process, a reconnect,
+  a `headersHelper` run, a restart or a batch of `claude -p` runs would then get
+  `invalid_grant`, and the SDK retries once with the same assertion and then throws. GitHub
+  mints a fresh `jti` per fetch, so it was never the problem. The guards are the registered
+  audience, the assertion's `exp` (which caps the grant) and the per-call credential reread.
+- _Audit._ Issuance volume follows the client, not the TTL. Even with M2's token caching, a
+  `headersHelper` on a fresh machine and a batch of `claude -p` runs issue often. So
+  `machine_token_issued` is written **at most once per (credential, run, UTC day)**, through
+  an insert-or-ignore on a unique key. It names the credential, person, source and run, never
+  a secret. Volume is bounded by runs per day, not requests.
 - _Keys absent at activation._ be-01 boot requires `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` once
   the activation marker is set. The activation runbook's preflight lists the missing key and
   refuses to activate. A process that is already running when activation happens without the
@@ -285,7 +334,11 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
     this repo has already had. `last_used_at` is its trace.
 
 **M6. Parity, with no per-principal tool list or descriptions.** A grant yields
-`{ kind: 'machine', credentialId, personId }`, which is the API-key principal byte for byte.
+`{ kind: 'machine', credentialId, personId, runId? }`. That is the API-key principal plus an
+optional run (M15), so it is no longer byte for byte. `CredentialAuthentication` and the pin
+gain `runId?`, and the sites that test `'personId' in credential` read it:
+`claim-lease.routes.ts` 29, `plan-commands.feature.ts` 547, `compensating.ts` 1153 and
+`claim-store.ts` 257.
 A23, A24, L1, the claim pin and the caps apply. `postApiClaimsRenew` is the heartbeat. Refusals
 a principal can meet are stated once in the description.
 
@@ -368,9 +421,11 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 _Alternatives:_ a shared limiter (exact across replicas); per-organization limits (later).
 
 **M11. Gateway mode has no machine admission.** Both machine grants answer
-`unsupported_grant_type`, and the metadata omits them. On `/mcp`, a bearer starting
-`wbs_mk_` (detected by prefix, before any JWT parse) and a JWT carrying `token_use: machine`
-are both 401, and **neither is ever forwarded** to be-01.
+`unsupported_grant_type`, and the metadata omits them. On `/mcp`, a JWT carrying
+`token_use: machine` is 401 and **never forwarded** to be-01. That is a new branch, with a
+real negative. A `wbs_mk_` bearer is already 401 today, because `decodeJwt` throws on it
+(`caller-auth.ts` 31, `http.ts` 101–111). No separate prefix branch is added, so there is
+nothing for a check to observe there.
 
 **M12. Docs and the REST surface's status.**
 
@@ -378,9 +433,11 @@ are both 401, and **neither is ever forwarded** to be-01.
 - `docs/import-with-ai.md` gains a headless section with the dated client facts above:
   - Claude Code: `headersHelper` calling the token endpoint;
   - Agent SDK and Messages API apps: tokens they fetch themselves;
-  - claude.ai Team and Enterprise: consent only. A Request header there is shared by every
-    member and must never carry a machine credential.
-- `WorkloadJwtBearerProvider` is published as the OIDC client.
+  - claude.ai, every plan: **consent only in v1**. A Team or Enterprise Request header is
+    shared by every member and must never carry a machine credential, nor a pasted access
+    token.
+- `WorkloadJwtBearerProvider` and `twilight-dash mcp token` are documented as the OIDC and
+  helper clients (home: Twilight Dash).
 - The OpenAPI document becomes an internal contract artifact.
 - `report-capacity.ts` becomes an MCP client.
 
@@ -422,42 +479,61 @@ _Alternative:_ keep the fallback (today's passthrough; non-conformant).
 
 _Alternative:_ mTLS between mcp-01 and be-01 (stronger, but needs a CA on every host).
 
-**M15. Leases and the claim cap are scoped to a trusted run.** "One process per credential"
-cannot be enforced, so this is adopted now rather than stated.
+**M15. Run-scoped leases, opt-in through `wbs_run`.** "One process per credential" cannot be
+enforced, so a client that runs several processes on one credential can opt in to scoping.
 
-- _Where the run comes from._ A token request may carry `wbs_run`, an opaque value of 1 to
-  128 characters chosen per agent process. Without it, the run is the token's `jti`. be-01
-  signs the run into the grant, so on the wire it is trusted; only the credential's own
-  holder chooses it.
-- _Why not the MCP session id._ mcp-01 is stateless and issues no `Mcp-Session-Id`.
-- _Continuity._ A re-fetching client sends the same `wbs_run`, which keeps its leases.
-- _Claims._ A claim taken under a grant gets `runId` = the grant's run. A different `runId`
-  in the command is refused `run_mismatch`.
-- _Renewal._ For a grant principal, `postApiClaimsRenew` and batch renewal renew only
-  `(person, run)` leases.
-- _The cap._ The claim cap already counts `(work item, person, run)`.
-- _Unchanged._ API-key and consent principals keep today's per-person renewal.
+- _Opting in._ A token request may carry `wbs_run`, an opaque value of 1 to 256 characters,
+  matching `runId`'s limit. be-01 signs it into the grant. It is trusted on the wire, and only
+  the credential's own holder chooses it.
+- _Without `wbs_run`: no run, and today's behaviour._ Per-person renewal, and a free
+  `runId` in commands. **The run is never defaulted to the token's `jti`.** The SDK's
+  `ClientCredentialsProvider` cannot send `wbs_run` (`auth-extensions.js` 150–155), so with
+  that default every re-fetch would start a new run. The old claims would lapse. Re-claiming
+  would be refused `already_claimed` against the claimant's own claim, because `sameHolder`
+  (domain `claim.ts` 285–288) needs an equal `runId`. And the cap would count the extra runs.
+- _With `wbs_run`:_
+  - a claim takes `runId` = the run, and a command naming another `runId` is
+    `run_mismatch`. A fleet that already sends its own `runId` sets `wbs_run` to the same
+    value;
+  - `postApiClaimsRenew` and batch renewal renew only `(person, run)` leases;
+  - `releaseWorkItem` by such a principal refuses a claim of another run (`run_mismatch`);
+  - re-fetching with the same `wbs_run` keeps the leases.
+- _Why not the MCP session id._ mcp-01 is stateless and issues none. Claude Code subagents
+  share their parent's connection, and so one run.
+- _Code it touches._
+  - the `ClaimStore.renewLeases(personId, runId | null, now)` port (`claim-store.ts` 180),
+    its conformance suite, and the SQLite and memory adapters;
+  - the batch renewal at `plan-commands.feature.ts` 547, which reads the run from the
+    principal;
+  - `run_mismatch` in `@wbs/contracts` `refusal.ts`, in fe-01 `plan-refusal.ts`, and in the
+    `claimWorkItem` and `releaseWorkItem` descriptions.
 
-_Alternative:_ the stated invariant of the previous draft (unenforceable).
+  No migration is needed: `claim.run_id` exists (`schema.ts` 2263).
+
+_Alternative:_ the stated invariant of the earlier draft (unenforceable).
 
 **M16. State keyed by account, not person.** A pool's N persons share the admin's account
 (A12), and so do any agents bound to one account today.
 
-| State                                                | Keyed by             | Decision                                                                                                                                       |
-| ---------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Undo and redo (`command_journal`, `(project, user)`) | account              | **Fixed by a separate bug-fix PR from another worker**, so that undo is per acting person. This change depends on it and slice 6 waits for it. |
-| Membership and the A23 role cap                      | account              | intended                                                                                                                                       |
-| `created_by` and audit actors                        | account              | accepted; the person is in the claim and audit detail                                                                                          |
-| Project-opened and recents                           | account              | shared, harmless                                                                                                                               |
-| Claim cap and leases                                 | person and run (M15) | unaffected                                                                                                                                     |
+| State                                                | Keyed by                             | Decision                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Undo and redo (`command_journal`, `(project, user)`) | account                              | In progress on branch `fix/wbs-undo-per-person` (another worker; PR number to follow). It makes undo per **person**, not per run: a run-scoped principal undoes its person's latest entry whichever run wrote it. Stated, not fixed here. Slice 6 waits for that branch.                                                  |
+| `releaseWorkItem`                                    | person                               | per run for an opted-in principal (M15), per person otherwise                                                                                                                                                                                                                                                             |
+| `parent_claim_foreign` (domain `claim.ts` 266)       | account                              | Today any pool agent may claim under another agent's subtree claim, or under the admin's. **Decision:** a pinned principal may claim under a parent written by the same person, or by its account unpinned (D7's human delegating to an agent). Under another pinned person's claim the answer is `parent_claim_foreign`. |
+| Membership and the A23 role cap                      | account                              | intended                                                                                                                                                                                                                                                                                                                  |
+| `created_by` and audit actors                        | account                              | accepted; the person is in the claim and audit detail                                                                                                                                                                                                                                                                     |
+| Project-opened and recents                           | account                              | shared, harmless                                                                                                                                                                                                                                                                                                          |
+| Claim cap and leases                                 | person, plus run when opted in (M15) | unaffected                                                                                                                                                                                                                                                                                                                |
 
 Task 6.0 greps every `userId` key and adds any check missing from this table before slice 6.
 
 ## Risks / Trade-offs
 
-- **claude.ai Team and Enterprise Request headers are shared credentials.** (ii) is withheld
-  from v1 for that reason, and is restricted to individual Pro or Max if Dany wants it. A
-  machine credential in a shared header would act for people WBS never admitted.
+- **claude.ai Request headers can be shared credentials.** In v1 all of claude.ai is
+  consent-only. A machine credential in a Team or Enterprise header would act for people WBS
+  never admitted. So would a 24 h access token pasted there: it is the same shared-credential
+  problem, only bounded by `exp`. Raw keys (ii) are Dany's option for individual Pro or Max
+  only.
 - **Dash concentrates N keys (M7).** Re-keying is the recovery path.
 - **M2's audience rule breaks existing OIDC registrations** until they are re-registered. The
   preflight lists them; prod likely has none.
