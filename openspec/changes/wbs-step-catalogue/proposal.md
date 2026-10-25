@@ -36,7 +36,7 @@ story and a spike then estimate different steps, and `Dev` is not redefined per 
   never rewritten (SC11). Identical shared codes merge automatically; divergent codes and type conflicts wait for an operator's rules file, divergent sets for regrouping; no package gains a step (SC12, SC15, SC23); merged ids are
   translated on read (SC13).
 
-Depends on #723 (`wbs-work-packages` slices 1–3a) and #724; replaces slice 3b.
+Depends on #723 (slices 1–3a) and #724; replaces slice 3b.
 
 ## Non-Goals
 
