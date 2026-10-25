@@ -5,6 +5,11 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import {
+  MODEL_COMMAND,
+  MODEL_MANIFEST_TRACE,
+  modelChildEnvironment,
+} from '../../test/model-manifest-observer';
 import { createProductByteTransportFixture } from '../fixtures/product-byte-transport';
 import { createReadinessByteTransportFixture } from '../fixtures/product-readiness-byte-transport';
 import { readProductHostProc } from './product-host-proc';
@@ -19,6 +24,7 @@ async function runModelChild(
   deadlineMs: number,
   project: string,
   environment?: NodeJS.ProcessEnv,
+  diagnosticSelection?: typeof MODEL_MANIFEST_TRACE,
 ): Promise<{
   readonly exit: number;
   readonly expired: boolean;
@@ -28,7 +34,7 @@ async function runModelChild(
   const child = Bun.spawn([...command], {
     cwd: project,
     // Proof: inherited FORCE_COLOR=1 made the actual child emit ANSI/checkmarks; the exact-name reporter control failed without this fixed child format.
-    env: { ...(environment ?? process.env), FORCE_COLOR: '0' },
+    env: modelChildEnvironment(command, environment ?? process.env, diagnosticSelection),
     stdin: 'ignore',
     stdout: 'ignore',
     stderr: 'pipe',
@@ -128,19 +134,11 @@ test(
     const fixture = await createProductByteTransportFixture();
     try {
       const child = await runModelChild(
-        [
-          process.execPath,
-          'test',
-          'test/dependency-product-process-model-child.test.ts',
-          '-t',
-          '^modeled ',
-          '--preload',
-          '../test/scratch/preload.ts',
-          '--timeout=300000',
-        ],
+        MODEL_COMMAND,
         MODEL_CHILD_WORK_MS,
         project,
         fixture.environment,
+        MODEL_MANIFEST_TRACE,
       );
       // Preserve the bounded joined transcript before refusal so failing case identities survive.
       process.stderr.write(child.output);
