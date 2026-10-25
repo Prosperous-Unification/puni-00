@@ -148,8 +148,9 @@ Planner's (assumed, overrulable by id):
 
 ## Decisions after the Codex review
 
-Each assumed by the planner on 2026-10-25, overrulable by id. CP13, CP14 and CP20 answer
-the reviewer's three product questions and await Dany.
+Each assumed by the planner on 2026-10-25, overrulable by id. CP13 and CP14 were settled
+by Dany, CP18's flag and CP20 by the coordinator under Dany's principles (flexibility;
+whatever allows the most restrictiveness), all on 2026-10-25.
 
 - **CP13. Membership administration never delegates privilege.** _Settled by Dany 2026-10-25 ("the restriction makes sense now let's impl it")._
   `addGroupMember` and `removeGroupMember` are authority changes: for every grant naming
@@ -211,14 +212,23 @@ the reviewer's three product questions and await Dany.
   transformed before the union: a grant naming the work package or its project, direct
   or through a group, is unchanged; an organization-scope grant of the built-in
   `org-admin` or `org-super-admin`, held directly or through a group, is intersected with
-  `READ_ONLY` = {`organization.navigate`, `project.read`, `package.read`}; every other
+  `READ_ONLY` = {`organization.navigate`, `project.read`, `package.read`}, and so is a
+  custom organization-kind role whose `reaches_restricted` is set; every other
   organization-scope grant is skipped, the organization-members subject's and custom
-  organization-kind roles' included, even when their set equals `org-admin`'s. On an
+  organization-kind roles' without the flag included, even when their set equals
+  `org-admin`'s. On an
   unrestricted target every grant is unchanged. P11's escalation comparison stays
   unrestricted (CP13). The transformation is a pure `@wbs/domain` function applied after
-  row validation (CP9). _Flag for Dany:_ whether a custom role may opt into the admin read
-  exception; assumed no, because the exception exists so an administrator can find and
-  grant onto a restricted package, which the built-ins already cover.
+  row validation (CP9). _Settled 2026-10-25 by the coordinator under Dany's two principles (flexibility;
+  whatever allows the most restrictiveness):_ a custom organization-kind role may opt into
+  the admin read exception through `access_role.reaches_restricted` (0 or 1, default 0;
+  seeded 1 for `org-admin` and `org-super-admin` only). Default closed keeps every custom
+  role out of restricted packages; opting in lets an organization administer them with a
+  role narrower than `org-admin` instead of handing out the whole built-in, the more
+  restrictive outcome. The flag is written at create or edit under CP5's beneath-the-definer
+  rule, is refused on a project- or work-package-kind role (`422 reaches_restricted_kind`),
+  and the listing's `admin_read` reads the column, never the two ids. The column lands in
+  `add_access_grants` while #736 is unmerged, otherwise in an additive migration.
 - **CP19. Delegated granters read the grantable roles.**
   `GET /api/organization/access-roles?grantable=true&scopeKind=&scopeId=` answers, for a
   principal holding at that scope any grant permission (`project.grant`,
@@ -227,7 +237,8 @@ the reviewer's three product questions and await Dany.
   object kind and set only: no grant counts, no links. Without such a permission it answers
   `403 forbidden` naming `organization.manage_access`; an invisible scope answers
   `404 not_found`. The full listing stays under `organization.read`.
-- **CP20. Permissions are independently usable.** _Awaits Dany._ No permission implies
+- **CP20. Permissions are independently usable.** _Settled 2026-10-25 under Dany's
+  principles: independent permissions are the most flexible and allow the narrowest roles._ No permission implies
   another: a role with `project.manage_budgets` and no `package.read` is legitimate and
   sees no package; visibility always needs the read permission (CP17);
   `organization.navigate` is implied by every grant (P9's `any` mode), so listing it in a
@@ -244,9 +255,11 @@ CREATE TABLE access_role (
   name            text NOT NULL,                    -- built-in: = id
   object_kind     text NOT NULL CHECK (object_kind IN ('organization','project','work_package')),
   level           integer CHECK (level BETWEEN 1 AND 5),   -- built-ins only, display order
+  reaches_restricted integer NOT NULL DEFAULT 0 CHECK (reaches_restricted IN (0, 1)), -- CP18 opt-in
   organization_id text REFERENCES organization(id), -- NULL = built-in
   created_at integer NOT NULL, updated_at integer, created_by text REFERENCES users(id),
   CHECK ((organization_id IS NULL) = (level IS NOT NULL)),
+  CHECK (object_kind = 'organization' OR reaches_restricted = 0),
   UNIQUE (organization_id, name)
 );
 CREATE TABLE access_role_permission (
@@ -303,7 +316,7 @@ Listing, one statement (`wbs-permissions` "Listing without N queries" is replace
 WITH subject(kind, id) AS (…as above…),
 reaching AS (
   SELECT g.scope_kind, g.scope_id, g.subject_kind,
-         r.organization_id IS NULL AND r.id IN ('org-admin', 'org-super-admin') AS admin_read,
+         r.reaches_restricted AS admin_read,                                    -- CP18
          SUM(p.permission = 'package.read') > 0 AS reads_packages,
          COUNT(p.permission) AS row_count,
          SUM(p.permission NOT IN (SELECT value FROM json_each(:vocabulary))) AS unknown_rows
