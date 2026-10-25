@@ -1,5 +1,31 @@
 # R5 incident catalogue
 
+## Bun SQLite whole-script errors can be masked
+
+Observed on 2026-10-22 with Bun1.4.2 (744846f84): Database.run executed CREATE TABLE
+with a CHECK, a violating INSERT and DROP TABLE as one script, returned normally
+and left no table. The intermediate failure did not protect subsequent DDL. A
+single violating INSERT threw with no suffix or just a semicolon, but returned
+normally when followed by semicolon and newline. Initial RunStore down negatives
+therefore failed; an exit0 from that caller did not establish guarded rollback.
+
+The [runtime authority format](../../openspec/changes/twilight-agentic-workflows/runtime-authority-design.md#physical-format-and-providers)
+uses complete trimmed statements: bootstrap/reference stop at their first SQL
+error, and the raw down caller must prevalidate the complete installed format and
+execute trimmed breakpoint blocks in an explicit transaction, rolling back and
+rethrowing on error. A raw SQL count/use guard does not independently authenticate
+the full format. Whole-script invocation is outside this supported down contract.
+
+Observed faults removed the actual down guard (used pin reached deletion without
+throwing), replaced bootstrap with the actual valid whole-script migration (an
+intermediate CHECK left a published target) and replaced reference execution with
+whole-script SQL (an incomplete reference was accepted). Exact restoration passed
+each selected test. Malformed SQL/module-setup trials and masked variants remain
+recorded without proof claims. Commands, failed trials and supported-caller limits
+are in the [verification record](../../openspec/changes/twilight-agentic-workflows/verify.md#durable-runtime-authority-implementation-candidate-2026-10-22).
+
+## Preserved historical catalogue
+
 Every payload below is preserved byte-for-byte from `AGENTS.md` at `7ab67cb0b6d843eca87f587124c0f3c0fbd35e67`.
 The stable anchors and source markers sit outside those historical payloads.
 
@@ -801,27 +827,3 @@ believed — not after it has been written down as a finding in three files.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
-
-## Bun SQLite whole-script errors can be masked
-
-Observed on 2026-10-22 with Bun1.4.2 (744846f84): Database.run executed CREATE TABLE
-with a CHECK, a violating INSERT and DROP TABLE as one script, returned normally
-and left no table. The intermediate failure did not protect subsequent DDL. A
-single violating INSERT threw with no suffix or just a semicolon, but returned
-normally when followed by semicolon and newline. Initial RunStore down negatives
-therefore failed; an exit0 from that caller did not establish guarded rollback.
-
-The [runtime authority format](../../openspec/changes/twilight-agentic-workflows/runtime-authority-design.md#physical-format-and-providers)
-uses complete trimmed statements: bootstrap/reference stop at their first SQL
-error, and the raw down caller must prevalidate the complete installed format and
-execute trimmed breakpoint blocks in an explicit transaction, rolling back and
-rethrowing on error. A raw SQL count/use guard does not independently authenticate
-the full format. Whole-script invocation is outside this supported down contract.
-
-Observed faults removed the actual down guard (used pin reached deletion without
-throwing), replaced bootstrap with the actual valid whole-script migration (an
-intermediate CHECK left a published target) and replaced reference execution with
-whole-script SQL (an incomplete reference was accepted). Exact restoration passed
-each selected test. Malformed SQL/module-setup trials and masked variants remain
-recorded without proof claims. Commands, failed trials and supported-caller limits
-are in the [verification record](../../openspec/changes/twilight-agentic-workflows/verify.md#durable-runtime-authority-implementation-candidate-2026-10-22).
