@@ -4204,6 +4204,7 @@ export const accessRole = sqliteTable(
       'access_role_built_in_or_custom',
       sql`(${t.organizationId} IS NULL) = (${t.level} IS NOT NULL)`,
     ),
+    check('access_role_built_in_name', sql`${t.organizationId} IS NOT NULL OR ${t.name} = ${t.id}`),
     unique().on(t.organizationId, t.name),
   ],
 );
@@ -4314,6 +4315,10 @@ export const accessGrant = sqliteTable(
     check(
       'access_grant_origin',
       sql`${t.origin} IN ('backfill', 'route', 'invitation', 'creation')`,
+    ),
+    check(
+      'access_grant_organization_scope',
+      sql`${t.scopeKind} <> 'organization' OR ${t.scopeId} = ${t.organizationId}`,
     ),
     unique().on(t.organizationId, t.scopeKind, t.scopeId, t.subjectKind, t.subjectId, t.roleId),
     index('access_grant_subject').on(t.organizationId, t.subjectKind, t.subjectId),

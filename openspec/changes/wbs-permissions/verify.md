@@ -6,14 +6,14 @@ Commands, results and R5 proofs, per task. Tasks 1.1 and 1.2 also carry
 ## 1.1 Migration `add_access_grants` (2026-10-25, branch `feat/wbs-permissions-1`)
 
 `apps/wbs/be-01/drizzle/20261025100000_add_access_grants/{migration,down}.sql`, test
-`apps/wbs/be-01/src/access-grant-migration.db.test.ts` (17 cases).
+`apps/wbs/be-01/src/access-grant-migration.db.test.ts` (19 cases).
 
-| Command                                                                                       | Result                           |
-| --------------------------------------------------------------------------------------------- | -------------------------------- |
-| `env -u CLAUDECODE bun test src/access-grant-migration.db.test.ts` (be-01)                    | 17 pass, 0 fail                  |
-| `env -u CLAUDECODE bun test --timeout=30000` (store-sqlite, every migration stack list moved) | 1904 pass, 0 fail, 145 files     |
-| `env -u CLAUDECODE bun test .db.test.ts --timeout=30000` (be-01) then the five CLI-list files | 2470 pass; the 5 refixed: 0 fail |
-| `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on both scripts                        | exit 0                           |
+| Command                                                                                           | Result                                   |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `env -u CLAUDECODE bun test src/access-grant-migration.db.test.ts` (be-01)                        | 19 pass, 0 fail                          |
+| `env -u CLAUDECODE bun test --timeout=30000` (store-sqlite, every migration stack list moved)     | 1904 pass, 0 fail, 145 files             |
+| `env -u CLAUDECODE bun test .db.test.ts --timeout=30000` (be-01, full, after the two constraints) | 2477 pass, 0 fail, 2480 tests, 159 files |
+| `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on both scripts                            | exit 0                                   |
 
 Each fault injected alone into the shipped script, the named case watched failing, the
 script restored:
@@ -27,6 +27,8 @@ script restored:
 | `scope_kind`, `subject_kind`, `origin` CHECK each `CHECK (1)`; UNIQUE removed | refuses a grant outside the vocabularies and a duplicate (four runs)             |
 | both organization-members triggers removed                                    | refuses an organization-members grant naming another organization                |
 | composite group key replaced by `group_id REFERENCES access_group(id)`        | refuses a group member from another organization or outside it                   |
+| `access_role_built_in_name` made `CHECK (1)` (beyond the design text)         | refuses a built-in role whose name is not its id                                 |
+| `access_grant_organization_scope` made `CHECK (1)` (beyond the design text)   | refuses an organization-scope grant naming another organization                  |
 | owner INSERT's membership EXISTS removed                                      | writes package-manager for owners who are current members only                   |
 | credential copy's cap CASE replaced by `g.role_id`                            | copies a bound account’s rows to its live credentials capped at contributor      |
 | down guard: non-backfill grant count made `0`                                 | refuses rollback over one route-origin grant, keeping it (the grant was deleted) |
@@ -39,6 +41,10 @@ Moved alongside: every store-sqlite and be-01 test that enumerates the migration
 gained `20261025100000_add_access_grants`; `step.db.test.ts`'s "role nowhere" sweep names
 the access role objects and `access_grant.role_id`, `access_role_permission.role_id` as
 exemptions by exact name; three table sweeps skip `access_*`.
+
+Two constraints beyond the design text, added on review: `access_role_built_in_name`
+(a built-in's `name` equals its `id`, CP7) and `access_grant_organization_scope` (an
+organization-scope grant's `scope_id` equals its `organization_id`).
 
 ## 1.2 Catalogue in `@wbs/domain` (2026-10-25)
 

@@ -245,6 +245,20 @@ describe(MIGRATION, () => {
       ).toThrow('CHECK constraint failed');
     });
 
+    // Proof: `access_role_built_in_name` made `CHECK (1)` in migration.sql made
+    // this case store a built-in whose name differs from its id; watched 2026-10-25.
+    it('refuses a built-in role whose name is not its id', () => {
+      expect(() =>
+        db.run(
+          "INSERT INTO access_role (id, name, object_kind, level, created_at) VALUES ('package-auditor', 'Package auditor', 'work_package', 1, 1)",
+        ),
+      ).toThrow('CHECK constraint failed: access_role_built_in_name');
+      expect(() => db.run("UPDATE access_role SET name = 'Admin' WHERE id = 'org-admin'")).toThrow(
+        'CHECK constraint failed: access_role_built_in_name',
+      );
+      customRole('01JCUSTOM', 'Package auditor');
+    });
+
     it('takes a deleted role’s permission rows with it, and keeps a role a grant names', () => {
       customRole('01JCUSTOM', 'Readers');
       db.run(
@@ -356,6 +370,24 @@ describe(MIGRATION, () => {
       grant('g-1', 'route', 'organization_members', 'org-a');
       expect(() => db.run("UPDATE access_grant SET subject_id = 'org-b' WHERE id = 'g-1'")).toThrow(
         'organization_members grant names its own organization',
+      );
+    });
+
+    // Proof: `access_grant_organization_scope` made `CHECK (1)` in
+    // migration.sql made this case store an org-a grant scoped to org-b;
+    // watched 2026-10-25.
+    it('refuses an organization-scope grant naming another organization', () => {
+      const organizationGrant = (id: string, scopeId: string) =>
+        db.run(
+          `INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at)
+           VALUES ('${id}', 'org-a', 'organization', '${scopeId}', 'user', 'vi', 'org-viewer', 'route', 1)`,
+        );
+      expect(() => organizationGrant('g-b', 'org-b')).toThrow(
+        'CHECK constraint failed: access_grant_organization_scope',
+      );
+      organizationGrant('g-a', 'org-a');
+      expect(() => db.run("UPDATE access_grant SET scope_id = 'org-b' WHERE id = 'g-a'")).toThrow(
+        'CHECK constraint failed: access_grant_organization_scope',
       );
     });
 

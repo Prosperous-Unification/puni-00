@@ -32,7 +32,10 @@
 -- removed made `refuses an organization-members grant naming another
 -- organization` store it; the composite group-member key replaced by a plain
 -- `group_id` reference made `refuses a group member from another organization
--- or outside it` store a cross-organization member; the owner INSERT's EXISTS
+-- or outside it` store a cross-organization member; `access_role_built_in_name`
+-- made `CHECK (1)` made `refuses a built-in role whose name is not its id`
+-- store one; `access_grant_organization_scope` made `CHECK (1)` made `refuses an
+-- organization-scope grant naming another organization` store one; the owner INSERT's EXISTS
 -- removed made `writes package-manager for owners who are current members
 -- only` grant the non-member owners; the credential copy's CASE replaced by
 -- `g.role_id` made `copies a bound account’s rows to its live credentials
@@ -49,6 +52,7 @@ CREATE TABLE `access_role` (
 	`updated_at` integer,
 	`created_by` text REFERENCES `users`(`id`),
 	CONSTRAINT `access_role_built_in_or_custom` CHECK ((`organization_id` IS NULL) = (`level` IS NOT NULL)),
+	CONSTRAINT `access_role_built_in_name` CHECK (`organization_id` IS NOT NULL OR `name` = `id`),
 	UNIQUE (`organization_id`, `name`)
 );
 --> statement-breakpoint
@@ -194,6 +198,7 @@ CREATE TABLE `access_grant` (
 	`origin` text NOT NULL CHECK (`origin` IN ('backfill', 'route', 'invitation', 'creation')),
 	`created_at` integer NOT NULL,
 	`created_by` text REFERENCES `users`(`id`),
+	CONSTRAINT `access_grant_organization_scope` CHECK (`scope_kind` <> 'organization' OR `scope_id` = `organization_id`),
 	UNIQUE (`organization_id`, `scope_kind`, `scope_id`, `subject_kind`, `subject_id`, `role_id`)
 );
 --> statement-breakpoint
