@@ -107,7 +107,7 @@ describe('the admission a batch graph is built with', () => {
   it('grants a journal walk until it settles, and its repair nothing', async () => {
     const { runner, admissions, whileBuilt } = runnerOver('entry-1');
 
-    await runner.undoWithin(PROJECT, ACTOR, SCOPED);
+    await runner.undoWithin({ projectId: PROJECT, userId: ACTOR, personId: null }, SCOPED);
 
     expect(admissions).toHaveLength(2);
     expect(whileBuilt[0]?.granted).toBe(true);
@@ -119,7 +119,7 @@ describe('the admission a batch graph is built with', () => {
   it('builds a legacy journal walk with the creator rule', async () => {
     const { runner, admissions } = runnerOver();
 
-    await runner.undoWithin(PROJECT, ACTOR, LEGACY_ACCESS);
+    await runner.undoWithin({ projectId: PROJECT, userId: ACTOR, personId: null }, LEGACY_ACCESS);
 
     expect(admissions).toEqual([CREATOR_ADMISSION]);
   });

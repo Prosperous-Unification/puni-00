@@ -7,6 +7,7 @@ import {
   type NewJournalEntry,
   type PlanEvent,
   type Project,
+  type UndoStack,
   type WriteStamp,
 } from '@wbs/core';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -22,6 +23,11 @@ import { ProjectRepository } from './project';
 import { UserRepository } from './user';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+
+/** The account's own stack on `p1`, with no agent person acting. */
+const OWNER_STACK: UndoStack = { projectId: 'p1', userId: 'owner', personId: null };
+/** The stack of `codex`, an agent person acting as the `owner` account. */
+const CODEX_STACK: UndoStack = { projectId: 'p1', userId: 'owner', personId: 'codex' };
 
 /** The stamp the setup's writes carry; `owner` is the account it creates first. */
 const wrote: WriteStamp = { at: 1, by: 'owner' };
@@ -51,6 +57,7 @@ describe('appending a command', () => {
     id,
     projectId: 'p1',
     userId: 'owner',
+    personId: null,
     kind: 'estimate',
     payload: { label: `estimate ${id}`, forward: { do: 'set_estimate' } },
     inverse: { do: 'clear_estimate' },
@@ -95,7 +102,11 @@ describe('appending a command', () => {
   it('writes the undo entry and the history row in one transaction', async () => {
     await journal.append(entry('j1', 1_000), event('j1', 1_000));
 
-    expect((await journal.entriesFor('p1', 'owner')).map((each) => each.id)).toEqual(['j1']);
+    expect(
+      (await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })).map(
+        (each) => each.id,
+      ),
+    ).toEqual(['j1']);
     expect((await events.listFor('p1', {})).map((each) => each.id)).toEqual(['e-j1']);
   });
 
@@ -119,7 +130,9 @@ describe('appending a command', () => {
     expect(refused).rejects.toThrow();
     await refused.catch(() => undefined);
 
-    expect(await journal.entriesFor('p1', 'owner')).toEqual([]);
+    expect(await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })).toEqual(
+      [],
+    );
     expect(await events.listFor('p1', {})).toEqual([]);
   });
 
@@ -137,7 +150,9 @@ describe('appending a command', () => {
       await journal.append(entry(`j${String(n)}`, 1_000 + n), event(`j${String(n)}`, 1_000 + n));
     }
 
-    expect(await journal.entriesFor('p1', 'owner')).toHaveLength(JOURNAL_DEPTH);
+    expect(
+      await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null }),
+    ).toHaveLength(JOURNAL_DEPTH);
     expect(await events.listFor('p1', {})).toHaveLength(JOURNAL_DEPTH + 10);
     // Including the very first, which left the stack ten commands ago.
     expect((await events.listFor('p1', {})).at(-1)?.id).toBe('e-j0');
@@ -148,12 +163,14 @@ describe('appending a command', () => {
     // this account's redo branch, so a change that was undone and then written
     // over vanishes from the stack. It does not vanish from the history.
     await journal.append(entry('undone-later', 1_000), event('undone-later', 1_000));
-    await journal.flip('undone-later', true, { expected: {}, from: {} });
+    await journal.flip(OWNER_STACK, 'undone-later', true, { expected: {}, from: {} });
     await journal.append(entry('the-new-one', 2_000), event('the-new-one', 2_000));
 
-    expect((await journal.entriesFor('p1', 'owner')).map((each) => each.id)).toEqual([
-      'the-new-one',
-    ]);
+    expect(
+      (await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })).map(
+        (each) => each.id,
+      ),
+    ).toEqual(['the-new-one']);
     expect((await events.listFor('p1', {})).map((each) => each.id)).toEqual([
       'e-the-new-one',
       'e-undone-later',
@@ -173,10 +190,79 @@ describe('appending a command', () => {
       event('theirs', 2_000, { userId: 'someone-else' }),
     );
 
-    expect((await journal.entriesFor('p1', 'owner')).map((each) => each.id)).toEqual(['mine']);
-    expect((await journal.entriesFor('p1', 'someone-else')).map((each) => each.id)).toEqual([
-      'theirs',
-    ]);
+    expect(
+      (await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })).map(
+        (each) => each.id,
+      ),
+    ).toEqual(['mine']);
+    expect(
+      (await journal.entriesFor({ projectId: 'p1', userId: 'someone-else', personId: null })).map(
+        (each) => each.id,
+      ),
+    ).toEqual(['theirs']);
     expect((await events.listFor('p1', {})).map((each) => each.id)).toEqual(['e-theirs', 'e-mine']);
+  });
+
+  describe('per acting person', () => {
+    beforeEach(() => {
+      sqlite.run("INSERT INTO person (id, name, kind) VALUES ('codex', 'Codex', 'agent')");
+    });
+
+    // The outgoing colour mid-swap: its `INSERT` names no `person_id`, so the
+    // column is NULL and the entry is the account's own, as every entry was
+    // before the column. Its undo, which reads by the pair alone, still sees
+    // the agent's rows until it stops.
+    it('puts an entry the outgoing colour wrote on the account’s own stack', async () => {
+      await journal.append({ ...entry('agent', 1_000), personId: 'codex' }, event('agent', 1_000));
+      sqlite.run(
+        `INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+         VALUES ('outgoing', 'p1', 'owner', (SELECT coalesce(max(seq), 0) + 1 FROM command_journal WHERE project_id = 'p1' AND user_id = 'owner'), 'estimate', '{}', '{}', '{}', 0, 2000)`,
+      );
+
+      expect((await journal.entriesFor(OWNER_STACK)).map((each) => [each.id, each.seq])).toEqual([
+        ['outgoing', 2],
+      ]);
+      expect((await journal.entriesFor(CODEX_STACK)).map((each) => [each.id, each.seq])).toEqual([
+        ['agent', 1],
+      ]);
+      const outgoingUndo = sqlite
+        .query<{ id: string }, []>(
+          "SELECT id FROM command_journal WHERE project_id = 'p1' AND user_id = 'owner' AND undone = 0 ORDER BY seq",
+        )
+        .all();
+      expect(outgoingUndo.map(({ id }) => id)).toEqual(['agent', 'outgoing']);
+    });
+
+    it('numbers a new stack after the account’s other stacks, never colliding', async () => {
+      await journal.append(entry('mine', 1_000), event('mine', 1_000));
+      await journal.append({ ...entry('agent', 2_000), personId: 'codex' }, event('agent', 2_000));
+      await journal.append(entry('mine-again', 3_000), event('mine-again', 3_000));
+
+      expect((await journal.entriesFor(OWNER_STACK)).map((each) => each.seq)).toEqual([1, 3]);
+      expect((await journal.entriesFor(CODEX_STACK)).map((each) => each.seq)).toEqual([2]);
+    });
+
+    it('takes a deleted agent’s stack with it, and leaves its human’s', async () => {
+      await journal.append(entry('mine', 1_000), event('mine', 1_000));
+      await journal.append({ ...entry('agent', 2_000), personId: 'codex' }, event('agent', 2_000));
+      sqlite.run("DELETE FROM person WHERE id = 'codex'");
+
+      expect((await journal.entriesFor(CODEX_STACK)).map((each) => each.id)).toEqual([]);
+      expect((await journal.entriesFor(OWNER_STACK)).map((each) => each.id)).toEqual(['mine']);
+    });
+
+    it('refuses an entry for a person that does not exist', async () => {
+      const refused = journal.append(
+        { ...entry('ghost', 1_000), personId: 'nobody' },
+        event('ghost', 1_000),
+      );
+      const failure: unknown = await refused.then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      expect(String((failure as Error).cause)).toContain('FOREIGN KEY');
+      expect(await journal.entriesFor(OWNER_STACK)).toEqual([]);
+    });
   });
 });

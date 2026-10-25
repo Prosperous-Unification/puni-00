@@ -121,6 +121,7 @@ describe(MIGRATION, () => {
             '20261023170000_add_work_item_budget',
             '20261025120000_add_resource_use',
             '20261025130000_add_resource_runtime',
+            '20261026120000_add_command_journal_person',
           ].includes(name),
       ),
     );
@@ -128,6 +129,7 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',

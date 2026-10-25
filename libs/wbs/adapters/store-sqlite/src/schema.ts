@@ -2444,14 +2444,17 @@ export type TypedDependencyRow = typeof typedDependency.$inferSelect;
  * One command somebody ran, and everything needed to reverse it — the undo
  * stack, held on the server so it survives a reload.
  *
- * **One stack per (project, account).** Undo is personal: reversing somebody
- * else's last edit because it happened to be the newest is how a shared plan
- * loses work nobody meant to lose. Two browser tabs of one account share one
- * stack, which is accepted and stated in
- * `openspec/changes/conditional-undo/design.md`.
+ * **One stack per (project, account, acting person).** Undo is personal:
+ * reversing somebody else's last edit because it happened to be the newest is
+ * how a shared plan loses work nobody meant to lose. Two browser tabs of one
+ * account share one stack, which is accepted and stated in
+ * `openspec/changes/conditional-undo/design.md`. `person_id` is the agent
+ * person a machine or consent credential acts as, null for the account acting
+ * as itself, because those credentials act as their human's account (`UndoStack`).
+ * Compared with `IS`, so a null matches only a null.
  *
- * `seq` orders that stack and is assigned by SQLite from the pair's current
- * maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
+ * `seq` orders the account's stacks together and is assigned by SQLite from
+ * the pair's current maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
  * and for the same reason. Two processes sharing the file mid-swap would
  * otherwise both read the same maximum and both write it, and the unique index
  * on `(project_id, user_id, seq)` would then refuse the second insert, failing
@@ -2485,6 +2488,12 @@ export const commandJournal = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * Added by `20261026120000_add_command_journal_person`. Cascades: a deleted
+     * agent's stack can never be pressed again, and `SET NULL` would hand its
+     * edits to its human's stack, which is the bug this column fixes.
+     */
+    personId: text('person_id').references(() => person.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     kind: text('kind').notNull(),
     payload: text('payload').notNull(),

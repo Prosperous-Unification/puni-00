@@ -221,6 +221,7 @@ describe('combined shared people recovery', () => {
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261001010000_add_browser_credential_revocations'),
     ).toEqual([
+      '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',

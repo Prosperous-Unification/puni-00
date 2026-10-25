@@ -66,6 +66,7 @@ describe('shared people mode storage', () => {
     // browser lifecycle is taken off first; the ledger claim is about the
     // refused shared-people step, not about everything above it.
     expect(rollbackTo(path, MIGRATIONS_FOLDER, '20261005110000_add_shared_people')).toEqual([
+      '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',

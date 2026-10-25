@@ -1,5 +1,5 @@
-import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
+import { actingPersonOf, type CredentialPin } from '@wbs/contracts';
 import type {
   BudgetExhausted,
   LeaseStanding,
@@ -10,6 +10,7 @@ import type {
 } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
+import type { UndoStack } from '../../ports/command-journal-values';
 import type {
   Person,
   PersonWithTeams,
@@ -531,7 +532,15 @@ export class PlanCommandRunner {
                   reason: 'calendar_range',
                 };
               } else {
-                await graph.workItems.recordCollected(projectId, actorId, collected.recordings);
+                // Onto the stack of the person the credential acts as, so an
+                // agent's batch never lands on its human's own undo.
+                // Proof: with `null` for the person, every case of
+                // `undo-acting-person.controller.db.test.ts` failed (0 pass,
+                // 5 fail); watched 2026-10-26.
+                await graph.workItems.recordCollected(
+                  { projectId, userId: actorId, personId: actingPersonOf(credential) },
+                  collected.recordings,
+                );
                 applied = collected;
               }
             } else {
@@ -604,7 +613,14 @@ export class PlanCommandRunner {
     // discarded stores; its collector will never be drained again.
     const afterCommit = this.opts.publicServices;
     if (done.dirty) await afterCommit.workItems.announceTreeNow(projectId);
-    const state = await afterCommit.workItems.undoState(projectId, actorId);
+    // Proof: with `null` for the person, `agent B's edit keeps agent A's redo,
+    // and the human's` (undo-acting-person.controller.db.test.ts) read the
+    // account's redoable stack (4 pass, 1 fail); watched 2026-10-26.
+    const state = await afterCommit.workItems.undoState({
+      projectId,
+      userId: actorId,
+      personId: actingPersonOf(credential),
+    });
     return { ok: true, results: done.result, ...state };
   }
 
@@ -674,21 +690,21 @@ export class PlanCommandRunner {
   }
 
   /**
-   * {@link undo} through the caller's access. Under scoped access the project
+   * {@link undo} of `stack` through the caller's access. Under scoped access the project
    * and role are checked in the unit of work, the entry may not write a row of
    * another project, and a replay that leaves the project referencing
    * anything outside the organization is rolled back as `not_found`.
    */
-  undoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
-    return this.walk(projectId, actorId, access, 'undo', (graph) =>
-      graph.workItems.undoWithin(projectId, actorId, access),
+  undoWithin(stack: UndoStack, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walk(stack.projectId, stack.userId, access, 'undo', (graph) =>
+      graph.workItems.undoWithin(stack, access),
     );
   }
 
-  /** {@link redo} through the caller's access; see {@link undoWithin}. */
-  redoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
-    return this.walk(projectId, actorId, access, 'redo', (graph) =>
-      graph.workItems.redoWithin(projectId, actorId, access),
+  /** {@link redo} of `stack` through the caller's access; see {@link undoWithin}. */
+  redoWithin(stack: UndoStack, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walk(stack.projectId, stack.userId, access, 'redo', (graph) =>
+      graph.workItems.redoWithin(stack, access),
     );
   }
 

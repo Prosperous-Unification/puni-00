@@ -707,7 +707,10 @@ const undoRefusals = [
     ),
   },
 ] as const;
-/** Reverses this account's last unchanged project batch. */
+/**
+ * Reverses the caller's own last unchanged project batch: its account's, or the agent person's
+ * when a machine or consent credential acts (`actingPersonOf`), never another actor's.
+ */
 export const undoProject = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/undo',
@@ -716,9 +719,9 @@ export const undoProject = defineEndpointShape({
   params,
   responses: undoResponses,
   refusals: undoRefusals,
-  document: { summary: 'Undo a project batch.' },
+  document: { summary: 'Undo your own last project batch; an agent key has its own stack.' },
 });
-/** Reapplies this account's last reversed project batch. */
+/** Reapplies the caller's own last reversed project batch; see {@link undoProject}. */
 export const redoProject = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/redo',
@@ -727,5 +730,5 @@ export const redoProject = defineEndpointShape({
   params,
   responses: undoResponses,
   refusals: undoRefusals,
-  document: { summary: 'Redo a project batch.' },
+  document: { summary: 'Redo your own last undone project batch; an agent key has its own stack.' },
 });

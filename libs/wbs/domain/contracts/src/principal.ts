@@ -105,6 +105,17 @@ export function credentialPinOf(
   return null;
 }
 
+/**
+ * The person a credential pin acts as on the undo journal: a machine or
+ * consent credential's own agent person, else null — the account acting as
+ * itself. An upstream pair answers null, as lease renewal reads it: the
+ * operator link that could pin a pair to an agent is the retired M2M path, and
+ * resolving it would need a store this pure rule does not have.
+ */
+export function actingPersonOf(pin: CredentialPin | null): string | null {
+  return pin !== null && 'personId' in pin ? pin.personId : null;
+}
+
 /** Evidence from the credential verifier, never from caller-declared kind or expiry. */
 export interface VerifiedOrganizationCredential {
   readonly kind: 'native' | 'oidc';

@@ -2594,6 +2594,7 @@ function task52JournalEntry(
     id,
     projectId,
     userId,
+    personId: null,
     seq: isPeer ? 2 : 1,
     kind: 'rename',
     payload: { label: `Rename ${id}`, forward: { type: 'rename', name: `After ${id}` } },
@@ -2632,12 +2633,20 @@ function task52FlipHistory(): [PlanEvent[], PlanEvent[]] {
 async function readTask52FlipState(source: SqliteSource) {
   return {
     entries: await Promise.all([
-      source.stores.journal.entriesFor('project-a', 'owner-a'),
-      source.stores.journal.entriesFor('project-b', 'owner-b'),
+      source.stores.journal.entriesFor({
+        projectId: 'project-a',
+        userId: 'owner-a',
+        personId: null,
+      }),
+      source.stores.journal.entriesFor({
+        projectId: 'project-b',
+        userId: 'owner-b',
+        personId: null,
+      }),
     ]),
     states: await Promise.all([
-      source.stores.journal.stateOf('project-a', 'owner-a'),
-      source.stores.journal.stateOf('project-b', 'owner-b'),
+      source.stores.journal.stateOf({ projectId: 'project-a', userId: 'owner-a', personId: null }),
+      source.stores.journal.stateOf({ projectId: 'project-b', userId: 'owner-b', personId: null }),
     ]),
     history: await Promise.all([
       source.stores.planEvents.listFor('project-a', {}),
@@ -2653,11 +2662,13 @@ const journalRetainedPreconditionsFault = defineFault({
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       journal: replaceMethod(source.stores.journal, 'flip', (flip) => {
-        return async (id, undone, preconditions) => {
-          if (!control.isArmed() || id !== 'flip-target') return flip(id, undone, preconditions);
+        return async (stack, id, undone, preconditions) => {
+          if (!control.isArmed() || id !== 'flip-target')
+            return flip(stack, id, undone, preconditions);
           // Proof: forwarding the supplied preconditions changed all four focused
           // SQLite fault outcomes from `observed` to `assertion-passed`.
           await flip(
+            stack,
             id,
             undone,
             structuredClone({ expected: { 'work-a-one': 11 }, from: { 'work-a-one': 10 } }),
@@ -2683,6 +2694,13 @@ const journalRetainedPreconditionsFault = defineFault({
   },
 });
 
+/** The stack `flip-target` sits on in `journal.flip:preconditions`. */
+const FLIP_TARGET_STACK = {
+  projectId: DETERMINISTIC_SEED.projectIds[0],
+  userId: DETERMINISTIC_SEED.ownerIds[0],
+  personId: null,
+};
+
 const journalRestampFlipsFault = defineFault({
   id: 'break:journal.flip:preconditions:journal-restamp-flips',
   caseId: 'journal.flip:preconditions',
@@ -2695,7 +2713,7 @@ const journalRestampFlipsFault = defineFault({
           if (!control.isArmed() || id !== 'flip-target') return restamp(id, preconditions);
           // Proof: delegating to restamp preserved `undone: true` and changed the
           // four-fault reversal to four `assertion-passed` outcomes.
-          await flip(id, false, structuredClone(preconditions));
+          await flip(FLIP_TARGET_STACK, id, false, structuredClone(preconditions));
           // Proof: removing this complete-effect guard changed the no-op
           // restamp negative from `phase-failed` to `observed`.
           expect(await readTask52FlipState(source)).toEqual({
@@ -2775,6 +2793,7 @@ function task52HistoryEntry(
     id: journalId,
     projectId,
     userId,
+    personId: null,
     seq,
     kind,
     payload: { label: `History ${eventId}`, forward: { type: kind, workItemId } },
@@ -2807,8 +2826,16 @@ async function readTask52HistoryState(source: SqliteSource) {
     projectAEvents: await source.stores.planEvents.listFor('project-a', {}),
     projectBEvents: await source.stores.planEvents.listFor('project-b', {}),
     journals: await Promise.all([
-      source.stores.journal.entriesFor('project-a', 'owner-a'),
-      source.stores.journal.entriesFor('project-b', 'owner-b'),
+      source.stores.journal.entriesFor({
+        projectId: 'project-a',
+        userId: 'owner-a',
+        personId: null,
+      }),
+      source.stores.journal.entriesFor({
+        projectId: 'project-b',
+        userId: 'owner-b',
+        personId: null,
+      }),
     ]),
   };
 }
@@ -2926,7 +2953,11 @@ const journalIndependentHistoryFault = defineFault({
             },
           ]);
           expect(
-            await source.stores.journal.entriesFor(entry.projectId, entry.userId),
+            await source.stores.journal.entriesFor({
+              projectId: entry.projectId,
+              userId: entry.userId,
+              personId: null,
+            }),
           ).toContainEqual({ ...entry, seq: 2, undone: false });
           expect(await source.stores.planEvents.listFor(event.projectId, {})).not.toContainEqual(
             event,
@@ -2967,7 +2998,11 @@ const journalLateOutsideFault = defineFault({
           await append(entry, event);
           if (entry.id !== 'atomic-late-target') return;
           expect(
-            await source.stores.journal.entriesFor(entry.projectId, entry.userId),
+            await source.stores.journal.entriesFor({
+              projectId: entry.projectId,
+              userId: entry.userId,
+              personId: null,
+            }),
           ).toContainEqual({ ...entry, seq: 3, undone: false });
           expect(await source.stores.planEvents.listFor(event.projectId, {})).toContainEqual(event);
           control.reach('journal.append:history-atomic:outside-transaction');
@@ -3005,18 +3040,21 @@ function commitJournalWithoutLateHistory(
           probe.attempts += 1;
           source.db.run(sql`DELETE FROM plan_event WHERE id = ${event.id}`);
           probe.entries = await Promise.all([
-            source.stores.journal.entriesFor(
-              DETERMINISTIC_SEED.projectIds[0],
-              DETERMINISTIC_SEED.ownerIds[0],
-            ),
-            source.stores.journal.entriesFor(
-              DETERMINISTIC_SEED.projectIds[0],
-              DETERMINISTIC_SEED.ownerIds[1],
-            ),
-            source.stores.journal.entriesFor(
-              DETERMINISTIC_SEED.projectIds[1],
-              DETERMINISTIC_SEED.ownerIds[1],
-            ),
+            source.stores.journal.entriesFor({
+              projectId: DETERMINISTIC_SEED.projectIds[0],
+              userId: DETERMINISTIC_SEED.ownerIds[0],
+              personId: null,
+            }),
+            source.stores.journal.entriesFor({
+              projectId: DETERMINISTIC_SEED.projectIds[0],
+              userId: DETERMINISTIC_SEED.ownerIds[1],
+              personId: null,
+            }),
+            source.stores.journal.entriesFor({
+              projectId: DETERMINISTIC_SEED.projectIds[1],
+              userId: DETERMINISTIC_SEED.ownerIds[1],
+              personId: null,
+            }),
           ]);
           probe.history = await Promise.all(
             DETERMINISTIC_SEED.projectIds.map((projectId) =>
@@ -3040,6 +3078,7 @@ function expectedAtomicEntry(
     id,
     projectId,
     userId,
+    personId: null,
     seq,
     kind: 'rename',
     payload: { label: `Rename ${id}`, forward: { type: 'rename', name: `After ${id}` } },
@@ -3110,6 +3149,7 @@ function expectedActorBRedo() {
     id: 'redo-b',
     projectId: DETERMINISTIC_SEED.projectIds[0],
     userId: DETERMINISTIC_SEED.ownerIds[1],
+    personId: null,
     seq: 1,
     kind: 'rename' as const,
     payload: { label: 'Rename redo-b', forward: { type: 'rename', name: 'After redo-b' } },
@@ -3131,10 +3171,11 @@ const journalBroadRedoFault = defineFault({
           await append(entry, event);
           if (entry.id !== 'redo-a-replacement') return;
           expect(
-            await source.stores.journal.entriesFor(
-              DETERMINISTIC_SEED.projectIds[0],
-              DETERMINISTIC_SEED.ownerIds[1],
-            ),
+            await source.stores.journal.entriesFor({
+              projectId: DETERMINISTIC_SEED.projectIds[0],
+              userId: DETERMINISTIC_SEED.ownerIds[1],
+              personId: null,
+            }),
           ).toEqual([expectedActorBRedo()]);
           await source.stores.journal.discard('redo-b');
           control.reach('journal.append:account-redo-depth:all-redo');
@@ -4542,18 +4583,21 @@ function rejectJournalBeforeAppend(
           if (entry.id !== 'atomic-late-target') return append(entry, event);
           probe.attempts += 1;
           probe.entries = await Promise.all([
-            source.stores.journal.entriesFor(
-              DETERMINISTIC_SEED.projectIds[0],
-              DETERMINISTIC_SEED.ownerIds[0],
-            ),
-            source.stores.journal.entriesFor(
-              DETERMINISTIC_SEED.projectIds[0],
-              DETERMINISTIC_SEED.ownerIds[1],
-            ),
-            source.stores.journal.entriesFor(
-              DETERMINISTIC_SEED.projectIds[1],
-              DETERMINISTIC_SEED.ownerIds[1],
-            ),
+            source.stores.journal.entriesFor({
+              projectId: DETERMINISTIC_SEED.projectIds[0],
+              userId: DETERMINISTIC_SEED.ownerIds[0],
+              personId: null,
+            }),
+            source.stores.journal.entriesFor({
+              projectId: DETERMINISTIC_SEED.projectIds[0],
+              userId: DETERMINISTIC_SEED.ownerIds[1],
+              personId: null,
+            }),
+            source.stores.journal.entriesFor({
+              projectId: DETERMINISTIC_SEED.projectIds[1],
+              userId: DETERMINISTIC_SEED.ownerIds[1],
+              personId: null,
+            }),
           ]);
           probe.history = await Promise.all(
             DETERMINISTIC_SEED.projectIds.map((projectId) =>
@@ -4581,8 +4625,8 @@ function skipActorBRedo(
     },
     {
       journal: replaceMethod(source.stores.journal, 'flip', (flip) => {
-        return async (id, undone, preconditions) => {
-          if (id !== 'redo-b') return flip(id, undone, preconditions);
+        return async (stack, id, undone, preconditions) => {
+          if (id !== 'redo-b') return flip(stack, id, undone, preconditions);
           probe.attempts += 1;
         };
       }),
@@ -5047,8 +5091,8 @@ function omitTask52Flip(source: SqliteSource, probe: Task52FlipWindowProbe): Sql
     },
     {
       journal: replaceMethod(source.stores.journal, 'flip', (flip) => {
-        return async (id, undone, preconditions) => {
-          if (id !== 'flip-target') return flip(id, undone, preconditions);
+        return async (stack, id, undone, preconditions) => {
+          if (id !== 'flip-target') return flip(stack, id, undone, preconditions);
           probe.attempts += 1;
           probe.state = await readTask52FlipState(source);
         };
@@ -5162,8 +5206,8 @@ function omitTask52RestampEffect(source: SqliteSource, probe: Task52FlipWindowPr
     },
     {
       journal: replaceMethod(source.stores.journal, 'flip', (flip) => {
-        return async (id, undone, preconditions) => {
-          if (id !== 'flip-target' || undone) return flip(id, undone, preconditions);
+        return async (stack, id, undone, preconditions) => {
+          if (id !== 'flip-target' || undone) return flip(stack, id, undone, preconditions);
           probe.attempts += 1;
           probe.state = await readTask52FlipState(source);
         };

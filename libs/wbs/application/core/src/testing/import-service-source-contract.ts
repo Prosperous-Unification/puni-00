@@ -1313,7 +1313,13 @@ export function importServiceSourceContract(
         if (tree?.event.type !== 'tree_replaced')
           throw new Error('import did not announce its tree');
         expect(tree.event.workItems.map(({ name }) => name)).toEqual(['Ship']);
-        expect(await source.stores.journal.entriesFor(imported.projectId, ACTOR)).toEqual([]);
+        expect(
+          await source.stores.journal.entriesFor({
+            projectId: imported.projectId,
+            userId: ACTOR,
+            personId: null,
+          }),
+        ).toEqual([]);
         expect(await source.stores.planEvents.listFor(imported.projectId, {})).toEqual([]);
       } finally {
         await source.close();
