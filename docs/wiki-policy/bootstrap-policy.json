@@ -174,6 +174,10 @@
           {
             "kind": "path",
             "value": "openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/hooks/lint-staged.sh"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/tests/registry-storage-rehearsal.sh"
           }
         ]
       },
@@ -279,6 +283,18 @@
           {
             "kind": "name",
             "value": "Containerfile"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/files/k3s-storage.conf"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/templates/puni-registry-storage.service.j2"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/templates/storage.json.j2"
           }
         ],
         "exclude": [

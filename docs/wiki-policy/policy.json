@@ -178,6 +178,10 @@
           {
             "kind": "path",
             "value": "openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/hooks/lint-staged.sh"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/tests/registry-storage-rehearsal.sh"
           }
         ]
       },
@@ -303,6 +307,10 @@
           {
             "kind": "suffix",
             "value": ".tf"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/files/k3s-storage.conf"
           }
         ],
         "exclude": [

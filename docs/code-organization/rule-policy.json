@@ -230,6 +230,10 @@
           {
             "kind": "suffix",
             "value": ".test.sh"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/tests/registry-storage-rehearsal.sh"
           }
         ]
       },
@@ -355,6 +359,10 @@
           {
             "kind": "suffix",
             "value": ".tf"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/registry_storage/files/k3s-storage.conf"
           }
         ],
         "exclude": [

@@ -669,6 +669,60 @@ describe('entry classification production CLI', () => {
     },
   );
 
+  test.each([
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+    'docs/code-organization/rule-policy.json',
+    'apps/twilight-structure/twilight-burokrat/cli/src/contracts/fixtures/classification-policy.v1.json',
+  ])('classifies bounded registry storage paths exactly once with %s', async (policyPath) => {
+    const repository = createRepository();
+    const workspace = join(import.meta.dir, '../../../../../..');
+    const paths = [
+      ['infra/ansible/roles/registry_storage/files/identity.sh', 'script'],
+      ['infra/ansible/roles/registry_storage/files/k3s-storage.conf', 'config'],
+      ['infra/ansible/roles/registry_storage/files/storage.sh', 'script'],
+      ['infra/ansible/roles/registry_storage/templates/puni-registry-storage.service.j2', 'config'],
+      ['infra/ansible/roles/registry_storage/templates/storage.json.j2', 'config'],
+      ['infra/ansible/tests/registry-storage-rehearsal.sh', 'test'],
+      ['infra/platform/registry/production/startup.sh', 'script'],
+      ['infra/platform/registry/production/storage-patch.yaml', 'config'],
+    ] as const;
+    for (const [path] of paths) write(repository, path, readFileSync(join(workspace, path)));
+    const revision = commitAll(repository);
+    interface Policy {
+      contentRules: { contentClass: string; include: { kind: string; value: string }[] }[];
+    }
+    const envelope = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8')) as Policy & {
+      classificationPolicy?: Policy;
+    };
+    const classificationPolicy = envelope.classificationPolicy ?? envelope;
+    const invocation = await classify(
+      repository,
+      revision,
+      writePolicy(repository, classificationPolicy),
+    );
+    expect(invocation.exitCode, output(invocation)).toBe(0);
+    const classified = JSON.parse(standardOutput(invocation)) as {
+      entries: { path: string; classification: { contentClass: string } }[];
+    };
+    expect(
+      classified.entries.map(({ path, classification }) => [path, classification.contentClass]),
+    ).toEqual(paths);
+    const config = classificationPolicy.contentRules.find((rule) => rule.contentClass === 'config');
+    if (!config) throw new Error('Trusted config rule missing');
+    config.include = config.include.filter((selector) => selector.value !== paths[1][0]);
+    const omitted = await classify(
+      repository,
+      revision,
+      writePolicy(repository, classificationPolicy),
+    );
+    // Proof: removing the exact drop-in selector makes this production CLI refuse its real path.
+    expect(omitted.exitCode, output(omitted)).toBe(1);
+    expect(output(omitted)).toContain(
+      `ordinary content ${paths[1][0]} matched 0 classification rules`,
+    );
+  });
+
   test.each(['policy.json', 'bootstrap-policy.json'])(
     'classifies fleet Containerfiles and package NOTICE with docs/wiki-policy/%s',
     async (policyName) => {
