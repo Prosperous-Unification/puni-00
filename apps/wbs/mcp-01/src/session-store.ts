@@ -296,8 +296,8 @@ export class McpSessionStore {
    * Consumes `token` for `successor` and a new session in one transaction, which also renews the
    * family's client to at least `clientExpiresAt` when it is live and proven. An expired, unswept
    * one stays expired, and an unproven one (a swept id re-admitted at authorization while an older
-   * family of it still refreshes) keeps its unproven lifetime: a refresh never proves a client. Any failure, the renewal's included, rolls all of it back, so the caller can
-   * retry with the same token instead of reading as a replay.
+   * family of it still refreshes) keeps its unproven lifetime: a refresh never proves a client.
+   * Any failure, the renewal's included, rolls all of it back, so the caller can retry with the same token instead of reading as a replay.
    */
   consumeRefresh(
     token: string,

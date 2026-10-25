@@ -246,7 +246,8 @@ window. A successful code exchange promotes the client to proven, and each
 code exchange or successful refresh renews a proven client to 30 days after
 that use (`PROVEN_CLIENT_TTL_MS`; a refresh never renews or proves an unproven
 one), so it outlives its refresh families (14-day idle, 30-day absolute) and a
-connector that caches its `client_id`, such as Claude Code, can still start a fresh authorization after a family lapses. Registered
+connector that caches its `client_id`, such as Claude Code, can still start a
+fresh authorization after a family lapses. Registered
 clients live in the MCP store (`MCP_STORE_PATH`), so restarts and deploys keep
 them and their lifetimes. Claude Code caches its `client_id` indefinitely and
 does not re-register when the browser shows `invalid_client`, so a well-formed
@@ -261,8 +262,9 @@ second colour that re-admits the same id concurrently continues with the first
 one's row. A `client_id` therefore no longer names one registration; be-01 sees it only
 as the delegation's `client` label. Someone who learns another connector's swept
 id can re-admit it first with another listed callback, and an insider with
-`wbs:read` can complete a sign-in on it and keep it proven for 30 days; that
-connector then gets `invalid_request` without a re-register hint while the
+`wbs:read` can complete a sign-in on it and keep it proven for 30 days, renewed also by
+the victim's own older family, so up to that family's absolute expiry plus 30
+days; that connector then gets `invalid_request` without a re-register hint while the
 other client lives, no worse than the permanent `invalid_client` it got before.
 A re-admitted claude.ai client is keyed by the user's browser address, not
 Anthropic's egress, so it leaves the shared proven budget of that egress.
@@ -283,8 +285,9 @@ Revoking a family does not free its client's slot, and the 100-client proven
 per-source cap is shared by every claude.ai user behind one Anthropic egress
 address. A client unused for 30 days, or swept before the 30-day lifetime
 shipped, is re-admitted at its next authorization as above; a source at its cap
-gets 429 until a slot frees, and re-adding the connector would hit the same
-cap. Only a connector whose cached id or callback does not qualify still needs
+gets 429 until a slot frees. Re-adding Claude Code hits the same cap (it
+registers from the same address); re-adding a claude.ai connector registers from
+Anthropic's egress, a different cap. Only a connector whose cached id or callback does not qualify still needs
 removing and re-adding.
 
 Before prod or outside users, choose how the proven cap scales: a per-subject

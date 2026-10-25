@@ -634,8 +634,10 @@ export class McpOAuthServer implements McpOAuthHandler {
    * client ({@link McpSessionStore.consumeRefresh}). Someone who learns another connector's
    * swept id can re-admit it first with another listed callback, and an insider holding
    * `wbs:read` can complete their own sign-in on it and keep it proven for 30 d, renewed by their
-   * own refreshes. That connector's authorization then answers `invalid_request`, with no
-   * re-register hint, for as long as the other client lives. This leaves it no worse off than the
+   * own refreshes and also by the victim's older family, since a proven client is renewed by any
+   * family of its id; the lockout can last until that family's absolute expiry plus 30 d. That
+   * connector's authorization then answers `invalid_request`, with no re-register hint, for as
+   * long as the other client lives. This leaves it no worse off than the
    * permanent `invalid_client` it got before, and codes still only reach the callback and
    * verifier of the flow that asked for them.
    *
