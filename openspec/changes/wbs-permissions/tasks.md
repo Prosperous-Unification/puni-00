@@ -79,6 +79,16 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       granted in A; skip the credential cascade and a revoked credential's grant row
       survives; watched.
 
+- [ ] 1.5 `access-grant-cli.ts grant-super-admin|revoke-super-admin --organization=<id> --user=<id>`
+      (P21) over the grant store of 1.4 — test: `access-grant-cli.db.test.ts`: grant to a
+      current member writes the grant and one `access_granted` row (origin `operator`, actor
+      `operator:<os login>`) and prints the count; a non-member, a machine credential, an
+      unknown organization, a missing database and an unreadable database each refuse
+      separately with nothing written; revoke of the last direct human holder refuses
+      `last_super_admin`; negatives: drop the membership check and a non-member is granted;
+      drop the CP14 count from the revoke and the organization is left with none; catch
+      the unreadable database and the command exits 0 having written nothing; watched.
+
 ## 2. `may()` wired into core, the old checks removed
 
 - [ ] 2.1 `authorize(decisions, principal, scope, permission)` in `@wbs/core` with the

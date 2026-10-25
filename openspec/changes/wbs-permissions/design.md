@@ -351,6 +351,43 @@ under `organization.manage_spaces`_). Project settings stay `project.manage_sett
 writes both the creator's `project-manager` grant and, for the first work package, their
 `package-manager` grant (P6), in the same transaction.
 
+**P20. Super-admin is the top of one organization, and there is no scope above the
+organization.** _Added 2026-10-25 from Dany's remark on CP14 ("is super-admin a role above
+all other roles and orgs? initially it is just me … maybe other roles above org levels"),
+assumed and overrulable by id._ `org-super-admin` is an organization-scope grant: the highest
+role inside that organization (the only one holding `organization.manage_organization_roles`
+and `organization.manage_security`), created for the organization's creator by onboarding
+(`onboarding.ts` writes the `super_admin` membership today; the backfill turns it into the
+grant), and reaching nothing in any other organization. CP14's invariant is per organization.
+The scope kinds stay `organization`, `project` and `work_package`: no `platform` scope, no
+role that spans organizations and no row of the matrix for one. What PUNI's own operators do
+across organizations stays an operator CLI on the host (`organization-limits-cli.ts`,
+`revoke-backfill`, the window scripts), audited as `operator:<os login>`, never a web
+principal. If a cross-organization role is ever wanted, it is a new scope kind with its own
+design and matrix rows, not a widening of `org-super-admin`. Rejected: a global super-admin
+(one compromised login reaching every tenant; nothing in the product needs it while PUNI's
+fleets are tenants like any other, `wbs-machine-credentials` A18).
+
+**P21. Super-admins change through the product, and an operator CLI is the only other
+path.** _Added 2026-10-25 on Dany's question "how would i be able to change the org
+super-admins?"; assumed and overrulable by id._ Inside an organization a current
+`org-super-admin` grants `org-super-admin` to another current member and revokes it from
+anyone, themselves included, through the ordinary grant routes (P11,
+`organization.manage_organization_roles`); CP14 refuses the revoke that would leave no direct
+human holder, so the hand-over order is grant first, revoke second. Nothing else in the web
+API can create a super-admin: not `org-admin`, not a group, not a custom role, not a machine.
+For an organization where no super-admin can act (the only holder lost their account, left
+the company, or is not Dany in an organization Dany must reach) the host operator runs
+`apps/wbs/be-01/src/access-grant-cli.ts grant-super-admin --organization=<id> --user=<id>`
+(and `revoke-super-admin`, which obeys CP14 and refuses to leave zero). It needs the host,
+not a login; it refuses a user who is not a current member of that organization, a machine
+credential, and a missing or unreadable database; it writes the grant and one
+`access_granted` (or `access_revoked`) audit row with origin `operator` and actor
+`operator:<os login>` in one transaction, as `organization-limits-cli.ts` does, and prints
+the organization's super-admin count afterwards. Dev runbook gains the line. Rejected: a
+"PUNI staff" web role (P20) and a `--force` that bypasses the membership check (an operator
+who needs a non-member in charge first admits them through the ordinary onboarding path).
+
 ## Tables
 
 All additive, one migration `add_access_grants` with `down.sql`; names are SQLite.
