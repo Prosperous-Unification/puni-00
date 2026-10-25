@@ -15,8 +15,8 @@ safe census. A PID observed after spawning also leaves an ownership gap if the
 process writes a lock before that observation becomes durable.
 
 Before any restic effect, the existing authority persists the bounded attempt,
-repository/configuration identity, origin machine and boot identity, and reserved
-hostname. A fixed root worker verifies that evidence and the same held authority
+repository/configuration identity, origin machine, boot and PID namespace
+identity, and reserved hostname. A fixed root worker verifies that evidence and the same held authority
 descriptor, establishes only its private UTS namespace, and constructs restic
 commands from installed configuration and canonical state. It accepts no caller
 command, path or environment overrides. Each attempt is used once; recovery must
@@ -28,8 +28,12 @@ Recovery requires a complete bounded lock census, matching durable lineage,
 fresh trusted origin-process exclusion, and targeted deletion bound to the exact
 object identity/version. Live, foreign, unreadable, changed or unmatched locks
 refuse deletion. Local process absence cannot prove a different or unreachable
-origin has stopped. Boot changes and remote origins require independently verified
-exclusion; missing evidence is refusal. No age sweep or repository-wide unlock is
+origin has stopped. Matching machine and boot identities also cannot prove
+visibility across PID namespaces. The observed namespace and mounted `/proc` view
+must agree before local absence can establish death:
+[Linux PID namespaces](https://man7.org/linux/man-pages/man7/pid_namespaces.7.html)
+associate procfs visibility with the namespace of its mounter. Boot changes and
+remote origins require independently verified exclusion; missing evidence is refusal. No age sweep or repository-wide unlock is
 permitted. Cancellation retains the authority descriptor through owned child
 termination and reaping.
 
