@@ -56,6 +56,6 @@ Rollback stops the named dev services without `down --volumes`, removes only the
 
 A single host is not HA. Dev shares h3mon capacity with existing monitoring and an enrolled Kubernetes agent; preflight and runtime limits are necessary. Loopback-only uncredentialed dev APIs rely on host/operator and container network boundaries and must never be reused as production access policy. Any integration requiring new credentials remains pending separate authorization. The current dev metrics implementation exposes little useful activity; the probe provides real measured request telemetry while comprehensive instrumentation remains separate.
 
-## Open Questions
+## Implementation evidence
 
-Gateway binary component availability, exact live Grafana provisioning parity, and dev container log format/path require implementation-time verification. A missing fact is a failed preflight, not a default. No production cluster access is needed for this dev profile.
+Pinned gateway components, real dev log provenance, existing Grafana ownership, actual private access, autonomous stored-query health and retained-volume rollback were verified. Puni owns additive API-managed Grafana objects with durable receipts; Claire’s provisioned files and default datasource are preserved. See [verification evidence](verify.md) and the linked operator runbooks for the running revisions, commands and remaining limits. No production cluster access was used.

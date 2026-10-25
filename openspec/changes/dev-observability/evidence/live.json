@@ -1,0 +1,723 @@
+{
+  "verifiedOn": "2026-10-25",
+  "autonomousBeforeRollback": [
+    {
+      "sampledAt": 1792943752470,
+      "observationId": "e0b460c2-694f-449d-a607-1bb64d9e45d5",
+      "revision": "a116092e522f43c649e3c566fbe63fecc0da230f",
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "assessedObservationId": "e95959af-9905-4e47-b490-1de7be92e3e3",
+      "health": {
+        "state": "complete",
+        "signals": {
+          "log": [],
+          "metric": [],
+          "trace": []
+        }
+      },
+      "application": "complete",
+      "storage": "complete"
+    },
+    {
+      "sampledAt": 1792943782471,
+      "observationId": "e8091651-3515-4651-9898-f3c7c8bbcc93",
+      "revision": "a116092e522f43c649e3c566fbe63fecc0da230f",
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "assessedObservationId": "e0b460c2-694f-449d-a607-1bb64d9e45d5",
+      "health": {
+        "state": "complete",
+        "signals": {
+          "log": [],
+          "metric": [],
+          "trace": []
+        }
+      },
+      "application": "complete",
+      "storage": "complete"
+    },
+    {
+      "sampledAt": 1792943812472,
+      "observationId": "c924fe79-4b80-42df-87fe-3e4e3baa107a",
+      "revision": "a116092e522f43c649e3c566fbe63fecc0da230f",
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "assessedObservationId": "e8091651-3515-4651-9898-f3c7c8bbcc93",
+      "health": {
+        "state": "complete",
+        "signals": {
+          "log": [],
+          "metric": [],
+          "trace": []
+        }
+      },
+      "application": "complete",
+      "storage": "complete"
+    },
+    {
+      "sampledAt": 1792943842474,
+      "observationId": "4816a7fc-f2ce-44e0-a2b7-651b8b68dbfa",
+      "revision": "a116092e522f43c649e3c566fbe63fecc0da230f",
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "assessedObservationId": "c924fe79-4b80-42df-87fe-3e4e3baa107a",
+      "health": {
+        "state": "complete",
+        "signals": {
+          "log": [],
+          "metric": [],
+          "trace": []
+        }
+      },
+      "application": "complete",
+      "storage": "complete"
+    }
+  ],
+  "autonomousAfterRestore": [
+    {
+      "sampledAt": 1792944705256,
+      "observationId": "d2860d57-7896-4220-8574-d9eaba4f0d2a",
+      "revision": "2cc76418d848c8833c81f524ef269928015318f2",
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "assessedObservationId": "e9ce618f-1fd4-462c-962e-32de27edbd56",
+      "health": {
+        "state": "complete",
+        "signals": {
+          "log": [],
+          "metric": [],
+          "trace": []
+        }
+      },
+      "application": "complete",
+      "storage": "complete"
+    },
+    {
+      "sampledAt": 1792944735257,
+      "observationId": "e10f2402-b683-416e-8c59-5e4d272382fe",
+      "revision": "2cc76418d848c8833c81f524ef269928015318f2",
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "assessedObservationId": "d2860d57-7896-4220-8574-d9eaba4f0d2a",
+      "health": {
+        "state": "complete",
+        "signals": {
+          "log": [],
+          "metric": [],
+          "trace": []
+        }
+      },
+      "application": "complete",
+      "storage": "complete"
+    },
+    {
+      "sampledAt": 1792944765258,
+      "observationId": "cc873701-bdf5-4b74-8002-9871c2fbb0c1",
+      "revision": "2cc76418d848c8833c81f524ef269928015318f2",
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "assessedObservationId": "e10f2402-b683-416e-8c59-5e4d272382fe",
+      "health": {
+        "state": "complete",
+        "signals": {
+          "log": [],
+          "metric": [],
+          "trace": []
+        }
+      },
+      "application": "complete",
+      "storage": "complete"
+    },
+    {
+      "sampledAt": 1792944795259,
+      "observationId": "00a531ad-fe9c-482b-93d8-7b7b8af624dc",
+      "revision": "2cc76418d848c8833c81f524ef269928015318f2",
+      "source": {
+        "kind": "ssh-dev-container",
+        "containerValidated": true,
+        "containerId": "42d27c3ff342ae131a9697af82c6cb5f3d0d7c9ebf5cabec79a9c53816409623"
+      },
+      "assessedObservationId": "cc873701-bdf5-4b74-8002-9871c2fbb0c1",
+      "health": {
+        "state": "complete",
+        "signals": {
+          "log": [],
+          "metric": [],
+          "trace": []
+        }
+      },
+      "application": "complete",
+      "storage": "complete"
+    }
+  ],
+  "effectiveBounds": {
+    "observedAt": 1792943713903,
+    "units": [
+      {
+        "unit": "puni-dev-observability-tunnel.service",
+        "systemd": {
+          "TimeoutStopUSec": "25s",
+          "MainPID": "3564140",
+          "NRestarts": "0",
+          "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/puni-dev-observability-tunnel.service",
+          "CPUQuotaPerSecUSec": "250ms",
+          "MemoryMax": "268435456",
+          "TasksMax": "32",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "cgroup": {
+          "memory.max": "268435456",
+          "cpu.max": "25000 100000",
+          "pids.max": "32"
+        }
+      },
+      {
+        "unit": "puni-dev-observability.service",
+        "systemd": {
+          "TimeoutStopUSec": "25s",
+          "MainPID": "3564141",
+          "NRestarts": "0",
+          "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/puni-dev-observability.service",
+          "CPUQuotaPerSecUSec": "250ms",
+          "MemoryMax": "268435456",
+          "TasksMax": "32",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "cgroup": {
+          "memory.max": "268435456",
+          "cpu.max": "25000 100000",
+          "pids.max": "32"
+        }
+      }
+    ]
+  },
+  "outage": [
+    {
+      "phase": "before",
+      "observedAt": 1792943870834,
+      "health": ["complete"],
+      "alerts": []
+    },
+    {
+      "phase": "outage-0",
+      "observedAt": 1792943871162,
+      "health": ["complete"],
+      "alerts": []
+    },
+    {
+      "phase": "outage-30",
+      "observedAt": 1792943900943,
+      "health": ["complete"],
+      "alerts": []
+    },
+    {
+      "phase": "outage-60",
+      "observedAt": 1792943930944,
+      "health": ["incomplete"],
+      "alerts": ["DevCollectorMissing"]
+    },
+    {
+      "phase": "outage-90",
+      "observedAt": 1792943960944,
+      "health": ["incomplete"],
+      "alerts": ["DevCollectorMissing", "DevObservationIncomplete"]
+    },
+    {
+      "phase": "restored",
+      "observedAt": 1792943961257,
+      "health": ["incomplete"],
+      "alerts": ["DevCollectorMissing", "DevObservationIncomplete"]
+    }
+  ],
+  "recovery": [
+    {
+      "observedAt": 1792943996175,
+      "complete": false,
+      "activeAlerts": ["DevExporterLoss", "DevObservationIncomplete"]
+    },
+    {
+      "observedAt": 1792944011179,
+      "complete": true,
+      "activeAlerts": ["DevExporterLoss", "DevObservationIncomplete"]
+    },
+    {
+      "observedAt": 1792944026185,
+      "complete": true,
+      "activeAlerts": ["DevExporterLoss"]
+    },
+    {
+      "observedAt": 1792944041190,
+      "complete": true,
+      "activeAlerts": ["DevExporterLoss"]
+    },
+    {
+      "observedAt": 1792944056195,
+      "complete": true,
+      "activeAlerts": ["DevExporterLoss"]
+    },
+    {
+      "observedAt": 1792944071200,
+      "complete": true,
+      "activeAlerts": ["DevExporterLoss"]
+    },
+    {
+      "observedAt": 1792944086204,
+      "complete": true,
+      "activeAlerts": ["DevExporterLoss"]
+    },
+    {
+      "observedAt": 1792944101209,
+      "complete": true,
+      "activeAlerts": ["DevExporterLoss"]
+    },
+    {
+      "observedAt": 1792944116213,
+      "complete": true,
+      "activeAlerts": []
+    }
+  ],
+  "lossAccounting": {
+    "observations": [
+      {
+        "observationId": "e95959af-9905-4e47-b490-1de7be92e3e3",
+        "observedAt": 1792943700234,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 1,
+          "traces": 2
+        }
+      },
+      {
+        "observationId": "e0b460c2-694f-449d-a607-1bb64d9e45d5",
+        "observedAt": 1792943729782,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 1,
+          "traces": 2
+        }
+      },
+      {
+        "observationId": "e8091651-3515-4651-9898-f3c7c8bbcc93",
+        "observedAt": 1792943760263,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 1,
+          "traces": 2
+        }
+      },
+      {
+        "observationId": "c924fe79-4b80-42df-87fe-3e4e3baa107a",
+        "observedAt": 1792943790282,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 1,
+          "traces": 2
+        }
+      },
+      {
+        "observationId": "4816a7fc-f2ce-44e0-a2b7-651b8b68dbfa",
+        "observedAt": 1792943819684,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 1,
+          "traces": 2
+        }
+      },
+      {
+        "observationId": "e11caa03-a48c-45fd-85d3-d2206a2babb5",
+        "observedAt": 1792943850593,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 1,
+          "traces": 2
+        }
+      },
+      {
+        "observationId": "2be91848-2e07-421c-9430-d259416f09ea",
+        "observedAt": 1792943880259,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 0,
+          "traces": 0
+        }
+      },
+      {
+        "observationId": "c68c15a3-c484-4f63-b3ff-53a455e3e6e0",
+        "observedAt": 1792943910015,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 0,
+          "traces": 0
+        }
+      },
+      {
+        "observationId": "171a8950-7b8e-465f-9eeb-8b8490081740",
+        "observedAt": 1792943940056,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 0,
+          "traces": 0
+        }
+      },
+      {
+        "observationId": "cb42f7cd-2296-4422-8b6e-461b1573ccde",
+        "observedAt": 1792943970234,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 1,
+          "traces": 2
+        }
+      },
+      {
+        "observationId": "e383aa8e-6e48-4ae9-bcbb-7bde1f8d0d73",
+        "observedAt": 1792944000410,
+        "publication": {
+          "state": "acknowledged"
+        },
+        "stored": {
+          "logs": 1,
+          "traces": 2
+        }
+      }
+    ],
+    "storedHits": 24
+  },
+  "finalFailedSendCounters": {
+    "status": "success",
+    "data": {
+      "resultType": "vector",
+      "result": [
+        {
+          "metric": {
+            "__name__": "otelcol_exporter_send_failed_log_records",
+            "error.permanent": "false",
+            "error.type": "Unavailable",
+            "exporter": "otlp",
+            "instance": "collector:8888",
+            "job": "dev-collector",
+            "server.address": "gateway",
+            "server.port": "4317"
+          },
+          "value": [1792944134.357, "3"]
+        },
+        {
+          "metric": {
+            "__name__": "otelcol_exporter_send_failed_spans",
+            "error.permanent": "false",
+            "error.type": "Unavailable",
+            "exporter": "otlp",
+            "instance": "collector:8888",
+            "job": "dev-collector",
+            "server.address": "gateway",
+            "server.port": "4317"
+          },
+          "value": [1792944134.357, "6"]
+        }
+      ]
+    }
+  },
+  "historyBefore": {
+    "observationId": "f1519c81-ee91-497f-960b-9d1a230d5c58",
+    "elastic": {
+      "count": 3,
+      "_shards": {
+        "total": 2,
+        "successful": 2,
+        "skipped": 0,
+        "failed": 0
+      }
+    },
+    "prometheus": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {
+              "__name__": "puni_dev_probe_observed_timestamp_seconds",
+              "environment": "dev",
+              "exported_job": "puni-dev-probe",
+              "instance": "collector:8889",
+              "job": "dev-probe",
+              "otel_scope_name": "puni-dev-probe",
+              "otel_scope_version": "469c630ec",
+              "service": "be-01"
+            },
+            "value": [1792937800, "1792937768.527"]
+          }
+        ]
+      }
+    }
+  },
+  "historyAfter": {
+    "observationId": "f1519c81-ee91-497f-960b-9d1a230d5c58",
+    "elastic": {
+      "count": 3,
+      "_shards": {
+        "total": 2,
+        "successful": 2,
+        "skipped": 0,
+        "failed": 0
+      }
+    },
+    "prometheus": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {
+              "__name__": "puni_dev_probe_observed_timestamp_seconds",
+              "environment": "dev",
+              "exported_job": "puni-dev-probe",
+              "instance": "collector:8889",
+              "job": "dev-probe",
+              "otel_scope_name": "puni-dev-probe",
+              "otel_scope_version": "469c630ec",
+              "service": "be-01"
+            },
+            "value": [1792937800, "1792937768.527"]
+          }
+        ]
+      }
+    }
+  },
+  "preservedAfterRestore": {
+    "observedAt": 1792944697729,
+    "preservedOldContainers": 7,
+    "preservedFileHashes": 4,
+    "health": {
+      "mlflow": {
+        "status": 200,
+        "body": "OK"
+      },
+      "victoriametrics": {
+        "status": 200,
+        "body": "OK"
+      },
+      "victorialogs": {
+        "status": 200,
+        "body": "OK"
+      },
+      "victoriatraces": {
+        "status": 200,
+        "body": "OK"
+      },
+      "grafana": {
+        "status": 200,
+        "body": "{\n  \"database\": \"ok\",\n  \"version\": \"13.0.7\",\n  \"commit\": \"392e53a167a4382a14d2d6246284a36bc198ae3d\"\n}"
+      }
+    },
+    "retainedVolumes": [
+      {
+        "name": "puni-dev-observability_elasticsearch",
+        "createdAt": "2026-10-25T14:07:41Z",
+        "mountpoint": "/var/lib/docker/volumes/puni-dev-observability_elasticsearch/_data",
+        "labels": {
+          "com.docker.compose.config-hash": "17fbe69dc7470d19fb666013898e981b26ec06b17f407a7088a41637334e0b3a",
+          "com.docker.compose.project": "puni-dev-observability",
+          "com.docker.compose.version": "5.5.0",
+          "com.docker.compose.volume": "elasticsearch"
+        }
+      },
+      {
+        "name": "puni-dev-observability_kibana",
+        "createdAt": "2026-10-25T14:07:41Z",
+        "mountpoint": "/var/lib/docker/volumes/puni-dev-observability_kibana/_data",
+        "labels": {
+          "com.docker.compose.config-hash": "6065eb4814e30a7744cc11aedb4a19ea7fc5b783964ba265e55a9f87205d32b8",
+          "com.docker.compose.project": "puni-dev-observability",
+          "com.docker.compose.version": "5.5.0",
+          "com.docker.compose.volume": "kibana"
+        }
+      },
+      {
+        "name": "puni-dev-observability_collector",
+        "createdAt": "2026-10-25T14:07:41Z",
+        "mountpoint": "/var/lib/docker/volumes/puni-dev-observability_collector/_data",
+        "labels": {
+          "com.docker.compose.config-hash": "d45eafd0e9883df3428cdc3c723e06aa4be3166846605aafe9a56b80904535aa",
+          "com.docker.compose.project": "puni-dev-observability",
+          "com.docker.compose.version": "5.5.0",
+          "com.docker.compose.volume": "collector"
+        }
+      },
+      {
+        "name": "puni-dev-observability_gateway",
+        "createdAt": "2026-10-25T14:07:41Z",
+        "mountpoint": "/var/lib/docker/volumes/puni-dev-observability_gateway/_data",
+        "labels": {
+          "com.docker.compose.config-hash": "f3410869c48030c2c9df3cb3513fb2856abc4681db53546f924e1466459a803a",
+          "com.docker.compose.project": "puni-dev-observability",
+          "com.docker.compose.version": "5.5.0",
+          "com.docker.compose.volume": "gateway"
+        }
+      },
+      {
+        "name": "puni-dev-observability_prometheus",
+        "createdAt": "2026-10-25T14:07:41Z",
+        "mountpoint": "/var/lib/docker/volumes/puni-dev-observability_prometheus/_data",
+        "labels": {
+          "com.docker.compose.config-hash": "f56acc77c3ba012e3bfdafd5b81a65710e1169682e69f727857c08fc87c09555",
+          "com.docker.compose.project": "puni-dev-observability",
+          "com.docker.compose.version": "5.5.0",
+          "com.docker.compose.volume": "prometheus"
+        }
+      },
+      {
+        "name": "puni-dev-observability_alertmanager",
+        "createdAt": "2026-10-25T14:07:41Z",
+        "mountpoint": "/var/lib/docker/volumes/puni-dev-observability_alertmanager/_data",
+        "labels": {
+          "com.docker.compose.config-hash": "8b769465a62f8f53497647e2064ac759244341aecc1c15b74abf9ffdf71e61a6",
+          "com.docker.compose.project": "puni-dev-observability",
+          "com.docker.compose.version": "5.5.0",
+          "com.docker.compose.volume": "alertmanager"
+        }
+      }
+    ]
+  },
+  "victoriaHistory": {
+    "metricName": "gen_ai.client.token.usage_bucket",
+    "queryTime": 1792931800,
+    "query": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {},
+            "value": [1792931800, "21600"]
+          }
+        ]
+      },
+      "stats": {
+        "seriesFetched": "180",
+        "executionTimeMsec": 23
+      }
+    }
+  },
+  "restoredGrafana": {
+    "observedAt": 1792944836935,
+    "queries": {
+      "health": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "__name__": "puni_dev_observation_health",
+                "environment": "dev",
+                "exported_job": "puni-dev-probe",
+                "instance": "collector:8889",
+                "job": "dev-probe",
+                "otel_scope_name": "puni-dev-observation-health",
+                "service": "be-01",
+                "state": "complete"
+              },
+              "value": [1792944836.889, "1"]
+            }
+          ]
+        }
+      },
+      "age": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "environment": "dev",
+                "exported_job": "puni-dev-probe",
+                "instance": "collector:8889",
+                "job": "dev-probe",
+                "otel_scope_name": "puni-dev-observation-health",
+                "service": "be-01"
+              },
+              "value": [1792944836.903, "33.87100005149841"]
+            }
+          ]
+        }
+      },
+      "revision": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "__name__": "puni_dev_revision_info",
+                "environment": "dev",
+                "exported_job": "puni-dev-probe",
+                "instance": "collector:8889",
+                "job": "dev-probe",
+                "otel_scope_name": "puni-dev-probe",
+                "otel_scope_version": "ab4f7cf6e3023f2f2851bbf85dfb920c7de0859d",
+                "revision": "2cc76418d848c8833c81f524ef269928015318f2",
+                "service": "be-01"
+              },
+              "value": [1792944836.91, "1"]
+            }
+          ]
+        }
+      }
+    },
+    "dashboardPanels": 14,
+    "oldDefaultPreserved": true,
+    "activeAlerts": [],
+    "originalReceipt": "removed",
+    "activeReceipt": "applied"
+  },
+  "screenshots": {
+    "puni-dev-real-kibana-waterfall.png": "6ebdb70c2a5fd0302cd1f7fe898a170e7efa4b9c702b882453e1b0adf9949836",
+    "puni-dev-grafana-current.png": "65ac8a762035e271d41cf2782666b96ef43565c825506314a39153c5d5f82d09",
+    "puni-dev-grafana-storage.png": "d7e4ae92a5acad01daf210d9e442e706703cee876977b7d496a341a56f30b90e"
+  }
+}
