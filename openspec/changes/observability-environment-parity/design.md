@@ -67,6 +67,8 @@ Executable retention logic must be common across profiles. Policy identities bel
 
 Add a semantic comparison of rendered service configuration and effective Helm/workload output. Validate the exception records themselves, reject unused/stale paths and compare siblings after each permitted scalar difference. Do not normalize all annotations, environment variables or URLs away: those can contain routing, auth and ownership behavior.
 
+The comparison adapter keeps a closed destination/value policy independent of supplied difference records. Records describe an allowed difference; matching metadata cannot authorize a null backup endpoint, broader ingress or changed filtering behavior. Source-admission expressions come from the same pure generators as the shared signal builder. Concrete profile bindings stay in this adapter while the shared signal model accepts identities and endpoints as inputs. A new legitimate profile value needs a deliberate policy and record update with its proof.
+
 The comparison complements actual pinned-binary configuration validation, promtool tests and Kubernetes rehearsal. A syntactically equal configuration cannot prove runtime health. Reuse the current observation identity/freshness evaluator through backend adapters; add authenticated query transport instead of changing the domain states.
 
 ### Ownership and authority
