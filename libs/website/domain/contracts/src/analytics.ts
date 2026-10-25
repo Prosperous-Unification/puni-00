@@ -24,6 +24,31 @@ export const analyticsPages = {
     path: '/services/software-development',
     title: 'PUNI software development',
   },
+  'launch-app-or-website': {
+    surface: 'site',
+    path: '/services/launch-app-or-website',
+    title: 'Launch an app or website',
+  },
+  'improve-app': {
+    surface: 'site',
+    path: '/services/improve-app',
+    title: 'Improve an existing app',
+  },
+  'build-something-similar': {
+    surface: 'site',
+    path: '/services/build-something-similar',
+    title: 'Build something similar',
+  },
+  'ai-assistant': {
+    surface: 'site',
+    path: '/services/ai-assistant',
+    title: 'Set up a personal AI assistant',
+  },
+  'automate-workflows': {
+    surface: 'site',
+    path: '/services/automate-workflows',
+    title: 'Automate workflows with AI',
+  },
   blog: { surface: 'site', path: '/blog', title: 'PUNI journal' },
   privacy: { surface: 'site', path: '/privacy', title: 'PUNI privacy' },
   'a-clearer-first-step-for-software-requests': {
@@ -112,12 +137,15 @@ const fields: Record<AnalyticsEvent['name'], Record<string, readonly string[]>> 
   funnel_failure: { category: ['unavailable', 'limit', 'network', 'validation', 'conflict'] },
 };
 
-/** Throws on programmer mistakes, including extra fields, even while analytics is disabled. */
+/** Throws on programmer mistakes, including extra or non-enumerable fields, even while analytics is disabled. */
 export function parseAnalyticsEvent(value: unknown): AnalyticsEvent {
   // Proof: removing the shape guard lost the named-boundary error for malformed event shapes.
   if (typeof value !== 'object' || value === null || Array.isArray(value))
     throw new Error('Invalid analytics event');
   const entries = Object.entries(value);
+  // Proof: removing this guard let dispatch send funnel_failure without its non-enumerable required category.
+  if (Object.getOwnPropertyNames(value).length !== entries.length)
+    throw new Error('Invalid analytics field');
   const name: unknown = Reflect.get(value, 'name');
   // Proof: removing name/own-name checks admitted inherited names or lost the named unknown-event error.
   if (!Object.hasOwn(value, 'name') || typeof name !== 'string' || !Object.hasOwn(fields, name))

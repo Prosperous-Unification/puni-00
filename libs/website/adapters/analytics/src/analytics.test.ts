@@ -432,3 +432,58 @@ test('page dispatch reports a transport outage instead of claiming a sent naviga
   expect(f.analytics.dispatch({ name: 'page_view', page_id: 'manual' })).toBe('unavailable');
   expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'transport' });
 });
+
+test('launch service routes resolve canonical site metadata before dispatching bounded page views', async () => {
+  const config = configureAnalytics(dev, href);
+  for (const [id, title] of [
+    ['launch-app-or-website', 'Launch an app or website'],
+    ['improve-app', 'Improve an existing app'],
+    ['build-something-similar', 'Build something similar'],
+    ['ai-assistant', 'Set up a personal AI assistant'],
+    ['automate-workflows', 'Automate workflows with AI'],
+  ] as const) {
+    const location = 'https://dev.puni.dev/services/' + id;
+    expect(resolvePage(config, location + '?email=secret@example.test#private', '')).toEqual({
+      page_id: id,
+      page_location: location,
+      page_title: title,
+      page_referrer: '',
+      campaign_source: '',
+      campaign_medium: '',
+      campaign_name: '',
+    });
+    const f = fixture();
+    f.setLocation(location + '?email=secret@example.test#private');
+    f.analytics.accept();
+    await f.complete();
+    expect(f.sent).toEqual([
+      {
+        name: 'page_view',
+        parameters: {
+          page_id: id,
+          page_location: location,
+          page_title: title,
+          page_referrer: 'https://search.example',
+          campaign_source: '',
+          campaign_medium: '',
+          campaign_name: '',
+        },
+      },
+    ]);
+  }
+});
+
+test('dispatch rejects a non-enumerable required category before the vendor sink', async () => {
+  const f = fixture();
+  f.analytics.accept();
+  await f.complete();
+  const event = Object.defineProperty(
+    { name: 'funnel_failure', category: 'network' } as const,
+    'category',
+    {
+      enumerable: false,
+    },
+  );
+  expect(() => f.analytics.dispatch(event)).toThrow();
+  expect(f.sent.map((sent) => sent.name)).toEqual(['page_view']);
+});

@@ -100,3 +100,33 @@ test('malformed event shapes and names fail at their named boundary', () => {
   for (const value of [{}, { name: 'constructor' }, { name: 'private-event' }])
     expect(() => parseAnalyticsEvent(value)).toThrow('Unknown analytics event');
 });
+
+test('approved service identities are accepted as bounded page events', () => {
+  for (const page_id of [
+    'launch-app-or-website',
+    'improve-app',
+    'build-something-similar',
+    'ai-assistant',
+    'automate-workflows',
+  ] as const)
+    expect(parseAnalyticsEvent({ name: 'page_view', page_id })).toEqual({
+      name: 'page_view',
+      page_id,
+    });
+  expect(() => parseAnalyticsEvent({ name: 'page_view', page_id: 'unapproved-slug' })).toThrow();
+});
+
+test('non-enumerable event fields cannot disappear from the validated event', () => {
+  for (const event of events)
+    for (const key of Object.keys(event)) {
+      const hidden = Object.defineProperty({ ...event }, key, { enumerable: false });
+      expect(() => parseAnalyticsEvent(hidden)).toThrow();
+    }
+  expect(() =>
+    parseAnalyticsEvent(
+      Object.defineProperty({ name: 'funnel_failure', category: 'network' }, 'email', {
+        value: 'secret@example.test',
+      }),
+    ),
+  ).toThrow();
+});

@@ -23,6 +23,12 @@ All events SHALL pass a typed allowlist for event names and parameter values. De
 - **WHEN** distinct sentinel strings appear in chat, email, references, query parameters, hash fragments and an API error
 - **THEN** none appears in any intercepted analytics script URL, payload, page metadata or event
 
+#### Scenario: Approved launch service pages
+
+- **WHEN** a consenting visitor opens a service page with slug `launch-app-or-website`, `improve-app`, `build-something-similar`, `ai-assistant` or `automate-workflows`
+- **THEN** its page event uses that fixed slug ID, canonical `/services/<slug>` path and reviewed offer title, excluding query strings and fragments
+- **AND** historical registered service pages remain supported while unknown service slugs remain unmeasured and are rejected as event page IDs
+
 ### Requirement: Events reflect actual funnel milestones
 
 The implementation SHALL emit the reviewed landing, starting-choice, conversation, question, brief, email-card and submission milestones only after their respective actions occur. `generate_lead` SHALL follow confirmed proposal persistence and SHALL NOT fire on button click, rejected submission, an email mention or duplicate receipt replay. It SHALL be configured as the initial GA4 key event.
