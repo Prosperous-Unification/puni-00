@@ -1,5 +1,6 @@
 import type {
   AuthorityReceipt,
+  CredentialAuthentication,
   CredentialPin,
   RuntimeAuthorityRequest,
   RuntimeClaimInventory,
@@ -34,6 +35,11 @@ export interface RuntimeAdmissionIdentity {
   readonly projectId: string;
   readonly personId: string;
   readonly actorId: string;
+  /**
+   * Detached verifier metadata captured before queuing; explicit undefined preserves
+   * direct-context compatibility. Fresh admission applies its role policy before project classification.
+   */
+  readonly authentication: CredentialAuthentication | undefined;
   readonly credential: CredentialPin | null;
 }
 

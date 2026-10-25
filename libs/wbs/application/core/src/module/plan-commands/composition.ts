@@ -299,7 +299,13 @@ function runtimeTransaction(uow: UnitOfWork): RuntimeTransaction {
       const actorId = context.actor.id;
       // Proof: dropping this verified pin made eight machine/consent public read, acquisition and
       // historical lookup cases in runtime-credential-pin.db.test.ts answer 200 instead of 403, 2026-10-22.
-      const credential = credentialPinOf(context.actor.authentication);
+      // Proof: RCAP-02 retained the caller alias; all six queued machine/consent read,
+      // acquisition and lookup cases in runtime-principal-cap.db.test.ts succeeded instead of forbidden.
+      const authentication =
+        context.actor.authentication === undefined
+          ? undefined
+          : { ...context.actor.authentication };
+      const credential = credentialPinOf(authentication);
       // Proof: F16 injected real UoW reentrancy; the blocked-writer test returned early with staged row `staged`.
       return uow.run<T | RuntimeReadRefusal>(async (scope) => {
         const admitted = await authorizeRuntimeScope(scope, {
@@ -307,6 +313,7 @@ function runtimeTransaction(uow: UnitOfWork): RuntimeTransaction {
           projectId,
           personId,
           actorId,
+          authentication,
           credential,
         });
         if ('ok' in admitted) return { commit: false, value: admitted };
@@ -320,12 +327,12 @@ async function authorizeRuntimeScope(
   scope: Scope,
   identity: RuntimeAdmissionIdentity,
 ): Promise<RuntimeAdmission | RuntimeReadRefusal> {
-  const { organizationId, projectId, personId, actorId, credential } = identity;
+  const { organizationId, projectId, personId, actorId, authentication, credential } = identity;
   const resolveScope = scope.fanoutCapture?.resolveProjectWriteScope;
   // Proof: F10 removed this diagnostic; the absent-capability negative received an unclassified TypeError.
   if (resolveScope === undefined) throw new Error('runtime project scope resolver is missing');
   // Proof: P3-01 bypassed fresh resolution; a viewer replay received the old accepted authority.
-  const admission = await resolveScope(projectId, organizationId, actorId);
+  const admission = await resolveScope(projectId, organizationId, actorId, authentication);
   // Proof: F18 skipped refusal forwarding; the viewer negative threw instead of returning forbidden.
   if (!admission.ok) return admission;
   // Proof: F05 substituted incoming scope; queued admin-to-member demotion incorrectly read an unbound person.

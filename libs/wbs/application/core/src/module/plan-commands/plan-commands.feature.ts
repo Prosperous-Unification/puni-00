@@ -400,7 +400,11 @@ export class PlanCommandRunner {
     const organizationId = context.access.scope.organizationId;
     // Proof: dropping this verified pin made six machine/consent public claim, write and replay cases
     // in runtime-credential-pin.db.test.ts accept another bound agent (200 instead of 403), 2026-10-22.
-    const credential = credentialPinOf(context.actor.authentication);
+    // Proof: RCAP-03 retained the caller alias; all eight queued machine/consent claim,
+    // write and claim/write replay cases in runtime-principal-cap.db.test.ts succeeded instead of forbidden.
+    const authentication =
+      context.actor.authentication === undefined ? undefined : { ...context.actor.authentication };
+    const credential = credentialPinOf(authentication);
 
     const outcome = await this.execute(
       projectId,
@@ -415,6 +419,7 @@ export class PlanCommandRunner {
           projectId,
           personId,
           actorId,
+          authentication,
           credential,
         });
         if ('ok' in admitted) return { runtime: admitted };

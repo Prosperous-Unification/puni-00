@@ -1,3 +1,4 @@
+import type { CredentialAuthentication } from '@wbs/contracts';
 import type { OrganizationScope } from '@wbs/domain';
 
 import type { FanoutObservation } from '../service/shared-people-fanout';
@@ -7,11 +8,16 @@ import type { ResourceAccess } from './organization-access';
 export type FanoutWriteAuthority =
   { readonly ok: true } | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' };
 
-/** Fresh read-only project admission and its current membership scope, without recovery audit. */
+/**
+ * Fresh read-only admission applies detached verifier metadata to the current role
+ * before project classification, without recovery audit. Explicit undefined preserves
+ * existing direct-context callers without credential metadata.
+ */
 export type ResolveProjectWriteScope = (
   projectId: string,
   organizationId: string,
   actorId: string,
+  authentication: CredentialAuthentication | undefined,
 ) => Promise<
   | { readonly ok: true; readonly scope: OrganizationScope }
   | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' }

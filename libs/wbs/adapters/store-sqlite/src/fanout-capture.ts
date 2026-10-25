@@ -1,4 +1,4 @@
-import { type DirectoryStore, readChain } from '@wbs/core';
+import { type DirectoryStore, organizationRoleOf, readChain } from '@wbs/core';
 import type {
   BeforeImport,
   BeforeModeSwitch,
@@ -88,9 +88,13 @@ export function authorizeImportIn(db: Drizzle): BeforeImport {
   };
 }
 
-/** Resolves current project-write scope on the borrowed writer, without an audit or grant. */
+/**
+ * Resolves current scope on the borrowed writer, applying detached verifier metadata
+ * through the credential role policy before project classification. Explicit undefined
+ * preserves direct-context callers; resolution creates neither audit nor grant.
+ */
 export function resolveProjectWriteScopeIn(db: Drizzle): ResolveProjectWriteScope {
-  return async (projectId, organizationId, actorId) => {
+  return async (projectId, organizationId, actorId, authentication) => {
     const project = await new ProjectRepository(db, OPEN).findInOrganization(
       projectId,
       organizationId,
@@ -113,7 +117,9 @@ export function resolveProjectWriteScopeIn(db: Drizzle): ResolveProjectWriteScop
       organizationId,
       userId: actorId,
       // Proof: F14 substituted member; the malformed trusted-role runtime read succeeded.
-      role: validateStoredRole(membership.role, organizationId),
+      // Proof: RCAP-01 passed undefined here; real-key restricted-project read and acquisition
+      // in runtime-principal-cap.db.test.ts returned 200 success instead of 403 forbidden.
+      role: organizationRoleOf(validateStoredRole(membership.role, organizationId), authentication),
     };
     // Proof: F13 bypassed this decision; a current viewer received runtime facts.
     return classifyProjectEdit(project, scope) === 'refused'
@@ -127,7 +133,12 @@ export function authorizeProjectFanoutIn(db: Drizzle): BeforeProjectUpdate {
   const resolveScope = resolveProjectWriteScopeIn(db);
   return async (projectId, actorId, access) => {
     if (access.kind === 'legacy') return { ok: true };
-    const admission = await resolveScope(projectId, access.scope.organizationId, actorId);
+    const admission = await resolveScope(
+      projectId,
+      access.scope.organizationId,
+      actorId,
+      undefined,
+    );
     return admission.ok ? { ok: true } : admission;
   };
 }
