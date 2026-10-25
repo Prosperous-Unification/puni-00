@@ -1,12 +1,12 @@
 ## Why
 
-Puni has checked-in Elastic/Prometheus platform definitions, but the verified live monitoring host still runs OTel with VictoriaMetrics, VictoriaLogs, VictoriaTraces and Grafana. Autonomous delivery observation needs a proven production destination. Activating manifests alone will not establish trace usability, alert delivery, recoverability or a safe migration from the existing telemetry path.
+Puni has checked-in Elastic/Prometheus platform definitions, but the verified live monitoring host still runs OTel with VictoriaMetrics, VictoriaLogs, VictoriaTraces and Grafana. Production promotion will need a proven destination; current delivery observation is developed and used on dev first. Activating manifests alone will not establish trace usability, alert delivery, recoverability or a safe migration from the existing telemetry path.
 
 ## What Changes
 
 Plan a staged production rollout of Elasticsearch/Kibana for logs and traces, Prometheus/Alertmanager for metrics and alerts, and existing Grafana for metrics dashboards. Retain OpenTelemetry as the vendor-neutral producer interface; add a version-compatible Elastic trace gateway and real end-to-end acceptance.
 
-Reconcile live prerequisites and ownership, pin the implementation, rehearse failure and restore paths, enable a canary, then migrate producers and dashboards while retaining Victoria rollback and history. Record the exact production revision, topology, endpoints, alert/backup proofs and limitations. Feed the resulting ingestion/query contracts into delivery-observation planning in PR #728.
+Reconcile live prerequisites and ownership, pin the implementation, rehearse failure and restore paths, enable a canary, then migrate producers and dashboards while retaining Victoria rollback and history. Record the exact production revision, topology, endpoints, alert/backup proofs and limitations. Use dev evidence from PR #728 to inform later production promotion; this rollout does not block dev measurement.
 
 ## Non-Goals
 

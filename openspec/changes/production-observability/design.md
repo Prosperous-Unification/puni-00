@@ -1,6 +1,6 @@
 ## Context
 
-The user selected Elastic for logs and traces and Prometheus for metrics, with autonomous delivery observation as a consumer. This is the production prerequisite for [delivery observation PR #728](https://github.com/Prosperous-Unification/puni-00/pull/728), not a replacement for its domain model or feedback loop.
+The user selected Elastic for logs and traces and Prometheus for metrics, with autonomous delivery observation as a consumer. This is a separate future production plan. [Delivery observation PR #728](https://github.com/Prosperous-Unification/puni-00/pull/728) first develops and proves the feedback loop on dev while Puni is used to develop itself. Production activation is not its prerequisite; dev evidence informs this later rollout.
 
 Repository base at planning: `93b6f3555`. Existing work: [platform](../../../docs/infra/platform.md), [k3s platform tasks](../k3s-platform/tasks.md), [mTLS canary](../otlp-mtls-canary/proposal.md), [recovery](../../../docs/infra/recovery.md), and [fleet enrollment](../../../docs/infra/enroll-h4claw-h3mon.md). Reconcile these packets rather than replaying completed local proofs or pretending their open production tasks are complete.
 
@@ -12,13 +12,13 @@ Current manifests pin Elasticsearch/Kibana 9.3.8, Prometheus 3.14.0 and collecto
 
 **Goals:** A usable, protected and recoverable production destination for all three signals; explicit ownership and capacity; dashboards and real alert delivery; reversible migration and evidence-based Victoria retirement.
 
-**Non-Goals:** No production mutation in this PR; no automatic removal, new fleet provisioning, broad application instrumentation project or forced historical reindex. Preserve MLflow and its backups. Keep delivery measurement implementation independently reviewable.
+**Non-Goals:** No current production rollout or production mutation in this PR; no automatic removal, new fleet provisioning, broad application instrumentation project or forced historical reindex. Preserve MLflow and its backups. Keep delivery measurement implementation independently reviewable.
 
 ## Decisions
 
 ### Topology and interfaces
 
-Proposed first rollout uses the existing h4claw platform control plane and h3mon monitoring capacity, subject to fresh preflight. It is a recoverable single-node service, not HA. The existing-hosts versus HA preference was asked during planning; absent a different answer the draft uses the existing footprint. If HA is required, this plan's placement/capacity and failure proofs must be revised before apply; adding a replica on the same host is not HA.
+Proposed first rollout uses the existing h4claw platform control plane and h3mon monitoring capacity, subject to fresh preflight. It is a recoverable single-node service, not HA. The existing footprint is a planning reference, not a settled availability commitment. The production topology/HA choice can be resolved when production promotion is scheduled; it does not block work on dev. If HA is required, this plan's placement/capacity and failure proofs must be revised before apply; adding a replica on the same host is not HA.
 
 | Signal / surface                   | Proposed destination                                                     | User experience                                                      |
 | ---------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
@@ -60,6 +60,8 @@ The existing production observability Flux stage depends on platform and certifi
 The user authorized planning and autonomous PR preparation, not live production activation. Runtime/secret/DNS/certificate changes, real receiver tests and retirement need authorization for the concrete operation. Never print Secret values in evidence. Verify availability, ownership, required keys, role scope and certificate identities through safe receipts. Existing collector superuser credentials are not the query identity of an application or repair worker.
 
 ## Migration Plan
+
+Production execution is deferred until requested. First develop and validate the measurement workflow on dev, keeping Grafana; use its observed load, retention and recovery evidence to refine this rollout. Then:
 
 1. **Inventory and prepare:** restore cluster read access through the authorized operator, record the live source revision/dependencies and current telemetry ownership, capture rollback configs and consistent backups, measure coexistence capacity. Implement/pin gateway, retention, UI access, backup and acceptance checks in a reviewable PR.
 2. **Rehearse:** use isolated local infrastructure to prove three-signal ingestion, APM usability, query access refusal, alert rules, network failure, queue/disk bounds and restores. Exercise each new safety guard with a production-path fault; retain exact versions and observations. Local success is not production acceptance.
