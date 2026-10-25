@@ -374,7 +374,7 @@ export function RequestEditor({
   async function acceptCandidate(): Promise<void> {
     if (isWriting.current || !acceptsCandidate || fields.revision === null) return;
     isWriting.current = true;
-    // Proof: removing this synchronous notification let the same-event Retry start a paid request.
+    // Proof: removing this notification left Retry enabled during the pending candidate save.
     onFocusChange?.(true);
     setPending(true);
     setFailure('');
