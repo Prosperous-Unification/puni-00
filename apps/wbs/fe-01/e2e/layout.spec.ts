@@ -2268,9 +2268,12 @@ test.describe('the table, measured by a browser', () => {
     await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Measures…');
     await page.keyboard.press('ArrowDown');
+    // A leaf's Resources… (`wbs-resources` 1.5), after Measures… for its reason.
+    expect(await focusedText()).toBe('Resources…');
+    await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Delete');
     await page.keyboard.press('ArrowUp');
-    expect(await focusedText()).toBe('Measures…');
+    expect(await focusedText()).toBe('Resources…');
 
     // Escape closes and hands the focus back to the button it opened from.
     await page.keyboard.press('Escape');

@@ -207,6 +207,41 @@ describe('resources in an organization', () => {
     });
   });
 
+  /** Every top-level key of a version 11 document but `optimization`, the same in both modes. */
+  const EXPORT_KEYS = [
+    'assignedPeople',
+    'budgets',
+    'calendarMarkers',
+    'capacity',
+    'demands',
+    'depReach',
+    'directory',
+    'document',
+    'estimateMethod',
+    'estimateRounding',
+    'measureDefinitions',
+    'measureEstimates',
+    'measureFacts',
+    'pertWeights',
+    'priorityBands',
+    'project',
+    'projectRevision',
+    'resourceCapacities',
+    'scheduleError',
+    'seq',
+    'settings',
+    'slices',
+    'startDate',
+    'stepBlockages',
+    'stepNodes',
+    'steps',
+    'teamCapacities',
+    'typedDependencies',
+    'waitingForCapacity',
+    'waitingForPerson',
+    'workItems',
+  ];
+
   // Both export paths: an isolated organization's direct read, and a shared one's
   // single snapshot (`chain-snapshot.ts`), which reads resources beside the tree.
   // Proof: with the snapshot's resource read answering empty lists, the shared case
@@ -236,6 +271,18 @@ describe('resources in an organization', () => {
           demands: [{ workItemId: 'w-a', resourceId: ram, units: 4 }],
         },
       });
+      // The tree read's `demandedResources` is not a document field: the two
+      // modes write the same keys.
+      // Proof: with `buildDocument` spreading the tree whole, the isolated case
+      // failed on `expect(received).not.toHaveProperty(path)` for
+      // `demandedResources`; watched 2026-10-25.
+      expect(exported.body).not.toHaveProperty('demandedResources');
+      // `optimization` rides the live read on one mode only, as before this change.
+      expect(
+        Object.keys(exported.body as object)
+          .filter((key) => key !== 'optimization')
+          .sort(),
+      ).toEqual(EXPORT_KEYS);
       const imported = await h.call('ada', 'POST', '/api/projects/import', exported.body);
       expect(imported.status).toBe(201);
       const { projectId } = imported.body as { projectId: string };

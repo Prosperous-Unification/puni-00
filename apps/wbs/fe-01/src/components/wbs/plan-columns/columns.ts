@@ -19,6 +19,7 @@ import { createNotBeforeColumn } from './not-before';
 import { createNumberColumn } from './number';
 import { createPriorityColumn } from './priority';
 import { createRefsColumn } from './refs';
+import { createResourcesColumn } from './resources';
 import { createServiceColumn } from './service';
 import { createStartColumn } from './start';
 import { createStatusColumn } from './status';
@@ -57,6 +58,7 @@ export function createPlanColumns(
       createTagColumn({ live }),
       createServiceColumn({ live }),
       createTypeColumn({ live }),
+      createResourcesColumn({ live }),
       createInParallelColumn({ live }),
       ...createEstimatesColumns({ steps, unfoldedSteps, live, rule }),
       createFinalTotalColumn(),

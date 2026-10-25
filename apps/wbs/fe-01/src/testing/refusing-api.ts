@@ -30,6 +30,7 @@ import {
   readClaimHistory,
   readProject,
   readProjectClaims,
+  readProjectResources,
   readTimezones,
   recordProjectOpen,
   redoProject,
@@ -249,6 +250,8 @@ const PROJECT_API_OPERATIONS = {
   addTypedDependency: 'postApiProjectsByIdCommands',
   updateTypedDependency: 'postApiProjectsByIdCommands',
   removeTypedDependency: 'postApiProjectsByIdCommands',
+  readResources: 'getApiProjectsByIdResources',
+  setDemands: 'postApiProjectsByIdCommands',
 } as const satisfies Record<keyof ProjectApi, WbsOperationId>;
 
 function isProjectApiMethod(key: string): key is keyof ProjectApi {
@@ -971,6 +974,57 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return reply.body;
+    };
+  }
+
+  const readResourcesAnswer = answers.readResources;
+  if (readResourcesAnswer !== undefined) {
+    checked.readResources = async (projectId) => {
+      const client = clientFromShapes([readProjectResources], async () => ({
+        kind: 'json',
+        status: 200,
+        body: await readResourcesAnswer(projectId),
+      }));
+      const reply = await client.getApiProjectsByIdResources({ params: { id: projectId } });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body;
+    };
+  }
+
+  const setDemandsAnswer = answers.setDemands;
+  if (setDemandsAnswer !== undefined) {
+    checked.setDemands = async (projectId, statements) => {
+      const commands = statements.map(({ workItemId, resourceId, units }) => ({
+        kind: 'setDemand' as const,
+        workItemId,
+        resourceId,
+        units,
+      }));
+      const preflight = preflightFakeRequest(applyProjectCommands, {
+        params: { id: projectId },
+        body: { commands },
+      });
+      const prepared = isPromiseLike(preflight) ? await preflight : preflight;
+      const mutation = setDemandsAnswer(prepared.params.id, statements);
+      const client = clientFromShapes([applyProjectCommands], async () => {
+        await mutation;
+        return {
+          kind: 'json' as const,
+          status: 200,
+          body: {
+            results: commands.map((_, index) => ({ index })),
+            undoable: true,
+            redoable: false,
+          },
+        };
+      });
+      const reply = await client.postApiProjectsByIdCommands({
+        params: prepared.params,
+        body: prepared.body,
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
     };
   }
 

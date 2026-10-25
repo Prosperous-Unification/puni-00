@@ -302,6 +302,12 @@ function buildDocument(
   // export fields` and the four canonical-bytes cases
   // (plan-document.resource.test.ts) failed (84 pass, 5 fail); watched 2026-10-24.
   const { budgetFactor, ...exported } = project;
+  // The tree read's own demand fields stay out of the file: the document writes
+  // its file-local `demands` below and names resources in `directory`.
+  // Proof: spread whole, the isolated export carried `demandedResources` and
+  // `exports the organization’s resources … (isolated)`
+  // (resource-organization.controller.db.test.ts) failed; watched 2026-10-25.
+  const { demands: _readDemands, demandedResources: _readResources, ...documentTree } = tree;
   const measures = documentMeasures(tree, reads.measures);
   const settings = {
     name: project.name,
@@ -321,7 +327,7 @@ function buildDocument(
   };
   return {
     project: exported,
-    ...tree,
+    ...documentTree,
     workItems: documentWorkItems(tree, closure.people),
     // Proof: omitting this collection failed `v9 exports detached direct blockage facts` (2026-10-14).
     stepBlockages: documentBlockages(tree),

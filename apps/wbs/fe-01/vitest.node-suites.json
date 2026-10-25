@@ -96,6 +96,9 @@
       "file": "src/components/wbs/project-picker.test.ts"
     },
     {
+      "file": "src/components/wbs/resource-demand-words.test.ts"
+    },
+    {
       "file": "src/components/wbs/short-date.test.ts"
     },
     {

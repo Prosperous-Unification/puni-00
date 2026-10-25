@@ -46,6 +46,8 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     addTypedDependency: (...rest) => routes.addTypedDependency(projectId, ...rest),
     updateTypedDependency: (...rest) => routes.updateTypedDependency(projectId, ...rest),
     removeTypedDependency: (...rest) => routes.removeTypedDependency(projectId, ...rest),
+    readResources: (...rest) => routes.readResources(projectId, ...rest),
+    setDemands: (...rest) => routes.setDemands(projectId, ...rest),
     // Proof: on 2026-09-24, handing `patchWorkItem` the project in place of the work item failed
     // `passes every work-item command through unchanged, leaving out what the caller left out`:
     // the route received `p1` where `w1` was expected.

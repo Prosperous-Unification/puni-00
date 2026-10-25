@@ -345,6 +345,7 @@ export const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['tag', 'Tags'],
   ['service', 'Services'],
   ['type', 'Types'],
+  ['resources', 'Resources'],
   ['in-parallel', 'People at once'],
   ['final-total', 'Days'],
   ['not-before', 'Not before'],

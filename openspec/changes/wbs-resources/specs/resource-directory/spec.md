@@ -69,3 +69,49 @@ inherited down the tree. When a leaf gains its first child by `createWorkItem`, 
 
 - **WHEN** a plan with resources, capacities and demands is exported and imported
 - **THEN** every demand, capacity and resource is present after import with the same units
+
+### Requirement: The plan read names each work item's demands
+
+The project tree read (`GET /api/projects/:id/work-items`) SHALL carry `demands`, every demand
+of the project's work items as `{ workItemId, resourceId, units }` in work-item then
+resource-id order, and `demandedResources`, one `{ id, name, kind, unitLabel }` per resource a
+demand names under the caller's directory names. Both SHALL be present exactly when the project
+states a demand and absent otherwise, so a plan stating none keeps its payload shape. A shared
+read SHALL take both from the same snapshot as its schedule. The plan export and the plan
+document SHALL NOT carry them; they keep their own file-local `demands` and resources.
+
+#### Scenario: A row says what it consumes
+
+- **WHEN** two leaves each demand 1 unit of the exclusive resource `staging`
+- **THEN** the tree read lists both demands and names `staging` once in `demandedResources`,
+  with its kind and unit label, on the isolated and the shared read alike
+
+#### Scenario: A plan stating no demand
+
+- **WHEN** no work item of the project states a demand
+- **THEN** the tree read carries neither `demands` nor `demandedResources`
+
+### Requirement: fe-01 manages resources and states demands
+
+fe-01 SHALL let a planner manage the directory's resources and a leaf's demands without the
+API. The project settings' Resources section SHALL add a resource (name, kind, unit label),
+rename it or change its unit label, remove it, and state or clear this project's capacity of
+it; a removal refused `in_use` SHALL be said with the counts of demands, capacities and claims
+holding it, and removing it with them SHALL need a second, explicit confirm (`cascade`). A
+leaf's Resources cell (a column hidden by default) and the row menu's `Resources…` SHALL open a
+panel listing every resource with this work item's units, an exclusive one as needed or not,
+and saving SHALL send every changed demand as one batch, so the plan's Undo takes the edit back
+whole. A parent SHALL be offered no demand edit. Loading, an empty directory, a failed read
+and every refusal (a role that may not write included) SHALL be rendered in place.
+
+#### Scenario: A demand set from the table is undone in one step
+
+- **WHEN** a planner sets `RAM` to 8 and ticks `staging` on leaf `020` and saves
+- **THEN** one `setDemand` batch is sent, the cell reads `RAM 8 GiB · staging`, and one Undo
+  restores the previous demands
+
+#### Scenario: A demanded resource is removed only on confirm
+
+- **WHEN** a planner removes a resource two demands still name
+- **THEN** the section says it is used by 2 demands, offers `Remove with them`, and removes
+  nothing until that is chosen

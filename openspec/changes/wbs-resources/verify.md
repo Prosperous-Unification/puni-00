@@ -948,3 +948,266 @@ wbs-dev MCP (headless session, PUNI plan `558ec5c7`):
 - Claims on dev answered `403 person_not_bound` before activation (designed fence); dev was then
   activated (see `wbs-team-claims/verify.md`). Not verified on dev: a bound claim's occupancy, which
   needs an MCP session consented after activation (Dany reconnects once).
+
+## Task 1.5: fe-01 manages resources and demands (2026-10-25)
+
+Branch `feat/wbs-resources-fe` from main `c939e8cfd`.
+
+### What shipped
+
+- **Tree read carries demands** (contracts + be-01, additive, no migration): `GET
+/api/projects/:id/work-items` answers `demands` (`workItemId`, `resourceId`, `units`) and
+  `demandedResources` (`id`, `name`, `kind`, `unitLabel`, under the caller's directory names),
+  both present exactly when a work item states a demand; the shared read takes them from its
+  snapshot, the isolated and legacy reads from the stores (`withDemands` in
+  `work-item.resource.ts`). The plan document omits both (`planDocument` keeps its own
+  file-local `demands`). Delta: `specs/resource-directory/spec.md`, two ADDED requirements.
+- **Resources cell** (`plan-columns/resources.tsx`, column `resources`, 168 px, in
+  `INITIAL_HIDDEN_COLUMNS` like Types). "Hidden by default" holds only for fresh storage: a
+  project whose reader already stored a hide-list, or a saved view, that predates the column
+  shows it, 168 px wider, possibly past the folded 1280 budget (the hide-list names what is
+  hidden, so a column it does not name is shown; `remembered-layout.ts`). The default-width
+  figures are unchanged for a never-customised table only. Not migrated; see review fixes.
+  a leaf reads `h2puni ram 6 GB · staging`; a click, Enter, Space or typing opens the row's
+  Resources panel; a parent shows its own (inert) demand muted with the reason and is not a
+  grid stop. The row ⋯ menu offers `Resources…` on leaves (table and cards), and a phone card
+  shows a demand chip.
+- **Resources panel** (`resource-demand-panel.tsx`): every directory resource, an exclusive one
+  as a `Needed` checkbox, a divisible one as a units box (blank = none), each with the project's
+  stated capacity; Save sends only the changed demands as **one** `setDemand` batch, so the
+  plan's Undo takes the whole edit back (eye review: undo emptied 030's cell, redo restored
+  `h2puni ram 2 GB · staging`). Loading, failed read with Retry, empty directory, a box that is
+  not a number, and every refusal (in place, plus the plan's usual toast) are rendered states.
+- **Settings → Resources** (`resources-panel.tsx`): Add (name, kind, unit), Edit (name, unit
+  label via `patchResource`), Remove (`deleteResource`; `in_use` says the counts of demands,
+  capacities and claims holding it and offers `Remove with them` = `cascade`), a typed capacity
+  box (`setResourceCapacity`, blank = unstated), and what claims hold now with a bar, off the
+  startable read (`resources`: capacity, occupied, free); a failed startable read is said, not
+  shown as zero. `forbidden`, `taken` and `name_required` read as resource sentences; nothing is
+  hidden by role except the admin-only provider picker, as before.
+- Not done: the 3.4 per-resource facet. The read now carries what it needs; the facet touches
+  `FilterCriteria`, the facet panel, persisted filters and export words, which is not cheap, so
+  3.4 stays open.
+
+### Commands and results (fresh)
+
+- `bunx nx run wbs-fe-01:test --skip-nx-cache` (`env -u CLAUDECODE`): node tier 85 files /
+  1048 tests, jsdom UTC 231 files / 4529 tests, Pacific/Auckland 4 files / 5 tests, exit 0.
+  After that run's last label-only edit: `resources-panel`, `resource-demand-panel`,
+  `plan-table`, `plan-cells` re-run, 4 files / 244 tests pass.
+- `bun test --timeout=10000` in `apps/wbs/be-01` (`env -u CLAUDECODE`): 3447 pass, 3 skip,
+  0 fail, 239 files, exit 0.
+- `bun test src` in `libs/wbs/application/core`: 1327 pass, 0 fail. Contracts suite: 506 pass,
+  0 fail.
+- `bunx nx run-many -t lint typecheck -p wbs-be-01 wbs-fe-01 wbs-contracts wbs-core
+--skip-nx-cache` (`NODE_OPTIONS=--max-old-space-size=8192`): exit 0, `typecheck:module` of
+  fe-01, be-01 and core included.
+- `bunx openspec validate --all --json`: exit 0. Burokrat `check-indexes working . HEAD`
+  (output redirected): exit 0. `prettier --check` on every changed file: clean.
+- MCP tool count unchanged (no new route). No migration.
+
+### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Fault injected                                                             | Observed                                                                                                                                                |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| tree read answers `tree` without `withDemands` (before the implementation) | `levels a demanded resource` (isolated and shared) failed on `expected undefined to deeply equal [ … ]`                                                 |
+| `demandsByWorkItem` skips a demand naming an unlisted resource             | `throws on a demand naming a resource the same read does not list`: `expected [Function] to throw an error`                                             |
+| Resources column `isEditable: () => true`                                  | `steps over a parent’s Resources cell`: `expected <input …(9)> to be <input …(5)>`                                                                      |
+| panel's `Number.isFinite` check removed                                    | `says a box that is not a number in place and sends nothing`: `NaN` sent (JSON `null`, a cleared demand) and be-01's whole-number sentence read instead |
+| panel treats a refused save as landed                                      | `says a refused save in place and stays open`: `Unable to find role="alert"`                                                                            |
+| `writeDemands` catch answers null                                          | same test: `Unable to find role="alert"`                                                                                                                |
+| the seven resource sentences struck from `PLAN_REFUSALS`                   | `words every resource refusal the panels can reach`: `That change could not be completed (exclusive_demand_is_one).`                                    |
+| settings `in_use` arm answers false                                        | `names what still uses a resource and removes it with them on confirm`: no alert in the row                                                             |
+| settings capacity `Number.isFinite` check removed                          | `says a capacity that is not a number in place`: no alert; `NaN` went out as `null` (clears to unstated)                                                |
+| failed startable read read as `read` with no entries                       | `says the holdings are missing when the startable read fails`: sentence not found                                                                       |
+
+The panel's `current` guard (a read answered after close or retry is dropped) is a
+cancellation exit with no observable negative in jsdom, and carries no Proof comment.
+
+### Eye review (Playwright Chromium, local activated organization, #716 dev server)
+
+`activated-organization-server.ts` on 7310, gw-01 on 7311, fe-01 Vite on 7410. Sign-in through
+the form does not hold in this mode (be-01 without OIDC answers the password token in the body
+and clears the cookie, so `/api/onboarding` reads 401); the script logs in over the API and sets
+`__Host-wbs_access` itself. Resources created and capacities stated through the UI, demands set
+through the panel, then an agent person, its binding and an API key made over HTTP (key never
+printed) and two claims taken with it: `e2e` (6 GB, 1 slot) and `deploy` (2 GB, staging) answered
+200, `soak` answered `409 resources_exhausted` (staging held). Screenshots, in
+`/tmp/claude-1000/-home-df-wd-puni-puni-00/3a99a5da-6337-42cc-8d80-d91fff950989/scratchpad/resources-fe-shots/` (local to the reviewing laptop):
+
+`01-settings-resources-empty-desktop-light`, `02-settings-add-form-filled`,
+`03-settings-create-taken-refusal`, `04-settings-rename-open`, `05-table-resources-column-empty`,
+`06-demand-panel-desktop-light`, `07-demand-panel-refusal`, `08-table-demands-desktop-light`,
+`09-table-claimed-desktop-light`, `10-settings-holdings-desktop-light`,
+`11-settings-remove-in-use`, `12-table-demands-desktop-dark`, `13-demand-panel-desktop-dark`,
+`14-settings-holdings-desktop-dark`, `15-phone-cards-{light,dark}`,
+`16-phone-demand-panel-{light,dark}`, `17-phone-settings-resources-{light,dark}`,
+`18-phone-settings-add-form-{light,dark}` (phone = 375 × 812).
+
+Fixed from the review: the kind picker was named by its options' words (labels now point at
+controls by id); `Divisible — k units at a time` was clipped (options shortened, the meaning
+moved to the hint); the 120 px cell clipped host-named resources (168 px); inputs take
+`CONTROL_HEIGHT` (44 px on a phone) beside the selects; capacity and provider sit on one row.
+
+### Not run, and why
+
+- The Playwright e2e suite (`pixels`): not run locally (laptop RAM, one other agent); CI runs it.
+  The one hard-coded expectation it held about this change, the ⋯ menu walk in
+  `e2e/layout.spec.ts`, now expects `Resources…` between `Measures…` and `Delete`. There are no
+  screenshot baselines; the default column set and its widths are unchanged.
+- The legacy (pre-organization) branch of `withDemands` has no test of its own.
+- h2puni gate: pending. 1.5 is ticked on the branch's evidence; the gate on the merged head
+  is owed before it counts as done.
+
+### Review fixes (Fable review of #719, 2026-10-25)
+
+**S2-1 export leak.** `buildDocument` now drops the tree read's `demands` and
+`demandedResources` before spreading the tree, so the document carries only its own file-local
+`demands`. `exports the organization’s resources … (isolated|shared)` asserts no
+`demandedResources` and the same top-level keys in both modes (`optimization` aside: it rides the
+live read in one mode only, as before this change).
+
+**S2-2 lost update.** The panel diffs the draft against the demands it opened with, never the
+live row, and sends only the boxes the reader changed. When the live row moves while it is open
+it says so (`Changed elsewhere since this opened: now …`). Test: opened at RAM 2, a peer sets
+RAM 4 + staging; an untouched save sends nothing; changing only RAM sends only RAM.
+
+**S2-3 Remove with them. ASSUMED, for Dany to confirm:**
+
+- Remove always asks first, and the confirm says it cannot be undone (the plan's Undo does not
+  reach the directory) and that every project loses it, naming the compute provider link when
+  there is one. Keep has the focus.
+- When be-01 answers `in_use`, the row names the counts and **where**: `this project (N work
+items)` and each other project by name, from the refusal's `usage`. It says live claims keep
+  their claim but stop holding the units, and how many.
+- be-01 has no conditional cascade. `Remove with them` re-sends the plain delete first: it
+  removes a resource nobody uses any more; it sends `cascade` only when be-01 answers the same
+  usage that was shown; otherwise it shows the new usage, marked changed, and asks again. The
+  window between the re-check and the cascade remains.
+- Role gating is unchanged. **Open question for Dany:** any member of the organization may
+  delete a directory resource with its demands, capacities and occupancies, from any project's
+  settings.
+
+**S3:**
+
+- Units boxes (demand and capacity) take digits only (`/^\d+$/`): `0x10`, `1e3`, `1.5`, `-2`
+  are said in place and never sent. `0` still reaches be-01 and its worded refusal.
+- `withDemands` moved to `tree-demands.ts` with tests. The isolated read takes demands and the
+  catalog outside one transaction, so `namedDemandFields` reads both again once when a demand
+  names a resource the catalog lacks (a cascade landing between the reads), and throws on a
+  second disagreement. The shared read is one snapshot and is not re-read. A persistent
+  unmapped demand is not reachable by construction: `resource_organization_bridge` maps every
+  resource created before activation to the legacy organization, creates after it map through
+  the directory, the mapping is immutable and cascades only with the resource, and a demand
+  naming a foreign resource is refused (`refuses a foreign resource exactly as an absent one`).
+  The read-only query that would find such rows:
+
+  ```sql
+  SELECT d.work_item_id, d.resource_id, w.project_id,
+         po.organization_id AS project_organization,
+         ro.organization_id AS resource_organization
+  FROM work_item_resource_demand d
+  JOIN work_item w ON w.id = d.work_item_id
+  JOIN project_organization po ON po.resource_id = w.project_id
+  LEFT JOIN resource_organization ro ON ro.resource_id = d.resource_id
+  WHERE ro.resource_id IS NULL OR ro.organization_id <> po.organization_id;
+  ```
+
+- Legacy (pre-organization) read: `legacy-demands-read.test.ts` (memory source,
+  `LEGACY_ACCESS`): no fields without demands, root names after a two-statement batch, and one
+  Undo leaves no demand.
+- Focus: Edit moves the keyboard to the form's Name; Save or Cancel back to Edit; Remove to
+  Keep; Keep back to Remove.
+- The capacity box is named by its visible label then the resource (`This project may use
+h2puni ram`, `aria-labelledby`).
+- A refused save names the refused box (`h2puni ram: …`, `aria-invalid`, described by the
+  alert) from the refusal's `at`, and is reported **once, in the panel**: a plain refusal is not
+  handed to the plan writer's toast. Failures that say the screen is behind (gone, unreadable
+  request, unknown transport outcome) stay the writer's toast and reread, and the panel adds
+  nothing. This departs from the Measures panel, which reports in place and toasts too.
+- A startable read with no `resources` (an outgoing be-01) says the server does not report
+  holdings; a stated resource absent from the list says `No holdings were reported for it.`
+  (Each showing of the tab still pays one whole startable read for the holdings.)
+
+Not addressed: viewers are still offered the write controls and answered with refusals (spec
+choice); the stored-hide-list effect above is stated, not migrated.
+
+#### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Fault injected                                            | Observed                                                                                                               |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `buildDocument` spreads the tree whole                    | `exports … (isolated)`: `not.toHaveProperty('demandedResources')` failed                                               |
+| `withDemands` drops an unnamed demand instead of throwing | `throws on a demand naming a resource the catalog does not hold` and `throws when the two reads still disagree` failed |
+| no second read pair                                       | `reads both again once when a removal landed between them` rejected on `r-stg`                                         |
+| legacy branch answers the tree alone                      | `names root resources, and one Undo takes a two-statement batch back`: no `demands`                                    |
+| panel diffs against the live row                          | `sends only what the reader changed over a peer’s edit`: the untouched save wrote                                      |
+| `Number.isFinite` instead of digits (panel)               | `refuses hexadecimal and exponent units in place` failed                                                               |
+| `Number.isFinite` instead of digits (capacity)            | `says a capacity that is not a number in place`: no alert, `0x10` sent                                                 |
+| `writeDemands` rethrows every refusal                     | `says a refused save once, in place, naming the box`: toasted too                                                      |
+| `writeDemands` ignores the outcome                        | `says a refused save in place and stays open` and the box case failed                                                  |
+| cascade sent without the re-check                         | `asks again when what uses a resource changed since it was shown` failed                                               |
+| `ask` sends the delete at once                            | `removes an unused resource only after a confirm …` and the in-use case failed                                         |
+| absent `resources` read as an empty list                  | `says a server that reports no holdings` failed                                                                        |
+
+#### Commands and results (fresh, after the last edit)
+
+- `bun test src` in `libs/wbs/application/core`: 1333 pass, 0 fail.
+- be-01: `resource-organization`, `resource-schedule` and every export / plan-document test
+  file (15 files): 420 pass, 0 fail.
+- fe-01 (`env -u CLAUDECODE`, UTC): the two resource suites plus `plan-cards`,
+  `plan-structure`, `plan-keyboard`, `plan-layout`, `measure-panel`, `table-frame`,
+  `project-settings-modal`, `src/testing` and `src/modules/plan-commands`: 14 files, 594 tests
+  pass.
+- `nx run-many -t lint typecheck -p wbs-be-01 wbs-fe-01 wbs-contracts wbs-core
+--skip-nx-cache`: exit 0 (`typecheck:module` included).
+- `openspec validate --all --json`: exit 0. Burokrat `check-indexes working . HEAD` (output
+  redirected, staged tree): exit 0.
+
+Screenshots re-shot (same directory, one full run): changed `07-demand-panel-refusal` (names
+the box, no toast), `11-settings-remove-in-use` (where, live claims, cannot be undone), new
+`19-settings-remove-unused-confirm`, `20-demand-panel-not-digits`,
+`21-demand-panel-peer-change`; the rest re-shot unchanged.
+
+### Re-check fixes (Fable re-check of 7033441af, 2026-10-25)
+
+- **Long digit strings.** Both units boxes also require `Number.isSafeInteger`: 400 nines read
+  as `Infinity`, which JSON carries as `null` (a cleared demand, an unstated capacity); now
+  said in place, nothing sent.
+- **Writer handoff tested on the production path.** `hands a row a peer deleted to the writer`:
+  `setDemands` answers `not_found`, the writer toasts and rereads, the row leaves the table and
+  the panel with it. `says an unconfirmed save as the reader’s own`: a save that lands and then
+  loses its answer (transport failure) is toasted once by the writer; the panel does not say
+  "Changed elsewhere" but "Your last save was not confirmed, so the plan was read again: now …",
+  and from then on diffs against what was read.
+- **The cascade race for labels too.** The earlier claim that the race was handled was true for
+  demands only. Now: the isolated tree read takes the whole read again once when its own root
+  catalog lacks a resource a bar waited for (`treeIsolated`, tested with a cascade injected
+  between the reads in `legacy-demands-read.test.ts`), and the organization branch reads the
+  tree and its catalog through `readUntilNamed` (one re-read, tested in `tree-demands.test.ts`).
+  A second disagreement still throws. The organization branch's own wiring is not raced in a
+  test; it is the helper plus one call.
+- **Focus after a removal** lands on the next resource's Edit, or on the Add form's name when
+  the last one went.
+- **Usage wording (S3-3).** be-01's `usage` places demands only; capacities and claims in other
+  projects are counted, never placed. The confirm now says "Its demands are in …" and
+  "Capacities and claims are counted across every project", so the named list does not read as
+  complete.
+
+| Fault injected                                    | Observed                                                                                       |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| demand box without `isSafeInteger`                | `refuses hexadecimal and exponent units in place` failed on 400 nines                          |
+| capacity box without `isSafeInteger`              | `says a capacity that is not a number in place` failed                                         |
+| `code === GONE` dropped from `demandWriteOutcome` | `hands a row a peer deleted to the writer …` failed                                            |
+| `reported` not marking the save unconfirmed       | `says an unconfirmed save as the reader’s own …` failed                                        |
+| `readUntilNamed` answers its first pair           | `reads both again once when a removal landed between them` failed                              |
+| `treeIsolated` re-read skipped                    | `labels a bar of a resource removed between the two reads` threw `a bar waited for resource …` |
+| removal focus not recorded                        | `lands on the next resource after a removal, and on Add after the last` failed                 |
+
+Fresh after merging `origin/main` (e759f1e13, #718), `env -u CLAUDECODE`: core `bun test src`
+1337 pass, 0 fail; be-01 resource-organization, resource-schedule and #718's
+`organization-browser-server.test.ts` 12 pass; fe-01 (UTC) the resource suites, plan-cards,
+plan-structure, plan-keyboard, plan-layout, measure-panel, table-frame,
+project-settings-modal, `src/testing`, plan-commands and #718's `playwright-config.test.ts`:
+15 files, 616 pass; `nx run-many -t lint typecheck` (be-01, fe-01, contracts, core, with
+`typecheck:module`) exit 0; `openspec validate --all --json` exit 0; Burokrat `check-indexes`
+exit 0. Full fe-01 / be-01 suites and the h2puni gate not re-run (gate pending).

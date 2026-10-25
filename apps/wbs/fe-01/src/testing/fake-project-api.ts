@@ -20,13 +20,14 @@ import type {
   Days,
   EstimateMethod,
   ProjectApi,
+  ProjectResourcesView,
   ScheduleView,
   StepView,
   TypedDependencyView,
   UndoResult,
   WorkItemView,
 } from '@/lib/wbs-api';
-import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW, WbsRequestError } from '@/lib/wbs-api';
 
 import { SEEDED_MEASURES } from './measure-fixtures';
 import { EstimateUnitConflict, refusingApi } from './refusing-api';
@@ -134,6 +135,14 @@ export function fakeProjectApi(): ProjectApi & {
    * on a button that never re-read.
    */
   retries: readonly { objective: 'pri' | 'time'; inputHash: string }[];
+  /**
+   * The directory's resources and this project's capacities and demands
+   * (`wbs-resources`), a store like {@link markers}: a test pushes the
+   * resources it needs and reads the demands `setDemands` wrote back.
+   */
+  resources: ProjectResourcesView['resources'];
+  resourceCapacities: ProjectResourcesView['capacities'];
+  demands: ProjectResourcesView['demands'];
 } {
   const retries: { objective: 'pri' | 'time'; inputHash: string }[] = [];
   const rows: WorkItemView[] = [];
@@ -162,6 +171,9 @@ export function fakeProjectApi(): ProjectApi & {
    */
   const markers: CalendarMarkerView[] = [];
   const claims: ClaimView[] = [];
+  const resources: ProjectResourcesView['resources'] = [];
+  const resourceCapacities: ProjectResourcesView['capacities'] = [];
+  const demands: ProjectResourcesView['demands'] = [];
   const claimHistory: ClaimHistoryEventView[] = [];
   const typedDependencies: TypedDependencyView[] = [];
   let nextDependencyId = 0;
@@ -451,6 +463,9 @@ export function fakeProjectApi(): ProjectApi & {
   return refusingApi({
     rows,
     markers,
+    resources,
+    resourceCapacities,
+    demands,
     claims,
     claimHistory,
     stack,
@@ -668,6 +683,16 @@ export function fakeProjectApi(): ProjectApi & {
         projectRevision: 0,
         undoable: stack.undoable,
         redoable: stack.redoable,
+        // Present exactly when a work item states a demand, as be-01's tree read
+        // sends them (`wbs-resources` 1.5).
+        ...(demands.length === 0
+          ? {}
+          : {
+              demands: demands.map((demand) => ({ ...demand })),
+              demandedResources: resources
+                .filter((resource) => demands.some((each) => each.resourceId === resource.id))
+                .map(({ id, name, kind, unitLabel }) => ({ id, name, kind, unitLabel })),
+            }),
         optimization: {
           enabled: optimizationEnabled,
           engine: scheduleEngine,
@@ -816,6 +841,58 @@ export function fakeProjectApi(): ProjectApi & {
         claims: claims.map((claim) => ({ ...claim, holder: { ...claim.holder } })),
       }),
     readClaimHistory: () => Promise.resolve(structuredClone(claimHistory)),
+    readResources: () =>
+      Promise.resolve({
+        resources: structuredClone(resources),
+        capacities: structuredClone(resourceCapacities),
+        demands: structuredClone(demands),
+      }),
+    /**
+     * Applies the batch whole or not at all, refusing what be-01's `setDemand`
+     * refuses: an unknown resource, units that are not a whole number from 1,
+     * and any units but 1 on an exclusive one.
+     */
+    setDemands(_projectId, statements) {
+      /** be-01's refusal of the command at `at`, as the batch route answers it. */
+      const refused = (
+        error:
+          'unknown_resource' | 'units_must_be_a_whole_number_from_1' | 'exclusive_demand_is_one',
+        at: number,
+      ) =>
+        Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'postApiProjectsByIdCommands',
+            refusal: { error, at, kind: 'setDemand' },
+          }),
+        );
+      // A row a peer deleted: be-01's scoped 404, which names no command.
+      if (statements.some(({ workItemId }) => !rows.some((row) => row.id === workItemId)))
+        return Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'postApiProjectsByIdCommands',
+            refusal: { error: 'not_found' },
+          }),
+        );
+      for (const [at, { resourceId, units }] of statements.entries()) {
+        const resource = resources.find((each) => each.id === resourceId);
+        if (resource === undefined) return refused('unknown_resource', at);
+        if (units !== null && (!Number.isInteger(units) || units < 1))
+          return refused('units_must_be_a_whole_number_from_1', at);
+        if (units !== null && resource.kind === 'exclusive' && units !== 1)
+          return refused('exclusive_demand_is_one', at);
+      }
+      for (const { workItemId, resourceId, units } of statements) {
+        const at = demands.findIndex(
+          (each) => each.workItemId === workItemId && each.resourceId === resourceId,
+        );
+        if (at !== -1) demands.splice(at, 1);
+        if (units !== null) demands.push({ workItemId, resourceId, units });
+      }
+      renumber();
+      return Promise.resolve();
+    },
     createCalendarMarker(_projectId, marker) {
       const id = marker.markerId ?? `marker-${String(nextMarkerId++)}`;
       const stored: CalendarMarkerView = {
