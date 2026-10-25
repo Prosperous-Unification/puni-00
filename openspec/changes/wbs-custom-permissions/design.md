@@ -151,7 +151,7 @@ Planner's (assumed, overrulable by id):
 Each assumed by the planner on 2026-10-25, overrulable by id. CP13, CP14 and CP20 answer
 the reviewer's three product questions and await Dany.
 
-- **CP13. Membership administration never delegates privilege.** _Awaits Dany._
+- **CP13. Membership administration never delegates privilege.** _Settled by Dany 2026-10-25 ("the restriction makes sense now let's impl it")._
   `addGroupMember` and `removeGroupMember` are authority changes: for every grant naming
   the group, at that grant's scope, the actor needs the permission P11 names for granting
   (or revoking) that grant's role, and that role's set must be a subset of the actor's
