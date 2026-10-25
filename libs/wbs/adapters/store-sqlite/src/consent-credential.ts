@@ -27,8 +27,16 @@ export class ConsentCredentialRepository implements ConsentCredentials {
 
   async agentsBoundTo(userId: string, organizationId: string): Promise<readonly ConsentAgent[]> {
     await Promise.resolve();
+    // The organization-local name, as `GET /api/people` reads it: activation
+    // leaves the root `person.name` holding the person id.
+    // Proof: reading `person.name` here, `lists only the agents bound to the
+    // token's account` in `mcp-delegation.boot.db.test.ts` got `root-claire`
+    // and `root-zeta` in id order, and `offers dany's agents at consent` in
+    // mcp-01's `organization-delegation.boot.test.ts` found no `Claire`
+    // button (consent refused, access_denied); ordering by `person.id` alone
+    // failed the first test too; watched 2026-10-25.
     return this.db
-      .select({ personId: person.id, name: person.name })
+      .select({ personId: person.id, name: personOrganization.name })
       .from(person)
       .innerJoin(personOrganization, eq(personOrganization.resourceId, person.id))
       .where(
@@ -41,7 +49,7 @@ export class ConsentCredentialRepository implements ConsentCredentials {
           eq(person.accountId, userId),
         ),
       )
-      .orderBy(asc(person.name), asc(person.id))
+      .orderBy(asc(personOrganization.name), asc(person.id))
       .all();
   }
 

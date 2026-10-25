@@ -111,6 +111,16 @@ session token in `__Host-wbs_access`, the `__Host-wbs_organization` cookie that
 `{ source: 'api_key', name, personId }`. The answer carries the key once; the agent sends it as
 `Authorization: Bearer`. Lease timing has no knob: claims hold for the real 15 minutes.
 
+These agents use HTTP only. An API key cannot reach the MCP endpoint: mcp-01 accepts only its
+own OAuth access tokens, and an MCP agent comes from a human's consent
+([fleets and MCP](auth-integration.md#fleets-and-the-mcp-endpoint)). This stack does not run
+mcp-01, and could not serve a consent if it did: be-01 boots without `WBS_DELEGATION_VERIFY_KEY`,
+and there is no upstream login for mcp-01 to send the human to. `bun run dev` starts mcp-01, but
+its seeded `.env` names a placeholder issuer, so a consent cannot complete there either. To
+exercise MCP consent and agents, use the booted fixture behind mcp-01's
+`organization-delegation.boot.test.ts`: `apps/wbs/be-01/src/testing/mcp-delegation-backend.ts`
+(production be-01 composition, fresh delegation key pair, a test JWKS for the upstream login).
+
 Caps come from the test defaults (50 agent persons, 200 concurrent claims, 10,000 units per
 resource). To show or change them, point `organization-limits-cli.ts` at the database path the
 server prints on start. The CLI reads the deployment defaults from the environment and exits 1
