@@ -340,9 +340,8 @@ appear in route evidence, unexpected-failure reports, audit details, error bodie
 
 be-01 SHALL write one `machine_token_issued` row per distinct run of a credential in a UTC day,
 up to 100 rows per credential per day. After that it SHALL write one
-`machine_token_issued_overflow` row for that credential and day, and nothing more that day. The
-count and the insert SHALL run in one `BEGIN IMMEDIATE` write transaction. Issuance itself is never refused for
-audit reasons. No audit row carries a secret.
+`machine_token_issued_overflow` row for that credential and day, and nothing more that day. Issuance itself is never refused for audit
+reasons, and no audit row carries a secret.
 
 #### Scenario: A client that invents runs
 
@@ -356,11 +355,24 @@ audit reasons. No audit row carries a secret.
   at a real-epoch time
 - **THEN** exactly two `machine_token_issued` rows exist
 
+### Requirement: Issuance reads the audit key before taking the write lane
+
+be-01 SHALL look up the day's run row and overflow row first, outside the write lane. An
+issuance whose run row or overflow row already exists SHALL write nothing. Otherwise the
+lookups and the count SHALL be repeated inside the write lane before the insert.
+
+#### Scenario: Issuance while a batch holds the write turn
+
+- **WHEN** today's row for a credential and run exists and a command batch holds the write turn
+- **THEN** a token request for that credential and run answers `200` without waiting for the
+  turn
+
 ### Requirement: The token helper issues a fresh token on every run
 
 `twilight-dash mcp token` SHALL keep no token cache and SHALL issue a fresh token on every run.
 On a `429` it SHALL wait the `Retry-After` seconds, capped at what remains of its 10 s budget
-minus 1 s, retry once, and then exit non-zero.
+minus 1 s, retry once, and then exit non-zero; when that cap is zero or less it SHALL not
+retry.
 
 #### Scenario: A re-run after a 401 issues a new token
 

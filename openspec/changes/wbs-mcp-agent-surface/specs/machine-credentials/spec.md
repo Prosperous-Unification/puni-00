@@ -92,7 +92,11 @@ lists any row not named in `WBS_ACCEPT_BREAKING_AUDIENCES`.
 
 ### Requirement: One verification path admits every source
 
-be-01 SHALL admit a request bearing `Authorization: Bearer <token>` by exactly one of: a
+The verification path below SHALL be reached only through `POST /internal/mcp/machine-grants`
+(which answers a machine grant or the refusal named) and through the test-only composition
+seam. On `/api`, an API key, a trusted-issuer token and a groups-less configured-issuer token
+are refused `machine_bearer_not_accepted` before it (`wbs-mcp-agent-surface` M9). On that path
+be-01 SHALL admit a presented token by exactly one of: a
 WBS-signed delegation naming a live `mcp_consent` credential; an API key
 `wbs_mk_<credential id>.<secret>` whose id selects an unrevoked credential by primary key
 and whose secret's SHA-256 digest equals, compared in constant time, one of that
@@ -119,7 +123,8 @@ fetched SHALL be refused `401 invalid_token`, never admitted on a cached or defa
 
 #### Scenario: A secret under another credential's id
 
-- **WHEN** a request bears `wbs_mk_<id of credential A>.<live secret of credential B>`
+- **WHEN** the grant route (or the seam) is given `wbs_mk_<id of credential A>.<live secret of
+credential B>`
 - **THEN** WBS answers `401 unknown_identity` and reads only credential A's secrets
 
 #### Scenario: A key in a custom header
@@ -129,19 +134,23 @@ fetched SHALL be refused `401 invalid_token`, never admitted on a cached or defa
 
 #### Scenario: A revoked API key
 
-- **WHEN** a request bears the secret of a revoked credential
-- **THEN** WBS answers `401 unknown_identity` and the users table is unchanged
+- **WHEN** the grant route (or the seam) is given the secret of a revoked credential
+- **THEN** WBS answers `401 unknown_identity`, mcp-01 answers the token request
+  `401 invalid_client`, and the users table is unchanged
 
 #### Scenario: A machine-to-machine token of the configured issuer
 
-- **WHEN** a verified JWT of the configured issuer arrives without a groups claim
+- **WHEN** a verified JWT of the configured issuer arrives without a groups claim, on the
+  seam
 - **THEN** WBS answers `401 unknown_identity`, reads no credential, and the users table is
-  unchanged
+  unchanged; on `/api` it is `401 machine_bearer_not_accepted`
 
 #### Scenario: A trusted issuer's token for an unknown subject
 
-- **WHEN** a JWT verified against trusted issuer T carries a subject no credential of T names
-- **THEN** WBS answers `401 unknown_identity` and no account is created
+- **WHEN** a JWT verified against trusted issuer T, given to the grant route (or the seam),
+  carries a subject no credential of T names
+- **THEN** WBS answers `401 unknown_identity`, mcp-01 answers `400 invalid_grant`, and no
+  account is created
 
 #### Scenario: A token of a stranger issuer
 

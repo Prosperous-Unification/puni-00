@@ -63,13 +63,14 @@
     as a fault;
   - returns the credential's scopes;
   - writes `machine_token_issued` at most once per (credential, run, UTC day), and after 100
-    such rows in a day one `machine_token_issued_overflow` row; the count and the insert run
-    in one `writeImmediately` (`BEGIN IMMEDIATE`) transaction. **This task ships the
-    migration** that widens the audit CHECK for both actions and adds their targeted partial
-    unique indexes (`(credential, day, run)` and `(credential, day)`), with a guarded
-    `down.sql` that refuses while any row of either action exists. It follows
-    `20261022140100_widen_organization_audit_compute_providers`, so slice 1 depends on
-    neither slice 6 nor the undo branch;
+    such rows in a day one `machine_token_issued_overflow` row. It **reads first outside the
+    write lane**, writes nothing when either row exists, and otherwise repeats the lookups and
+    the count inside the lane (M3). **This task ships the migration** that widens the audit
+    CHECK for both actions and adds their targeted partial unique indexes
+    (`(credential, day, run)` and `(credential, day)`), with a guarded `down.sql` that refuses
+    by name while any row of either action exists. It follows the latest audit widening at
+    land time and carries its vocabulary (L13), so slice 1 depends on neither slice 6 nor the
+    undo branch;
   - answers a missing or wrong `MCP_BE_INTERNAL_SECRET` with `401 internal_unauthorized`
     (today's internal routes answer `401 unauthorized`; `/internal/mcp/*` moves to the new
     code).
@@ -81,20 +82,27 @@
     **current grant `kid`** and the delegation key's material; the "grant signed with the
     delegation key" scenario admits;
   - add a `jti` consume, and "A reused Kubernetes token" reddens;
-  - drop the audit unique index, or the `coalesce` in it, or use `date(created_at)` instead of
-    `created_at / 86400000`, and three issuances in one run and day, **and three no-run
-    issuances**, each write three rows. The test runs at a **real-epoch timestamp**
-    (2026-10-26), because a small fake clock hides the day bug;
+  - change the run index **and** the `ON CONFLICT` target together (drop the `coalesce`, or
+    use `date(created_at)` instead of `created_at / 86400000`), and three issuances in one run
+    and day, **and three no-run issuances**, each write three rows. Changing the index alone
+    makes the targeted insert throw "does not match any … UNIQUE constraint", so the pair
+    must move together for the negative to observe duplicates. The test runs at a
+    **real-epoch timestamp** (2026-10-26), because a small fake clock hides the day bug;
   - write with `INSERT OR IGNORE`, and an injected CHECK violation is silently skipped
     instead of thrown;
   - write with an untargeted `ON CONFLICT DO NOTHING`. The fixture **collides on the row id
     with a different dedupe key**, and the collision is swallowed instead of thrown. (An
     untargeted form still throws on a CHECK, so the CHECK case cannot observe it);
-  - count outside the write transaction, and two issuances racing at row 99 write **101
-    per-run rows** (`fc.asyncModelRun`);
+  - skip the recount inside the turn, and two issuances racing at row 99 write **101 per-run
+    rows** (`fc.asyncModelRun`);
+  - remove the read-first path, and "Issuance while a batch holds the write turn" (using the
+    existing `holdWriteTurn` harness) times out;
   - drop the overflow stop, and 150 runs write 150 rows;
-  - drop the overflow unique index, and every issuance past 100 writes another overflow row;
-  - drop the `down.sql` guard, and a rollback with `machine_token_issued` rows deletes them;
+  - change the overflow index and its `ON CONFLICT` target together to a non-unique key, and
+    every issuance past 100 writes another overflow row;
+  - drop the `down.sql` guard, and the rollback test no longer sees the guard's **named
+    refusal** (as the latest audit widening's own test asserts). The narrow table's CHECK
+    would reject the copied rows anyway, so "rows deleted" cannot be observed;
   - answer a missing secret with `unknown_grant_key`, and mcp-01's fault test sees a
     re-fetch instead of a reported fault.
 
@@ -196,6 +204,9 @@
     rotated key (`unknown_grant_key`) recovers on the re-run;
   - the provider re-fetches after a 401. Negative: keep serving the cached token, and the
     retried call fails;
+  - negative for the helper: memoise its token, and the re-run after a 401 returns the
+    rejected token;
+  - a `429` whose capped wait is zero or less: no retry, exit non-zero;
   - a `429` with `Retry-After: 30`, 2 s into a helper run, waits 7 s and retries once;
   - 100 staggered issuances on one credential within a minute all succeed under M10's 300/min
     limit.
@@ -259,9 +270,10 @@
 - [ ] 6.1 Migrations:
   - `add_agent_pool` and `machine_credential.agent_pool_id`;
   - the audit actions `agent_pool_created`, `agent_pool_revoked` and `agent_pool_rekeyed`, by
-    compatible rebuild (`machine_token_issued` shipped in task 1.2). The rebuild **recreates
-    both partial unique indexes** of task 1.2. Negative: omit one, and task 1.2's dedupe test
-    reddens after the 6.1 migration;
+    compatible rebuild (`machine_token_issued` shipped in task 1.2). Both the rebuild and its
+    `down.sql` rebuild **recreate task 1.2's two partial unique indexes**. Negatives: omit one
+    in the forward migration, and task 1.2's insert fails to prepare after 6.1; omit one in
+    the `down.sql`, and the same insert fails after rolling 6.1 back;
   - guarded `down.sql` files.
 
   Negative: drop each guard.

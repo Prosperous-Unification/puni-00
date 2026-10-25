@@ -196,7 +196,8 @@ it would remove, and `person_not_bound` and `credential_not_for_person` under th
 `claimWorkItem`, and `steps_on_subtree` when `steps` are named on a non-leaf, as the claim
 does. When the caller is a machine grant with a run and the person **is** its pinned
 person, it SHALL remove only that person's claims of that run, and SHALL refuse `run_mismatch`
-when the person holds claims on the item only under other runs. With `steps` named,
+when the person holds claims only under other runs: over the **named steps** when `steps` are
+named, over the item otherwise. With `steps` named,
 `not_claimed_by` is judged first, over every run, and `run_mismatch` second, so a step nobody
 holds stays `not_claimed_by`. When the named steps split between the caller's run and other
 runs, the release SHALL remove the caller's run's claims on them, leave the others, and refuse
@@ -233,6 +234,12 @@ delegated claim) is judged as without a run.
 - **WHEN** P holds `Impl` under run `a` and `Review` under run `b`, and a grant with run `a`
   releases the leaf for P naming both steps
 - **THEN** only the `Impl` claim is removed and the batch is not refused
+
+#### Scenario: Naming only another run's step
+
+- **WHEN** P holds `Impl` under run `a` and `Review` under run `b`, and a grant with run `a`
+  releases the leaf for P naming only `Review`
+- **THEN** the batch is refused `run_mismatch` and nothing is removed
 
 #### Scenario: A pre-opt-in claim
 

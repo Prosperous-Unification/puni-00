@@ -1,7 +1,7 @@
 ## Context
 
 Read on 2026-10-25 at `origin/main` 277fdf03c. Amended after the Fable reviews of 24dcae0a5,
-58e0cea79, 948d6e668, 2d98eb898, 56ca4ad1a, 6f8f8233f and 623b21f1f (every item is mapped in verify.md).
+58e0cea79, 948d6e668, 2d98eb898, 56ca4ad1a, 6f8f8233f, 623b21f1f and 7ddba68c8 (every item is mapped in verify.md).
 
 | Need                              | Exists today                                                                                                                                                                                                                                                                                                                                                                                                                          | Missing                                                                                               |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -194,9 +194,12 @@ speaks it).
     re-runs the helper on a 401 or 403, and the re-run issues a new token.
     - _The trade-off._ The helper issues once per Claude Code connection, at session start
       and at every reconnect. A staggered batch of `claude -p` runs on one credential issues
-      once per run. M10's success limit is raised for that: 300 a minute, burst 100. Each
-      issuance costs be-01 one primary-key read, a hash and a signature, and failures are
-      limited separately, so the success limit only stops a runaway client.
+      once per run. M10's success limit is raised for that: 300 a minute, burst 100. In the
+      steady state an issuance costs be-01 one credential read, then either a SHA-256 (API
+      key, read by primary key) or a JWKS verification (OIDC, credential selected by `iss`,
+      `aud` and `sub`), plus a signature. There is **no write**: the audit row for the day and
+      run already exists (M3, read-first). Failures are limited separately, so the success
+      limit only stops a runaway client.
     - _Recorded alternative, rejected for simplicity._ Fable's grandparent key: key the cache
       on the Claude Code process, taking the parent's parent when the parent is a shell. A key
       on the immediate parent never matches: Claude Code 2.1.310 runs the helper with
@@ -207,7 +210,8 @@ speaks it).
     - _It honours `Retry-After`._ On a `429`, the provider and `twilight-dash mcp token` wait
       the `Retry-After` seconds, retry once, then fail loudly, never looping. On the
       `headersHelper` path the wait is capped at **what remains of the 10 s helper budget
-      minus 1 s**, measured from the helper's start; the SDK provider caps it at 60 s.
+      minus 1 s**, measured from the helper's start. When that is zero or less, it does not
+      retry and exits non-zero. The SDK provider caps the wait at 60 s.
 
 - _Metadata._ It advertises:
   - `grant_types_supported`: `client_credentials` and the JWT-bearer URN, beside the consent
@@ -316,8 +320,8 @@ assertion minted for WBS could also be valid elsewhere).
   `invalid_grant`, and the SDK retries once with the same assertion and then throws. GitHub
   mints a fresh `jti` per fetch, so it was never the problem. The guards are the registered
   audience, the assertion's `exp` (which caps the grant) and the per-call credential reread.
-- _Audit._ Issuance volume follows the client, not the TTL. Even with M2's token caching, a
-  `headersHelper` on a fresh machine and a batch of `claude -p` runs issue often. So
+- _Audit._ Issuance volume follows the client, not the TTL. The `headersHelper` issues once per
+  connection (M2), and a batch of `claude -p` runs issues once per run. So
   `machine_token_issued` is written **at most once per (credential, run, UTC day)**. It names
   the credential, person, source and run, never a secret. The audit action (the CHECK
   widening) and its index ship in **slice 1** with the grant route that first writes them
@@ -340,9 +344,17 @@ action = 'machine_token_issued' DO NOTHING`. The `WHERE` must repeat the partial
   - _The bound, without refusing anyone._ `wbs_run` is client-chosen, so per-run rows stop at
     100 per credential per UTC day. The first issuance beyond that writes one
     `machine_token_issued_overflow` row for the credential and day, through its own targeted
-    unique key, and nothing more is written that day. The count and the insert run in one
-    write transaction, `writeImmediately` (`BEGIN IMMEDIATE`), so two issuances cannot both
-    see 99. Issuance is never refused for audit reasons, so audit volume is at most
+    unique key, and nothing more is written that day.
+  - _Read first, as #668 did_ (`touchLastUsed` in `machine-credential.ts` 159–171,
+    `renewLeases` in `claim.ts` 320–324). Every write takes be-01's single write lane
+    (`writeImmediately` → `WriteCoordinator`), and a command batch keeps that lane across its
+    awaits (`gate.ts` 3–9). So an issuance first looks up, **outside the lane**, the
+    `(credential, day, run)` row and the `(credential, day)` overflow row. If either exists,
+    it writes nothing and never waits. Otherwise it enters the lane and repeats both lookups
+    and the count inside it before inserting. The lane serialises issuances within one
+    process; `BEGIN IMMEDIATE` adds protection only across the blue and green processes that
+    share the SQLite file mid-swap. Steady-state issuance therefore never queues behind a
+    claim batch, an import or an optimisation save, and the helper's 10 s budget holds. Issuance is never refused for audit reasons, so audit volume is at most
     101 rows per credential per day.
 - _Keys absent at activation._ be-01 boot requires `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` once
   the activation marker is set. The activation runbook's preflight lists the missing key and
@@ -468,7 +480,7 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 | Failed auth per `(client_id, IP)`     | 5 / min              | guessing one id                                                                                                               |
 | Failed auth per IP                    | 30 / min             | a scanner                                                                                                                     |
 | Successful issuances per credential   | 300 / min, burst 100 | one issuance per Claude Code connection: a staggered `claude -p` batch, or a rollout of up to 100 pods on one service account |
-| Successful issuances per IP           | 300 / min            | one orchestrator re-keying a pool of 100                                                                                      |
+| Successful issuances per IP           | 300 / min, burst 100 | one orchestrator re-keying a pool of 100, or a 100-pod rollout behind one egress IP                                           |
 | `tools/call` messages per credential  | 10 / s, burst 20     | a batch of 100 counts 100                                                                                                     |
 | In-flight tool calls per organization | 128                  | about 60 at the design load (100 agents × 2 calls/s × 300 ms); 2× headroom                                                    |
 
