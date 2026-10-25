@@ -27,13 +27,19 @@ this table, is what slice 1 is reviewed against.
 
 **Goals:** the old level is called work package on every surface at once; a project is the
 engagement and owns its work packages; one configuration layering model with provenance
-across organization → space → project → work package; spaces group projects and hold persons
-and teams; dev data survives each slice; everything that breaks is named here.
+across organization → space → project → work package; spaces are the organization's
+structure (departments and teams): each project sits in one space or none, and a space holds
+persons and teams and carries settings for its projects; dev data survives each slice;
+everything that breaks is named here. _Revised 2026-10-25 by Dany (E23); was: spaces group
+projects and hold persons and teams._
 
-**Non-Goals:** per-project access (`wbs-permissions`); a space-level override of anything;
-budgets themselves (`wbs-measure-budgets`, merged; this change only moves its budget factor
-to the project, E18 and E20); cross-work-package dependencies themselves; any compatibility
-layer, alias, redirect or dual-version writer.
+**Non-Goals:** per-project access (`wbs-permissions`); space-scope grants (declared, unfilled,
+`wbs-permissions` P14); nested spaces (additive later, E24); budgets themselves
+(`wbs-measure-budgets`, merged; this change only moves its budget factor to the project, E18
+and E20); cross-work-package dependencies themselves; the step catalogue per work item type
+(`wbs-step-catalogue`, E21); calendar date ranges (`wbs-calendar-ranges`, E19); any
+compatibility layer, alias, redirect or dual-version writer. _Revised 2026-10-25 by Dany:
+was also "a space-level override of anything", now allowed where E18 says._
 
 ## Decisions
 
@@ -42,7 +48,12 @@ layer, alias, redirect or dual-version writer.
 - **E1. Space stays purely organizational.** A grouping of projects with no authority.
   Organization configuration overridable per space is a later non-goal. _Amended
   2026-10-24 after the Fable review (WP-9):_ the belonging of persons and teams to spaces
-  was planner content and moved to E31.
+  was planner content and moved to E31. _Revised 2026-10-25 by Dany:_ a space is the
+  organization's structure (a department or a team) and a settings level: a project sits in
+  one space or none, and a space's value resolves for the projects beneath it (E18, E23,
+  E24); it still grants nothing (space-scope grants stay declared and unfilled,
+  `wbs-permissions` P14). Was: a grouping with no authority, and organization configuration
+  overridable per space a later non-goal.
 - **E2. Project is the engagement.** A collection of work packages; it owns the shared
   settings (timezone, calendar markers, PERT weights, budget factor, step codes, work item
   types), cross-work-package dependencies (the `feat/cross-project-dependencies` work), budgets
@@ -56,11 +67,13 @@ layer, alias, redirect or dual-version writer.
   the Twilight readers); slice 2 is the project entity above work packages. No users, so no
   compatibility layer and no legacy names; dev data still migrates (the dev SQLite is live and
   auto-deploys from `main`).
-- **E5. Migration.** Slice 2 puts every work package into one "Default project" per
-  organization; a curated regrouping happens by hand on dev afterwards through
+- **E5. Migration.** Slice 2 puts every work package of an organization into one ordinary
+  project named "Migrated work packages", created only in organizations that hold work
+  packages (E15, E30); a curated regrouping happens by hand on dev afterwards through
   `moveWorkPackage`, not in the migration. Before it, dev's ~330 QA leftovers are deleted
   (assumed; Dany may overturn) and the eight real ones are regrouped into "PUNI platform",
-  "WBS product", "Twilight agentic workflows" and "[KWLA] Kill WL Admin".
+  "WBS product", "Twilight agentic workflows" and "[KWLA] Kill WL Admin". _Revised
+  2026-10-25 by Dany (E30); was: one "Default project" per organization._
 - **E6. Settings inheritance.** A work package may override timezone, calendar markers and
   PERT weights (unset means inherited; reads say which); step codes, work item types and
   budget factor are project-wide and not overridable.
@@ -80,7 +93,9 @@ layer, alias, redirect or dual-version writer.
   overridable at work package; step codes, work item types, budget factor fixed at project;
   nothing overridable at space. Slice 1's migration is unchanged by E9. _Amended 2026-10-24
   after the Fable review (WP-9):_ the catalogue and `resolveSetting` shape was planner
-  content and moved to E32.
+  content and moved to E32. _Revised 2026-10-25 by Dany:_ the space level is no longer inert;
+  timezone, calendar markers and allowed work item types are overridable at space (E18).
+  Was: nothing overridable at space, the space step inert.
 
 ### Assumed decisions (E10 onward; each the reading closest to E1–E9; Dany overturns by id)
 
@@ -225,57 +240,76 @@ NULL CHECK (length(name) > 0), revision, created_at NOT NULL, updated_at, create
   project created through `createProject` carries its real actor. `work_package.project_id NOT
 NULL → project(id)` through a compatible table rebuild of `work_package` (lint form as in
   E14; `ADD COLUMN … NOT NULL` without a default is refused and a default would be a made-up
-  owner, R5). Back-fill inside the migration: for every organization, empty ones included
-  (E30; was: only organizations holding a work package), one project named "Default
-  project" with a fresh uuid, recorded as that organization's default project (E30), then
-  every work package of that organization points at it; a guard refuses while any work
-  package lacks an organization row. Trigger pair `work_package_project_organization_insert/update` refuses a work package
+  owner, R5). Back-fill inside the migration: for every organization that holds at least
+  one work package, one ordinary project named "Migrated work packages" with a fresh uuid,
+  then every work package of that organization points at it; an organization without work
+  packages gets no project (E30). A guard refuses while any work package lacks an
+  organization row. Trigger pair `work_package_project_organization_insert/update` refuses a work package
   whose project belongs to another organization than its `work_package_organization` row (the
-  `claim_step_project_*` device). `down.sql` refuses while any organization holds a project
-  other than its default project, then rebuilds `work_package` without the column and drops
-  `organization_default_project` and `project`. Ids are uuids generated in SQL the way the
-  organization back-fill did (task 3.1 verifies the precedent). _Revised 2026-10-24 by E30:_
-  the default project is marked, through `organization_default_project` (E30), and nothing
-  else about it is special.
-- **E16. Projects are ordinary; deletion refuses while packages remain.** _Narrowing replaced
-  2026-10-24 by E30 (WP-4); was: no default project after the back-fill, no project for a
-  new organization, and `createWorkPackage` requiring `projectId` with `422` when absent._
-  A project is renamed, moved out of and deleted like any other; `deleteProject` refuses
-  `409 not_empty` naming the work package ids while any remain. `createWorkPackage` and the
-  import routes take an optional `projectId`: absent lands the package in the organization's
-  default project (E30), foreign answers `404`. Rejected: a `kind = 'default'` column on
-  `project` (one more thing permissions would have to reason about, E7); E30's side table
-  keeps the mark on the organization, where it is organization state.
+  `claim_step_project_*` device). `down.sql` refuses while any project with a non-null
+  `created_by` exists (one created after the window), then rebuilds `work_package` without
+  the column and drops `project`. Ids are uuids generated in SQL the way the
+  organization back-fill did (task 3.1 verifies the precedent). _Revised 2026-10-25 by Dany
+  (E30): was, after the 2026-10-24 revision, one "Default project" for every organization,
+  empty ones included, marked through an `organization_default_project` table, with
+  `down.sql` refusing while an organization held a project other than its default._
+  _Owner column, added 2026-10-25 by Dany (E25):_ the same rebuild drops
+  `work_package.owner_id`. Before the drop it copies `owner_id` into `created_by` where
+  `created_by` is null (the owner is the creating account, so this records a known fact, not
+  a made-up one). The migration requires `wbs-permissions`' `add_access_grants` to be applied
+  first, because P6's backfill reads `owner_id`: its guard reads `access_grant`, and a
+  database without that table fails the migration before anything is rebuilt. The project
+  gains no `space_id` here; it lands nullable in slice 3a (E23).
+- **E16. Projects are ordinary; deletion refuses while packages remain.** _Revised
+  2026-10-25 by Dany: the `409 last_project` refusal goes, because it only protected E30's
+  withdrawn invariant. History: 2026-10-24 (WP-4) replaced the original narrowing (no
+  marked project after the back-fill, none for a new organization, `projectId` required)
+  with an optional `projectId` landing in a marked per-organization project; 2026-10-25
+  restores the required `projectId` (E30)._ "Ordinary" means no kind column, no system flag
+  and no protected row: every project, the back-filled "Migrated work packages" included, is
+  renamed, emptied and deleted by the same rules, and an organization may hold no project at
+  all. `deleteProject` refuses `409 not_empty` naming the work package ids while any remain.
+  `createWorkPackage` and the import routes require `projectId`: absent answers
+  `422 project_required`, foreign or missing answers `404`. Rejected: a `kind` column or a
+  side table marking one project (one more thing permissions would have to reason about,
+  E7, and a concept the domain does not have, E30).
 - **E17. Project commands are organization-level HTTP routes, not plan-command batch
-  commands** (batches are per work package). `POST /api/projects {name}` → 201 / 409
-  `name_taken`; `GET /api/projects` (the caller's organization, with work package counts);
-  `GET /api/projects/:id` (its work package entries); `PATCH /api/projects/:id {name}` → 200 /
-  409 `name_taken` / 404; `DELETE /api/projects/:id` → 204 / 409 `not_empty` / 409
-  `last_project` (the organization's only project, E30) / 404; `PATCH
-/api/organization/default-project {projectId}` → 200 / 404 (E34); `POST
+  commands** (batches are per work package).
+  `POST /api/projects { name, workPackage?: { name } }` → 201 / 409 `name_taken` (with
+  `workPackage`, the project and its first work package
+  are written in one transaction, E30, so a refusal leaves neither); `GET /api/projects` (the
+  caller's organization, with work package counts); `GET /api/projects/:id` (its work package
+  entries); `PATCH /api/projects/:id {name}` → 200 / 409 `name_taken` / 404; `DELETE
+/api/projects/:id` → 204 / 409 `not_empty` / 404 (deleting an organization's only project
+  is allowed, E16); `POST
 /api/work-packages/:id/move {projectId}` → 200 / 404 (either side, organization-scoped) /
   409 `cross_organization` / 409 `dependency_crosses_project { dependencyIds }` once
   cross-work-package dependencies exist / 409 `type_not_allowed_in_project { typeIds }` (E22)
-  and 409 `step_code_not_in_project { codes }` (E21) from slice 3b; an applied move re-keys the
-  package's per-step rows to the target project's steps by code. Each write is one
+  and 409 `step_code_not_in_project { codes }` (E21, deferred to `wbs-step-catalogue`); an
+  applied move re-keys the package's per-step rows to the target project's steps by code.
+  _Revised 2026-10-25 by Dany: was also `409 last_project` on delete and the organization
+  route of E34 (withdrawn); the optional `workPackage` on create is the combined dialog's
+  route (E30)._ Each write is one
   immediate transaction under the write coordinator, bumps the revision of every project it
   writes by one (a move writes two: the source and the target; corrected 2026-10-24, WP-11,
   to agree with the spec's "both revisions") and appends one `organization_audit` row
-  (`project_created`, `project_renamed`, `project_deleted`, `work_package_moved`,
-  `default_project_changed` (E30); subject kind `project` in the new sense, unambiguous
+  (`project_created`, `project_renamed`, `project_deleted`, `work_package_moved`; subject kind
+  `project` in the new sense, unambiguous
   because slice 1 rewrote the old rows to `work_package`). _Audit vocabulary migration added
   2026-10-24 after the Fable review (WP-7):_ slice 1's `organization_audit` rebuild removes
   `project` from the `subject_kind` CHECK, so slice 2 ships
   `<merge-date>100100_widen_organization_audit_projects` in the `widen_organization_audit_*`
-  compatible-rebuild shape, re-admitting subject kind `project` and adding those five
-  actions; before it an insert of `project_created` is refused by the CHECK (task 3.1's R5
-  negative). Authority today: admin or super-admin for project writes; `moveWorkPackage`
-  also needs edit on the work package (the restricted-owner rule); every member lists projects
+  compatible-rebuild shape, re-admitting subject kind `project` and adding those four
+  actions (_revised 2026-10-25 by Dany: was five, with the withdrawn E34's
+  `default_project_changed`_); before it an insert of `project_created` is refused by the
+  CHECK (task 3.1's R5 negative). Authority today: admin or super-admin for project writes;
+  `moveWorkPackage` also needs edit on the work package (on a restricted package, from grants
+  only, E25); every member lists projects
   (E7's "plain membership sees nothing" arrives with `wbs-permissions`). mcp-01 derives the
   tools (`postApiProjects`, `postApiWorkPackagesByIdMove`, …). The work package read gains
   `projectId`; the plan document gains `project: { id, name }` at version 13, informational on
-  import: the import request names the target project, or names none and lands in the
-  default project (E30), never the file.
+  import: the import request names the target project (`422 project_required` when it names
+  none, E30), never the file.
 - **E18. The setting catalogue (E9).** `@wbs/domain` `settings/catalogue.ts`: `SETTING_CATALOGUE`
   entries `{ key, value (ArkType), definedAt: 'project', overridableAt: ReadonlySet<Level> }`
   for `timezone` (IANA zone; overridable at `work_package`), `pertWeights` (three positive
@@ -292,16 +326,25 @@ NULL → project(id)` through a compatible table rebuild of `work_package` (lint
   slice 1, `work_item_budget` keeps its name (it is per work item) and its
   `project_organization_keys_work_item_budgets` trigger is renamed with the others; from
   slice 3a the headroom read resolves `budgetFactor` through `resolveSetting` instead of
-  reading a column. Levels: `organization | space | project | work_package`.
+  reading a column. Levels: `organization | space | project | work_package`. _Space level
+  added 2026-10-25 by Dany (E23):_ `space` joins `overridableAt` for `timezone`,
+  `calendarMarkers` and `allowedWorkItemTypes`; because a space sits above the project,
+  those three keys are also writable at `organization` (an organization-wide value for a
+  space to refine; assumed, overrulable with E18). `allowedWorkItemTypes` stays not
+  overridable at `work_package` (E6); `pertWeights` and `budgetFactor` gain no space level.
+  Was: nothing overridable at space.
   Storage: `setting_value(scope_kind, scope_id, key, value_json, revision, created_at,
 updated_at, created_by)` PK `(scope_kind, scope_id, key)`, `scope_kind` CHECK over the
   levels; a write of a key at a level the catalogue does not allow is refused at the boundary
   (`409 not_overridable_here`), and a value that fails the key's type is `422`. Resolution:
   `resolveSetting(chain, key)` in core, `chain: ScopeChain`, walks work package → project →
-  spaces → organization → catalogue default and answers `{ value, provenance: { level, id } | { level: 'default' } }`; it refuses
-  `ambiguous_space_value` when two spaces of the chain hold different values for a
-  space-overridable key (inert today, E24). Reads: `GET /api/work-packages/:id/settings` and
-  `GET /api/projects/:id/settings` answer every catalogue key resolved with provenance;
+  the project's space when it has one → organization → catalogue default and answers `{ value, provenance: { level, id } | { level: 'default' } }`
+  (_revised 2026-10-25 by Dany, E24: was "spaces", with a refusal when two spaces of the
+  chain disagreed; a project now has at most one space, so that rule is moot and gone_).
+  Reads: `GET /api/work-packages/:id/settings`, `GET /api/projects/:id/settings`,
+  `GET /api/spaces/:id/settings` and `GET /api/organization/settings` answer every
+  catalogue key resolved with provenance (the last two added 2026-10-25 for the space
+  level);
   writes: `PATCH …/settings { key: value | null }` where `null` clears the override (back to
   inherited). _Shared chain type, added 2026-10-24 after review:_ this change and
   `wbs-permissions` use one `ScopeChain` value type in `@wbs/domain`, `{ organizationId,
@@ -316,13 +359,19 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   its project's markers plus its own, each read with its provenance; a work package cannot
   remove a project marker (that is a project write). "Override" for a set means adding.
   Rejected: a work package's own set replacing the project's (holidays vanish the moment a
-  work package adds one marker).
+  work package adds one marker). _Space level added 2026-10-25 by Dany:_ `scope_kind` admits
+  `organization`, `space`, `project` and `work_package`; a work package's calendar is the
+  union of its organization's, its project's space's (when it has one), its project's and its
+  own markers, and no level removes a marker of a level above it. Was: the project's plus
+  the work package's own. _Scoped 2026-10-25 by Dany:_ these are point markers only; date
+  ranges with logic are a separate design, `wbs-calendar-ranges`.
 - **E20. What the slice 3a migration lifts.** `work_package.timezone` and the three
   `pert_weight_*` columns move into `setting_value` rows at the work package level **only
   where the stored value differs from the catalogue default** (`UTC`; 1, 4, 1); equal values
-  get no row and read as inherited from the default. No project-level row is invented: the
-  default project cannot be given the "right" zone when its work packages disagree, and the
-  curated regrouping lifts values to projects by hand afterwards. Every work package reads
+  get no row and read as inherited from the default. No project-, space- or
+  organization-level row is invented: the migrated project cannot be given the "right" zone
+  when its work packages disagree, and the curated regrouping lifts values to projects or
+  spaces by hand afterwards. Every work package reads
   exactly the value it read before. _Budget factor added 2026-10-24 after the Fable review
   (WP-1):_ `work_package.budget_factor` is fixed at project (E6), so it cannot stay a
   work-package override; the migration lifts it to its project: where every work package of
@@ -335,7 +384,12 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   window). `estimateMethod`, `estimateRounding`, `depReach`, `startDate`, engine, objective and
   optimization stay work-package columns: E6 names them nowhere, and they are plan inputs, not
   shared configuration. Rejected: keeping the columns as a cache (two sources of truth).
-- **E21. Steps are project entities.** _Revised 2026-10-24 after review (option a; was: a
+- **E21. Steps are project entities.** _Deferred 2026-10-25 by Dany to `wbs-step-catalogue`:_
+  steps per work item type, configured at the organization and added at space and project,
+  become a separate design (that OpenSpec change does not exist yet). Slice 3b is blocked on
+  it; the text below stays as the input that design starts from, not as this change's
+  decision. E33's rule (stored JSON rewritten once, no alias table) stays for any step
+  re-key that design makes. _Revised 2026-10-24 after review (option a; was: a
   project-wide code vocabulary over per-work-package step rows, refusing a fresh code with
   `code_not_in_project`)._ The step set (code, name, order) is defined once on the project;
   a work package holds one row per project step for what genuinely differs per package, its
@@ -345,7 +399,7 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   "project-wide, not overridable" means one step vocabulary per engagement, which is also what
   #601's `twib validate workflow-binding --steps <codes>` wants (one list per engagement).
   Migration (slice 3b, `<merge-date>100000_lift_steps_to_project`; _re-keying enumerated
-  2026-10-24 after the Fable review, WP-3_): for each project (by then the default projects
+  2026-10-24 after the Fable review, WP-3_): for each project (by then the migrated projects
   and whatever the curated regrouping made), today's per-work-package steps are lifted into
   project steps deduplicated by code in first-occurrence order (work packages by
   `created_at` then id, then steps by order; the first occurrence's name wins, and the first
@@ -397,37 +451,71 @@ codes, workPackageIds }` naming the project and the packages holding them; the r
   `resolveSetting` (E18), fixed at project; an empty list allows every type. Assigning a type
   outside the list on create or update, and `moveWorkPackage` into a project whose list lacks
   a type a work item of the package carries, refuse `409 type_not_allowed_in_project
-{ typeIds }`. Back-fill: no row (every default project allows all). ADR 0009 (a type does
+{ typeIds }`. Back-fill: no row (after it, no organization, space or project narrows the
+  list). _Revised 2026-10-25 by Dany:_ the allow-list is also settable at the organization
+  and at space (E18), nearest wins; still never at the work package. ADR 0009 (a type does
   not inherit) is untouched. Rejected: project-scoped types (it splits one directory word into
   one per project and breaks the organization-level directory commands).
-- **E23. Spaces hold projects; persons and teams belong to spaces.** Slice 3a replaces
-  `space_work_package` with `space_project(space_id, project_id, organization_id, position,
-…)` → `project(id, organization_id)`, back-filled by mapping each space's work packages to
-  their projects, deduplicated, keeping first-occurrence order; `space_work_package` is then
-  dropped. Routes go `/api/spaces/:id/work-packages…` (slice 1) → `/api/spaces/:id/projects…`
-  (slice 3a, new sense; a second break, stated). `GET /api/spaces/:id/roll-ups` answers one row
+- **E23. A project sits in one space or none; persons and teams belong to spaces.** _Revised
+  2026-10-25 by Dany: spaces are the organization's structure (departments or teams) and a
+  settings level (E18), so a project belongs to one space or to none. Was: slice 3a replaces
+  `space_work_package` with a many-to-many `space_project(space_id, project_id,
+organization_id, position, …)`, back-filled by mapping each space's work packages to their
+  projects, deduplicated in first-occurrence order._ Slice 3a adds `project.space_id`
+  (nullable → `space(id)`) and `project.space_position` (nullable; a CHECK requires both null
+  or both set) through a compatible rebuild of `project`. Null means an organization-level
+  project: an explicit modeled state every read names (`spaceId: null`), not a default. A
+  trigger pair refuses a `space_id` whose space belongs to another organization (checked
+  against `space`'s `UNIQUE (id, organization_id)`). Back-fill: a project's candidate spaces
+  are those holding any of its work packages in `space_work_package`; the kept one is where
+  its earliest entry has the lowest `position`, ties broken by `space.created_at`, then
+  `space.id`; `space_position` is renumbered per space in that order. Every other (project,
+  space) pair is written to `space_project_dropped(project_id, space_id, kept_space_id,
+organization_id, position)`, a report table the migration keeps and the slice 3a runbook
+  prints into `verify.md`: dropped memberships are reported, never silently lost (R5). Then
+  `space_work_package` is dropped. Routes keep their shape and go
+  `/api/spaces/:id/work-packages…` (slice 1) → `/api/spaces/:id/projects…` (slice 3a, new
+  sense; a second break, stated): `POST /api/spaces/:id/projects { projectId }` sets the
+  project's space and answers `409 project_in_other_space { spaceId }` while it sits in
+  another (remove it there first, so no move is silent), `DELETE …/:projectId` sets none,
+  `POST …/:projectId/move` reorders within the space. Deleting a space returns its projects
+  to none in the same transaction; a space still owns nothing. ADR 0033 ("A space is a lens",
+  many spaces per project) is superseded in part; slice 3a adds the superseding ADR (task
+  4.5). `GET /api/spaces/:id/roll-ups` answers one row
   per project folded from its work packages' roll-ups (earliest start, latest finish, summed
   days and counts, folded status) with the work package rows beneath; `in-progress` keeps its
-  meaning over the space's projects' work packages; the `all` space is the caller's projects.
+  meaning over the space's projects' work packages; the `all` space is the caller's projects,
+  in a space or not.
   Belonging: `space_person(space_id, person_id, organization_id, created_*)` and
   `space_team(space_id, service_team_id, organization_id, created_*)`, `POST`/`DELETE
 /api/spaces/:id/people/:personId` and `/teams/:teamId`, listed in the space read; no effect
   on access, capacity or scheduling (E1, E31). Rejected: a polymorphic `space_member(kind, id)`
   table (three foreign keys cannot be expressed on one column).
-- **E24. The chain and several spaces.** A project may sit in many spaces (today's rule
-  kept), so `chain.spaceIds` is the set; because nothing is overridable at space, the step is
-  inert and tested as such; the day a per-setting flag opens a space override, a project in two
-  spaces with different values resolves `ambiguous_space_value`, and that change states its
-  rule. No "home space" column. `CONTEXT.md` terms that keep the word in its new sense:
+- **E24. The chain is a list.** _Revised 2026-10-25 by Dany: was "the chain and several
+  spaces": a project could sit in many spaces, `chain.spaceIds` was the set, the space step
+  was inert, and two spaces with different values were to resolve with a named ambiguity
+  refusal. With one space or none that rule is moot and gone, and so is the "no home space
+  column" rule (`project.space_id` is that column, E23)._ `ScopeChain.spaceIds` keeps its
+  list shape and holds zero or one id in this change. Spaces stay flat; nesting is additive
+  later (the list gains the space's ancestors, nearest first) with no change to the type or
+  to `resolveSetting`'s walk. `CONTEXT.md` terms that keep the word in its new sense:
   **Project**, **Project roll-up**, **Project settings**, **All projects**; **Project rank**,
-  **Project owner**, **Project entry** and **Project timezone** become work package terms
+  **Project entry** and **Project timezone** become work package terms; the owner terms go
   (E25).
-- **E25. What stays on the work package.** Owner and `restricted` (renamed **Work package
-  owner**), `work_package_access` (last opened), the solution ref, the rank over shared people
+- **E25. What stays on the work package; no owner.** _Revised 2026-10-25 by Dany: the owner
+  concept is dropped on both levels. Was: owner and `restricted` stay on the work package,
+  the owner renamed **Work package owner**._ `created_by` stays, as on every other table;
+  `restricted` stays on the work package, and edit rights on a restricted package come from
+  grants only (`wbs-permissions` P5, P6). Slice 2's rebuild of `work_package` drops
+  `owner_id` (E15) after `wbs-permissions`' `add_access_grants` backfill has read it (P6
+  writes a `package-manager` grant per owner) and after that change's task 3.3 retires its
+  last reader (`canEditProject`); the order is `wbs-permissions` slice 1, this slice 1,
+  `wbs-permissions` 3.3, this slice 2. Also staying: `work_package_access` (last opened), the
+  solution ref, the rank over shared people
   (`work_package_rank`: it orders what books people), the abbreviation of
   `feat/cross-project-dependencies` (addresses `PUNI.080.39` name a work package); that branch
   rebases onto the slice 1 names before it lands and its dependency rows become
-  cross-work-package rows inside one project (E2). A project has no owner column (E7).
+  cross-work-package rows inside one project (E2). A project has no owner either (E7).
 - **E26. The solver wire carries no project id.** _Revised 2026-10-24 after review (was: the
   wire renames `projectId`, `SOLVER_WIRE_VERSION` 4 → 5, a solver image rebuild and repin)._
   On `main`, `solver-wire.v4.json` names only `personId` and `resourceId`; the `projectId` is
@@ -440,7 +528,9 @@ report|apply <rules.json> --expect-count=N` in be-01: a work package is doomed w
   owner's `users.username` is one of `claire-qa-22aug`, `planner-qa-0822`, `ada` or matches
   `^claire-reg-`, **or** its name matches `^TASK-\d+\b`, `^New project$` or
   `^resume check \d+$`. _Wording fixed 2026-10-24 after the Fable review (WP-12):_ the table
-  is `users` and the column `username`. `New project` is fe-01's placeholder name
+  is `users` and the column `username`. _Confirmed 2026-10-25 by Dany:_ the owner rule
+  reads `work_package.owner_id`, which still exists at that point (slice 2 drops it, E25).
+  `New project` is fe-01's placeholder name
   (`PLACEHOLDER_PROJECT_NAME` in `project-page.tsx`) given to every package created from the
   page and never renamed, so the pattern dooms every such untouched package, real or not;
   the runbook says so and Dany reads the list before `apply`. Slice 1's script renames the
@@ -452,9 +542,14 @@ report|apply <rules.json> --expect-count=N` in be-01: a work package is doomed w
   in the runbook with ids filled in on the day; the four project names come from E5.
 - **E28. fe-01.** Words and module names through the script; no URL changes (there is no
   `/projects` URL; the open work package is a remembered preference). Slice 2 adds a project
-  group to the picker and a projects page; slice 3a shows provenance in the settings modal
-  ("inherited from project X") and a "clear override" control; the spaces page lists projects
-  with their work packages, persons and teams.
+  group to the picker, a projects page, a required project picker on "New work package" and a
+  "New project" dialog that creates the project and its first work package together (E30);
+  an organization with no project shows the projects page's empty state with "New project"
+  as its action. Slice 3a shows provenance in the settings modal ("inherited from space S",
+  "inherited from project X") and a "clear override" control, a space settings page, and the
+  spaces page lists each space's projects with their work packages, persons and teams, plus
+  the organization-level projects (no space) as their own group. _Revised 2026-10-25 by
+  Dany; was: the project group, the projects page and project provenance only._
 - **E29. The synced specs under `openspec/specs/`** (10 files, 80 lines, and the folder
   `project-assignment-reads`) take the new vocabulary in the slice 1 PR, by hand, with
   `openspec validate --all --json` output recorded in slice 1's `verify.md`; archived changes
@@ -475,35 +570,32 @@ wbs-work-packages` refused six of them, because a MODIFIED block cannot rename a
 
 ### Assumed decisions added after the Fable reviews (2026-10-24)
 
-- **E30. Every organization has exactly one default project** (resolves WP-4, replaces E16's
-  narrowing; **awaits Dany's confirmation**). Every organization has exactly one default
-  project. Organization activation creates it (`organization-activation-cli.ts` and the
-  onboarding path), and the slice-2 backfill creates one for EVERY existing organization,
-  empty ones included. `POST /api/work-packages` and the import routes without `projectId`
-  land the package in the default project (it is explicit organization state, not an
-  unknown default, so R5 holds); the default project cannot be deleted while it holds
-  packages or is the only project. _Planner's detail (assumed, overrulable with E30):_ the
-  mark is `organization_default_project(organization_id PK → organization, project_id NOT
-NULL UNIQUE, FOREIGN KEY (project_id, organization_id) → project(id, organization_id))`,
-  written in the same transaction as the organization in all three store paths that create
-  one (`OrganizationRepository.createForUnaffiliatedUser`, `OnboardingRepository` and
-  `organization-legacy-activation.ts` behind the activation CLI), with the name "Default
-  project" and the creating actor as `created_by`; a read that finds an organization without
-  the row throws (missing trusted state, R5), never picks a project. Deleting the default
-  answers `409 not_empty` while it holds packages and `409 last_project` while it is the only
-  project; deleting an empty default while other projects exist hands the mark to the oldest
-  remaining project (`created_at`, then id) in the same transaction and appends
-  `default_project_changed`. Choosing another default is E34's explicit route; the hand-over
-  on deletion is only the fallback. Callers verified to work with the default project (tasks 3.3,
-  3.5): fe-01's create (`project-page.tsx`, "New project" with no picker) and import
-  (`apps/wbs/fe-01/src/components/wbs/import-with-ai.ts`, `src/lib/wbs-api.ts`), mcp-01's import tool (`postApiProjectsImport`, renamed
-  `postApiWorkPackagesImport` by slice 1), the activation CLI, the onboarding route, and the
-  e2e seeding (`apps/wbs/fe-01/e2e/create-project.ts` and the be-01 test harnesses that
-  insert organizations by SQL: `organization-harness.ts`, `booted-browser-process.ts`,
-  `measure-bound-claims.ts`, `capacity-fanout-process.ts`, store-sqlite's
-  `testing/space-database.ts`, which must write the mark too). `wbs-permissions` P16 gates
-  creation without naming a project; `wbs-permissions` slice 3's check at the named project applies to the
-  resolved project (named or default), cross-referenced here, not edited.
+- **E30. A project is mandatory.** _Revised 2026-10-25 by Dany: there is no default
+  project. Was (assumed 2026-10-24, resolving WP-4): every organization has exactly one default
+  project, created at organization activation and onboarding and back-filled for every
+  organization, empty ones included, marked in an `organization_default_project` table,
+  receiving every create and import that names no project, and refusing deletion while it
+  held packages or was the only project. Why (Dany): a default project is wrong from the
+  domain standpoint; a project needs a scope or mission, and the migration project is a
+  one-time landing zone, not a concept._ `POST /api/work-packages` and the import routes
+  refuse `422 project_required` when the body has no `projectId` (the contract marks it
+  required; its absence answers this named code, not a generic validation error); a foreign
+  or missing project answers `404`. Organization activation and onboarding create no
+  project, and nothing marks one project as special. fe-01's "New work package" carries a
+  required project picker, and a "New project" dialog creates the project and its first work
+  package together through `POST /api/projects { name, workPackage: { name } }` in one
+  immediate transaction, so a refusal leaves neither (the route shape is assumed,
+  overrulable with E30; the creator grants are `wbs-permissions` P6's). The mcp-01 create
+  and import tools take `projectId`; an agent lists projects (`getApiProjects`) first, and
+  mcp-01's README says so. The slice-2 back-fill creates one ordinary project named
+  "Migrated work packages" only in organizations that hold work packages (E15); it is
+  ordinary in every way (E16). Callers updated to name a project, each by a named test
+  (tasks 3.3, 3.5, 3.6): fe-01's create (`project-page.tsx`) and import
+  (`apps/wbs/fe-01/src/components/wbs/import-with-ai.ts`, `src/lib/wbs-api.ts`), mcp-01's
+  create and import tools (`postApiWorkPackages`, `postApiWorkPackagesImport` after slice
+  1), and the e2e seeding (`apps/wbs/fe-01/e2e/create-project.ts`), which creates a project
+  first. `wbs-permissions` P16 gates creation before this slice 2; its slice 3 check at the
+  named project always has a named project now (cross-referenced here, not edited).
 - **E31. Persons and teams belong to spaces** (resolves WP-9; moved out of E1). A person or
   team may belong to one or several spaces (new, cheap link). The link carries no authority,
   capacity or scheduling effect (E1); its storage and routes are E23's.
@@ -512,16 +604,14 @@ NULL UNIQUE, FOREIGN KEY (project_id, organization_id) → project(id, organizat
   `command_journal.payload`/`inverse` and saved-plan input bodies with `json_set`, refusing
   on an unrecognised payload shape naming the row; the permanent `step_lift_alias` table is
   rejected as the compatibility layer the Non-Goals forbid. Detail in E21.
-- **E34. The default project is chosen by an explicit route** (session decision 2026-10-24,
-  on the Fable re-check of #714). `PATCH /api/organization/default-project { projectId }`
-  moves the mark to another project of the caller's organization (`404 not_found` for a
-  project of another organization or none), in one immediate transaction appending
-  `default_project_changed`; it is the normal way to change the default, and E30's
-  hand-over on deleting an empty default stays as the fallback. Authority: the
-  organization-settings permission of `wbs-permissions`; its matrix has no fitting row
-  today (the nearest, `organization.manage_capacity_mode`, guards only
-  `switchCapacityMode`), so `wbs-permissions` must add a row; until it lands, admin or
-  super-admin as for the other project writes (E17).
+- **E34. Withdrawn.** _Withdrawn 2026-10-25 by Dany with E30's revision: there is no
+  default project to choose. Was "the default project is chosen by an explicit route"
+  (session decision 2026-10-24, on the Fable re-check of #714):
+  `PATCH /api/organization/default-project { projectId }` moved the mark to another project
+  of the caller's organization (`404 not_found` otherwise) in one transaction appending a
+  `default_project_changed` audit row, with a hand-over to the oldest project as the
+  fallback on deleting an empty default, and needed a new `wbs-permissions` matrix row._
+  Neither the route, the audit action nor the matrix row exists in this change.
 - **E32. The settings catalogue and `resolveSetting`** (resolves WP-9; moved out of E9).
   Settings are a small catalogue (key, value type, overridable-at levels) and one
   `resolveSetting(scope, key)` in core; E18 gives the catalogue's entries and storage and
@@ -594,19 +684,22 @@ proven (no prod release, or a fresh verified backup of the live file with no wri
 
 ## Slice 2: the project entity (d)
 
-E15–E17, E25, E30. Reads of a work package carry `projectId`; the project read lists entries;
-nothing about who may see which project changes (E7).
+E15–E17, E25, E30. Every work package is created inside a named project (`422 project_required`
+otherwise); reads of a work package carry `projectId`; the project read lists entries;
+`work_package.owner_id` goes; nothing about who may see which project changes (E7).
 
 ## Settings inheritance (E9) and what moves up
 
 E18–E22, E32. Slice 2 moves only ownership; slice 3a brings the catalogue, `setting_value`,
-`resolveSetting`, provenance on every settings read, the budget factor lifted to the
-project, the marker scope and the project's work item type allow-list; slice 3b makes the
-step set a project entity (E21).
+`resolveSetting` over organization → space → project → work package, provenance on every
+settings read, the budget factor lifted to the project, the marker scope and the work item
+type allow-list; slice 3b is blocked on `wbs-step-catalogue` (E21, deferred 2026-10-25).
 
 ## Spaces (e)
 
-E23–E24.
+E23–E24, E31. A space is an organizational unit (department or team): a project sits in one
+space or none, persons and teams belong to spaces, and a space carries settings its projects
+resolve (E18). Spaces stay flat.
 
 ## What breaks (f)
 
@@ -624,7 +717,15 @@ E23–E24.
   10 and renumbers past this change's versions when it lands (E10).
 - Audit history reads `work_package` for old rows; the `restricted_project_recovery` action
   name changes.
-- Spaces' member routes break twice (slice 1, slice 3a).
+- Spaces' member routes break twice (slice 1, slice 3a); from slice 3a a project sits in at
+  most one space, `POST /api/spaces/:id/projects` refuses `409 project_in_other_space`, and
+  every membership the back-fill could not keep is listed in `space_project_dropped`.
+- `POST /api/work-packages` and the import routes without `projectId` answer
+  `422 project_required` (slice 2); fe-01's "New work package" needs a project picked in its
+  picker (or the "New project" dialog), and the mcp-01 create and import tools need a
+  `projectId`, so an agent lists projects first. A new organization starts with no project.
+- `work_package.owner_id` and the owner word go (slice 2); edit on a restricted work package
+  comes from grants only (E25).
 
 ## Dev cleanup (g)
 
@@ -640,6 +741,8 @@ day.
   under E8 and documented in one runbook section.
 - The script cannot decide prose that means the engagement; the allow-list and the hand diff
   are reviewed, and `check` lists what is left rather than hiding it.
+- _Deferred 2026-10-25 by Dany (E21):_ the next two bullets describe the step design that
+  `wbs-step-catalogue` takes over; they stay as its input.
 - E21 changes authoring flows (adding, renaming or reordering a step is a project write
   that every work package of the project sees); E22 adds one refusal on type assignment
   when a project narrows its allow-list. Both revised after review; flagged for Dany.
@@ -652,10 +755,15 @@ day.
 ## Open Questions
 
 - E5's deletion list: Dany confirms the owner logins and name patterns in E27 before `apply`.
-- E30 (every organization has exactly one default project, created at activation and
-  back-filled for every organization) awaits Dany's confirmation; E31 and E32 only move
-  planner content out of E1 and E9 and are overrulable by id like E10 onward. E34 needs a
-  `wbs-permissions` matrix row for its route; that change owns adding it.
+- _Settled 2026-10-25 by Dany: E30 revised (a project is mandatory; was: one default project
+  per organization) and E34 withdrawn (was: an explicit route choosing that default, needing
+  a `wbs-permissions` matrix row)._ E31 and E32 only move planner content out of E1 and E9.
+- Assumed on 2026-10-25 and overrulable by id: the combined create's route shape (E30);
+  `timezone`, `calendarMarkers` and `allowedWorkItemTypes` also writable at the organization
+  (E18); the kept-space rule and `space_project_dropped` (E23).
+- `wbs-permissions` has no matrix row yet for the space and organization settings routes
+  (E18) or for `POST /api/projects` with a first work package (E30); that change owns adding
+  them.
 - E5's "the owner logins" in E27 means owners' `users.username`.
 - The dependency shape of `feat/cross-project-dependencies` was skimmed read-only (abbreviation
   side table, stable endpoint identities, typed external rows); its rebase is that branch's

@@ -1,14 +1,13 @@
 ## 0. Dany reads E10 to E34
 
-- [ ] 0.1 Dany confirms or amends design.md E10 to E34, in particular the 2026-10-24
-      revisions of E10 (merge-date stamps; plan documents 12–14 after budgets' 11; slice 3
-      split into 3a and 3b), E15 (nullable `created_by`), E21 (steps as project entities and
-      their re-key), E22 (directory-global types with a project allow-list), E26 (no solver
-      wire change), E27 (the deletion rule) and **E30 (every organization has exactly one
-      default project; awaits Dany's confirmation)**; E31 and E32 only move planner content
-      out of E1 and E9; E33 (the step lift rewrites stored JSON once, no alias table) and
-      E34 (an explicit default-project route) are session decisions after the re-check. Slice 1 is built on the assumptions; an amendment lands as a
-      follow-up slice.
+- [x] 0.1 Dany confirms or amends design.md E10 to E34. Done 2026-10-25: Dany
+      confirmed/revised as recorded in design.md. Revised: E30 (a project is mandatory,
+      `422 project_required`; the slice 2 back-fill creates "Migrated work packages" only
+      where work packages exist), E16 (deleting the only project is allowed), E25 (no owner; grants
+      only), E23 and E24 (a project sits in one space or none; a space is a settings level);
+      withdrawn: E34; deferred: E21 to `wbs-step-catalogue`; scoped: E19 (point markers;
+      ranges are `wbs-calendar-ranges`). Confirmed unchanged: E11, E12, E14, E22, E27, E33
+      and every other decision of E10 to E29.
 - [x] 0.2 Landing order decided before slice 1 starts: budgets #663 (plan document 11,
       saved-plan input 9) lands first; `feat/cross-project-dependencies` renumbers after.
       Satisfied 2026-10-24: #663 merged (`1bb1cb392`); `main` at `0b1dddaa0` has
@@ -103,69 +102,84 @@
 
 ## 3. The project entity (slice 2, `feat/wbs-work-packages-2`)
 
-- [ ] 3.1 Red: `add-project.db.test.ts` (one "Default project" for every organization, empty
-      ones included, each recorded in `organization_default_project` (E30), every work
-      package re-homed, the column `project_id` NOT NULL, back-filled `created_by IS NULL`,
-      the cross-organization trigger refuses, the guard refuses an unmapped work package,
-      `down.sql` refuses while an organization holds a project other than its default) and
+- [ ] 3.1 Red: `add-project.db.test.ts` (one ordinary project "Migrated work packages" in
+      each organization holding work packages and none in an empty organization (E30), every
+      work package re-homed, the column `project_id` NOT NULL, the back-filled project's
+      `created_by IS NULL`, `work_package.owner_id` gone with its value copied into a null
+      `work_package.created_by` (E25), the cross-organization trigger refuses, the guard
+      refuses an unmapped work package, the migration refuses on a store without
+      `access_grant` (`wbs-permissions`' `add_access_grants` not applied), `down.sql`
+      refuses while a project with a non-null `created_by` exists) and
       `widen-organization-audit-projects.db.test.ts` (subject kind `project` and the actions
-      `project_created`, `project_renamed`, `project_deleted`, `work_package_moved`,
-      `default_project_changed` admitted). Green: `<merge-date>100000_add_project` in the
+      `project_created`, `project_renamed`, `project_deleted`, `work_package_moved`
+      admitted). Green: `<merge-date>100000_add_project` in the
       compatible rebuild form (a waiver only if a `DROP COLUMN`/`RENAME COLUMN` statement
       remains; the uuid generation follows the organization back-fill precedent) and
       `<merge-date>100100_widen_organization_audit_projects` in the
       `widen_organization_audit_*` shape (WP-7). R5 faults: the trigger dropped; the
-      `NOT NULL` dropped; the back-fill restricted to organizations holding packages (the empty
-      organization's assertion fails); the widen migration removed (an insert of
+      `NOT NULL` dropped; the back-fill widened to every organization (the empty
+      organization's "no project" assertion fails); the owner-to-`created_by` copy removed
+      (the `created_by` assertion fails); the `access_grant` guard removed (the store without
+      it migrates and the refusal test fails); the widen migration removed (an insert of
       `project_created` is refused by the CHECK); each watched.
-- [ ] 3.2 Red: `ProjectStore` conformance (`projects.create:name-taken`, `projects.delete:not-empty`,
-      `projects.delete:last-project`, `projects.delete:default-hands-over`,
-      `projects.move:cross-organization`) on SQLite and the memory twin; organization creation
-      writes the default project in the same transaction on all three store paths
+- [ ] 3.2 Red: `ProjectStore` conformance (`projects.create:name-taken`,
+      `projects.create:with-first-work-package` (both rows or neither),
+      `projects.delete:not-empty`, `projects.delete:only-project` (an empty only project is
+      deleted), `projects.move:cross-organization`) on SQLite and the memory twin;
+      organization creation on all three store paths
       (`OrganizationRepository.createForUnaffiliatedUser`, `OnboardingRepository`,
-      `organization-legacy-activation.ts`), and the test harnesses that insert organizations
-      by SQL (`organization-harness.ts`, `booted-browser-process.ts`,
-      `measure-bound-claims.ts`, `capacity-fanout-process.ts`, store-sqlite's
-      `testing/space-database.ts`) write the mark too. Green: the port, `ProjectRepository`,
-      `inMemoryProjects`, the three creation paths. R5 faults: `not_empty` check removed,
-      watched on both stores; the default-project insert removed from onboarding (the
-      onboarding test and the create-without-`projectId` route test fail); watched.
-- [ ] 3.3 Red: `project.routes.test.ts` (create 201, list with counts, read with entries, patch
-      409/404, delete 204/409 `not_empty`/409 `last_project`/404, admin-only writes, member
-      reads), `default-project.routes.test.ts` (`PATCH /api/organization/default-project`
-      200 with the audit row and the next create landing in the new default, `404 not_found`
-      for a foreign or missing project, admin-only until `wbs-permissions` adds its row, E34)
-      and `work-package-move.routes.test.ts` (200 with both projects' revisions up by
+      `organization-legacy-activation.ts`) creates no project (E30), asserted by the
+      onboarding and activation tests. Green: the port, `ProjectRepository`,
+      `inMemoryProjects`. R5 faults: `not_empty` check removed, watched on both stores; the
+      combined create split into two transactions (an injected failure of the work package
+      insert leaves the project behind and the both-or-neither case fails); watched.
+- [ ] 3.3 Red: `project.routes.test.ts` (create 201, create with `workPackage` 201 with both
+      rows and the package's `projectId` the new project, `409 name_taken` leaving neither,
+      list with counts, read with entries, patch 409/404, delete 204/409 `not_empty`/404, the
+      organization's only empty project deleted 204, admin-only writes, member reads) and
+      `work-package-move.routes.test.ts` (200 with both projects' revisions up by
       one and the audit row; 404, `cross_organization`, `dependency_crosses_project` behind a
       fixture flag until the dependency branch lands); `POST /api/work-packages` and the
-      import routes without `projectId` land in the default project, with a foreign one
-      `404`. Callers verified to work with the default project (E30), each by a named test:
-      fe-01's create (`project-page.tsx`) and import (`import-with-ai.ts`, `wbs-api.ts`),
-      mcp-01's import tool (`postApiWorkPackagesImport` after slice 1), the activation CLI,
-      the onboarding route and the e2e seeding (`apps/wbs/fe-01/e2e/create-project.ts`).
-      Green: routes, contracts, OpenAPI, MCP tools by derivation, and mcp-01's README count
-      ("91 tools in all" raised by the new tools; `openapi-tools.test.ts` asserts it, WP-10).
-      R5 faults: the move's organization check removed; the audit append removed; the
-      default-project route's organization check removed (the foreign-project scenario
-      moves the mark across organizations); each watched.
+      import routes without `projectId` answer `422 project_required` and create nothing,
+      with a foreign one `404`. Callers updated to name a project (E30), each by a named
+      test: fe-01's create (`project-page.tsx`) and import (`import-with-ai.ts`,
+      `wbs-api.ts`) and the e2e seeding (`apps/wbs/fe-01/e2e/create-project.ts`, which
+      creates a project first). Green: routes, contracts, OpenAPI, MCP tools by derivation,
+      and mcp-01's README count ("91 tools in all" raised by the new tools;
+      `openapi-tools.test.ts` asserts it, WP-10). R5 faults: the move's organization check
+      removed; the audit append removed; the `project_required` check removed (the
+      create without `projectId` reaches the store and the route test sees a `500` from the
+      `NOT NULL` instead of the `422`); each watched.
 - [ ] 3.4 Plan document 13 (`project: { id, name }`, informational on import) with its test;
       the work package read carries `projectId`.
-- [ ] 3.5 fe-01: picker grouped by project, a projects page (create, rename, delete, move),
-      refusals rendered as states; "New project" on a fresh organization creates the package
-      in the default project with no picker step (E30); browser test on the real stack. R5
-      fault: the handler that renders `409 not_empty` as a state removed; the browser test
-      naming that refusal fails; watched. UI reviewed by eye (pretty UI and fluent UX)
-      before merge.
-- [ ] 3.6 Runbook window executed on dev (backup, gate, deploy, health); `verify.md`.
+- [ ] 3.5 fe-01: picker grouped by project, a required project picker on "New work package",
+      a "New project" dialog creating the project and its first work package together, a
+      projects page (create, rename, delete, move) with an empty state for an organization
+      with no project, refusals rendered as states; browser test on the real stack. R5
+      faults: the handler that renders `409 not_empty` as a state removed; the picker's
+      required check removed (the browser test sees the `422 project_required` refusal
+      instead of a disabled create); each watched. UI reviewed by eye (pretty UI and fluent
+      UX) before merge.
+- [ ] 3.6 mcp-01: the create and import tools (`postApiWorkPackages`,
+      `postApiWorkPackagesImport`) take a required `projectId` in their derived input
+      schema; the README tells an agent to list projects (`getApiProjects`) first. Test:
+      `openapi-tools.test.ts` asserts `projectId` required on both tools and a call without
+      it answers `422 project_required`. R5 fault: `projectId` made optional in the
+      contract; the schema assertion fails; watched.
+- [ ] 3.7 Runbook window executed on dev (backup, gate, deploy, health; precondition:
+      `wbs-permissions`' `add_access_grants` applied and its task 3.3 merged, E25);
+      `verify.md`.
 
 ## 4. Settings inheritance and spaces (slice 3a, `feat/wbs-work-packages-3a`)
 
 - [ ] 4.1 Red: `settings/catalogue.test.ts` in `@wbs/domain` (every key typed, overridable-at
-      sets as E18 including `budgetFactor` fixed at project with values in (0, 1000], a
-      property that `resolveSetting` over random chains answers the nearest allowed level
-      with provenance, space inert, `ambiguous_space_value` only for a space-overridable
-      key). Green: `catalogue.ts`, `resolve-setting.ts`. R5 fault: the `overridableAt` check
-      removed (a work-package row for `allowedWorkItemTypes` resolves); watched.
+      sets as E18 including `space` for `timezone`, `calendarMarkers` and
+      `allowedWorkItemTypes` and `budgetFactor` fixed at project with values in (0, 1000], a
+      property that `resolveSetting` over random chains (a space or none) answers the nearest
+      allowed level with provenance, a chain with no space skipping that level). Green:
+      `catalogue.ts`, `resolve-setting.ts`. R5 faults: the `overridableAt` check removed (a
+      work-package row for `allowedWorkItemTypes` resolves); the space level skipped (a space
+      value is ignored and the property fails); each watched.
 - [ ] 4.2 Red: `add-setting-value.db.test.ts` (the lift creates rows only for non-default
       values, drops the columns, every work package reads the same; `budget_factor` lifted
       to one project row where a project's packages agree and none where they agree on 1;
@@ -180,32 +194,49 @@
 - [ ] 4.3 Red: `SettingStore` conformance (write refused `not_overridable_here`, `null` clears,
       type failure 422) and `settings.routes.test.ts` (the inherited/overridden/cleared
       scenario, provenance on every key, `allowedWorkItemTypes` and `budgetFactor` written at
-      the project). Green: port, both stores, routes, contracts, MCP by derivation, mcp-01's
+      the project, a space value read by its projects with `{ space, S }`, `pertWeights`
+      refused at space with `409 not_overridable_here`, `GET`/`PATCH /api/spaces/:id/settings`
+      and `/api/organization/settings`). Green: port, both stores, routes, contracts, MCP by derivation, mcp-01's
       README count raised (WP-10). R5 fault: provenance hard-coded to `work_package`; the
       inherited scenario fails; watched.
-- [ ] 4.4 Calendar markers (E19): union with provenance, project marker not deletable through a
-      work package route; work item types (E22): the `allowedWorkItemTypes` setting,
+- [ ] 4.4 Calendar markers (E19): union across organization, space, project and work package
+      with provenance, a marker of a level above not deletable through a lower level's route; work item types (E22): the `allowedWorkItemTypes` setting,
       `type_not_allowed_in_project` on assignment and on move, directory routes unchanged.
       Tests named in the spec scenarios. R5 fault: the allow-list check removed (a `spike`
       assignment succeeds); watched.
-- [ ] 4.5 Red: `space-holds-projects.db.test.ts` (back-fill dedupe and order,
-      `space_work_package` gone, `space_person`/`space_team` with organization scoping) and
-      `space.routes.test.ts` (projects routes in the new sense, people and teams add/remove/list,
-      schedule input hashes unchanged throughout, roll-ups folded per project with work package
-      rows beneath). Green: `<merge-date>100100_space_holds_projects_people_teams`, store, routes,
-      contracts, mcp-01's README count raised (WP-10). R5 faults: the dedupe removed
-      (duplicate key failure observed instead of the ordered result); the organization scope
-      on `space_person` removed; watched.
+- [ ] 4.5 Red: `project-in-one-space.db.test.ts` (`project.space_id` and `space_position`
+      back-filled by E23's kept-space rule, one `space_project_dropped` row per membership not
+      kept, `space_work_package` gone, the cross-organization trigger refuses a foreign space,
+      `space_person`/`space_team` with organization scoping) and `space.routes.test.ts` (a
+      project set into a space, `409 project_in_other_space { spaceId }` while it sits in
+      another, removal to none, reorder within the space, deleting a space returns its
+      projects to none, an organization-level project reads `spaceId: null` and is listed in
+      `all` only, people and teams add/remove/list, schedule input hashes unchanged
+      throughout, roll-ups folded per project with work package rows beneath). Green:
+      `<merge-date>100100_space_holds_projects_people_teams`, store, routes, contracts,
+      mcp-01's README count raised (WP-10), the runbook step printing `space_project_dropped`
+      into `verify.md`, and the ADR superseding ADR 0033 in part (one space or none). R5
+      faults: the dropped-membership insert removed (the multi-space fixture's report
+      assertion fails); the cross-organization trigger dropped; the `project_in_other_space`
+      check removed (the second add silently moves the project); the organization scope on
+      `space_person` removed; each watched.
 - [ ] 4.6 Plan document 14 (settings with provenance; import writes only `work_package`
       provenance values) and saved-plan input 11; tests as in 1.5.
-- [ ] 4.7 fe-01: provenance in the settings modal ("inherited from project X", clear
-      override), project-level settings page, spaces page with projects, persons and teams;
+- [ ] 4.7 fe-01: provenance in the settings modal ("inherited from space S", "inherited from
+      project X", clear override), project-level and space-level settings pages, spaces page
+      with each space's projects, persons and teams and an organization-level group for
+      projects in no space;
       browser test. R5 fault: the handler that renders `409 not_overridable_here` as a state
       removed; the browser test naming that refusal fails; watched. UI reviewed by eye.
 - [ ] 4.8 Runbook window executed on dev (precondition: one budget factor per project,
       E20); `verify.md`.
 
 ## 5. Steps as project entities (slice 3b, `feat/wbs-work-packages-3b`)
+
+_Blocked 2026-10-25 by Dany:_ E21 is deferred to the separate design `wbs-step-catalogue`
+(steps per work item type, configured at the organization and added at space and project).
+No task below starts until that design lands; it may replace them. E33's one-time JSON
+rewrite stays the rule for any step re-key.
 
 - [ ] 5.1 Red: `lift-steps-to-project.db.test.ts` over a dev-shaped fixture (E21, E33): project
       steps deduplicated by code in first-occurrence order, the first occurrence's id kept,

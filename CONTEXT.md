@@ -180,11 +180,11 @@ _Avoid_: claim row, active claim, slot
 ### Spaces
 
 **Space**:
-An organization-owned, named lens over an ordered set of that organization's projects, to which persons and teams may also belong. It owns nothing and grants nothing: removing a project, a person or a team from it, or deleting it, changes no project and no access.
-_Avoid_: portfolio, program, folder, workspace, department
+An organizational unit of the organization, such as a department or a team, that holds projects, persons and teams and carries settings resolved by the projects beneath it. It grants nothing, and deleting it deletes no project.
+_Avoid_: portfolio, program, folder, workspace
 
 **Space membership**:
-One project's, person's or team's place in one space: the pair and, for a project, its position. A project, a person or a team may sit in many spaces.
+One project's, person's or team's place in one space: the pair and, for a project, its position. A project sits in one space or none; a person or a team may sit in many spaces.
 _Avoid_: link, assignment, space access
 
 **All projects**:
@@ -240,13 +240,6 @@ One client engagement: an organization's named collection of work packages, owni
 settings they share, the dependencies between them and the budgets that bound several of
 them. Every project belongs to exactly one organization.
 _Avoid_: engagement, programme, portfolio, project (for one WBS)
-
-**Default project**:
-The one project of each organization that receives a work package created or imported without
-naming a project. Every organization has exactly one. It can be renamed, emptied and replaced
-by another project as the default; it cannot be deleted while it holds work packages or is the
-organization's only project.
-_Avoid_: root project, unfiled, inbox
 
 **Work item**:
 One unit of work in a work package, holding a name, notes and a place in the tree; once it has
@@ -415,7 +408,8 @@ _Avoid_: roster, address book, org chart, users
 A team work can be labelled with, unique by name across the directory: a label on the work,
 never a constraint on who may be assigned it. How many may be at work at once is a per-project
 [Capacity](openspec/changes/archive/2026-08-30-capacity-per-project/specs/wbs-domain/spec.md),
-not a property of the team.
+not a property of the team. It may belong to a space, but it is not one: a space is a unit of
+the organization that holds projects, a service team is a label on the work.
 _Avoid_: department, squad, group
 
 **Service**:
@@ -707,13 +701,6 @@ is in the cell — a box holding the focus with no search open is where a reader
 moment after taking a value, and the `+` has to open from there. It never takes the keyboard
 itself.
 _Avoid_: plus, add affordance, new button, opener
-
-**Work package owner**:
-The account that created a work package. Under scoped grants it holds a direct
-`package-manager` grant from creation, which is what lets it keep editing a restricted work
-package; a super-admin's recovery is the audited clearing of the restriction, not an edit. An
-account, never a person from the directory. A project has no owner.
-_Avoid_: project owner, author, creator, user
 
 **Work package entry**:
 One work package as the picker offers it: the name it is chosen by, followed by its entry

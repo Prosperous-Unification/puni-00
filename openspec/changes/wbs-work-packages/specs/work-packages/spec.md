@@ -111,9 +111,12 @@ be rewritten.
 
 ### Requirement: A project is an organization's named collection of work packages
 
-`POST /api/projects` SHALL create a project with a unique name within the organization;
-`PATCH` renames it; `DELETE` removes it only while it holds no work package. Every work
-package SHALL reference exactly one project of its own organization, enforced in storage.
+`POST /api/projects` SHALL create a project with a unique name within the organization,
+and with `workPackage: { name }` SHALL create the project and its first work package in one
+transaction; `PATCH` renames it; `DELETE` removes it only while it holds no work package,
+the organization's only project included. Every work package SHALL reference exactly one
+project of its own organization, enforced in storage, and `POST /api/work-packages` and the
+import routes SHALL refuse `422 project_required` when the body names no `projectId`.
 
 #### Scenario: Duplicate name
 
@@ -130,91 +133,76 @@ package SHALL reference exactly one project of its own organization, enforced in
 - **WHEN** a row insert gives a work package of organization A a project of organization B
 - **THEN** the trigger refuses it
 
-#### Scenario: Creating a work package without a project lands in the default project
+#### Scenario: Creating a work package without a project is refused
 
 - **WHEN** `POST /api/work-packages` is sent without `projectId`, and again with a foreign one
-- **THEN** the first answers `201` with the new work package's `projectId` equal to the
-  organization's default project, and the second answers `404`
+- **THEN** the first answers `422 project_required`, the second answers `404`, and no work
+  package is created
 
-#### Scenario: Importing without a project lands in the default project
+#### Scenario: Importing without a project is refused
 
 - **WHEN** a plan document is imported through the import route, and again through mcp-01's
   import tool, both naming no `projectId`
-- **THEN** both work packages are created in the organization's default project
+- **THEN** both answer `422 project_required` and no work package is created
 
-### Requirement: Every organization has exactly one default project
+#### Scenario: A new project with its first work package
 
-Every organization SHALL have exactly one default project. Organization activation (the
-activation CLI and the onboarding route) SHALL create it in the same transaction as the
-organization. A create or import that names no project SHALL land in it. An organization
-found without a default project SHALL make the read throw, never pick one.
+- **WHEN** an admin sends `POST /api/projects { name: "WBS product", workPackage: { name:
+"Editor" } }`, and again with the same name
+- **THEN** the first answers `201` with project "WBS product" holding work package "Editor"
+  whose `projectId` is the new project; the second answers `409 name_taken` and creates
+  neither a project nor a work package
 
-#### Scenario: A new organization has a default project
+#### Scenario: The only project is deleted like any other
+
+- **WHEN** an admin deletes the empty only project of an organization
+- **THEN** it answers `204` and the organization holds no project
+
+### Requirement: An organization starts with no project
+
+Organization activation (the activation CLI and the onboarding route) SHALL create no
+project; nothing SHALL mark one project of an organization as special.
+
+#### Scenario: A new organization holds no project
 
 - **WHEN** a user creates an organization through onboarding, and an operator activates a
   legacy one through `organization-activation-cli.ts`
-- **THEN** each organization holds exactly one project, named "Default project", marked as
-  its default, with `created_by` the creating account
+- **THEN** each organization holds no project, and a `POST /api/work-packages` there without
+  `projectId` answers `422 project_required`
 
-### Requirement: An admin chooses the default project explicitly
+### Requirement: Slice 2 back-fills one migration project where work packages exist
 
-`PATCH /api/organization/default-project { projectId }` SHALL move the default-project mark
-to another project of the caller's organization in one transaction and append
-`default_project_changed`; a project of another organization, or no project, SHALL answer
-`404 not_found` and change nothing.
-
-#### Scenario: The default moves to a named project
-
-- **WHEN** an admin of organization A whose default is D sends `{ projectId: P }` for
-  project P of A
-- **THEN** it answers `200`, a later `POST /api/work-packages` without `projectId` lands in
-  P, D is an ordinary project, and the audit holds one `default_project_changed` row
-
-#### Scenario: A foreign project cannot become the default
-
-- **WHEN** an admin of organization A sends `{ projectId: Q }` for project Q of organization B
-- **THEN** it answers `404 not_found` and A's default is unchanged
-
-### Requirement: The default project survives deletion attempts
-
-The default project SHALL NOT be deleted while it holds work packages (`409 not_empty`) or
-is the organization's only project (`409 last_project`); deleting an empty default while
-other projects exist SHALL hand the default to the oldest remaining project and append
-`default_project_changed`.
-
-#### Scenario: The only project cannot be deleted
-
-- **WHEN** an admin deletes the empty default project of an organization that has no other
-  project
-- **THEN** it answers `409 last_project` and nothing changes
-
-#### Scenario: Deleting an empty default hands the mark over
-
-- **WHEN** an organization holds the empty default project D and projects P1 (older) and P2,
-  and an admin deletes D
-- **THEN** D is gone, P1 is the default project, and the audit holds one
-  `default_project_changed` row
-
-### Requirement: Slice 2 back-fills one default project per organization
-
-The migration SHALL create one project named "Default project" for every organization,
-empty ones included, record it as that organization's default project, and point every work
-package of the organization at it. A back-filled project's `created_by` SHALL be null (no
-actor); a project created through `POST /api/projects` SHALL carry its creator.
+The migration SHALL create one ordinary project named "Migrated work packages" in every
+organization that holds work packages and none in an organization that holds none, and
+point every work package of the organization at it. A back-filled project's `created_by`
+SHALL be null (no actor); a project created through `POST /api/projects` SHALL carry its
+creator. The same migration SHALL drop `work_package.owner_id` after copying it into a null
+`work_package.created_by`, and SHALL refuse on a database where `access_grant` does not
+exist.
 
 #### Scenario: Back-fill
 
 - **WHEN** organizations A (3 work packages) and B (0) exist before the migration
-- **THEN** A has one default project "Default project" holding all 3 with `created_by IS
-NULL`, B has one default project "Default project" holding none, and renaming A's
-  project is allowed like any other; a project an admin creates afterwards has `created_by`
-  equal to that admin's account
+- **THEN** A has one project "Migrated work packages" holding all 3 with `created_by IS
+NULL`, B has no project, and renaming A's project, and deleting it once empty, is allowed
+  like any other; a project an admin creates afterwards has `created_by` equal to that
+  admin's account
+
+#### Scenario: The owner column goes and its account is kept
+
+- **WHEN** work package W has owner U and a null `created_by` before the migration
+- **THEN** after it `work_package` has no `owner_id` column and W's `created_by` is U
+
+#### Scenario: The migration waits for the grant tables
+
+- **WHEN** the slice 2 migration runs on a database without `access_grant`
+- **THEN** it fails before rebuilding anything and `work_package.owner_id` is unchanged
 
 ### Requirement: The audit admits the project vocabulary through its own migration
 
 Slice 2 SHALL widen `organization_audit` to admit subject kind `project` and the actions
-`project_created`, `project_renamed`, `project_deleted`, `work_package_moved` and
-`default_project_changed`, in a migration of its own.
+`project_created`, `project_renamed`, `project_deleted` and `work_package_moved`, in a
+migration of its own.
 
 #### Scenario: The audit refuses project actions before the widening
 
@@ -263,11 +251,11 @@ and on success SHALL re-key W's per-step rows to the target project's steps by c
 
 ### Requirement: Every setting resolves down the chain with provenance
 
-Every catalogue key SHALL resolve as work package → project → spaces → organization →
-catalogue default; a settings read SHALL answer `{ value, provenance }` for every key; a write
-at a level the catalogue does not allow SHALL be refused `409 not_overridable_here`; `null`
-SHALL clear an override. Nothing SHALL be overridable at space in this change, and the space
-step SHALL be inert.
+Every catalogue key SHALL resolve as work package → project → the project's space when it
+has one → organization → catalogue default; a settings read SHALL answer `{ value,
+provenance }` for every key; a write at a level the catalogue does not allow SHALL be refused
+`409 not_overridable_here`; `null` SHALL clear an override. `timezone`, `calendarMarkers` and
+`allowedWorkItemTypes` SHALL be writable at space; `pertWeights` and `budgetFactor` SHALL NOT.
 
 #### Scenario: Inherited, overridden, cleared
 
@@ -288,10 +276,17 @@ budgetFactor: 1.5 }`
 - **WHEN** `PATCH /api/work-packages/W/settings { allowedWorkItemTypes: [...] }`
 - **THEN** `409 not_overridable_here` and W's project allow-list is unchanged
 
-#### Scenario: The space step is inert
+#### Scenario: A space value resolves for its projects
 
-- **WHEN** a `setting_value` row is forced at space level for `timezone`
-- **THEN** resolution ignores it and the write path would have refused it
+- **WHEN** space S sets timezone `Europe/Kyiv`, project P sits in S and sets none, work
+  package W of P sets none, and project Q sits in no space
+- **THEN** W and P read `Europe/Kyiv` with provenance `{ space, S }`, and Q reads the
+  organization's value or the catalogue default with that provenance
+
+#### Scenario: A project-only setting refuses the space
+
+- **WHEN** `PATCH /api/spaces/S/settings { pertWeights: [1, 3, 1] }`
+- **THEN** `409 not_overridable_here` and no space row is written
 
 ### Requirement: The slice 3a migration lifts only real overrides
 
@@ -318,8 +313,9 @@ package SHALL read the same values as before.
 
 ### Requirement: Calendar markers add across levels
 
-A work package's calendar SHALL be its project's markers plus its own, each read with
-provenance; a project marker SHALL NOT be removable through a work package route.
+A work package's calendar SHALL be the union of its organization's, its project's space's
+(when it has one), its project's and its own markers, each read with provenance; a marker of
+a level above SHALL NOT be removable through a lower level's route.
 
 #### Scenario: Union
 
@@ -332,7 +328,9 @@ provenance; a project marker SHALL NOT be removable through a work package route
 A project SHALL define its step set (code, name, order) once; a work package SHALL hold
 only its allowance and estimate unit per project step, keyed by the project's step id.
 Creating, renaming or reordering a step SHALL be a project write seen by every work package
-of the project.
+of the project. This requirement and the step lift below SHALL NOT be implemented before the
+separate `wbs-step-catalogue` design lands, which may replace them (design E21, deferred
+2026-10-25).
 
 #### Scenario: A step added once is everywhere
 
@@ -350,7 +348,7 @@ has no code or two codes of one project share a name.
 
 #### Scenario: Lift and re-key
 
-- **WHEN** default project P holds W1 (created first) with steps `dev` (allowance 10) and
+- **WHEN** project P holds W1 (created first) with steps `dev` (allowance 10) and
   `qa`, and W2 with `qa` and `ops`
 - **THEN** P's steps are `dev`, `qa`, `ops` (deduplicated by code, first-occurrence order);
   W1 reads allowance 10 on `dev`, and every step node, estimate, attempt and claim of W1 and
@@ -396,16 +394,32 @@ type_not_allowed_in_project { typeIds }`. The slice 3a migration SHALL write no 
 - **THEN** `409 type_not_allowed_in_project { typeIds: [<spike id>] }`; and in a project with
   no allow-list the same write succeeds
 
-### Requirement: Spaces hold projects
+### Requirement: A project sits in one space or none
 
-After slice 3a a space's members SHALL be projects; the back-fill SHALL map each space's work
-packages to their projects, deduplicated in first-occurrence order; roll-ups SHALL answer one
-row per project folded from its work packages' roll-ups with the work package rows beneath.
+After slice 3a a project SHALL sit in at most one space (`spaceId`, null for an
+organization-level project); the back-fill SHALL keep, per project, the space where its
+earliest work package entry has the lowest position and SHALL write every other membership
+to `space_project_dropped`; adding a project that sits in another space SHALL be refused;
+deleting a space SHALL return its projects to none; roll-ups SHALL answer one row per
+project folded from its work packages' roll-ups with the work package rows beneath.
 
-#### Scenario: Back-fill order
+#### Scenario: Back-fill keeps one space and reports the rest
 
-- **WHEN** space S held work packages W1 (project P1), W2 (P2), W3 (P1) at positions 1, 2, 3
-- **THEN** S holds P1 then P2
+- **WHEN** space S1 held W1 (project P1) at position 2 and W3 (P2) at position 1, and space
+  S2 held W2 (P1) at position 1
+- **THEN** P1 sits in S2, P2 sits in S1, and `space_project_dropped` holds exactly one row:
+  P1 in S1, kept in S2
+
+#### Scenario: A project in another space is refused
+
+- **WHEN** P1 sits in S2 and `POST /api/spaces/S1/projects { projectId: P1 }` is sent
+- **THEN** it answers `409 project_in_other_space { spaceId: S2 }` and P1 stays in S2
+
+#### Scenario: An organization-level project
+
+- **WHEN** project Q sits in no space, and later space S2 holding P1 is deleted
+- **THEN** Q reads `spaceId: null` and is listed in `all` and in no space's roll-up, and P1
+  reads `spaceId: null` with its work packages unchanged
 
 #### Scenario: Folded roll-up
 

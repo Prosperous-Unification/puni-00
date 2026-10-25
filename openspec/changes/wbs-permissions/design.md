@@ -140,9 +140,13 @@ through `owner_id`.
 
 **P6. Creating grants the creator.** Creating a project writes a direct `project-manager`
 grant for its creator in the same transaction; creating or importing a work package writes
-a direct `package-manager` grant for its creator. `project.owner_id` stays as a record and
-no longer decides access. The backfill writes a `package-manager` grant for every existing
-package's owner, so a restricted package stays editable by its creator after P5.
+a direct `package-manager` grant for its creator. `project.owner_id` no longer decides
+access. The backfill writes a `package-manager` grant for every existing package's owner, so
+a restricted package stays editable by its creator after P5. _Revised 2026-10-25 by Dany
+(#698 E25, no owner):_ the column does not stay as a record; #698 slice 2 drops
+`work_package.owner_id` (copying it into a null `created_by`) and refuses to run before
+`add_access_grants`, so this backfill reads the column before it goes, and task 3.3 retires
+its last reader before #698 slice 2. Was: "`project.owner_id` stays as a record".
 
 **P7. What E8's backfill keeps, and what narrows on day one.** The backfill keeps every
 member's project reads and writes and every viewer's reads. It does not give members the
@@ -604,10 +608,12 @@ user, org-super-admin)`, `admin` → `org-admin`, `member` → `project-contribu
 - The legacy organization's pre-activation accounts are members already
   (`organization-legacy-activation.ts`) and are covered by the first rule.
 - No project-scope row is written: no project entity exists at slice 1. #698 slice 2's
-  migration later creates each organization's **Default project**; it is
-  migration-created, so it has no creator and no `project-manager` grant, and members reach
-  it and its packages through the organization-scope backfill rows until `revoke-backfill`
-  removes them (P15). An `org-admin` reaches it by role throughout.
+  migration later creates one ordinary project, "Migrated work packages", in each
+  organization holding work packages (_revised 2026-10-25 by Dany, #698 E30; was: each
+  organization's default project_); it is migration-created, so it has no creator and no
+  `project-manager` grant, and members reach it and its packages through the
+  organization-scope backfill rows until `revoke-backfill` removes them (P15). An
+  `org-admin` reaches it by role throughout.
 
 "The swap" in this document is the deploy of `add_access_grants` with this backfill, the
 release whose code reads grants (slice 2). It is neither the legacy organization's
