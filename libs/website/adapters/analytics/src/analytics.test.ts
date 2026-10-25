@@ -487,3 +487,33 @@ test('dispatch rejects a non-enumerable required category before the vendor sink
   expect(() => f.analytics.dispatch(event)).toThrow();
   expect(f.sent.map((sent) => sent.name)).toEqual(['page_view']);
 });
+
+test('dispatch rejects a changing event name before the vendor sink', async () => {
+  const f = fixture();
+  f.analytics.accept();
+  await f.complete();
+  let reads = 0;
+  const changing = {
+    get name() {
+      return reads++ === 0 ? 'funnel_failure' : 'page_view';
+    },
+    page_id: 'home',
+  };
+  expect(() => f.analytics.dispatch(changing as never)).toThrow();
+  expect(f.sent.map((sent) => sent.name)).toEqual(['page_view']);
+});
+
+test('dispatch rejects hidden symbol content before the vendor sink', async () => {
+  const f = fixture();
+  f.analytics.accept();
+  await f.complete();
+  const hidden = Object.defineProperty(
+    { name: 'funnel_failure', category: 'network' } as const,
+    Symbol('email'),
+    {
+      value: 'symbol-sentinel@example.test',
+    },
+  );
+  expect(() => f.analytics.dispatch(hidden)).toThrow();
+  expect(f.sent.map((sent) => sent.name)).toEqual(['page_view']);
+});

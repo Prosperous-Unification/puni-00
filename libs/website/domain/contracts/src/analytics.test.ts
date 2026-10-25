@@ -130,3 +130,39 @@ test('non-enumerable event fields cannot disappear from the validated event', ()
     ),
   ).toThrow();
 });
+
+test('event validation and reconstruction use the same field snapshot', () => {
+  let reads = 0;
+  const changing = {
+    get name() {
+      return reads++ === 0 ? 'funnel_failure' : 'page_view';
+    },
+    page_id: 'home',
+  };
+  expect(() => parseAnalyticsEvent(changing)).toThrow();
+  let validReads = 0;
+  expect(
+    parseAnalyticsEvent({
+      get name() {
+        validReads++;
+        return 'page_view';
+      },
+      page_id: 'home',
+    }),
+  ).toEqual({ name: 'page_view', page_id: 'home' });
+  expect(validReads).toBe(1);
+});
+
+test('event symbol fields are rejected even when non-enumerable', () => {
+  for (const enumerable of [true, false]) {
+    const hidden = Object.defineProperty(
+      { name: 'funnel_failure', category: 'network' },
+      Symbol('email'),
+      {
+        value: 'symbol-sentinel@example.test',
+        enumerable,
+      },
+    );
+    expect(() => parseAnalyticsEvent(hidden)).toThrow();
+  }
+});

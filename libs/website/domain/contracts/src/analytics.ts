@@ -137,18 +137,20 @@ const fields: Record<AnalyticsEvent['name'], Record<string, readonly string[]>> 
   funnel_failure: { category: ['unavailable', 'limit', 'network', 'validation', 'conflict'] },
 };
 
-/** Throws on programmer mistakes, including extra or non-enumerable fields, even while analytics is disabled. */
+/** Throws on programmer mistakes, including extra, symbol or non-enumerable fields, even while analytics is disabled. */
 export function parseAnalyticsEvent(value: unknown): AnalyticsEvent {
   // Proof: removing the shape guard lost the named-boundary error for malformed event shapes.
   if (typeof value !== 'object' || value === null || Array.isArray(value))
     throw new Error('Invalid analytics event');
   const entries = Object.entries(value);
-  // Proof: removing this guard let dispatch send funnel_failure without its non-enumerable required category.
-  if (Object.getOwnPropertyNames(value).length !== entries.length)
-    throw new Error('Invalid analytics field');
-  const name: unknown = Reflect.get(value, 'name');
+  // Proof: removing this guard let dispatch send funnel_failure without its non-enumerable required category;
+  // replacing Reflect.ownKeys with Object.getOwnPropertyNames admitted hidden symbol content in dispatch.
+  if (Reflect.ownKeys(value).length !== entries.length) throw new Error('Invalid analytics field');
+  const snapshot: Record<string, unknown> = Object.fromEntries(entries);
+  // Proof: rereading name from the input admitted a changing getter's invalid funnel_failure in dispatch.
+  const name = snapshot['name'];
   // Proof: removing name/own-name checks admitted inherited names or lost the named unknown-event error.
-  if (!Object.hasOwn(value, 'name') || typeof name !== 'string' || !Object.hasOwn(fields, name))
+  if (!Object.hasOwn(snapshot, 'name') || typeof name !== 'string' || !Object.hasOwn(fields, name))
     throw new Error('Unknown analytics event');
   // The own-key check above bounds the event name to the schema's keys.
   const schema = fields[name as AnalyticsEvent['name']];
@@ -160,13 +162,13 @@ export function parseAnalyticsEvent(value: unknown): AnalyticsEvent {
       throw new Error('Invalid analytics field');
   }
   for (const key of Object.keys(schema)) {
-    if (name === 'generate_lead' && key === 'starting_choice' && !Object.hasOwn(value, key))
+    if (name === 'generate_lead' && key === 'starting_choice' && !Object.hasOwn(snapshot, key))
       continue;
     // Proof: removing required-field checks admitted missing fields in the sentinel boundary test.
-    if (!Object.hasOwn(value, key)) throw new Error('Missing analytics field');
+    if (!Object.hasOwn(snapshot, key)) throw new Error('Missing analytics field');
   }
   // Every own field and required key was checked against the complete bounded schema above.
-  return Object.fromEntries(entries) as AnalyticsEvent;
+  return snapshot as AnalyticsEvent;
 }
 
 /** No campaigns are approved for launch. Registration is a reviewed source change, not UTM input. */
