@@ -6,7 +6,8 @@
       "ungranted is absent"), an explicit waiver of R5's production-path negative for the
       S5 redaction until a grant can deny, S7 (clamp, no portfolio levelling) and S10
       (limits). If A holds, record it as an ADR.
-- [ ] 0.2 The owner of `wbs-resource-release` agrees to S9: this change supersedes that
+- [ ] 0.2 (Its sentences are amended in this branch with pointers to S9, since it landed first
+      in #735; the agreement is still open.) The owner of `wbs-resource-release` agrees to S9: this change supersedes that
       change's five sentences on claim occupancy and schedule inputs, and whichever change
       lands second amends the other.
 - [ ] 0.3 Archive order: `wbs-resources`, `wbs-organization-limits` and `compute-providers`

@@ -32,8 +32,8 @@ machines across projects, so this gap matters most.
   schedule hashes; reads gain fields only.
 - Units held of a shared resource are an organization fact; holder identities never cross
   into a project the reader cannot read.
-- Supersedes five sentences of `wbs-resource-release`; the change landing second amends the
-  other.
+- Supersedes six sentences of `wbs-resource-release`, which landed first; this change amends
+  them with pointers to S9.
 - Every refusal and redaction ships with a negative and a `Proof:` comment.
 
 ## Capabilities

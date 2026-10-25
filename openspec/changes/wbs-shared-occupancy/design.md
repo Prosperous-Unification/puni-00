@@ -23,8 +23,8 @@ foreign resource exactly as an absent one` in `resource-organization.controller.
   organization inside the claim's write turn.
 - The canonical schedule input already hashes `resourceCapacities`
   (`canonical-schedule-input.ts`), and both engines already level them as pools.
-- `wbs-resource-release` (in progress, not on `main`; read only) makes Dash's runtime
-  reservations the authority for physical host pools and commits, in five sentences, to WBS
+- `wbs-resource-release` (on `main` since #735, 2026-10-25) makes Dash's runtime
+  reservations the authority for physical host pools and commits, in six sentences, to WBS
   claim occupancy and schedule inputs staying as they are (S9).
 
 ## Goals / Non-Goals
@@ -177,14 +177,16 @@ the detail names the scope. An undo of a cascading release re-acquires leaf by l
 the one check, all or nothing. A release or lease sweep in A frees units for B.
 `deleteResource`'s `in_use` counts include the directory capacity; the cascade drops it.
 
-**S9. This change supersedes five sentences of `wbs-resource-release` (assumed, awaiting
+**S9. This change supersedes six sentences of `wbs-resource-release` (assumed, awaiting
 Dany).** That change commits to: no change to WBS claim occupancy (proposal line 23); WBS holding
-no competing capacity ledger (proposal line 32); scheduling hashes intact (design line 39);
-WBS's project-scoped occupancy unchanged (design lines 181 to 182); claim occupancy and
-schedule inputs keeping their semantics (`resource-release` spec lines 126 to 127). For
-resources with a directory capacity, this change alters occupancy's scope and the clamped
-schedule input, so it supersedes those five sentences. Whichever change lands second amends
-the other's sentences; 0.2 asks that change's owner to agree. What does not change: WBS's
+no competing capacity ledger (proposal line 32); claim occupancy retaining its current
+semantics (design line 34); scheduling hashes intact (design line 42); WBS's project-scoped
+occupancy unchanged (design lines 184 to 185); claim occupancy and schedule inputs keeping
+their semantics (`resource-release` spec lines 126 to 127). For resources with a directory
+capacity, this change alters occupancy's scope and the clamped schedule input, so it
+supersedes those six sentences. `wbs-resource-release` landed first (#735), so this change
+amends them: each now carries a pointer here, and the spec sentence an exception for a
+resource with a directory capacity. 0.2 still asks that change's owner to agree. What does not change: WBS's
 ledger is **logical** (declared units, counted at claim time) and deliberately separate from
 Dash's **physical** one (reservations, measured bytes); neither adds the other's numbers, and
 Dash admission never reads WBS occupancy. They can disagree in both directions: WBS may admit
