@@ -94,7 +94,7 @@ bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
 ./node_modules/.bin/openspec validate --all --json
 ```
 
-Affected tests: **334 pass, zero failures, 619 assertions across 11 files**. Lint, typecheck and build passed. The build target copies the module assets; the separately compiled and actually executed observer binary is distinct evidence. Full OpenSpec validation passed all 290 entries. Formatting, document-cap, tracked secrets/private-nesting and diff checks passed; the final artifact commit runs normal hooks.
+Local observability tests: **334 pass, zero failures, 619 assertions across 11 files**. Lint, typecheck and build passed. The build target copies the module assets; the separately compiled and actually executed observer binary is distinct evidence. Full OpenSpec validation passed all 290 entries. Formatting, document-cap, tracked secrets/private-nesting and diff checks passed; the final artifact commit runs normal hooks.
 
 Production-path negatives were observed failing when their guard or dependency was broken, then restored. Adjacent `Proof:` comments identify the test/fault:
 
@@ -134,7 +134,7 @@ Intermediate failures were retained in the working evidence: an internal bridge 
 
 Independent whole-branch review of `9e023867a..22fcb49de` approved PR publication with no Critical or Important findings. Two nonblocking follow-ups remain: initial Grafana capture relies on the operator’s fixed Victoria type/URL check, and a further restoration cycle needs a newly reviewed unique receipt name. Existing receipts must never be overwritten.
 
-The initial CI preview selected all 53 runtime modules because a standalone OpenSpec evidence JSON had unknown runtime impact. The exact same JSON is embedded below in the supported `verify.md` artifact instead. The CI selector and its refusal policy were not changed; the resulting scope is checked before publication.
+The initial CI preview selected all 53 runtime modules because a standalone OpenSpec evidence JSON had unknown runtime impact. The exact same JSON is embedded below in the supported `verify.md` artifact instead. The CI selector and its refusal policy were not changed; the immutable-SHA preview now selects only `tool-deploy`, `tool-devsync` and `tool-observability-stack`, rather than all 53 modules. Application/browser suites are not selected. The first two are actual declared documentation consumers and remain included; CI was not bypassed.
 
 ## Selected live evidence
 
