@@ -168,3 +168,45 @@ A registered fix SHALL identify the finding, immutable baseline, candidate, inte
 
 - **WHEN** subsequent scheduled observations supply the declared complete comparable cohort
 - **THEN** the observer recomputes and publishes improved or not-improved with reproducible evidence, without an operator invoking compare or automatically applying another fix
+
+### Requirement: Reuse existing telemetry and observation surfaces
+
+The implementation SHALL reuse the existing OTel transport, Elastic searchable history, Kibana dashboards, Prometheus metrics and Alertmanager routing. Dedicated adapters SHALL keep backend-specific transport, queries and names outside the shared domain. Local state SHALL be limited to checkpoints, bounded buffering, reconstructible views and explicitly pinned comparison evidence, not a parallel observability platform.
+
+#### Scenario: Delivery evidence reaches the existing stack
+
+- **WHEN** the autonomous observer collects a receipt and evaluates a finding
+- **THEN** their scoped identities and typed fields become queryable through the existing Elastic/Kibana path, metrics are observable in existing Prometheus, and the machine-readable report links that evidence
+
+#### Scenario: Backend replacement preserves the model
+
+- **WHEN** telemetry publication and evidence-query adapters are replaced by contract-test doubles
+- **THEN** the same receipt validation, retry accounting, findings and comparison logic run without vendor SDKs or backend query syntax in the domain
+
+### Requirement: Distinguish collected evidence from published evidence
+
+Reports SHALL expose collection, export acceptance and backend visibility separately. Receiver acceptance SHALL NOT prove indexing or metric availability. Backend failure SHALL preserve delivery behavior and yield degraded observation coverage. Bounded replay SHALL retain receipt identities and avoid duplicate work or metric accounting. Pruned or expired evidence SHALL remain an explicit gap; pinned comparison evidence SHALL have independent retention.
+
+#### Scenario: Collector accepts but Elastic has not indexed
+
+- **WHEN** export is acknowledged but the receipt is absent from the scoped backend query
+- **THEN** publication remains pending/degraded and the report cannot claim complete searchable evidence or resolve a finding on that basis
+
+#### Scenario: Backend outage followed by replay
+
+- **WHEN** the backend is unavailable and buffered receipts are replayed after recovery
+- **THEN** delivery exits are unchanged, backlog is visible, queryable receipts reconcile by identity and replay does not add execution work or histogram observations again
+
+### Requirement: Extend existing alerts and preserve telemetry boundaries
+
+Delivery alerts SHALL use existing Prometheus/Alertmanager rules and routes. Central absent/stale detection SHALL observe the observer independently of its host. Exported attributes SHALL be allowlisted and sanitized; unbounded identities SHALL NOT become metric labels. Evidence queries SHALL enforce scope. Existing retention, ingestion-loss alerts, redaction and authenticated transport SHALL remain effective.
+
+#### Scenario: Observer host stops
+
+- **WHEN** the observer host stops while the central monitoring stack remains healthy
+- **THEN** the delivery absent/stale rule fires through the existing alert path and resolves after fresh telemetry returns
+
+#### Scenario: Sensitive attribute or cross-scope query
+
+- **WHEN** an event carries a secret-shaped attribute or a query requests evidence outside the authorized scope
+- **THEN** the attribute is removed/redacted before export and the unauthorized query returns no foreign evidence; receipt IDs are not introduced as Prometheus labels
