@@ -9,7 +9,21 @@ import { publishArtifacts } from '../../../tools/tool-fleet/src/registry-publica
 const url = process.argv.at(2);
 const archive = process.argv.at(3);
 const wrapper = process.argv.at(4);
-if (url === undefined || archive === undefined || wrapper === undefined)
+const source = process.argv.at(5);
+const copyCli = process.argv.at(6);
+const clientPath = process.argv.at(7);
+const authority = process.argv.at(8);
+const journal = process.argv.at(9);
+if (
+  url === undefined ||
+  archive === undefined ||
+  wrapper === undefined ||
+  source === undefined ||
+  copyCli === undefined ||
+  clientPath === undefined ||
+  authority === undefined ||
+  journal === undefined
+)
   throw new Error('Missing fixture arguments');
 const invoke = async (request: RegistryCommand) => {
   const child = Bun.spawn(['sh', wrapper], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
@@ -74,6 +88,31 @@ try {
   )
     throw new Error('Incomplete durable bundle');
   console.log('PASS native exact exported closure has complete durable receipt and releases slot');
+  for (const artifact of artifacts) await uploadArtifact({ url: source }, artifact);
+  const copy = Bun.spawn(
+    [
+      'setpriv',
+      '--reuid=59001',
+      '--regid=59001',
+      '--clear-groups',
+      'env',
+      `REGISTRY_PUBLICATION_ENROLLMENT=${clientPath}`,
+      process.execPath,
+      copyCli,
+      source,
+      url,
+      authority,
+      journal,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const [copyCode, copyOutput, copyErrors] = await Promise.all([
+    copy.exited,
+    new Response(copy.stdout).text(),
+    new Response(copy.stderr).text(),
+  ]);
+  if (copyCode !== 0) throw new Error(`Native managed copy failed: ${copyErrors}`);
+  console.log(copyOutput.trim());
   const before = readPosts();
   const oversized = Array.from({ length: 8 }, (_, index) => ({
     ...artifacts[0],

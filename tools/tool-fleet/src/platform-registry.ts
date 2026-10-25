@@ -10,6 +10,7 @@ import {
   readPublicationEnrollment,
 } from './registry-enrollment';
 import { publishArtifacts } from './registry-publication';
+import { consumeRegistryStream, readRegistryBytes } from './registry-stream';
 
 /** One Distribution v2 registry reached with optional basic auth and a private CA. */
 export interface RegistryEndpoint {
@@ -172,17 +173,28 @@ async function copyLegacyImage(
   return { digest, uploadedBlobs };
 }
 
+/** Managed HTTP rejects redirects and limits received error diagnostics to 64 KiB. */
 async function requestManaged(
   endpoint: RegistryEndpoint,
   path: string,
   init: Omit<RequestInit, 'headers'> & { readonly headers?: Record<string, string> } = {},
 ) {
   // Proof: removing redirect refusal delivered the managed upload request to the foreign HTTP fixture.
-  return request(endpoint, path, { ...init, redirect: 'error' });
+  const response = await request(endpoint, path, { ...init, redirect: 'error' });
+  if (!response.ok) {
+    const diagnostic = await readRegistryBytes(response.body, 65536, 'Registry HTTP diagnostic');
+    throw new Error(
+      `Managed registry request failed with HTTP ${String(response.status)}: ${new TextDecoder().decode(diagnostic)}`,
+    );
+  }
+  return response;
 }
 
-/** Stage the source closure inside the builder's enforced boundary before any target write. */
-async function snapshotImage(
+/**
+ * Stage source closure inside enforced scratch before target writes. Manifest streams are
+ * cancelled above 4 MiB before decoding or traversing them; Content-Length is not trusted.
+ */
+export async function snapshotImage(
   source: RegistryEndpoint,
   directory: string,
   repository: string,
@@ -199,7 +211,7 @@ async function snapshotImage(
       }),
       'Reading source image manifest',
     );
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const bytes = await readRegistryBytes(response.body, 4 * 1024 * 1024, 'Source manifest');
     const digest = sha256Digest(bytes);
     if (reference.startsWith('sha256:') && reference !== digest)
       throw new Error('Source manifest digest mismatch');
@@ -324,7 +336,8 @@ export async function copyImage(
 /**
  * Transfer the exact inspected archive byte ranges. Dependency-first manifest writes preserve
  * index closure. Every source range is rehashed before POST, then every target object is read
- * and hashed before the caller may claim a durable bundle receipt.
+ * and hashed before the caller may claim a durable bundle receipt. Target responses are
+ * cancelled as soon as they exceed the admitted content size.
  */
 export async function uploadArtifact(
   target: RegistryEndpoint,
@@ -382,11 +395,14 @@ export async function uploadArtifact(
     );
     if (response.body === null) throw new Error('Target omitted admitted content');
     const hash = createHash('sha256');
-    let size = 0;
-    for await (const bytes of response.body) {
-      hash.update(bytes);
-      size += bytes.length;
-    }
+    const size = await consumeRegistryStream(
+      response.body,
+      content.size,
+      'Target admitted content',
+      (bytes) => {
+        hash.update(bytes);
+      },
+    );
     if (size !== content.size || `sha256:${hash.digest('hex')}` !== content.digest)
       // Proof: removing this refusal completed publication after the target corrupted stored blob bytes.
       throw new Error('Target content differs from admitted closure');

@@ -20,6 +20,7 @@ helper = root/'storage.sh'; helper.write_bytes(base64.b64decode(os.environ['STOR
 authority=root/'authority.js'; authority.write_bytes(base64.b64decode(''.join(os.environ[key] for key in sorted(os.environ) if key.startswith('AUTHORITY_BUNDLE_'))))
 wrapper=root/'authority.sh'; wrapper.write_bytes(base64.b64decode(os.environ['STORAGE_AUTHORITY']))
 wrapper.write_text(wrapper.read_text().replace('/usr/local/libexec/puni-registry-authority/bun',os.environ['BUN_RUNTIME']).replace('/usr/local/libexec/puni-registry-authority/authority.js',str(authority)).replace('/var/lib/puni-registry/journal/contents',str(root/'journal/contents')))
+copy_cli=root/'copy.js';copy_cli.write_bytes(base64.b64decode(''.join(os.environ[key] for key in sorted(os.environ) if key.startswith('COPY_BUNDLE_'))))
 publisher=root/'publisher.js'; publisher.write_bytes(base64.b64decode(''.join(os.environ[key] for key in sorted(os.environ) if key.startswith('PUBLISHER_BUNDLE_'))))
 archive=root/'export.tar';archive.write_bytes(base64.b64decode(os.environ['OCI_EXPORT']))
 enrollment_cli=root/'enrollment.js';enrollment_cli.write_bytes(base64.b64decode(''.join(os.environ[key] for key in sorted(os.environ) if key.startswith('ENROLLMENT_BUNDLE_'))))
@@ -31,6 +32,8 @@ configuration.write_text(json.dumps({'fstab': str(fstab), 'directory': str(root)
 image='docker.io/library/registry@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278'
 task='puni-registry-publication-'+identifiers.uuid4().hex
 process=None
+source_process=None
+source_task=task+'-source'
 print(f'FIXTURE {root}', flush=True)
 
 def post():
@@ -79,6 +82,22 @@ try:
     (builder/'fstab').write_text(f'{builder}/scratch.ext4 {builder}/scratch ext4 loop,noauto,nodiscard,X-fstrim.notrim 0 0\n')
     (builder/'storage.json').write_text(json.dumps({'directory':str(builder),'rootReserveBytes':20*1024**3,'fstab':str(builder/'fstab'),'volumes':[{'name':'scratch','bytes':32*1024**2,'uid':59001}]}))
     run('sh',str(helper),'provision-scratch',str(builder/'storage.json'))
+    source=root/'source';source.mkdir(mode=0o755)
+    (source/'fstab').write_text(f'{source}/scratch.ext4 {source}/scratch ext4 loop,noauto,nodiscard,X-fstrim.notrim 0 0\n')
+    (source/'storage.json').write_text(json.dumps({'directory':str(source),'rootReserveBytes':20*1024**3,'fstab':str(source/'fstab'),'volumes':[{'name':'scratch','bytes':32*1024**2,'uid':59001}]}))
+    run('sh',str(helper),'provision-scratch',str(source/'storage.json'))
+    with socket.socket() as listener:
+        listener.bind(('127.0.0.1',0)); source_port=listener.getsockname()[1]
+    source_url=f'http://127.0.0.1:{source_port}'
+    source_process=subprocess.Popen(['k3s','ctr','-n','k8s.io','run','--rm','--net-host','--read-only','--memory-limit','67108864','--user','59001:59001',
+      '--mount',f'type=bind,src={source}/scratch/contents,dst=/var/lib/registry,options=bind:rw',
+      '--env',f'REGISTRY_HTTP_ADDR=127.0.0.1:{source_port}',image,source_task,'/bin/registry','serve','/etc/docker/registry/config.yml'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    for attempt in range(60):
+        try:
+            with urllib.request.urlopen(source_url+'/v2/',timeout=1) as response:
+                if response.status==200:break
+        except (OSError,urllib.error.URLError):time.sleep(.1)
+    else:raise RuntimeError('Source registry did not become ready')
     machine=Path('/etc/machine-id').read_text().strip()
     client={'schemaVersion':1,'registryUrl':'https://fixture.example','registryId':'proof','authorityMachineId':machine,'registryPath':str(root/'registry/contents'),'journalPath':str(root/'journal/contents'),'sshHost':'fixture','owner':'proof','product':'proof-product','requiredRepositories':['proof-be','proof-gw','proof-fe'],'builder':{'uid':59001,'machineId':machine,'path':str(builder/'scratch/contents'),'receiptPath':str(builder/'identities/scratch.receipt'),'maximumBytes':1024**2,'maximumInodes':32,'excludedFilesystems':[{'machineId':'0'*32,'path':'/absent-on-remote-host'}]}}
     client_path=root/'publication.json'
@@ -153,9 +172,15 @@ try:
         return state
     state=recover(state,'initial-recovery')
     wait_http(202)
-    completed=run(os.environ['BUN_RUNTIME'],str(publisher),url,str(archive),str(wrapper))
+    client['registryUrl']=url;write_client(client)
+    completed=run(os.environ['BUN_RUNTIME'],str(publisher),url,str(archive),str(wrapper),source_url,str(copy_cli),str(client_path),str(authority),str(root/'journal/contents'))
     print(completed.stdout,flush=True)
 finally:
+    if source_process is not None:
+        if source_process.poll() is None:run('k3s','ctr','-n','k8s.io','tasks','kill','--signal','SIGKILL',source_task)
+        source_process.wait(timeout=10)
+        assert source_task not in run('k3s','ctr','-n','k8s.io','tasks','list','--quiet').stdout.splitlines()
+        assert source_task not in run('k3s','ctr','-n','k8s.io','containers','list','--quiet').stdout.splitlines()
     stop()
     for name in ('registry','journal'):
         mounted=run('findmnt','--mountpoint',str(root/name),succeeds=False)
@@ -164,21 +189,22 @@ finally:
         loops=json.loads(run('losetup','--json','--list','--output','NAME,BACK-FILE').stdout)['loopdevices']
         for loop in loops:
             if loop['back-file']==str(root/(name+'.ext4')): run('losetup','--detach',loop['name'])
-    builder=root/'builder'
-    if builder.exists():
-        mounted=run('findmnt','--mountpoint',str(builder/'scratch'),succeeds=False)
-        if mounted.returncode==0:run('umount',str(builder/'scratch'))
-        elif mounted.returncode!=1:raise RuntimeError('Unknown scratch mount state')
-        loops=json.loads(run('losetup','--json','--list','--output','NAME,BACK-FILE').stdout)['loopdevices']
-        for loop in loops:
-            if loop['back-file']==str(builder/'scratch.ext4'):run('losetup','--detach',loop['name'])
-        for name in ['scratch.ext4','scratch.identity.json','storage.lock','storage.json','fstab','identities/scratch.receipt']:
-            path=builder/name
-            if path.exists():path.unlink()
-        for name in ['scratch','identities']:
-            path=builder/name
-            if path.exists():path.rmdir()
-        builder.rmdir()
+    for scratch_name in ('builder','source'):
+      builder=root/scratch_name
+      if builder.exists():
+          mounted=run('findmnt','--mountpoint',str(builder/'scratch'),succeeds=False)
+          if mounted.returncode==0:run('umount',str(builder/'scratch'))
+          elif mounted.returncode!=1:raise RuntimeError('Unknown scratch mount state')
+          loops=json.loads(run('losetup','--json','--list','--output','NAME,BACK-FILE').stdout)['loopdevices']
+          for loop in loops:
+              if loop['back-file']==str(builder/'scratch.ext4'):run('losetup','--detach',loop['name'])
+          for name in ['scratch.ext4','scratch.identity.json','storage.lock','storage.json','fstab','identities/scratch.receipt']:
+              path=builder/name
+              if path.exists():path.unlink()
+          for name in ['scratch','identities']:
+              path=builder/name
+              if path.exists():path.rmdir()
+          builder.rmdir()
     for path in root.iterdir():
         if path.is_dir(): path.rmdir()
         else: path.unlink()

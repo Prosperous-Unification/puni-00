@@ -7,6 +7,7 @@ import { type } from 'arktype';
 import { admitBuilderScratch, admitScratch, measureVerifiedFilesystem } from './registry-capacity';
 import { parseRegistryCommandResponse } from './registry-journal';
 import type { RegistryAuthority } from './registry-publication';
+import { readRegistryBytes } from './registry-stream';
 
 const Path = type('string > 0').narrow(isAbsolute);
 const Machine = type(/^[0-9a-f]{32}$/);
@@ -142,7 +143,10 @@ export async function checkExportScratch(
   );
 }
 
-/** Only the installed root-owned authority command is invoked; caller commands go exclusively on stdin. */
+/**
+ * Invoke only the installed authority command with JSON stdin. Bound received stdout to 16 MiB
+ * and stderr to 64 KiB; overflow terminates and reaps the child before the caller sees failure.
+ */
 export function connectRegistryAuthority(enrollment: ManagedRegistry): RegistryAuthority {
   return async (request) => {
     const child = Bun.spawn(
@@ -156,16 +160,26 @@ export function connectRegistryAuthority(enrollment: ManagedRegistry): RegistryA
       ],
       { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
     );
-    await child.stdin.write(JSON.stringify(request));
-    await child.stdin.end();
-    const [code, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
-    if (code !== 0) throw new Error(`Registry authority refused request: ${stderr.trim()}`);
-    if (stdout.length > 16 * 1024 * 1024)
-      throw new Error('Registry authority response exceeds bound');
-    return parseRegistryCommandResponse(JSON.parse(stdout));
+    const stdout = readRegistryBytes(child.stdout, 16 * 1024 * 1024, 'Registry authority stdout');
+    const stderr = readRegistryBytes(child.stderr, 65536, 'Registry authority stderr');
+    const send = async () => {
+      await child.stdin.write(JSON.stringify(request));
+      await child.stdin.end();
+    };
+    try {
+      const [code, output, diagnostic] = await Promise.all([child.exited, stdout, stderr, send()]);
+      if (code !== 0)
+        throw new Error(
+          `Registry authority refused request: ${new TextDecoder().decode(diagnostic).trim()}`,
+        );
+      return parseRegistryCommandResponse(JSON.parse(new TextDecoder().decode(output)));
+    } catch (cause) {
+      // Proof: removing termination leaves oversized stdout/stderr fixture processes to exit
+      // normally; production transport tests require SIGKILL and an already-reaped process.
+      if (child.exitCode === null) child.kill('SIGKILL');
+      await child.exited;
+      await Promise.allSettled([stdout, stderr]);
+      throw cause;
+    }
   };
 }

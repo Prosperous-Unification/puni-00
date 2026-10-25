@@ -261,3 +261,53 @@ it('refuses an inexact physical envelope before it leaves the production planner
   }));
   expect(() => publicationEnvelope(invalid)).toThrow('Unknown content envelope');
 });
+
+it('retains candidate ownership when a managed response is cancelled for overflow', async () => {
+  const { spyOn } = await import('bun:test');
+  const { inspectOciArchive } = await import('./registry-artifact');
+  const { uploadArtifact } = await import('./platform-registry');
+  const proof = await fixture();
+  const artifact = await inspectOciArchive(
+    new URL('./fixtures/dagger-0.21.9.oci.tar', import.meta.url).pathname,
+    'be',
+    'release',
+  );
+  let cancelled = false;
+  let produced = 0;
+  const response = new Response(
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        produced += 4096;
+        controller.enqueue(new Uint8Array(4096));
+        if (produced === 1024 * 1024) controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }),
+    { status: 503 },
+  );
+  const fetcher = spyOn(globalThis, 'fetch').mockResolvedValue(response);
+  try {
+    const refused = await rejectionOf(
+      publishArtifacts(
+        enrollment,
+        enrollment.requiredRepositories.map((repository) => ({ ...artifact, repository })),
+        proof.invoke,
+        async (candidate) => {
+          await uploadArtifact({ url: 'http://target' }, candidate);
+        },
+      ),
+    );
+    expect(refused.message).toContain('exceeds');
+    expect(cancelled).toBe(true);
+    expect(produced).toBeLessThanOrEqual(73728);
+    const { state } = await proof.invoke({ command: 'read' });
+    expect(state.publication?.phase).toBe('failed');
+    expect(state.bundles.at(-1)?.receipt.state).toBe('unfinished');
+    expect(state.reservations).toHaveLength(1);
+  } finally {
+    fetcher.mockRestore();
+    await rm(proof.directory, { recursive: true });
+  }
+});
