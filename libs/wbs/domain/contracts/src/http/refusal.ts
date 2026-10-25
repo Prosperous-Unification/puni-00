@@ -1,4 +1,5 @@
 import type { PlanCommandKind } from '../commands/definitions';
+import type { mixedBases } from './work-item-response';
 
 /**
  * Modeled HTTP failures; status/code pairing is narrowed by each endpoint shape.
@@ -509,7 +510,11 @@ export type CommandRefusalDetail = {
                                   ? CapacityLimitRefusalDetail
                                   : C extends 'budget_exhausted'
                                     ? BudgetExhaustedRefusalDetail
-                                    : Record<never, never>);
+                                    : // Proof (type boundary only): omitting this arm produced TS2353 for bases
+                                      // and TS2578 for missing-bases negatives in assertMixedRateCardRefusalTypes.
+                                      C extends 'mixed_rate_cards'
+                                      ? { bases: typeof mixedBases.infer }
+                                      : Record<never, never>);
 };
 
 type BareRefusalCode =
