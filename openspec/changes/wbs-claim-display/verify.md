@@ -1126,3 +1126,35 @@ sweep's history event `release/lease_expired`); overflow 0 px, no page error, no
 - `card-build-farm-375-*-pre2`: `▾ 020 Medium 50 … 16 d ⋯` on one line, the `LE 14m` chip on the
   line under it; every card total measured 20 px high (one line).
 - `plan-1280-light-pre2`: Mira's assignee and chip read `MH`.
+
+#### Review follow-up (Fable on #732), 2026-10-25
+
+- **S2-1:** the possessive history line (`lead’s lease expired, releasing 5 items`) blamed
+  healthy agents. be-01's sweep puts one account's reaped claims in one event, together with
+  every claim delegated under an expired subtree claim, each with its own holder, and the read
+  does not say whose lease went. The line is now neutral, fe-only:
+  `A lease expired: released 5 items of w3, w2 and lead` (names joined by `Intl.ListFormat`,
+  `en-GB`), `A credential was revoked: released …`. The delta's requirement and scenario are
+  amended, with a new "A reaped subtree claim blames no delegated holder" scenario.
+- Initials count `Intl.Segmenter` graphemes, letters and digits only, and keep an apostrophe
+  inside a word: `D’Arcy Smith` is `DS`, `O'Neil` `ON`, `क्षत्रिय` `क्षत्रि`, `👩‍💻` stays whole.
+- The card's subtree chip is the header's last child in the DOM, not moved by `order-last`, so a
+  screen reader reads it after the total; the 375 layout is unchanged.
+- **S3-8, not changed:** the two layout cases assert classes and DOM order in jsdom, which lays
+  nothing out, and `max-w-[60%]` is not pinned. Layout is evidenced by the 375 px shots only.
+
+| Fault injected (watched 2026-10-25)                  | Observed failing test                                                                                     |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| possessive `lead’s lease expired, releasing 3 items` | `words a swept release by its reason…`, `lists the recent claims and releases…`, `stays, with no number…` |
+| apostrophe dropped from the word pattern             | `keeps an apostrophe inside a word…`: `expected 'DA' to be 'DS'`                                          |
+| code points for graphemes                            | same case: `expected 'कष' to be 'क्षत्रि'`; `answers an emoji name with its whole first grapheme`: `'👩'` |
+| no letter filter on graphemes                        | same case: `expected "O'" to be 'ON'`                                                                     |
+| `String#slice` for the grapheme letters              | `takes letters and digits only…`: two half surrogates for `𝔄𝔅`                                            |
+| chip before the total in the DOM (`order-last`)      | `keeps the card’s total on one line, the subtree chip on its own`                                         |
+
+Eye review, round 2 (`swarm-polish-shots/r2/`, overflow 0 px, no page error, no response of 400
+or more): `lead` stopped heartbeating while `w1`, `w3` and `w4` kept renewing. At 09:29 the sweep
+released lead's `020 Build farm` subtree with w3's and w2's delegated claims, and the sheet reads
+`A lease expired: released 5 items of w3, w2 and lead` (`claims-sheet-*-post`), which names no
+one as the lease's owner; under the possessive form it would have said w3's lease expired while
+w3 was renewing. `card-build-farm-375-*-pre`: the chip on its own line, every card total 20 px.
