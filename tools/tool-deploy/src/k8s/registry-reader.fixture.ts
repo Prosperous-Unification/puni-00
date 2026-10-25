@@ -10,8 +10,14 @@ export function kubernetesReaderFixture() {
       '/apis',
       {
         groups: [
-          { preferredVersion: { groupVersion: 'apps/v1' } },
-          { preferredVersion: { groupVersion: 'batch/v1' } },
+          {
+            preferredVersion: { groupVersion: 'apps/v1' },
+            versions: [{ groupVersion: 'apps/v1' }],
+          },
+          {
+            preferredVersion: { groupVersion: 'batch/v1' },
+            versions: [{ groupVersion: 'batch/v1' }],
+          },
         ],
       },
     ],

@@ -81,10 +81,15 @@ export async function publishDockerBundle(
   }
 }
 
-/** Native private-producer path uses the same public scratch/admission/uploader as Dagger and copy. */
+/** Native private-producer path uses the same public scratch/admission/uploader as Dagger and copy. Internal capacity/authority ports permit the synthetic credential rehearsal; installed CLI callers use the defaults. */
 export async function publishNativeDockerBundle(
   enrollment: ManagedRegistry,
   images: readonly DockerPublicationImage[],
+  ports = {
+    admit: admitExportScratch,
+    check: checkExportScratch,
+    authority: connectRegistryAuthority,
+  },
 ): Promise<unknown> {
   if (enrollment.docker === undefined)
     throw new Error('Managed Docker publication has no pinned executable');
@@ -100,24 +105,16 @@ export async function publishNativeDockerBundle(
   };
   return withRegistryExecutable(enrollment.docker, (executable, cwd) =>
     publishDockerBundle(enrollment, images, {
-      admit: () => admitExportScratch(enrollment),
+      admit: () => ports.admit(enrollment),
       check: async (admission) => {
-        // Boundary: the only producer of this opaque admission is admitExportScratch above.
-        await checkExportScratch(
-          enrollment,
-          admission as Awaited<ReturnType<typeof admitExportScratch>>,
-        );
+        // Boundary: ports.admit has the admitExportScratch signature; publishDockerBundle passes its opaque admission back unchanged.
+        await ports.check(enrollment, admission as Awaited<ReturnType<typeof admitExportScratch>>);
       },
       run: (args) => runRegistryProcess([executable, ...args], cwd, 180000),
       publish: (artifacts) =>
-        publishArtifacts(
-          enrollment,
-          artifacts,
-          connectRegistryAuthority(enrollment),
-          async (artifact) => {
-            await uploadArtifact(endpoint, artifact);
-          },
-        ),
+        publishArtifacts(enrollment, artifacts, ports.authority(enrollment), async (artifact) => {
+          await uploadArtifact(endpoint, artifact);
+        }),
     }),
   );
 }

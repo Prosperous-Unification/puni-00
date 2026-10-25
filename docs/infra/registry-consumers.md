@@ -49,6 +49,10 @@ update their baseline or copy licensed private source into public bundles.
 | Source host dispatcher     | `registry-reader-host.js`                                                                                                  | Fixed authenticated transport to a source-owned reader                                               |
 | Private website            | `release-pin.js`, `registry-reader.js`                                                                                     | Private product mapping, owning Git receipts, pending desired edits and verified completion          |
 
+Only the private `publish-docker` child receives explicit `REGISTRY_USER` and
+`REGISTRY_PASS`; other lifecycle commands receive neither. Loader variables remain
+excluded for every command. Credentials are not artifact configuration or receipts.
+
 The website's fixed `/etc/puni/registry-lifecycle.json` is root:root0644, one link,
 canonical and <=64KiB. Its shape is
 `{schemaVersion:1,protocol:"registry-lifecycle/1",bunVersion:"1.4.2",artifact:{path,sha256}}`.
@@ -86,6 +90,20 @@ reader computes `sourceRevision` from what it actually read. Unknown/missing or
 unreadable sources never become empty inventory. Output and execution are bounded;
 private snapshots are removed after the child and its descendants are reaped.
 
+For the private website history reader, `source` is the absolute registered reader
+configuration JSON path, repeated exactly as `input.configurationPath`. Its separate
+`input.ownerSource` is the absolute owning Git directory `<fleet>/apps/website-dev`.
+The other input fields are `registryId`, `product`, `environment`, `target`, and
+`configurationSha256` (the hash of the independently installed
+`/etc/puni/website-registry.json`). The universe registration hash pins the reader
+configuration; the input hash pins the owner configuration. They are distinct. The
+reader verifies the actual clean Git source against that owner configuration and
+requires its actual owner directory to equal `ownerSource`; its report preserves the
+registered configuration identity. Install and pin both bindings together; older
+private reader inputs missing either field refuse. The wire protocol remains
+registry-consumer/2, so refresh the private artifact and its configuration hash
+together before enabling the registration.
+
 Consumer-role reports contain exact image references. History-role reports also
 contain complete ordered successful bundle IDs, current references and
 `historySha256`: the shared public canonical digest of ordered bundle IDs, sorted
@@ -110,7 +128,10 @@ separate enrolled sources; unsupported postBuild/decryption, mutable remote
 bases/components/plugins and unknown selectors refuse. Known Helm releases use
 their vendored chart/source/version and strict values decoders; valuesFrom,
 post-renderers and chart substitution refuse. Unknown populated Kubernetes kinds
-also refuse. Empty unsupported kinds are not evidence that future instances are safe.
+also refuse. Discovery visits every advertised served API version, including
+nonpreferred versions; duplicate representations contribute to the same image set
+and never justify skipping a version. Missing or inconsistent discovery refuses.
+Empty unsupported kinds are not evidence that future instances are safe.
 
 When source files are on another host, configure the reader's fixed SSH transport
 `{kind:"ssh",host,dispatcherSha256}` and install the complete matching configuration
@@ -177,6 +198,11 @@ emitting usable manifests. First-start resumes that same durable operation and
 promotes only after existing readiness and Flux handoff. Regular release failure
 keeps original/candidate/current refs and unresolved recovery ancestry. Explicit
 verified recovery alone reconciles the chain; unrelated owners remain protected.
+
+The Compose desired-source reader supports the checked-in production base and the
+service-free dev base (explicit name and networks). Every tier override must still
+contain a services mapping; arrays, unknown selectors and unsupported top-level
+fields refuse. A service-free base does not imply empty tier consumers.
 
 Managed Compose requests must name all three configured be/gw/fe consumers from
 one complete four-image WBS publication (including mcp). There is no added MCP

@@ -346,3 +346,17 @@ existing live checks precede promotion. The private fleet declaration independen
 pins accepted authority/repository/service mapping; receipts cannot choose the trusted
 allowlist. GHCR logical Kustomize names remain, managed newName is explicit, rollback
 preserves complete owner evidence, and current actual pins/holds stay unchanged.
+
+### Reviewed source and publication boundaries
+
+Kubernetes inventory visits every advertised served group version, not only the
+preferred version. Unknown populated selectors in any version refuse; duplicate
+representations only union their image references. Compose explicitly supports the
+existing service-free dev base while requiring a services mapping in every tier.
+
+The private publication child receives registry credentials only for publish-docker,
+with loader variables excluded throughout. The private history reader separates
+the registered configuration-file identity from its independently pinned owning
+Git directory. Both identities and both configuration hashes must match before a
+report can join the complete consumer inventory. The concrete fields and installer
+requirements are in the registry consumer runbook.

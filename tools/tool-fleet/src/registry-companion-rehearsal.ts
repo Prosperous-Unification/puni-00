@@ -184,10 +184,29 @@ export async function rehearseRegistryCompanion(
     const output = await runRegistryProcess([privateBun, client], directory);
     if (output.trim() !== 'private/public authority contract passed')
       throw new Error('Unexpected companion proof output');
+    const collectorEntry = join(directory, 'collector-entry.ts');
+    await writeFile(
+      collectorEntry,
+      `import {collectRegistryConsumers} from ${JSON.stringify(join(import.meta.dir, 'registry-reader.ts'))};import {readRegistrySource} from ${JSON.stringify(join(import.meta.dir, 'registry-source.ts'))};const request=await Bun.stdin.json();const reports=await collectRegistryConsumers([request.source],8,'proof',async path=>JSON.parse((await readRegistrySource(path,65536)).text));console.log(JSON.stringify(reports));`,
+    );
+    const collectorBuilt = await Bun.build({
+      entrypoints: [collectorEntry],
+      target: 'bun',
+      outdir: join(directory, 'collector'),
+    });
+    const collector = collectorBuilt.outputs.at(0);
+    if (!collectorBuilt.success || collector === undefined)
+      throw new Error('Collector fixture build failed');
     const repairConfiguration = join(directory, 'repair.json');
     await writeFile(
       repairConfiguration,
-      JSON.stringify({ pin, binding, journalPath: join(journal, 'journal.json'), root: directory }),
+      JSON.stringify({
+        pin,
+        binding,
+        journalPath: join(journal, 'journal.json'),
+        root: directory,
+        collectorPath: collector.path,
+      }),
     );
     const repaired = await runRegistryProcess(
       [

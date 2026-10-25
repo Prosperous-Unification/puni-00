@@ -41,7 +41,9 @@ const List = type({
 /**
  * Enumerate the actual served namespace APIs, not kubectl's incomplete `all` category. Read every
  * listable image-capable/unknown kind; unknown populated controllers and incomplete lists refuse.
- * Configured namespaces and cluster identity must exist and match immutable UIDs.
+ * Every served version is inspected independently; duplicate representations contribute a union of refs,
+ * never permission to skip another version. Configured namespaces and cluster identity must
+ * exist and match immutable UIDs.
  */
 export async function readKubernetesInventory(
   namespaces: readonly { name: string; uid: string }[],
@@ -67,10 +69,27 @@ export async function readKubernetesInventory(
     observed.push(current);
   }
   const groups = type({
-    groups: type({ preferredVersion: { groupVersion: GroupVersion } }).array(),
+    groups: type({
+      preferredVersion: { groupVersion: GroupVersion },
+      versions: type({ groupVersion: GroupVersion }).array().atLeastLength(1),
+    }).array(),
   })(await read('/apis'));
   if (groups instanceof type.errors) throw new Error('Malformed Kubernetes API discovery');
-  const versions = ['v1', ...groups.groups.map((group) => group.preferredVersion.groupVersion)];
+  // Proof: removing membership validation accepts discovery whose preferred version is not served.
+  if (
+    groups.groups.some(
+      (group) =>
+        !group.versions.some(
+          (version) => version.groupVersion === group.preferredVersion.groupVersion,
+        ),
+    )
+  )
+    throw new Error('Preferred Kubernetes API version is absent from served discovery');
+  // Proof: registry-reader.test.ts observed preferred-only enumeration certify genesis while a nonpreferred Runner selected an image.
+  const versions = [
+    'v1',
+    ...groups.groups.flatMap((group) => group.versions.map((version) => version.groupVersion)),
+  ];
   if (new Set(versions).size !== versions.length)
     throw new Error('Duplicate Kubernetes API discovery');
   observed.push(groups);

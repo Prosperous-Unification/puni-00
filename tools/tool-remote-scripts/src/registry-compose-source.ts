@@ -85,15 +85,25 @@ export async function readComposeSource(
       revisions.push(source.sourceRevision);
       const document = parseDocument(source.text, { uniqueKeys: true });
       if (document.errors.length !== 0) throw new Error('Malformed Compose source');
+      // Proof: removing the mapping refinement accepts services: [] in the checked-in-base source test.
+      const mapping = type('object').narrow((value) => !Array.isArray(value));
       const rendered = type({
-        services: 'object',
-        'networks?': 'object',
-        'volumes?': 'object',
+        'services?': mapping,
+        'networks?': mapping,
+        'volumes?': mapping,
         'name?': 'string',
         '+': 'reject',
       })(document.toJS() as unknown);
-      if (rendered instanceof type.errors) throw new Error('Unsupported Compose source shape');
-      for (const [serviceName, raw] of Object.entries(rendered.services)) {
+      // Proof: real dev base failed with required services; removing the tier distinction admits a service-free tier file.
+      if (
+        rendered instanceof type.errors ||
+        (rendered.services === undefined &&
+          (name !== '../base.yml' ||
+            rendered.name === undefined ||
+            rendered.networks === undefined))
+      )
+        throw new Error('Unsupported Compose source shape');
+      for (const [serviceName, raw] of Object.entries(rendered.services ?? {})) {
         const service = type({
           image: 'string > 0',
           'container_name?': 'string',

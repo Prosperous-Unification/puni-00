@@ -218,3 +218,36 @@ async function expectRejection(
       throw refusal;
     }).toThrow(expected);
 }
+
+it('reads the checked-in prod and service-free dev bases while requiring tier services', async () => {
+  const fixture = await dockerOwnershipFixture();
+  for (const [name, template] of [
+    ['b', 'base.dev.yml'],
+    ['a', 'base.yml'],
+  ]) {
+    const configuration = fixture.source(name);
+    const base = readFileSync(
+      new URL(`../../../deploy/compose/${template}`, import.meta.url),
+      'utf8',
+    );
+    writeFileSync(join(configuration.root, 'base.yml'), base);
+    const desired = join(configuration.root, 'compose/be-01-green.yml');
+    const image = `registry.test/wbs-be-01@sha256:${'a'.repeat(64)}`;
+    writeFileSync(desired, `services:\n  be-01-green:\n    image: ${image}\n`);
+    expect((await readComposeSource(configuration, fixture.read)).references).toEqual([
+      { repository: 'wbs-be-01', digest: `sha256:${'a'.repeat(64)}` },
+    ]);
+    for (const invalid of [
+      'name: empty-tier\n',
+      'services: null\n',
+      'services: []\n',
+      'services:\n  hidden:\n    build: ./hidden\n',
+    ]) {
+      writeFileSync(desired, invalid);
+      await expectRejection(readComposeSource(configuration, fixture.read));
+    }
+    writeFileSync(desired, 'services: {}\n');
+    writeFileSync(join(configuration.root, 'base.yml'), base + '\ninclude: ./hidden.yml\n');
+    await expectRejection(readComposeSource(configuration, fixture.read), 'Unsupported');
+  }
+});

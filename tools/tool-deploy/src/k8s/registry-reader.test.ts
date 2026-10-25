@@ -140,3 +140,68 @@ async function expectRejection(
       throw refusal;
     }).toThrow(expected);
 }
+
+it('checks nonpreferred served resources and refuses unknown populated versions before certifying genesis', async () => {
+  const { documents, read } = source();
+  documents.set('/apis', {
+    groups: [
+      {
+        preferredVersion: { groupVersion: 'example.test/v1' },
+        versions: [{ groupVersion: 'example.test/v1' }, { groupVersion: 'example.test/v1alpha1' }],
+      },
+    ],
+  });
+  documents.set('/apis/example.test/v1', { groupVersion: 'example.test/v1', resources: [] });
+  documents.set('/apis/example.test/v1alpha1', {
+    groupVersion: 'example.test/v1alpha1',
+    resources: [{ name: 'runners', kind: 'Runner', namespaced: true, verbs: ['list'] }],
+  });
+  const path = '/apis/example.test/v1alpha1/namespaces/wbs/runners';
+  documents.set(path, {
+    metadata: { resourceVersion: '9' },
+    items: [
+      {
+        apiVersion: 'example.test/v1alpha1',
+        kind: 'Runner',
+        metadata: { namespace: 'wbs', name: 'hidden' },
+        spec: { image: images[0] },
+      },
+    ],
+  });
+  await expectRejection(
+    readKubernetesInventory([{ name: 'wbs', uid: 'namespace' }], 'cluster', read),
+    'Unknown image-selecting',
+  );
+  documents.set(path, { metadata: { resourceVersion: '10' }, items: [] });
+  const calls: string[] = [];
+  const empty = await readKubernetesInventory(
+    [{ name: 'wbs', uid: 'namespace' }],
+    'cluster',
+    (path) => {
+      calls.push(path);
+      return read(path);
+    },
+  );
+  expect(empty.hasReleaseEvidence).toBe(false);
+  expect(calls).toContain(path);
+  documents.delete(path);
+  await expectRejection(
+    readKubernetesInventory([{ name: 'wbs', uid: 'namespace' }], 'cluster', read),
+    'Unknown source',
+  );
+  documents.set(path, { metadata: { resourceVersion: '11' }, items: [] });
+  for (const versions of [
+    undefined,
+    [],
+    [{ groupVersion: 'example.test/v1alpha1' }],
+    [{ groupVersion: 'example.test/v1' }, { groupVersion: 'example.test/v1' }],
+  ]) {
+    documents.set('/apis', {
+      groups: [{ preferredVersion: { groupVersion: 'example.test/v1' }, versions }],
+    });
+    await expectRejection(
+      readKubernetesInventory([{ name: 'wbs', uid: 'namespace' }], 'cluster', read),
+      'discovery',
+    );
+  }
+});
