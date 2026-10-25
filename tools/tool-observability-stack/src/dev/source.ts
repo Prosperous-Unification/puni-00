@@ -207,17 +207,7 @@ export async function executeBounded(
 
 /** Existing authenticated SSH only; fixed host/container/argv never falls back to a different source. */
 export function createSshHealthReader(sshExecutable = 'ssh'): HealthReader {
-  const prefix = [
-    sshExecutable,
-    '-o',
-    'BatchMode=yes',
-    '-o',
-    'ConnectTimeout=5',
-    'h2puni',
-    'sudo',
-    '-n',
-    'docker',
-  ];
+  const prefix = createDevDockerCommand(sshExecutable);
   return async (signal) => {
     const started = performance.now();
     const startedAt = Date.now();
@@ -283,4 +273,19 @@ export function createSshHealthReader(sshExecutable = 'ssh'): HealthReader {
       throw error;
     }
   };
+}
+
+/** Existing fixed SSH/Docker read path shared by health and bounded application logs. */
+export function createDevDockerCommand(sshExecutable = 'ssh'): string[] {
+  return [
+    sshExecutable,
+    '-o',
+    'BatchMode=yes',
+    '-o',
+    'ConnectTimeout=5',
+    'h2puni',
+    'sudo',
+    '-n',
+    'docker',
+  ];
 }

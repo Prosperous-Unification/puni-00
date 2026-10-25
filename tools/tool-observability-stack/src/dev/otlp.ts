@@ -1,6 +1,6 @@
 import { type } from 'arktype';
 
-import type { ProbeObservation, PublicationPort } from './probe';
+import type { ProbeObservation, Publication, PublicationPort } from './probe';
 import { readBounded } from './source';
 
 function attribute(key: string, value: string | number | boolean) {
@@ -167,6 +167,22 @@ export function createOtlpPublisher(
   // Proof: invalid previous revision is accepted if this guard is removed.
   if (previousRevision !== null && !/^[a-f0-9]{40}$/.test(previousRevision))
     throw new Error('Invalid previous revision');
+  const send = createOtlpSender(endpoint);
+  return {
+    publish: async (observation, signal) => {
+      const encoded = encodeOtlp(observation, previousRevision);
+      for (const kind of ['logs', 'metrics', 'traces'] as const) {
+        const publication = await send(kind, encoded[kind], signal);
+        if (publication.state !== 'acknowledged') return publication;
+      }
+      if (observation.revision !== null) previousRevision = observation.revision;
+      return { state: 'acknowledged' };
+    },
+  };
+}
+
+/** Reuses the pinned OTLP HTTP acknowledgement, size and target policy for bounded batches. */
+export function createOtlpSender(endpoint: string) {
   const url = new URL(endpoint);
   // Proof: removing target policy accepts the unsafe publication target negatives.
   if (
@@ -179,46 +195,43 @@ export function createOtlpPublisher(
     url.hash !== ''
   )
     throw new Error('Invalid loopback OTLP endpoint');
-  return {
-    publish: async (observation, signal) => {
-      const encoded = encodeOtlp(observation, previousRevision);
+  return async (
+    kind: 'logs' | 'metrics' | 'traces',
+    payload: unknown,
+    signal: AbortSignal,
+  ): Promise<Publication> => {
+    try {
+      const response = await fetch(new URL(`/v1/${kind}`, url), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+        redirect: 'manual',
+      });
+      const text = await readBounded(response, 4096);
+      // Proof: actual HTTP 503 and partial-success tests fail with acknowledgement checks removed.
+      if (response.status !== 200) return { state: 'failed', reason: `otlp-${kind}-http-status` };
+      let acknowledgement: unknown;
       try {
-        for (const kind of ['logs', 'metrics', 'traces'] as const) {
-          const response = await fetch(new URL(`/v1/${kind}`, url), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(encoded[kind]),
-            signal,
-            redirect: 'manual',
-          });
-          const text = await readBounded(response, 4096);
-          // Proof: actual HTTP 503 and partial-success tests fail with acknowledgement checks removed.
-          if (response.status !== 200)
-            return { state: 'failed', reason: `otlp-${kind}-http-status` };
-          let acknowledgement: unknown;
-          try {
-            acknowledgement = JSON.parse(text);
-          } catch (error) {
-            if (error instanceof SyntaxError)
-              return { state: 'failed', reason: 'otlp-malformed-acknowledgement' };
-            throw error;
-          }
-          if (Acknowledgement(acknowledgement) instanceof type.errors)
-            return { state: 'failed', reason: 'otlp-partial-or-invalid-acknowledgement' };
-        }
-        if (observation.revision !== null) previousRevision = observation.revision;
-        return { state: 'acknowledged' };
+        acknowledgement = JSON.parse(text);
       } catch (error) {
-        if (signal.aborted) return { state: 'failed', reason: 'deadline' };
-        if (error instanceof RangeError) return { state: 'failed', reason: 'otlp-response-size' };
-        if (
-          error instanceof TypeError ||
-          (error instanceof Error &&
-            ['ConnectionRefused', 'ECONNREFUSED', 'ConnectionClosed'].includes(error.name))
-        )
-          return { state: 'failed', reason: 'otlp-unavailable' };
+        if (error instanceof SyntaxError)
+          return { state: 'failed', reason: 'otlp-malformed-acknowledgement' };
         throw error;
       }
-    },
+      if (Acknowledgement(acknowledgement) instanceof type.errors)
+        return { state: 'failed', reason: 'otlp-partial-or-invalid-acknowledgement' };
+      return { state: 'acknowledged' };
+    } catch (error) {
+      if (signal.aborted) return { state: 'failed', reason: 'deadline' };
+      if (error instanceof RangeError) return { state: 'failed', reason: 'otlp-response-size' };
+      if (
+        error instanceof TypeError ||
+        (error instanceof Error &&
+          ['ConnectionRefused', 'ECONNREFUSED', 'ConnectionClosed'].includes(error.name))
+      )
+        return { state: 'failed', reason: 'otlp-unavailable' };
+      throw error;
+    }
   };
 }

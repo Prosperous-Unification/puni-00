@@ -417,3 +417,32 @@ test('invalid trusted probe cadence, deadline and producer state throw', async (
   );
   expect(() => createOtlpPublisher('http://127.0.0.1:4318', 'HEAD')).toThrow();
 });
+
+test('one cycle deadline includes completion log/storage/publication work', async () => {
+  const stop = new AbortController();
+  let elapsed = 0;
+  const started = performance.now();
+  await runProbe({
+    readHealth: reader(() => Response.json({ status: 'ok', commit: revision })),
+    publication,
+    producerVersion: 'test',
+    signal: stop.signal,
+    deadlineMs: 40,
+    onCompleted: async (_observation, signal) => {
+      await new Promise<void>((resolve) => {
+        signal.addEventListener(
+          'abort',
+          () => {
+            resolve();
+          },
+          { once: true },
+        );
+        if (signal.aborted) resolve();
+      });
+      elapsed = performance.now() - started;
+      stop.abort();
+    },
+  });
+  expect(elapsed).toBeGreaterThanOrEqual(25);
+  expect(elapsed).toBeLessThan(150);
+});

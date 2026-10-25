@@ -120,3 +120,85 @@ tests:
         alertname: DevStorageObservationMissing
         exp_alerts:
           - exp_labels: { environment: dev, severity: warning }
+  - name: backend health check never existed
+    interval: 30s
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevObservationCheckMissing
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: backend health check is stale despite request success
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_observation_checked_timestamp_seconds{environment="dev",service="be-01"}'
+        values: 0+0x10
+      - series: 'puni_dev_probe_success{environment="dev",service="be-01"}'
+        values: 1+0x10
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: DevObservationCheckStale
+        exp_alerts: []
+      - eval_time: 2m30s
+        alertname: DevObservationCheckStale
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: backend query incomplete then recovered
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_observation_health{environment="dev",service="be-01",state="incomplete"}'
+        values: 1+0x4 0+0x4
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevObservationIncomplete
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning, state: incomplete }
+      - eval_time: 3m
+        alertname: DevObservationIncomplete
+        exp_alerts: []
+  - name: application collection absent
+    interval: 30s
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevApplicationLogCollectionFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: application collection stale
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_application_log_checked_timestamp_seconds{environment="dev",service="be-01"}'
+        values: 0+0x10
+    alert_rule_test:
+      - eval_time: 2m30s
+        alertname: DevApplicationLogCollectionFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning }
+  - name: application collection malformed then recovered independently
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_application_log_collection_state{environment="dev",service="be-01",state="incomplete"}'
+        values: 1+0x4 0+0x4
+      - series: 'puni_dev_application_log_checked_timestamp_seconds{environment="dev",service="be-01"}'
+        values: 0+30x10
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevApplicationLogCollectionFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, service: be-01, severity: warning, state: incomplete }
+      - eval_time: 3m
+        alertname: DevApplicationLogCollectionFailed
+        exp_alerts: []
+  - name: storage reader fails independently
+    interval: 30s
+    input_series:
+      - series: 'puni_dev_storage_collection_state{environment="dev",state="unavailable"}'
+        values: 1+0x4 0+0x4
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DevStorageCollectionFailed
+        exp_alerts:
+          - exp_labels: { environment: dev, severity: warning, state: unavailable }
+      - eval_time: 3m
+        alertname: DevStorageCollectionFailed
+        exp_alerts: []

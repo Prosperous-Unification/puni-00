@@ -196,3 +196,11 @@ it.each(['collector', 'gateway'] as const)(
     expect(() => renderDevConfiguration(configuration)).toThrow(/enabled persistent queue/);
   },
 );
+
+it('probe scrape captures bounded publication before the next observation assessment', () => {
+  const configuration = createDevConfiguration();
+  const probe = configuration.prometheus.scrape_configs.find((job) => job.job_name === 'dev-probe');
+  expect(probe).toMatchObject({ scrape_interval: '5s', scrape_timeout: '3s' });
+  expect(configuration.prometheus.global.scrape_interval).toBe('30s');
+  expect(configuration.prometheus.global.evaluation_interval).toBe('30s');
+});

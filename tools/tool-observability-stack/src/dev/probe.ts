@@ -121,7 +121,7 @@ export async function runProbe(
     intervalMs?: number;
     previous?: ProbeObservation;
     acceptance?: PreviousObservationPort;
-    onCompleted: (observation: ProbeObservation) => Promise<void>;
+    onCompleted: (observation: ProbeObservation, signal: AbortSignal) => Promise<void>;
     onAssessed?: (health: ObservationHealth) => void;
   },
 ): Promise<void> {
@@ -133,6 +133,10 @@ export async function runProbe(
     const cycleStarted = performance.now();
     const cycle = new AbortController();
     const signal = AbortSignal.any([options.signal, cycle.signal]);
+    // Proof: extending this timer fails the completion log/storage/publication total-cycle deadline test.
+    const cycleTimer = setTimeout(() => {
+      cycle.abort();
+    }, options.deadlineMs ?? 20000);
     const acceptance =
       previous !== undefined && options.acceptance !== undefined
         ? assessPrevious(options.acceptance, previous, signal, options.deadlineMs ?? 20000)
@@ -146,10 +150,11 @@ export async function runProbe(
       ]);
       observation = collected;
       if (assessed !== undefined) options.onAssessed?.(assessed);
+      await options.onCompleted(observation, signal);
     } finally {
+      clearTimeout(cycleTimer);
       cycle.abort();
     }
-    await options.onCompleted(observation);
     previous = observation;
     if (Object.is(options.signal.aborted, true)) break;
     await new Promise<void>((resolve) => {

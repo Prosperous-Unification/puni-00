@@ -190,7 +190,13 @@ export function createDevConfiguration(
           job_name: 'dev-collector',
           static_configs: [{ targets: ['collector:8888', 'gateway:8888'] }],
         },
-        { job_name: 'dev-probe', static_configs: [{ targets: ['collector:8889'] }] },
+        {
+          // Proof: reverting to 30s fails the next-assessment capture timing test.
+          job_name: 'dev-probe',
+          scrape_interval: '5s',
+          scrape_timeout: '3s',
+          static_configs: [{ targets: ['collector:8889'] }],
+        },
         { job_name: 'prometheus', static_configs: [{ targets: ['localhost:9090'] }] },
       ],
     },
