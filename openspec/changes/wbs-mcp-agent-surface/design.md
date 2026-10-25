@@ -1,7 +1,7 @@
 ## Context
 
 Read on 2026-10-25 at `origin/main` 277fdf03c. Amended after the Fable reviews of 24dcae0a5,
-58e0cea79, 948d6e668, 2d98eb898, 56ca4ad1a and 6f8f8233f (every item is mapped in verify.md).
+58e0cea79, 948d6e668, 2d98eb898, 56ca4ad1a, 6f8f8233f and 623b21f1f (every item is mapped in verify.md).
 
 | Need                              | Exists today                                                                                                                                                                                                                                                                                                                                                                                                                          | Missing                                                                                               |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -187,30 +187,27 @@ speaks it).
   - `prepareTokenRequest` returns `grant_type`, a **freshly read** `assertion` (the GitHub
     Actions token URL, or a reread of the projected service-account token file), `resource`
     and, when configured, `wbs_run`.
-  - _It caches the access token._ The provider and `twilight-dash mcp token` reuse it until
-    5 minutes before `exp`, keyed by `(credential, wbs_run, issuer)`. That way a
-    `headersHelper` run per connection, or a batch of `claude -p` runs, does not issue a
-    token each.
-    - The helper's cache is a file under `$XDG_RUNTIME_DIR/twilight-dash/mcp-tokens/` (or
-      `~/.cache/twilight-dash/mcp-tokens/` when that is unset, which may be a shared host).
-      The file is created `0600` in a `0700` directory. The helper `lstat`s the directory,
-      opens the file with `O_NOFOLLOW` and `fstat`s the **descriptor**, so there is no
-      check-then-read race. Both must be owned by the current uid, with no group or other
-      bits. Any failure warns on stderr, ignores the cache and issues afresh.
-    - _It recovers from a rejected token._ Claude Code re-runs `headersHelper` on a 401 or 403. A re-run is treated as that retry only when it comes from the **same parent process**
-      (the entry records the parent PID) within 30 s of the entry being served. The helper
-      then drops the entry and issues a new token. Staggered `claude -p` processes, each its
-      own parent, keep reusing the cached token. Without this, the cached, rejected token would
-      come back for up to 12–24 h, and M3's unknown-`kid` recovery would never happen.
-      `twilight-dash mcp token --refresh` forces the same. The SDK provider drops its cached
-      token on any 401.
-    - _It honours `Retry-After`._ On a `429`, the providers and `twilight-dash mcp token`
-      wait the `Retry-After` seconds, retry once, then fail loudly, never looping. The wait
-      is capped at 8 s on the `headersHelper` path, because Claude Code kills the helper at
-      10 s, and at 60 s for the SDK provider.
-    - The cache never hits when the assertion lives less than about 6 minutes, because the
-      token's `exp` is capped by the assertion's and the reuse window ends 5 minutes before
-      it. Such a workload issues a token per connection.
+  - _Only the SDK provider caches._ `WorkloadJwtBearerProvider` keeps its access token in
+    memory until 5 minutes before `exp`, and drops it on any 401.
+    **`twilight-dash mcp token` keeps no cache and issues a fresh token on every run.** The
+    401 recovery, `unknown_grant_key` included, then holds by construction: Claude Code
+    re-runs the helper on a 401 or 403, and the re-run issues a new token.
+    - _The trade-off._ The helper issues once per Claude Code connection, at session start
+      and at every reconnect. A staggered batch of `claude -p` runs on one credential issues
+      once per run. M10's success limit is raised for that: 300 a minute, burst 100. Each
+      issuance costs be-01 one primary-key read, a hash and a signature, and failures are
+      limited separately, so the success limit only stops a runaway client.
+    - _Recorded alternative, rejected for simplicity._ Fable's grandparent key: key the cache
+      on the Claude Code process, taking the parent's parent when the parent is a shell. A key
+      on the immediate parent never matches: Claude Code 2.1.310 runs the helper with
+      `shell: true`, and dash forks rather than execs, so every run, the 401 re-run 0.6 s later
+      included, has a fresh `sh` parent (Fable's probe). The grandparent key also requires the
+      helper to be the installed binary, and it brings back the cache file and its safety
+      rules.
+    - _It honours `Retry-After`._ On a `429`, the provider and `twilight-dash mcp token` wait
+      the `Retry-After` seconds, retry once, then fail loudly, never looping. On the
+      `headersHelper` path the wait is capped at **what remains of the 10 s helper budget
+      minus 1 s**, measured from the helper's start; the SDK provider caps it at 60 s.
 
 - _Metadata._ It advertises:
   - `grant_types_supported`: `client_credentials` and the JWT-bearer URN, beside the consent
@@ -327,8 +324,9 @@ assertion minted for WBS could also be valid elsewhere).
   (task 1.2), not with the pool migration.
   - The audit detail is one JSON text column (`schema.ts` 3499–3524). The key is therefore a
     partial expression index on `(json_extract(detail, '$.credentialId'),
-coalesce(json_extract(detail, '$.runId'), ''), created_at / 86400000)` where
-    `action = 'machine_token_issued'`.
+created_at / 86400000, coalesce(json_extract(detail, '$.runId'), ''))` where
+    `action = 'machine_token_issued'`. The column order (credential, day, run) lets the
+    overflow count read a range of the index.
     - `created_at` is integer milliseconds (`schema.ts` 3511), so `date(created_at)` would
       read it as a Julian day and give NULL; Fable's probe then wrote 7 rows where 3 were
       expected. Integer division by 86,400,000 gives the UTC day.
@@ -343,7 +341,8 @@ action = 'machine_token_issued' DO NOTHING`. The `WHERE` must repeat the partial
     100 per credential per UTC day. The first issuance beyond that writes one
     `machine_token_issued_overflow` row for the credential and day, through its own targeted
     unique key, and nothing more is written that day. The count and the insert run in one
-    write transaction. Issuance is never refused for audit reasons, so audit volume is at most
+    write transaction, `writeImmediately` (`BEGIN IMMEDIATE`), so two issuances cannot both
+    see 99. Issuance is never refused for audit reasons, so audit volume is at most
     101 rows per credential per day.
 - _Keys absent at activation._ be-01 boot requires `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` once
   the activation marker is set. The activation runbook's preflight lists the missing key and
@@ -464,14 +463,14 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
   issuances are limited per credential, separately, so a stranger who knows a public id cannot
   lock it out.
 
-| Limit                                 | Default per replica | Sized for                                                                    |
-| ------------------------------------- | ------------------- | ---------------------------------------------------------------------------- |
-| Failed auth per `(client_id, IP)`     | 5 / min             | guessing one id                                                              |
-| Failed auth per IP                    | 30 / min            | a scanner                                                                    |
-| Successful issuances per credential   | 60 / min, burst 20  | a rollout of up to 20 pods on one service account; more answer 429 and retry |
-| Successful issuances per IP           | 300 / min           | one orchestrator re-keying a pool of 100                                     |
-| `tools/call` messages per credential  | 10 / s, burst 20    | a batch of 100 counts 100                                                    |
-| In-flight tool calls per organization | 128                 | about 60 at the design load (100 agents × 2 calls/s × 300 ms); 2× headroom   |
+| Limit                                 | Default per replica  | Sized for                                                                                                                     |
+| ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Failed auth per `(client_id, IP)`     | 5 / min              | guessing one id                                                                                                               |
+| Failed auth per IP                    | 30 / min             | a scanner                                                                                                                     |
+| Successful issuances per credential   | 300 / min, burst 100 | one issuance per Claude Code connection: a staggered `claude -p` batch, or a rollout of up to 100 pods on one service account |
+| Successful issuances per IP           | 300 / min            | one orchestrator re-keying a pool of 100                                                                                      |
+| `tools/call` messages per credential  | 10 / s, burst 20     | a batch of 100 counts 100                                                                                                     |
+| In-flight tool calls per organization | 128                  | about 60 at the design load (100 agents × 2 calls/s × 300 ms); 2× headroom                                                    |
 
 - With R replicas, the effective organization in-flight limit is 128 × R. These are
   per-replica fences; the authoritative fences are be-01's transactional caps.

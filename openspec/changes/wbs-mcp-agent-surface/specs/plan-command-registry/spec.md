@@ -193,12 +193,14 @@ every step when none is named. On a non-leaf it SHALL remove that person's subtr
 every claim that names it as parent, transitively. Progress SHALL NOT change. It SHALL be
 one undoable journal entry. It SHALL refuse `not_claimed_by` when the person holds no claim
 it would remove, and `person_not_bound` and `credential_not_for_person` under the rules of
-`claimWorkItem`, and `steps_on_subtree` when `steps` are named on a non-leaf, for claim and
-release alike. When the caller is a machine grant with a run and the person **is** its pinned
+`claimWorkItem`, and `steps_on_subtree` when `steps` are named on a non-leaf, as the claim
+does. When the caller is a machine grant with a run and the person **is** its pinned
 person, it SHALL remove only that person's claims of that run, and SHALL refuse `run_mismatch`
 when the person holds claims on the item only under other runs. With `steps` named,
 `not_claimed_by` is judged first, over every run, and `run_mismatch` second, so a step nobody
-holds stays `not_claimed_by`. A claim of the person with **no** run (taken before it opted in)
+holds stays `not_claimed_by`. When the named steps split between the caller's run and other
+runs, the release SHALL remove the caller's run's claims on them, leave the others, and refuse
+nothing. A claim of the person with **no** run (taken before it opted in)
 counts as the caller's own run and is released with it, so an opted-in owner can always release
 its pre-opt-in claims. A release of another person's claim (a lead releasing a worker's
 delegated claim) is judged as without a run.
@@ -225,6 +227,12 @@ delegated claim) is judged as without a run.
 - **WHEN** person P holds `Impl` under run `a` and `Review` under run `b`, and a grant with run
   `a` releases the leaf for P naming no steps
 - **THEN** only the run `a` claim is removed
+
+#### Scenario: Named steps split across runs
+
+- **WHEN** P holds `Impl` under run `a` and `Review` under run `b`, and a grant with run `a`
+  releases the leaf for P naming both steps
+- **THEN** only the `Impl` claim is removed and the batch is not refused
 
 #### Scenario: A pre-opt-in claim
 

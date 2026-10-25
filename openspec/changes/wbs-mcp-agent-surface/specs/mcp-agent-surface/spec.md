@@ -341,7 +341,7 @@ appear in route evidence, unexpected-failure reports, audit details, error bodie
 be-01 SHALL write one `machine_token_issued` row per distinct run of a credential in a UTC day,
 up to 100 rows per credential per day. After that it SHALL write one
 `machine_token_issued_overflow` row for that credential and day, and nothing more that day. The
-count and the insert SHALL run in one write transaction. Issuance itself is never refused for
+count and the insert SHALL run in one `BEGIN IMMEDIATE` write transaction. Issuance itself is never refused for
 audit reasons. No audit row carries a secret.
 
 #### Scenario: A client that invents runs
@@ -356,34 +356,32 @@ audit reasons. No audit row carries a secret.
   at a real-epoch time
 - **THEN** exactly two `machine_token_issued` rows exist
 
-### Requirement: The token helper's cache is private and recovers from a 401
+### Requirement: The token helper issues a fresh token on every run
 
-`twilight-dash mcp token` SHALL open its cache file with `O_NOFOLLOW` and `fstat` the
-descriptor. It SHALL refuse, with a warning on stderr, a file or directory that is not owned by
-the current uid or that has group or other bits. A re-run from the **same parent process**
-within 30 s of serving an entry SHALL drop the entry and issue a new token. On a `429` it SHALL
-wait the `Retry-After` seconds, capped at 8 s on the helper path, retry once, then fail.
+`twilight-dash mcp token` SHALL keep no token cache and SHALL issue a fresh token on every run.
+On a `429` it SHALL wait the `Retry-After` seconds, capped at what remains of its 10 s budget
+minus 1 s, retry once, and then exit non-zero.
 
-#### Scenario: A 401 retry gets a new token
+#### Scenario: A re-run after a 401 issues a new token
 
-- **WHEN** Claude Code re-runs the helper (same parent PID) 3 s after it served a cached token
+- **WHEN** Claude Code re-runs the helper 0.6 s after a 401 on the token it served
 - **THEN** the helper issues and serves a new token
 
-#### Scenario: A staggered batch reuses the cache
+#### Scenario: Recovery after a key rotation
 
-- **WHEN** ten `claude -p` processes, each its own parent, run the helper within 30 s
-- **THEN** one token is issued and nine are served from the cache
+- **WHEN** be-01 answers `unknown_grant_key` and mcp-01 answers HTTP 401
+- **THEN** Claude Code re-runs the helper, which issues a token under the new key, and the
+  retried call succeeds
 
-#### Scenario: An unsafe cache
+#### Scenario: A staggered batch
 
-- **WHEN** the cache file is a symlink, or has mode `0644`, or its directory is owned by
-  another uid
-- **THEN** the helper warns on stderr, ignores the cache and issues afresh
+- **WHEN** 100 `claude -p` runs on one credential start within one minute
+- **THEN** each run's helper issues one token and none is refused by the per-credential limit
 
 #### Scenario: Retry-After on the helper path
 
-- **WHEN** the token endpoint answers `429` with `Retry-After: 30`
-- **THEN** the helper waits 8 s, retries once, and exits non-zero if that is refused too
+- **WHEN** the token endpoint answers `429` with `Retry-After: 30`, 2 s into the helper's run
+- **THEN** the helper waits 7 s, retries once, and exits non-zero if that is refused too
 
 ### Requirement: Run scoping is opt-in through wbs_run
 

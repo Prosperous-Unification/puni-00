@@ -64,9 +64,12 @@
   - returns the credential's scopes;
   - writes `machine_token_issued` at most once per (credential, run, UTC day), and after 100
     such rows in a day one `machine_token_issued_overflow` row; the count and the insert run
-    in one write transaction. **This task ships the migration** that widens the audit CHECK
-    for both actions, and their targeted partial unique indexes, so slice 1 depends on neither
-    slice 6 nor the undo branch;
+    in one `writeImmediately` (`BEGIN IMMEDIATE`) transaction. **This task ships the
+    migration** that widens the audit CHECK for both actions and adds their targeted partial
+    unique indexes (`(credential, day, run)` and `(credential, day)`), with a guarded
+    `down.sql` that refuses while any row of either action exists. It follows
+    `20261022140100_widen_organization_audit_compute_providers`, so slice 1 depends on
+    neither slice 6 nor the undo branch;
   - answers a missing or wrong `MCP_BE_INTERNAL_SECRET` with `401 internal_unauthorized`
     (today's internal routes answer `401 unauthorized`; `/internal/mcp/*` moves to the new
     code).
@@ -87,9 +90,11 @@
   - write with an untargeted `ON CONFLICT DO NOTHING`. The fixture **collides on the row id
     with a different dedupe key**, and the collision is swallowed instead of thrown. (An
     untargeted form still throws on a CHECK, so the CHECK case cannot observe it);
-  - count outside the write transaction, and two concurrent issuances at row 100 write two
-    overflow rows (`fc.asyncModelRun`);
+  - count outside the write transaction, and two issuances racing at row 99 write **101
+    per-run rows** (`fc.asyncModelRun`);
   - drop the overflow stop, and 150 runs write 150 rows;
+  - drop the overflow unique index, and every issuance past 100 writes another overflow row;
+  - drop the `down.sql` guard, and a rollback with `machine_token_issued` rows deletes them;
   - answer a missing secret with `unknown_grant_key`, and mcp-01's fault test sees a
     re-fetch instead of a reported fault.
 
@@ -178,22 +183,22 @@
       that the report, route evidence and audit row hold no key, no `base64(id:key)` and no
       assertion. Negative: put the form in the report.
 - [ ] 2.4 `WorkloadJwtBearerProvider` and `twilight-dash mcp token` in Twilight Dash
-      (`src/mcp/`). The provider stamps client info with the authorization server's issuer,
-      has a no-op `addClientAuthentication`, and has a `prepareTokenRequest` that reads a fresh
-      assertion and adds `wbs_run`. Access tokens are cached until 5 minutes before `exp`.
-      Tests:
+      (`src/mcp/`).
+  - The provider stamps client info with the authorization server's issuer, has a no-op
+    `addClientAuthentication`, and has a `prepareTokenRequest` that reads a fresh assertion
+    and adds `wbs_run`.
+  - The provider caches its access token in memory and drops it on 401.
+  - `twilight-dash mcp token` keeps no cache.
+
+  Tests:
   - no dynamic-registration request is made;
-  - a second `headersHelper` run within the cache window issues no token, and one with
-    another `wbs_run` or issuer does (the cache key);
-  - a cache file with mode `0644`, a directory with mode `0755`, a file owned by another uid,
-    and a symlinked file or directory are each refused, with a warning on stderr. The file is
-    opened with `O_NOFOLLOW` and its descriptor `fstat`ed. Negative: check with `lstat` and
-    then open by path, and a symlink swapped in between is followed;
-  - **a re-run from the same parent PID within 30 s (the 401 retry) issues a new token**.
-    Negative: always serve the cache, and the re-run returns the rejected token;
-  - ten `claude -p` processes with different parents within 30 s issue one token. Negative:
-    ignore the parent PID, and nine more tokens are issued;
-  - a `429` with `Retry-After: 30` waits 8 s on the helper path and retries once.
+  - the helper issues on every run: a re-run 0.6 s after a 401 issues a new token, and a
+    rotated key (`unknown_grant_key`) recovers on the re-run;
+  - the provider re-fetches after a 401. Negative: keep serving the cached token, and the
+    retried call fails;
+  - a `429` with `Retry-After: 30`, 2 s into a helper run, waits 7 s and retries once;
+  - 100 staggered issuances on one credential within a minute all succeed under M10's 300/min
+    limit.
 
 ## 3. mcp-01: `/mcp` admission
 
@@ -254,7 +259,9 @@
 - [ ] 6.1 Migrations:
   - `add_agent_pool` and `machine_credential.agent_pool_id`;
   - the audit actions `agent_pool_created`, `agent_pool_revoked` and `agent_pool_rekeyed`, by
-    compatible rebuild (`machine_token_issued` shipped in task 1.2);
+    compatible rebuild (`machine_token_issued` shipped in task 1.2). The rebuild **recreates
+    both partial unique indexes** of task 1.2. Negative: omit one, and task 1.2's dedupe test
+    reddens after the 6.1 migration;
   - guarded `down.sql` files.
 
   Negative: drop each guard.
