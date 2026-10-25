@@ -197,13 +197,13 @@ See `verify.md`, "Slice 3 record".
 
 ## 4. Retirement of the operator links (A18, A21)
 
-- [ ] 4.1 The verification path refuses every groups-less token of the configured issuer
+- [x] 4.1 The verification path refuses every groups-less token of the configured issuer
       `401 unknown_identity` with no credential lookup and no link read;
       `readExistingOidcIdentity` and the pinned-row admission are deleted — test:
       `fleet-credential.controller.db.test.ts` rewritten: a pinned `external_identity` row
       admits nothing, the owner's row stays byte for byte, a browser token keeps its groups;
       negative: restore the link read and the pinned-row case is admitted; watched.
-- [ ] 4.2 Delete `link-credential-cli.ts`, `credential-link.ts` and their tests; rewrite
+- [x] 4.2 Delete `link-credential-cli.ts`, `credential-link.ts` and their tests; rewrite
       `docs/auth-integration.md` "Fleet credentials" and `docs/runbook-prod-deploy.md`
       "Fleet credential links" to the settings page and the swap window of A18; add the
       `wbs_mk_<id>.` form to the `plaintext-secrets` hook — test: the hook's test with a
@@ -214,6 +214,28 @@ See `verify.md`, "Slice 3 record".
       it; laptop Claude Code authorizes its agent at the consent page (slice 3); after the
       swap, confirm every fleet writes and record the applied state in puni-plan without
       secrets. The Auth0 machine-to-machine applications are deleted in the dashboard.
+
+Slice 4 as built (2026-10-25, PR into `main`, held until 4.3's pre-swap step):
+
+- 4.1: `authenticateOrRefuse` answers `unknown_identity` for a groups-less token of the
+  configured issuer before any read; `organizationCredentialEvidence` answers no evidence for
+  one. `readExistingOidcIdentity` itself stays: browser refresh and `sessionUser` read an
+  existing pair through it (never minting); only its use as a machine admission is deleted,
+  with `scopesOfRoles` and `membershipRolesOf`, which only that admission read.
+- 4.1, the pin: `credentialPinOf` answers null for an upstream pair, `CredentialPin` is
+  `{ personId }` only, and `DirectoryStore.credentialPinOf`, the memory pins
+  (`pinCredential`) and the two conformance cases `directory.credentialPinOf:unlinked` and
+  `directory.removePerson:pinned-credential` are removed.
+- 4.2, the usage: `pinnedCredentials` leaves the usage rows, the wire and fe-01; the remove
+  confirmation names `machineCredentials` ("N machine credentials of X are revoked"). A
+  person's inert pinned rows no longer refuse an unconfirmed removal and are deleted with the
+  person (`external_identity.person_id` has no `ON DELETE`): that delete is the column's only
+  remaining production use, and the grep test allows exactly it.
+- 4.2, the hook: the `wbs_mk_` pattern landed in slice 1; this slice adds the staged-file
+  exit-code test. The swarm rehearsal issues its fleets' API keys through the admin route and
+  its last step revokes one, instead of the CLI.
+- Not changed: `20261019130100_add_external_identity_person/down.sql` still names the retired
+  CLI in its refusal (a frozen migration); the runbook says to delete the pinned rows instead.
 
 ## 5. The OIDC source and trusted issuers
 

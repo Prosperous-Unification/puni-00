@@ -733,3 +733,45 @@ still rejects every touch.
 - CI on 688f7836403 (PR #625): every check green.
 - Reviews: every slice had a Fable review before merging into the plan branch (#628 slice 1 after fixes incl. A23; #631 slice 2 after fixes incl. A24; #633 slice 5 after fixes incl. A25; #634 slice 6 after fixes; #641 slice 3 MERGE with S3 follow-ups landed).
 - Not observed live: tasks 3.5 (consent as an agent on dev), 4.x (slice 4, retirement of the operator links, waits for the fleets' self-serve onboarding), 5.4 (a real GitHub Actions token on dev), 6.3 (by-eye acceptance on dev).
+
+## Slice 4 record (2026-10-25): retirement of the operator links, tasks 4.1 and 4.2
+
+Branch `feat/wbs-machine-credentials-retire-links` from main `93b6f3555`. Held from merging
+until task 4.3's pre-swap step (every fleet holds its API key): merging deploys to dev, where
+the swap refuses every Auth0 machine-to-machine token. 4.3 (operator, Dany) is not done.
+
+Red first: the rewritten `fleet-credential.controller.db.test.ts` against main's code failed
+4 of 7 (`admits nothing for a pinned row …`, `admits nothing for an unpinned row …`,
+`leaves the owner’s email alone …` each received 200 instead of `401 unknown_identity`;
+`removes a person with a pinned row unconfirmed …` received 409 `in_use`).
+
+| Command (worktree, `env -u CLAUDECODE` for `bun test`)                                                                                                                                                                                                                                     | Result                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `bun test` be-01: fleet-credential, claim-identity, machine-credential, machine-credential-admin, directory controller, directory service, person-account-migration, person-account controller, oidc-identity controller, organization-credential-rules, `swarm-rehearsal.boot.db.test.ts` | 270 pass, 0 fail (11 files)                     |
+| `bunx nx run-many -t typecheck -p wbs-be-01 wbs-fe-01 wbs-store-sqlite wbs-store-memory wbs-auth wbs-core wbs-conformance wbs-contracts tool-git-hooks`                                                                                                                                    | 12 tasks succeeded                              |
+| `CLAUDECODE=0 bunx nx run-many -t test -p wbs-core wbs-store-memory wbs-conformance wbs-contracts wbs-auth tool-git-hooks wbs-store-sqlite --parallel=1`                                                                                                                                   | 7 projects succeeded                            |
+| fe-01 `TZ=UTC bunx vitest run src/components/directory/directory-page.test.tsx`                                                                                                                                                                                                            | 51 pass (red first on the renamed confirmation) |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                                                                      | 287 items, 0 failed                             |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                                                                                | exit 0                                          |
+
+Lint: `NODE_OPTIONS=--max-old-space-size=8192 bunx nx run-many -t lint` over the same nine
+projects: eight passed, `wbs-store-memory` failed on an unused import left in
+`directory-fixture.test.ts`; fixed, then `nx run-many -t lint test -p wbs-store-memory`
+succeeded.
+
+Not run locally (laptop RAM, another heavy agent): the full be-01 `test:store`/`test:unit` and
+fe-01 suites; CI carries them.
+
+### Slice 4 failure proofs
+
+| Guard (file)                                                           | Injected fault                                                           | Observed failure                                                                                                                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authentication.feature.ts` groups-less refusal (4.1)                  | link read restored (`readExistingOidcIdentity`, linked account admitted) | `admits nothing for a pinned row …`, `admits nothing for an unpinned row …`, `leaves the owner’s email alone …` failed (3 of 7)                                      |
+| `oidc-identity.ts` `groupsClaimed`                                     | answered `true` always                                                   | 5 of 7 `fleet-credential` cases failed (links admitted, unlinked tokens minted accounts)                                                                             |
+| `store-sqlite/directory.ts` delete of a removed person's pinned rows   | delete removed                                                           | `removes a person with a pinned row unconfirmed …` answered 500 (foreign key)                                                                                        |
+| `claim-store.ts` `claimIdentityOf` pin                                 | `pinnedPersonOf` answered null                                           | `refuses a pinned credential claiming as another agent` (memory) and `machine-credential.controller.db.test.ts` `claims as its person …`, `delegates under …` failed |
+| `user.ts` email kept under a token without one                         | early return removed                                                     | `keeps its groups whether or not its pair is linked …` read `email: null, email_verified: 0`                                                                         |
+| grep test: no production reader of `external_identity.person_id` (4.2) | `DirectoryRepository.credentialPinOf` restored                           | `has no production reader …` listed its `.select({ personId: externalIdentity.personId })` beside the allowed delete                                                 |
+| `plaintext-secrets.ts` `wbs_mk_` pattern (4.2)                         | pattern made unmatchable (`(?!)`)                                        | `aborts a commit staging a WBS API key, exit 1, …` exited 0; `detects a WBS API key …` scanned null                                                                  |
+
+Each fault was restored from a copy and the file's diff checked before moving on.

@@ -3096,13 +3096,13 @@ export const externalIdentity = sqliteTable(
     issuer: text('issuer').notNull(),
     subject: text('subject').notNull(),
     /**
-     * The one person this credential may claim as (`wbs-team-claims` D6): a
-     * fleet credential linked to a human's account is pinned to that fleet's
-     * agent person, which must be bound to the same account. Null is an
-     * unpinned credential, as every browser login is. Written only by
-     * `link-credential-cli.ts`; added by
+     * Inert since the operator links retired (`wbs-machine-credentials` A18):
+     * the person the retired link CLI pinned a fleet credential to. No release
+     * reads it; removing the person deletes its rows, the column's only use,
+     * until a cleanup change drops it. Added by
      * `20261019130100_add_external_identity_person`, whose `down.sql` refuses
-     * while any credential is pinned.
+     * while any row is pinned (its message names the retired CLI; delete
+     * those rows instead).
      */
     personId: text('person_id').references(() => person.id),
     createdAt: integer('created_at').notNull(),

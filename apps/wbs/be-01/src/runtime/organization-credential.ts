@@ -103,17 +103,13 @@ export function organizationCredentialEvidence(
     if (upstream !== undefined && principal.authentication?.kind !== 'first_party') {
       const evidence = await upstream(token);
       if (evidence !== null) {
+        // A token without a groups claim proves no account
+        // (`wbs-machine-credentials` A18), as `authenticateOrRefuse` refuses
+        // it, so it is no evidence and nothing is resolved or written for it.
+        if (!evidence.identity.groupsClaimed) return null;
         // The exact verified pair, never an email match, must resolve to the
         // account that authenticated the request.
-        // A machine token (no groups claim) reads its link and never writes
-        // (`wbs-team-claims` D6b), as `authenticateOrRefuse` does.
-        // Proof: `resolveOidcIdentity` on both branches made `leaves the
-        // owner's email alone under a groups-less token carrying an email`
-        // (`fleet-credential.controller.db.test.ts`) store the token's
-        // `fleet@elsewhere.example` on Dany's row (watched 2026-10-20).
-        const user = evidence.identity.groupsClaimed
-          ? await auth.resolveOidcIdentity(evidence.identity)
-          : await auth.readExistingOidcIdentity(evidence.identity);
+        const user = await auth.resolveOidcIdentity(evidence.identity);
         if (user?.id !== principal.id) return null;
         return {
           kind: 'oidc',

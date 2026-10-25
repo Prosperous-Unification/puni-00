@@ -2,7 +2,7 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import type { CredentialPair } from '../../ports/claim-store';
+import type { CredentialPin } from '../../ports/claim-store';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Scope } from '../../ports/unit-of-work';
@@ -16,17 +16,15 @@ import type { AppliedCommand } from './plan-commands.feature';
 const F = 'account-f';
 const G = 'account-g';
 
-/** The fleet's machine credential, linked to account F. */
-const FLEET: CredentialPair = { issuer: 'https://idp.test', subject: 'claire-m2m@clients' };
+/** The fleet's machine credential of account F, pinned to `claire` as its own person. */
+const FLEET: CredentialPin = { personId: 'claire' };
 
 /**
- * Who each person is bound to (`person.account_id`) and the person the fleet
- * credential is pinned to (`external_identity.person_id`), written through the
+ * Who each person is bound to (`person.account_id`), written through the
  * memory source's real directory before the batch runs.
  */
 interface Identities {
   readonly bound: ReadonlyMap<string, string>;
-  readonly pinned: string | null;
 }
 
 const BOUND: Identities = {
@@ -37,7 +35,6 @@ const BOUND: Identities = {
     ['codex-fleet', F],
     ['stranger', G],
   ]),
-  pinned: null,
 };
 
 /**
@@ -97,8 +94,6 @@ async function seeded(identities: Identities = BOUND) {
     );
     if (!bound.ok) throw new Error(`binding ${personId} was refused: ${bound.reason}`);
   }
-  if (identities.pinned !== null)
-    fixture.pinCredential(FLEET.issuer, FLEET.subject, identities.pinned);
   const runner = createPlanCommandRunner({
     uow: source.uow,
     announcements: broadcast,
@@ -468,9 +463,9 @@ describe('claimWorkItem in a batch', () => {
   // Proof: with decideClaim's pin check replaced by `false`, this case failed
   // through the command path; watched 2026-10-19.
   it('refuses a pinned credential claiming as another agent', async () => {
-    const { source, runner, projectId } = await seeded({ bound: BOUND.bound, pinned: 'claire' });
+    const { source, runner, projectId } = await seeded();
     try {
-      const claimAs = (personId: string, credential: CredentialPair | null) =>
+      const claimAs = (personId: string, credential: CredentialPin | null) =>
         runner.runWithin(
           projectId,
           F,
@@ -482,7 +477,7 @@ describe('claimWorkItem in a batch', () => {
         ok: false,
         reason: 'credential_not_for_person',
       });
-      // The account's own session carries no pair, so nothing pins it.
+      // The account's own session carries no credential, so nothing pins it.
       expect(await claimAs('codex-fleet', null)).toMatchObject({ ok: true });
     } finally {
       await source.close();

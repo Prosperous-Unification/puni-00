@@ -1,6 +1,6 @@
 import type { CredentialPin } from '@wbs/contracts';
 
-export type { CredentialPair, CredentialPin } from '@wbs/contracts';
+export type { CredentialPin } from '@wbs/contracts';
 import type {
   Claim,
   LeaseReleaseReason,
@@ -229,33 +229,25 @@ export interface ClaimIdentity {
    */
   boundAccountOf(personId: string): Promise<string | null>;
   /**
-   * The person the request's credential is pinned to: a machine credential's
-   * own person, or for an upstream pair `external_identity.person_id`; null
-   * for an unpinned one. A request with neither (a password or native
-   * session) is unpinned: pass null.
+   * The person the request's credential is pinned to: a machine or consent
+   * credential's own person; null for an unpinned request (pass null).
    */
   pinnedPersonOf(credential: CredentialPin | null): Promise<string | null>;
 }
 
 /**
- * The {@link ClaimIdentity} a directory answers: its binding and its pin reads
- * (`wbs-team-claims` D5, D6), so a claim reads the same rows `patchPerson`
- * and `link-credential-cli.ts` write.
+ * The {@link ClaimIdentity} a directory answers: its binding read
+ * (`wbs-team-claims` D5), so a claim reads the row `patchPerson` writes, and
+ * the credential's own pin.
  *
- * Proof: the pin read answering null made `refuses a pinned credential claiming
- * as another agent` (`claim-command.test.ts`, memory) and `claims as its
- * person and is refused as any other …` (`claim-identity.controller.db.test.ts`,
- * SQLite) accept the claim (watched 2026-10-20).
+ * Proof: the pin answering null made `refuses a pinned credential claiming as
+ * another agent` (`claim-command.test.ts`, memory) and `claims as its person
+ * and is refused as any other …` (`machine-credential.controller.db.test.ts`,
+ * SQLite) accept the claim (watched 2026-10-25).
  */
-export function claimIdentityOf(
-  directory: Pick<DirectoryStore, 'boundAccountOf' | 'credentialPinOf'>,
-): ClaimIdentity {
+export function claimIdentityOf(directory: Pick<DirectoryStore, 'boundAccountOf'>): ClaimIdentity {
   return {
     boundAccountOf: (personId) => directory.boundAccountOf(personId),
-    pinnedPersonOf: (credential) => {
-      if (credential === null) return Promise.resolve(null);
-      if ('personId' in credential) return Promise.resolve(credential.personId);
-      return directory.credentialPinOf(credential.issuer, credential.subject);
-    },
+    pinnedPersonOf: (credential) => Promise.resolve(credential?.personId ?? null),
   };
 }

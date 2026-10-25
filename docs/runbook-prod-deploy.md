@@ -167,15 +167,34 @@ signed-in checks fail with 401. Every signed-in request asks the OIDC verifier f
 outage of the provider's discovery or JWKS endpoint shows as 500 on the signed-in checks. That is
 not an application fault.
 
-## Fleet credential links
+## Fleet credentials
 
-Link or unlink a fleet's machine-to-machine credential in the live colour; the
-flags, scopes and refusals are in
-[fleet credentials](auth-integration.md#fleet-credentials):
+Fleets hold machine credentials their organization issues on the settings page
+(`/organization`, "Machine credentials"); the sources and rules are in
+[fleet credentials](auth-integration.md#fleet-credentials). There is no host
+CLI: an operator never links a credential in the live colour.
 
-```sh
-docker exec be-01-<colour> bun run src/link-credential-cli.ts --issuer=<iss> --subject=<sub> --account=<id or username> [--person=<id>]
-```
+**Swap window of the link retirement** (`wbs-machine-credentials` A18, slice 4).
+The release that retires the operator links refuses every Auth0 token without
+`wbs_groups` (`401 unknown_identity`) and never reads `external_identity.person_id`.
+Before swapping to it:
+
+1. An admin issues one API key per fleet agent person on the target
+   environment's organization page, and each fleet harness holds its key.
+2. Laptop Claude Code authorizes its agent person at the mcp-01 consent page.
+3. Each fleet sends its key instead of its Auth0 machine-to-machine token. An
+   outgoing colour with machine credentials (slice 1 onward) already admits the
+   key and still honours the links until it stops, so a fleet may switch before
+   the swap and must have switched by it.
+
+After the swap, confirm every fleet writes, then delete the Auth0
+machine-to-machine applications in the Auth0 dashboard. The pinned rows the
+links left admit nothing; deleting a person removes theirs. A rollback to the
+outgoing release re-admits the links, so delete those applications only once
+rollback is no longer an option. Rolling back
+`20261019130100_add_external_identity_person` stays refused while any row is
+pinned; its message names the retired CLI, so delete the pinned rows
+(`DELETE FROM external_identity WHERE person_id IS NOT NULL`) after a backup.
 
 ## Team claims swap window and rollback
 

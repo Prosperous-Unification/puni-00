@@ -1,5 +1,5 @@
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { JwksTokenVerifier } from '@wbs/auth';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
@@ -7,7 +7,7 @@ import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 
-const APP_ROOT = dirname(fileURLToPath(new URL('../../package.json', import.meta.url)));
+const REPOSITORY = join(import.meta.dir, '../../../../..');
 const ISSUER = 'https://idp.test';
 const AUDIENCE = 'api://wbs';
 const FLEET = 'claire-m2m@clients';
@@ -15,7 +15,6 @@ const FLEET = 'claire-m2m@clients';
 let signing: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
 let h: OrganizationHarness;
-let projectId: string;
 
 beforeAll(async () => {
   signing = await generateKeyPair('RS256');
@@ -33,11 +32,12 @@ afterAll(async () => {
 });
 
 /**
- * A fleet credential linked by `link-credential-cli.ts` (`wbs-team-claims` D6
- * and D6b, spec `fleet-credentials`): a verified upstream token for the linked
- * `(issuer, subject)` acts as the linked account and writes nothing to it; one
- * without a groups claim is scoped from the account's memberships, and refused
- * `unknown_identity` when nothing is linked, minting no account.
+ * The retired operator links (`wbs-machine-credentials` A18, A21, spec
+ * `fleet-credentials`): a verified token of the configured issuer without a
+ * groups claim is refused `unknown_identity` whatever `external_identity`
+ * holds, a pinned row included, and writes nothing; a token with the groups
+ * claim keeps the browser login. A machine is admitted only by a machine
+ * credential (`machine-credential.controller.db.test.ts`).
  */
 beforeEach(async () => {
   h = openHarness();
@@ -55,7 +55,6 @@ beforeEach(async () => {
   ]);
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Fleet plan' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
   h.sqlite.run(
     "INSERT INTO person (id, name, kind, account_id) VALUES ('claire', 'Claire', 'agent', ?), ('mem-agent', 'Mem agent', 'agent', ?)",
     [h.userId('dany'), h.userId('mem')],
@@ -102,21 +101,17 @@ function token(subject: string, groups = false, claims: Record<string, unknown> 
     .sign(signing.privateKey);
 }
 
-async function linkCli(...args: string[]): Promise<number> {
-  const child = Bun.spawn(
-    [process.execPath, 'run', join(APP_ROOT, 'src', 'link-credential-cli.ts'), ...args],
-    {
-      cwd: APP_ROOT,
-      env: { ...process.env, DB_PATH: h.databasePath() },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
+/**
+ * The row the retired `link-credential-cli.ts` wrote: the fleet pair mapped to
+ * `account`, pinned to `person` (or unpinned with null). Rows like it stay on
+ * dev and prod after the swap until a cleanup change drops the column.
+ */
+function legacyLink(account: string, person: string | null): void {
+  h.sqlite.run(
+    'INSERT INTO external_identity (id, user_id, issuer, subject, person_id, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [crypto.randomUUID(), h.userId(account), ISSUER, FLEET, person, Date.now(), h.userId(account)],
   );
-  return child.exited;
 }
-
-const link = (account: string, person: string) =>
-  linkCli(`--issuer=${ISSUER}`, `--subject=${FLEET}`, `--account=${account}`, `--person=${person}`);
 
 function as(bearer: string, method: string, path: string, body?: unknown) {
   return h.callWith(bearer, method, path, body, { 'X-WBS-Expected-Organization': 'org-a' });
@@ -126,43 +121,52 @@ function usersTable(): unknown[] {
   return h.sqlite.query('SELECT * FROM users ORDER BY id').all();
 }
 
-describe('a linked fleet credential', () => {
-  it('leaves the owner’s row byte for byte under a linked machine token', async () => {
-    expect(await link('dany', 'claire')).toBe(0);
-    const before = usersTable();
+function linksTable(): unknown[] {
+  return h.sqlite.query('SELECT * FROM external_identity ORDER BY id').all();
+}
 
-    for (const groups of [true, false]) {
-      const answer = await as(await token(FLEET, groups), 'GET', '/api/projects');
-      expect(answer.status).toBe(200);
-      expect(JSON.stringify(answer.body)).toContain('Fleet plan');
-    }
-    expect(usersTable()).toEqual(before);
+const UNKNOWN = { status: 401, body: { error: 'unknown_identity' } };
+
+describe('a retired operator link', () => {
+  it('admits nothing for a pinned row, leaving the row and the owner byte for byte', async () => {
+    legacyLink('dany', 'claire');
+    const users = usersTable();
+    const links = linksTable();
+
+    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(usersTable()).toEqual(users);
+    expect(linksTable()).toEqual(links);
+  }, 30_000);
+
+  it('admits nothing for an unpinned row of a member’s account', async () => {
+    legacyLink('mem', null);
+    const users = usersTable();
+
+    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(
+      await as(await token(FLEET), 'POST', '/api/projects', { name: 'Written by a link' }),
+    ).toEqual(UNKNOWN);
+    expect(usersTable()).toEqual(users);
   }, 30_000);
 
   // A groups-less token naming another verified address must not refresh the
-  // owner's email: both the bearer path and the organization-credential
-  // evidence read the link only.
+  // owner's email.
   it('leaves the owner’s email alone under a groups-less token carrying an email', async () => {
-    expect(await link('dany', 'claire')).toBe(0);
+    legacyLink('dany', 'claire');
     const before = usersTable();
     const bearer = await token(FLEET, false, {
       email: 'fleet@elsewhere.example',
       email_verified: true,
     });
 
-    const answer = await as(bearer, 'GET', '/api/projects');
-    expect(answer.status).toBe(200);
-    expect(JSON.stringify(answer.body)).toContain('Fleet plan');
+    expect(await as(bearer, 'GET', '/api/projects')).toEqual(UNKNOWN);
     expect(usersTable()).toEqual(before);
   }, 30_000);
 
   it('refuses an unlinked machine token as unknown_identity, minting no account', async () => {
     const before = usersTable();
     const bearer = await token(FLEET);
-    expect(await as(bearer, 'GET', '/api/projects')).toEqual({
-      status: 401,
-      body: { error: 'unknown_identity' },
-    });
+    expect(await as(bearer, 'GET', '/api/projects')).toEqual(UNKNOWN);
     // The refusal keeps the endpoint's own no-store and Vary headers.
     const raw = await h.request('/api/organization/active', {
       headers: { authorization: `Bearer ${bearer}` },
@@ -182,70 +186,72 @@ describe('a linked fleet credential', () => {
     h = openHarness();
     await h.register('dany');
     const before = usersTable();
-    expect(await h.callWith(await token(FLEET), 'GET', '/api/projects')).toEqual({
-      status: 401,
-      body: { error: 'unknown_identity' },
-    });
+    expect(await h.callWith(await token(FLEET), 'GET', '/api/projects')).toEqual(UNKNOWN);
     expect(usersTable()).toEqual(before);
   }, 30_000);
 
-  it('ends at --unlink: unknown_identity, no new account, and the pair links again', async () => {
-    expect(await link('dany', 'claire')).toBe(0);
-    expect(await linkCli('--unlink', `--issuer=${ISSUER}`, `--subject=${FLEET}`)).toBe(0);
-    const before = usersTable();
-
-    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual({
-      status: 401,
-      body: { error: 'unknown_identity' },
-    });
-    expect(usersTable()).toEqual(before);
-    const own = await h.call('dany', 'GET', '/api/projects');
-    expect(own.status).toBe(200);
-    expect(await link('dany', 'claire')).toBe(0);
-  }, 30_000);
-
-  it('refuses removing a pinned person in_use, then revokes the credential with it', async () => {
-    expect(await link('dany', 'claire')).toBe(0);
+  it('removes a person with a pinned row unconfirmed, taking the inert row with it', async () => {
+    legacyLink('dany', 'claire');
     h.sqlite.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('claire', 'org-a', 'Claire')",
     );
-    const remove = (cascade: boolean) =>
-      h.call('dany', 'POST', '/api/directory/commands', {
-        commands: [{ kind: 'deletePerson', personId: 'claire', cascade }],
-      });
 
-    expect(await remove(false)).toEqual({
-      status: 409,
-      body: {
-        error: 'in_use',
-        at: 0,
-        kind: 'deletePerson',
-        usage: { projects: [], members: [], pinnedCredentials: 1, machineCredentials: 0 },
-      },
+    const removed = await h.call('dany', 'POST', '/api/directory/commands', {
+      commands: [{ kind: 'deletePerson', personId: 'claire', cascade: false }],
     });
-    expect((await remove(true)).status).toBe(200);
+    expect(removed.status).toBe(200);
     expect(
       h.sqlite.query('SELECT count(*) AS n FROM external_identity WHERE subject = ?').get(FLEET),
     ).toEqual({ n: 0 });
-    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual({
-      status: 401,
-      body: { error: 'unknown_identity' },
-    });
   }, 30_000);
+});
 
-  it('scopes a linked token without groups from its account’s membership: a member', async () => {
-    expect(await link('mem', 'mem-agent')).toBe(0);
-    const bearer = await token(FLEET);
+describe('a browser token', () => {
+  it('keeps its groups whether or not its pair is linked, leaving the owner byte for byte', async () => {
+    legacyLink('dany', 'claire');
+    const before = usersTable();
 
-    const read = await as(bearer, 'GET', '/api/projects');
-    expect(read.status).toBe(200);
-    expect(JSON.stringify(read.body)).toContain('Fleet plan');
-    const batch = await as(bearer, 'POST', `/api/projects/${projectId}/commands`, {
-      commands: [{ kind: 'createWorkItem', parentId: null, name: 'Written by the fleet' }],
-    });
-    expect(batch.status).toBe(200);
-    expect(await as(bearer, 'PATCH', '/api/organization', { sharedPeople: true })).toMatchObject({
-      status: 403,
-    });
+    const answer = await as(await token(FLEET, true), 'GET', '/api/projects');
+    expect(answer.status).toBe(200);
+    expect(JSON.stringify(answer.body)).toContain('Fleet plan');
+    expect(usersTable()).toEqual(before);
   }, 30_000);
+});
+
+/**
+ * Every production source line of the WBS apps and libraries that names
+ * `external_identity.person_id` in code (comments aside), as
+ * `path: line`. Tests, test fixtures and migrations are not production
+ * readers; the rollback guard of `20261019130100_add_external_identity_person`
+ * counts the column but is a frozen migration.
+ */
+function personIdUses(): string[] {
+  const uses: string[] = [];
+  for (const root of ['apps/wbs', 'libs/wbs']) {
+    for (const path of new Bun.Glob('**/src/**/*.{ts,tsx}').scanSync(join(REPOSITORY, root))) {
+      if (/(^|\/)(testing|e2e)\/|\.(test|proof)\.tsx?$/.test(path)) continue;
+      const lines = readFileSync(join(REPOSITORY, root, path), 'utf8').split('\n');
+      for (const line of lines) {
+        const code = line.trim();
+        if (code.startsWith('//') || code.startsWith('*') || code.startsWith('/*')) continue;
+        if (
+          code.includes('externalIdentity.personId') ||
+          (code.includes('external_identity') && code.includes('person_id'))
+        )
+          uses.push(`${root}/${path}: ${code}`);
+      }
+    }
+  }
+  return uses.toSorted();
+}
+
+describe('the retired pin column', () => {
+  // Proof: with `credentialPinOf` restored on `DirectoryRepository` (its
+  // select of `externalIdentity.personId`), this listed that line beside the
+  // delete; watched 2026-10-25.
+  it('has no production reader: its only use deletes a removed person’s rows', () => {
+    expect(personIdUses()).toEqual([
+      'libs/wbs/adapters/store-sqlite/src/directory.ts: tx.delete(externalIdentity).where(eq(externalIdentity.personId, personId)).run();',
+    ]);
+  });
 });

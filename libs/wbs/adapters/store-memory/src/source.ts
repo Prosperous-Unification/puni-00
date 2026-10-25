@@ -17,7 +17,6 @@ import type { OrganizationLimitValues } from '@wbs/domain';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
 import { endMemoryLeases } from './claim-fixture';
-import { credentialKey } from './directory-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import { seedMemoryOrganization } from './measure-definition-fixture';
 import { bindStores, MemoryState, replaceMap } from './memory-stores';
@@ -195,11 +194,6 @@ export interface MemorySourceFixture {
     organizationId: string,
     memberIds: readonly string[],
   ): void;
-  /**
-   * Pins a credential to a person, the `external_identity.person_id` row
-   * `link-credential-cli.ts` writes on SQLite; no memory port writes it.
-   */
-  pinCredential(issuer: string, subject: string, personId: string): void;
   /**
    * Ends every lease of a person at `at`, as revoking its last machine
    * credential does on SQLite (`endLeasesOfUncredentialed`); the memory
@@ -505,9 +499,6 @@ function openMemorySourceWithSeams(
     deriveNextEventSeqFromRetained(subscription) {
       const retained = committed.tables.eventLog.rows.get(subscription) ?? [];
       committed.tables.eventLog.nextSeq.set(subscription, (retained.at(-1)?.seq ?? -1) + 1);
-    },
-    pinCredential(issuer, subject, personId) {
-      committed.tables.directory.credentialPins.set(credentialKey(issuer, subject), personId);
     },
     addOrganization(organizationId, options) {
       seedMemoryOrganization(

@@ -6,17 +6,17 @@ import { readOrganizationActivation } from '@wbs/store-sqlite';
 import { openExistingConnection } from '@wbs/store-sqlite/db';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { exportJWK, generateKeyPair } from 'jose';
 
 import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 import { type Answer, OrganizationHarness } from './testing/organization-harness';
 
 /**
  * The swarm rehearsal: `wbs-team-claims` and `wbs-resources` working together for two fleets
- * of agents on be-01's production composition over a fresh SQLite file, migrated, activated and
- * credentialed through the operator's own CLIs, with every plan write and read over the real
- * routes. Machine tokens are signed as an Auth0 machine-to-machine token is issued (no
- * `wbs_groups`, no email) and select their organization exactly as a browser does.
+ * of agents on be-01's production composition over a fresh SQLite file, migrated and activated
+ * through the operator's own CLIs, with every plan write and read over the real routes. Each
+ * fleet holds an API key its organization's admin issued for its superagent
+ * (`wbs-machine-credentials`), which carries its organization, as a fleet does after the swap.
  *
  * The tests share one store and run in order; each names the requirement it demonstrates.
  */
@@ -68,10 +68,6 @@ const LEAVES: readonly LeafPlan[] = [
 }));
 
 const SUPERAGENTS: Record<Fleet, string> = { claire: 'claire', claude: 'claude' };
-const SUBJECTS: Record<Fleet, string> = {
-  claire: 'claire-fleet@clients',
-  claude: 'claude-fleet@clients',
-};
 const AGENTS = [
   'claire',
   'claude',
@@ -100,8 +96,10 @@ const ids = {
   subtrees: { claire: '', claude: '' } as Record<Fleet, string>,
   subtreeClaims: { claire: '', claude: '' } as Record<Fleet, string>,
 };
-/** Request headers per actor once its organization is selected. */
+/** Request headers per actor once its organization is selected (a fleet's key needs none). */
 const sessions = new Map<string, Record<string, string>>();
+/** The machine credential id each fleet's key carries. */
+const fleetCredentials = new Map<Fleet, string>();
 
 function cli(script: string, args: readonly string[], dbPath = h.databasePath()) {
   const run = Bun.spawnSync([process.execPath, 'run', join(APP_ROOT, 'src', script), ...args], {
@@ -146,20 +144,6 @@ afterAll(async () => {
   h.close();
   await jwks.stop(true);
 });
-
-/** A machine token for `subject`: no groups claim and no email, as Auth0 issues one. */
-function machineToken(subject: string): Promise<string> {
-  const seconds = Math.floor(Date.now() / 1000);
-  return new SignJWT({})
-    .setProtectedHeader({ alg: 'RS256', kid: 'swarm' })
-    .setIssuer(ISSUER)
-    .setAudience(AUDIENCE)
-    .setSubject(subject)
-    .setJti(crypto.randomUUID())
-    .setIssuedAt(seconds)
-    .setExpirationTime(seconds + 3600)
-    .sign(signing.privateKey);
-}
 
 async function send(
   headers: Record<string, string>,
@@ -647,7 +631,7 @@ describe('a swarm of two fleets on one plan', () => {
     sessions.set('dany', await select(h.token('dany'), ids.organizationId));
     sessions.set('ada', await select(h.token('ada'), ids.organizationId));
 
-    // `fleet-credentials`: an admin binds every agent person to the operator's account.
+    // `machine-credentials`: an admin binds every agent person to the operator's account.
     const bound = await directoryAs(sessionOf('dany'), [
       ...AGENTS.map((name) => ({
         kind: 'patchPerson',
@@ -662,22 +646,25 @@ describe('a swarm of two fleets on one plan', () => {
     ]);
     expect(bound.status).toBe(200);
 
-    // `fleet-credentials`: each fleet's machine pair is linked to that account, pinned to its
-    // superagent, and its token then selects the organization like any credential of the account.
+    // `machine-credentials`: the admin issues each fleet an API key pinned to its superagent;
+    // the key carries its organization, so the fleet selects nothing.
     const usersBefore = usersTable();
     for (const fleet of ['claire', 'claude'] as const) {
-      const linked = cli('link-credential-cli.ts', [
-        `--issuer=${ISSUER}`,
-        `--subject=${SUBJECTS[fleet]}`,
-        '--account=dany',
-        `--person=${personOf(SUPERAGENTS[fleet])}`,
-      ]);
-      expect({ fleet, exitCode: linked.exitCode, stderr: linked.stderr }).toEqual({
-        fleet,
-        exitCode: 0,
-        stderr: '',
-      });
-      sessions.set(fleet, await select(await machineToken(SUBJECTS[fleet]), ids.organizationId));
+      const issued = await send(
+        sessionOf('dany'),
+        'POST',
+        '/api/organization/machine-credentials',
+        {
+          source: 'api_key',
+          name: `${fleet} fleet`,
+          personId: personOf(SUPERAGENTS[fleet]),
+        },
+      );
+      const { id, key } = issued.body as { id?: string; key?: string };
+      if (issued.status !== 201 || id === undefined || key === undefined)
+        throw new Error(`the ${fleet} key was refused: ${JSON.stringify(issued)}`);
+      fleetCredentials.set(fleet, id);
+      sessions.set(fleet, { authorization: `Bearer ${key}` });
     }
     expect(usersTable()).toEqual(usersBefore);
   });
@@ -791,7 +778,7 @@ describe('a swarm of two fleets on one plan', () => {
       status: 409,
       body: { error: 'inside_subtree_claim', holder: { personId: personOf(holder) } },
     });
-    // `fleet-credentials`: a credential claiming as the other fleet's superagent, and as one of
+    // `machine-credentials`: a key claiming as the other fleet's superagent, and as one of
     // its own fleet's workers with no parent claim, is refused by its pin before anything else.
     for (const [fleet, person] of [
       [stranger, holder],
@@ -1174,18 +1161,15 @@ describe('a swarm of two fleets on one plan', () => {
       expect(after[resourceId] ?? 0).toBe(units - (freed[resourceId] ?? 0));
   });
 
-  test('6. an unlinked fleet credential is refused and mints no account', async () => {
+  test('6. a revoked fleet credential is refused and mints no account', async () => {
     const before = usersTable();
-    const unlinked = cli('link-credential-cli.ts', [
-      '--unlink',
-      `--issuer=${ISSUER}`,
-      `--subject=${SUBJECTS.claude}`,
-    ]);
-    expect({ exitCode: unlinked.exitCode, stderr: unlinked.stderr }).toEqual({
-      exitCode: 0,
-      stderr: '',
-    });
-    // `fleet-credentials`: its very next request, with the selection it already holds.
+    const revoked = await send(
+      sessionOf('dany'),
+      'DELETE',
+      `/api/organization/machine-credentials/${String(fleetCredentials.get('claude'))}`,
+    );
+    expect(revoked.status).toBe(204);
+    // `machine-credentials`: its very next request.
     expect(
       await send(sessionOf('claude'), 'GET', `/api/projects/${ids.projectId}/startable`),
     ).toMatchObject({ status: 401, body: { error: 'unknown_identity' } });

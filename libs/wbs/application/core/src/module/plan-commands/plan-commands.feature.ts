@@ -328,8 +328,8 @@ export class PlanCommandRunner {
   constructor(private readonly opts: PlanCommandRunnerOptions) {}
 
   /**
-   * Under legacy access, with no credential pair: before activation no
-   * credential is linked, so none is pinned (`link-credential-cli.ts` refuses).
+   * Under legacy access, with no credential: before activation no machine
+   * credential admits a request, so none is pinned.
    */
   run(projectId: string, actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
     return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);

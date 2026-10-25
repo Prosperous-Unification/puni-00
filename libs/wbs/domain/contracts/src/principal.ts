@@ -65,26 +65,18 @@ export type CredentialAuthentication =
     };
 
 /**
- * The verified `(issuer, subject)` a request's credential carries: an upstream
- * token's, or the pair a delegation carries. Absent for a first-party session.
- * What a claim reads a credential pin by (`wbs-team-claims` D6).
+ * The person a request's credential is pinned to: a machine or consent
+ * credential's own person (`wbs-machine-credentials` A12, A20). An upstream
+ * pair pins nothing since the operator links retired (A18): its
+ * `external_identity.person_id` is read by no release.
  */
-export interface CredentialPair {
-  readonly issuer: string;
-  readonly subject: string;
+export interface CredentialPin {
+  readonly personId: string;
 }
 
 /**
- * What a claim reads a request's pin from: an upstream pair, whose pin is the
- * operator link's `external_identity.person_id` (`wbs-team-claims` D6), or a
- * machine or consent credential's own person (`wbs-machine-credentials` A12,
- * A20).
- */
-export type CredentialPin = CredentialPair | { readonly personId: string };
-
-/**
- * The pin source of `authentication`: the pair of an upstream one, the person
- * of a machine or consent credential, else null (unpinned). A consent
+ * The pin of `authentication`: the person of a machine or consent credential,
+ * else null (unpinned: an upstream, first-party or absent one). A consent
  * delegation is pinned by its credential's person, never by the human's pair.
  *
  * Proof: answering null for a machine credential made `claims as its person
@@ -98,8 +90,6 @@ export type CredentialPin = CredentialPair | { readonly personId: string };
 export function credentialPinOf(
   authentication: CredentialAuthentication | undefined,
 ): CredentialPin | null {
-  if (authentication?.kind === 'upstream')
-    return { issuer: authentication.issuer, subject: authentication.subject };
   if (authentication?.kind === 'machine' || authentication?.kind === 'consent')
     return { personId: authentication.personId };
   return null;

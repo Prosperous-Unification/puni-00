@@ -236,7 +236,6 @@ export class MemoryState {
       this.tables.directory.organizationMembers,
       next.tables.directory.organizationMembers,
     );
-    replaceMap(this.tables.directory.credentialPins, next.tables.directory.credentialPins);
     // Proof: with the resource copy removed, ten of resource-command.test.ts's
     // thirteen cases read no resource after the batch that declared it had
     // committed; watched 2026-10-20.
@@ -545,7 +544,6 @@ export function bindStores(
       people: [],
       members: [],
       claims: [],
-      pinnedCredentials: 0,
       machineCredentials: 0,
       capacityOf: new Map<string, number>(),
       workItems: rows.flat(),

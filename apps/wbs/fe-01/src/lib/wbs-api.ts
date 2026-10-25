@@ -1178,10 +1178,10 @@ export interface DirectoryUsage {
   projects: UsedProject[];
   members: { id: string; name: string }[];
   /**
-   * Linked fleet credentials pinned to the person, which a confirmed removal
-   * revokes. Optional: an outgoing be-01 mid-swap counts no pins.
+   * Unrevoked machine credentials of the person, which a confirmed removal
+   * revokes (`wbs-machine-credentials`). Optional: absent for a team.
    */
-  pinnedCredentials?: number;
+  machineCredentials?: number;
 }
 
 /**

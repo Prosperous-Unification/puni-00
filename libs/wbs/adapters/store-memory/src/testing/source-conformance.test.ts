@@ -30,7 +30,6 @@ import {
   LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
-  PINNED_CREDENTIAL,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -101,7 +100,6 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
   addOrganization: ReturnType<typeof openMemorySourceFixture>['addOrganization'];
   ownProjectInOrganization: ReturnType<typeof openMemorySourceFixture>['ownProjectInOrganization'];
-  pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
   endLeasesOf: ReturnType<typeof openMemorySourceFixture>['endLeasesOf'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
@@ -179,9 +177,6 @@ function conformanceMemorySource(
     },
     ownProjectInOrganization: (projectId: string, organizationId: string) => {
       fixture.ownProjectInOrganization(projectId, organizationId);
-    },
-    pinCredential: (issuer: string, subject: string, personId: string) => {
-      fixture.pinCredential(issuer, subject, personId);
     },
     endLeasesOf: (personId: string, at: number) => fixture.endLeasesOf(personId, at),
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
@@ -416,16 +411,6 @@ async function openMemoryCase<Family extends ExistingFamily>(
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0], []);
     if (caseId === 'directory.removePerson:delegated-claims')
       await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0], []);
-    if (caseId === 'directory.removePerson:pinned-credential') {
-      const { personId, issuer, subject } = PINNED_CREDENTIAL;
-      const added = await seeded.stores.directory.addPerson(
-        { id: personId, name: 'Pinned person', kind: 'agent' },
-        [],
-        DETERMINISTIC_SEED.stamps[0],
-      );
-      if (!added.ok) throw new Error('the pinned person was refused');
-      seeded.pinCredential(issuer, subject, personId);
-    }
     await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
   });
   if (family === 'subtrees') {
