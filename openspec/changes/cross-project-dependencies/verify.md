@@ -7619,3 +7619,33 @@ These observations belong to the isolated diagnostic packet. The separately
 published base's running CI/host gates do not verify this new test. Task4.4 remains
 open; no architectural main merge, native adoption, activation or deployment is
 approved by this proof.
+
+## Image fixture closure under the configured test directory, 2026-10-25
+
+The published10e5 backend CI partition passed4508 tests and skipped3 optional
+cases; its sole failure was the new exact fixture-closure assertion. Bun emits
+metafile input keys relative to the caller's working directory. The test matched
+repository-relative text, so the configured backend cwd produced an empty set.
+This was a test-path assumption, not missing production fixture delivery: the
+separate real Docker smoke had passed.
+
+The one-file correction resolves actual Bun keys against the caller's cwd before
+selecting the absolute fixture root. Exact sorted22-file equality and the actual
+empty-delivery/missing-clock resolver negatives remain unchanged. The original
+backend-directory run reproduced15 passes/one failure. After correction, the
+fixture and unchanged production-entrypoint suites passed20 tests/110 assertions
+from both repository and backend directories. Removing only normalization failed
+the exact-membership case; restoration passed. Scoped ESLint and formatting passed.
+Independent Astra review approved the frozen file and independently replayed both
+working directories.
+
+The parent also replayed the actual backend coverage flags from `apps/wbs/be-01`:
+
+```sh
+bun test scripts/composed-image-fixtures.test.ts src/production-entrypoint.test.ts --coverage --coverage-reporter=lcov --timeout=10000
+```
+
+This passed20 tests/110 assertions in10.23s. No runtime source, Docker packaging,
+production exclusion or fixture-membership requirement changed. The published
+10e5 host gate remains on its own source; these focused results do not replace a
+new corrected-head CI or host gate, and approve no architectural main merge.

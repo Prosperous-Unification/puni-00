@@ -138,8 +138,12 @@ test('actual fifth-driver closure requires exactly the delivered fixtures', asyn
   const built = await bundleWithFixtures(destination);
   expect(built.success).toBe(true);
   if (built.metafile === undefined) throw new Error('Bun omitted the required import graph');
+  // Proof: omitting cwd normalization makes the backend-cwd run report [] instead of
+  // the exact 22 fixtures; empty delivery and missing clock still fail the Bun resolver.
+  const fixtureRoot = resolve(REPOSITORY, FIXTURES);
   const required = Object.keys(built.metafile.inputs)
-    .filter((path) => path.includes(`${FIXTURES}/`))
+    .map((path) => resolve(process.cwd(), path))
+    .filter((path) => path.startsWith(`${fixtureRoot}/`))
     .map((path) => basename(path))
     .sort();
   expect(required).toEqual([...COMPOSED_IMAGE_FIXTURES]);
