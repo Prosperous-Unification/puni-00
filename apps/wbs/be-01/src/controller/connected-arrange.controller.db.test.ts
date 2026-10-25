@@ -101,6 +101,84 @@ test('connected arrangement uses final captured foreign dates, leaves held and f
   expect(order()).toEqual([{ id: 'early' }, { id: 'z-held' }, { id: 'late' }]);
 });
 
+const stagedLink = () => ({
+  kind: 'addTypedDependency' as const,
+  predecessor: {
+    projectId: predecessor,
+    workItemId: 'remote',
+    scope: 'node' as const,
+    stepId: predecessorStep,
+  },
+  successor: { workItemId: 'late', scope: 'node' as const, stepId: targetStep },
+  type: 'FS' as const,
+});
+
+const durableState = () =>
+  Object.fromEntries(
+    harness.sqlite
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all()
+      .map(({ name }) => [name, harness.sqlite.query(`SELECT * FROM "${name}"`).all()]),
+  );
+
+// Proof: replacing only arrangement's captured starts with zero kept POST 200 but failed
+// this actual GET order assertion; restored starts passed both staged-batch cases.
+test('same-batch staged external prerequisite changes arrangement and actual GET order', async () => {
+  harness.sqlite.run("DELETE FROM external_dependency WHERE id='wait'");
+  const before = positions();
+  const unlinked = await harness.call('ada', 'GET', `/api/projects/${target}/work-items`);
+  expect(unlinked).toMatchObject({
+    status: 200,
+    body: {
+      workItems: [
+        { id: 'late', schedule: { earliestStart: 0 } },
+        { id: 'z-held' },
+        { id: 'early' },
+      ],
+    },
+  });
+  expect(
+    await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+      commands: [stagedLink(), { kind: 'arrangeBySchedule' }],
+    }),
+  ).toMatchObject({ status: 200 });
+  expect(await harness.call('ada', 'GET', `/api/projects/${target}/work-items`)).toMatchObject({
+    status: 200,
+    body: {
+      workItems: [
+        { id: 'early', schedule: { earliestStart: 0 } },
+        { id: 'z-held', schedule: null },
+        { id: 'late', schedule: { earliestStart: 1 } },
+      ],
+    },
+  });
+  expect(
+    positions().filter((row) => ['remote', 'z-held'].includes((row as { id: string }).id)),
+  ).toEqual(before.filter((row) => ['remote', 'z-held'].includes((row as { id: string }).id)));
+  expect(
+    harness.sqlite
+      .query('SELECT predecessor_project_id,successor_project_id FROM external_dependency')
+      .all(),
+  ).toEqual([{ predecessor_project_id: predecessor, successor_project_id: target }]);
+});
+
+test('same-batch staged external prerequisite rolls back every table when its calendar is unavailable', async () => {
+  harness.sqlite.run("DELETE FROM external_dependency WHERE id='wait'");
+  harness.sqlite.run('UPDATE project SET start_date=NULL WHERE id=?', [predecessor]);
+  const before = durableState();
+  expect(
+    await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+      commands: [stagedLink(), { kind: 'arrangeBySchedule' }],
+    }),
+  ).toMatchObject({
+    status: 409,
+    body: { error: 'dependency_calendar_missing', kind: 'arrangeBySchedule', at: 1 },
+  });
+  expect(durableState()).toEqual(before);
+});
+
 test.each(['target', 'foreign'])(
   'connected arrangement refuses missing %s calendar atomically',
   async (missing) => {
