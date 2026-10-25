@@ -3,12 +3,15 @@ import { availableParallelism, loadavg } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import type { BuildArg, Platform } from '@dagger.io/dagger';
-import { connect } from '@dagger.io/dagger';
+import { connect, ImageLayerCompression, ImageMediaTypes } from '@dagger.io/dagger';
+import { readPublicationEnrollment } from '@tools/registry-publication';
 
 import {
   digestRef,
   imageRef,
   parseDigest,
+  type PublishedRelease,
+  publishManagedRelease,
   type ReleaseRecord,
   renderRelease,
   type Tier,
@@ -575,11 +578,13 @@ export function assertCleanTree(repository = '.'): void {
   }
 }
 
-export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRecord> {
+export async function publishAll(tiers: Tier[], sha: string): Promise<PublishedRelease> {
   applyRunnerHostAlias(process.env);
   const registryPassword = requireRegistryPassword(process.env);
   assertImageBuildInputs(tiers);
+  const enrollment = await readPublicationEnrollment(`https://${REGISTRY}`);
   const record: ReleaseRecord = {};
+  let publication: PublishedRelease['publication'];
   await connect(
     async (client) => {
       // Wrapped in Dagger's secret mechanism rather than interpolated into
@@ -593,6 +598,36 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
       const src = client
         .host()
         .directory('.', { exclude: ['node_modules', 'dist', '.git', '.nx'] });
+      if (enrollment !== undefined) {
+        const published = await publishManagedRelease(
+          enrollment,
+          {
+            url: enrollment.registryUrl,
+            username: REGISTRY_USER,
+            password: registryPassword,
+            ...(enrollment.caPath === undefined
+              ? {}
+              : { ca: readFileSync(enrollment.caPath, 'utf8') }),
+          },
+          tiers,
+          sha,
+          (tier, path) =>
+            src
+              .dockerBuild({
+                dockerfile: DOCKERFILE[tier],
+                platform: TARGET_PLATFORM,
+                buildArgs: buildArgs(tier),
+              })
+              .withLabel('WBS_SHA', sha)
+              .export(path, {
+                mediaTypes: ImageMediaTypes.Oci,
+                forcedCompression: ImageLayerCompression.Gzip,
+              }),
+        );
+        Object.assign(record, published.record);
+        publication = published.publication;
+        return;
+      }
       for (const tier of tiers) {
         const ref = imageRef(REGISTRY, tier, sha);
         const published = await src
@@ -618,7 +653,7 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
     },
     { LogOutput: process.stderr },
   );
-  return record;
+  return { record, ...(publication === undefined ? {} : { publication }) };
 }
 
 async function main(): Promise<void> {
@@ -638,11 +673,16 @@ async function main(): Promise<void> {
       `load1=${String(capacity.load1)} cpus=${String(capacity.cpuCount)}`,
   );
   process.env['_EXPERIMENTAL_DAGGER_RUNNER_HOST'] = ENGINE_RUNNER_HOST;
-  const record = await runAdmittedPublish(capacity, createDockerEngineControl(), () =>
+  const published = await runAdmittedPublish(capacity, createDockerEngineControl(), () =>
     publishAll(tiers, sha),
   );
-  await Bun.write('dist/tool-dagger/release.json', renderRelease(record));
-  console.log(renderRelease(record));
+  if (published.publication !== undefined)
+    await Bun.write(
+      'dist/tool-dagger/publication.json',
+      JSON.stringify(published.publication, null, 2) + '\n',
+    );
+  await Bun.write('dist/tool-dagger/release.json', renderRelease(published.record));
+  console.log(renderRelease(published.record));
 }
 
 if (import.meta.main) {

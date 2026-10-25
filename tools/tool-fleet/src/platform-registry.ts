@@ -1,5 +1,15 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { inspectOciArchive, type RegistryArtifact, verifyContent } from './registry-artifact';
+import {
+  admitExportScratch,
+  checkExportScratch,
+  connectRegistryAuthority,
+  readPublicationEnrollment,
+} from './registry-enrollment';
+import { publishArtifacts } from './registry-publication';
 
 /** One Distribution v2 registry reached with optional basic auth and a private CA. */
 export interface RegistryEndpoint {
@@ -108,7 +118,7 @@ async function copyBlob(
  * against its digest before upload, and the target's reported manifest digest
  * must equal the source's. Any mismatch throws.
  */
-export async function copyImage(
+async function copyLegacyImage(
   source: RegistryEndpoint,
   target: RegistryEndpoint,
   repository: string,
@@ -130,7 +140,8 @@ export async function copyImage(
   let uploadedBlobs = 0;
   if (indexTypes.has(mediaType)) {
     for (const child of descriptorsOf(manifest, 'manifests')) {
-      uploadedBlobs += (await copyImage(source, target, repository, child.digest)).uploadedBlobs;
+      uploadedBlobs += (await copyLegacyImage(source, target, repository, child.digest))
+        .uploadedBlobs;
     }
   } else {
     const config: unknown =
@@ -161,6 +172,228 @@ export async function copyImage(
   return { digest, uploadedBlobs };
 }
 
+async function requestManaged(
+  endpoint: RegistryEndpoint,
+  path: string,
+  init: Omit<RequestInit, 'headers'> & { readonly headers?: Record<string, string> } = {},
+) {
+  // Proof: removing redirect refusal delivered the managed upload request to the foreign HTTP fixture.
+  return request(endpoint, path, { ...init, redirect: 'error' });
+}
+
+/** Stage the source closure inside the builder's enforced boundary before any target write. */
+async function snapshotImage(
+  source: RegistryEndpoint,
+  directory: string,
+  repository: string,
+  reference: string,
+): Promise<RegistryArtifact> {
+  await mkdir(join(directory, 'blobs/sha256'), { recursive: true });
+  const visited = new Set<string>();
+  const visit = async (
+    reference: string,
+  ): Promise<{ digest: string; mediaType: string; size: number }> => {
+    const response = await requireOk(
+      await requestManaged(source, `/v2/${repository}/manifests/${reference}`, {
+        headers: { accept: manifestTypes.join(', ') },
+      }),
+      'Reading source image manifest',
+    );
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const digest = sha256Digest(bytes);
+    if (reference.startsWith('sha256:') && reference !== digest)
+      throw new Error('Source manifest digest mismatch');
+    const mediaType = response.headers.get('content-type');
+    if (mediaType === null || !manifestTypes.includes(mediaType))
+      throw new Error('Unsupported source image type');
+    if (visited.has(digest)) return { digest, mediaType, size: bytes.length };
+    visited.add(digest);
+    await writeFile(join(directory, 'blobs/sha256', digest.slice(7)), bytes);
+    const manifest: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (indexTypes.has(mediaType)) {
+      for (const child of descriptorsOf(manifest, 'manifests')) await visit(child.digest);
+    } else {
+      const config: unknown =
+        typeof manifest === 'object' && manifest !== null
+          ? Reflect.get(manifest, 'config')
+          : undefined;
+      for (const blob of [
+        ...descriptorsOf({ layers: [config] }, 'layers'),
+        ...descriptorsOf(manifest, 'layers'),
+      ]) {
+        if (!/^sha256:[0-9a-f]{64}$/.test(blob.digest))
+          throw new Error('Invalid source blob digest');
+        const response = await requireOk(
+          await requestManaged(source, `/v2/${repository}/blobs/${blob.digest}`),
+          'Reading source blob',
+        );
+        await Bun.write(join(directory, 'blobs/sha256', blob.digest.slice(7)), response);
+      }
+    }
+    return { digest, mediaType, size: bytes.length };
+  };
+  const root = await visit(reference);
+  await writeFile(
+    join(directory, 'index.json'),
+    JSON.stringify({ schemaVersion: 2, manifests: [root] }),
+  );
+  await writeFile(join(directory, 'oci-layout'), '{"imageLayoutVersion":"1.0.0"}');
+  const archive = join(directory, 'image.tar');
+  const tar = Bun.spawnSync([
+    '/usr/bin/tar',
+    '--format=ustar',
+    '-cf',
+    archive,
+    '-C',
+    directory,
+    'index.json',
+    'oci-layout',
+    'blobs',
+  ]);
+  if (tar.exitCode !== 0)
+    throw new Error(`Bounded import archive failed: ${tar.stderr.toString()}`);
+  return inspectOciArchive(archive, repository, reference);
+}
+
+/** Copy all required product images under one admission; a subset cannot become a complete bundle. */
+export async function copyImages(
+  source: RegistryEndpoint,
+  target: RegistryEndpoint,
+  images: readonly { repository: string; reference: string }[],
+) {
+  // Proof: removing managed admission selection copied blobs despite the selected missing enrollment.
+  const enrollment = await readPublicationEnrollment(target.url);
+  if (enrollment === undefined) {
+    const copied = [];
+    for (const image of images)
+      copied.push(await copyLegacyImage(source, target, image.repository, image.reference));
+    return copied;
+  }
+  const repositories = images.map((image) => image.repository);
+  if (
+    new Set(repositories).size !== repositories.length ||
+    repositories.length !== enrollment.requiredRepositories.length ||
+    enrollment.requiredRepositories.some((repository) => !repositories.includes(repository))
+  )
+    throw new Error('Import omits required product repositories');
+  const scratch = await admitExportScratch(enrollment);
+  const directory = await mkdtemp(join(enrollment.builder.path, 'import-'));
+  try {
+    const artifacts: RegistryArtifact[] = [];
+    for (const [index, image] of images.entries())
+      artifacts.push(
+        await snapshotImage(
+          source,
+          join(directory, String(index)),
+          image.repository,
+          image.reference,
+        ),
+      );
+    await checkExportScratch(enrollment, scratch);
+    const uploads = new Map<string, number>();
+    const publication = await publishArtifacts(
+      enrollment,
+      artifacts,
+      connectRegistryAuthority(enrollment),
+      async (artifact) => {
+        uploads.set(artifact.repository, await uploadArtifact(target, artifact));
+      },
+    );
+    return artifacts.map((artifact) => {
+      const uploadedBlobs = uploads.get(artifact.repository);
+      if (uploadedBlobs === undefined) throw new Error('Completed import omitted upload receipt');
+      return { digest: artifact.digest, uploadedBlobs, publication };
+    });
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+}
+
+/** Single-image compatibility entrypoint; managed multi-tier enrollment still requires its entire bundle. */
+export async function copyImage(
+  source: RegistryEndpoint,
+  target: RegistryEndpoint,
+  repository: string,
+  reference: string,
+) {
+  const copied = (await copyImages(source, target, [{ repository, reference }])).at(0);
+  if (copied === undefined) throw new Error('Image copy omitted its receipt');
+  return copied;
+}
+
+/**
+ * Transfer the exact inspected archive byte ranges. Dependency-first manifest writes preserve
+ * index closure. Every source range is rehashed before POST, then every target object is read
+ * and hashed before the caller may claim a durable bundle receipt.
+ */
+export async function uploadArtifact(
+  target: RegistryEndpoint,
+  artifact: RegistryArtifact,
+): Promise<number> {
+  let uploadedBlobs = 0;
+  for (const content of artifact.contents) {
+    const bytes = await verifyContent(content);
+    if (content.isManifest) {
+      const reference = content.digest === artifact.digest ? artifact.reference : content.digest;
+      const stored = await requireOk(
+        await requestManaged(target, `/v2/${artifact.repository}/manifests/${reference}`, {
+          method: 'PUT',
+          body: bytes,
+          headers: { 'content-type': content.mediaType },
+        }),
+        'Writing admitted manifest',
+      );
+      if (stored.headers.get('docker-content-digest') !== content.digest)
+        // Proof: removing this refusal accepted the rewritten manifest receipt fixture.
+        throw new Error('Target manifest differs from admitted digest');
+    } else {
+      const upload = await requireOk(
+        await requestManaged(target, `/v2/${artifact.repository}/blobs/uploads/`, {
+          method: 'POST',
+        }),
+        'Starting admitted blob upload',
+      );
+      const location = upload.headers.get('location');
+      if (location === null) throw new Error('Admitted blob upload returned no location');
+      const url = new URL(location, target.url);
+      if (url.origin !== new URL(target.url).origin)
+        // Proof: removing this refusal sent content to the foreign upload continuation fixture.
+        throw new Error('Registry upload redirected outside enrolled authority');
+      url.searchParams.set('digest', content.digest);
+      await requireOk(
+        await requestManaged(target, url.toString(), {
+          method: 'PUT',
+          body: bytes,
+          headers: { 'content-type': 'application/octet-stream' },
+        }),
+        'Completing admitted blob upload',
+      );
+      uploadedBlobs += 1;
+    }
+  }
+  for (const content of artifact.contents) {
+    const response = await requireOk(
+      await requestManaged(
+        target,
+        `/v2/${artifact.repository}/${content.isManifest ? 'manifests' : 'blobs'}/${content.digest}`,
+        { headers: { accept: manifestTypes.join(', ') } },
+      ),
+      'Verifying admitted content',
+    );
+    if (response.body === null) throw new Error('Target omitted admitted content');
+    const hash = createHash('sha256');
+    let size = 0;
+    for await (const bytes of response.body) {
+      hash.update(bytes);
+      size += bytes.length;
+    }
+    if (size !== content.size || `sha256:${hash.digest('hex')}` !== content.digest)
+      // Proof: removing this refusal completed publication after the target corrupted stored blob bytes.
+      throw new Error('Target content differs from admitted closure');
+  }
+  return uploadedBlobs;
+}
+
 function endpointFromEnv(prefix: string, url: string, ca: string | undefined): RegistryEndpoint {
   const username = process.env[`${prefix}_USERNAME`];
   const password = process.env[`${prefix}_PASSWORD`];
@@ -186,15 +419,15 @@ if (import.meta.main) {
     caPath === undefined ? undefined : await readFile(caPath, 'utf8'),
   );
   const source = endpointFromEnv('SOURCE', sourceUrl, undefined);
-  for (const image of images) {
+  const references = images.map((image) => {
     const separator = image.lastIndexOf(':');
     if (separator <= 0) throw new Error(`${image} must be repository:tag`);
-    const copied = await copyImage(
-      source,
-      target,
-      image.slice(0, separator),
-      image.slice(separator + 1),
-    );
-    console.log(JSON.stringify({ image, ...copied }));
+    return { repository: image.slice(0, separator), reference: image.slice(separator + 1) };
+  });
+  const copied = await copyImages(source, target, references);
+  for (const [index, image] of images.entries()) {
+    const receipt = copied.at(index);
+    if (receipt === undefined) throw new Error('Image copy omitted its receipt');
+    console.log(JSON.stringify({ image, ...receipt }));
   }
 }

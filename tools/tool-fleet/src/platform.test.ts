@@ -76,7 +76,8 @@ describe('validatePlatform', () => {
         'otel-agent',
         'velero',
       ],
-      workloadImages: 10,
+      // The census includes the separately staged registry storage patch and its pinned image.
+      workloadImages: 11,
       secrets: 0,
     });
   });

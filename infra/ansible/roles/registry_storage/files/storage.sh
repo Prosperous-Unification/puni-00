@@ -73,8 +73,10 @@ def inspect_mount(mount):
 
 def main():
     require(os.geteuid() == 0, 'Storage enrollment requires root')
-    require(len(sys.argv) == 3 and sys.argv[1] in ('provision', 'mount', 'verify'),
-            'Usage: storage.sh provision|mount|verify <configuration.json>')
+    require(len(sys.argv) == 3 and sys.argv[1] in ('provision', 'mount', 'verify', 'provision-scratch', 'mount-scratch', 'verify-scratch'),
+            'Usage: storage.sh provision|mount|verify[-scratch] <configuration.json>')
+    is_scratch = sys.argv[1].endswith('-scratch')
+    command = sys.argv[1].removesuffix('-scratch')
     config_path = Path(sys.argv[2])
     config = json.loads(config_path.read_text())
     require(set(config) == {'directory', 'rootReserveBytes', 'volumes', 'fstab'}, 'Invalid configuration keys')
@@ -86,11 +88,13 @@ def main():
     require(directory.stat().st_uid == 0 and directory.stat().st_mode & 0o022 == 0,
             'Storage directory is not root owned')
     volumes = config['volumes']
-    require(isinstance(volumes, list) and len(volumes) == 2 and
-            {volume['name'] for volume in volumes} == {'registry', 'journal'}, 'Require both volumes')
+    expected_names = {'scratch'} if is_scratch else {'registry', 'journal'}
+    # Proof: removing this check let registry mode create scratch backing before the cross-mode negative failed.
+    require(isinstance(volumes, list) and len(volumes) == len(expected_names) and
+            {volume['name'] for volume in volumes} == expected_names, 'Volume set differs from storage mode')
     for volume in volumes:
         require(set(volume) == {'name', 'bytes', 'uid'}, 'Invalid volume keys')
-        ceiling = 50 * 1024**3 if volume['name'] == 'registry' else 1024**3
+        ceiling = 1024**3 if volume['name'] == 'journal' else 50 * 1024**3
         require(type(volume['bytes']) is int and 32 * 1024**2 <= volume['bytes'] <= ceiling,
                 'Invalid fixed capacity')
         require(type(volume['uid']) is int and 1 <= volume['uid'] < 61184 and
@@ -114,7 +118,7 @@ def main():
             mount = directory / name
             identity_path = directory / (name + '.identity.json')
             if not image.exists():
-                require(sys.argv[1] == 'provision' and not identity_path.exists(),
+                require(command == 'provision' and not identity_path.exists(),
                         'Missing enrolled backing file')
                 root = os.statvfs('/')
                 # Proof: oversized reserve fault refuses allocation in registry-storage-rehearsal.sh.
@@ -144,7 +148,7 @@ def main():
             loops = [loop for loop in attached if loop['back-file'] == str(image)]
             require(len(loops) <= 1, 'Duplicate loop attachment')
             mounted = inspect_mount(mount)
-            if sys.argv[1] == 'verify':
+            if command == 'verify':
                 # Proof: replacing the mount with a directory fails the production verify command.
                 require(mounted is not None, 'Required filesystem is not mounted')
             if not loops:
@@ -173,7 +177,7 @@ def main():
             require(0 < capacity.f_blocks * capacity.f_frsize <= limit, 'Filesystem exceeds capacity')
             allocated(image, limit)
             contents = mount / 'contents'
-            if sys.argv[1] == 'provision' and not contents.exists():
+            if command == 'provision' and not contents.exists():
                 contents.mkdir(mode=0o700)
                 os.chown(contents, volume['uid'], volume['uid'])
                 changed = True
@@ -182,7 +186,7 @@ def main():
                     stat.S_IMODE(contents.stat().st_mode) == 0o700, 'Invalid contents ownership')
             receipt = f"{mounted['maj:min']} {limit} {identity['uuid']} {run('stat', '-f', '-c', '%i', str(mount))}\n"
             receipts[name] = receipt
-        identities = directory / 'journal' / 'identities'
+        identities = directory / 'identities' if is_scratch else directory / 'journal' / 'identities'
         if not identities.exists():
             identities.mkdir(mode=0o755)
             changed = True

@@ -163,6 +163,14 @@ export interface RegistryCommandResponse {
   readonly state: RegistryJournal;
   readonly token?: string;
 }
+/** Validate the authenticated authority response before a publisher uses its capability or receipt. */
+export function parseRegistryCommandResponse(input: unknown): RegistryCommandResponse {
+  // Proof: removing response field validation admitted a string revision and a malformed capability.
+  const response = type({ state: Journal, 'token?': Token, '+': 'reject' })(input);
+  if (response instanceof type.errors) throw new Error('Malformed registry authority response');
+  requireConsistentState(response.state);
+  return response;
+}
 /** Measurement adapters run inside the authority; client request capacity claims are rejected. */
 export interface RegistryJournalPorts {
   measureJournal: (enrollment: RegistryEnrollment) => Promise<typeof JournalCapacity.infer>;

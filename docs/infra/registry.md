@@ -53,3 +53,80 @@ Restore into a new directory and a loopback-only disposable registry on another 
 Stop `puni-registry.socket` and `puni-registry.service` to withdraw the private endpoint. Restore any captured prior client configuration, remove only the marked registry hosts block and dedicated CA/config files created by this rollout, then restart k3s one node at a time and verify readiness. Keep the PVC, CA, encrypted Secrets and recovery archives. Removing `registry-secrets` from private Git does not delete its Secrets because pruning is disabled.
 
 Do not remove the downstream holds as part of endpoint rollback: that would permit unrelated first deployments. Product image references remain unchanged, so withdrawing the endpoint does not require a website or WBS release.
+
+## Managed publication — staged integration
+
+Managed publishing is selected explicitly by `REGISTRY_PUBLICATION_ENROLLMENT`, an
+absolute canonical path to a root-owned, root-group, mode `0644` JSON file. A selected
+file that is missing, unreadable or invalid fails; only an absent selector uses the
+existing unenrolled registry publisher. No production enrollment or scratch allocation
+is activated by this code change.
+
+The enrollment has `schemaVersion: 1`, an exact `registryUrl` (without a trailing
+slash), `registryId`, `sshHost`, `owner`, `product`, and `requiredRepositories`.
+It also pins `authorityMachineId`, `registryPath`, and `journalPath`. Its `builder`
+contains `machineId`, numeric `uid`, `path`, `receiptPath`, `maximumBytes`,
+`maximumInodes`, and `excludedFilesystems` (objects containing `machineId` and
+`path`). Read machine identities from the respective hosts' `/etc/machine-id`.
+The required repository list describes the whole product; it must not be generated
+from the tiers requested for an individual invocation.
+
+The builder UID must match the executing user and own the scratch contents directory
+with mode `0700`. The target registry and journal are mandatory exclusions when the
+authority's machine identity matches the builder; the additional exclusions name
+all other enrolled registry/journal filesystems on that builder. Remote paths are
+excluded only through their trusted different machine identity. A missing local
+exclusion is an error. The receipt and mount checks are implemented by
+`admitBuilderScratch` in `tools/tool-fleet/src/registry-capacity.ts`.
+
+Provision builder storage with the reviewed
+`infra/ansible/roles/registry_storage/files/storage.sh` commands
+`provision-scratch`, `mount-scratch`, and `verify-scratch`. These accept the same
+configuration shape as registry storage, but require exactly one volume named
+`scratch`, independently bounded between 32 MiB and 50 GiB. Existing commands still
+require both registry and journal volumes. For example, a builder configuration
+can use this shape, with its size chosen explicitly for the host:
+
+```json
+{
+  "directory": "/var/lib/puni-registry-builder",
+  "rootReserveBytes": 21474836480,
+  "fstab": "/etc/fstab",
+  "volumes": [{ "name": "scratch", "bytes": 4294967296, "uid": 1000 }]
+}
+```
+
+The parent directory must already be root-owned and not writable by other users.
+The fstab entry must bind that exact `scratch.ext4` file to the `scratch` mount and
+include `loop,noauto,nodiscard,X-fstrim.notrim`. The provisioner fully allocates
+backing bytes while preserving the root reserve. It creates `scratch/contents`
+and the root-owned `identities/scratch.receipt` outside the scratch mount.
+Provisioning and boot-time mounting remain explicit operator/activation work;
+publishing never creates an underlying root-backed replacement directory.
+
+The enrollment's byte/inode envelope checks available scratch capacity before
+export, and actual allocated growth is checked against it afterward. The receipt's
+filesystem maximum is the independent physical bound. OCI archives and import
+staging stay inside this filesystem; free-space polling is not used as a hard cap.
+Interrupted scratch contents remain charged until explicitly reconciled.
+
+`bin/publish-release.sh` preserves the selector through the existing heavy lock and
+engine lifecycle. The managed Dagger path exports every required tier before the
+first upload, verifies its complete OCI closure, and reserves the whole bundle
+through the installed `/usr/local/sbin/puni-registry-authority` SSH command. It
+uploads the inspected bytes directly and verifies every target manifest and blob.
+The fixed authority accepts JSON on stdin; no executable or journal path comes
+from the publishing request. Per-tier `--publish` entrypoints remain plan-only
+and direct real publication to `tool-dagger:publish-all`.
+
+`platform-registry.ts copy` groups all supplied images into the same managed
+protocol. A single-image call cannot complete a product requiring multiple
+repositories. Fresh capacity and ownership are checked at artifact boundaries.
+A partial failure retains candidate ownership and reservation. Only a durable
+complete bundle receipt releases the publisher slot; later promotion does not
+require another upload. Dagger preserves the existing `release.json` tier format
+and additionally writes `dist/tool-dagger/publication.json` with registry identity,
+operation identity, product, owner, exact root references and the authority's
+completion time. The journal is the durable authority; these local files are
+caller outputs. Managed upload continuations stay on the enrolled origin and
+HTTP redirects are refused.

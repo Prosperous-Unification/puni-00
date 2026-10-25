@@ -1,4 +1,9 @@
 {
   "extends": "../../../tools/tool-fleet/tsconfig.spec.json",
-  "include": ["*.test.ts", "registry-capacity-fixture.ts"]
+  "include": [
+    "*.test.ts",
+    "registry-capacity-fixture.ts",
+    "registry-publication-fixture.ts",
+    "registry-enrollment-fixture.ts"
+  ]
 }
