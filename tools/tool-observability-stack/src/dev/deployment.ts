@@ -31,7 +31,7 @@ export interface DevService {
 export interface DevCompose {
   name: string;
   services: Record<string, DevService>;
-  networks: Record<string, { internal: boolean }>;
+  networks: Record<string, { driver: string; internal: boolean }>;
   volumes: Record<string, Record<string, never>>;
 }
 export interface DevPreflight {
@@ -164,7 +164,7 @@ export function renderDevCompose(
   return {
     name: 'puni-dev-observability',
     services,
-    networks: { dev: { internal: true } },
+    networks: { dev: { driver: 'bridge', internal: false } },
     volumes,
   };
 }
@@ -173,8 +173,8 @@ export function renderDevCompose(
  * Checks a freshly collected host snapshot and required local input files without
  * runtime mutation. The caller collects capacity/port observations on h3mon;
  * this function does not attest that the supplied snapshot came from that host.
- * Only the internal dev network is approved, with every service attached solely
- * to it. A successful shape assessment deliberately leaves binary validation pending.
+ * Only the dedicated project bridge is approved, with every service attached solely
+ * to it. Outbound traffic is permitted so Docker can publish the loopback APIs. A successful shape assessment deliberately leaves binary validation pending.
  */
 export async function preflightDevDeployment(
   request: DevPreflight,
@@ -197,8 +197,12 @@ export async function preflightDevDeployment(
   // Proof: removing this throw failed missing-service and shared-project/network negatives.
   if (
     request.compose.name !== 'puni-dev-observability' ||
-    // Proof: forcing this predicate false failed the independent public-dev-network negative.
-    !request.compose.networks['dev'].internal ||
+    // Proof: bypassing this predicate failed the independent internal-only/publication negative.
+    !Object.is(request.compose.networks['dev'].internal, false) ||
+    // Proof: bypassing this predicate failed the nonbridge-driver negative.
+    request.compose.networks['dev'].driver !== 'bridge' ||
+    // Proof: bypassing this predicate independently admitted external=true and a shared network name.
+    Object.keys(request.compose.networks['dev']).sort().join(',') !== 'driver,internal' ||
     // Proof: forcing this predicate false failed the independent additional-networks negative.
     Object.keys(request.compose.networks).length !== 1 ||
     serviceNames !== 'alertmanager,collector,elasticsearch,gateway,kibana,prometheus'

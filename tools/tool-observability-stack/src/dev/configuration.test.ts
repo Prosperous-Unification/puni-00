@@ -186,3 +186,13 @@ it('supplies a deadline to every real endpoint request', () => {
   expect(check.exitCode).toBe(0);
   expect(check.stdout.toString()).toContain('alertmanager: endpoint ready');
 });
+
+it.each(['collector', 'gateway'] as const)(
+  'renderer refuses independently disabled %s queue',
+  (role) => {
+    const configuration = createDevConfiguration();
+    if (role === 'collector') configuration.collector.exporters.otlp.sending_queue.enabled = false;
+    else configuration.gateway.exporters['elasticsearch/otel'].sending_queue.enabled = false;
+    expect(() => renderDevConfiguration(configuration)).toThrow(/enabled persistent queue/);
+  },
+);

@@ -214,6 +214,9 @@ export function assertDevConfiguration(configuration: DevConfiguration): void {
   const collector = configuration.collector.exporters.otlp;
   const gateway = configuration.gateway.exporters['elasticsearch/otel'];
   for (const exporter of [collector, gateway]) {
+    // Proof: removing this throw independently failed disabled collector and gateway renderer negatives.
+    if (!Object.is(exporter.sending_queue.enabled, true))
+      throw new Error('enabled persistent queue required');
     // Proof: removing this throw failed the independent missing-persistent-storage negative.
     if (exporter.sending_queue.storage !== 'file_storage/queue')
       throw new Error('persistent queue storage required');

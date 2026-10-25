@@ -104,6 +104,7 @@ describe('dev deployment preflight', () => {
     expect(assessment.pending).toContain('pinned-binary-config-validation');
     expect(assessment.memoryBytes).toBe(5632 * 1024 ** 2);
     expect(request.compose.name).toBe('puni-dev-observability');
+    expect(request.compose.networks['dev']).toEqual({ driver: 'bridge', internal: false });
     expect(Object.keys(request.compose.services)).toHaveLength(6);
     expect(
       Object.values(request.compose.services)
@@ -205,14 +206,14 @@ describe('dev deployment preflight', () => {
     request.compose.name = 'observability';
     await expectRefusal(request, /topology/);
   });
-  it('refuses a public dev network with the project unchanged', async () => {
+  it('refuses internal-only networking that suppresses host publishes', async () => {
     const request = await fixture();
-    request.compose.networks['dev'].internal = false;
+    request.compose.networks['dev'].internal = true;
     await expectRefusal(request, /topology/);
   });
   it('refuses additional networks even when all services remain on dev', async () => {
     const request = await fixture();
-    request.compose.networks['shared'] = { internal: false };
+    request.compose.networks['shared'] = { driver: 'bridge', internal: false };
     await expectRefusal(request, /topology/);
   });
   it.each([[], ['shared'], ['dev', 'shared']])(
@@ -231,5 +232,14 @@ it.each(['rules.yaml', 'retention.sh', 'health.mjs'])(
     const request = await fixture();
     await rm(join(request.configDirectory, name));
     await expectRefusal(request, new RegExp(name));
+  },
+);
+
+it.each([{ external: true }, { name: 'shared-network' }, { driver: 'host' }])(
+  'refuses shared or nonbridge network configuration %j',
+  async (network) => {
+    const request = await fixture();
+    Object.assign(request.compose.networks['dev'], network);
+    await expectRefusal(request, /topology/);
   },
 );
