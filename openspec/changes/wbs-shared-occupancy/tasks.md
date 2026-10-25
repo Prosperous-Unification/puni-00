@@ -57,14 +57,14 @@
 
 ## 2. Domain: both scopes in one check
 
-- [ ] 2.1 `refuseOccupancy` takes the project's rows and the organization's rows for the
+- [x] 2.1 `refuseOccupancy` takes the project's rows and the organization's rows for the
       asked resources plus directory capacities; shortages carry `scope`; held units never
       refuse — test: one case per spec scenario (16 GB, staging, ceiling, tie, two leaves
       in one batch); fast-check model run over two projects: organization occupancy never
       exceeds a stated directory capacity after any sequence of claims, releases, undos and
       redos. Fault line: pass only the project's rows and the model run finds the 32-of-16
       sequence.
-- [ ] 2.2 Unstated directory capacity decides as before — test: the existing
+- [x] 2.2 Unstated directory capacity decides as before — test: the existing
       `claim-occupancy.test.ts` suite unchanged and green. Fault line: treat unstated as 0
       and every claim with a demand is refused.
 

@@ -3863,6 +3863,8 @@ export class WorkItemService {
       resources: input.resources,
       capacities: await this.resourceCapacitiesOf(projectId),
       occupancy,
+      directoryCapacities: [],
+      organizationOccupancy: [],
     });
     if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
     if (decided.kind === 'alreadyHeld') {
@@ -4276,6 +4278,8 @@ export class WorkItemService {
         asked: [...units].map(([resourceId, each]) => ({ resourceId, units: each })),
         capacities,
         occupancy,
+        directoryCapacities: [],
+        organizationOccupancy: [],
       });
       if (exhausted === null) {
         for (const row of asked) {

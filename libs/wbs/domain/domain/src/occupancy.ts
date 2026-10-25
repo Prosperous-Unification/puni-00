@@ -46,15 +46,38 @@ export interface BelowDeclaredDemand {
 }
 
 /**
- * One resource a claim would take more of than the project has free. `free`
- * is the stated capacity minus what other leaves hold; it reads below 0 when
- * a capacity was lowered under units already held.
+ * One occupancy row of an organization's claims ({@link OccupancyRow}) with
+ * the project and organization its leaf belongs to: what the organization-wide
+ * check counts against a **Directory capacity** (`wbs-shared-occupancy` S2).
+ */
+export interface OrganizationOccupancyRow extends OccupancyRow {
+  readonly projectId: string;
+  readonly organizationId: string;
+}
+
+/**
+ * Which check bound a shortage (`wbs-shared-occupancy` S3): the project's
+ * stated capacity, or the resource's directory capacity across the
+ * organization.
+ */
+export type OccupancyScope = 'project' | 'organization';
+
+/**
+ * One resource a claim would take more of than it has free. `free` is the
+ * binding capacity minus what other leaves hold; it reads below 0 when a
+ * capacity was lowered under units already held.
+ *
+ * `scope` names the check that bound it and is present exactly when the
+ * resource states a directory capacity: a resource that states none is
+ * counted within the project alone, and its shortage reads byte for byte as
+ * it did before directory capacities existed.
  */
 export interface ResourceShortage {
   readonly resourceId: string;
   readonly asked: number;
   readonly free: number;
   readonly holders: readonly OccupancyHolder[];
+  readonly scope?: OccupancyScope;
 }
 
 /**
@@ -220,13 +243,18 @@ export function askedUnitsOf(
 }
 
 /**
- * **The** occupancy check (`wbs-resources` R3), the one place a claim, a redo
- * of a claim and an undo of a release ask whether units are free: for each
- * resource of `asked` the project states a capacity for, in resource-id order,
- * the leaf may hold `units` when it already holds that many or more, or when
- * the capacity minus what the project's other leaves hold covers them.
- * Unstated capacity never refuses. Called inside the batch's transaction, so
- * the write coordinator orders two claims and the second reads the first's units.
+ * **The** occupancy check (`wbs-resources` R3, `wbs-shared-occupancy` S3), the
+ * one place a claim, a redo of a claim and an undo of a release ask whether
+ * units are free. For each resource of `asked`, in resource-id order, the leaf
+ * may hold `units` when it already holds that many or more; otherwise in each
+ * scope that states a capacity, that capacity minus what the scope's other
+ * leaves hold must cover them: the project's stated capacity against the
+ * project's rows, and the resource's directory capacity against every row of
+ * its organization. The scope with fewer free units binds (on a tie the
+ * organization); a resource stated in neither never refuses.
+ *
+ * Called inside the batch's transaction, so the write coordinator orders two
+ * claims and the second reads the first's units, in any project.
  *
  * Proof: with the comparison answering null, `refuses the ninth of eight 4 GB
  * claims on 32 GB` (claim-occupancy.test.ts) claimed, and `admits one of two concurrent
@@ -236,10 +264,19 @@ export function askedUnitsOf(
 export function refuseOccupancy(request: {
   readonly workItemId: string;
   readonly asked: readonly ResourceUnits[];
+  /** The project's stated capacities. */
   readonly capacities: readonly ResourceCapacity[];
+  /** Every occupancy row of the project's claims. */
   readonly occupancy: readonly OccupancyRow[];
+  /** The stated directory capacities of the asked resources; one unstated has no entry. */
+  readonly directoryCapacities: readonly ResourceCapacity[];
+  /** Every occupancy row of the organization's claims on those resources, this project's included. */
+  readonly organizationOccupancy: readonly OccupancyRow[];
 }): ResourcesExhausted | null {
   const capacityOf = new Map(request.capacities.map((each) => [each.resourceId, each.units]));
+  const directoryOf = new Map(
+    request.directoryCapacities.map((each) => [each.resourceId, each.units]),
+  );
   const held = new Map(
     leafOccupancyOf(request.occupancy, request.workItemId).map((each) => [
       each.resourceId,
@@ -249,21 +286,63 @@ export function refuseOccupancy(request: {
   const others = occupancyByResource(
     request.occupancy.filter((row) => row.workItemId !== request.workItemId),
   );
+  const organizationOthers = occupancyByResource(
+    request.organizationOccupancy.filter((row) => row.workItemId !== request.workItemId),
+  );
   const short: ResourceShortage[] = [];
   for (const { resourceId, units } of [...request.asked].sort(byResource)) {
-    const capacity = capacityOf.get(resourceId);
     // Proof: with the held comparison removed, `lets a leaf already holding
     // units keep them while the capacity sits below them` (claim-occupancy.test.ts)
     // refused the leaf its own units; watched 2026-10-20.
-    if (capacity === undefined || units <= (held.get(resourceId) ?? 0)) continue;
-    const taken = others.find((each) => each.resourceId === resourceId);
-    const free = capacity - (taken?.occupied ?? 0);
+    if (units <= (held.get(resourceId) ?? 0)) continue;
+    const scopes: ResourceShortage[] = [];
+    const capacity = capacityOf.get(resourceId);
+    if (capacity !== undefined) {
+      const taken = others.find((each) => each.resourceId === resourceId);
+      scopes.push({
+        resourceId,
+        asked: units,
+        free: capacity - (taken?.occupied ?? 0),
+        holders: taken?.holders ?? [],
+        scope: 'project',
+      });
+    }
+    const directory = directoryOf.get(resourceId);
+    // Unstated is absent, never 0: a resource no admin sized decides as it did.
+    // Proof: with this scope skipped, `refuses B’s 16 GB while A holds the
+    // directory’s 16` (claim-shared-occupancy.test.ts) claimed in B and the
+    // model run `never holds more of a directory capacity than it states`
+    // found a counterexample (3 pass, 5 fail); with an unstated directory
+    // capacity read as 0, claim-occupancy.test.ts went 6 pass, 12 fail;
+    // watched 2026-10-25.
+    if (directory !== undefined) {
+      const taken = organizationOthers.find((each) => each.resourceId === resourceId);
+      scopes.push({
+        resourceId,
+        asked: units,
+        free: directory - (taken?.occupied ?? 0),
+        holders: taken?.holders ?? [],
+        scope: 'organization',
+      });
+    }
+    // The fewer free units bind; the organization is pushed last, so `<=`
+    // keeps it on a tie.
+    const binding = scopes.reduce<ResourceShortage | undefined>(
+      (tightest, each) => (tightest === undefined || each.free <= tightest.free ? each : tightest),
+      undefined,
+    );
     // Every short resource, not the first: an agent waiting on RAM alone
     // would claim again and be refused for the worktree it was never told of.
     // Proof: keeping only the first, `names every resource a claim is short
     // of…` (claim-occupancy.test.ts) listed RAM alone (17 pass, 1 fail);
     // watched 2026-10-23.
-    if (units > free) short.push({ resourceId, asked: units, free, holders: taken?.holders ?? [] });
+    if (binding === undefined || units <= binding.free) continue;
+    // A resource with no directory capacity reads as it always did, scope unsaid.
+    short.push(
+      directory === undefined
+        ? { resourceId, asked: units, free: binding.free, holders: binding.holders }
+        : binding,
+    );
   }
   const first = short.at(0);
   if (first === undefined) return null;

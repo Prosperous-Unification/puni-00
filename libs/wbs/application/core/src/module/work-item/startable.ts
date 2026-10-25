@@ -290,6 +290,10 @@ export function findStartableWork(reads: StartableReads): StartableWork {
         : (demandOf.get(workItemId) ?? []),
       capacities: reads.capacities,
       occupancy: reads.occupancy,
+      // Counted within the project until the startable read reads the
+      // organization's occupancy (`wbs-shared-occupancy` task 5.1).
+      directoryCapacities: [],
+      organizationOccupancy: [],
     });
     if (refusal === null) return null;
     const { name, unitLabel } = resourceOf(refusal.resourceId);

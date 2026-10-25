@@ -94,3 +94,23 @@ R5 proofs, each fault injected into the file, the test run, the file restored:
 A text `'16'` is not refused by the database: the column's INTEGER affinity stores it as
 16 (as `project_resource_capacity` does). The CHECK's `typeof` refuses text that is not an
 integer; the command boundary refuses every non-integer before SQL.
+
+### Slice 2: both scopes in one check
+
+`refuseOccupancy` and `ClaimRequest` take `directoryCapacities` and `organizationOccupancy`
+(required, so no caller can forget them); a shortage carries `scope` exactly when its
+resource states a directory capacity, so a resource with none refuses byte for byte as
+before (the reading of "no change" this slice takes; S3's `scope: 'project'` appears on
+the ceiling case under a stated directory capacity). The existing suites changed only by
+the two empty inputs added to their request builders; no assertion moved.
+
+- `bun test libs/wbs/domain/domain/src/claim-shared-occupancy.test.ts
+libs/wbs/domain/domain/src/claim-occupancy.test.ts libs/wbs/domain/domain/src/claim.test.ts`
+  → 83 pass, 0 fail.
+- `bunx nx run-many -t typecheck -p wbs-domain wbs-core --skip-nx-cache` → exit 0.
+
+| Fault                                                          | Observed                                                                                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| the organization scope skipped in `refuseOccupancy`            | `claim-shared-occupancy.test.ts` 3 pass, 5 fail; the model run's counterexample: directory 0, one claim of 1 in project 0 |
+| the model run passing the project's rows as the organization's | counterexample `directory 12`: a claim of 1 in project 1, then 12 in project 0 (13 of 12)                                 |
+| an unstated directory capacity read as 0                       | `claim-occupancy.test.ts` 6 pass, 12 fail                                                                                 |
