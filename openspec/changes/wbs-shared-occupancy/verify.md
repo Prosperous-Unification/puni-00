@@ -149,18 +149,18 @@ tested with slice 1.2.
 - `bunx nx run-many -t typecheck -p wbs-domain wbs-core wbs-store-memory wbs-store-sqlite
 wbs-contracts wbs-conformance` → exit 0.
 
-| Fault                                                                                           | Observed                                                                                                                 |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| the claim path passing `organizationOccupancy: []` to `decideClaim`                             | `shared-occupancy.db.test.ts` 14 pass, 8 fail: B's 16 GB, staging, the two-leaf batch and the lease case on both stores  |
-| the re-acquire path passing no organization rows                                                | 14 pass, 8 fail: undo of a release, redo of a claim, undo of a delete (refused world), cascading release, on both stores |
-| a cascade's admitted leaves not joining the organization snapshot                               | 20 pass, 2 fail: `refuses an undo of a cascading release leaf by leaf across projects` on both stores                    |
-| the batch's organization read routed to the public store's observation connection (3.1 b)       | SQLite: 21 pass, 1 fail: the two-leaf batch answered `ok: true`, 20 of 16                                                |
-| every batch's organization read answered by rows read before either took its turn (3.1 a)       | race test: both one-process orders failed, both claims stored                                                            |
-| the organization check skipped (no directory capacity read)                                     | race test: both one-process orders and the two-connection case failed (`applied`, `applied`)                             |
-| `scope` left out of the binding's refusal detail                                                | 14 pass, 8 fail on the organization- and project-scope cases                                                             |
-| memory twin's organization comparison dropped                                                   | memory certification: `claims.occupancy:organization-scope` failed (74 pass, 1 fail)                                     |
-| SQLite join to the resource's organization dropped                                              | SQLite certification: `claims.occupancy:organization-scope` failed (74 pass, 1 fail)                                     |
-| the memory coordinator granting every turn at once (a lock covering less than the organization) | unit-of-work (m) failed: the second act started while the first held its turn (6 pass, 1 fail)                           |
+| Fault                                                                                           | Observed                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the claim path passing `organizationOccupancy: []` to `decideClaim`                             | `shared-occupancy.db.test.ts` 14 pass, 8 fail: B's 16 GB, staging, the two-leaf batch and the lease case on both stores                                                                     |
+| the re-acquire path passing no organization rows                                                | 14 pass, 8 fail: undo of a release, redo of a claim, undo of a delete (refused world), cascading release, on both stores                                                                    |
+| a cascade's admitted leaves not joining the organization snapshot                               | 20 pass, 2 fail: `refuses an undo of a cascading release leaf by leaf across projects` on both stores                                                                                       |
+| the batch's organization read routed to the public store's observation connection (3.1 b)       | SQLite: 21 pass, 1 fail: the two-leaf batch answered `ok: true`, 20 of 16                                                                                                                   |
+| every batch's organization read answered by rows read before either took its turn (3.1 a)       | race test: both one-process orders failed, both claims stored                                                                                                                               |
+| the organization check skipped (no directory capacity read)                                     | race test: the two-connection case answered `applied`, `applied`; the one-process cases hung on `await queued` (5 s timeout) rather than asserting, corrected after review S3-3 (see below) |
+| `scope` left out of the binding's refusal detail                                                | 14 pass, 8 fail on the organization- and project-scope cases                                                                                                                                |
+| memory twin's organization comparison dropped                                                   | memory certification: `claims.occupancy:organization-scope` failed (74 pass, 1 fail)                                                                                                        |
+| SQLite join to the resource's organization dropped                                              | SQLite certification: `claims.occupancy:organization-scope` failed (74 pass, 1 fail)                                                                                                        |
+| the memory coordinator granting every turn at once (a lock covering less than the organization) | unit-of-work (m) failed: the second act started while the first held its turn (6 pass, 1 fail)                                                                                              |
 
 ADR 0015 carries the amendment "a check that reads across projects needs the source's lock to
 cover the organization", marked assumed with S4.
@@ -182,7 +182,7 @@ consent credentials read live as `boot.ts` reads them) and `delegationFor` an op
 - `bun test apps/wbs/be-01/src/controller/directory-capacity.controller.db.test.ts` → 11 pass,
   0 fail (both routes, every role, an admin's agent key, an admin's own MCP session, an MCP
   consent acting as the admin's agent, audit, removal counts, preview, lowering).
-- `bun test libs/wbs/application/core/src/module/plan-commands/directory-capacity-command.test.ts`
+- `bun test libs/wbs/application/core/src/module/plan-commands/directory-capacity-command.test.ts` (since moved to `module/directory/directory-capacity.test.ts`)
   → 3 pass, 0 fail (memory twin: commit, `organization_required`, the announce).
 - Memory and SQLite certifications with `directory.setDirectoryCapacity:state-clear-remove`
   → 101 pass and 75 pass, 0 fail.
@@ -241,7 +241,7 @@ only for a refusal) or the index `claim_occupancy (resource_id, claim_id)`. 3.5 
 ### Before the push
 
 - `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`
-  → exit 0 once `directory-capacity-command.test.ts` joined the plan-commands module index
+  → exit 0 once `directory-capacity.test.ts` joined the plan-commands module index
   (first run: `unindexed candidate path`, exit 1). Its `reviewDebt` now names two indexes:
   `libs/wbs/adapters/store-memory/src/README.md` (51 over 40, earlier) and
   `libs/wbs/application/core/src/module/plan-commands/README.md` (41 over 40, this change's
@@ -261,3 +261,99 @@ Not run: the full suites, `bin/h2puni-gate.sh` (CI and the gate host own them, a
 cap allows two heavy agents), the mcp-01 boot tests and `swarm-rehearsal.boot.db.test.ts`
 (they boot processes), and fe-01 tests (fe-01 is untouched beyond its typecheck, which
 passed).
+
+## Review of #745 (Fable, at `7a26feb86`), addressed 2026-10-25
+
+- **S1-1 done.** Merged `origin/main` (#735, `a403db487`). The two migrations are restamped
+  `20261025140000_widen_organization_audit_directory_capacity` and
+  `20261025140100_add_resource_directory_capacity`, after #735's `20261025120000` and
+  `20261025130000`; every constant, comment and pinned list follows (46 test files). New
+  case `is stamped after every folder that existed when it was written, colliding with none`
+  in `directory-capacity-migration.db.test.ts`; Proof: with the widening folder renamed back
+  to `20261025100000`, it failed (0 pass, 1 fail). The migration's rollback tests now target
+  `20261025130000_add_resource_runtime`.
+- **S2-1 done.** `removeResource` keeps #735's `(usage.outstandingUses ?? 0) > 0` refusal
+  under cascade and counts `usage.directoryCapacity !== null` as in use; contracts
+  `http/shapes.ts` imports both; mcp-01 README says 101 tools. The six superseded sentences
+  of `wbs-resource-release` (proposal 23 and 32, design 34, 42 and 184 to 185, spec 126 to 127) carry pointers to S9 (the spec sentence an explicit exception); S9's inventory and
+  the design's "not on `main`" are corrected; task 0.2 stays open.
+- **S2-2 done (the fit half of 5.1).** `startableWithin` reads the same directory
+  capacities and organization units as the claim, over every demanded resource, and reads
+  the resource catalog when only a directory capacity is stated; `exhausted` carries `scope`
+  for such a resource; `startable-shapes.ts`'s description now says which fit counts across
+  the organization. Test: `agrees with the claim across projects` (both stores). Proofs:
+  with empty organization inputs in `findStartableWork`, 24 pass, 2 fail (that case on both
+  stores); with the catalog read only on a project capacity, the same two failed.
+- **S2-3 done; 3.5 still open.** `ClaimStore.organizationUnitsOf` sums each leaf's largest
+  copy per resource in SQL (no rows, no ORDER BY) and the check subtracts the asking leaf's
+  own units, which it always reads in the project's rows (equivalent to excluding it in SQL,
+  and one query serves every leaf of the startable read). Holders and their names are read
+  only when a shortage is found (`refusedWithHolders`); `personNamesWithin` filters through
+  a `Set`. Proofs: with the units withheld from `decideClaim`, `shared-occupancy.db.test.ts`
+  16 pass, 10 fail; with the organization holders left unread, the naming case failed on
+  both stores (24 pass, 2 fail). Re-measured under scoped access, every claim by an agent of
+  its own (about 1,400 persons in the organization), three runs:
+
+  | Run | stated p50 / p99 (ms) | unstated p50 / p99 (ms) | added at p99       |
+  | --- | --------------------- | ----------------------- | ------------------ |
+  | 1   | 32.521 / 48.010       | 29.988 / 47.530         | 0.480 ms, 1.01 %   |
+  | 2   | 31.960 / 46.652       | 29.716 / 43.413         | 3.239 ms, 7.46 %   |
+  | 3   | 39.873 / 83.689       | 37.016 / 67.227         | 16.462 ms, 24.49 % |
+
+  The median cost fell from about 4 ms to about 2.5 ms; run 3 crossed 5 ms at p99 with the
+  host's load average at 14 to 17 (another agent's suites). By the task's rule 3.5 stays
+  open; the next step is a quiet-host rerun before any index.
+
+- **S3-1 done.** Legacy access is refused `organization_required` before any read. Test:
+  `refuses legacy access organization_required, writing nothing`
+  (`module/directory/directory-capacity.test.ts`); Proof: with the refusal replaced by the
+  store write, 3 pass, 1 fail. The memory twin's scoped path needed `projectsOutside`
+  (modelled now in `memory-stores.ts`; Proof: removed, 2 pass, 2 fail on `no project
+ownership`); the test drives the service in one unit of work, since the memory source
+  admits no scoped runner batch.
+- **S3-2 done by rewording.** Case (m) is `excludes any concurrent batch for the length of
+its turn`; it, ADR 0015's amendment and task 3.3 now say it proves the store-wide turn
+  every source has, and that the per-project fault needs `UnitOfWork.run` to take a key first.
+- **S3-3 done.** The one-process race cases wait on `queued` at most 2 s and assert it.
+  Proofs: with every batch answered stale units, both orders failed (20 of 16); with the
+  directory capacity withheld from the decision, the same; with the organization read
+  skipped altogether, both failed on `reachedInTime` in about 2 s instead of hanging. The
+  earlier record above is corrected.
+- **S3-4 done by dropping.** The memory twin keeps no `directoryCapacityAudit`; SQLite's
+  audit row is proven by the controller test.
+- **S3-5 done.** A holder in another project carries `projectId` (domain `OccupancyHolder`,
+  contracts `OccupancyRefusalHolder` and the wire `occupancyHolder`); asserted in `refuses B’s
+16 GB …`. The 404 trap is gone for organization members; redaction stays 4.1's.
+- **S3-6/7 done.** `docs/runbook-prod-deploy.md` _Directory capacity_ and
+  `docs/runbook-dev-deploy.md`: state capacities only after the swap or restart completes;
+  the table's rollback needs every capacity cleared; once any was written the audit rows stop
+  the rollback at the widening, completed with
+  `migrate-down-cli.ts --to=20261025140000_widen_organization_audit_directory_capacity`.
+  Task 7.4's operator half stays open.
+- **S3-8 done by throwing.** Both stores throw when a resource some organization owns is held
+  in a project of no organization; a project of another organization stays filtered. Test:
+  `throws on a holder in a project of no organization` (both stores). Proofs: with SQLite's
+  throw removed, 25 pass, 1 fail (sqlite); with the memory twin's, 25 pass, 1 fail (memory).
+- The plan-commands README is back under 40 entries: the memory test moved to the directory
+  module. A pin this change missed in the first round: `plan-command-shapes.test.ts`
+  counted 61 command branches; now 62.
+
+Commands after the review (targeted only):
+
+- `bunx nx run-many -t typecheck -p wbs-domain wbs-core wbs-store-memory wbs-store-sqlite
+wbs-contracts wbs-conformance wbs-be-01 wbs-mcp-01 wbs-fe-01 --skip-nx-cache` → exit 0
+  (after one test-literal fix).
+- `bunx nx run-many -t lint` on the nine affected projects → exit 0.
+- The 46 migration-pinning and capacity test files → 765 pass, 0 fail.
+- Core, store, domain and conformance suites (30 files) → 613 pass, 6 fail: all six in
+  `store-sqlite/src/testing/source-conformance.db.test.ts`, each `timed out after 5000ms`
+  at load average 14 to 17; alone, the file went 73 pass, 2 fail, and of those, `reinjects
+the existing add, rename …` passed alone (4,550 ms) while `Task 6.3 observes each
+saved-plan capture boundary fault` timed out alone (5,947 ms). Neither touches this
+  change's code; not proven green here.
+- be-01, mcp-01, contracts and migration-lint suites (41 files) → 376 pass, 1 fail (the
+  branch-count pin), then 5 pass after the fix.
+- `check-indexes working . HEAD` → exit 0; review debt: only the store-memory README (51
+  over 40), which predates this change.
+- `openspec validate --all --json` → `{ items: 293, passed: 293, failed: 0 }`.
+- Migration lint over every `.sql` the branch changes → exit 0. Prettier → clean.

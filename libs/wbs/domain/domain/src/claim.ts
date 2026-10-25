@@ -100,8 +100,8 @@ export interface ClaimRequest {
    * project alone.
    */
   readonly directoryCapacities: readonly ResourceCapacity[];
-  /** Every occupancy row of the organization's claims on those resources, this project's included. */
-  readonly organizationOccupancy: readonly OccupancyRow[];
+  /** The units every leaf of the organization holds of those resources ({@link refuseOccupancy}). */
+  readonly organizationOccupied: readonly ResourceUnits[];
 }
 
 /** One holder a refusal names; the command adds the person's name. */
@@ -347,7 +347,7 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
       capacities: request.capacities,
       occupancy: request.occupancy,
       directoryCapacities: request.directoryCapacities,
-      organizationOccupancy: request.organizationOccupancy,
+      organizationOccupied: request.organizationOccupied,
     });
     if (exhausted !== null) return refused(exhausted);
     occupancy = carried;

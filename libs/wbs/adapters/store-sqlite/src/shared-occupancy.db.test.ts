@@ -229,6 +229,8 @@ async function seeded(store: (typeof STORES)[number]) {
   };
   return {
     source,
+    graph,
+    opened,
     runner,
     projects: { a, b },
     leaf,
@@ -247,8 +249,96 @@ async function seeded(store: (typeof STORES)[number]) {
 
 for (const store of STORES) {
   describe(`shared occupancy on the ${store.name} store`, () => {
+    // `wbs-shared-occupancy` S6, the fit half of task 5.1.
+    it('agrees with the claim across projects', async () => {
+      const { graph, projects, run, claim, release, leaf, state, close } = await seeded(store);
+      try {
+        await state(RAM, 16);
+        for (const project of [0, 1] as const)
+          await run(project, [
+            { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
+          ]);
+        expect(await run(0, [claim(0, 0, 'a0')])).toMatchObject({ ok: true });
+        const startable = await graph.workItems.startableWithin(
+          projects.b,
+          { kind: 'legacy' },
+          null,
+        );
+        if (startable === null || 'kind' in startable) throw new Error('the read was refused');
+        expect(startable.leaves.map(({ workItemId }) => workItemId)).not.toContain(leaf(1, 0));
+        const unfit = startable.doesNotFit.find((each) => each.workItemId === leaf(1, 0));
+        expect(unfit?.exhausted).toMatchObject({
+          resourceId: RAM,
+          asked: 16,
+          free: 0,
+          scope: 'organization',
+        });
+        expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: false });
+        await run(0, [release(0, 0, 'a0')]);
+        const freed = await graph.workItems.startableWithin(projects.b, { kind: 'legacy' }, null);
+        if (freed === null || 'kind' in freed) throw new Error('the read was refused');
+        expect(freed.leaves.map(({ workItemId }) => workItemId)).toContain(leaf(1, 0));
+        expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: true });
+      } finally {
+        await close();
+      }
+    });
+
+    // Review S3-8: after activation every project has its organization row,
+    // so an owned resource held in a project of none is corrupt, not skipped.
+    it('throws on a holder in a project of no organization', async () => {
+      const { source, graph, runner, state, close } = await seeded(store);
+      try {
+        await state(RAM, 16);
+        const { project, steps } = await graph.projects.create('Orphan', F);
+        const step = steps.at(0);
+        if (step === undefined) throw new Error('the orphan project has no step');
+        if (store.name === 'memory')
+          await source.stores.steps.add(
+            {
+              id: step.id,
+              projectId: project.id,
+              name: step.name,
+              allowancePercent: 0,
+              estimateUnit: 'workdays',
+            },
+            { at: 1, by: F },
+          );
+        const created = await runner.run(project.id, F, [
+          { kind: 'createWorkItem', name: 'Leaf', parentId: null, afterId: null },
+        ]);
+        const workItemId = created.ok ? created.results.at(0)?.id : undefined;
+        if (workItemId === undefined) throw new Error('the orphan leaf was refused');
+        const written = await source.stores.claims.add(
+          [
+            {
+              id: 'orphan-claim',
+              workItemId,
+              stepId: step.id,
+              personId: 'a0',
+              runId: null,
+              parentClaimId: null,
+              accountId: F,
+            },
+          ],
+          [],
+          { at: 1, by: F },
+          [{ claimId: 'orphan-claim', resourceId: RAM, units: 4 }],
+        );
+        expect(written).toBe('written');
+        expect(
+          await source.stores.claims.organizationUnitsOf([RAM]).then(
+            () => 'answered',
+            (error: unknown) => String(error),
+          ),
+        ).toContain('held in a project of no organization');
+      } finally {
+        await close();
+      }
+    });
+
     it('refuses B’s 16 GB while A holds the directory’s 16, naming the organization', async () => {
-      const { run, claim, leaf, held, state, close } = await seeded(store);
+      const { run, claim, leaf, held, state, projects, close } = await seeded(store);
       try {
         await state(RAM, 16);
         for (const project of [0, 1] as const)
@@ -266,7 +356,8 @@ for (const store of STORES) {
             asked: 16,
             free: 0,
             scope: 'organization',
-            holders: [{ personId: 'a0', workItemId: leaf(0, 0) }],
+            // Another project's holder names its project (S5).
+            holders: [{ personId: 'a0', workItemId: leaf(0, 0), projectId: projects.a }],
           },
         });
         expect(await held(RAM)).toBe(16);

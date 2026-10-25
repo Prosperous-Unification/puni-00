@@ -133,14 +133,16 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     expect(answer).toBe('reached the end');
   });
 
-  it('(m) excludes a concurrent batch while one reads across projects', async () => {
+  it('(m) excludes any concurrent batch for the length of its turn', async () => {
     // ADR 0015's amendment of 2026-10-25 (`wbs-shared-occupancy` S4): a check
-    // that reads beyond its own project, as a claim reads the organization's
-    // occupancy of a shared resource, holds only if no batch of another
-    // project commits between its read and its write. The directory's tags
-    // stand in for the organization's rows here: each batch reads how many
-    // there are and writes one named by that count, so two batches that
-    // overlapped would both write `seen-0` (idempotent by name) and leave one.
+    // that reads beyond its own project holds only if no batch of another
+    // project commits between its read and its write. `run` takes no project
+    // key, so this proves what every source has today, a store-wide turn,
+    // and no more: a source that keys its coordinator by project must add the
+    // key and a per-project case first. The directory's tags stand in for
+    // the organization's rows: each batch reads how many there are and writes
+    // one named by that count, so two batches that overlapped would both write
+    // `seen-0` (idempotent by name) and leave one.
     //
     // Proof: with the memory source's coordinator granting every turn at once
     // (a source whose lock covers less than the batches it orders), this case

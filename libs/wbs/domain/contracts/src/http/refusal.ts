@@ -346,6 +346,8 @@ export interface ClaimRefusalHolder {
 
 /** One holder `resources_exhausted` names: a claimant and run on one leaf. */
 export interface OccupancyRefusalHolder {
+  /** A holder in another project of the organization names it (`wbs-shared-occupancy` S5). */
+  projectId?: string;
   personId: string;
   name: string;
   runId: string | null;

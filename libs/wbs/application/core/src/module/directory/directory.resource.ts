@@ -599,8 +599,8 @@ export class DirectoryService {
    * routes take. Under scoped access only an admin or a super-admin may
    * (`forbidden` otherwise, before the resource is looked up, as a removal is
    * refused); every agent arrives as at most a member. A foreign or absent
-   * resource is `not_found`; one no organization owns (a legacy resource,
-   * and under legacy access every one) is `organization_required`. The write
+   * resource is `not_found`; legacy access, and a resource no organization
+   * owns, is `organization_required`. The write
    * appends one `directory_capacity_changed` audit row and enters no journal;
    * it then announces `directory_changed` to every project that demands or
    * states the resource (S7).
@@ -615,7 +615,7 @@ export class DirectoryService {
    * in `SqliteOrganizationAccess`, the agent key, consent and preview cases
    * failed; with the announce skipped, `announces directory_changed to every
    * project that states or demands the resource`
-   * (directory-capacity-command.test.ts) found none.
+   * (directory-capacity.test.ts) found none.
    */
   async setDirectoryCapacityWithin(
     resourceId: string,
@@ -625,20 +625,24 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<null>> {
     this.refuseStandaloneResourceWrite();
-    const scope = access.kind === 'scoped' ? access.scope : null;
-    if (scope !== null) {
-      if (!mayStateDirectoryCapacityInOrganization(scope.role))
-        return { ok: false, reason: 'forbidden' };
-      if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
-        return { ok: false, reason: 'not_found' };
-    }
+    // Legacy access has no organization to state units for, and no role to
+    // check: refused before any read (review S3-1).
+    // Proof: with this refusal replaced by the store write, `refuses legacy
+    // access organization_required, writing nothing`
+    // (directory-capacity.test.ts) failed (3 pass, 1 fail); watched 2026-10-25.
+    if (access.kind === 'legacy') return { ok: false, reason: 'organization_required' };
+    const { scope } = access;
+    if (!mayStateDirectoryCapacityInOrganization(scope.role))
+      return { ok: false, reason: 'forbidden' };
+    if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
+      return { ok: false, reason: 'not_found' };
     const written = await this.opts.directory.setDirectoryCapacity(resourceId, units, {
       stamp: this.clock.stampFor(actorId),
       actor: actorId,
       auditId: this.clock.newId(),
     });
     if (!written.ok) return { ok: false, reason: written.reason };
-    if (scope !== null) await this.refuseForeignProjects(written.projectIds, scope);
+    await this.refuseForeignProjects(written.projectIds, scope);
     await this.announce(written.projectIds);
     return { ok: true, value: null };
   }

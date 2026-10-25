@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { ClaimStore, OrganizationOccupancyRow, PlanCommand, Scope } from '@wbs/core';
+import type { ClaimStore, PlanCommand, ResourceUnits, Scope } from '@wbs/core';
 import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
@@ -55,7 +55,7 @@ interface Hold {
  * F. `stale`, when given, is what every batch's organization read answers
  * instead of reading: a read taken outside the turn.
  */
-async function seeded(hold: Hold | null, stale: OrganizationOccupancyRow[] | null = null) {
+async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
   const options = {
     admission: CREATOR_ADMISSION,
     clock: clockOf({ now: () => 1_000, newId: () => crypto.randomUUID() }),
@@ -97,13 +97,13 @@ async function seeded(hold: Hold | null, stale: OrganizationOccupancyRow[] | nul
   if (!stated.ok) throw new Error('the directory capacity was refused');
   const gated = (claims: ClaimStore): ClaimStore =>
     Object.assign(Object.create(Object.getPrototypeOf(claims) as object) as ClaimStore, claims, {
-      organizationOccupancyOf: async (ids: readonly string[]) => {
+      organizationUnitsOf: async (ids: readonly string[]) => {
         if (hold?.armed === true) {
           hold.armed = false;
           hold.reached();
           await hold.release;
         }
-        return stale ?? claims.organizationOccupancyOf(ids);
+        return stale ?? claims.organizationUnitsOf(ids);
       },
     });
   const runner = createPlanCommandRunner({
@@ -157,15 +157,23 @@ describe('two projects claim a shared resource at once', () => {
       const second = first === 0 ? 1 : 0;
       hold.armed = true;
       const winner = runner.run(projects[first], F, [claim(first)]);
-      await queued;
+      // Bounded: a batch that never reads the organization never reaches the
+      // hold, and this case must fail on that, not hang (review S3-3).
+      const reachedInTime = await Promise.race([
+        queued.then(() => true),
+        Bun.sleep(2_000).then(() => false),
+      ]);
+      expect(reachedInTime).toBe(true);
       // The first batch holds the write turn inside its organization read; the second queues.
       const loser = runner.run(projects[second], F, [claim(second)]);
       await Bun.sleep(20);
       release();
       // Proof, each watched 2026-10-25: with every batch's organization read
-      // answered by rows read before either took its turn (`stale` = []),
-      // both orders stored both claims, 20 of 16; with the organization check
-      // skipped in the claim path (no directory capacity read), the same.
+      // answered by units read before either took its turn (`stale` = []),
+      // both orders stored both claims, 20 of 16; with the directory
+      // capacity withheld from the decision, the same; with the organization
+      // read skipped altogether (no hold is ever reached), both orders failed
+      // on `reachedInTime` after 2 s instead of hanging.
       const [won, lost] = await Promise.all([winner, loser]);
       expect(won).toMatchObject({ ok: true });
       expect(lost).toMatchObject({

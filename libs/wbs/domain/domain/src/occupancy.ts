@@ -29,6 +29,12 @@ export interface OccupancyHolder {
   readonly personId: string;
   readonly runId: string | null;
   readonly workItemId: string;
+  /**
+   * The holder's project, named on a holder across the organization
+   * (`wbs-shared-occupancy` S5) so a reader knows its work item is not this
+   * project's; absent on a holder in the asking project.
+   */
+  readonly projectId?: string;
 }
 
 /** One resource's occupancy across a project: the units its leaves hold, and who holds them. */
@@ -270,8 +276,13 @@ export function refuseOccupancy(request: {
   readonly occupancy: readonly OccupancyRow[];
   /** The stated directory capacities of the asked resources; one unstated has no entry. */
   readonly directoryCapacities: readonly ResourceCapacity[];
-  /** Every occupancy row of the organization's claims on those resources, this project's included. */
-  readonly organizationOccupancy: readonly OccupancyRow[];
+  /**
+   * The units every leaf of the organization holds of each of those resources,
+   * this project's leaves and the asking leaf included (each leaf's largest
+   * copy, summed: `ClaimStore.organizationUnitsOf`). The check takes the
+   * asking leaf's own units off, read from `occupancy`, where it always is.
+   */
+  readonly organizationOccupied: readonly ResourceUnits[];
 }): ResourcesExhausted | null {
   const capacityOf = new Map(request.capacities.map((each) => [each.resourceId, each.units]));
   const directoryOf = new Map(
@@ -286,8 +297,8 @@ export function refuseOccupancy(request: {
   const others = occupancyByResource(
     request.occupancy.filter((row) => row.workItemId !== request.workItemId),
   );
-  const organizationOthers = occupancyByResource(
-    request.organizationOccupancy.filter((row) => row.workItemId !== request.workItemId),
+  const organizationOccupied = new Map(
+    request.organizationOccupied.map((each) => [each.resourceId, each.units]),
   );
   const short: ResourceShortage[] = [];
   for (const { resourceId, units } of [...request.asked].sort(byResource)) {
@@ -315,13 +326,15 @@ export function refuseOccupancy(request: {
     // found a counterexample (3 pass, 5 fail); with an unstated directory
     // capacity read as 0, claim-occupancy.test.ts went 6 pass, 12 fail;
     // watched 2026-10-25.
+    // Holders across the organization are not the check's: the caller names
+    // them only once a shortage is found, so a fitting claim reads no rows.
     if (directory !== undefined) {
-      const taken = organizationOthers.find((each) => each.resourceId === resourceId);
+      const others = (organizationOccupied.get(resourceId) ?? 0) - (held.get(resourceId) ?? 0);
       scopes.push({
         resourceId,
         asked: units,
-        free: directory - (taken?.occupied ?? 0),
-        holders: taken?.holders ?? [],
+        free: directory - others,
+        holders: [],
         scope: 'organization',
       });
     }

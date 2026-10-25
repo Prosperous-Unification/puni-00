@@ -90,7 +90,10 @@
       source's lock to cover the organization"; add the source-conformance case: a batch
       claiming a resource with a directory capacity excludes a concurrent batch of another
       project of the organization. Fault line: a conformance fake source that locks per
-      project only admits both, and the case fails.
+      project only admits both, and the case fails. (Built as case (m), which proves the
+      store-wide turn every source has: `UnitOfWork.run` takes no key, so the per-project
+      fault cannot be expressed until a source keys its coordinator; the ADR says so. Its
+      fault line is a memory coordinator granting every turn at once.)
 - [x] 3.4 Redo, undo of a release, undo of a cascading release (leaf by leaf, all or
       nothing), undo of a delete (`withClaimsRestored`), lease sweep — test: journal round
       trips in `resource-occupancy.db.test.ts` with a second project, one per spec
@@ -176,3 +179,5 @@
       state directory capacities only after a blue/green swap completes. Operator: state
       dev's `host ram` and `staging`, rerun the swarm rehearsal check 4 (`g4-multi.ts`)
       expecting B refused and `staging` refused in B; record in verify.md.
+      (Runbook lines written, with the audit rollback's manual completion command; the
+      operator half waits for a dev deploy.)

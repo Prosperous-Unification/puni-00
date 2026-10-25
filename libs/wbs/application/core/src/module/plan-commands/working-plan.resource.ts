@@ -621,6 +621,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertOpen();
         return scope.stores.claims.organizationOccupancyOf(resourceIds);
       },
+      organizationUnitsOf: (resourceIds) => {
+        assertOpen();
+        return scope.stores.claims.organizationUnitsOf(resourceIds);
+      },
       boundAccountOf: (personId) => {
         assertOpen();
         return scope.stores.claims.boundAccountOf(personId);

@@ -392,6 +392,32 @@ enumerated lists rather than adding union arms (design D47), and
 `libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts` bounds the cost of loading
 every shape; run it before shipping a change to the contracts and record its printed figure.
 
+## Directory capacity (`wbs-shared-occupancy`)
+
+`20261025140000_widen_organization_audit_directory_capacity` rebuilds `organization_audit` to
+admit `directory_capacity_changed` on subject kind `resource`, and
+`20261025140100_add_resource_directory_capacity` adds `resource_directory_capacity`. Both are
+additive for the outgoing release, which never reads the table: while both colours run, the
+old one checks claims per project only.
+
+**State directory capacities only after the swap has completed** and the old colour is
+stopped. A capacity stated mid-swap binds only the new colour's claims; the old colour can
+still admit a claim past it, and the promise converges only once it stops.
+
+**Rollback.** `resource_directory_capacity`'s `down.sql` refuses with `directory capacities
+are stated` until an organization admin clears each one with `setDirectoryCapacity` and
+`units: null`. The audit widening's `down.sql` then refuses with `directory capacity audit
+rows exist` whenever any capacity was ever written: the audit is append-only and a rollback
+never discards it. Complete the rollback to just above the widening, keeping the wider
+vocabulary (no release reads those rows outside tests):
+
+```sh
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=20261025140000_widen_organization_audit_directory_capacity
+```
+
+A rollback below `20261025140000` is not possible once a row exists; report it, do not delete
+audit rows.
+
 ## Shared people restore approvals
 
 The approval preparation endpoint is available at

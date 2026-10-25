@@ -2,7 +2,12 @@ import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
 import { type ClaimRequest, decideClaim } from './claim';
-import { occupancyByResource, type OccupancyRow, refuseOccupancy } from './occupancy';
+import {
+  occupancyByResource,
+  type OccupancyRow,
+  refuseOccupancy,
+  type ResourceUnits,
+} from './occupancy';
 
 /**
  * `wbs-shared-occupancy` slice 2 (design S3): a claim counts against its
@@ -20,6 +25,14 @@ function row(
   personId = `holder-of-${workItemId}`,
 ): OccupancyRow {
   return { claimId: `c-${workItemId}`, workItemId, personId, runId: null, resourceId, units };
+}
+
+/** The units the organization's leaves hold, per resource: what `organizationUnitsOf` answers. */
+function totalsOf(rows: readonly OccupancyRow[]): ResourceUnits[] {
+  return occupancyByResource(rows).map(({ resourceId, occupied }) => ({
+    resourceId,
+    units: occupied,
+  }));
 }
 
 /** A leaf with one unstated step, asking its declared `demand`. */
@@ -46,7 +59,7 @@ function leafClaim(workItemId: string, over: Partial<ClaimRequest>): ClaimReques
     capacities: [],
     occupancy: [],
     directoryCapacities: [],
-    organizationOccupancy: [],
+    organizationOccupied: [],
     ...over,
   };
 }
@@ -61,10 +74,10 @@ describe('a directory capacity is shared across the organization', () => {
         capacities: [{ resourceId: RAM, units: 16 }],
         occupancy: [],
         directoryCapacities: [{ resourceId: RAM, units: 16 }],
-        organizationOccupancy: held,
+        organizationOccupied: totalsOf(held),
       }),
     );
-    const holders = [{ personId: 'holder-of-a-1', runId: null, workItemId: 'a-1' }];
+    // Holders across the organization are the caller's to name, once refused.
     expect(decided).toEqual({
       kind: 'refused',
       refusal: {
@@ -72,9 +85,9 @@ describe('a directory capacity is shared across the organization', () => {
         resourceId: RAM,
         asked: 16,
         free: 0,
-        holders,
+        holders: [],
         scope: 'organization',
-        resources: [{ resourceId: RAM, asked: 16, free: 0, holders, scope: 'organization' }],
+        resources: [{ resourceId: RAM, asked: 16, free: 0, holders: [], scope: 'organization' }],
       },
     });
   });
@@ -85,9 +98,11 @@ describe('a directory capacity is shared across the organization', () => {
       directoryCapacities: [{ resourceId: STAGING, units: 1 }],
     };
     expect(
-      decideClaim(leafClaim('b-1', { ...ask, organizationOccupancy: [row('a-1', STAGING, 1)] })),
+      decideClaim(
+        leafClaim('b-1', { ...ask, organizationOccupied: totalsOf([row('a-1', STAGING, 1)]) }),
+      ),
     ).toMatchObject({ kind: 'refused', refusal: { reason: 'resources_exhausted', free: 0 } });
-    expect(decideClaim(leafClaim('b-1', { ...ask, organizationOccupancy: [] }))).toMatchObject({
+    expect(decideClaim(leafClaim('b-1', { ...ask, organizationOccupied: [] }))).toMatchObject({
       kind: 'claim',
       acquired: [{ resourceId: STAGING, units: 1 }],
     });
@@ -102,7 +117,7 @@ describe('a directory capacity is shared across the organization', () => {
         capacities: [{ resourceId: RAM, units: 8 }],
         occupancy: own,
         directoryCapacities: [{ resourceId: RAM, units: 16 }],
-        organizationOccupancy: own,
+        organizationOccupied: totalsOf(own),
       }),
     ).toMatchObject({ resourceId: RAM, free: 0, scope: 'project' });
   });
@@ -117,7 +132,7 @@ describe('a directory capacity is shared across the organization', () => {
         capacities: [{ resourceId: RAM, units: 16 }],
         occupancy: project,
         directoryCapacities: [{ resourceId: RAM, units: 16 }],
-        organizationOccupancy: project,
+        organizationOccupied: totalsOf(project),
       }),
     ).toMatchObject({ free: 8, scope: 'organization' });
   });
@@ -131,7 +146,9 @@ describe('a directory capacity is shared across the organization', () => {
     expect(first).toMatchObject({ kind: 'claim' });
     // The batch's own connection reads the first leaf's uncommitted rows.
     expect(
-      decideClaim(leafClaim('a-2', { ...ask, organizationOccupancy: [row('a-1', RAM, 10)] })),
+      decideClaim(
+        leafClaim('a-2', { ...ask, organizationOccupied: totalsOf([row('a-1', RAM, 10)]) }),
+      ),
     ).toMatchObject({ kind: 'refused', refusal: { asked: 10, free: 6, scope: 'organization' } });
   });
 
@@ -144,7 +161,7 @@ describe('a directory capacity is shared across the organization', () => {
         capacities: [],
         occupancy: [own[0] ?? row('a-1', RAM, 16)],
         directoryCapacities: [{ resourceId: RAM, units: 10 }],
-        organizationOccupancy: own,
+        organizationOccupied: totalsOf(own),
       }),
     ).toBeNull();
   });
@@ -157,7 +174,7 @@ describe('a directory capacity is shared across the organization', () => {
         capacities: [{ resourceId: RAM, units: 2 }],
         occupancy: [],
         directoryCapacities: [],
-        organizationOccupancy: [row('b-1', RAM, 100)],
+        organizationOccupied: totalsOf([row('b-1', RAM, 100)]),
       }),
     ).toEqual({
       reason: 'resources_exhausted',
@@ -232,7 +249,7 @@ describe('organization occupancy under any sequence of claims, releases, undos a
               capacities: ceiling === null ? [] : [{ resourceId: RAM, units: ceiling }],
               occupancy: own,
               directoryCapacities: [{ resourceId: RAM, units: drawn.directory }],
-              organizationOccupancy: org,
+              organizationOccupied: totalsOf(org),
             });
             if (refused !== null) return false;
             own.push(each);

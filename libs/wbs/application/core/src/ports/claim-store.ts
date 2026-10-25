@@ -7,6 +7,7 @@ import type {
   LeaseRenewal,
   OccupancyRow,
   OrganizationOccupancyRow,
+  ResourceUnits,
   WorkItemPlacement,
 } from '@wbs/domain';
 
@@ -162,6 +163,18 @@ export interface ClaimStore extends ClaimIdentity {
    * every committed claim and the batch's own earlier ones.
    */
   organizationOccupancyOf(resourceIds: readonly string[]): Promise<OrganizationOccupancyRow[]>;
+  /**
+   * The units every leaf of the resource's organization holds of each of
+   * `resourceIds`: each leaf's largest copy, summed, in no promised order; a
+   * resource nobody holds has no entry. What the claim check and the startable
+   * read count (`wbs-shared-occupancy` S4), without materialising a row; the
+   * holders are {@link organizationOccupancyOf}'s, read only for a refusal.
+   * Read like it, on the batch's own connection.
+   *
+   * @throws when a resource some organization owns is held in a project that
+   * belongs to no organization: corrupt trusted state.
+   */
+  organizationUnitsOf(resourceIds: readonly string[]): Promise<ResourceUnits[]>;
   /**
    * Inserts `claims` verbatim — id, run, parent and writing account included —
    * with the `occupancy` rows they carry, and states each of `stated`

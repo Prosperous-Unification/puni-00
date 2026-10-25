@@ -14,6 +14,7 @@ import {
   type OrganizationOccupancyRow,
   type ProgressKey,
   type ResourceAccess,
+  type ResourceUnits,
   type StampedClaim,
   unstampClaim,
   type WriteStamp,
@@ -125,8 +126,9 @@ export class ClaimRepository implements ClaimStore {
   async organizationOccupancyOf(
     resourceIds: readonly string[],
   ): Promise<OrganizationOccupancyRow[]> {
-    await Promise.resolve();
     if (resourceIds.length === 0) return [];
+    // The same corrupt-state refusal as the units read (S3-8 of the review).
+    await this.organizationUnitsOf(resourceIds);
     return this.db
       .select({
         claimId: claimOccupancy.claimId,
@@ -152,6 +154,54 @@ export class ClaimRepository implements ClaimStore {
       .where(inArray(claimOccupancy.resourceId, [...resourceIds]))
       .orderBy(asc(claim.workItemId), asc(claimOccupancy.resourceId), asc(claimOccupancy.claimId))
       .all();
+  }
+
+  /**
+   * Each leaf's largest copy summed per resource in SQL, with no rows
+   * materialised and no ordering: what the claim check counts, on this
+   * repository's connection (inside a batch, the batch's own, after its turn).
+   * A row on a resource some organization owns whose project belongs to no
+   * organization is corrupt trusted state, counted in the same statement and
+   * thrown on: after activation every project has its `project_organization`
+   * row, and a legacy store's resources have no organization to be counted in.
+   *
+   * Proof: with the throw removed, `throws on a holder in a project of no
+   * organization` (shared-occupancy.db.test.ts) answered the units without it,
+   * on SQLite; watched 2026-10-25.
+   */
+  async organizationUnitsOf(resourceIds: readonly string[]): Promise<ResourceUnits[]> {
+    await Promise.resolve();
+    if (resourceIds.length === 0) return [];
+    const ids = sql.join(
+      resourceIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
+    const rows = this.db.all<{ resourceId: string; units: number | null; unowned: number }>(sql`
+      SELECT leaf.resource_id AS resourceId,
+             SUM(CASE WHEN leaf.owned THEN leaf.units END) AS units,
+             SUM(CASE WHEN leaf.unowned THEN 1 ELSE 0 END) AS unowned
+      FROM (
+        SELECT co.resource_id AS resource_id,
+               MAX(co.units) AS units,
+               MAX(po.organization_id = ro.organization_id) AS owned,
+               MAX(po.resource_id IS NULL) AS unowned
+        FROM claim_occupancy AS co
+        JOIN claim AS c ON c.id = co.claim_id
+        JOIN work_item AS wi ON wi.id = c.work_item_id
+        JOIN resource_organization AS ro ON ro.resource_id = co.resource_id
+        LEFT JOIN project_organization AS po ON po.resource_id = wi.project_id
+        WHERE co.resource_id IN (${ids})
+        GROUP BY co.resource_id, c.work_item_id
+      ) AS leaf
+      GROUP BY leaf.resource_id`);
+    const corrupt = rows.find(({ unowned }) => unowned > 0);
+    if (corrupt !== undefined)
+      throw new Error(
+        `resource ${corrupt.resourceId} is held in a project of no organization: corrupt trusted state`,
+      );
+    return rows.flatMap(({ resourceId, units }) =>
+      units === null || units === 0 ? [] : [{ resourceId, units }],
+    );
   }
 
   boundAccountOf(personId: string): Promise<string | null> {

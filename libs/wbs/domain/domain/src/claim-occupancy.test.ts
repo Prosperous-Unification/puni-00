@@ -46,7 +46,7 @@ function leafClaim(
     capacities: [],
     occupancy: [],
     directoryCapacities: [],
-    organizationOccupancy: [],
+    organizationOccupied: [],
     ...rest,
   };
 }
@@ -162,7 +162,7 @@ describe('a claim occupies its leaf’s demand vector', () => {
         ],
         occupancy,
         directoryCapacities: [],
-        organizationOccupancy: [],
+        organizationOccupied: [],
       }),
     ).toEqual({
       reason: 'resources_exhausted',
@@ -487,7 +487,7 @@ describe('a claim occupies its leaf’s demand vector', () => {
         capacities: [{ resourceId: RAM, units: 2 }],
         occupancy,
         directoryCapacities: [],
-        organizationOccupancy: [],
+        organizationOccupied: [],
       }),
     ).toBeNull();
     expect(freeUnitsOf([{ resourceId: RAM, units: 2 }], occupancy)).toEqual([

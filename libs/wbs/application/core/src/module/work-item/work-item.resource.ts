@@ -22,6 +22,7 @@ import {
   chargedWorkdaysOf,
   type Claim,
   CLAIM_LEASE_MS,
+  type ClaimRefusal,
   type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
@@ -55,6 +56,7 @@ import {
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  leafOccupancyOf,
   leaseOf,
   type LeaseReleaseReason,
   type LimitCrossed,
@@ -91,6 +93,8 @@ import {
   type ResourceCapacity,
   type ResourceDemand,
   type ResourceOccupancy,
+  type ResourcesExhausted,
+  type ResourceShortage,
   type ResourceUnits,
   rollUp,
   rollUpActuals,
@@ -2013,8 +2017,19 @@ export class WorkItemService {
     if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
     const { statuses, stated, dependencies } = await this.statusReadsOf(projectId, rows);
     const capacities = await this.resourceCapacitiesOf(projectId);
+    const demands = await this.opts.demands.listByProject(projectId);
+    // The claim's own organization read, over every resource a leaf demands:
+    // a leaf the read lists as fitting is one a claim admits.
+    const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor(
+      demands.map(({ resourceId }) => resourceId),
+    );
+    // Names a shortfall may need: any resource a capacity or a directory
+    // capacity makes binding.
+    // Proof: with the catalog read only when a project capacity is stated,
+    // `agrees with the claim across projects` threw `resource … is not in this
+    // read` on a directory capacity alone; watched 2026-10-25.
     const resources =
-      capacities.length === 0
+      capacities.length === 0 && directoryCapacities.length === 0
         ? []
         : access.kind === 'scoped'
           ? await directory.listInOrganization('resources', access.scope.organizationId)
@@ -2031,8 +2046,10 @@ export class WorkItemService {
       teamNames,
       teamId,
       capacities,
-      demands: await this.opts.demands.listByProject(projectId),
+      demands,
       occupancy: await this.claiming().claims.occupancyOf(projectId),
+      directoryCapacities,
+      organizationOccupied,
       resources: new Map(resources.map((resource) => [resource.id, resource] as const)),
     });
   }
@@ -3911,22 +3928,19 @@ export class WorkItemService {
       : [];
     // Every resource the leaf could come to hold: what it declares, what the
     // claim asks, and what it already holds.
-    // Proof: with the organization's rows withheld from `decideClaim`,
+    // Proof: with the organization's units withheld from `decideClaim`,
     // `refuses B’s 16 GB while A holds the directory’s 16, naming the
     // organization` and three more cases (shared-occupancy.db.test.ts) failed
     // on both stores (14 pass, 8 fail); watched 2026-10-25.
-    const { directoryCapacities, organizationOccupancy } = await this.organizationOccupancyFor([
+    const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor([
       ...demand.map(({ resourceId }) => resourceId),
       ...(input.resources ?? []).map(({ resourceId }) => resourceId),
       ...occupancy.filter((row) => row.workItemId === id).map(({ resourceId }) => resourceId),
     ]);
-    // The holders a `resources_exhausted` names sit on other leaves, beyond
-    // `near`, and in other projects of the organization.
+    // A shortage's holders are named only once one is found (`refusedWithHolders`).
     const nameOf = await this.personNamesWithin(access, [
       input.personId,
       ...near.map(({ personId }) => personId),
-      ...occupancy.map(({ personId }) => personId),
-      ...organizationOccupancy.map(({ personId }) => personId),
     ]);
     if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     if (input.resources !== null) {
@@ -3986,9 +4000,10 @@ export class WorkItemService {
       capacities: await this.resourceCapacitiesOf(projectId),
       occupancy,
       directoryCapacities,
-      organizationOccupancy,
+      organizationOccupied,
     });
-    if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    if (decided.kind === 'refused')
+      return this.refusedWithHolders(decided.refusal, id, access, nameOf);
     if (decided.kind === 'alreadyHeld') {
       const held = near.filter(
         (each) =>
@@ -4293,6 +4308,7 @@ export class WorkItemService {
     personIds: readonly string[],
   ): Promise<Map<string, string>> {
     const ids = [...new Set(personIds)];
+    const wanted = new Set(ids);
     const { directory } = this.opts;
     // Proof: with the root `listPeople()` read back in place of both branches,
     // `names the holder by the organization's name` (claim-identity.controller.db.test.ts)
@@ -4301,7 +4317,7 @@ export class WorkItemService {
     const people =
       access.kind === 'scoped'
         ? (await directory.listInOrganization('people', access.scope.organizationId)).filter(
-            (person) => ids.includes(person.id),
+            (person) => wanted.has(person.id),
           )
         : await directory.namesOf('people', ids);
     return new Map(people.map((person) => [person.id, person.name]));
@@ -4401,10 +4417,12 @@ export class WorkItemService {
     // `refuses an undo of a cascading release leaf by leaf across projects`
     // put both leaves back; watched 2026-10-25.
     const occupancy: OccupancyRow[] = [...(await this.claiming().claims.occupancyOf(projectId))];
-    const { directoryCapacities, organizationOccupancy } = await this.organizationOccupancyFor(
+    const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor(
       asked.map(({ resourceId }) => resourceId),
     );
-    const organizationRows: OccupancyRow[] = [...organizationOccupancy];
+    const organizationTotals = new Map(
+      organizationOccupied.map(({ resourceId, units }) => [resourceId, units]),
+    );
     for (const [workItemId, units] of askedBy) {
       const exhausted = refuseOccupancy({
         workItemId,
@@ -4412,15 +4430,32 @@ export class WorkItemService {
         capacities,
         occupancy,
         directoryCapacities,
-        organizationOccupancy: organizationRows,
+        organizationOccupied: [...organizationTotals].map(([resourceId, each]) => ({
+          resourceId,
+          units: each,
+        })),
       });
       if (exhausted === null) {
+        const before = new Map(
+          leafOccupancyOf(occupancy, workItemId).map((each) => [each.resourceId, each.units]),
+        );
         for (const row of asked) {
           const claim = byId.get(row.claimId);
           if (claim?.workItemId !== workItemId) continue;
           const { personId, runId } = claim;
           occupancy.push({ ...row, workItemId, personId, runId });
-          organizationRows.push({ ...row, workItemId, personId, runId });
+        }
+        // The organization's totals grow by what the leaf now holds above
+        // what it held, its largest copy per resource, as the store sums.
+        for (const each of leafOccupancyOf(occupancy, workItemId)) {
+          const grown = each.units - (before.get(each.resourceId) ?? 0);
+          if (grown > 0 && organizationTotals.has(each.resourceId))
+            organizationTotals.set(
+              each.resourceId,
+              (organizationTotals.get(each.resourceId) ?? 0) + grown,
+            );
+          else if (grown > 0 && directoryCapacities.some((d) => d.resourceId === each.resourceId))
+            organizationTotals.set(each.resourceId, grown);
         }
         continue;
       }
@@ -4461,18 +4496,67 @@ export class WorkItemService {
    */
   private async organizationOccupancyFor(resourceIds: readonly string[]): Promise<{
     directoryCapacities: ResourceCapacity[];
-    organizationOccupancy: OccupancyRow[];
+    organizationOccupied: ResourceUnits[];
   }> {
     const unique = [...new Set(resourceIds)];
-    if (unique.length === 0) return { directoryCapacities: [], organizationOccupancy: [] };
+    if (unique.length === 0) return { directoryCapacities: [], organizationOccupied: [] };
     const directoryCapacities = await this.opts.directory.directoryCapacitiesOf(unique);
-    if (directoryCapacities.length === 0) return { directoryCapacities, organizationOccupancy: [] };
+    if (directoryCapacities.length === 0) return { directoryCapacities, organizationOccupied: [] };
     return {
       directoryCapacities,
-      organizationOccupancy: await this.claiming().claims.organizationOccupancyOf(
+      organizationOccupied: await this.claiming().claims.organizationUnitsOf(
         directoryCapacities.map(({ resourceId }) => resourceId),
       ),
     };
+  }
+
+  /**
+   * A claim's refusal as the service answers it, holders named. A
+   * `resources_exhausted` the organization bound is given its holders here,
+   * read only now (`organizationOccupancyOf`), each with its project; then
+   * every holder's name is read. A claim that fits reads neither.
+   *
+   * Proof: with the organization holders left unread, `refuses B’s 16 GB while
+   * A holds the directory’s 16, naming the organization`
+   * (shared-occupancy.db.test.ts) named nobody, on both stores; watched 2026-10-25.
+   */
+  private async refusedWithHolders(
+    refusal: ClaimRefusal,
+    workItemId: string,
+    access: ResourceAccess,
+    nameOf: ReadonlyMap<string, string>,
+  ): Promise<ClaimRefusalOutcome> {
+    if (refusal.reason !== 'resources_exhausted') return refusalOf(refusal, nameOf);
+    const bound = refusal.resources
+      .filter((each) => each.scope === 'organization')
+      .map(({ resourceId }) => resourceId);
+    const rows =
+      bound.length === 0 ? [] : await this.claiming().claims.organizationOccupancyOf(bound);
+    const projectOf = new Map(rows.map((row) => [row.workItemId, row.projectId]));
+    const holdersOf = new Map(
+      occupancyByResource(rows.filter((row) => row.workItemId !== workItemId)).map((each) => [
+        each.resourceId,
+        each.holders.map((holder) => {
+          const projectId = projectOf.get(holder.workItemId);
+          if (projectId === undefined)
+            throw new Error(`holder ${holder.workItemId} has no project in its own read`);
+          return { ...holder, projectId };
+        }),
+      ]),
+    );
+    const resources = refusal.resources.map((short): ResourceShortage =>
+      short.scope === 'organization'
+        ? { ...short, holders: holdersOf.get(short.resourceId) ?? [] }
+        : short,
+    );
+    const first = resources.at(0);
+    if (first === undefined) throw new Error('a resources_exhausted names no resource');
+    const enriched: ResourcesExhausted = { ...refusal, ...first, resources };
+    const names = await this.personNamesWithin(
+      access,
+      resources.flatMap((short) => short.holders.map(({ personId }) => personId)),
+    );
+    return refusalOf(enriched, new Map([...nameOf, ...names]));
   }
 
   /**

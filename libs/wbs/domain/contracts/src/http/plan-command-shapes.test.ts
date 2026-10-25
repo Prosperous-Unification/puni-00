@@ -179,8 +179,9 @@ test('emits inline MCP-readable command branches with real nested patch and esti
   // and assignSubtree (49). 49 to 54 with `wbs-resources`: setResourceCapacity,
   // setDemand and the resource trio; 54 to 57 with `wbs-measure-budgets`: the
   // measure definition trio; 57 to 59 with its measure estimate pair; 59 to
-  // 61 with its budget pair.
-  expect(branches).toHaveLength(61);
+  // 61 with its budget pair; 61 to 62 with `wbs-shared-occupancy`'s
+  // setDirectoryCapacity.
+  expect(branches).toHaveLength(62);
   if (branches === undefined) throw new Error('Missing command alternatives');
   const find = (kind: string) =>
     branches.find((branch) => branch.properties?.['kind']?.const === kind);

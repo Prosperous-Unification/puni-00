@@ -132,6 +132,8 @@ const occupancyHolder = type({
   name: 'string',
   runId: 'string | null',
   workItemId: 'string',
+  // `wbs-shared-occupancy` S5: a holder in another project of the organization.
+  'projectId?': 'string',
 });
 /** One short resource of `resources_exhausted`: asked, free and its holders. */
 const resourceShortage = {

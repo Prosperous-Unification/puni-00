@@ -20,20 +20,12 @@ export interface MemoryResourceTables {
   readonly capacities: Map<string, { projectId: string; resourceId: string; units: number }>;
   /** Keyed `workItemId::resourceId`. */
   readonly demands: Map<string, Demand>;
-  /** Each resource's stated directory capacity (`wbs-shared-occupancy` S1); absent is unstated. */
-  readonly directoryCapacities: Map<string, number>;
   /**
-   * What SQLite's `organization_audit` records of each directory capacity
-   * write, in write order: the memory twin has no audit table of its own.
+   * Each resource's stated directory capacity (`wbs-shared-occupancy` S1);
+   * absent is unstated. The memory twin keeps no organization audit: SQLite's
+   * `directory_capacity_changed` row is proven against SQLite alone.
    */
-  readonly directoryCapacityAudit: {
-    readonly id: string;
-    readonly organizationId: string;
-    readonly actorId: string;
-    readonly resourceId: string;
-    readonly before: number | null;
-    readonly after: number | null;
-  }[];
+  readonly directoryCapacities: Map<string, number>;
 }
 
 export function memoryResourceTables(): MemoryResourceTables {
@@ -42,7 +34,6 @@ export function memoryResourceTables(): MemoryResourceTables {
     capacities: new Map(),
     demands: new Map(),
     directoryCapacities: new Map(),
-    directoryCapacityAudit: [],
   };
 }
 

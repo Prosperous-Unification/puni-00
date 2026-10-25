@@ -17,7 +17,7 @@ import { openSqliteSource } from '../source';
  * `wbs-shared-occupancy` task 3.5: a claim batch's p99 latency with a
  * directory capacity stated against the same batch without one, on a fixture
  * of 50 projects of one organization holding 20 standing claims each of the
- * resource, 200 runs each, alternated so drift lands on both sides. Prints one
+ * resource, every claim by an agent of its own, 200 runs each under scoped access, alternated so drift lands on both sides. Prints one
  * JSON line; the bounds (at most 5 ms and 25 % added at p99) are judged in
  * verify.md, not here: a measurement on a shared laptop is not a gate.
  *
@@ -35,7 +35,15 @@ async function measure(): Promise<void> {
   const folder = mkdtempSync(join(tmpdir(), 'measure-shared-occupancy-'));
   const dbPath = join(folder, 'plan.db');
   runMigrations(dbPath, MIGRATIONS);
-  const source = openSqliteSource({ dbPath });
+  // Caps far above the fixture: the bound-claim cap is counted, never reached.
+  const source = openSqliteSource({
+    dbPath,
+    organizationDefaultLimits: {
+      maxAgentPersons: 100_000,
+      maxConcurrentClaims: 100_000,
+      maxCapacityUnitsPerResource: 1_000_000,
+    },
+  });
   try {
     let minted = 0;
     const clock = clockOf({
@@ -63,22 +71,33 @@ async function measure(): Promise<void> {
       { id: F, username: F, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: F },
     );
-    await source.stores.directory.addPerson({ id: 'agent', name: 'agent', kind: 'agent' }, [], {
-      at: 1,
-      by: F,
-    });
-    const bound = await source.stores.directory.patchPerson(
-      'agent',
-      { accountId: F },
-      { at: 1, by: F },
-    );
-    if (!bound.ok) throw new Error('the agent was refused');
+    // One agent per claim, each a person of the organization: the scoped
+    // claim path reads the organization's people, so their number counts.
+    const agentOf = async (id: string): Promise<string> => {
+      await source.stores.directory.addPerson({ id, name: id, kind: 'agent' }, [], {
+        at: 1,
+        by: F,
+      });
+      const bound = await source.stores.directory.patchPerson(
+        id,
+        { accountId: F },
+        { at: 1, by: F },
+      );
+      if (!bound.ok) throw new Error(`the agent ${id} was refused`);
+      source.db.run(
+        sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${id}, ${ORG}, ${id})`,
+      );
+      return id;
+    };
     const added = await source.stores.directory.addResource(
       { id: RAM, name: 'host ram', kind: 'divisible', unitLabel: 'GB' },
       { at: 1, by: F },
     );
     if (!added.ok) throw new Error('the resource was refused');
     source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES (${ORG}, ${ORG}, 1)`);
+    source.db.run(
+      sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${ORG}, ${F}, 'admin', 1)`,
+    );
     source.db.run(
       sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${RAM}, ${ORG}, 'host ram')`,
     );
@@ -110,9 +129,10 @@ async function measure(): Promise<void> {
       source.db.run(
         sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${project.id}, ${ORG})`,
       );
-      for (const workItemId of await leavesOf(project.id, STANDING)) {
+      for (const [leafIndex, workItemId] of (await leavesOf(project.id, STANDING)).entries()) {
+        const personId = await agentOf(`standing-${String(index)}-${String(leafIndex)}`);
         const claimed = await runner.run(project.id, F, [
-          { kind: 'claimWorkItem', workItemId, personId: 'agent' },
+          { kind: 'claimWorkItem', workItemId, personId },
         ]);
         if (!claimed.ok)
           throw new Error(`a standing claim was refused: ${JSON.stringify(claimed)}`);
@@ -131,14 +151,30 @@ async function measure(): Promise<void> {
       });
       if (!written.ok) throw new Error(`the directory capacity was refused: ${written.reason}`);
     };
+    const agents: string[] = [];
+    for (const [index] of fresh.entries()) agents.push(await agentOf(`measured-${String(index)}`));
+    // Measured under scoped access, as an activated deployment claims.
+    source.db.run(
+      sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
+    );
+    const admin = {
+      kind: 'scoped',
+      scope: { organizationId: ORG, userId: F, role: 'admin' },
+    } as const;
     const timings: { stated: number[]; unstated: number[] } = { stated: [], unstated: [] };
     for (const [index, workItemId] of fresh.entries()) {
       const stated = index % 2 === 0;
       await state(stated ? 1_000_000 : null);
+      const personId = agents.at(index);
+      if (personId === undefined) throw new Error('no agent for a measured claim');
       const started = performance.now();
-      const claimed = await runner.run(target, F, [
-        { kind: 'claimWorkItem', workItemId, personId: 'agent' },
-      ]);
+      const claimed = await runner.runWithin(
+        target,
+        F,
+        [{ kind: 'claimWorkItem', workItemId, personId }],
+        admin,
+        null,
+      );
       const elapsed = performance.now() - started;
       if (!claimed.ok) throw new Error(`a measured claim was refused: ${JSON.stringify(claimed)}`);
       (stated ? timings.stated : timings.unstated).push(elapsed);

@@ -279,10 +279,10 @@ export function inMemoryDirectory(
           .sort((left, right) => (left.resourceId < right.resourceId ? -1 : 1)),
       );
     },
-    // SQLite's twin: the resource's organization is its ownership row, and the
-    // audit row SQLite appends is kept in `directoryCapacityAudit`. The
-    // projects a demand sits in are the bound source's (`memory-stores.ts`).
-    setDirectoryCapacity(resourceId, units, act) {
+    // SQLite's twin: the resource's organization is its ownership row; there
+    // is no audit table to append to. The projects a demand sits in are the
+    // bound source's (`memory-stores.ts`).
+    setDirectoryCapacity(resourceId, units, _act) {
       if (!resourceTables.resources.has(resourceId))
         return Promise.resolve({ ok: false, reason: 'not_found' });
       const organizationId = organizationOf.get(resourceId);
@@ -291,14 +291,6 @@ export function inMemoryDirectory(
       const before = resourceTables.directoryCapacities.get(resourceId) ?? null;
       if (units === null) resourceTables.directoryCapacities.delete(resourceId);
       else resourceTables.directoryCapacities.set(resourceId, units);
-      resourceTables.directoryCapacityAudit.push({
-        id: act.auditId,
-        organizationId,
-        actorId: act.actor,
-        resourceId,
-        before,
-        after: units,
-      });
       const projectIds = [
         ...new Set(
           [...resourceTables.capacities.values()]

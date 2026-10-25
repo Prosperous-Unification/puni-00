@@ -90,8 +90,11 @@ read and the write. The process-wide SQLite coordinator and `BEGIN IMMEDIATE` gi
 today, and the memory source's single queue does. A source that keys its coordinator by
 project, as the Postgres sketch above does, must take the organization's lock (or a
 resource's) for such a batch, before its first read; a per-project lock alone admits two
-claims that together exceed the directory capacity. Unit-of-work case (m) asserts the
-exclusion against every source.
+claims that together exceed the directory capacity. Unit-of-work case (m) asserts only what
+every source has today: a store-wide turn, so two concurrent batches never overlap. It cannot
+express the per-project fault, because `UnitOfWork.run` takes no key; the source that first
+keys its coordinator by project adds the key and a case where a batch of project A reading the
+organization excludes a batch of project B.
 
 ## Considered options
 
