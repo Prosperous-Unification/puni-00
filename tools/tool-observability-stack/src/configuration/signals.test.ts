@@ -417,3 +417,35 @@ it('render refuses absent queue registration and signal pipelines', () => {
   Reflect.deleteProperty(metrics.collector.service.pipelines, 'metrics');
   expect(() => renderSignalConfiguration(inputs, metrics)).toThrow(/signal pipelines/);
 });
+it('render refuses missing collector trace forwarding independently of the gateway raw route', () => {
+  const inputs = createInputs();
+  const configuration = createSignalConfiguration(inputs);
+  configuration.collector.service.pipelines.traces.exporters = [];
+  expect(() => renderSignalConfiguration(inputs, configuration)).toThrow(
+    /collector trace forwarding/,
+  );
+});
+it('render refuses missing gateway raw trace export independently of APM aggregation', () => {
+  const inputs = createInputs();
+  const configuration = createSignalConfiguration(inputs);
+  configuration.gateway.service.pipelines.traces.exporters = ['elasticapm'];
+  expect(() => renderSignalConfiguration(inputs, configuration)).toThrow(
+    /gateway raw trace export/,
+  );
+});
+it('render refuses a disconnected collector trace receiver', () => {
+  const inputs = createInputs();
+  const configuration = createSignalConfiguration(inputs);
+  configuration.collector.service.pipelines.traces.receivers = [];
+  expect(() => renderSignalConfiguration(inputs, configuration)).toThrow(
+    /collector trace forwarding/,
+  );
+});
+it('render refuses a disconnected gateway trace receiver', () => {
+  const inputs = createInputs();
+  const configuration = createSignalConfiguration(inputs);
+  configuration.gateway.service.pipelines.traces.receivers = [];
+  expect(() => renderSignalConfiguration(inputs, configuration)).toThrow(
+    /gateway raw trace export/,
+  );
+});

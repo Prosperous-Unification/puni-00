@@ -538,6 +538,30 @@ export function assertSignalConfiguration(
     !configuration.gateway.service.pipelines.traces.exporters.includes('elasticapm')
   )
     throw new Error('APM connector required');
+  // Proof: removing this branch lets missing collector trace forwarding or its receiver reach the production renderer without rejection.
+  if (
+    !isDeepStrictEqual(
+      configuration.collector.service.pipelines.traces.exporters,
+      expected.collector.service.pipelines.traces.exporters,
+    ) ||
+    !isDeepStrictEqual(
+      configuration.collector.service.pipelines.traces.receivers,
+      expected.collector.service.pipelines.traces.receivers,
+    )
+  )
+    throw new Error('collector trace forwarding required');
+  // Proof: removing this branch lets gateway APM-only export or a disconnected receiver discard raw traces without production-render rejection.
+  if (
+    !isDeepStrictEqual(
+      configuration.gateway.service.pipelines.traces.exporters,
+      expected.gateway.service.pipelines.traces.exporters,
+    ) ||
+    !isDeepStrictEqual(
+      configuration.gateway.service.pipelines.traces.receivers,
+      expected.gateway.service.pipelines.traces.receivers,
+    )
+  )
+    throw new Error('gateway raw trace export required');
   // Proof: removing this branch accepts trace-enrichment removal with the connector retained.
   if (!configuration.gateway.service.pipelines.traces.processors.includes('elasticapm'))
     throw new Error('trace enrichment required');
