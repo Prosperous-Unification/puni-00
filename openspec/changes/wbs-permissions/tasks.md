@@ -5,7 +5,9 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 0. Dany reads P1 to P18
 
-- [ ] 0.1 Dany confirms or amends design.md P1 to P18, in particular P17 (a machine
+- [ ] 0.1 Dany confirms or amends design.md P1 to P18 (P17 and P18 confirmed 2026-10-25 by the
+      coordinator under Dany's principles: flexibility, whatever allows the most
+      restrictiveness), in particular P17 (a machine
       credential is a grant subject and holds only its own grants; overrides P2 and answers
       E7's machine-principal grantee), P18 (renaming access roles at runtime is a non-goal;
       E7's "rename the roles" is the scope-prefixed vocabulary already adopted), P5 as revised

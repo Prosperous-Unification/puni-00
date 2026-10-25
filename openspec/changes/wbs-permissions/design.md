@@ -100,7 +100,7 @@ Nesting would add ancestors to the `scope` CTE and nothing else.
 memberships do. A machine credential is not a subject: it acts as its agent person's bound
 account, which is a human member's account (`wbs-machine-credentials` A12), so the same
 rows serve the human and the machine, and the **machine cap** (P12) is what tells them
-apart. _Overridden 2026-10-24 by P17 (awaits Dany's confirmation): a machine credential is a
+apart. _Overridden 2026-10-24 by P17 (confirmed 2026-10-25): a machine credential is a
 grant subject, and its bound account's grants no longer reach it._
 
 **P3. A package-only grant reveals its project's shell.** A principal whose only grant in
@@ -286,7 +286,7 @@ gates `createProject` and `importProject` (today's names; `createWorkPackage` an
 projects and gates the new `/api/projects` family (permission-matrix.md).
 
 **P17. A machine credential is a grant subject.** _Added 2026-10-24 after the Fable review
-(PM-1); overrides P2; awaits Dany's confirmation._ E7 names machine principals as grantees
+(PM-1); overrides P2; confirmed 2026-10-25 by the coordinator under Dany's two principles, flexibility and whatever allows the most restrictiveness: an agent that holds only its own grants is the narrowest shape, and a grant can still name it anything._ E7 names machine principals as grantees
 and the proposal needs an agent confined to one engagement whatever its human holds, which
 P2's "the same rows serve the human and the machine" cannot express. A grant may name
 `subject_kind = 'machine_credential'` with `subject_id = machine_credential.id` (every
@@ -312,7 +312,7 @@ organization-scope `project-contributor` and `project-viewer` copies with the me
 rows, so after it an agent sees nothing until a grant names its credential. The groups-less upstream token of `wbs-team-claims` D6b (`authentication.kind = 'upstream'`, `scopesOfRoles`) is retired by `wbs-machine-credentials` slice 4 (#731, A13 step 2, A18, A21): a token of the configured issuer without a groups claim is refused `401 unknown_identity`, so no principal of kind `upstream` reaches the evaluator and `scopesOfRoles` and `membershipRolesOf` are deleted there. Until #731 lands that token acts as its linked account with that account's grants, as today; nothing here depends on the order (_amended 2026-10-25 on the #731 heads-up_).
 
 **P18. Access roles are not renamed at runtime.** _Added 2026-10-24 after the Fable review
-(PM-4); awaits Dany's confirmation._ Dany's "rename the roles" (E7) is the vocabulary change
+(PM-4); confirmed 2026-10-25 under the same principles: custom roles (P9) carry the naming flexibility, fixed ids keep the built-ins unambiguous in audit rows and grants._ Dany's "rename the roles" (E7) is the vocabulary change
 this change already makes: `super_admin`, `admin`, `member` and `viewer` become
 `org-super-admin`, `org-admin`, `org-viewer`, `project-*` and `package-*`. Renaming a role
 at runtime is a non-goal: `access_role.id` stays the role's only name, with no display-name
