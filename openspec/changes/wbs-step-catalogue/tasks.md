@@ -6,7 +6,7 @@ slices 1–3a (#723) and the set membership of #724, and replaces `wbs-work-pack
 ## 0. Decisions
 
 - [ ] 0.1 Dany answers Q1–Q5 (design.md "Open questions for Dany") and confirms or amends
-      SC1–SC24. Slice 1 waits for Q1a, Q4 and SC11–SC12, SC14–SC15 (Q5/SC13 settled 2026-10-25); slice 2 for Q1b, Q2b, Q3;
+      SC1–SC24. Slice 1 waits for Q1a and SC11–SC12, SC14–SC15 (Q4/SC17 and Q5/SC13 settled 2026-10-25); slice 2 for Q1b, Q2b, Q3;
       slice 3 for Q2a.
 
 ## 1. Catalogue, bindings, resolution, migration
@@ -54,8 +54,12 @@ slices 1–3a (#723) and the set membership of #724, and replaces `wbs-work-pack
       case per protected fact (twelve) against an unbind, plus retype, type deletion, leaf
       and package move, space change and deletion, undo/restore, copy and leaf-to-parent,
       and two concurrent writers (one admits a fact, one unbinds) of which exactly one wins;
-      negatives: drop the attempt-issued clause and a counter-only node vanishes; drop the
-      check from `setStepBlocked` and a blockage lands on an unresolved pair; watched.
+      the refusal's `pairs` and `count` on a 201-pair fixture (200 listed); `dryRun: true`
+      on each applicability-changing write answering the list from a rolled-back
+      transaction; negatives: drop the attempt-issued clause and a counter-only node
+      vanishes; drop the check from `setStepBlocked` and a blockage lands on an unresolved
+      pair; drop the dry-run rollback and a retype persists after a preview; drop the
+      `pairs` query and the refusal lists nothing with `count: 1`; watched.
 
 ## 2. Routes, commands, documents
 

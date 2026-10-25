@@ -69,16 +69,22 @@ the caller's organization; renaming or retiring a definition SHALL need
 
 A step node SHALL exist for every leaf and every step in its resolved set. Every write that
 would remove a step from a leaf's set (design.md SC17 lists them) SHALL be refused
-`409 step_nodes_in_use` while any protected fact of SC17 exists for a vanishing pair, issued
-attempt counters included. Every fact writer SHALL refuse a step outside the leaf's resolved
+`409 step_nodes_in_use { count, pairs }` while any protected fact of SC17 exists for a
+vanishing pair, issued attempt counters included, listing each pair (work item `id`, `name`,
+`stepId`, `workPackageId`, fact kinds; the first 200, `count` the total); each such write SHALL
+accept `dryRun: true` and answer the same list, or `wouldRefuse: null`, under the write's
+permission without writing or announcing. Every fact writer SHALL refuse a step outside the leaf's resolved
 set with `422 step_not_resolved`.
 
 #### Scenario: Re-typing a leaf with an estimate on a type-bound step
 
 - **WHEN** a `spike` leaf holds a trio on `research` and is changed to `story`
-- **THEN** the change is refused `409 step_nodes_in_use { stepId: research, count: 1 }`
-  and the trio is still read; after `clearEstimate` the change succeeds and `research` is
-  absent from the leaf's steps
+- **THEN** the change is refused
+  `409 step_nodes_in_use { count: 1, pairs: [{ id: L, name, stepId: research, workPackageId: W, facts: ['estimate'] }] }`
+  and the trio is still read; the same change with `dryRun: true` answers
+  `200 { wouldRefuse: 'step_nodes_in_use', count: 1, pairs: [...] }` and the leaf is still a
+  `spike`; after `clearEstimate` the change succeeds and `research` is absent from the
+  leaf's steps
 
 #### Scenario: A blockage alone keeps its step node
 
