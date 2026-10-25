@@ -729,7 +729,7 @@ before any check is rewired).
 - Project and package lists, spaces, roll-ups and work package rank render only what
   `readablePackageIds` returns; a package URL the server answers 404 for renders the
   existing not-found state, never a "no access" hint.
-- `organization-role.ts` and the role select go; `scopesOfRoles` and its `editor` derivation go with `wbs-machine-credentials` slice 4 (#731), not here.
+- `organization-role.ts` and the role select go, with every reader of them: since #732 (2026-10-25) that includes `readRoleReply` and `resourceStanding`, which gate Settings → Resources in `resources-panel.tsx` and become reads of the principal's effective permissions (`organization.manage_directory` for the write side, the resources reads as the matrix lists them); `scopesOfRoles` and its `editor` derivation go with `wbs-machine-credentials` slice 4 (#731), not here.
 
 ## MCP and gw-01
 
