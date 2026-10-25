@@ -397,6 +397,31 @@ describe('resources section writes', () => {
     ]);
   });
 
+  it('withdraws Undo after the post-adoption read observes viewer', async () => {
+    const sent = serve({
+      [ACTIVE]: [activeAs('member'), activeAs('viewer')],
+      [READ]: [
+        readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 12 }]),
+        readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 15 }]),
+      ],
+      [PLAN]: [applied],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    expect(
+      await screen.findByText('Your role can read these resources but not change them.'),
+    ).toBeDefined();
+    expect(await within(ram).findByRole('status')).toHaveTextContent(
+      'Declared 15 GB from the measurement (was 12 GB).',
+    );
+    expect(within(ram).getByText('15 GB')).toBeDefined();
+    expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+    expect(plans(sent)).toEqual([
+      { commands: [{ kind: 'setResourceCapacity', resourceId: 'r1', units: 15 }] },
+    ]);
+  });
+
   it('offers no undo once another writer stated a different number', async () => {
     const sent = serve({
       [READ]: [
@@ -679,6 +704,54 @@ describe('resources section directory (wbs-resources 1.5)', () => {
         ],
       },
     ]);
+  });
+
+  it('withdraws the edit form after forbidden rename observes viewer', async () => {
+    const sent = serve({
+      [ACTIVE]: [activeAs('member'), activeAs('viewer'), activeAs('member')],
+      [READ]: [readOf([resourceOf()])],
+      [DIRECTORY]: [() => answer(403, { error: 'forbidden', at: 0, kind: 'patchResource' })],
+    });
+    const panelShown = (shown: boolean) => (
+      <OrganizationResourcesProvider scope={scope}>
+        <ResourcesPanel
+          projectId="p1"
+          shown={shown}
+          onChanged={() => Promise.resolve()}
+          onDirtyChange={() => undefined}
+        />
+      </OrganizationResourcesProvider>
+    );
+    const mounted = renderBare(panelShown(true));
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: 'Edit h2puni ram' }));
+    const form = within(ram).getByRole('form', { name: 'Edit h2puni ram' });
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'stale draft' } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Save' }));
+    expect(
+      await screen.findByText('Your role can read these resources but not change them.'),
+    ).toBeDefined();
+    expect(await within(ram).findByRole('alert')).toHaveTextContent(/./);
+    expect(within(ram).queryByRole('form', { name: 'Edit h2puni ram' })).toBeNull();
+    expect(within(ram).queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(directories(sent)).toEqual([
+      {
+        commands: [
+          {
+            kind: 'patchResource',
+            resourceId: 'r1',
+            patch: { name: 'stale draft', unitLabel: 'GB' },
+          },
+        ],
+      },
+    ]);
+    mounted.rerender(panelShown(false));
+    mounted.rerender(panelShown(true));
+    const edit = await within(ram).findByRole('button', { name: 'Edit h2puni ram' });
+    expect(within(ram).queryByRole('form', { name: 'Edit h2puni ram' })).toBeNull();
+    fireEvent.click(edit);
+    expect(within(ram).getByLabelText('Name')).toHaveValue('h2puni ram');
+    expect(directories(sent)).toHaveLength(1);
   });
 
   const inUse = (demands: number, occupancies: number, other: string | null) => () =>
