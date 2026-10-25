@@ -365,8 +365,10 @@ for a reviewer without `package.read` is written `undeliverable` (`no_access`), 
 the lease pass, which before leasing re-evaluates the recipient's access and marks a notice
 `undeliverable` (`no_access`) when it was revoked meanwhile; a queued digest is recomputed at
 lease time over the recipient's current visibility and is marked `undeliverable` when
-nothing remains. A revoked reviewer therefore never receives even the ids, counts or ages of
-a package they can no longer open. The notice text still names only the question id, the
+nothing remains. A reviewer whose access is revoked before a lease is granted therefore never
+receives even the ids, counts or ages of a package they can no longer open; a delivery whose
+lease was granted while access held may complete after revocation, because a send may outlive
+its lease (D8). The notice text still names only the question id, the
 project and the leaf's number, never the question text.
 
 ## Open points settled by assumption
