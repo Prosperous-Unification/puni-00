@@ -1,36 +1,3 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: elastic-settings
-  namespace: observability
-data:
-  ilm-puni-logs.json: |
-    {"policy": {"phases": {
-      "hot": {"actions": {"rollover": {"max_age": "1d", "max_primary_shard_size": "10gb"}}},
-      "delete": {"min_age": "30d", "actions": {"delete": {}}}}}}
-  # Bounded mapping: dynamic attributes beyond the field limit are stored unindexed instead of
-  # growing the mapping, so an arbitrary JSON payload cannot exhaust it. The fields the collector
-  # lifts from failure reports are mapped explicitly by failure-fields.json, so they stay indexed
-  # keywords whatever else arrives.
-  logs-otel-settings.json: |
-    {"index.lifecycle.name": "puni-logs",
-     "index.number_of_replicas": 0,
-     "index.mapping.total_fields.limit": 500,
-     "index.mapping.total_fields.ignore_dynamic_beyond_limit": true}
-  apply.sh: |
-    set -eu
-    url=https://elasticsearch-es-http.observability.svc:9200
-    es() {
-      curl --fail-with-body --silent --show-error --max-time 150 --cacert /es-ca/ca.crt \
-        --user "elastic:${ELASTIC_PASSWORD}" --header 'content-type: application/json' "$@"
-      echo
-    }
-    es "$url/_cluster/health?wait_for_status=yellow&timeout=120s"
-    es --request PUT "$url/_ilm/policy/puni-logs" --data-binary @/settings/ilm-puni-logs.json
-    printf '{"template": {"settings": %s, "mappings": %s}}' \
-      "$(cat /settings/logs-otel-settings.json)" "$(cat /failure-fields/failure-fields.json)" |
-      es --request PUT "$url/_component_template/logs-otel@custom" --data-binary @-
----
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -48,32 +15,50 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: apply
           image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
-          command: [sh, /settings/apply.sh]
+          command:
+            - sh
+            - /settings/apply.sh
           env:
             - name: ELASTIC_PASSWORD
               valueFrom:
-                secretKeyRef: { name: elasticsearch-es-elastic-user, key: elastic }
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
           resources:
-            requests: { cpu: 10m, memory: 32Mi }
-            limits: { cpu: 200m, memory: 128Mi }
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            capabilities: { drop: [ALL] }
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
-            - { name: settings, mountPath: /settings, readOnly: true }
-            - { name: failure-fields, mountPath: /failure-fields, readOnly: true }
-            - { name: es-ca, mountPath: /es-ca, readOnly: true }
+            - name: settings
+              mountPath: /settings
+              readOnly: true
+            - name: failure-fields
+              mountPath: /failure-fields
+              readOnly: true
+            - name: es-ca
+              mountPath: /es-ca
+              readOnly: true
       volumes:
         - name: settings
-          configMap: { name: elastic-settings }
-        # Generated with a content hash in its name, so a changed mapping changes this Job's spec
-        # and Flux recreates the Job (force: enabled) instead of keeping the completed one.
+          configMap:
+            name: signal-configuration
         - name: failure-fields
-          configMap: { name: elastic-failure-fields }
+          configMap:
+            name: elastic-failure-fields
         - name: es-ca
-          secret: { secretName: elasticsearch-es-http-certs-public }
+          secret:
+            secretName: elasticsearch-es-http-certs-public

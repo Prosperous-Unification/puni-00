@@ -575,17 +575,11 @@ export const platformReleases: readonly PlatformRelease[] = [
   {
     name: 'elasticsearch',
     lock: 'elasticsearch',
-    path: 'observability/elastic/local/elasticsearch.yaml',
+    path: 'observability/elastic/base/elasticsearch.yaml',
     chart: 'charts/eck-elasticsearch-0.20.0.tgz',
     imageReferences: elasticsearchReferences,
   },
-  {
-    name: 'elasticsearch',
-    lock: 'elasticsearch',
-    path: 'observability/elastic/production/elasticsearch.yaml',
-    chart: 'charts/eck-elasticsearch-0.20.0.tgz',
-    imageReferences: elasticsearchReferences,
-  },
+
   {
     name: 'kibana',
     lock: 'kibana',

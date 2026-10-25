@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'bun:test';
 import { parse, parseAllDocuments } from 'yaml';
 
+import { assessObservabilityBudget } from './observability-budget';
+
 const root = join(import.meta.dir, '../../..');
 
-/** h3mon's MemTotal from the 2026-09-27 probe (`7.6Gi`), rounded down to whole MiB. */
-const h3monCapacityMib = 7730;
+/** h3mon MemTotal15977380KiB measured 2026-10-25, not a live admission receipt. */
+const h3monCapacityMib = Math.floor(15977380 / 1024);
 
 /** Usage allowance for DaemonSet containers that request no memory (none since hcloud CSI left the graph). */
 const unrequestedDaemonSetMib = 128;
@@ -85,8 +87,10 @@ describe('h3mon observability memory budget', () => {
         .filter(({ text }) => text.includes('capability-observability'))
         .map(({ path }) => path),
     ).toEqual([
+      'infra/platform/observability/base/metrics.yaml',
+      'infra/platform/observability/base/signals.yaml',
       'infra/platform/observability/eck/eck-operator.yaml',
-      'infra/platform/observability/elastic/production/elasticsearch.yaml',
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
       'infra/platform/observability/kibana/kibana.yaml',
       'infra/platform/observability/prometheus/blackbox-exporter.yaml',
       'infra/platform/observability/prometheus/kube-prometheus-stack.yaml',
@@ -121,7 +125,7 @@ describe('h3mon observability memory budget', () => {
     const values = ['spec', 'values'] as const;
     const requests = {
       elasticsearch: await request(
-        'infra/platform/observability/elastic/production/elasticsearch.yaml',
+        'infra/platform/observability/elastic/base/elasticsearch.yaml',
         'HelmRelease',
         [...values, 'nodeSets', 0, 'podTemplate', 'spec', 'containers', 0, 'resources'],
       ),
@@ -185,11 +189,25 @@ describe('h3mon observability memory budget', () => {
       mebibytes(at(h3, ['puni_kubelet_system_reserved_memory'])) -
       mebibytes(at(h3, ['puni_kubelet_kube_reserved_memory'])) -
       mebibytes(at(h3, ['puni_kubelet_eviction_memory']));
+    const budget = await assessObservabilityBudget(root);
     const requested =
-      Object.values(requests).reduce((sum, value) => sum + value, 0) + unrequestedDaemonSetMib;
+      [
+        ...Object.values(budget.platformRequestsMiB),
+        ...Object.values(budget.applicationMiB),
+      ].reduce((sum, value) => sum + value, 0) + unrequestedDaemonSetMib;
     // Proof: Kibana's former 768Mi request made this fail: 6086 requested > 6066 allocatable.
     expect(requested).toBeLessThanOrEqual(allocatable);
     // Elasticsearch keeps the 2 GiB heap inside a Guaranteed 4 GiB pod: request equals limit.
     expect(requests.elasticsearch).toBe(4096);
   });
+});
+
+it('overlap accounts every preserved Docker limit and reports the capacity blocker', async () => {
+  const budget = await assessObservabilityBudget(root);
+  expect(Object.values(budget.preservedDockerMiB).reduce((sum, memory) => sum + memory, 0)).toBe(
+    2560,
+  );
+  expect(Object.values(budget.legacyDevMiB).reduce((sum, memory) => sum + memory, 0)).toBe(5632);
+  expect(budget.overlap.admitted).toBe(false);
+  expect(budget.overlap.shortfallMiB).toBeGreaterThan(0);
 });

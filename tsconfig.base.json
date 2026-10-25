@@ -131,7 +131,10 @@
       "@wbs/validation": ["./libs/wbs/domain/validation/src/index.ts"],
       "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"],
       "@website/contracts": ["./libs/website/domain/contracts/src/index.ts"],
-      "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"]
+      "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"],
+      "@tools/observability-signals": [
+        "./tools/tool-observability-stack/src/configuration/signals.ts"
+      ]
     }
   },
   "exclude": ["node_modules", "tmp"]

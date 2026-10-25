@@ -6,6 +6,7 @@ import { type } from 'arktype';
 import { parse, parseDocument, stringify } from 'yaml';
 
 import { purposeCapabilities, readToolchain } from './contracts';
+import { assertObservability } from './observability';
 import {
   assertEncryptedSecrets,
   assertLockedWorkloadImages,
@@ -147,15 +148,28 @@ const clusterPaths = [
   ['workers', 'production'],
 ] as const;
 
-const observabilityResources = (environment: string) => [
-  '../eck',
-  `../elastic/${environment}`,
-  '../elastic/settings',
-  '../kibana',
-  '../prometheus',
-  '../otel',
+const observabilityResources = (_environment: string) => [
+  '../base',
   'telemetry.yaml',
   'otlp-ingress.yaml',
+];
+const signalGenerators = [
+  {
+    name: 'signal-configuration',
+    namespace: 'observability',
+    files: [
+      'collector.yaml',
+      'gateway.yaml',
+      'retention.json',
+      'logs-policy.json',
+      'logs-template.json',
+      'traces-policy.json',
+      'traces-template.json',
+      'metrics-policy.json',
+      'metrics-template.json',
+      'apply.sh',
+    ],
+  },
 ];
 
 const platformKustomizations: readonly (readonly [
@@ -199,8 +213,20 @@ const platformKustomizations: readonly (readonly [
   // platform.test.ts resolve instead of reject on 2026-10-07.
   ['storage/production-existing-hosts/kustomization.yaml', ['../local']],
   ['observability/eck/kustomization.yaml', ['eck-operator.yaml']],
-  ['observability/elastic/local/kustomization.yaml', ['elasticsearch.yaml']],
-  ['observability/elastic/production/kustomization.yaml', ['elasticsearch.yaml']],
+  ['observability/elastic/base/kustomization.yaml', ['elasticsearch.yaml']],
+  [
+    'observability/base/kustomization.yaml',
+    [
+      '../eck',
+      '../elastic/base',
+      '../elastic/settings',
+      '../kibana',
+      '../prometheus',
+      '../otel',
+      'signals.yaml',
+      'metrics.yaml',
+    ],
+  ],
   [
     'observability/elastic/settings/kustomization.yaml',
     ['settings.yaml'],
@@ -223,8 +249,16 @@ const platformKustomizations: readonly (readonly [
     ['kube-prometheus-stack.yaml', 'blackbox-exporter.yaml'],
   ],
   ['observability/otel/kustomization.yaml', ['collector.yaml']],
-  ['observability/local/kustomization.yaml', [...observabilityResources('local'), 'receiver.yaml']],
-  ['observability/production/kustomization.yaml', observabilityResources('production')],
+  [
+    'observability/local/kustomization.yaml',
+    [...observabilityResources('local'), 'receiver.yaml'],
+    signalGenerators,
+  ],
+  [
+    'observability/production/kustomization.yaml',
+    observabilityResources('production'),
+    signalGenerators,
+  ],
   ['telemetry/agent/kustomization.yaml', ['agent.yaml']],
   ['telemetry/local/kustomization.yaml', ['../agent', 'upstream.yaml']],
   ['telemetry/production/kustomization.yaml', ['../agent', 'upstream.yaml']],
@@ -364,6 +398,7 @@ export async function validatePlatform(root: string): Promise<{
   readonly secrets: number;
 }> {
   await assertOtlpTransport(root);
+  await assertObservability(root);
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   for (const [index, [cluster, environment]] of clusterPaths.entries()) {
     const expectedCluster = clusters[index];
@@ -444,6 +479,38 @@ export async function validatePlatform(root: string): Promise<{
           target: { kind: 'HelmRelease', name: 'kube-prometheus-stack' },
           patch:
             '- op: replace\n  path: /spec/values/kube-state-metrics/prometheus/monitor/metricRelabelings/0/replacement\n  value: platform-production',
+        },
+      ];
+    }
+    if (relativePath === 'observability/local/kustomization.yaml') {
+      expectedPatches = [
+        {
+          target: { kind: 'HelmRelease', name: 'elasticsearch' },
+          patch: stringify(
+            [
+              [
+                '/spec/values/nodeSets/0/config/s3.client.default.endpoint',
+                'object-store.puni-backup.svc:9000',
+              ],
+              ['/spec/values/nodeSets/0/config/s3.client.default.protocol', 'http'],
+              [
+                '/spec/values/nodeSets/0/podTemplate/spec/containers/0/env/0/value',
+                '-Xms1g -Xmx1g',
+              ],
+              [
+                '/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/requests/memory',
+                '2Gi',
+              ],
+              [
+                '/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/limits/memory',
+                '2Gi',
+              ],
+              [
+                '/spec/values/nodeSets/0/volumeClaimTemplates/0/spec/resources/requests/storage',
+                '10Gi',
+              ],
+            ].map(([path, value]) => ({ op: 'replace', path, value })),
+          ),
         },
       ];
     }

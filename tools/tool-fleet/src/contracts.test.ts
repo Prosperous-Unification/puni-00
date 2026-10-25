@@ -123,6 +123,7 @@ const validToolchain = {
     objectStore: image('object-store'),
     sqliteBackup: image('sqlite-backup'),
     blackboxExporter: image('blackbox-exporter'),
+    elasticGateway: image('gateway'),
   },
   manifests: { fluxInstall: { sha256 } },
   controller: {

@@ -22,6 +22,7 @@ function createInputs(environment = 'dev'): SignalInputs {
   return {
     deployment: { cluster: 'platform-production', namespace: `observability-${environment}` },
     source: {
+      collection: 'local',
       environment,
       admittedEnvironments: [environment],
       infrastructureClusters: ['platform-local'],
@@ -148,7 +149,7 @@ it('existing failure fields and infrastructure metrics remain routed', () => {
   expectDefinition(
     {
       ...configuration.collector.receivers.filelog,
-      exclude: configuration.collector.receivers.filelog.exclude.filter(
+      exclude: configuration.collector.receivers.filelog!.exclude.filter(
         (path) => !path.includes('observability-dev'),
       ),
     },
@@ -180,14 +181,16 @@ it('existing failure fields and infrastructure metrics remain routed', () => {
       'transform/redact',
     ]),
   );
-  expect(configuration.collector.service.pipelines['logs/platform'].receivers).toEqual(['filelog']);
-  expect(configuration.collector.service.pipelines['logs/platform'].processors).toContain(
+  expect(configuration.collector.service.pipelines['logs/platform']!.receivers).toEqual([
+    'filelog',
+  ]);
+  expect(configuration.collector.service.pipelines['logs/platform']!.processors).toContain(
     'transform/redact',
   );
-  expect(configuration.collector.service.pipelines['metrics/platform'].receivers).toEqual([
+  expect(configuration.collector.service.pipelines['metrics/platform']!.receivers).toEqual([
     'hostmetrics',
   ]);
-  expect(configuration.collector.service.pipelines['metrics/platform'].exporters).toEqual([
+  expect(configuration.collector.service.pipelines['metrics/platform']!.exporters).toEqual([
     'prometheusremotewrite',
   ]);
   expect(
@@ -280,7 +283,7 @@ it('render refuses broken required trust inputs and rendered TLS downgrade', () 
 it('render refuses changed platform routing, retention and bounded recovery', () => {
   const inputs = createInputs();
   const configuration = createSignalConfiguration(inputs);
-  configuration.collector.service.pipelines['metrics/platform'].exporters = ['prometheus'];
+  configuration.collector.service.pipelines['metrics/platform']!.exporters = ['prometheus'];
   expect(() => renderSignalConfiguration(inputs, configuration)).toThrow(/platform/);
   const retention = createSignalConfiguration(inputs);
   retention.retention.prometheus = [];
@@ -292,7 +295,7 @@ it('render refuses changed platform routing, retention and bounded recovery', ()
 it('platform logs reach a separate cluster-admitted gateway path without application relabelling', () => {
   const inputs = createInputs();
   const configuration = createSignalConfiguration(inputs);
-  expect(configuration.collector.service.pipelines['logs/platform'].exporters).toEqual([
+  expect(configuration.collector.service.pipelines['logs/platform']!.exporters).toEqual([
     'otlp/platform',
   ]);
   expect(configuration.gateway.service.pipelines['logs/platform'].receivers).toEqual([
@@ -396,7 +399,7 @@ it('forwarded platform telemetry retains cluster identity and remote-write routi
   expect(configuration.collector.processors['filter/platform'].metrics.datapoint[0]).toContain(
     'puni.cluster',
   );
-  expect(configuration.collector.receivers.filelog.exclude).toContain(
+  expect(configuration.collector.receivers.filelog!.exclude).toContain(
     '/var/log/pods/observability-dev_otel-collector-*/*/*.log',
   );
 });
@@ -448,4 +451,21 @@ it('render refuses a disconnected gateway trace receiver', () => {
   expect(() => renderSignalConfiguration(inputs, configuration)).toThrow(
     /gateway raw trace export/,
   );
+});
+
+it('external collection leaves platform collection with its single declared owner', () => {
+  const inputs = createInputs();
+  Reflect.set(inputs.source, 'collection', 'external');
+  const rendered = createSignalConfiguration(inputs);
+  expect(rendered.collector.receivers.filelog).toBeUndefined();
+  expect(rendered.collector.receivers.hostmetrics).toBeUndefined();
+  expect(rendered.collector.service.pipelines['logs/platform']).toBeUndefined();
+  expect(rendered.collector.service.pipelines['metrics/platform']).toBeUndefined();
+  expect(renderSignalConfiguration(inputs)['collector.yaml']).not.toContain('receivers: [filelog]');
+});
+
+it('render requires explicit collection ownership', () => {
+  const inputs = createInputs();
+  Reflect.deleteProperty(inputs.source, 'collection');
+  expect(() => renderSignalConfiguration(inputs)).toThrow(/collection/);
 });

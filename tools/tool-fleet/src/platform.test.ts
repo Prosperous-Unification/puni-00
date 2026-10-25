@@ -76,7 +76,7 @@ describe('validatePlatform', () => {
         'otel-agent',
         'velero',
       ],
-      workloadImages: 10,
+      workloadImages: 13,
       secrets: 0,
     });
   });
@@ -106,7 +106,7 @@ describe('validatePlatform', () => {
   it('rejects chart-rendered platform claims outside the retained class', async () => {
     for (const [path, before] of [
       [
-        'infra/platform/observability/elastic/local/elasticsearch.yaml',
+        'infra/platform/observability/elastic/base/elasticsearch.yaml',
         '              storageClassName: puni-retain\n',
       ],
       [
@@ -566,7 +566,7 @@ describe('validatePlatform', () => {
     const root = await mutablePlatform();
     await replaceManifestText(
       root,
-      'infra/platform/observability/elastic/local/elasticsearch.yaml',
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
       'version: 9.3.8',
       'version: 9.5.0',
     );
@@ -577,7 +577,7 @@ describe('validatePlatform', () => {
     const root = await mutablePlatform();
     await replaceManifestText(
       root,
-      'infra/platform/observability/elastic/production/elasticsearch.yaml',
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
       '              - name: elasticsearch\n',
       '              - name: elasticsearch\n                image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n',
     );

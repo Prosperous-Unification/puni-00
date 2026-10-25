@@ -121,6 +121,8 @@ const ToolchainSchema = type({
     // negative resolve instead of reject on 2026-09-18.
     sqliteBackup: ImageLock,
     blackboxExporter: ImageLock,
+    // Proof: making this optional fails the missing-gateway-lock production negative with an unrelated null access.
+    elasticGateway: ImageLock,
     '+': 'reject',
   },
   manifests: {

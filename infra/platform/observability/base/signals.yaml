@@ -1,0 +1,312 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: signal-collector
+  namespace: observability
+spec:
+  serviceName: signal-collector
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-collector
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signal-collector
+      annotations:
+        puni.dev/platform-collection-owner: otel-collector
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        puni.dev/capability-observability: "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: collector
+          image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+          command:
+            - /otelcol-contrib
+          args:
+            - --config=/configuration/collector.yaml
+          ports:
+            - name: otlp-http
+              containerPort: 4318
+            - name: platform
+              containerPort: 14317
+            - name: probe-metrics
+              containerPort: 8889
+            - name: metrics
+              containerPort: 8888
+            - name: health
+              containerPort: 13133
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: configuration
+              mountPath: /configuration
+              readOnly: true
+            - name: server
+              mountPath: /trust/server
+              readOnly: true
+            - name: clients
+              mountPath: /trust/clients
+              readOnly: true
+            - name: state
+              mountPath: /var/lib/otelcol
+            - name: client
+              mountPath: /trust/client
+              readOnly: true
+            - name: upstream
+              mountPath: /trust/upstream
+              readOnly: true
+            - name: metrics
+              mountPath: /trust/metrics
+              readOnly: true
+      volumes:
+        - name: configuration
+          configMap:
+            name: signal-configuration
+        - name: server
+          secret:
+            secretName: signal-collector-tls
+        - name: clients
+          secret:
+            secretName: signal-client-trust
+        - name: client
+          secret:
+            secretName: signal-collector-client
+        - name: upstream
+          secret:
+            secretName: signal-gateway-trust
+        - name: metrics
+          secret:
+            secretName: signal-metrics-writer
+  volumeClaimTemplates:
+    - metadata:
+        name: state
+      spec:
+        storageClassName: puni-retain
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signal-collector
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: signal-collector
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signal-collector
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: platform
+      port: 14317
+      targetPort: platform
+    - name: probe-metrics
+      port: 8889
+      targetPort: probe-metrics
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: signal-collector
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-collector
+  endpoints:
+    - port: metrics
+    - port: probe-metrics
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: signal-gateway
+  namespace: observability
+spec:
+  serviceName: signal-gateway
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-gateway
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signal-gateway
+      annotations:
+        puni.dev/platform-collection-owner: otel-collector
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        puni.dev/capability-observability: "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: docker.elastic.co/elastic-agent/elastic-agent:9.3.8@sha256:0b85d58ffa0e87c30baf3ab9cc3aab1e64da47607c6c1e10e9529d0665a54afd
+          command:
+            - /usr/share/elastic-agent/elastic-agent
+          args:
+            - otel
+            - --config=/configuration/gateway.yaml
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
+          ports:
+            - name: otlp
+              containerPort: 4317
+            - name: platform
+              containerPort: 14317
+            - name: metrics
+              containerPort: 8888
+            - name: health
+              containerPort: 13133
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1024Mi
+            limits:
+              cpu: "1"
+              memory: 1024Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: configuration
+              mountPath: /configuration
+              readOnly: true
+            - name: server
+              mountPath: /trust/server
+              readOnly: true
+            - name: clients
+              mountPath: /trust/clients
+              readOnly: true
+            - name: state
+              mountPath: /var/lib/elastic-agent
+            - name: elastic
+              mountPath: /trust/elastic
+              readOnly: true
+      volumes:
+        - name: configuration
+          configMap:
+            name: signal-configuration
+        - name: server
+          secret:
+            secretName: signal-gateway-tls
+        - name: clients
+          secret:
+            secretName: signal-client-trust
+        - name: elastic
+          secret:
+            secretName: elasticsearch-es-http-certs-public
+  volumeClaimTemplates:
+    - metadata:
+        name: state
+      spec:
+        storageClassName: puni-retain
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signal-gateway
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: signal-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signal-gateway
+  ports:
+    - name: otlp
+      port: 4317
+      targetPort: otlp
+    - name: platform
+      port: 14317
+      targetPort: platform
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: signal-gateway
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-gateway
+  endpoints:
+    - port: metrics

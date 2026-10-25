@@ -20,6 +20,8 @@ const serverTrust = type({
 const inputsShape = type({
   deployment: { cluster: name, namespace: name },
   source: {
+    // Proof: removing this field makes the explicit-collection-ownership render negative fail.
+    collection: "'local' | 'external'",
     environment: name,
     admittedEnvironments: name.array().atLeastLength(1),
     infrastructureClusters: name.array().atLeastLength(1),
@@ -492,7 +494,34 @@ export function createSignalConfiguration(
     }),
   );
   return {
-    collector: collectorWithAuth,
+    collector: {
+      ...collectorWithAuth,
+      // Proof: forcing local collection makes the external-collection production-render test fail.
+      receivers:
+        inputs.source.collection === 'local'
+          ? collectorWithAuth.receivers
+          : {
+              otlp: collectorWithAuth.receivers.otlp,
+              'otlp/platform': collectorWithAuth.receivers['otlp/platform'],
+              filelog: undefined,
+              hostmetrics: undefined,
+            },
+      service: {
+        ...collectorWithAuth.service,
+        pipelines:
+          inputs.source.collection === 'local'
+            ? collectorWithAuth.service.pipelines
+            : {
+                logs: collectorWithAuth.service.pipelines.logs,
+                traces: collectorWithAuth.service.pipelines.traces,
+                metrics: collectorWithAuth.service.pipelines.metrics,
+                'logs/forwarded': collectorWithAuth.service.pipelines['logs/forwarded'],
+                'metrics/forwarded': collectorWithAuth.service.pipelines['metrics/forwarded'],
+                'logs/platform': undefined,
+                'metrics/platform': undefined,
+              },
+      },
+    },
     gateway,
     failureFields: policies.failureFields,
     retention: {

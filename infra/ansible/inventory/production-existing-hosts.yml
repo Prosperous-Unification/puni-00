@@ -46,8 +46,8 @@ all:
           puni_node_capabilities: [observability]
           # Victoria, Grafana and MLflow may spill here; pods never swap.
           puni_swap_file_mib: 4096
-          # 7.6 GiB host: kubepods is capped at capacity minus these, leaving the host services
-          # at least 1408 MiB of RAM plus the swap file (budget test: observability-budget.test.ts).
+          # 2026-10-25 MemTotal15977380KiB: preserve reservations; the coexistence assessment
+          # also counts all Docker limits and currently blocks migration overlap (observability/base/coexistence.json).
           puni_kubelet_system_reserved_memory: 1024Mi
           puni_kubelet_kube_reserved_memory: 384Mi
           puni_kubelet_eviction_memory: 256Mi

@@ -1,0 +1,187 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: signal-metrics
+  namespace: observability
+data:
+  dynamic.yaml: >
+    http:
+      routers:
+        write:
+          entryPoints:
+            - metrics
+          rule: Path(`/api/v1/write`) && Method(`POST`)
+          middlewares:
+            - write
+          service: prometheus
+          tls: {}
+        query:
+          entryPoints:
+            - metrics
+          rule: (Path(`/api/v1/query`) || Path(`/api/v1/query_range`)) && (Method(`GET`)
+            || Method(`POST`))
+          middlewares:
+            - query
+          service: prometheus
+          tls: {}
+      middlewares:
+        write:
+          basicAuth:
+            usersFile: /auth/write/users
+            removeHeader: true
+        query:
+          basicAuth:
+            usersFile: /auth/query/users
+            removeHeader: true
+      services:
+        prometheus:
+          loadBalancer:
+            servers:
+              - url: http://kps-prometheus.observability.svc:9090
+    tls:
+      certificates:
+        - certFile: /tls/tls.crt
+          keyFile: /tls/tls.key
+      options:
+        default:
+          minVersion: VersionTLS13
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signal-metrics
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-metrics
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signal-metrics
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        puni.dev/capability-observability: "true"
+      containers:
+        - name: proxy
+          image: docker.io/library/traefik:v3.7.13@sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259
+          args:
+            - --entrypoints.metrics.address=:8443
+            - --providers.file.filename=/configuration/dynamic.yaml
+            - --api=false
+            - --global.checknewversion=false
+            - --global.sendanonymoususage=false
+          ports:
+            - name: https
+              containerPort: 8443
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            tcpSocket:
+              port: https
+          volumeMounts:
+            - name: configuration
+              mountPath: /configuration
+              readOnly: true
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            - name: write
+              mountPath: /auth/write
+              readOnly: true
+            - name: query
+              mountPath: /auth/query
+              readOnly: true
+      volumes:
+        - name: configuration
+          configMap:
+            name: signal-metrics
+        - name: tls
+          secret:
+            secretName: signal-metrics-tls
+        - name: write
+          secret:
+            secretName: signal-metrics-write-auth
+        - name: query
+          secret:
+            secretName: signal-metrics-query-auth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signal-metrics
+  namespace: observability
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signal-metrics
+  ports:
+    - name: https
+      port: 8443
+      targetPort: https
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: signal-metrics
+  namespace: observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signal-metrics
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 8443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-private
+  namespace: observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: otel-collector
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-metrics
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9090
