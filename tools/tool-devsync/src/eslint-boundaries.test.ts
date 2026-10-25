@@ -268,6 +268,7 @@ describe('the effective production and test boundaries', () => {
   it('Dash resources reach only the WBS transport contract at their scoped paths', async () => {
     const peer = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
     const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
+    if (!isRecord(peerOptions)) throw new Error('Dash peer boundary options are malformed');
     for (const path of [
       'apps/twilight-structure/twilight-dash/cli/src/resources/runtime.ts',
       'apps/twilight-structure/twilight-dash/cli/src/resources/runtime.test.ts',
@@ -275,7 +276,8 @@ describe('the effective production and test boundaries', () => {
       const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
       if (!isRecord(options)) throw new Error('Dash resources boundary options malformed');
       expect(options['allow']).toEqual(['^@wbs/contracts$']);
-      expect({ ...options, allow: [] }).toEqual(peerOptions);
+      const withoutWbsAlias: Readonly<Record<string, unknown>> = { ...options, allow: [] };
+      expect(withoutWbsAlias).toEqual(peerOptions);
       expect(await ruleIds(path, "await import('@wbs/contracts');")).not.toContain(
         '@nx/enforce-module-boundaries',
       );

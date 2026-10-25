@@ -299,3 +299,41 @@ Formatting and whitespace checks passed. After explicitly generating the Nx proj
 changed-file ESLint was rerun so module-boundary checks could execute. A new full remote gate
 and GitHub CI are still required on the corrected commit; the failed earlier gate is not a
 release approval.
+
+## Hosted namespace provisioning correction (2026-10-25)
+
+The original GitHub Twilight log (run `40191312192`) for candidate `b463045a0d1020ca9cde1d9397d2ff61a2bb9731`
+failed the unchanged real runtime integration test with
+`unshare: write failed /proc/self/uid_map: Operation not permitted`. The existing CI profile
+admitted only `/usr/bin/bwrap`, after the main Twilight Nx step. The workflow now loads an
+AppArmor `userns` profile for `/usr/bin/unshare` before that step, only for full gates or exact
+`twilight-dash` membership. It preserves the host-wide restriction and runs this real probe
+as the runner account before allowing the runtime tests to start:
+
+```sh
+unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true
+```
+
+No runtime guard, test skip, sudo test execution, laptop policy or host account changed.
+Three new workflow regressions initially failed because provisioning was absent. After the
+workflow correction, `bun test tools/tool-devsync/src/toolchain-pins.test.ts` passed all
+24 tests and 94 assertions. The tests check executable scope, conditional job membership,
+ordering and the exact unprivileged probe. They also execute the production shell block
+against controlled loader/probe failures and verify that each error stops execution.
+Six watched workflow mutations failed: late provision, unscoped provision, wrong executable,
+missing probe, ignored profile-loader failure and ignored probe failure. All were restored.
+
+The unchanged real runtime suite passed locally:
+`bun test apps/twilight-structure/twilight-dash/cli/src/resources/runtime.test.ts --timeout=120000`
+reported one outer integration test, two assertions, zero failures (28.64s). The exact probe
+above also exited0. Scoped ESLint and shellcheck of the parsed production run block passed.
+These local checks do not exercise Ubuntu's hosted AppArmor enforcement: a new GitHub run
+must establish that the provision resolves the original UID-map failure on that runner.
+No AppArmor profile was loaded on the development machine.
+
+The covering tool-devsync typecheck exposed a test-only comparison introduced by this branch:
+`eslint-boundaries.test.ts` passed unknown peer options to a narrowly inferred equality matcher.
+The resources boundary test now validates those options and types its comparison record like
+the adjacent activation boundary test. `bunx tsc --build --force tools/tool-devsync/tsconfig.json`
+then exited0. Its focused real ESLint boundary regression passed (one test, 13 assertions),
+and scoped lint/format checks passed. No import allowance or assertion was weakened.
