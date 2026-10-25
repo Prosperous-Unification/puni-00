@@ -7,7 +7,7 @@ The website introduces Prosperous Unification's software services and turns a vi
 - [puni-00](https://github.com/Prosperous-Unification/puni-00): public projects and the current management tooling.
 - [puni-pr-00](https://github.com/Prosperous-Unification/puni-pr-00): private companion, created and verified private on 2026-09-27. A first shared baseline projection and explicit project-transfer command are implemented; see [portability and verified limits](../workspace/portability.md). The complete governance and release setup remains in the implementation roadmap.
 - `puni-pr-00/apps/website/site`: destination for the licensed Astro/Novaform website. The existing empty `puni-site` repository is left unchanged.
-- `puni-00/apps/website/{fe-01,be-01}` and `puni-00/libs/website/{domain/contracts,adapters/store-sqlite}`: canonical public app, API and shared libraries. The private companion keeps a pinned service snapshot for its local three-host demo; source edits begin here.
+- `puni-00/apps/website/{fe-01,be-01}` and `puni-00/libs/website/{domain/contracts,adapters/store-sqlite,adapters/analytics}`: canonical public app, API, contracts, SQLite store and analytics adapter. The private companion keeps a pinned service snapshot for its local three-host demo; source edits begin here.
 
 [ADR 0037](../adr/0037-public-and-private-monorepos-share-a-portable-project-contract.md) records the private companion decision and the requirement to copy eligible projects, with their local dependencies, between the two monorepos.
 
@@ -23,6 +23,8 @@ The website introduces Prosperous Unification's software services and turns a vi
 Manual submission does not require a visitor account. Build is a live chat bound to the browser draft claim under the conversation allowance, with no prospect sign-in: the [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/proposal.md) superseded the earlier "choosing AI requires sign-in before any model call" line (accepted on 2026-10-11 as a batch 10 assumption, [ADR 0039](../adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md)). Send, Stop, Retry and the inline proposal card are specified in that change. Proposal submission is always an explicit action. The AI cannot agree to a price, delivery date or contract. The provider stays disabled until the [anonymous conversation activation](build-runtime.md#anonymous-conversation-activation) gates pass.
 
 ## Planning and evidence
+
+- [Analytics account setup](analytics-setup.md): environment mapping, exact custom definitions, key-event setup and three proposed saved analyses; account setup and delivery evidence remain separate from local payload tests.
 
 - [Site revamp plan](site-revamp-plan.md): coordinated release for the conversion questionnaire, model-cost controls, five services, privacy, proposed GA4 measurement, About direction and first blog post; links the two implementation workstreams and their release dependencies.
 - [Interactive conversation map](prototypes/conversation-map.html): standalone browser graph and walkthrough of the six starters, suggested answers, uncertainty paths and request/email handoff; a local design prototype with no real AI or submission.
