@@ -22,3 +22,13 @@
   serial: 1
   tags: [registry_client]
   roles: [registry_client]
+
+- name: Stage reviewed registry authority without activating pressure renewal
+  hosts: registry_endpoints
+  become: true
+  tags: [never, registry_authority]
+  tasks:
+    - name: Install explicitly enrolled authority artifacts
+      ansible.builtin.include_role:
+        name: registry_storage
+        tasks_from: authority

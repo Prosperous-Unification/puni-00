@@ -6,6 +6,7 @@ import { isAbsolute, join } from 'node:path';
 import { type } from 'arktype';
 import { dlopen } from 'bun:ffi';
 
+import type { RegistryWritePermit } from './registry-capacity';
 import {
   admitPublication,
   type ImageProtection,
@@ -71,8 +72,7 @@ const Maintenance = type({
   '+': 'reject',
 });
 const Reservation = type({ operationId: Identity, bytes: Count, inodes: Count, '+': 'reject' });
-const Journal = type({
-  schemaVersion: '1',
+const journalShape = {
   enrollment: Enrollment,
   revision: Count,
   updatedAt: Timestamp,
@@ -84,12 +84,33 @@ const Journal = type({
   maintenance: Maintenance.or('null'),
   closedOperations: Identity.array(),
   '+': 'reject',
+} as const;
+const LegacyJournal = type({ ...journalShape, schemaVersion: '1' });
+const Measurement = type({
+  at: Timestamp,
+  maximumBytes: Positive,
+  usableBytes: Positive,
+  usedBytes: Count,
+  totalInodes: Positive,
+  usedInodes: Count,
+  rootFreeBytes: Count,
+  '+': 'reject',
+});
+const Journal = type({
+  ...journalShape,
+  schemaVersion: '2',
+  fenceReason: Identity.or('null'),
+  maintenanceVerified: 'boolean',
+  measurement: Measurement.or('null'),
 });
 const mutation = { expectedRevision: Count, operationId: Identity, owner: Identity };
 const existing = { ...mutation, token: Token };
 const Command = type.or(
   { command: "'initialize'", enrollment: Enrollment, '+': 'reject' },
   { command: "'read'", '+': 'reject' },
+  { command: "'upgrade'", '+': 'reject' },
+  { command: "'check-capacity'", '+': 'reject' },
+  { command: "'reopen'", ...mutation, '+': 'reject' },
   { command: "'acquire-protection'", ...mutation, ...images, reason: Identity, '+': 'reject' },
   { command: "'release-protection'", ...existing, reconciled: 'true', '+': 'reject' },
   {
@@ -148,6 +169,7 @@ export interface RegistryJournalPorts {
   measureRegistry: (enrollment: RegistryEnrollment) => Promise<RegistryCapacity>;
   now?: () => string;
   sync?: (descriptor: FileHandle) => Promise<void>;
+  permit?: RegistryWritePermit;
 }
 
 const maximumRequestBytes = 64 * 1024;
@@ -182,7 +204,7 @@ async function requireFile(descriptor: FileHandle): Promise<number> {
   return status.size;
 }
 
-async function readJournal(path: string): Promise<RegistryJournal> {
+async function readJournal(path: string, upgrade = false): Promise<RegistryJournal> {
   // Proof: missing-state throws ENOENT; removing NOFOLLOW lets the symlink command negative proceed.
   const descriptor = await open(
     path,
@@ -197,6 +219,32 @@ async function readJournal(path: string): Promise<RegistryJournal> {
       parsed = JSON.parse(await descriptor.readFile('utf8'));
     } catch (cause) {
       throw new Error('Malformed registry journal JSON', { cause });
+    }
+    // Proof: legacy state is refused by read and admitted only by the explicit fenced upgrade test.
+    if (upgrade) {
+      const legacy = requireSchema(LegacyJournal, parsed, 'legacy registry journal');
+      // Proof: upgrading an unfenced legacy maintenance owner succeeded before this preservation check.
+      requireConsistentState(
+        requireSchema(
+          Journal,
+          {
+            ...legacy,
+            schemaVersion: 2,
+            fenceReason: legacy.fenced ? 'legacy-recovery' : null,
+            maintenanceVerified: false,
+            measurement: null,
+          },
+          'legacy journal invariants',
+        ),
+      );
+      parsed = {
+        ...legacy,
+        schemaVersion: 2,
+        fenced: true,
+        fenceReason: 'explicit-upgrade',
+        maintenanceVerified: false,
+        measurement: null,
+      };
     }
     const journal = requireSchema(Journal, parsed, 'registry journal');
     // Proof: removing read-time invariants failed malformed-trusted-ownership on the read command.
@@ -223,6 +271,11 @@ function requireImages(roots: readonly string[], references: readonly { digest: 
 }
 
 function requireConsistentState(journal: RegistryJournal): void {
+  if (
+    (!journal.fenced && journal.fenceReason !== null) ||
+    (journal.fenced && journal.fenceReason === null)
+  )
+    throw new Error('Inconsistent fence reason');
   requireUnique(journal.enrollment.owners, 'enrolled owner');
   requireUnique(
     journal.bundles.map((bundle) => bundle.operationId),
@@ -288,6 +341,12 @@ async function syncDirectory(directory: string, ports: RegistryJournalPorts): Pr
 async function listReplacements(directory: string): Promise<string[]> {
   const replacements: string[] = [];
   for (const name of await readdir(directory)) {
+    if (name.startsWith('permit-')) {
+      if (Token(name.slice(7)) instanceof type.errors)
+        throw new Error('Unrecognized permit replacement name');
+      replacements.push(join(directory, name));
+      continue;
+    }
     if (name === 'journal.json' || !name.startsWith('journal.')) continue;
     // Proof: unsafe-replacement name negative refuses an operator file instead of deleting it.
     if (!name.endsWith('.json') || Token(name.slice(8, -5)) instanceof type.errors)
@@ -355,6 +414,8 @@ async function persistJournal(
   ports: RegistryJournalPorts,
   recovery: boolean,
   initialize: boolean,
+  reopen = false,
+  checkOnly = false,
 ): Promise<void> {
   const serialized = `${JSON.stringify(journal)}\n`;
   const replacementBytes = Buffer.byteLength(serialized);
@@ -383,6 +444,11 @@ async function persistJournal(
     neededInodes * (recovery ? 1n : 10n) >= BigInt(measured.totalInodes) * (recovery ? 1n : 9n)
   )
     throw new Error('Insufficient journal capacity for durable replacement and failure receipt');
+  if (checkOnly) return;
+  if (ports.permit !== undefined && !initialize) {
+    if (journal.fenced) await ports.permit.revoke();
+    else await ports.permit.prepare(serialized, reopen);
+  }
   const path = join(directory, 'journal.json');
   const replacement = initialize ? path : join(directory, `journal.${randomUUID()}.json`);
   const descriptor = await open(
@@ -406,6 +472,8 @@ async function persistJournal(
     }
     // Proof: removing directory sync failed propagates-failed-file-and-directory-fsync.
     await syncDirectory(directory, ports);
+    if (ports.permit !== undefined && !initialize && !journal.fenced)
+      await ports.permit.publish(serialized);
   } catch (cause) {
     if (!isPublished) {
       try {
@@ -491,7 +559,10 @@ function requireMaintenancePhase(maintenance: NonNullable<RegistryJournal['maint
 
 async function mutateJournal(
   journal: RegistryJournal,
-  request: Exclude<RegistryCommand, { command: 'read' | 'initialize' }>,
+  request: Exclude<
+    RegistryCommand,
+    { command: 'read' | 'initialize' | 'upgrade' | 'check-capacity' }
+  >,
   ports: RegistryJournalPorts,
 ): Promise<string | undefined> {
   // Proof: stale-revision command negative fails when this comparison is removed.
@@ -509,6 +580,28 @@ async function mutateJournal(
     request.command === 'begin-maintenance';
   if (isNew) requireNewOperation(journal, request.operationId);
   switch (request.command) {
+    case 'reopen': {
+      if (
+        !journal.maintenanceVerified ||
+        journal.maintenance !== null ||
+        journal.publication !== null
+      )
+        throw new Error('Reopening requires settled recovery and verified maintenance');
+      const capacity = await ports.measureRegistry(journal.enrollment);
+      admitPublication({ capacity, reservations: [], envelope: { bytes: 0, inodes: 0 } });
+      // Proof: removing low-water refusal fails the completed-maintenance byte/inode/root reopening negatives.
+      if (
+        BigInt(capacity.usedBytes) * 10n >=
+          BigInt(Math.min(capacity.maximumBytes, capacity.usableBytes)) * 7n ||
+        BigInt(capacity.usedInodes) * 10n >= BigInt(capacity.totalInodes) * 7n ||
+        capacity.rootFreeBytes < 20 * 1024 ** 3
+      )
+        throw new Error('Reopening requires low water');
+      journal.fenced = false;
+      journal.fenceReason = null;
+      journal.measurement = { at: journal.updatedAt, ...capacity };
+      return undefined;
+    }
     case 'acquire-protection': {
       requireImages(request.roots, request.references);
       const protection: ImageProtection = {
@@ -537,11 +630,15 @@ async function mutateJournal(
     case 'reserve-publication': {
       if (journal.fenced) throw new Error('Registry writes are fenced');
       requireImages(request.roots, request.references);
+      const capacity = await ports.measureRegistry(journal.enrollment);
+      journal.measurement = { at: journal.updatedAt, ...capacity };
       const admission = admitPublication({
-        capacity: await ports.measureRegistry(journal.enrollment),
+        capacity,
         reservations: journal.reservations,
         envelope: request.envelope,
       });
+      if (admission.pressure === 'fenced')
+        throw new RegistryMeasurementFailure('Actual registry pressure requires fencing');
       if (admission.status === 'refused')
         throw new Error(`Publication refused: ${admission.reasons.join(', ')}`);
       const token = randomUUID();
@@ -574,6 +671,8 @@ async function mutateJournal(
         publication.phase = 'failed';
         publication.failure = request.failure;
         journal.fenced = true;
+        journal.fenceReason = 'publication-failed';
+        journal.maintenanceVerified = false;
         return undefined;
       }
       // Proof: removing reconciliation failed rejects-invalid-journal-measurements before completion.
@@ -600,6 +699,8 @@ async function mutateJournal(
         resumePhase: 'acquired',
       };
       journal.fenced = true;
+      journal.fenceReason = journal.fenceReason ?? 'maintenance';
+      journal.maintenanceVerified = false;
       return token;
     }
     case 'recover-maintenance': {
@@ -633,11 +734,10 @@ async function mutateJournal(
         // Reuse admission validation at this IO boundary before evaluating the stricter recovery threshold.
         const capacity = await ports.measureRegistry(journal.enrollment);
         admitPublication({ capacity, reservations: [], envelope: { bytes: 0, inodes: 0 } });
-        journal.fenced =
-          BigInt(capacity.usedBytes) * 10n >=
-            BigInt(Math.min(capacity.maximumBytes, capacity.usableBytes)) * 7n ||
-          BigInt(capacity.usedInodes) * 10n >= BigInt(capacity.totalInodes) * 7n ||
-          capacity.rootFreeBytes < 20 * 1024 ** 3;
+        // Proof: completed maintenance retains the pressure fence until the explicit low-water reopen command.
+        journal.fenced = true;
+        journal.maintenanceVerified = true;
+        journal.measurement = { at: journal.updatedAt, ...capacity };
         journal.closedOperations.push(request.operationId);
         journal.maintenance = null;
       }
@@ -645,6 +745,15 @@ async function mutateJournal(
     }
   }
 }
+
+function incrementRevision(state: RegistryJournal): void {
+  // Proof: exhausted-revision command negative fails if unsafe revisions can be persisted.
+  if (!Number.isSafeInteger(state.revision + 1)) throw new Error('Journal revision exhausted');
+  state.revision += 1;
+}
+
+class RegistryRequestRefusal extends Error {}
+class RegistryMeasurementFailure extends Error {}
 
 /**
  * Run one authenticated host command under an owner-only kernel flock, then atomically fsync
@@ -666,56 +775,173 @@ export async function executeRegistryCommand(
   if (typeof encoded !== 'string' || Buffer.byteLength(encoded) > maximumRequestBytes)
     throw new Error('Registry request exceeds read bound');
   const request = requireSchema(Command, input, 'registry command');
+  const nativeMeasure = ports.measureRegistry;
+  ports = {
+    ...ports,
+    measureRegistry: async (enrollment) => {
+      try {
+        const capacity = await nativeMeasure(enrollment);
+        admitPublication({ capacity, reservations: [], envelope: { bytes: 0, inodes: 0 } });
+        return capacity;
+      } catch (cause) {
+        throw new RegistryMeasurementFailure('Registry measurement failed', { cause });
+      }
+    },
+  };
   return withLock(directory, async () => {
-    if (request.command === 'initialize') {
-      // Proof: initialize-with-orphan negative preserves the only possible recovery copy.
-      if ((await listReplacements(directory)).length > 0)
-        throw new Error(
-          'Registry journal replacements require canonical-state recovery before initialize',
+    try {
+      if (request.command === 'initialize') {
+        // Proof: initialize-with-orphan negative preserves the only possible recovery copy.
+        if ((await listReplacements(directory)).length > 0)
+          throw new Error(
+            'Registry journal replacements require canonical-state recovery before initialize',
+          );
+        requireUnique(request.enrollment.owners, 'enrolled owner');
+        const state = requireSchema(
+          Journal,
+          {
+            schemaVersion: 2,
+            enrollment: request.enrollment,
+            revision: 0,
+            updatedAt: (ports.now ?? (() => new Date().toISOString()))(),
+            fenced: false,
+            fenceReason: null,
+            maintenanceVerified: false,
+            measurement: null,
+            protections: [],
+            bundles: [],
+            reservations: [],
+            publication: null,
+            maintenance: null,
+            closedOperations: [],
+          },
+          'initial registry journal',
         );
-      requireUnique(request.enrollment.owners, 'enrolled owner');
-      const state = requireSchema(
-        Journal,
-        {
-          schemaVersion: 1,
-          enrollment: request.enrollment,
-          revision: 0,
-          updatedAt: (ports.now ?? (() => new Date().toISOString()))(),
-          fenced: false,
-          protections: [],
-          bundles: [],
-          reservations: [],
-          publication: null,
-          maintenance: null,
-          closedOperations: [],
-        },
-        'initial registry journal',
+        await persistJournal(directory, state, ports, false, true);
+        return { state };
+      }
+      const state = await readJournal(
+        join(directory, 'journal.json'),
+        request.command === 'upgrade',
       );
-      await persistJournal(directory, state, ports, false, true);
-      return { state };
+      const wasFenced = state.fenced;
+      await reconcileReplacements(directory, ports);
+      if (request.command === 'read') return { state };
+      if (request.command === 'upgrade') {
+        incrementRevision(state);
+        await persistJournal(directory, state, ports, true, false);
+        return { state };
+      }
+      if (request.command === 'check-capacity') {
+        // Proof: removing this independent headroom check lets a ninety-percent journal renew pressure permission.
+        await persistJournal(
+          directory,
+          state,
+          { ...ports, permit: undefined },
+          false,
+          false,
+          false,
+          true,
+        );
+        const capacity = await ports.measureRegistry(state.enrollment);
+        const admission = admitPublication({
+          capacity,
+          reservations: [],
+          envelope: { bytes: 0, inodes: 0 },
+        });
+        // Proof: killing the real checker then restarting it preserves the fence in the pinned-container rehearsal.
+        const lapsed = ports.permit !== undefined && !(await ports.permit.isFresh());
+        if ((admission.pressure === 'fenced' || lapsed) && !state.fenced) {
+          const at = requireSchema(
+            Timestamp,
+            (ports.now ?? (() => new Date().toISOString()))(),
+            'pressure receipt time',
+          );
+          if (at < state.updatedAt) throw new Error('Server receipt clock moved backwards');
+          state.updatedAt = at;
+          state.measurement = { at, ...capacity };
+          state.fenced = true;
+          state.fenceReason = lapsed
+            ? 'permission-lapsed'
+            : admission.status === 'refused'
+              ? admission.reasons.join(',')
+              : 'pressure';
+          state.maintenanceVerified = false;
+          incrementRevision(state);
+          await persistJournal(directory, state, ports, true, false);
+        }
+        if (ports.permit !== undefined) {
+          if (state.fenced) {
+            await ports.permit.revoke();
+            await ports.permit.confirmReadonly?.();
+          } else {
+            const serialized = `${JSON.stringify(state)}\n`;
+            await ports.permit.prepare(serialized, false);
+            await ports.permit.publish(serialized);
+          }
+        }
+        return { state };
+      }
+      const at = requireSchema(
+        Timestamp,
+        (ports.now ?? (() => new Date().toISOString()))(),
+        'server receipt time',
+      );
+      // Proof: removing monotonic receipt time failed clock-reversal command negative.
+      if (at < state.updatedAt) throw new Error('Server receipt clock moved backwards');
+      state.updatedAt = at;
+      let token: string | undefined;
+      try {
+        token = await mutateJournal(state, request, ports);
+      } catch (cause) {
+        if (cause instanceof RegistryMeasurementFailure) throw cause;
+        throw new RegistryRequestRefusal(
+          cause instanceof Error ? cause.message : 'Registry request refused',
+          { cause },
+        );
+      }
+      incrementRevision(state);
+      requireConsistentState(state);
+      const recovery =
+        request.command === 'finish-publication' ||
+        request.command === 'advance-maintenance' ||
+        request.command === 'recover-maintenance' ||
+        request.command === 'release-protection';
+      await persistJournal(directory, state, ports, recovery, false, request.command === 'reopen');
+      if (state.fenced && !wasFenced) await ports.permit?.confirmReadonly?.();
+      return token === undefined ? { state } : { state, token };
+    } catch (cause) {
+      if (!(cause instanceof RegistryRequestRefusal) && ports.permit !== undefined) {
+        const failures: unknown[] = [cause];
+        try {
+          await ports.permit.revoke();
+        } catch (failure) {
+          failures.push(failure);
+        }
+        try {
+          const failed = await readJournal(join(directory, 'journal.json'));
+          if (!failed.fenced) {
+            failed.fenced = true;
+            failed.fenceReason = 'authority-failure';
+            failed.maintenanceVerified = false;
+            incrementRevision(failed);
+            await persistJournal(directory, failed, { ...ports, permit: undefined }, true, false);
+          }
+        } catch (failure) {
+          failures.push(failure);
+        }
+        try {
+          await ports.permit.confirmReadonly?.();
+        } catch (failure) {
+          failures.push(new Error('Live fencing is unconfirmed', { cause: failure }));
+        }
+        throw new AggregateError(
+          failures,
+          'Registry authority failed; writes remain fenced or fencing is explicitly unconfirmed',
+          { cause },
+        );
+      }
+      throw cause;
     }
-    const state = await readJournal(join(directory, 'journal.json'));
-    await reconcileReplacements(directory, ports);
-    if (request.command === 'read') return { state };
-    const at = requireSchema(
-      Timestamp,
-      (ports.now ?? (() => new Date().toISOString()))(),
-      'server receipt time',
-    );
-    // Proof: removing monotonic receipt time failed clock-reversal command negative.
-    if (at < state.updatedAt) throw new Error('Server receipt clock moved backwards');
-    state.updatedAt = at;
-    const token = await mutateJournal(state, request, ports);
-    // Proof: exhausted-revision command negative fails if unsafe revisions can be persisted.
-    if (!Number.isSafeInteger(state.revision + 1)) throw new Error('Journal revision exhausted');
-    state.revision += 1;
-    requireConsistentState(state);
-    const recovery =
-      request.command === 'finish-publication' ||
-      request.command === 'advance-maintenance' ||
-      request.command === 'recover-maintenance' ||
-      request.command === 'release-protection';
-    await persistJournal(directory, state, ports, recovery, false);
-    return token === undefined ? { state } : { state, token };
   });
 }

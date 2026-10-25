@@ -391,7 +391,7 @@ it('rejects malformed claims and insecure journal paths before mutations', async
   await requireRefusal(executeRegistryCommand(directory, publication(), ports()), /ELOOP/);
 });
 
-it('runs the owner-only stdin CLI with real measurements and bounds input', async () => {
+it('refuses unenforced storage through the owner-only stdin CLI and bounds input', async () => {
   const directory = await scratchAsync('registry-command-');
   await chmod(directory, 0o700);
   const filesystem = await statfs(directory);
@@ -419,20 +419,9 @@ it('runs the owner-only stdin CLI with real measurements and bounds input', asyn
   const initialized = await run(
     JSON.stringify({ command: 'initialize', enrollment: localEnrollment }),
   );
-  expect(initialized[0]).toBe(0);
-  expect(
-    (JSON.parse(initialized[1]) as { state: { enrollment: { registryId: string } } }).state
-      .enrollment.registryId,
-  ).toBe('proof-registry');
-  const orphan = join(directory, `journal.${crypto.randomUUID()}.json`);
-  await writeFile(orphan, 'crashed replacement', { mode: 0o600 });
-  const readback = await run('{"command":"read"}');
-  expect(await import('node:fs/promises').then(({ readdir }) => readdir(directory))).toEqual([
-    'authority.lock',
-    'journal.json',
-  ]);
-  expect(readback[0]).toBe(0);
-  expect((JSON.parse(readback[1]) as { state: { revision: number } }).state.revision).toBe(0);
+  expect(initialized[0]).not.toBe(0);
+  expect(initialized[1]).toBe('');
+  expect(initialized[2]).toContain('ENOENT');
   for (const [request, extra] of [
     ['{"command":"read"}' + ' '.repeat(65537), []],
     ['{"command":"read"}', ['--locked']],
@@ -528,7 +517,27 @@ it('recovers crashed maintenance at its durable phase and completes only after e
   }
   const completed = await read(directory);
   expect(completed.state.maintenance).toBeNull();
-  expect(completed.state.fenced).toBe(false);
+  expect(completed.state.fenced).toBe(true);
+  expect(completed.state.maintenanceVerified).toBe(true);
+  const reopen = {
+    command: 'reopen',
+    expectedRevision: revision,
+    operationId: 'reopen',
+    owner: 'backup',
+  };
+  for (const pressure of [
+    { ...capacity, usedBytes: 35 * GiB },
+    { ...capacity, usedInodes: 70000 },
+    { ...capacity, rootFreeBytes: 19 * GiB },
+  ])
+    await requireRefusal(
+      executeRegistryCommand(directory, reopen, {
+        ...ports(),
+        measureRegistry: () => Promise.resolve(pressure),
+      }),
+      'low water',
+    );
+
   await requireRefusal(
     executeRegistryCommand(
       directory,
@@ -646,7 +655,7 @@ it('refuses reinitialization, clock reversal, duplicate roots and malformed trus
     { ...state, enrollment: { ...state.enrollment, owners: ['publisher', 'publisher'] } },
     { ...state, reservations: [{ operationId: 'orphan', bytes: 1, inodes: 1 }] },
     { ...state, closedOperations: ['duplicate', 'duplicate'] },
-    { ...state, schemaVersion: 2 },
+    { ...state, schemaVersion: 99 },
   ];
   for (const corrupt of corruptions) {
     await writeFile(path, JSON.stringify(corrupt));
@@ -948,4 +957,76 @@ it('refuses a foreign-owner replacement reported by the filesystem boundary', as
   expect(failed.exitCode).not.toBe(0);
   expect(failed.stderr).toContain('replacement must be');
   expect(await readFile(path, 'utf8')).toBe('foreign evidence');
+});
+
+it('persists pressure, requires verified low water to explicitly reopen, and preserves restart fence', async () => {
+  const directory = await fixture();
+  const high = {
+    ...ports(),
+    measureRegistry: () => Promise.resolve({ ...capacity, usedInodes: 90000 }),
+  };
+  const fenced = await executeRegistryCommand(directory, { command: 'check-capacity' }, high);
+  expect(fenced.state.fenced).toBe(true);
+  expect(fenced.state.fenceReason).toContain('inodes');
+  expect((await read(directory)).state.fenced).toBe(true);
+  await requireRefusal(
+    executeRegistryCommand(
+      directory,
+      { command: 'reopen', expectedRevision: 1, operationId: 'reopen', owner: 'backup' },
+      ports(),
+    ),
+    'verified maintenance',
+  );
+  const healthy = await executeRegistryCommand(directory, { command: 'check-capacity' }, ports());
+  expect(healthy.state.fenced).toBe(true);
+});
+
+it('requires explicit schema upgrade and preserves old recovery obligations', async () => {
+  const directory = await fixture();
+  const current = (await read(directory)).state;
+  const legacy: Record<string, unknown> = { ...current };
+  delete legacy['fenceReason'];
+  delete legacy['maintenanceVerified'];
+  delete legacy['measurement'];
+  await writeFile(
+    join(directory, 'journal.json'),
+    JSON.stringify({ ...legacy, schemaVersion: 1, fenced: true }),
+  );
+  await requireRefusal(read(directory), 'registry journal');
+  const upgraded = await executeRegistryCommand(directory, { command: 'upgrade' }, ports());
+  expect(upgraded.state.schemaVersion).toBe(2);
+  expect(upgraded.state.fenced).toBe(true);
+  expect(upgraded.state.maintenanceVerified).toBe(false);
+});
+
+it('refuses pressure renewal when journal crosses its independent ninety percent boundary', async () => {
+  const directory = await fixture();
+  await requireRefusal(
+    executeRegistryCommand(directory, { command: 'check-capacity' }, ports(Math.ceil(GiB * 0.9))),
+    'journal capacity',
+  );
+});
+
+it('refuses inconsistent legacy recovery state before schema upgrade', async () => {
+  const directory = await fixture();
+  const begun = await executeRegistryCommand(
+    directory,
+    {
+      command: 'begin-maintenance',
+      expectedRevision: 0,
+      operationId: 'legacy-recovery',
+      owner: 'backup',
+      kind: 'backup',
+    },
+    ports(),
+  );
+  const legacy: Record<string, unknown> = { ...begun.state, schemaVersion: 1, fenced: false };
+  delete legacy['fenceReason'];
+  delete legacy['maintenanceVerified'];
+  delete legacy['measurement'];
+  await writeFile(join(directory, 'journal.json'), JSON.stringify(legacy));
+  await requireRefusal(
+    executeRegistryCommand(directory, { command: 'upgrade' }, ports()),
+    'Unfenced recovery',
+  );
 });

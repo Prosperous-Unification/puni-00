@@ -34,5 +34,67 @@ MEASUREMENT
 }
 verify_mount registry "$registry"
 verify_mount journal "$journal"
-# The durable journal fence is checked here by the pressure/admission slice before exec.
-exec "$@"
+# The authority alone publishes a thirty-second derived permit. Unknown state runs
+# read-only; it cannot bootstrap writable service after a checker or host restart.
+permits_writes() {
+  permission="$journal/contents/writable.permit"
+  canonical="$journal/contents/journal.json"
+  metadata=$(stat -c '%f:%u:%g:%h' "$permission" 2>/dev/null) || return 1
+  test "$metadata" = '8180:59001:59001:1' || return 1
+  metadata=$(stat -c '%f:%u:%g:%h' "$canonical" 2>/dev/null) || return 1
+  test "$metadata" = '8180:59001:59001:1' || return 1
+  size=$(stat -c '%s' "$permission") || return 1
+  test "$size" -le 256 || return 1
+  read -r version boot issued expires first second extra < "$permission" || return 1
+  test -z "$extra" || return 1
+  actual_boot=$(cat /proc/sys/kernel/random/boot_id) || return 1
+  test "$boot" = "$actual_boot" || return 1
+  uptime=$(cut -d ' ' -f 1 /proc/uptime) || return 1
+  # Proof: removing expiry admits an actual upload after the real thirty-second checker-death fence.
+  printf '%s %s %s %s %s %s\n' "$version" "$issued" "$expires" "$first" "$second" "$uptime" |
+    awk 'NF == 6 && $1 == 1 && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ &&
+      length($4) == 64 && $4 !~ /[^0-9a-f]/ && length($5) == 64 && $5 !~ /[^0-9a-f]/ &&
+      $2 <= $6 && $3 > $6 && $3 - $2 == 30 { valid = 1 } END { exit !valid }' || return 1
+  checksum=$(sha256sum "$canonical") || return 1
+  checksum=${checksum%% *}
+  test "$checksum" = "$first" || test "$checksum" = "$second"
+}
+umask 077
+instance=$(cat /proc/sys/kernel/random/uuid)
+instance_boot=$(cat /proc/sys/kernel/random/boot_id)
+printf '%s %s\n' "$instance" "$instance_boot" > "$registry/.authority-instance"
+child=
+stop_child() {
+  if test -n "$child" && kill -0 "$child" 2>/dev/null; then
+    kill -KILL "$child"
+    if wait "$child"; then :; else test "$?" -eq 137; fi
+  fi
+  child=
+}
+trap 'stop_child; exit 0' TERM INT HUP
+mode=
+while :; do
+  desired="readonly"
+  # Proof: removing this guard admits uploads without permission in registry-capacity-rehearsal.test.sh.
+  if permits_writes; then desired=writable; fi
+  if test "$desired" != "$mode"; then
+    stop_child
+    mode=$desired
+    if test "$mode" = readonly; then
+      REGISTRY_STORAGE_MAINTENANCE_READONLY='{"enabled":true}'  "$@" &
+    else
+      REGISTRY_STORAGE_MAINTENANCE_READONLY='{"enabled":false}'  "$@" &
+    fi
+    child=$!
+  fi
+  if test "$mode" = readonly && test -f "$journal/contents/readonly.request"; then
+    read -r nonce expected_instance expected_boot extra < "$journal/contents/readonly.request"
+    if test -z "$extra" && test "$expected_instance" = "$instance" && test "$expected_boot" = "$instance_boot"; then
+      printf '%s %s %s\n' "$nonce" "$instance" "$instance_boot" > "$registry/.authority-readonly"
+    fi
+  fi
+  sleep 1
+  if ! kill -0 "$child" 2>/dev/null; then
+    if wait "$child"; then exit 0; else exit "$?"; fi
+  fi
+done

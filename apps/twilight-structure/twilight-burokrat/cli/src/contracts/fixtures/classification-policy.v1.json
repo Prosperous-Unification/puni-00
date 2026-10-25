@@ -117,6 +117,10 @@
         },
         {
           "kind": "path",
+          "value": "infra/ansible/roles/registry_storage/templates/puni-registry-pressure.service.j2"
+        },
+        {
+          "kind": "path",
           "value": "infra/ansible/roles/registry_storage/templates/storage.json.j2"
         }
       ],

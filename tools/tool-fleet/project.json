@@ -183,6 +183,13 @@
       "options": {
         "command": "bun test ./infra/ansible/tests/registry-storage.test.ts --timeout=120000"
       }
+    },
+    "test:registry-capacity": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test ./infra/ansible/tests/registry-capacity.test.ts --timeout=240000"
+      }
     }
   }
 }

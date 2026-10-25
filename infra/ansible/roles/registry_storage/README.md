@@ -32,8 +32,7 @@ The registry content directory and journal `contents/` directory are mode 0700,
 owned by the dedicated UID. Distribution runs as that UID with all capabilities
 dropped and mounts the journal read-only. The authenticated host authority must
 run the journal CLI as that same UID/GID, via a root-owned fixed-command privilege
-drop wrapper; installing that wrapper and reading the durable write fence belong
-to the admission slice. Neither journal creation nor a permissive fence is part
+drop wrapper, staged by the separately tagged authority play described below. Neither journal creation nor a permissive fence is part
 of storage provisioning. Physical readiness alone is not rollout readiness.
 
 The private companion is the sole owner of the new PVs, PVCs and guard ConfigMap.
@@ -50,3 +49,58 @@ root-capable fixture host with the pinned registry image already present. It
 allocates only 64+32+32 MiB in an exclusive directory, proves saturation,
 missing/wrong/reused-device startup refusal, reservation, idempotency and
 read-only journal access, then removes only its own mounts/devices/files.
+
+The separately tagged `registry_authority` play stages the root-owned authenticated
+SSH command `/usr/local/sbin/puni-registry-authority` and pressure service. It accepts
+only JSON stdin; executable, UID59001, and journal directory are fixed. Build the
+exact reviewed CLI with `bun build --target=bun tools/tool-fleet/src/registry-journal-cli.ts
+--outfile <artifact>`. Supply explicit controller paths and SHA256 values for that
+bundle and the pinned Bun executable through `puni_registry_authority_*` enrollment.
+The role validates source hashes before host writes and installed hashes before the
+wrapper is installed. It does not start or enable the pressure service.
+
+Journal v1 requires the explicit `upgrade` command. This preserves ownership and
+reservations, migrates to v2, and installs a fence requiring verified maintenance.
+A missing journal never upgrades or initializes implicitly. Enrollment's storageId
+is the root-owned registry receipt's stable filesystem UUID; boot-specific loop
+numbers are checked against the refreshed receipt on each physical measurement.
+
+The main-container supervisor checks a journal-hash-bound permit each second.
+The permit expires thirty seconds after a fresh measurement, includes the host boot
+ID and monotonic uptime, and cannot survive a reboot. The pressure service renews
+every ten seconds without changing the journal revision on healthy heartbeats.
+Normal durable mutations use a two-hash transition between validated writable
+states; explicit reopening publishes only the proposed new hash. Any lost permit
+requires explicit recovery: a healthy checker never reopens an existing fence.
+Synchronous publication admission independently requires a measurement no older
+than five seconds, counts reserved filesystem blocks separately, and charges byte
+and inode reservations before returning an admission token.
+
+Revocation stops and reaps the writable Distribution child, then starts the pinned
+binary with its complete readonly configuration object. The supervisor writes a
+receipt correlated to a fresh revocation nonce, its instance UUID and boot ID.
+The authority requires that receipt before acknowledging a newly established live
+fence. Failure to write/read the receipt is an explicit unconfirmed-fencing error;
+permission remains revoked and the independent journal attempts a failure receipt.
+Already-fenced maintenance phases can proceed using their own verified writer-stop
+barrier, including when registry ENOSPC prevents service observations. A restart
+cannot silently restore writable operation. `reopen` additionally requires settled
+publication/recovery, completed verified maintenance, byte/inode use below 70%, and
+at least 20 GiB host-root availability.
+
+Builder export scratch is a separate contract in `admitBuilderScratch`. Task5 must
+provision and attach an independently enforced volume before export, supply its
+root-owned identity receipt, and bound the full byte/inode export envelope. Trusted
+builder enrollment supplies `/` plus every co-located registry/journal path as
+exclusions; the publishing adapter must prove cross-host separation. Missing paths
+throw; the primitive never treats ENOENT as evidence that a filesystem is remote.
+The adapter does not provision builder storage or intercept actual exports itself.
+
+The non-cached `tool-fleet:test:registry-capacity` rehearsal additionally requires
+`REGISTRY_TEST_BUN` to name a uniquely owned `/var/tmp/puni-registry-runtime-*/bun`
+fixture on the SSH host. Stage the locally pinned Bun binary there after a 20 GiB
+root-reserve precheck; the rehearsal compares its SHA256 with the local executable
+before running it. Remove that exact runtime fixture after the test. Registry,
+journal and scratch loops are 64+32+32 MiB and clean themselves up; no production
+PVC, secret, Service, account or Flux resource is changed. The test bundles the
+actual CLI and exercises the fixed wrapper as UID 59001 and Distribution 2.8.3 by digest.

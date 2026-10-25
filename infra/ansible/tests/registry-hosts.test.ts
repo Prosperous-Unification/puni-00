@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { chmod, cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
@@ -56,7 +57,12 @@ async function fixture(
   await cp(join(repository, 'infra/ansible/roles', role), join(root, 'roles', role), {
     recursive: true,
   });
-  const targets = ['/etc/systemd/system', '/etc/rancher/k3s'];
+  if (fault === 'authority')
+    await cp(
+      join(root, 'roles', role, 'tasks/authority.yml'),
+      join(root, 'roles', role, 'tasks/main.yml'),
+    );
+  const targets = ['/etc/systemd/system', '/etc/rancher/k3s', '/usr/local/sbin'];
   for (const target of targets) await mkdir(root + target, { recursive: true });
   await writeFile(root + '/etc/hosts', '127.0.0.1 localhost\n');
   await writeFile(root + '/etc/fstab', '# fixture\n');
@@ -573,3 +579,41 @@ it('refuses a foreign authority UID before any persistent enrollment', async () 
   expect((await unguarded.apply()).code).toBe(0);
   expect(await Bun.file(unguarded.root + '/etc/puni/registry-storage.json').exists()).toBe(true);
 }, 60000);
+
+it('stages fixed authority artifacts and refuses mismatched source hashes before host writes', async () => {
+  const sources = await scratchAsync('registry-authority-artifacts-');
+  const runtime = '#!/bin/sh\nexit 0\n';
+  const bundle = 'export {};\n';
+  await writeFile(join(sources, 'bun'), runtime);
+  await writeFile(join(sources, 'authority.js'), bundle);
+  const enrollment = {
+    puni_registry_authority_enrolled: true,
+    puni_registry_authority_bun_source: join(sources, 'bun'),
+    puni_registry_authority_bundle_source: join(sources, 'authority.js'),
+    puni_registry_authority_bun_sha256: createHash('sha256').update(runtime).digest('hex'),
+    puni_registry_authority_bundle_sha256: createHash('sha256').update(bundle).digest('hex'),
+  };
+  const staged = await fixture('registry_storage', enrollment, undefined, 'authority');
+  const applied = await staged.apply();
+  expect(applied.code, applied.output).toBe(0);
+  expect(await readFile(staged.root + '/usr/local/sbin/puni-registry-authority', 'utf8')).toContain(
+    '--reuid=59001 --regid=59001',
+  );
+  expect(await Bun.file(staged.serviceLog).exists()).toBe(false);
+  const incorrect = { ...enrollment, puni_registry_authority_bundle_sha256: '0'.repeat(64) };
+  const refused = await fixture('registry_storage', incorrect, undefined, 'authority');
+  expect((await refused.apply()).code).not.toBe(0);
+  expect(
+    await Bun.file(refused.root + '/usr/local/libexec/puni-registry-authority/bun').exists(),
+  ).toBe(false);
+  const removed = await fixture(
+    'registry_storage',
+    incorrect,
+    'Refuse mismatched controller artifacts before host writes',
+    'authority',
+  );
+  expect((await removed.apply()).code).not.toBe(0);
+  expect(
+    await Bun.file(removed.root + '/usr/local/libexec/puni-registry-authority/bun').exists(),
+  ).toBe(true);
+}, 120000);

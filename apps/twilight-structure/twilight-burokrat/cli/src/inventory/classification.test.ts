@@ -678,11 +678,20 @@ describe('entry classification production CLI', () => {
     const repository = createRepository();
     const workspace = join(import.meta.dir, '../../../../../..');
     const paths = [
+      ['infra/ansible/roles/registry_storage/files/authority.sh', 'script'],
       ['infra/ansible/roles/registry_storage/files/identity.sh', 'script'],
       ['infra/ansible/roles/registry_storage/files/k3s-storage.conf', 'config'],
       ['infra/ansible/roles/registry_storage/files/storage.sh', 'script'],
+      ['infra/ansible/roles/registry_storage/tasks/authority.yml', 'config'],
+      [
+        'infra/ansible/roles/registry_storage/templates/puni-registry-pressure.service.j2',
+        'config',
+      ],
       ['infra/ansible/roles/registry_storage/templates/puni-registry-storage.service.j2', 'config'],
       ['infra/ansible/roles/registry_storage/templates/storage.json.j2', 'config'],
+      ['infra/ansible/tests/registry-capacity-fixture.ts', 'test'],
+      ['infra/ansible/tests/registry-capacity-rehearsal.test.sh', 'test'],
+      ['infra/ansible/tests/registry-capacity.test.ts', 'test'],
       ['infra/ansible/tests/registry-storage-rehearsal.sh', 'test'],
       ['infra/platform/registry/production/startup.sh', 'script'],
       ['infra/platform/registry/production/storage-patch.yaml', 'config'],
@@ -710,7 +719,10 @@ describe('entry classification production CLI', () => {
     ).toEqual(paths);
     const config = classificationPolicy.contentRules.find((rule) => rule.contentClass === 'config');
     if (!config) throw new Error('Trusted config rule missing');
-    config.include = config.include.filter((selector) => selector.value !== paths[1][0]);
+    config.include = config.include.filter(
+      (selector) =>
+        selector.value !== 'infra/ansible/roles/registry_storage/files/k3s-storage.conf',
+    );
     const omitted = await classify(
       repository,
       revision,
@@ -719,7 +731,7 @@ describe('entry classification production CLI', () => {
     // Proof: removing the exact drop-in selector makes this production CLI refuse its real path.
     expect(omitted.exitCode, output(omitted)).toBe(1);
     expect(output(omitted)).toContain(
-      `ordinary content ${paths[1][0]} matched 0 classification rules`,
+      'ordinary content infra/ansible/roles/registry_storage/files/k3s-storage.conf matched 0 classification rules',
     );
   });
 

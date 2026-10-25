@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import time
+import uuid
 
 
 def execute(*arguments, succeeds=True):
@@ -123,7 +124,7 @@ try:
     os.chown(authority, 59001, 59001)
     os.chmod(authority, 0o600)
     image = 'docker.io/library/registry@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278'
-    task = root.name + '-uid'
+    task = 'puni-registry-storage-' + uuid.uuid4().hex + '-uid'
     drops = [argument for capability in ('CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'FSETID', 'KILL', 'MKNOD', 'NET_BIND_SERVICE', 'NET_RAW', 'SETFCAP', 'SETPCAP', 'SYS_CHROOT', 'AUDIT_WRITE', 'SETUID', 'SETGID') for argument in ('--cap-drop', 'CAP_' + capability)]
     registry_status = execute('k3s', 'ctr', '-n', 'k8s.io', 'run', '--rm', '--read-only', '--memory-limit', '67108864',
                          *drops, '--user', '59001:59001',
@@ -219,6 +220,9 @@ try:
     removed = root / 'unguarded.sh'
     removed.write_text(guard.read_text().replace("END { exit !(count == 1 && found) }", "END { exit 0 }").replace('  test "$(( block_size * block_count ))" -le "$maximum"', '  :').replace('  test "$actual_fsid" = "$fsid"', '  :'))
     startup(script=removed)
+    observation = root / 'registry/.authority-instance'
+    assert observation.is_file()
+    observation.unlink()
     print('PASS missing mount cannot write root; removed mount guard admits directory', flush=True)
     execute('mount', '--bind', str(root / 'journal'), str(root / 'registry'))
     startup(succeeds=False)
@@ -261,6 +265,9 @@ finally:
                 print('DETACHED ' + loop['name'], flush=True)
     for child in root.iterdir():
         if child.is_dir():
+            for observation_name in ('.authority-instance', '.authority-readonly'):
+                observation = child / observation_name
+                if observation.exists(): observation.unlink()
             child.rmdir()
         else:
             child.unlink()

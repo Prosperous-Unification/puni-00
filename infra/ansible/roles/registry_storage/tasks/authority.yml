@@ -1,0 +1,89 @@
+---
+- name: Require explicit authority artifact enrollment
+  ansible.builtin.assert:
+    that:
+      - puni_registry_authority_enrolled | default(false) | bool
+      - puni_registry_authority_bun_source is defined
+      - puni_registry_authority_bundle_source is defined
+      - puni_registry_authority_bun_sha256 is match('^[a-f0-9]{64}$')
+      - puni_registry_authority_bundle_sha256 is match('^[a-f0-9]{64}$')
+    fail_msg: Build and hash the exact reviewed authority bundle and pinned Bun before installation.
+
+- name: Measure enrolled controller artifacts before installing anything
+  ansible.builtin.stat:
+    path: '{{ registry_authority_source }}'
+    checksum_algorithm: sha256
+    follow: true
+  delegate_to: localhost
+  become: false
+  loop:
+    - '{{ puni_registry_authority_bun_source }}'
+    - '{{ puni_registry_authority_bundle_source }}'
+  loop_control:
+    loop_var: registry_authority_source
+  register: registry_authority_sources
+
+# Proof: removed-source-assertion host fixture installs files despite the wrong hash; the guarded path writes nothing.
+- name: Refuse mismatched controller artifacts before host writes
+  ansible.builtin.assert:
+    that:
+      - registry_authority_sources.results[0].stat.checksum == puni_registry_authority_bun_sha256
+      - registry_authority_sources.results[1].stat.checksum == puni_registry_authority_bundle_sha256
+
+- name: Create root owned authority installation
+  ansible.builtin.file:
+    path: /usr/local/libexec/puni-registry-authority
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install pinned authority runtime
+  ansible.builtin.copy:
+    src: '{{ puni_registry_authority_bun_source }}'
+    dest: /usr/local/libexec/puni-registry-authority/bun
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install reviewed bundled authority
+  ansible.builtin.copy:
+    src: '{{ puni_registry_authority_bundle_source }}'
+    dest: /usr/local/libexec/puni-registry-authority/authority.js
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Measure installed authority artifacts
+  ansible.builtin.stat:
+    path: '/usr/local/libexec/puni-registry-authority/{{ registry_authority_artifact }}'
+    checksum_algorithm: sha256
+    follow: false
+  loop: [bun, authority.js]
+  loop_control:
+    loop_var: registry_authority_artifact
+  register: registry_authority_artifacts
+
+- name: Verify exact trusted authority artifacts
+  ansible.builtin.assert:
+    that:
+      - registry_authority_artifacts.results[0].stat.checksum == puni_registry_authority_bun_sha256
+      - registry_authority_artifacts.results[1].stat.checksum == puni_registry_authority_bundle_sha256
+      - registry_authority_artifacts.results[0].stat.uid == 0
+      - registry_authority_artifacts.results[1].stat.uid == 0
+
+- name: Install fixed authenticated SSH authority command
+  ansible.builtin.copy:
+    src: authority.sh
+    dest: /usr/local/sbin/puni-registry-authority
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install registry pressure renewal service
+  ansible.builtin.template:
+    src: puni-registry-pressure.service.j2
+    dest: /etc/systemd/system/puni-registry-pressure.service
+    owner: root
+    group: root
+    mode: '0644'
