@@ -112,7 +112,7 @@ checks (domain, contracts, core, SQLite, backend, frontend and Dash), with cache
 NX_DAEMON=false bunx nx run-many --target=typecheck --projects=wbs-domain,wbs-contracts,wbs-core,wbs-store-sqlite,wbs-be-01,wbs-fe-01,twilight-dash --parallel=1 --skip-nx-cache
 ```
 
-No h2/remote gate or live dedicated-user enrollment was performed. The local supported
+No h2/remote gate or live host enrollment was performed. The local supported
 provider and its disposable namespace fixtures are the verification boundary.
 
 ## Final whole-branch fixes
@@ -231,3 +231,49 @@ directories remained. The original shared dependency symlink is restored; no sha
 contents or unrelated sibling plan files were removed. The isolated source worktree stays
 on `feat/wbs-resource-release` for review. Normal documentation commit hooks and a final clean
 status check complete the handoff; no global runtime/service was installed or activated.
+
+## Existing-account amendment (2026-10-25)
+
+At the user's request, the current Unix account is the supported setup; no separate account
+is required. Managed creation no longer scans all same-user processes as a precondition.
+The three cleanup-time inspections remain in force. An inaccessible process records its PID
+in the blocker, preserves the target and reservation, and allows an explicit retry after access
+is resolved. The runbook now uses owner-only directories under `$HOME` without sudo/useradd.
+
+The new real-process regression starts a non-dumpable Python process and independently observes
+EACCES reading its mappings. The isolated namespace runner drops CAP_SYS_PTRACE via `setpriv`
+so privileged inspection cannot conceal that failure. Against the prior implementation, the
+test failed at the dedicated-user startup refusal (two assertions). After the amendment it
+passed 12 assertions: creation and command execution succeeded, cleanup stayed blocked with
+its PID, output survived, capacity stayed charged, no verified release was published, and
+retry after the process exited removed the target and settled one reservation.
+
+A watched mutation returning immediately from `inspectHolds` made the regression fail with
+expected `blocked`, received `released`; the target was removed. The production guard was
+restored before final checks, and its adjacent Proof comment records the observed failure.
+No safety override or ignored inspection failure was added.
+
+Final commands and observations:
+
+```sh
+bun test apps/twilight-structure/twilight-dash/cli/src/resources/runtime.test.ts apps/twilight-structure/twilight-dash/cli/src/cli.test.ts apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts --timeout=120000
+unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace bun apps/wbs/be-01/scripts/resource-cleanup-smoke.ts
+NX_DAEMON=false bunx nx run twilight-dash:typecheck --skip-nx-cache
+bunx eslint apps/twilight-structure/twilight-dash/cli/src/resources/runtime.ts apps/twilight-structure/twilight-dash/cli/src/resources/runtime.test.ts
+node_modules/.bin/openspec validate dash-resource-cleanup --strict --no-interactive
+```
+
+Runtime/CLI: 31 outer tests, 143 assertions, zero failures (35.87s), including all 37 real
+namespace cases. The composed smoke exited0 with every boolean proof true, including actual
+removal, blocker retry, terminal replay, planning-deletion admission recovery and uncertain
+admission recovery. Dash typecheck passed (4.9s), scoped lint passed, and strict OpenSpec
+validation passed. Formatting and whitespace checks passed. The focused independent reviewer
+approved the seven-file code/spec/runbook diff without findings; no test suite was rerun by the
+reviewer. No backend/UI production code or public protocol changed, so the previous broad
+backend/browser/build evidence was not unnecessarily repeated.
+
+A disposable subprocess probe also confirmed the ordinary account still sees its protected
+process as its own UID while mapping reads return EACCES. It was terminated and reaped. No
+accounts, services or live resource roots were created. This task's temporary evidence, Nx
+cache and typecheck outputs are removed after recording these results; the original shared
+node_modules symlink and source branch remain.

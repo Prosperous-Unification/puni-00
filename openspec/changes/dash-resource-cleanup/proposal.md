@@ -22,8 +22,8 @@ Existing arbitrary laptop paths do not become disposable through age or registra
 - Preserve source work. Dirty worktrees remain retained with an owner and review date.
 - Bind the runtime reporter to an organization, provider, exact credential and immutable epoch.
 - One canonical managed pool shares admission across projects; WBS claim occupancy is unchanged.
-- Require Linux procfs visibility for the supported dedicated runtime user. Unavailable
-  inspection blocks cleanup. A private test PID namespace does not prove host-wide exclusion.
+- Support the existing Unix account without a separate-user setup or creation-time process
+  preflight. Unavailable Linux procfs inspection blocks cleanup and identifies the process. A private test PID namespace does not prove host-wide exclusion.
 - Reservation budgets and free-space checks are not filesystem quotas or hostile-user isolation.
 
 ## Capabilities

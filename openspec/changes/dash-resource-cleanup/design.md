@@ -69,9 +69,12 @@ owned-output installation mode (confirmed by the installed Bun's help); ordinary
 hardlinked installations must not be advertised as covered automatic deletion. Replacement paths and inaccessible required
 inspection remain blocked and charged. Evidence is stored outside the disposable target.
 
-The supported execution environment is a dedicated runtime user whose same-user processes
-are inspectable. This is a cooperating-workload boundary, not protection from arbitrary
-hostile code with the same UID. Do not hide host PIDs to make a production preflight pass.
+Dash and managed commands run under the existing Unix account. Creation does not require
+inspection of unrelated same-user processes; process visibility is checked at cleanup time.
+An inaccessible process blocks release with its PID, preserving the target and charged
+reservation until the user resolves access and retries. No separate account is required.
+This is a cooperating-workload boundary, not protection from arbitrary hostile code with
+the same UID. Do not hide host PIDs to make production cleanup pass.
 
 ## WBS transport
 

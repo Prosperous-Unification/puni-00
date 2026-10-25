@@ -350,7 +350,8 @@ function git(arguments_: string[], input?: string): string {
 
 /** Same-user cwd, descriptors and mapped files are required evidence, including deleted-open files. */
 function inspectHolds(locator: string): void {
-  // Proof: returning without inspection released a live writer's directory (live-holds.log).
+  // Proof: returning without inspection released a live writer's directory (live-holds.log)
+  // and the protected-process target in `existing account runs work` (2026-10-25).
   const mounts = readFileSync('/proc/self/mountinfo', 'utf8').split('\n');
   for (const mount of mounts) {
     const target = mount.split(' ')[4]?.replace(/\\040/g, ' ');
@@ -385,7 +386,10 @@ function inspectHolds(locator: string): void {
     } catch (cause) {
       if (isMissing(cause) || identifyProcess(Number(pid)) === null) continue;
       if (cause instanceof Error && cause.message.includes('remains charged')) throw cause;
-      throw new Error('required same-user process inspection unavailable', { cause });
+      throw new Error(
+        `cannot inspect process PID ${pid} for resource cleanup; resolve process access and retry cleanup`,
+        { cause },
+      );
     }
   }
 }
@@ -670,19 +674,16 @@ export class ResourceRuntime {
       return current;
     });
   }
-  /** Reserve locally, obtain durable WBS authorization, then create; failures remain charged for admission replay. */
+  /**
+   * Reserve locally, obtain durable WBS authorization, then create; failures remain charged for admission replay.
+   * Whole-account process visibility is required at cleanup, not creation: an unrelated protected process
+   * may block release without preventing work under the existing account.
+   */
   async create(
     input: CreationRequest,
     send: (request: Request) => Promise<Response> = fetch,
   ): Promise<ResourceUse> {
     const request = Creation.assert(input);
-    try {
-      inspectHolds(join(this.configuration.root, '.dash-inspection'));
-    } catch {
-      throw new Error(
-        'resource startup preflight failed: run under a dedicated runtime user with complete same-user procfs visibility',
-      );
-    }
     if ((request.kind === 'git_worktree') !== (request.source !== undefined))
       throw new Error('worktree requires a stable source repository');
     if (

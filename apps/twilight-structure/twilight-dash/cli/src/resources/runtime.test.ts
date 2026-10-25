@@ -38,6 +38,9 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
         '--pid',
         '--fork',
         '--mount-proc',
+        // Match an ordinary account: inspection cannot override a process's dumpability.
+        'setpriv',
+        '--bounding-set=-sys_ptrace',
         process.execPath,
         'test',
         import.meta.path,
@@ -99,6 +102,51 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     diskUnits: 1,
     kind: 'temporary_directory' as const,
   };
+
+  test('existing account runs work despite an unreadable process and retries blocked cleanup after it exits', async () => {
+    const { config } = fixture(1);
+    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
+    const protectedProcess = Bun.spawn(
+      [
+        'python3',
+        '-c',
+        'import ctypes,time; assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0; print("ready",flush=True); time.sleep(60)',
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    try {
+      const ready = await protectedProcess.stdout.getReader().read();
+      expect(new TextDecoder().decode(ready.value)).toContain('ready');
+      expect(() => readFileSync(`/proc/${String(protectedProcess.pid)}/maps`)).toThrow('EACCES');
+      const use = await create(runtime, request);
+      expect(use.state).toBe('active');
+      expect(await runtime.run(use.id, ['/bin/sh', '-c', 'printf finished > output'])).toBe(0);
+      const blocked = runtime.inspect(use.id);
+      expect(blocked.state).toBe('blocked');
+      expect(readFileSync(join(use.locator, 'output'), 'utf8')).toBe('finished');
+      expect(blocked.reason).toContain(`PID ${String(protectedProcess.pid)}`);
+      expect(blocked.releasedDiskUnits).toBe(0);
+      expect(runtime.outbox().some((event) => event.kind === 'release_verified')).toBe(false);
+      await assert.rejects(create(runtime, request), /capacity/);
+      protectedProcess.kill();
+      await protectedProcess.exited;
+      runtime.requestCleanup(
+        use.id,
+        blocked.revision,
+        use.incarnation,
+        'inspection blocker resolved',
+      );
+      runtime.sweep();
+      expect(runtime.inspect(use.id).state).toBe('released');
+      expect(runtime.inspect(use.id).releasedDiskUnits).toBe(1);
+      expect(existsSync(use.locator)).toBe(false);
+    } finally {
+      if (protectedProcess.exitCode === null && protectedProcess.signalCode === null)
+        protectedProcess.kill();
+      await protectedProcess.exited;
+      runtime.close();
+    }
+  });
 
   test('disposable directory release atomically returns capacity and retains immutable outbox history', async () => {
     const { config } = fixture(1);

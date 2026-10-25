@@ -183,13 +183,21 @@ requests only through bound runtime events. Runtime state and WBS revision SHALL
 The UI SHALL distinguish reported release, verified release, pending requests, blockers and
 retention. Documentation SHALL name supported managed entrypoints and provider boundaries.
 Existing unmanaged executions SHALL NOT be shown as physically cleaned by implication.
+The runtime SHALL support the existing Unix account without requiring a separate account
+or inspecting unrelated processes before creation.
 
 #### Scenario: Reported and runtime-owned uses appear together
 
 - **WHEN** the project lists both sources
 - **THEN** manual release reporting is available only for reported uses and runtime release is labeled verified
 
-#### Scenario: Runtime cannot inspect the laptop user processes
+#### Scenario: Work runs while a same-user process cannot be inspected
 
-- **WHEN** the supported process-visibility precondition is not met
-- **THEN** operation explains the blocker and does not advertise successful automatic cleanup
+- **WHEN** an unrelated same-user process denies inspection before managed creation
+- **THEN** authorized creation and execution proceed under the current account
+- **AND** cleanup retains the target and reservation, names the blocking PID, and does not report verified release
+
+#### Scenario: The user resolves an inspection blocker
+
+- **WHEN** the blocking process exits and the user retries cleanup
+- **THEN** the runtime verifies release and returns the reservation without changing Unix accounts

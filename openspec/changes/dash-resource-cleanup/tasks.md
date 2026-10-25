@@ -19,3 +19,9 @@
 - [x] 3.2 Exercise real filesystem/process fixtures, transport recovery and end-to-end WBS cleanup.
 - [x] 3.3 Record watched safety-guard negatives and independent review findings/fixes.
 - [x] 3.4 Run affected repository checks, OpenSpec validation and task-owned artifact cleanup.
+
+## 4. Existing Unix account
+
+- [x] 4.1 Remove unrelated-process preflight from creation and the separate-account setup requirement.
+- [x] 4.2 Retain cleanup inspection, report the blocking PID and prove work/blocked-release/retry with a real protected process.
+- [x] 4.3 Update current-account instructions and verify runtime tests, composed smoke, typecheck, lint and independent review.
