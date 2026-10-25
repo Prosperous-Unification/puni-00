@@ -20,7 +20,7 @@
 
 - [x] 3.1 Independently review backend and UI against this increment and fix important findings.
 - [x] 3.2 Run affected tests, lint, typechecks, migration validation and formatting.
-- [ ] 3.3 Validate OpenSpec and record exact evidence, remaining runtime scope and resource cleanup.
+- [x] 3.3 Validate OpenSpec and record exact evidence, remaining runtime scope and resource cleanup.
 
 ## Companion runtime implementation
 

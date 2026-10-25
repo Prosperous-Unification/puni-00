@@ -18,4 +18,4 @@
 - [x] 3.1 Provide runnable managed Claude/Codex entrypoints and document additional-copy registration and coverage.
 - [x] 3.2 Exercise real filesystem/process fixtures, transport recovery and end-to-end WBS cleanup.
 - [x] 3.3 Record watched safety-guard negatives and independent review findings/fixes.
-- [ ] 3.4 Run affected repository checks, OpenSpec validation and task-owned artifact cleanup.
+- [x] 3.4 Run affected repository checks, OpenSpec validation and task-owned artifact cleanup.
