@@ -237,3 +237,26 @@ noisy p99), and the median cost is a steady 4 ms: the organization read answers 
 standing row (about 2,000) and the check folds them in JavaScript. By the task's own rule
 the remedy comes first: a per-resource sum query (units per leaf summed in SQL, holders read
 only for a refusal) or the index `claim_occupancy (resource_id, claim_id)`. 3.5 stays open.
+
+### Before the push
+
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`
+  → exit 0 once `directory-capacity-command.test.ts` joined the plan-commands module index
+  (first run: `unindexed candidate path`, exit 1). Its `reviewDebt` now names two indexes:
+  `libs/wbs/adapters/store-memory/src/README.md` (51 over 40, earlier) and
+  `libs/wbs/application/core/src/module/plan-commands/README.md` (41 over 40, this change's
+  new test).
+- `./node_modules/.bin/openspec validate --all --json` → exit 0, totals
+  `{ items: 290, passed: 290, failed: 0 }`.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` over every `.sql` the branch
+  changes → exit 0.
+- `bunx prettier --check` over every changed `.ts`, `.tsx`, `.md`, `.json`, `.mjs` and `.yml`
+  → "All matched files use Prettier code style!".
+- tool-devsync `adr-index`, `module-labels`, `namespace-layout`, `eslint-boundaries`,
+  `product-constraints`, `current-documents`, `check-documents-target` tests: see the run
+  after the index commit below.
+
+Not run: the full suites, `bin/h2puni-gate.sh` (CI and the gate host own them, and the laptop
+cap allows two heavy agents), the mcp-01 boot tests and `swarm-rehearsal.boot.db.test.ts`
+(they boot processes), and fe-01 tests (fe-01 is untouched beyond its typecheck, which
+passed).
