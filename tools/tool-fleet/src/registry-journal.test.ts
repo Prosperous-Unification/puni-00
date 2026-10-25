@@ -424,7 +424,13 @@ it('runs the owner-only stdin CLI with real measurements and bounds input', asyn
     (JSON.parse(initialized[1]) as { state: { enrollment: { registryId: string } } }).state
       .enrollment.registryId,
   ).toBe('proof-registry');
+  const orphan = join(directory, `journal.${crypto.randomUUID()}.json`);
+  await writeFile(orphan, 'crashed replacement', { mode: 0o600 });
   const readback = await run('{"command":"read"}');
+  expect(await import('node:fs/promises').then(({ readdir }) => readdir(directory))).toEqual([
+    'authority.lock',
+    'journal.json',
+  ]);
   expect(readback[0]).toBe(0);
   expect((JSON.parse(readback[1]) as { state: { revision: number } }).state.revision).toBe(0);
   for (const [request, extra] of [
@@ -713,4 +719,233 @@ it('bounds valid oversized command and journal inputs and refuses exhausted revi
     executeRegistryCommand(directory, publication(Number.MAX_SAFE_INTEGER), ports()),
     'revision exhausted',
   );
+});
+
+it('rejects corrupted active and failed maintenance phase combinations before recovery', async () => {
+  const directory = await fixture();
+  const begun = await executeRegistryCommand(
+    directory,
+    {
+      command: 'begin-maintenance',
+      expectedRevision: 0,
+      operationId: 'backup-phases',
+      owner: 'backup',
+      kind: 'backup',
+    },
+    ports(),
+  );
+  const maintenance = begun.state.maintenance;
+  if (maintenance === null) throw new Error('Missing maintenance fixture');
+  for (const corruption of [
+    { phase: 'acquired', resumePhase: 'restored' },
+    { phase: 'deleting', resumePhase: 'deleting' },
+    { phase: 'completed', resumePhase: 'completed' },
+    { phase: 'failed', resumePhase: 'deleting', failure: 'failed' },
+    { phase: 'failed', resumePhase: 'completed', failure: 'failed' },
+    { phase: 'failed', resumePhase: 'acquired' },
+  ]) {
+    await writeFile(
+      join(directory, 'journal.json'),
+      JSON.stringify({ ...begun.state, maintenance: { ...maintenance, ...corruption } }),
+    );
+    await requireRefusal(
+      executeRegistryCommand(
+        directory,
+        {
+          command: 'recover-maintenance',
+          expectedRevision: 1,
+          operationId: 'backup-phases',
+          owner: 'backup',
+          token: begun.token,
+        },
+        ports(),
+      ),
+      'maintenance phase',
+    );
+    await requireRefusal(read(directory), 'maintenance phase');
+  }
+});
+
+it('removes its replacement after repeated fsync failures while preserving canonical state', async () => {
+  const directory = await fixture();
+  const before = await readFile(join(directory, 'journal.json'), 'utf8');
+  const { readdir } = await import('node:fs/promises');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await requireRefusal(
+      executeRegistryCommand(directory, publication(), {
+        ...ports(),
+        sync: async (descriptor) => {
+          if ((await descriptor.stat()).isFile()) throw new Error('injected replacement fsync');
+          await descriptor.sync();
+        },
+      }),
+      'injected replacement fsync',
+    );
+    expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+    expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
+  }
+});
+
+it('reclaims a crashed pre-rename replacement only after validating canonical state', async () => {
+  const directory = await fixture();
+  const before = await readFile(join(directory, 'journal.json'), 'utf8');
+  const crashed = await child(
+    `import { executeRegistryCommand } from './registry-journal'; ${portSource}
+    await executeRegistryCommand(process.argv[1], JSON.parse(process.argv[2]), { ...ports,
+      sync: async (descriptor) => { await descriptor.sync(); if ((await descriptor.stat()).isFile()) process.kill(process.pid, 'SIGKILL'); } });`,
+    [directory, JSON.stringify(publication())],
+  );
+  expect(crashed.exitCode).not.toBe(0);
+  const { readdir } = await import('node:fs/promises');
+  const replacements = (await readdir(directory)).filter((name) =>
+    /^journal\..+\.json$/.test(name),
+  );
+  expect(replacements).toHaveLength(1);
+  await writeFile(join(directory, 'journal.json'), '{');
+  await requireRefusal(read(directory), 'JSON');
+  expect((await readdir(directory)).filter((name) => /^journal\..+\.json$/.test(name))).toEqual(
+    replacements,
+  );
+  await writeFile(join(directory, 'journal.json'), before);
+  const recovered = await read(directory);
+  expect(recovered.state.revision).toBe(0);
+  expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+  await executeRegistryCommand(directory, publication(), ports());
+  expect((await read(directory)).state.reservations).toHaveLength(1);
+});
+
+it('refuses initialize when an orphan may be the only recoverable journal', async () => {
+  const directory = await scratchAsync('registry-orphan-initialize-');
+  await chmod(directory, 0o700);
+  const replacement = join(directory, `journal.${crypto.randomUUID()}.json`);
+  await writeFile(replacement, '{"recovery":"only copy"}', { mode: 0o600 });
+  await requireRefusal(
+    executeRegistryCommand(directory, { command: 'initialize', enrollment }, ports()),
+    'replacement',
+  );
+  expect(await readFile(replacement, 'utf8')).toBe('{"recovery":"only copy"}');
+  await requireRefusal(read(directory), 'ENOENT');
+});
+
+it('refuses unsafe replacement entries without deleting canonical or unrelated files', async () => {
+  const { link, mkdir, symlink } = await import('node:fs/promises');
+  for (const kind of ['name', 'directory', 'symlink', 'public-file', 'hardlink', 'fifo'] as const) {
+    const directory = await fixture();
+    const before = await readFile(join(directory, 'journal.json'), 'utf8');
+    const name = kind === 'name' ? 'journal.notes.json' : `journal.${crypto.randomUUID()}.json`;
+    const path = join(directory, name);
+    if (kind === 'fifo') {
+      const created = Bun.spawnSync(['mkfifo', '-m', '600', path]);
+      expect(created.exitCode).toBe(0);
+    } else if (kind === 'hardlink') await link(join(directory, 'journal.json'), path);
+    else if (kind === 'directory') await mkdir(path, { mode: 0o700 });
+    else if (kind === 'symlink') await symlink(join(directory, 'journal.json'), path);
+    else await writeFile(path, 'preserve', { mode: kind === 'public-file' ? 0o644 : 0o600 });
+    await writeFile(join(directory, 'operator-notes'), 'unrelated', { mode: 0o600 });
+    await requireRefusal(read(directory), 'replacement');
+    expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
+    expect(await readFile(join(directory, 'operator-notes'), 'utf8')).toBe('unrelated');
+    expect(
+      (await import('node:fs/promises').then(({ lstat }) => lstat(path))).isSymbolicLink(),
+    ).toBe(kind === 'symlink');
+  }
+});
+
+it('cleans replacement files after a real write failure on a broken descriptor', async () => {
+  const directory = await fixture();
+  const before = await readFile(join(directory, 'journal.json'), 'utf8');
+  const failed = await child(
+    `import * as filesystem from 'node:fs/promises'; import { constants } from 'node:fs';
+    import { mock } from 'bun:test'; const nativeOpen = filesystem.open;
+    mock.module('node:fs/promises', () => ({ ...filesystem, open: (path, flags, mode) =>
+      nativeOpen(path, typeof path === 'string' && /^journal\\..+\\.json$/.test(path.split('/').at(-1))
+        ? constants.O_RDONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW : flags, mode) }));
+    const { executeRegistryCommand } = await import('./registry-journal'); ${portSource}
+    await executeRegistryCommand(process.argv[1], JSON.parse(process.argv[2]), ports);`,
+    [directory, JSON.stringify(publication())],
+  );
+  expect(failed.exitCode).not.toBe(0);
+  expect(failed.stderr).toContain('EBADF');
+  expect(await import('node:fs/promises').then(({ readdir }) => readdir(directory))).toEqual([
+    'authority.lock',
+    'journal.json',
+  ]);
+  expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
+});
+
+it('propagates replacement cleanup failure and reclaims the orphan after permission recovery', async () => {
+  const directory = await fixture();
+  const before = await readFile(join(directory, 'journal.json'), 'utf8');
+  let failure: unknown;
+  try {
+    failure = await executeRegistryCommand(directory, publication(), {
+      ...ports(),
+      sync: async (descriptor) => {
+        if ((await descriptor.stat()).isFile()) {
+          await chmod(directory, 0o500);
+          throw new Error('injected primary fsync failure');
+        }
+        await descriptor.sync();
+      },
+    }).then(
+      () => {
+        throw new Error('Expected cleanup failure');
+      },
+      (cause: unknown) => cause,
+    );
+  } finally {
+    await chmod(directory, 0o700);
+  }
+  expect(failure).toBeInstanceOf(AggregateError);
+  expect(String(failure)).toContain('replacement cleanup failed');
+  if (failure instanceof AggregateError) {
+    expect(failure.errors.map(String).join(' ')).toContain('injected primary fsync failure');
+    expect(failure.errors.map(String).join(' ')).toContain('EACCES');
+  }
+  expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
+  const { readdir } = await import('node:fs/promises');
+  expect(
+    (await readdir(directory)).filter((name) => /^journal\..+\.json$/.test(name)),
+  ).toHaveLength(1);
+  await read(directory);
+  expect(await readdir(directory)).toEqual(['authority.lock', 'journal.json']);
+});
+
+it('propagates orphan directory fsync failure without acknowledging the read command', async () => {
+  const directory = await fixture();
+  const before = await readFile(join(directory, 'journal.json'), 'utf8');
+  await writeFile(join(directory, `journal.${crypto.randomUUID()}.json`), 'partial', {
+    mode: 0o600,
+  });
+  await requireRefusal(
+    executeRegistryCommand(
+      directory,
+      { command: 'read' },
+      {
+        ...ports(),
+        sync: () => Promise.reject(new Error('injected orphan cleanup directory fsync')),
+      },
+    ),
+    'orphan cleanup directory fsync',
+  );
+  expect(await readFile(join(directory, 'journal.json'), 'utf8')).toBe(before);
+});
+
+it('refuses a foreign-owner replacement reported by the filesystem boundary', async () => {
+  const directory = await fixture();
+  const path = join(directory, `journal.${crypto.randomUUID()}.json`);
+  await writeFile(path, 'foreign evidence', { mode: 0o600 });
+  const failed = await child(
+    `import * as filesystem from 'node:fs/promises'; import { mock } from 'bun:test';
+    const nativeLstat = filesystem.lstat;
+    mock.module('node:fs/promises', () => ({ ...filesystem, lstat: async (path) => {
+      const status = await nativeLstat(path); if (path === process.argv[2]) status.uid += 1; return status;
+    } }));
+    const { executeRegistryCommand } = await import('./registry-journal'); ${portSource}
+    await executeRegistryCommand(process.argv[1], {command:'read'}, ports);`,
+    [directory, path],
+  );
+  expect(failed.exitCode).not.toBe(0);
+  expect(failed.stderr).toContain('replacement must be');
+  expect(await readFile(path, 'utf8')).toBe('foreign evidence');
 });

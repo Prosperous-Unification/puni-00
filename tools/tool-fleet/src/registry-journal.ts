@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { type FileHandle, lstat, open, rename } from 'node:fs/promises';
+import { type FileHandle, lstat, open, readdir, rename, unlink } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
 import { type } from 'arktype';
@@ -268,8 +268,60 @@ function requireConsistentState(journal: RegistryJournal): void {
     throw new Error('Incomplete publication ownership');
   if (journal.maintenance !== null && journal.publication !== null)
     throw new Error('Overlapping durable operation owners');
+  if (journal.maintenance !== null) requireMaintenancePhase(journal.maintenance);
   if ((journal.maintenance !== null || journal.publication?.phase === 'failed') && !journal.fenced)
     throw new Error('Unfenced recovery operation');
+}
+
+async function syncDirectory(directory: string, ports: RegistryJournalPorts): Promise<void> {
+  const descriptor = await open(
+    directory,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  try {
+    await (ports.sync ?? ((file: FileHandle) => file.sync()))(descriptor);
+  } finally {
+    await descriptor.close();
+  }
+}
+
+async function listReplacements(directory: string): Promise<string[]> {
+  const replacements: string[] = [];
+  for (const name of await readdir(directory)) {
+    if (name === 'journal.json' || !name.startsWith('journal.')) continue;
+    // Proof: unsafe-replacement name negative refuses an operator file instead of deleting it.
+    if (!name.endsWith('.json') || Token(name.slice(8, -5)) instanceof type.errors)
+      throw new Error('Unrecognized registry journal replacement name');
+    replacements.push(join(directory, name));
+  }
+  return replacements;
+}
+
+async function requireReplacement(path: string): Promise<void> {
+  const status = await lstat(path);
+  // Proof: unsafe-replacement FIFO/mode/hardlink and injected foreign-UID negatives fail when each guard is removed.
+  if (
+    !status.isFile() ||
+    status.uid !== process.getuid?.() ||
+    (status.mode & 0o777) !== 0o600 ||
+    status.nlink !== 1
+  )
+    throw new Error(
+      'Registry journal replacement must be a single owner-only regular file owned by the current user',
+    );
+}
+
+async function reconcileReplacements(
+  directory: string,
+  ports: RegistryJournalPorts,
+): Promise<void> {
+  const replacements = await listReplacements(directory);
+  // Validate the entire set before deleting anything. The owner-only directory and held kernel
+  // lock exclude supported concurrent writers; paths are never followed and canonical state is excluded.
+  for (const path of replacements) await requireReplacement(path);
+  // Proof: removing orphan unlink failed the crashed-pre-rename replacement recovery command.
+  for (const path of replacements) await unlink(path);
+  if (replacements.length > 0) await syncDirectory(directory, ports);
 }
 
 async function withLock<T>(directory: string, run: () => Promise<T>): Promise<T> {
@@ -339,23 +391,38 @@ async function persistJournal(
     0o600,
   );
   const sync = ports.sync ?? ((file: FileHandle) => file.sync());
+  let isPublished = initialize;
   try {
-    await descriptor.writeFile(serialized, 'utf8');
-    // Proof: injected fsync failure on the real command path prevents success and preserves old state.
-    await sync(descriptor);
-  } finally {
-    await descriptor.close();
-  }
-  if (!initialize) await rename(replacement, path);
-  const parent = await open(
-    directory,
-    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-  );
-  try {
+    try {
+      await descriptor.writeFile(serialized, 'utf8');
+      // Proof: injected fsync failure prevents success and preserves canonical state.
+      await sync(descriptor);
+    } finally {
+      await descriptor.close();
+    }
+    if (!initialize) {
+      await rename(replacement, path);
+      isPublished = true;
+    }
     // Proof: removing directory sync failed propagates-failed-file-and-directory-fsync.
-    await sync(parent);
-  } finally {
-    await parent.close();
+    await syncDirectory(directory, ports);
+  } catch (cause) {
+    if (!isPublished) {
+      try {
+        await requireReplacement(replacement);
+        // Proof: removing failed-write unlink failed repeated-fsync-failure file assertions.
+        await unlink(replacement);
+        await syncDirectory(directory, ports);
+      } catch (cleanupFailure) {
+        // Proof: real unlink EACCES is preserved with the primary failure; dropping it fails cleanup-failure propagation.
+        throw new AggregateError(
+          [cause, cleanupFailure],
+          'Registry journal write and replacement cleanup failed',
+          { cause: cleanupFailure },
+        );
+      }
+    }
+    throw cause;
   }
 }
 
@@ -408,6 +475,18 @@ function maintenancePhases(kind: 'backup' | 'retirement' | 'restore'): readonly 
         'restored',
         'completed',
       ];
+}
+
+function requireMaintenancePhase(maintenance: NonNullable<RegistryJournal['maintenance']>): void {
+  const phases = maintenancePhases(maintenance.kind).slice(0, -1);
+  // Proof: corrupted active/failed maintenance command negatives fail when resume reachability is bypassed.
+  if (
+    !phases.includes(maintenance.resumePhase) ||
+    (maintenance.phase === 'failed'
+      ? maintenance.failure === undefined || maintenance.failure.length === 0
+      : maintenance.phase !== maintenance.resumePhase)
+  )
+    throw new Error('Invalid trusted maintenance phase and resume phase combination');
 }
 
 async function mutateJournal(
@@ -574,6 +653,8 @@ async function mutateJournal(
  * owner/token records, and neither timeouts nor failed receipts release unresolved obligations.
  * Recovery uses admission-reserved replacement headroom. Callers must not start external work
  * until this function succeeds, and must reconcile state after any lost acknowledgement.
+ * Valid canonical state authorizes reclaiming owned replacement orphans under the same lock;
+ * initialization preserves preexisting replacement evidence instead of adopting or deleting it.
  */
 export async function executeRegistryCommand(
   directory: string,
@@ -587,6 +668,11 @@ export async function executeRegistryCommand(
   const request = requireSchema(Command, input, 'registry command');
   return withLock(directory, async () => {
     if (request.command === 'initialize') {
+      // Proof: initialize-with-orphan negative preserves the only possible recovery copy.
+      if ((await listReplacements(directory)).length > 0)
+        throw new Error(
+          'Registry journal replacements require canonical-state recovery before initialize',
+        );
       requireUnique(request.enrollment.owners, 'enrolled owner');
       const state = requireSchema(
         Journal,
@@ -609,6 +695,7 @@ export async function executeRegistryCommand(
       return { state };
     }
     const state = await readJournal(join(directory, 'journal.json'));
+    await reconcileReplacements(directory, ports);
     if (request.command === 'read') return { state };
     const at = requireSchema(
       Timestamp,
