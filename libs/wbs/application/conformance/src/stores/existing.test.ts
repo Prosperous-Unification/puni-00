@@ -144,6 +144,7 @@ describe('the migrated existing store kits', () => {
       'claims.observeProject:legacy-observation',
       'claims.lease:revoked-instant-read',
       'claims.occupancy:hold-read-cascade',
+      'claims.occupancy:organization-scope',
       'demands.set:replace-clear-scope',
       'demands.set:missing-reference',
       'dependencies.listByWorkItems:incident-scope',

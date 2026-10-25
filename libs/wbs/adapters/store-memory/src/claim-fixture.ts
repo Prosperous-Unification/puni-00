@@ -35,6 +35,13 @@ export interface MemoryPlanTables {
   readonly projects: Pick<MemoryProjectTables, 'projects' | 'steps'>;
   readonly workItems: Pick<MemoryWorkItemTables, 'byId'>;
   readonly people: ReadonlyMap<string, { readonly name: string }>;
+  /**
+   * The organization each project and each resource belongs to, as SQLite's
+   * `project_organization` and `resource_organization` hold them; a key with
+   * no entry belongs to none.
+   */
+  readonly projectOrganization: ReadonlyMap<string, string>;
+  readonly resourceOrganization: ReadonlyMap<string, string>;
 }
 
 /**
@@ -144,6 +151,50 @@ export function inMemoryClaims(
             compare(left.resourceId, right.resourceId) ||
             compare(left.claimId, right.claimId),
         );
+    },
+    // SQLite's join, modelled: a row counts only when its project and its
+    // resource belong to one organization.
+    // Proof: with the organization comparison dropped, the memory
+    // certification's `claims.occupancy:organization-filter` case read the
+    // other organization's row; watched 2026-10-25.
+    organizationOccupancyOf(resourceIds) {
+      const asked = new Set(resourceIds);
+      const byId = new Map(table.rows.map((claim) => [claim.id, claim]));
+      const rows = table.occupancy.flatMap(({ claimId, resourceId, units }) => {
+        if (!asked.has(resourceId)) return [];
+        const claim = byId.get(claimId);
+        if (claim === undefined) throw new Error(`occupancy names absent claim ${claimId}`);
+        const workItem = plan.workItems.byId.get(claim.workItemId);
+        if (workItem === undefined)
+          throw new Error(`claim ${claimId} names absent work item ${claim.workItemId}`);
+        const organizationId = plan.projectOrganization.get(workItem.projectId);
+        if (
+          organizationId === undefined ||
+          plan.resourceOrganization.get(resourceId) !== organizationId
+        )
+          return [];
+        const { workItemId, personId, runId } = claim;
+        return [
+          {
+            claimId,
+            workItemId,
+            personId,
+            runId,
+            resourceId,
+            units,
+            projectId: workItem.projectId,
+            organizationId,
+          },
+        ];
+      });
+      return Promise.resolve(
+        rows.sort(
+          (left, right) =>
+            compare(left.workItemId, right.workItemId) ||
+            compare(left.resourceId, right.resourceId) ||
+            compare(left.claimId, right.claimId),
+        ),
+      );
     },
     boundAccountOf: (personId) => identity.boundAccountOf(personId),
     pinnedPersonOf: (credential) => identity.pinnedPersonOf(credential),

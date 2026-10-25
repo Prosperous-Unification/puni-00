@@ -42,6 +42,7 @@ import {
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
+  SHARED_OCCUPANCY_OWNERSHIP,
   sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
@@ -101,6 +102,9 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
   addOrganization: ReturnType<typeof openMemorySourceFixture>['addOrganization'];
   ownProjectInOrganization: ReturnType<typeof openMemorySourceFixture>['ownProjectInOrganization'];
+  ownResourceInOrganization: ReturnType<
+    typeof openMemorySourceFixture
+  >['ownResourceInOrganization'];
   pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
   endLeasesOf: ReturnType<typeof openMemorySourceFixture>['endLeasesOf'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
@@ -179,6 +183,9 @@ function conformanceMemorySource(
     },
     ownProjectInOrganization: (projectId: string, organizationId: string) => {
       fixture.ownProjectInOrganization(projectId, organizationId);
+    },
+    ownResourceInOrganization: (resourceId: string, organizationId: string) => {
+      fixture.ownResourceInOrganization(resourceId, organizationId);
     },
     pinCredential: (issuer: string, subject: string, personId: string) => {
       fixture.pinCredential(issuer, subject, personId);
@@ -427,6 +434,12 @@ async function openMemoryCase<Family extends ExistingFamily>(
       seeded.pinCredential(issuer, subject, personId);
     }
     await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
+    if (caseId === SHARED_OCCUPANCY_OWNERSHIP.caseId) {
+      const { organizationId, otherOrganizationId, resourceId } = SHARED_OCCUPANCY_OWNERSHIP;
+      seeded.ownProjectInOrganization(DETERMINISTIC_SEED.projectIds[0], organizationId);
+      seeded.ownProjectInOrganization(DETERMINISTIC_SEED.projectIds[1], otherOrganizationId);
+      seeded.ownResourceInOrganization(resourceId, organizationId);
+    }
   });
   if (family === 'subtrees') {
     return {

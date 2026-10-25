@@ -44,6 +44,7 @@ import {
   seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
+  SHARED_OCCUPANCY_OWNERSHIP,
   sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
@@ -424,6 +425,23 @@ async function openSqliteCase<Family extends ExistingFamily>(
       );
     }
     await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
+    if (caseId === SHARED_OCCUPANCY_OWNERSHIP.caseId) {
+      const { organizationId, otherOrganizationId, resourceId } = SHARED_OCCUPANCY_OWNERSHIP;
+      for (const id of [organizationId, otherOrganizationId])
+        seeded.db.run(
+          sql`INSERT INTO organization (id, name, created_at) VALUES (${id}, ${id}, 1)`,
+        );
+      for (const [projectId, owner] of [
+        [DETERMINISTIC_SEED.projectIds[0], organizationId],
+        [DETERMINISTIC_SEED.projectIds[1], otherOrganizationId],
+      ] as const)
+        seeded.db.run(
+          sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${owner})`,
+        );
+      seeded.db.run(
+        sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${resourceId})`,
+      );
+    }
   });
   if (family === 'subtrees') {
     return {

@@ -35,6 +35,7 @@ import {
   demandRegistrations,
   directoryResourceRegistrations,
   resourceCapacityRegistrations,
+  SHARED_OCCUPANCY_OWNERSHIP,
 } from './stores/resources';
 import { savedPlanCaptureRegistrations } from './stores/saved-plan-capture';
 import { savedPlanRegistrations } from './stores/saved-plans';
@@ -664,6 +665,56 @@ export function existingStoreRegistrations(
         expect(await port.listByProject(seed.projectIds[0])).toHaveLength(2);
         await port.remove([first], [], seed.stamps[1]);
         expect(await port.occupancyOf(seed.projectIds[0])).toEqual([row(second)]);
+      },
+    ),
+    // `wbs-shared-occupancy` S2. Proof, each watched 2026-10-25: with the
+    // memory twin's organization comparison dropped, the memory certification
+    // failed here reading the other organization's row; with SQLite's join to
+    // the resource's own organization dropped, the SQLite certification failed
+    // the same way.
+    storeCase(
+      'claims',
+      'claims.occupancy:organization-scope',
+      openers.claims,
+      async ({ port, seed }) => {
+        const { organizationId } = SHARED_OCCUPANCY_OWNERSHIP;
+        const [ram, stage] = CONFORMANCE_RESOURCES;
+        const [, ownLeaf] = seed.workItemIds[0];
+        const [, otherLeaf] = seed.workItemIds[1];
+        const holding = (id: string, workItemId: string, stepId: string, personId: string) => ({
+          id,
+          workItemId,
+          stepId,
+          personId,
+          runId: null,
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        });
+        const own = holding('claim-own', ownLeaf, seed.stepIds[0][0], seed.personIds[0]);
+        // The second project is another organization's: its row on RAM never counts.
+        const other = holding('claim-other', otherLeaf, seed.stepIds[1][0], seed.personIds[1]);
+        const units = (claimId: string) => [
+          { claimId, resourceId: ram.id, units: 6 },
+          { claimId, resourceId: stage.id, units: 1 },
+        ];
+        expect(await port.add([own], [], seed.stamps[0], units(own.id))).toBe('written');
+        expect(await port.add([other], [], seed.stamps[0], units(other.id))).toBe('written');
+        expect(await port.organizationOccupancyOf([ram.id, stage.id])).toEqual([
+          {
+            claimId: own.id,
+            workItemId: ownLeaf,
+            personId: own.personId,
+            runId: null,
+            resourceId: ram.id,
+            units: 6,
+            projectId: seed.projectIds[0],
+            organizationId,
+          },
+        ]);
+        expect(await port.organizationOccupancyOf([stage.id])).toEqual([]);
+        expect(await port.organizationOccupancyOf([])).toEqual([]);
+        await port.remove([own], [], seed.stamps[1]);
+        expect(await port.organizationOccupancyOf([ram.id])).toEqual([]);
       },
     ),
     ...demandRegistrations(openers.demands),

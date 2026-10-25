@@ -11,6 +11,7 @@ import {
   type ExpiredLease,
   type LeaseRenewal,
   type OccupancyRow,
+  type OrganizationOccupancyRow,
   type ProgressKey,
   type ResourceAccess,
   type StampedClaim,
@@ -37,6 +38,7 @@ import {
   project,
   projectOrganization,
   resource,
+  resourceOrganization,
   step,
   stepProgress,
   workItem,
@@ -111,6 +113,44 @@ export class ClaimRepository implements ClaimStore {
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
       .where(eq(workItem.projectId, projectId))
       .orderBy(asc(claim.workItemId), asc(claimOccupancy.resourceId), asc(claimOccupancy.claimId));
+  }
+
+  /**
+   * Joined `claim → work_item → project_organization` and to the resource's
+   * own `resource_organization` row on the same organization, so a project
+   * outside the resource's organization contributes nothing (S2). Read on this
+   * repository's connection: inside a batch, the batch's own, after its turn.
+   */
+  async organizationOccupancyOf(
+    resourceIds: readonly string[],
+  ): Promise<OrganizationOccupancyRow[]> {
+    await Promise.resolve();
+    if (resourceIds.length === 0) return [];
+    return this.db
+      .select({
+        claimId: claimOccupancy.claimId,
+        workItemId: claim.workItemId,
+        personId: claim.personId,
+        runId: claim.runId,
+        resourceId: claimOccupancy.resourceId,
+        units: claimOccupancy.units,
+        projectId: workItem.projectId,
+        organizationId: projectOrganization.organizationId,
+      })
+      .from(claimOccupancy)
+      .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
+      .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .innerJoin(
+        resourceOrganization,
+        and(
+          eq(resourceOrganization.resourceId, claimOccupancy.resourceId),
+          eq(resourceOrganization.organizationId, projectOrganization.organizationId),
+        ),
+      )
+      .where(inArray(claimOccupancy.resourceId, [...resourceIds]))
+      .orderBy(asc(claim.workItemId), asc(claimOccupancy.resourceId), asc(claimOccupancy.claimId))
+      .all();
   }
 
   boundAccountOf(personId: string): Promise<string | null> {

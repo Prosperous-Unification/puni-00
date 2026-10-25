@@ -70,7 +70,7 @@
 
 ## 3. Store and command path
 
-- [ ] 3.1 `ClaimStore.organizationOccupancyOf(resourceIds)` on SQLite and memory, joined to
+- [x] 3.1 `ClaimStore.organizationOccupancyOf(resourceIds)` on SQLite and memory, joined to
       `project_organization` so each row carries its project's organization, read on the
       batch's own connection after the batch took its turn; exposed unfenced and read
       through by the working plan — conformance tests on both stores, including "a working
@@ -78,16 +78,16 @@
       (a) read the organization's occupancy before the batch takes its turn and 3.2's race
       admits both claims; (b) read it on the observation connection and a two-claim batch
       takes 20 of 16 (the second claim does not see the first's uncommitted row).
-- [ ] 3.2 Cross-project race — test: `claim-occupancy-cross-project-race.db.test.ts`, two
+- [x] 3.2 Cross-project race — test: `claim-occupancy-cross-project-race.db.test.ts`, two
       concurrent claims in A and B asking 10 of 16, in one process and across two
       connections as `delegation-use-race.worker.ts` does; exactly one applied. Fault line:
       skip the organization check and both are stored (20 of 16).
-- [ ] 3.3 Amend ADR 0015 with the rule "a check that reads across projects needs the
+- [x] 3.3 Amend ADR 0015 with the rule "a check that reads across projects needs the
       source's lock to cover the organization"; add the source-conformance case: a batch
       claiming a resource with a directory capacity excludes a concurrent batch of another
       project of the organization. Fault line: a conformance fake source that locks per
       project only admits both, and the case fails.
-- [ ] 3.4 Redo, undo of a release, undo of a cascading release (leaf by leaf, all or
+- [x] 3.4 Redo, undo of a release, undo of a cascading release (leaf by leaf, all or
       nothing), undo of a delete (`withClaimsRestored`), lease sweep — test: journal round
       trips in `resource-occupancy.db.test.ts` with a second project, one per spec
       scenario. Fault lines: skip the organization rows on the undo path and the undo

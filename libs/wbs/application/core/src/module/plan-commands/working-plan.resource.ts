@@ -614,6 +614,13 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertProject(requestedProjectId);
         return scope.stores.claims.occupancyOf(requestedProjectId);
       },
+      // Unfenced and uncached (`wbs-shared-occupancy` S4): the organization's
+      // other projects are what this read is for, and the batch's own
+      // connection answers its earlier claims and every committed one.
+      organizationOccupancyOf: (resourceIds) => {
+        assertOpen();
+        return scope.stores.claims.organizationOccupancyOf(resourceIds);
+      },
       boundAccountOf: (personId) => {
         assertOpen();
         return scope.stores.claims.boundAccountOf(personId);

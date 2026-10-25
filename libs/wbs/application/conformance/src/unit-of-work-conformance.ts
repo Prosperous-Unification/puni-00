@@ -133,6 +133,70 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     expect(answer).toBe('reached the end');
   });
 
+  it('(m) excludes a concurrent batch while one reads across projects', async () => {
+    // ADR 0015's amendment of 2026-10-25 (`wbs-shared-occupancy` S4): a check
+    // that reads beyond its own project, as a claim reads the organization's
+    // occupancy of a shared resource, holds only if no batch of another
+    // project commits between its read and its write. The directory's tags
+    // stand in for the organization's rows here: each batch reads how many
+    // there are and writes one named by that count, so two batches that
+    // overlapped would both write `seen-0` (idempotent by name) and leave one.
+    //
+    // Proof: with the memory source's coordinator granting every turn at once
+    // (a source whose lock covers less than the batches it orders), this case
+    // failed: the second batch's act started while the first held its turn
+    // (6 pass, 1 fail); watched 2026-10-25.
+    const { uow, reader, stamp } = open();
+    const before = (await reader.directory.listTags()).filter(({ name }) =>
+      name.startsWith('seen-'),
+    );
+    expect(before).toEqual([]);
+    let entered: () => void = () => undefined;
+    const firstEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let secondStarted = false;
+    const countThenWrite = async (
+      stores: PlanTransactionalStores,
+      hold: Promise<void> | null,
+    ): Promise<void> => {
+      const seen = (await stores.directory.listTags()).filter(({ name }) =>
+        name.startsWith('seen-'),
+      ).length;
+      if (hold !== null) {
+        entered();
+        await hold;
+      }
+      await stores.directory.addTag(
+        { id: crypto.randomUUID(), name: `seen-${String(seen)}` },
+        stamp,
+      );
+    };
+    const first = uow.run(async (scope) => {
+      await countThenWrite(scope.stores, held);
+      return { commit: true, value: 'first' as const };
+    });
+    await firstEntered;
+    const second = uow.run(async (scope) => {
+      secondStarted = true;
+      await countThenWrite(scope.stores, null);
+      return { commit: true, value: 'second' as const };
+    });
+    await Bun.sleep(20);
+    expect(secondStarted).toBe(false);
+    release();
+    expect(await Promise.all([first, second])).toEqual(['first', 'second']);
+    const after = (await reader.directory.listTags())
+      .map(({ name }) => name)
+      .filter((name) => name.startsWith('seen-'))
+      .sort();
+    expect(after).toEqual(['seen-0', 'seen-1']);
+  });
+
   it('(k) runs the repair after the rollback, over the surviving state', async () => {
     // The window undo needs: a refused batch discards the stale journal entry
     // it refused, and that discard must survive the rollback that took the

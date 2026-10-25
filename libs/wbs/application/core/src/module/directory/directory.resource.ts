@@ -1752,7 +1752,12 @@ export class DirectoryService {
 
 /** Whether anything still names a resource: a demand, a stated capacity or an occupancy. */
 function isResourceInUse(rows: ResourceUsageRows): boolean {
-  return rows.demands.length > 0 || rows.capacities.length > 0 || rows.occupancies > 0;
+  return (
+    rows.demands.length > 0 ||
+    rows.capacities.length > 0 ||
+    rows.occupancies > 0 ||
+    rows.directoryCapacity !== null
+  );
 }
 
 /**

@@ -83,6 +83,7 @@ async function seeded(hold?: Hold) {
     findById: (id, claimId) => claims.findById(id, claimId),
     observeProject: (id, access) => claims.observeProject(id, access),
     occupancyOf: (id) => claims.occupancyOf(id),
+    organizationOccupancyOf: (ids) => claims.organizationOccupancyOf(ids),
     add: (written, stated, stamp, occupancy, leases) =>
       claims.add(written, stated, stamp, occupancy, leases),
     remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),

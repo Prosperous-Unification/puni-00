@@ -29,6 +29,18 @@ export function isResourceCase(caseId: string): boolean {
 const [RAM, STAGE] = CONFORMANCE_RESOURCES;
 
 /**
+ * The ownership the `claims.occupancy:organization-scope` case needs, which
+ * no port writes: the seed's first project and RAM belong to `organizationId`,
+ * the second project to `otherOrganizationId`, and the stage to none.
+ */
+export const SHARED_OCCUPANCY_OWNERSHIP = {
+  caseId: 'claims.occupancy:organization-scope',
+  organizationId: 'shared-occupancy-org',
+  otherOrganizationId: 'shared-occupancy-other-org',
+  resourceId: RAM.id,
+} as const;
+
+/**
  * Seeds {@link CONFORMANCE_RESOURCES} for a resource case, and for the removal
  * case a demand in the first project and a capacity in the second, through the
  * source's own writers.

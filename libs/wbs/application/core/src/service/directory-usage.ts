@@ -464,6 +464,8 @@ export interface ResourceUsageCounts {
   occupancies: number;
   /** The provider instance the resource names, or null (`compute-providers` P3). */
   providerId: string | null;
+  /** The directory capacity a confirmed removal drops with it, or null (`wbs-shared-occupancy` S8). */
+  directoryCapacity: number | null;
 }
 
 /**
@@ -491,6 +493,7 @@ export function directoryUsageOfResource(rows: ResourceUsageRows): {
       capacities: rows.capacities.length,
       occupancies: rows.occupancies,
       providerId: rows.providerId,
+      directoryCapacity: rows.directoryCapacity,
     },
   };
 }

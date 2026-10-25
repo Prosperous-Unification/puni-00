@@ -1,4 +1,10 @@
-import type { Demand, MeasureDefinition, MeasureUsage, PersonKind } from '@wbs/domain';
+import type {
+  Demand,
+  MeasureDefinition,
+  MeasureUsage,
+  PersonKind,
+  ResourceCapacity,
+} from '@wbs/domain';
 
 import type {
   Assignment,
@@ -13,6 +19,7 @@ import type {
   TeamPatch,
   TeamWithServices,
 } from './directory-values';
+import type { AuditedAct } from './organization-audit';
 import type {
   AssignmentWritten,
   ExternalSystem,
@@ -281,6 +288,23 @@ export type ResourceProviderSet =
   | { ok: true; projectIds: TouchedProjects }
   | { ok: false; reason: 'not_found' | 'unknown_provider' | 'provider_not_in_organization' };
 
+/**
+ * What stating or clearing a resource's **Directory capacity** answered
+ * (`wbs-shared-occupancy` S1, S2): the units before and after, the
+ * organization the resource belongs to, and the projects whose demands or
+ * capacities name it; or `not_found`, or `organization_required` for a
+ * resource no organization owns.
+ */
+export type DirectoryCapacitySet =
+  | {
+      ok: true;
+      before: number | null;
+      after: number | null;
+      organizationId: string;
+      projectIds: TouchedProjects;
+    }
+  | { ok: false; reason: 'not_found' | 'organization_required' };
+
 /** What a resource patch answered, with the projects whose demands or capacities name it. */
 export type ResourceWritten =
   | { ok: true; resource: Resource; projectIds: TouchedProjects }
@@ -300,6 +324,8 @@ export interface ResourceUsageRows {
   occupancies: number;
   /** The provider instance the resource names, or null (`compute-providers` P3). */
   providerId: string | null;
+  /** The resource's stated directory capacity, or null (`wbs-shared-occupancy` S8). */
+  directoryCapacity: number | null;
 }
 
 /** What a resource removal's own transaction decided; `in_use` carries what it read. */
@@ -663,6 +689,23 @@ export interface DirectoryStore {
     organizationId: string | null,
     stamp: WriteStamp,
   ): Promise<ResourceProviderSet>;
+  /**
+   * The stated directory capacities of `resourceIds`, in resource-id order; an
+   * unstated resource, or one not held, has no entry. Read on the store's own
+   * connection, uncached: inside a batch, the batch's.
+   */
+  directoryCapacitiesOf(resourceIds: readonly string[]): Promise<ResourceCapacity[]>;
+  /**
+   * States (`units`) or clears (`null`) a resource's directory capacity and
+   * appends one `organization_audit` row, `directory_capacity_changed` on
+   * subject kind `resource` with the units before and after, in one
+   * transaction. Never journalled. Who may is the caller's to decide.
+   */
+  setDirectoryCapacity(
+    resourceId: string,
+    units: number | null,
+    act: AuditedAct,
+  ): Promise<DirectoryCapacitySet>;
   /**
    * What points at one resource right now — a fast path for the confirmation,
    * never the authority for it. {@link DirectoryStore.removeResource} decides.

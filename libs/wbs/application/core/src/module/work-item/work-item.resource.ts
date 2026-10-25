@@ -3796,11 +3796,29 @@ export class WorkItemService {
     // batch at a time, so a concurrent claim's units are already here or not
     // yet written (claim-occupancy-race.db.test.ts).
     const occupancy = await claims.occupancyOf(projectId);
-    // The holders a `resources_exhausted` names sit on other leaves, beyond `near`.
+    const demand = lineage.isLeaf
+      ? (await this.opts.demands.listByProject(projectId))
+          .filter((each) => each.workItemId === id)
+          .map(({ resourceId, units }) => ({ resourceId, units }))
+      : [];
+    // Every resource the leaf could come to hold: what it declares, what the
+    // claim asks, and what it already holds.
+    // Proof: with the organization's rows withheld from `decideClaim`,
+    // `refuses B’s 16 GB while A holds the directory’s 16, naming the
+    // organization` and three more cases (shared-occupancy.db.test.ts) failed
+    // on both stores (14 pass, 8 fail); watched 2026-10-25.
+    const { directoryCapacities, organizationOccupancy } = await this.organizationOccupancyFor([
+      ...demand.map(({ resourceId }) => resourceId),
+      ...(input.resources ?? []).map(({ resourceId }) => resourceId),
+      ...occupancy.filter((row) => row.workItemId === id).map(({ resourceId }) => resourceId),
+    ]);
+    // The holders a `resources_exhausted` names sit on other leaves, beyond
+    // `near`, and in other projects of the organization.
     const nameOf = await this.personNamesWithin(access, [
       input.personId,
       ...near.map(({ personId }) => personId),
       ...occupancy.map(({ personId }) => personId),
+      ...organizationOccupancy.map(({ personId }) => personId),
     ]);
     if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     if (input.resources !== null) {
@@ -3855,16 +3873,12 @@ export class WorkItemService {
       parentClaim:
         input.parentClaimId === null ? null : await claims.findById(projectId, input.parentClaimId),
       claims: near,
-      demand: lineage.isLeaf
-        ? (await this.opts.demands.listByProject(projectId))
-            .filter((each) => each.workItemId === id)
-            .map(({ resourceId, units }) => ({ resourceId, units }))
-        : [],
+      demand,
       resources: input.resources,
       capacities: await this.resourceCapacitiesOf(projectId),
       occupancy,
-      directoryCapacities: [],
-      organizationOccupancy: [],
+      directoryCapacities,
+      organizationOccupancy,
     });
     if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
     if (decided.kind === 'alreadyHeld') {
@@ -4264,22 +4278,33 @@ export class WorkItemService {
       askedBy.set(leaf, vector);
     }
     const capacities = await this.resourceCapacitiesOf(projectId);
-    // Leaf by leaf, each admitted leaf's rows joining the snapshot before the
-    // next is checked: one entry may put back several leaves (a cascading
-    // release), and units the first re-takes are not free for the second.
+    // Leaf by leaf, each admitted leaf's rows joining both snapshots before
+    // the next is checked: one entry may put back several leaves (a cascading
+    // release), and units the first re-takes are not free for the second, in
+    // the project or across the organization.
     // Proof: with the admitted rows left out of the snapshot, `undo of a
     // cascading release re-acquires leaf by leaf, refused once the second leaf
     // no longer fits` (resource-occupancy.db.test.ts) answered the undo ok, over 8 GB
     // capacity, on both stores; watched 2026-10-20.
+    // Proof: with the organization's rows left out (an empty list passed),
+    // `refuses an undo of a release in A once B took the directory's 16`
+    // (shared-occupancy.db.test.ts) re-acquired 16 over B's 16, on both
+    // stores; with only the first leaf of a cascade checked against them,
+    // `refuses an undo of a cascading release leaf by leaf across projects`
+    // put both leaves back; watched 2026-10-25.
     const occupancy: OccupancyRow[] = [...(await this.claiming().claims.occupancyOf(projectId))];
+    const { directoryCapacities, organizationOccupancy } = await this.organizationOccupancyFor(
+      asked.map(({ resourceId }) => resourceId),
+    );
+    const organizationRows: OccupancyRow[] = [...organizationOccupancy];
     for (const [workItemId, units] of askedBy) {
       const exhausted = refuseOccupancy({
         workItemId,
         asked: [...units].map(([resourceId, each]) => ({ resourceId, units: each })),
         capacities,
         occupancy,
-        directoryCapacities: [],
-        organizationOccupancy: [],
+        directoryCapacities,
+        organizationOccupancy: organizationRows,
       });
       if (exhausted === null) {
         for (const row of asked) {
@@ -4287,6 +4312,7 @@ export class WorkItemService {
           if (claim?.workItemId !== workItemId) continue;
           const { personId, runId } = claim;
           occupancy.push({ ...row, workItemId, personId, runId });
+          organizationRows.push({ ...row, workItemId, personId, runId });
         }
         continue;
       }
@@ -4303,9 +4329,42 @@ export class WorkItemService {
       if (resource === undefined)
         throw new Error(`a stated capacity names absent resource ${exhausted.resourceId}`);
       const label = resource.unitLabel === '' ? '' : ` ${resource.unitLabel}`;
-      return `resources_exhausted: that needs ${String(exhausted.asked)}${label} of ${quoteName(resource.name)} and ${String(Math.max(exhausted.free, 0))} are free now.`;
+      // The scope is said only where a directory capacity is stated, so a
+      // resource with none reads as it always did.
+      const where =
+        exhausted.scope === undefined
+          ? ''
+          : exhausted.scope === 'organization'
+            ? ' across the organization'
+            : ' in this project';
+      return `resources_exhausted: that needs ${String(exhausted.asked)}${label} of ${quoteName(resource.name)} and ${String(Math.max(exhausted.free, 0))} are free now${where}.`;
     }
     return null;
+  }
+
+  /**
+   * The stated directory capacities among `resourceIds` and every occupancy
+   * row of their organizations (`wbs-shared-occupancy` S4), read through this
+   * graph's stores: inside a batch, on the batch's own connection after it
+   * took its write turn, so a concurrent batch of another project is ordered
+   * before or after it and an earlier claim of this batch is seen. Nothing is
+   * read past the capacities when none is stated, so a resource no admin
+   * sized costs one indexed read.
+   */
+  private async organizationOccupancyFor(resourceIds: readonly string[]): Promise<{
+    directoryCapacities: ResourceCapacity[];
+    organizationOccupancy: OccupancyRow[];
+  }> {
+    const unique = [...new Set(resourceIds)];
+    if (unique.length === 0) return { directoryCapacities: [], organizationOccupancy: [] };
+    const directoryCapacities = await this.opts.directory.directoryCapacitiesOf(unique);
+    if (directoryCapacities.length === 0) return { directoryCapacities, organizationOccupancy: [] };
+    return {
+      directoryCapacities,
+      organizationOccupancy: await this.claiming().claims.organizationOccupancyOf(
+        directoryCapacities.map(({ resourceId }) => resourceId),
+      ),
+    };
   }
 
   /**

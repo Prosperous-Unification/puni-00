@@ -249,6 +249,18 @@ export class MemoryState {
       next.tables.directory.resources.capacities,
     );
     replaceMap(this.tables.directory.resources.demands, next.tables.directory.resources.demands);
+    // Proof: with these two copies removed, the memory twin of `states and
+    // clears a directory capacity with one audit row each`
+    // (directory-capacity-command.test.ts) read no capacity after its batch
+    // committed; watched 2026-10-25.
+    replaceMap(
+      this.tables.directory.resources.directoryCapacities,
+      next.tables.directory.resources.directoryCapacities,
+    );
+    replaceArray(
+      this.tables.directory.resources.directoryCapacityAudit,
+      next.tables.directory.resources.directoryCapacityAudit,
+    );
     // Proof: with this copy removed, `defines, patches and removes a measure,
     // listing it after the seeded five` (measure-command.test.ts) read no
     // `gpu_minutes` after its batch committed; watched 2026-10-23.
@@ -398,6 +410,14 @@ export function bindStores(
         organizationId,
         stamp,
       );
+      if (!written.ok) return written;
+      return {
+        ...written,
+        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+      };
+    },
+    async setDirectoryCapacity(resourceId, units, act) {
+      const written = await fixtureDirectory.setDirectoryCapacity(resourceId, units, act);
       if (!written.ok) return written;
       return {
         ...written,
@@ -703,6 +723,8 @@ export function bindStores(
         projects: state.tables.projects,
         workItems: state.tables.workItems,
         people: state.tables.directory.people,
+        projectOrganization: state.tables.organizationLimits.projectOrganization,
+        resourceOrganization: state.tables.directory.organizationOf,
       },
     ),
     dependencies,
