@@ -438,3 +438,24 @@ it('preflight expiry belongs to the oldest authenticated snapshot', () => {
   const verified = validateRuntimeSnapshot(fixture.h3, fixture.h1, observedNow);
   expect(verified.expiresAt).toBe(Math.min(fixture.h3.observedAt, fixture.h1.observedAt) + 60000);
 });
+
+for (const address of ['10.1.0.2:19090', '0.0.0.0:19090', '[::]:19090']) {
+  it(`refuses foreign host listener ${address} alongside the owned loopback mapping`, () => {
+    const h3 = structuredClone(fixture.h3);
+    h3.listeners += `\nLISTEN 0 128 ${address} 0.0.0.0:*`;
+    expect(() => validateRuntimeSnapshot(h3, fixture.h1, observedNow)).toThrow(
+      /foreign dev host listener/,
+    );
+  });
+}
+it('requires the Grafana query alias on the owned Prometheus member', () => {
+  const h3 = structuredClone(fixture.h3);
+  const prometheus = h3.containers.find(
+    (container) =>
+      container.project === 'puni-dev-observability' && container.service === 'prometheus',
+  )!;
+  prometheus.aliases = prometheus.aliases.filter((alias) => alias !== 'puni-dev-prometheus');
+  expect(() => validateRuntimeSnapshot(h3, fixture.h1, observedNow)).toThrow(
+    /query network ownership/,
+  );
+});

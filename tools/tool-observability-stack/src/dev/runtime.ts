@@ -239,8 +239,13 @@ export function validateRuntimeSnapshot(monitor: unknown, observer: unknown, now
     )
   )
     throw new Error('foreign dev port collision');
-  // Proof: foreign alias and changed network identity negatives cannot be discounted as owned occupancy.
+  // Proof: removing the required owned alias admits `requires the Grafana query alias on the owned Prometheus member`.
+  // Foreign alias and changed network identity negatives cannot be discounted as owned occupancy.
   if (
+    !owned.some(
+      (container) =>
+        container.service === 'prometheus' && container.aliases.includes('puni-dev-prometheus'),
+    ) ||
     h3.network.Driver !== 'bridge' ||
     h3.network.Internal ||
     h3.network.Id !== 'a8c94b425b03ae71d4d5a72cd6947310ee97431358f7e62b4e0cdbb29bd10311' ||
@@ -302,17 +307,27 @@ export function validateRuntimeSnapshot(monitor: unknown, observer: unknown, now
   // Proof: insufficient observer disk fails before installation.
   if (observerStorage.availableBytes < 1024 ** 3) throw new Error('insufficient observer disk');
   const storage = parseStorage(h3.storage, h3.observedAt);
+  const ownedEndpoints = new Set(
+    owned.flatMap((container) => container.ports.map((port) => `${port.ip}:${String(port.port)}`)),
+  );
+  const occupiedPorts: number[] = [];
+  for (const line of h3.listeners.split('\n').filter(Boolean)) {
+    const address = line.trim().split(/\s+/)[3];
+    const port = Number(address.split(':').at(-1));
+    // Proof: removing this guard admits the 10.1.0.2/wildcard/IPv6 host-listener negatives.
+    // Only the exact loopback endpoint of an already ownership-validated Docker mapping is excluded.
+    if (published.includes(port) && !ownedEndpoints.has(address))
+      throw new Error('foreign dev host listener');
+    if (!ownedEndpoints.has(address)) occupiedPorts.push(port);
+  }
+
   return {
     expiresAt: Math.min(h3.observedAt, h1.observedAt) + 60000,
     capacity: {
       observedAt: h3.observedAt,
       availableMemoryBytes: h3.memory,
       availableDiskBytes: storage.availableBytes,
-      occupiedPorts: h3.listeners
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => Number(line.trim().split(/\s+/)[3]?.split(':').at(-1)))
-        .filter((port) => !published.includes(port)),
+      occupiedPorts,
     },
     queryNetwork: {
       id: h3.network.Id,
