@@ -37,6 +37,11 @@ it('proves bounded storage, startup refusal, trim reservation and convergence on
   expect(stdout).toContain('PASS missing mount cannot write root');
   expect(stdout).toContain('PASS wrong filesystem refuses startup');
   expect(stdout).toContain('PASS second convergence changes nothing');
+  for (const name of ['registry', 'journal'])
+    for (const fault of ['owner', 'group', 'mode', 'symlink', 'hardlink'])
+      expect(stdout).toContain(
+        `PASS identical-byte ${name} receipt ${fault} drift refuses host and startup; removed guards admit it`,
+      );
   expect(stdout).toContain('PASS cleanup');
 }, 120000);
 

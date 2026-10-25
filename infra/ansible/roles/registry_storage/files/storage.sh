@@ -21,8 +21,19 @@ def require(condition, message):
 
 
 def durable_write(path, content, mode=0o644):
-    if path.exists() and path.read_text() == content:
-        return False
+    try:
+        status = path.lstat()
+    except FileNotFoundError:
+        status = None
+    if status is not None:
+        is_safe_receipt = (stat.S_ISREG(status.st_mode) and status.st_uid == 0 and
+                           status.st_gid == 0 and status.st_nlink == 1 and
+                           stat.S_IMODE(status.st_mode) == mode)
+        # Proof: identical bytes with owner/group/mode/symlink/hardlink drift fail the
+        # physical rehearsal; removing this guard restores the unsafe unchanged fastpath.
+        require(is_safe_receipt, 'Untrusted durable receipt metadata')
+        if path.read_text() == content:
+            return False
     pending = path.with_suffix('.pending')
     with pending.open('x') as stream:
         os.chmod(pending, mode)

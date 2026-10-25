@@ -9,6 +9,11 @@ shift 3
 verify_mount() {
   name=$1
   path=$2
+  # stat does not follow symlinks: 81a4 is a regular mode-0644 file; require root
+  # UID/GID and one link before reading claims, even when receipt bytes are unchanged.
+  # Proof: identical-byte metadata drift fails the physical rehearsal; removal admits it.
+  receipt_metadata=$(stat -c '%f:%u:%g:%h' "$identities/$name.receipt")
+  test "$receipt_metadata" = '81a4:0:0:1'
   read -r device maximum uuid fsid < "$identities/$name.receipt"
   test -n "$uuid"
   # Proof: a wrong ext4 filesystem on the reused loop device is refused by the physical rehearsal.

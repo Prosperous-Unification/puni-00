@@ -62,6 +62,43 @@ try:
         assert converge() == 'unchanged', iteration
     assert converge('verify') == 'unchanged'
     startup()
+    for name in ('registry', 'journal'):
+        receipt = root / 'journal/identities' / (name + '.receipt')
+        saved_receipt = receipt.read_bytes()
+        alternate = receipt.with_suffix('.alternate')
+        for fault in ('owner', 'group', 'mode', 'symlink', 'hardlink'):
+            if fault == 'owner':
+                os.chown(receipt, 59001, 0)
+            elif fault == 'group':
+                os.chown(receipt, 0, 59001)
+            elif fault == 'mode':
+                os.chmod(receipt, 0o666)
+            elif fault == 'symlink':
+                receipt.rename(alternate)
+                receipt.symlink_to(alternate.name)
+            else:
+                os.link(receipt, alternate)
+            assert receipt.read_bytes() == saved_receipt
+            converge('verify', succeeds=False)
+            startup(succeeds=False)
+            untrusted_helper = root / 'untrusted-receipt-storage.sh'
+            untrusted_helper.write_text(helper.read_text().replace('require(is_safe_receipt,', 'require(True,'))
+            assert execute('sh', str(untrusted_helper), 'verify', str(configuration)) == 'unchanged'
+            untrusted_guard = root / 'untrusted-receipt-startup.sh'
+            untrusted_guard.write_text(guard.read_text().replace("  test \"$receipt_metadata\" = '81a4:0:0:1'", '  :'))
+            startup(script=untrusted_guard)
+            if fault == 'symlink':
+                receipt.unlink()
+                alternate.rename(receipt)
+            elif fault == 'hardlink':
+                alternate.unlink()
+            else:
+                os.chown(receipt, 0, 0)
+                os.chmod(receipt, 0o644)
+            assert receipt.read_bytes() == saved_receipt
+            assert converge('verify') == 'unchanged'
+            startup()
+            print(f'PASS identical-byte {name} receipt {fault} drift refuses host and startup; removed guards admit it', flush=True)
     identity = root / 'registry.identity.json'
     saved_identity = identity.read_text()
     changed_identity = json.loads(saved_identity)
