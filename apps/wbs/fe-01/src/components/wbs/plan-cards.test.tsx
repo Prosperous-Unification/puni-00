@@ -2300,10 +2300,10 @@ describe('claims on a card (wbs-claim-display 7.1)', () => {
       'whitespace-nowrap',
     );
     expect(header).toHaveClass('flex-wrap');
-    expect(header?.querySelector('[data-card-subtree-claim]')).toHaveClass(
-      'order-last',
-      'basis-full',
-    );
+    const chip = header?.querySelector('[data-card-subtree-claim]');
+    expect(chip).toHaveClass('basis-full');
+    // Drawn last and read last: the header's last child, after the total.
+    expect(header?.lastElementChild).toBe(chip);
   });
 });
 

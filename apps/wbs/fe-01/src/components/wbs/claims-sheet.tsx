@@ -385,32 +385,43 @@ function HeldClaimRow({
   );
 }
 
+/** Names joined as a list is said: `lead, w1 and w3`. */
+const NAME_LIST = new Intl.ListFormat('en-GB', { style: 'long', type: 'conjunction' });
+
 /** The names of the people one history entry names, once each, a deleted one said as such. */
-function holderNames(claims: readonly ClaimHistoryClaimView[]): string[] {
-  return [...new Set(claims.map((claim) => claim.holder.name ?? 'a deleted person'))];
+function holderNames(claims: readonly ClaimHistoryClaimView[]): string {
+  return NAME_LIST.format([
+    ...new Set(claims.map((claim) => claim.holder.name ?? 'a deleted person')),
+  ]);
 }
 
 /**
  * One history entry's first line, worded by its reason (`wbs-claim-display`
- * "The Claims sheet says why claims went"): `codex claimed`, `codex released
- * 2 items`, and for the sweep's reaps, which the holder did not do, `codex’s
- * lease expired` or `finn’s credential was revoked`, `, releasing 2 items`
- * when there are several. The swarm rehearsal of 2026-10-25 read a reap as
- * `w2 released 2 items`, with the reason only in small print below.
+ * "The Claims sheet says why claims went"): `codex claimed`, `codex released 2
+ * items`, and for the sweep's reaps, which no holder did, `A lease expired:
+ * released 5 items of lead, w1 and w3` or `A credential was revoked: released
+ * 2 items of finn`.
+ *
+ * Neutral on purpose. The sweep puts one account's expired or revoked claims
+ * in one event together with every claim delegated under an expired subtree
+ * claim, each keeping its own holder, and the read does not say whose lease
+ * or credential it was: naming a holder as its owner would send an operator
+ * after healthy delegated agents. The swarm rehearsal of 2026-10-25 read a
+ * reap as `w2 released 2 items`, which blamed the holder the other way.
  *
  * Proof: 2026-10-25, a lease expiry worded `codex released` failed `words a
  * swept release by its reason, never as the holder releasing`, `lists the
  * recent claims and releases…` and `stays, with no number, when the last
- * claim is reaped…`.
+ * claim is reaped…`; the possessive form (`lead’s lease expired, releasing
+ * 3 items`) failed the same three.
  *
  * @throws Through {@link unreachable} on a reason the contract does not have.
  */
 function HistoryHeadline({ entry }: { entry: ClaimHistoryEventView }) {
-  const names = holderNames(entry.claims);
-  const who = <span className="font-medium">{names.join(', ')}</span>;
-  const many = entry.claims.length > 1 ? ` ${String(entry.claims.length)} items` : '';
-  const releasing = many === '' ? '' : `, releasing${many}`;
-  const one = names.length === 1;
+  const who = <span className="font-medium">{holderNames(entry.claims)}</span>;
+  const count = entry.claims.length;
+  const many = count > 1 ? ` ${String(count)} items` : '';
+  const items = `${String(count)} ${count === 1 ? 'item' : 'items'}`;
   switch (entry.reason) {
     case 'claimed':
       return (
@@ -425,23 +436,15 @@ function HistoryHeadline({ entry }: { entry: ClaimHistoryEventView }) {
         </>
       );
     case 'lease_expired':
-      return one ? (
+      return (
         <>
-          {who}’s lease expired{releasing}
-        </>
-      ) : (
-        <>
-          The leases of {who} expired{releasing}
+          A lease expired: released {items} of {who}
         </>
       );
     case 'credential_revoked':
-      return one ? (
+      return (
         <>
-          {who}’s credential was revoked{releasing}
-        </>
-      ) : (
-        <>
-          The credentials of {who} were revoked{releasing}
+          A credential was revoked: released {items} of {who}
         </>
       );
     default:

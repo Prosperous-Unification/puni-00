@@ -56,7 +56,8 @@ describe('an assignee is named in two characters', () => {
     // Proof: the word pattern replaced by `/\S+/gu` — failed on `expected 'M('
     // to be 'MH'`; the NFC composition dropped — `expected 'ZA' to be 'ZÅ'`;
     // `Array.from` replaced by `String#slice` — `expected '\uD835\uD835' to
-    // be '𝔄𝔅'` (two half surrogates). All watched 2026-10-25.
+    // be '𝔄𝔅'` (two half surrogates), watched again for `String#slice` in
+    // place of the grapheme letters. All watched 2026-10-25.
     expect(initialsOf('Mira (human)')).toBe('MH');
     expect(initialsOf('w2')).toBe('W2');
     expect(initialsOf('agent-w3')).toBe('AW');
@@ -64,6 +65,23 @@ describe('an assignee is named in two characters', () => {
     expect(initialsOf('Zoe\u0308 A\u030angstro\u0308m')).toBe('ZÅ');
     expect(initialsOf('Łukasz "Luk" Żak')).toBe('ŁL');
     expect(initialsOf('𝔄lma 𝔅erg')).toBe('𝔄𝔅');
+  });
+
+  it('keeps an apostrophe inside a word and counts whole graphemes', () => {
+    // Proof: 2026-10-25, without the apostrophe in the word pattern `D’Arcy
+    // Smith` gave `DA`; with code points for graphemes `क्षत्रिय` gave `कष`
+    // (the conjunct torn apart); with no letter filter `O'Neil` gave `O'`.
+    expect(initialsOf('D’Arcy Smith')).toBe('DS');
+    expect(initialsOf("O'Neil")).toBe('ON');
+    expect(initialsOf('क्षत्रिय')).toBe('क्षत्रि');
+  });
+
+  it('answers an emoji name with its whole first grapheme', () => {
+    // Proof: 2026-10-25, with code points for graphemes `👩‍💻` gave `👩`.
+    expect(initialsOf('👩‍💻')).toBe('👩‍💻');
+    expect(initialsOf('🇺🇦 crew')).toBe('CR');
+    expect(initialsOf('🇺🇦')).toBe('🇺🇦');
+    expect(initialsOf('👍🏽 ')).toBe('👍🏽');
   });
 
   it('answers a name without letters or digits with its first character', () => {

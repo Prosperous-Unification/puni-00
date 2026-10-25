@@ -117,17 +117,22 @@ leaf's Resources cell (a column hidden by default) and the row menu's `Resources
 panel listing every resource with this work item's units, an exclusive one as needed or not,
 and saving SHALL send every changed demand as one batch, so the plan's Undo takes the edit back
 whole. A parent SHALL be offered no demand edit. Loading, an empty directory, a failed read
-and every refusal (a role that may not write included) SHALL be rendered in place, beside the
-resource row whose write caused it; a refused capacity SHALL leave the box showing the declared
-number. The section SHALL read the role off `GET /api/organization/active` on each read and
-offer only what that role may send. Remove SHALL be offered only to an organization admin or
-super-admin, and to every caller without organizations; a member gets no Remove and is told
-only an admin may remove a resource. A viewer SHALL be offered no write at all (no capacity
-box, Edit, Add or Remove) and is told the role can read the resources but not change them; a
-failed role read, or one naming another organization, likewise offers no write and says so.
-The compute providers list SHALL be requested only once the role read names an admin or
-super-admin. A `forbidden` removal still arriving, on the plain delete or the cascade, SHALL be
-said in place, close its confirm and reread the role.
+and every refusal (a role that may not write included) SHALL be rendered in place: beside the
+resource row whose write caused it, or above the Add form for an Add. A refused capacity SHALL
+leave the box showing the declared number; one not sent (not a whole number, or another write in
+flight) SHALL keep what was typed. The section SHALL read the role off
+`GET /api/organization/active` on each read and after any `forbidden` write, and offer only
+what that role may send. Remove SHALL be offered only to an organization admin or super-admin,
+and to every caller without organizations; a member gets no Remove and is told only an admin
+may remove a resource. Stating and adopting a capacity follow the role, not the providers list.
+A viewer SHALL be offered no write at all (no capacity box, Adopt, Edit, Add or Remove) and is
+told the role can read the resources but not change them. A role read naming another
+organization, or refused for lost access, offers no write and says why (reload, sign in
+again); a failed role read offers no write, says so, and offers reading it again only when that
+can help, saying so when it fails again. These sentences stand above the list. The compute
+providers list SHALL be requested only once the role read names an admin or super-admin. A
+`forbidden` removal still arriving, on the plain delete or the cascade, SHALL be said in place
+and close its confirm.
 
 #### Scenario: A demand set from the table is undone in one step
 

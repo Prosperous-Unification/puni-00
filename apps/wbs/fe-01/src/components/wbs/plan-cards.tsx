@@ -2880,21 +2880,10 @@ export function PlanCards({
               */}
               <CardPriorityField row={row} bands={priorityBands} setPriority={setPriority} />
               {/*
-                A subtree claim's chip takes its own line under the number: on a
-                375px phone the toggle, number, priority, chip, total and menu
-                do not fit one, and the chip squeezed in either clipped itself
-                or broke the total over two lines (swarm rehearsal, 2026-10-25).
-              */}
-              {subtreeClaim !== null && (
-                <span data-card-subtree-claim={row.id} className="order-last basis-full">
-                  <ClaimChip drawn={subtreeClaim} form="full" tap />
-                </span>
-              )}
-              {/*
                 Never wraps or shrinks. Proof: 2026-10-25, without `shrink-0
-                whitespace-nowrap` or with the chip back on the number's line,
-                `keeps the card’s total on one line, the subtree chip on its own`
-                failed.
+                whitespace-nowrap`, or with the chip before the total in the DOM
+                (`order-last`, as first written), `keeps the card’s total on one
+                line, the subtree chip on its own` failed.
               */}
               <span
                 data-final-total
@@ -2904,6 +2893,19 @@ export function PlanCards({
               </span>
               {rowActions !== undefined && (
                 <CardActions row={row} handlers={rowActions} menu={menu.current} />
+              )}
+              {/*
+                A subtree claim's chip takes its own line under the number: on a
+                375px phone the toggle, number, priority, chip, total and menu
+                do not fit one, and the chip squeezed in either clipped itself
+                or broke the total over two lines (swarm rehearsal, 2026-10-25).
+                Last in the DOM as well as on screen, so a screen reader meets
+                it in the order it is drawn.
+              */}
+              {subtreeClaim !== null && (
+                <span data-card-subtree-claim={row.id} className="basis-full">
+                  <ClaimChip drawn={subtreeClaim} form="full" tap />
+                </span>
               )}
             </header>
 

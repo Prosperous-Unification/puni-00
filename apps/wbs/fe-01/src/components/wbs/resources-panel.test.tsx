@@ -217,7 +217,7 @@ describe('resources section states', () => {
     expect(within(disk).queryByRole('button', { name: /Adopt/ })).toBeNull();
   });
 
-  it('names the instance on the row for a member, with no picker and no adopt', async () => {
+  it('names the instance on the row for a member, with no picker, and offers a member Adopt', async () => {
     const sent = serve({
       [READ]: [
         readOf(
@@ -235,7 +235,8 @@ describe('resources section states', () => {
     expect(chipIn(ram, 'Compute provider: SSH host·h2puni')).toBeDefined();
     expect(within(ram).queryByText('Fulfilled by a compute provider')).toBeNull();
     expect(within(ram).queryByRole('combobox')).toBeNull();
-    expect(within(ram).queryByRole('button', { name: /Adopt/ })).toBeNull();
+    // be-01 lets a member state capacity, so Adopt follows the role, not the providers list.
+    expect(within(ram).getByRole('button', { name: /^Adopt 15 GB/ })).toBeDefined();
   });
 
   it('shows the chip to an admin beside the picker, and none on a resource without one', async () => {
@@ -269,7 +270,6 @@ describe('resources section states', () => {
     expect(within(ram).getByText('Fulfilled by a compute provider')).toBeDefined();
     expect(within(ram).getByText('Measured 15 GB, 8 in use')).toBeDefined();
     expect(within(ram).queryByRole('combobox')).toBeNull();
-    expect(within(ram).queryByRole('button', { name: /Adopt/ })).toBeNull();
     expect(screen.queryByText(/could not be read/)).toBeNull();
   });
 
@@ -343,7 +343,8 @@ describe('resources section instances read', () => {
     const ram = await row('h2puni ram');
     expect(await screen.findByRole('alert')).toHaveTextContent(/./);
     expect(within(ram).queryByRole('combobox')).toBeNull();
-    expect(within(ram).queryByRole('button', { name: /Adopt/ })).toBeNull();
+    // Adopt is the admin's by role, whatever the providers read answered.
+    expect(within(ram).getByRole('button', { name: /^Adopt 15 GB/ })).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Retry resources' }));
     expect(await within(ram).findByLabelText('Compute provider of h2puni ram')).toHaveValue('cp-1');
     expect(screen.queryByRole('alert')).toBeNull();
@@ -818,9 +819,13 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     expect(within(ram).queryByRole('combobox')).toBeNull();
     expect(screen.queryByRole('form', { name: 'Add a resource' })).toBeNull();
     expect(screen.queryByText(/Only an organization admin/)).toBeNull();
+    const hint = screen.getByText('Your role can read these resources but not change them.');
+    // Above the list, so a phone reader meets it before the rows.
     expect(
-      screen.getByText('Your role can read these resources but not change them.'),
-    ).toBeDefined();
+      hint.compareDocumentPosition(screen.getByRole('list', { name: 'Resources' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByText(/adopting a measurement/)).toBeNull();
     expect(
       sent.filter(({ route }) => route !== READ && route !== ACTIVE && route !== STARTABLE),
     ).toEqual([]);
@@ -887,14 +892,63 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     expect(screen.queryByRole('form', { name: 'Add a resource' })).toBeNull();
     expect(providerReads(sent)).toEqual([]);
     expect(
-      screen.getByText('Your role could not be read, so changing resources is not offered.'),
+      screen.getByText(/^Your role could not be read, so changing resources is not offered\./),
     ).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Read your role again' }));
     expect(await within(ram).findByRole('button', { name: 'Edit h2puni ram' })).toBeDefined();
     expect(screen.queryByText(/Your role could not be read/)).toBeNull();
   });
 
-  it('offers nothing to change when the active organization is another one', async () => {
+  it('says so when reading the role again fails again', async () => {
+    serve({
+      [READ]: [readOf([resourceOf()])],
+      [ACTIVE]: [() => answer(500, { error: 'internal' })],
+    });
+    mount();
+    await row('h2puni ram');
+    fireEvent.click(screen.getByRole('button', { name: 'Read your role again' }));
+    expect(
+      await screen.findByText(/^Your role still could not be read, so changing resources/),
+    ).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Read your role again' })).toBeEnabled();
+  });
+
+  it('offers no reread when the role read is refused for a reason rereading cannot fix', async () => {
+    serve({
+      [READ]: [readOf([resourceOf()])],
+      [ACTIVE]: [() => answer(403, { error: 'insufficient_scope' })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(within(ram).queryByRole('button')).toBeNull();
+    expect(
+      screen.getByText(
+        'This sign-in is read-only here. Sign in to WBS again to make changes. Changing resources is not offered.',
+      ),
+    ).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Read your role again' })).toBeNull();
+  });
+
+  for (const [error, text] of [
+    [
+      'not_a_member',
+      'You are no longer a member of this organization, so its resources cannot be changed.',
+    ],
+    ['unauthenticated', 'Your session ended. Sign in again to change resources.'],
+  ] as const)
+    it(`says why nothing can change when the role read answers ${error}`, async () => {
+      serve({
+        [READ]: [readOf([resourceOf()])],
+        [ACTIVE]: [() => answer(error === 'unauthenticated' ? 401 : 403, { error })],
+      });
+      mount();
+      const ram = await row('h2puni ram');
+      expect(within(ram).queryByRole('button')).toBeNull();
+      expect(screen.getByText(text)).toBeDefined();
+      expect(screen.queryByRole('button', { name: 'Read your role again' })).toBeNull();
+    });
+
+  it('says the organization changed when the role read names another one', async () => {
     serve({
       [READ]: [readOf([resourceOf()])],
       [PROVIDERS]: [providersOf(h2puni)],
@@ -904,8 +958,70 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     const ram = await row('h2puni ram');
     expect(within(ram).queryByRole('button')).toBeNull();
     expect(
+      screen.getByText('Your organization changed. Reload before changing resources.'),
+    ).toBeDefined();
+    expect(screen.queryByText(/Your role can read/)).toBeNull();
+  });
+
+  it('rereads the role after a forbidden capacity and takes the box away', async () => {
+    // A member demoted to viewer since the read.
+    serve({
+      [READ]: [readOf([resourceOf()], [{ resourceId: 'r1', units: 4 }])],
+      [ACTIVE]: [activeAs('member'), activeAs('viewer')],
+      [PLAN]: [() => answer(403, { error: 'forbidden', at: 0, kind: 'setResourceCapacity' })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.change(
+      within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' }),
+      { target: { value: '3' } },
+    );
+    fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
+    expect(await within(ram).findByRole('alert')).toHaveTextContent(/./);
+    await waitFor(() => {
+      expect(within(ram).queryByRole('textbox')).toBeNull();
+    });
+    expect(
       screen.getByText('Your role can read these resources but not change them.'),
     ).toBeDefined();
+    expect(within(ram).getByRole('alert')).toBeDefined();
+  });
+
+  it('keeps a typed capacity that another write kept from being sent', async () => {
+    const disk = resourceOf({ id: 'r2', name: 'h2puni disk', providerId: null });
+    const sent = serve({
+      [READ]: [
+        readOf(
+          [resourceOf(), disk],
+          [
+            { resourceId: 'r1', units: 4 },
+            { resourceId: 'r2', units: 9 },
+          ],
+        ),
+      ],
+      [PLAN]: [applied],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    const diskRow = await row('h2puni disk');
+    fireEvent.change(within(ram).getByRole('textbox'), { target: { value: '5' } });
+    fireEvent.change(within(diskRow).getByRole('textbox'), { target: { value: '10' } });
+    // Both inside one act: the second lands while the first is in flight.
+    act(() => {
+      within(ram).getByRole('button', { name: 'State' }).click();
+      within(diskRow).getByRole('button', { name: 'State' }).click();
+    });
+    await waitFor(() => {
+      expect(plans(sent)).toHaveLength(1);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(within(diskRow).getByRole('textbox')).toHaveValue('10');
+    expect(within(diskRow).getByRole('button', { name: 'State' })).toBeDefined();
+    expect(plans(sent)).toEqual([
+      { commands: [{ kind: 'setResourceCapacity', resourceId: 'r1', units: 5 }] },
+    ]);
   });
 
   it('says a refused removal in place, closes its confirm and takes Remove away', async () => {

@@ -13,15 +13,18 @@
  * and one letter is not enough to tell two of them apart. Upper case, because
  * these are read as a mark rather than as text.
  *
- * Words are runs of letters and digits in any script (marks stay with their
- * letter); everything else separates them, so `Mira (human)` is `MH`, never
- * the `M(` the 2026-10-25 swarm rehearsal drew. Characters are counted by code
- * point after NFC composition, so `𝔄lma` and a decomposed `Zoë` give whole
- * letters, not halves of a surrogate pair or a bare combining mark.
+ * Words are runs of letters and digits in any script, with their marks and
+ * joiners and an apostrophe inside them (`D’Arcy Smith` is `DS`, `O'Neil` is
+ * `ON`); everything else separates them, so `Mira (human)` is `MH`, never the
+ * `M(` the 2026-10-25 swarm rehearsal drew. Characters are user-perceived
+ * ones (`Intl.Segmenter` graphemes, after NFC composition), and only letters
+ * and digits count, so `𝔄lma`, a decomposed `Zoë` and a conjunct such as
+ * `क्ष` stay whole rather than halves of a surrogate pair, a bare combining
+ * mark or a letter ending on its virama.
  *
  * A name of one character answers with that character rather than padding: `K`
- * is what there is. A name with characters but no letter or digit (`🤖`)
- * answers with its first character, since the directory accepts any name. A
+ * is what there is. A name with characters but no letter or digit (`🤖`,
+ * `👩‍💻`, a flag) answers with its first grapheme, since the directory accepts any name. A
  * name that is empty or only spaces is **not** a case this models — the caller
  * does not print an assignee it does not have — so it throws rather than
  * answering with a blank badge nobody can account for (R5).
@@ -38,15 +41,31 @@
  */
 export function initialsOf(name: string): string {
   const composed = name.normalize('NFC');
-  const words: readonly string[] = composed.match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu) ?? [];
+  const words: readonly string[] =
+    composed.match(/[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}'’]|\u200C|\u200D)*/gu) ?? [];
   const head = words.at(0);
   const next = words.at(1);
   if (head === undefined) {
-    const first = Array.from(composed.trim()).at(0);
+    const first = graphemesOf(composed.trim()).at(0);
     if (first === undefined) throw new Error('an assignee with no name cannot be initialled');
     return first.toLocaleUpperCase();
   }
-  const letters = (word: string, count: number) => Array.from(word).slice(0, count).join('');
-  const initials = next === undefined ? letters(head, 2) : letters(head, 1) + letters(next, 1);
+  const initials =
+    next === undefined ? lettersOf(head, 2) : lettersOf(head, 1) + lettersOf(next, 1);
   return initials.toLocaleUpperCase();
+}
+
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/** The user-perceived characters of `text`. */
+function graphemesOf(text: string): string[] {
+  return Array.from(GRAPHEMES.segment(text), ({ segment }) => segment);
+}
+
+/** The first `count` letters or digits of `word`, each a whole grapheme; an apostrophe is skipped. */
+function lettersOf(word: string, count: number): string {
+  return graphemesOf(word)
+    .filter((grapheme) => /[\p{L}\p{N}]/u.test(grapheme))
+    .slice(0, count)
+    .join('');
 }

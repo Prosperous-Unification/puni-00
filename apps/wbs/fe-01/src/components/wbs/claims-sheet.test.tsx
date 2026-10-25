@@ -180,7 +180,9 @@ describe('the Claims toolbar button (wbs-claim-display 9.1, C16)', () => {
     expect(claimsButton()?.querySelector('[data-claims-count]')).toBeNull();
     const sheet = await openTheSheet();
     await waitFor(() => {
-      expect(historyRows(sheet)).toEqual(['24 Oct 10:47dana’s lease expired030 Prime · Dev']);
+      expect(historyRows(sheet)).toEqual([
+        '24 Oct 10:47A lease expired: released 1 item of dana030 Prime · Dev',
+      ]);
     });
     expect(within(sheet).getByText('No claims are held.')).toBeInTheDocument();
   });
@@ -328,8 +330,8 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
 
     await waitFor(() => {
       expect(historyRows(sheet)).toEqual([
-        '24 Oct 10:46codex’s lease expired010.1 Paint · Dev',
-        '24 Oct 10:45finn’s credential was revoked020 Sand · QA',
+        '24 Oct 10:46A lease expired: released 1 item of codex010.1 Paint · Dev',
+        '24 Oct 10:45A credential was revoked: released 1 item of finn020 Sand · QA',
         '24 Oct 10:44a deleted person released 2 items– a deleted item– 010.1 Paint · QA',
         '24 Oct 10:42codex claimed010.1 Paint · Dev',
       ]);
@@ -338,10 +340,12 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
 
   itDom('words a swept release by its reason, never as the holder releasing', async () => {
     // The swarm rehearsal of 2026-10-25 read `w2 released 2 items` for leases
-    // the coordinator's sweep reaped.
+    // the coordinator's sweep reaped. One sweep event also carries every claim
+    // delegated under an expired subtree claim, each with its own holder, so
+    // the line names nobody as the lease's owner.
     const { api, history, ids } = await claimedPlan(['c-dana']);
     const item = { number: '010.1', numberIsFrozen: false, name: 'Paint' };
-    const claim = (claimId: string, name: string | null, stepId: string) => ({
+    const claim = (claimId: string, name: string | null, stepId: string | null) => ({
       claimId,
       workItemId: ids.paint,
       stepId,
@@ -350,17 +354,19 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
       item,
     });
     history.push(
-      event('e4', CLAIMED_AT + 4 * MINUTE, 'release', 'credential_revoked', [
+      event('e3', CLAIMED_AT + 4 * MINUTE, 'release', 'credential_revoked', [
         claim('c-5', 'finn', 'step-dev'),
-        claim('c-6', 'gil', 'step-qa'),
+        claim('c-6', null, 'step-qa'),
       ]),
-      event('e3', CLAIMED_AT + 3 * MINUTE, 'release', 'lease_expired', [
-        claim('c-3', 'w2', 'step-dev'),
-        claim('c-4', 'w2', 'step-qa'),
+      // lead's subtree claim expired; w1 and w3 held delegated claims under it.
+      event('e2', CLAIMED_AT + 3 * MINUTE, 'release', 'lease_expired', [
+        claim('c-1', 'lead', null),
+        claim('c-2', 'w1', 'step-dev'),
+        claim('c-3', 'w3', 'step-qa'),
       ]),
-      event('e2', CLAIMED_AT + 2 * MINUTE, 'release', 'lease_expired', [
-        claim('c-1', 'w2', 'step-dev'),
-        claim('c-2', null, 'step-qa'),
+      event('e1', CLAIMED_AT + 2 * MINUTE, 'release', 'lease_expired', [
+        claim('c-4', 'w2', 'step-dev'),
+        claim('c-7', 'w2', 'step-qa'),
       ]),
     );
     drawTable(api);
@@ -369,9 +375,9 @@ describe('the Claims sheet (wbs-claim-display 9.1)', () => {
 
     await waitFor(() => {
       expect(historyRows(sheet)).toEqual([
-        '24 Oct 10:46The credentials of finn, gil were revoked, releasing 2 items– 010.1 Paint · Dev– 010.1 Paint · QA',
-        '24 Oct 10:45w2’s lease expired, releasing 2 items– 010.1 Paint · Dev– 010.1 Paint · QA',
-        '24 Oct 10:44The leases of w2, a deleted person expired, releasing 2 items– 010.1 Paint · Dev– 010.1 Paint · QA',
+        '24 Oct 10:46A credential was revoked: released 2 items of finn and a deleted person– 010.1 Paint · Dev– 010.1 Paint · QA',
+        '24 Oct 10:45A lease expired: released 3 items of lead, w1 and w3– 010.1 Paint · subtree– 010.1 Paint · Dev– 010.1 Paint · QA',
+        '24 Oct 10:44A lease expired: released 2 items of w2– 010.1 Paint · Dev– 010.1 Paint · QA',
       ]);
     });
   });
