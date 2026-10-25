@@ -311,15 +311,20 @@ together keeping their order. Frozen work items move with the rest; nothing chan
 _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
 
 **Step**:
-A named kind of work a project defines once for all its work packages, each estimating it
-separately; unique by name within the project and carrying a **step code**; every project
-starts with `Dev` and `QA`
-([spec](openspec/changes/archive/2026-08-30-steps-not-phases/specs/wbs-domain/spec.md)). A
-definition, not an occurrence: its work within one leaf is a **step node**.
-_Avoid_: discipline, type, category
+A named kind of work defined once in an organization's step catalogue and bound, per work
+item type or for every type, at the organization, a space or a project; a leaf's steps are
+the bindings along its chain, and each work package keeps its own unit and allowance per
+step. A definition, not an occurrence: its work within one leaf is a **step node**.
+_Avoid_: discipline, type, category, phase
+
+**Step binding**:
+One statement that one step applies, at one scope (organization, space or project), to work
+items of one work item type or of every type. Bindings add along the chain and never hide an
+inherited step.
+_Avoid_: step assignment, step rule, step override
 
 **Step code**:
-A step's short, immutable name for references, unique within its project — `dev`, `qa`,
+A step's short, immutable name for references, unique within its organization's catalogue — `dev`, `qa`,
 `review`: a
 lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
 step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are

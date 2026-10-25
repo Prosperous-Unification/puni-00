@@ -335,7 +335,7 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   window). `estimateMethod`, `estimateRounding`, `depReach`, `startDate`, engine, objective and
   optimization stay work-package columns: E6 names them nowhere, and they are plan inputs, not
   shared configuration. Rejected: keeping the columns as a cache (two sources of truth).
-- **E21. Steps are project entities.** _Revised 2026-10-24 after review (option a; was: a
+- **E21. Steps are project entities.** _Deferred 2026-10-25 by Dany to `wbs-step-catalogue` (steps per work item type, defined at the organization, added at space and project; see that change's design.md SC1–SC10 and Q1–Q4)._ _Revised 2026-10-24 after review (option a; was: a
   project-wide code vocabulary over per-work-package step rows, refusing a fresh code with
   `code_not_in_project`)._ The step set (code, name, order) is defined once on the project;
   a work package holds one row per project step for what genuinely differs per package, its
