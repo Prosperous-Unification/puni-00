@@ -63,7 +63,7 @@ The system SHALL retain each observed dev target, attempt start, phase boundary,
 
 ### Requirement: Collection cannot alter delivery authority
 
-Collection SHALL be bounded, read-only and optional, with local host emission and visible failure outcomes. It SHALL NOT trigger work, add required checks, delay verdicts on remote uploads, mutate progress, bypass locks or alter command exit/signal behavior. Observation failure SHALL remain distinct from delivery outcome. Exports SHALL preserve authorized scope and omit secrets and command environments.
+Autonomous observation SHALL be required for feature acceptance and independent of delivery success. Collection SHALL be bounded and read-only toward providers. It SHALL NOT trigger work, add required checks, wait for remote uploads on the verdict path, mutate progress, bypass locks or alter command exits/signals. Local emission failures SHALL remain visible. Exports SHALL preserve authorized scope and omit secrets and environments.
 
 #### Scenario: Receipt storage fails
 
@@ -107,3 +107,64 @@ Receipts SHALL retain clock domains and timestamp precision. Invalid chronology 
 
 - **WHEN** a 10-minute job contains an 8-minute test step and a 2-minute setup step
 - **THEN** its execution total is 10 minutes, with the child phases shown as a breakdown rather than 20 minutes of work
+
+### Requirement: Collect autonomously and resume safely
+
+Enrolled sources SHALL be discovered and collected on a bounded schedule without UI visits or manual collection. Versioned checkpoints SHALL advance only after durable receipt publication. Restart/replay SHALL be idempotent and reconcile unfinished work. Source errors, rate limits, backlog and retention gaps SHALL be visible. Uninitialized and corrupt state SHALL be distinguished; corrupt state SHALL NOT silently reset history.
+
+#### Scenario: No human opens the platform
+
+- **WHEN** an enrolled repository receives runs and the host spool receives receipts while no user opens WBS or invokes collection
+- **THEN** scheduled ticks discover and retain them, including failed/cancelled runs and runs with no WBS reference, and publish updated reports on the configured collection schedule, explicitly marking any budget-limited backlog and coverage gap
+
+#### Scenario: Observer dies between persistence and checkpoint
+
+- **WHEN** the observer stops after publishing receipts but before committing its cursor and is restarted
+- **THEN** it replays the overlap without duplicate execution accounting or lost attempts and resumes unfinished work
+
+#### Scenario: One source is throttled
+
+- **WHEN** a source reaches its rate limit while another source has pending receipts
+- **THEN** bounded ticks honor its retry time, retain backlog, and continue the other source fairly without exceeding the shared request/time budget
+
+### Requirement: Observe the observer independently
+
+The system SHALL expose per-source last success, coverage watermark, backlog, errors, heartbeat and next retry. An independently scheduled inspector and status readers SHALL assess freshness using their own clock. Missing, stale or failed collection SHALL remain distinct from healthy application/CI outcomes. Stopped collection SHALL NOT leave a permanently healthy cached status.
+
+#### Scenario: Collector stops while application is healthy
+
+- **WHEN** collection stops for more than the declared ten-minute freshness threshold while application health remains green
+- **THEN** the independent inspector and status readers mark delivery observation stale and retain an observation-gap finding
+
+#### Scenario: Whole observer host is unavailable
+
+- **WHEN** the observer and its local inspector are both unreachable
+- **THEN** an external status reader reports unavailable or stale evidence, never infers health from the last green snapshot, and local-only detection is not claimed
+
+### Requirement: Publish deduplicated evidence-linked findings
+
+The observer SHALL automatically publish scoped machine-readable reports and findings after new evidence. Findings SHALL identify their policy, workload cohort, affected phase/metric, evidence, coverage, assessment and first/last seen. Frozen baselines SHALL retain their identities across ticks. Repeated evidence SHALL NOT create duplicate findings or count as independent breaches. Missing policy/coverage SHALL yield needs-evidence rather than an actionable claim.
+
+#### Scenario: Repeated ticks see the same regression
+
+- **WHEN** a policy-qualified regression is observed repeatedly with unchanged evidence
+- **THEN** one stable finding remains, its evidence is retained, and no additional breach samples, repair jobs or external notifications are created
+
+#### Scenario: Observation gap follows a regression
+
+- **WHEN** collection becomes incomplete after an actionable regression
+- **THEN** the finding is not resolved and the observer does not silently rebaseline to the regressed timings
+
+### Requirement: Evaluate fixes automatically without granting repair authority
+
+A registered fix SHALL identify the finding, immutable baseline, candidate, intended treatment and predeclared success rule. Subsequent observations SHALL automatically update its comparison. Findings SHALL remain unproven when evidence is incomplete; improved requires the declared timing and safety criteria. Observation and finding publication SHALL NOT authorize code execution, merge, deployment or policy changes.
+
+#### Scenario: Candidate merges but evidence is insufficient
+
+- **WHEN** a linked candidate merges and its first run passes, but the comparison lacks the required matched observations
+- **THEN** the finding remains evaluating-fix or needs-evidence rather than improved
+
+#### Scenario: Normal work supplies enough evidence
+
+- **WHEN** subsequent scheduled observations supply the declared complete comparable cohort
+- **THEN** the observer recomputes and publishes improved or not-improved with reproducible evidence, without an operator invoking compare or automatically applying another fix

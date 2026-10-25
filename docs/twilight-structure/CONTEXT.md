@@ -624,3 +624,11 @@ _Avoid_: Successful runs only, interchangeable workloads
 **Delivery timing comparison**:
 A reproducible comparison between baseline and candidate cohorts that states the observed difference, evidence limits and whether an improvement claim is supported.
 _Avoid_: Speedup inferred from one run
+
+**Delivery finding**:
+A retained, evidence-linked assessment of a delivery bottleneck, regression or observation gap, with a stable identity and a lifecycle across repeated observations.
+_Avoid_: Proven cause, automatic repair authority
+
+**Delivery observation health**:
+The freshness, coverage and collection status of delivery evidence, independent of whether the observed application or verification passed.
+_Avoid_: Application health, successful deployment
