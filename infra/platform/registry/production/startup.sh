@@ -43,10 +43,19 @@ permits_writes() {
   test "$metadata" = '8180:59001:59001:1' || return 1
   metadata=$(stat -c '%f:%u:%g:%h' "$canonical" 2>/dev/null) || return 1
   test "$metadata" = '8180:59001:59001:1' || return 1
-  size=$(stat -c '%s' "$permission") || return 1
-  test "$size" -le 256 || return 1
-  read -r version boot issued expires first second extra < "$permission" || return 1
+  {
+    size=$(stat -L -c '%s' /proc/self/fd/3) || return 1
+    test "$size" -le 256 || return 1
+    IFS= read -r record <&3 || return 1
+    # Proof: trailing text/blank-line HTTP405 negatives become HTTP202 when this check is removed.
+    test "${#record}" -eq "$((size - 1))" || return 1
+  } 3< "$permission"
+  read -r version boot issued expires first second extra <<RECORD
+$record
+RECORD
   test -z "$extra" || return 1
+  # Proof: the double-space HTTP405 negative becomes HTTP202 without canonical record comparison.
+  test "$record" = "1 $boot $issued $expires $first $second" || return 1
   actual_boot=$(cat /proc/sys/kernel/random/boot_id) || return 1
   test "$boot" = "$actual_boot" || return 1
   uptime=$(cut -d ' ' -f 1 /proc/uptime) || return 1

@@ -91,3 +91,51 @@ it('fences actual pinned Distribution writes across checker death and process re
   ])
     expect(stdout).toContain(`PASS ${receipt}`);
 }, 240000);
+
+it('requires one complete writable permit record in pinned Distribution', async () => {
+  const transport = process.env['REGISTRY_STORAGE_SSH'];
+  const host = process.env['REGISTRY_STORAGE_HOST'];
+  if (!transport || !host) throw new Error('Explicit fixture SSH transport and host required');
+  const source = async (path: string) => Bun.file(new URL(path, import.meta.url)).text();
+  const [helper, guard, rehearsal] = await Promise.all([
+    source('../roles/registry_storage/files/storage.sh'),
+    source('../../platform/registry/production/startup.sh'),
+    source('./registry-permit-rehearsal.test.sh'),
+  ]);
+  const child = Bun.spawn([transport, host, 'bash -s'], {
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  await child.stdin.write(
+    `export STORAGE_HELPER=${Buffer.from(helper).toString('base64')}\nexport STORAGE_GUARD=${Buffer.from(guard).toString('base64')}\n${rehearsal}`,
+  );
+  await child.stdin.end();
+  const [code, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  console.log(stdout);
+  if (code !== 0) console.error(stderr);
+  expect(code).toBe(0);
+  for (const fault of [
+    'trailing-content',
+    'blank-second-line',
+    'unterminated-suffix',
+    'missing-newline',
+    'double-space',
+    'leading-space',
+    'trailing-space',
+    'embedded-nul',
+    'trailing-nul',
+  ])
+    expect(stdout).toContain(`PASS complete permit refuses ${fault} with HTTP405`);
+  for (const position of [4, 5])
+    expect(stdout).toContain(
+      `PASS valid transition hash position ${String(position)} admits HTTP202`,
+    );
+  for (const fault of ['trailing-content', 'blank-second-line', 'double-space'])
+    expect(stdout).toContain(`PASS removed complete-record guard admits ${fault} with HTTP202`);
+  expect(stdout).toContain('PASS cleanup');
+}, 120000);
