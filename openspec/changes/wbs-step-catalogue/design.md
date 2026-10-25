@@ -136,15 +136,11 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   `step_definition` and `work_package_step`: the step must hold a row for the work item's
   package. `down.sql` (required by lint) renames back and restores `project_id` from
   `legacy_work_package_id` only while every definition is migration-origin and bound once,
-  `step_identity_history` is empty, no `expand` rule applied and no fact lies outside its
+  `step_identity_history` is empty and no fact lies outside its
   definition's legacy package; otherwise it refuses naming the first row, and the rollback
   is the backup. Tests: `bin/assert-rename-window.sh` refuses with a live colour; restore
   from the backup is drilled in `verify.md`.
-- **SC15. One project, different old sets: refuse** (F3; assumed, overrulable; Q1a). Packages
-  of one project whose old step sets differ cannot keep them under project bindings. The
-  migration refuses with one `divergent_project_set` report row per project naming each
-  package's codes, unless the rules file says `expand: true` for that project, which accepts
-  the union (new `work_package_step` rows from catalogue defaults). Recommended: refuse.
+- **SC15. One project, different old sets: refuse, and no package gains a step** (F3; settled by Dany 2026-10-25, Q1a: "make sure no new steps for now"). Packages of one project whose old step sets differ cannot keep them under project bindings. The migration refuses with one `divergent_project_set` report row per project naming each package's codes, and there is no `expand` rule: the operator regroups the packages into projects whose packages share one set (or aligns the sets by hand) before `apply`, so after the migration every package resolves exactly the codes it had, no more and no fewer. Because `wbs-work-packages` slice 2 puts every existing package of an organization into one migration project, this migration cannot run for an organization until its packages are regrouped or their sets agree; the report says which. Automatic union is deferred until Dany asks for it.
 - **SC16. The scheduler slices per leaf** (F4; assumed, overrulable; Q2a). `slicesOf` builds
   each leaf's slices from its resolved order, not a package-wide order. A leaf resolving no
   step keeps one boundary-only slice of zero duration (the **work-item boundary**), so whole
@@ -220,8 +216,7 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
     "organizations": {
       "<organizationId>": {
         "codes": { "dev": { "survivorStepId": "<stepId>" } },
-        "uncoded": { "<stepId>": { "code": "deploy" } },
-        "projects": { "<projectId>": { "expand": true } }
+        "uncoded": { "<stepId>": { "code": "deploy" } }
       }
     }
   }
@@ -261,9 +256,7 @@ foreign key. Lease state lives on `claim`; `claim_occupancy` keys on claim ids, 
 
 ## Open questions for Dany
 
-- **Q1.** (a) Packages of one project with different old sets: refuse until regrouped, or
-  accept the union per project (`expand`)? Recommend refuse (SC15). (b) Project-level
-  exclusion: recommend no (SC2).
+- **Q1.** (a) _Settled 2026-10-25 by Dany: refuse until regrouped, no `expand`, no package gains a step (SC15)._ (b) Project-level exclusion: recommend no (SC2).
 - **Q2.** (a) What a parent's "QA across descendants" dependency means when only some
   descendant types resolve QA: recommend matching descendants, refusing when none (SC16); a
   leaf with no resolved step reads as a leaf with no worked steps does today (this change

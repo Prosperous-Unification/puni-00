@@ -6,7 +6,7 @@ slices 1–3a (#723) and the set membership of #724, and replaces `wbs-work-pack
 ## 0. Decisions
 
 - [ ] 0.1 Dany answers Q1–Q5 (design.md "Open questions for Dany") and confirms or amends
-      SC1–SC24. Slice 1 waits for Q1a and SC11–SC12, SC14–SC15 (Q4/SC17 and Q5/SC13 settled 2026-10-25); slice 2 for Q1b, Q2b, Q3;
+      SC1–SC24. Slice 1 waits for SC11–SC12 and SC14 (Q1a/SC15, Q4/SC17 and Q5/SC13 settled 2026-10-25); slice 2 for Q1b, Q2b, Q3;
       slice 3 for Q2a.
 
 ## 1. Catalogue, bindings, resolution, migration
@@ -27,9 +27,10 @@ slices 1–3a (#723) and the set membership of #724, and replaces `wbs-work-pack
       bytes are byte-identical; a ruled merge re-points all thirteen columns (one fixture
       fact per column) and keeps each package's unit, allowance and `allowance_revision`;
       the six recreated triggers refuse a step without a row for the work item's package;
-      `down.sql` reverses an unmerged database and refuses after a merge, an `expand` or an
-      authored binding; negatives: drop one re-point (`step_parallel`) and the orphan guard
-      refuses naming it; drop the divergent-set refusal and W1 silently gains `qa`; drop a
+      `down.sql` reverses an unmerged database and refuses after a merge or an authored
+      binding; negatives: drop one re-point (`step_parallel`) and the orphan guard
+      refuses naming it; drop the divergent-set refusal and W1 silently gains `qa`; a rules file carrying an
+      unknown `projects` key is refused as malformed; drop a
       recreated trigger and a cross-package claim inserts; watched.
 - [ ] 1.3 History readers (SC13): saved-plan input and schedule, journal payload, inverse
       and preconditions (`step:<id>`, `estimateUnits`, `moveProgress`), `plan_event`,
