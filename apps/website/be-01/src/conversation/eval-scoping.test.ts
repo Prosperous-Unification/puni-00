@@ -8,6 +8,8 @@ const provider = {
   openRouterProvider: 'azure/eu',
   openRouterInputUsdPerMillion: 0.11,
   openRouterOutputUsdPerMillion: 0.55,
+  openRouterInputCeilingUsdPerMillion: 0.11,
+  openRouterOutputCeilingUsdPerMillion: 0.55,
   openRouterMaxCompletionTokens: 700,
 };
 const scenario = {
@@ -20,6 +22,7 @@ const scenario = {
 function stream(
   reply: string,
   usage: unknown = {
+    cost: 0,
     prompt_tokens: 100,
     completion_tokens: 20,
     total_tokens: 120,
@@ -112,6 +115,7 @@ test('cumulative provider usage is counted once and missing usage reserves a pos
   for (const [usage, expected] of [
     [
       {
+        cost: 0,
         prompt_tokens: 100,
         completion_tokens: 20,
         total_tokens: 120,

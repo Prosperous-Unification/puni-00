@@ -296,6 +296,8 @@ export interface EvaluationOptions {
     | 'openRouterProvider'
     | 'openRouterInputUsdPerMillion'
     | 'openRouterOutputUsdPerMillion'
+    | 'openRouterInputCeilingUsdPerMillion'
+    | 'openRouterOutputCeilingUsdPerMillion'
     | 'openRouterReasoningEffort'
     | 'openRouterMaxCompletionTokens'
   >;
@@ -348,6 +350,8 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
     {
       input: Number(options.provider.openRouterInputUsdPerMillion),
       output: Number(options.provider.openRouterOutputUsdPerMillion),
+      inputCeiling: Number(options.provider.openRouterInputCeilingUsdPerMillion),
+      outputCeiling: Number(options.provider.openRouterOutputCeilingUsdPerMillion),
     },
     options.maximumMicroUsd,
   );
@@ -635,7 +639,7 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
 /**
  * Reads the provider settings the evaluation needs from the environment, including the reasoning
  * effort and reply cap, so the evaluation sends what production sends.
- * @throws when the key, model, pinned provider or either rate is absent, or a setting is malformed.
+ * @throws when the key, model, pinned provider, base rate or effective ceiling is absent, or a setting is malformed.
  */
 export function readEvaluationProvider(
   environment: Record<string, string | undefined>,
@@ -648,6 +652,8 @@ export function readEvaluationProvider(
       ['OPENROUTER_PROVIDER', runtime.openRouterProvider],
       ['OPENROUTER_INPUT_USD_PER_MILLION', runtime.openRouterInputUsdPerMillion],
       ['OPENROUTER_OUTPUT_USD_PER_MILLION', runtime.openRouterOutputUsdPerMillion],
+      ['OPENROUTER_INPUT_CEILING_USD_PER_MILLION', runtime.openRouterInputCeilingUsdPerMillion],
+      ['OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION', runtime.openRouterOutputCeilingUsdPerMillion],
     ] as const
   )
     .filter(([, value]) => value === undefined || value === '')
@@ -661,6 +667,8 @@ export function readEvaluationProvider(
     openRouterProvider: runtime.openRouterProvider,
     openRouterInputUsdPerMillion: runtime.openRouterInputUsdPerMillion,
     openRouterOutputUsdPerMillion: runtime.openRouterOutputUsdPerMillion,
+    openRouterInputCeilingUsdPerMillion: runtime.openRouterInputCeilingUsdPerMillion,
+    openRouterOutputCeilingUsdPerMillion: runtime.openRouterOutputCeilingUsdPerMillion,
     openRouterReasoningEffort: runtime.openRouterReasoningEffort,
     openRouterMaxCompletionTokens: runtime.openRouterMaxCompletionTokens,
   };

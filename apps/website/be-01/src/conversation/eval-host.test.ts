@@ -43,7 +43,13 @@ test('endpoint preflight refuses unsupported parameters, routing identities and 
   const endpoint = {
     tag: 'azure/eu',
     provider_name: 'Azure',
-    pricing: { prompt: '0.00000011', completion: '0.00000055' },
+    pricing: {
+      prompt: '0.00000011',
+      completion: '0.00000055',
+      input_cache_read: '0.000000011',
+      input_cache_write: '0.0000001375',
+      overrides: [],
+    },
     supported_parameters: ['response_format', 'structured_outputs', 'reasoning', 'max_tokens'],
   };
   expect(
@@ -52,7 +58,15 @@ test('endpoint preflight refuses unsupported parameters, routing identities and 
   for (const change of [
     { tag: 'azure/us' },
     { supported_parameters: [] },
-    { pricing: { prompt: '1', completion: '1' } },
+    {
+      pricing: {
+        prompt: '1',
+        completion: '1',
+        input_cache_read: '0.1',
+        input_cache_write: '1.25',
+        overrides: [],
+      },
+    },
   ])
     expect(() =>
       validateEndpoint(
@@ -79,6 +93,12 @@ for (const state of [
   'failed',
   'different-sha',
   'passing',
+  'missing-cache',
+  'malformed-tier',
+  'missing-tiers',
+  'unknown-charge',
+  'request-fee',
+  'invalid-discount',
 ] as const) {
   test(`full host entry ${state === 'passing' ? 'reaches the fake inference transport with' : 'refuses before inference with'} a ${state} pilot receipt`, () => {
     const directory = mkdtempSync(join(tmpdir(), 'puni-eval-pilot-'));
@@ -120,6 +140,38 @@ for (const state of [
         environmentPath,
         'OPENROUTER_API_KEY=fixture\nOPENROUTER_MODEL=openai/gpt-6-luna\nOPENROUTER_PROVIDER=azure/eu\nOPENROUTER_INPUT_USD_PER_MILLION=0.11\nOPENROUTER_OUTPUT_USD_PER_MILLION=0.55\nOPENROUTER_REASONING_EFFORT=low\nOPENROUTER_MAX_COMPLETION_TOKENS=700',
       );
+      const pricing = {
+        prompt: '0.00000011',
+        completion: '0.00000055',
+        input_cache_read: '0.000000011',
+        input_cache_write: '0.0000001375',
+        overrides: [],
+      };
+      const selectedPricing =
+        state === 'request-fee'
+          ? { ...pricing, request: '1' }
+          : state === 'invalid-discount'
+            ? { ...pricing, discount: -1 }
+            : state === 'missing-cache'
+              ? { ...pricing, input_cache_write: undefined }
+              : state === 'malformed-tier'
+                ? {
+                    ...pricing,
+                    overrides: [
+                      {
+                        min_prompt_tokens: -1,
+                        prompt: pricing.prompt,
+                        completion: pricing.completion,
+                        input_cache_read: pricing.input_cache_read,
+                        input_cache_write: pricing.input_cache_write,
+                      },
+                    ],
+                  }
+                : state === 'missing-tiers'
+                  ? { ...pricing, overrides: undefined }
+                  : state === 'unknown-charge'
+                    ? { ...pricing, extra_charge: '1' }
+                    : pricing;
       const callsPath = join(directory, 'inference-calls');
       const preloadPath = join(directory, 'preload.ts');
       writeFileSync(
@@ -132,7 +184,7 @@ globalThis.fetch = Object.assign(async (input, init) => {
   if (url.hostname === '127.0.0.1') return network(input, init);
   if (url.origin !== 'https://openrouter.ai') throw new Error('Unexpected external transport');
   if (url.pathname === '/api/v1/key') return Response.json({ data: { limit: 50, limit_reset: 'monthly', limit_remaining: 49, usage: 1 } });
-  if (url.pathname === '/api/v1/models/openai/gpt-6-luna/endpoints') return Response.json({ data: { endpoints: [{ tag: 'azure/eu', provider_name: 'Azure', pricing: { prompt: '0.00000011', completion: '0.00000055' }, supported_parameters: ['response_format', 'structured_outputs', 'reasoning', 'max_completion_tokens'] }] } });
+  if (url.pathname === '/api/v1/models/openai/gpt-6-luna/endpoints') return Response.json({ data: { endpoints: [{ tag: 'azure/eu', provider_name: 'Azure', pricing: ${JSON.stringify(selectedPricing)}, supported_parameters: ['response_format', 'structured_outputs', 'reasoning', 'max_completion_tokens'] }] } });
   if (url.pathname !== '/api/v1/chat/completions') throw new Error('Unexpected provider path');
   appendFileSync(${JSON.stringify(callsPath)}, 'attempted\\n');
   return Response.json({ error: { message: 'Scripted failure stops the fixture', code: 503 } }, { status: 503 });
@@ -157,6 +209,17 @@ globalThis.fetch = Object.assign(async (input, init) => {
         expect(existsSync(callsPath)).toBe(false);
         expect(execution.exitCode).toBe(2);
         expect(execution.stdout.toString()).not.toContain('session:');
+        if (
+          [
+            'missing-cache',
+            'malformed-tier',
+            'missing-tiers',
+            'unknown-charge',
+            'request-fee',
+            'invalid-discount',
+          ].includes(state)
+        )
+          expect(execution.stderr.toString()).toContain('pricing');
         if (state === 'failed' || state === 'different-sha')
           expect(execution.stderr.toString()).toContain('passing pilot for this SHA');
       }
@@ -165,3 +228,50 @@ globalThis.fetch = Object.assign(async (input, init) => {
     }
   });
 }
+
+test('cache-aware endpoint preflight covers every cache rate and tier without guessing missing prices', () => {
+  const pricing = {
+    prompt: '0.00000011',
+    completion: '0.00000055',
+    input_cache_read: '0.000000011',
+    input_cache_write: '0.0000001375',
+    overrides: [
+      {
+        min_prompt_tokens: 272000,
+        prompt: '0.00000022',
+        completion: '0.000000825',
+        input_cache_read: '0.000000022',
+        input_cache_write: '0.000000275',
+      },
+    ],
+  };
+  const payload = (selected: unknown) => ({
+    data: {
+      endpoints: [
+        {
+          tag: 'azure/eu',
+          provider_name: 'Azure',
+          pricing: selected,
+          supported_parameters: [
+            'response_format',
+            'structured_outputs',
+            'reasoning',
+            'max_completion_tokens',
+          ],
+        },
+      ],
+    },
+  });
+  const verified = validateEndpoint(payload(pricing), 'azure/eu', 0.11, 0.55);
+  expect(verified.inputCeiling).toBe(0.275);
+  expect(verified.outputCeiling).toBeGreaterThanOrEqual(0.825);
+  expect(verified.outputCeiling).toBeCloseTo(0.825, 12);
+  for (const selected of [
+    { ...pricing, input_cache_write: undefined },
+    { ...pricing, input_cache_read: 'NaN' },
+    { ...pricing, overrides: undefined },
+    { ...pricing, overrides: [{ min_prompt_tokens: -1 }] },
+    { ...pricing, unexpected_charge: '1' },
+  ])
+    expect(() => validateEndpoint(payload(selected), 'azure/eu', 0.11, 0.55)).toThrow('pricing');
+});

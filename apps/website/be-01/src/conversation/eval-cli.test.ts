@@ -22,6 +22,8 @@ const provider = {
   openRouterProvider: 'azure/swedencentral',
   openRouterInputUsdPerMillion: 0.44,
   openRouterOutputUsdPerMillion: 1.76,
+  openRouterInputCeilingUsdPerMillion: 0.44,
+  openRouterOutputCeilingUsdPerMillion: 1.76,
 };
 
 function scriptedTransport(replies: string[]): {
@@ -49,7 +51,7 @@ function scriptedTransport(replies: string[]): {
           id: 'g',
           model: 'm',
           choices: [{ index: 0, delta: {}, finish_reason: isRefused ? 'content_filter' : 'stop' }],
-          usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 },
+          usage: { cost: 0, prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 },
         },
       ];
       return new Response(
@@ -151,6 +153,8 @@ test('the evaluation sends the configured reasoning effort and reply cap', async
     OPENROUTER_PROVIDER: 'azure/eu',
     OPENROUTER_INPUT_USD_PER_MILLION: '0.11',
     OPENROUTER_OUTPUT_USD_PER_MILLION: '0.55',
+    OPENROUTER_INPUT_CEILING_USD_PER_MILLION: '0.275',
+    OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION: '0.825',
     OPENROUTER_REASONING_EFFORT: 'low',
     OPENROUTER_MAX_COMPLETION_TOKENS: '700',
   };

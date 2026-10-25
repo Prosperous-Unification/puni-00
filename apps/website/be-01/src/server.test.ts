@@ -1380,6 +1380,8 @@ test('repeated conversation reads reuse the day salt and write nothing', async (
     openRouterProvider: 'Fixture',
     openRouterInputUsdPerMillion: 1,
     openRouterOutputUsdPerMillion: 2,
+    openRouterInputCeilingUsdPerMillion: 1,
+    openRouterOutputCeilingUsdPerMillion: 2,
     openRouterPrivacyVerified: true,
     openStore: (path) =>
       new Proxy(new WebsiteStore(path), {

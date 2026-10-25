@@ -53,6 +53,7 @@ type Step =
       reply: string;
       raw?: boolean;
       usage?: {
+        cost?: unknown;
         prompt_tokens: number;
         completion_tokens: number;
         completion_tokens_details?: { reasoning_tokens: number };
@@ -135,11 +136,16 @@ function fakeOpenRouter(next: (call: number) => Step) {
             choices: [{ index: 0, delta: {}, finish_reason: 'content_filter' }],
             ...(step.missingUsage
               ? {}
-              : { usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }),
+              : { usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, cost: 0 } }),
           }),
       );
     if ('streamError' in step) {
-      const refusalUsage = { prompt_tokens: 927, completion_tokens: 23, total_tokens: 950 };
+      const refusalUsage = {
+        prompt_tokens: 927,
+        completion_tokens: 23,
+        total_tokens: 950,
+        cost: 0,
+      };
       const error = {
         code: step.streamError === 'refusal' ? 403 : 502,
         message: 'Upstream stopped',
@@ -168,7 +174,7 @@ function fakeOpenRouter(next: (call: number) => Step) {
       id: 'gen-1',
       model: 'openai/gpt-4.1-mini',
       choices: [{ index: 0, delta: {}, finish_reason: step.finish ?? 'stop' }],
-      ...(usage === null ? {} : { usage: { ...usage, total_tokens: 0 } }),
+      ...(usage === null ? {} : { usage: { cost: 0, ...usage, total_tokens: 0 } }),
     };
     const reply =
       bodies.at(-1)?.response_format && !step.raw
@@ -200,6 +206,8 @@ function paidConfig(
     openRouterProvider: 'azure/swedencentral',
     openRouterInputUsdPerMillion: 0.44,
     openRouterOutputUsdPerMillion: 1.76,
+    openRouterInputCeilingUsdPerMillion: 0.44,
+    openRouterOutputCeilingUsdPerMillion: 1.76,
     openRouterPrivacyVerified: true,
     providerFetch,
     ...overrides,
@@ -1068,7 +1076,7 @@ test('a cleanup fence suppresses later provider text and final usage before the 
         id: 'gen-late',
         model: 'openai/gpt-4.1-mini',
         choices: [{ index: 0, delta: { content }, finish_reason: finish ? 'stop' : null }],
-        ...(finish ? { usage: { prompt_tokens: 900, completion_tokens: 60 } } : {}),
+        ...(finish ? { usage: { prompt_tokens: 900, completion_tokens: 60, cost: 0 } } : {}),
       })}\n\n`,
     );
   const config = paidConfig(
@@ -1165,6 +1173,8 @@ test('a stopped reply keeps the conversation open and counts its full reservatio
   const config = paidConfig(fake.providerFetch, {
     openRouterInputUsdPerMillion: 10,
     openRouterOutputUsdPerMillion: 10,
+    openRouterInputCeilingUsdPerMillion: 10,
+    openRouterOutputCeilingUsdPerMillion: 10,
   });
   const api = mountApi(config);
   const visitor = await beginVisitor(api);
@@ -2536,7 +2546,12 @@ for (const exhaustion of ['turns', 'conversation_spend'] as const)
     }));
     const config = paidConfig(fake.providerFetch, {
       ...(exhaustion === 'conversation_spend'
-        ? { openRouterInputUsdPerMillion: 4, openRouterOutputUsdPerMillion: 4 }
+        ? {
+            openRouterInputUsdPerMillion: 4,
+            openRouterOutputUsdPerMillion: 4,
+            openRouterInputCeilingUsdPerMillion: 4,
+            openRouterOutputCeilingUsdPerMillion: 4,
+          }
         : {}),
       openStore: (path) => {
         const store = new WebsiteStore(path);
@@ -2680,7 +2695,7 @@ for (const invalid of [
     const fake = fakeOpenRouter(() => ({
       reply: invalid,
       raw: true,
-      usage: { prompt_tokens: 900, completion_tokens: 60 },
+      usage: { prompt_tokens: 900, completion_tokens: 60, cost: 0 },
     }));
     const config = paidConfig(fake.providerFetch);
     const api = mountApi(config);
@@ -3193,4 +3208,174 @@ test('admission marker identifies fresh logical input, authoritative typed quest
   } finally {
     api.close();
   }
+});
+
+for (const setting of [
+  'openRouterInputCeilingUsdPerMillion',
+  'openRouterOutputCeilingUsdPerMillion',
+] as const) {
+  for (const ceiling of [undefined, 0.01, Number.POSITIVE_INFINITY]) {
+    test(`cache-aware pricing refuses ${setting} ${String(ceiling)} and preserves manual conversion`, async () => {
+      const fake = fakeOpenRouter(() => ({ reply: 'Never purchased' }));
+      const config = paidConfig(fake.providerFetch, { [setting]: ceiling });
+      const api = mountApi(config);
+      const visitor = await beginVisitor(api);
+      const refused = await sendInitial(api, visitor);
+      expect(refused.status).toBe(503);
+      expect(await refused.json()).toEqual({ code: 'provider_unconfigured' });
+      expect(fake.bodies).toHaveLength(0);
+      expect((await readConversation(api, visitor.cookie)).provider).toBe('disabled');
+      const submitted = await api.fetch(
+        post('/proposals', visitor, {
+          email: 'fixture@example.test',
+          brief: 'A manually reviewed booking tool.',
+          idempotencyKey: 'manual-ceilings',
+        }),
+      );
+      expect(submitted.status).toBe(201);
+      api.close();
+    });
+  }
+}
+
+for (const route of ['legacy', 'structured', 'invalid-structured', 'refusal'] as const) {
+  for (const charge of [
+    { name: 'surcharge', cost: 0.0006, expected: 600 },
+    { name: 'missing', cost: undefined, expected: null },
+    { name: 'negative', cost: -1, expected: null },
+    { name: 'unsafe', cost: Number.MAX_SAFE_INTEGER, expected: null },
+    { name: 'zero', cost: 0, expected: 502 },
+  ]) {
+    test(`cache-aware ${route} settlement ${charge.name}`, async () => {
+      const fake = fakeOpenRouter(() =>
+        route === 'legacy'
+          ? { reply: 'Confirmed reply.' }
+          : route === 'invalid-structured'
+            ? { reply: '{', raw: true }
+            : structuredReply('Confirmed reply.'),
+      );
+      const providerFetch: ProviderFetch = async (input, init) => {
+        const response = await fake.providerFetch(input, init);
+        const wire = (await response.text())
+          .split('\n')
+          .map((line) => {
+            if (!line.startsWith('data: ') || line === 'data: [DONE]') return line;
+            const chunk = JSON.parse(line.slice(6)) as {
+              usage?: { cost?: number };
+              choices?: { finish_reason?: string }[];
+            };
+            if (chunk.usage) chunk.usage.cost = charge.cost;
+            if (route === 'refusal' && chunk.choices?.[0]?.finish_reason === 'stop')
+              chunk.choices[0].finish_reason = 'content_filter';
+            return 'data: ' + JSON.stringify(chunk);
+          })
+          .join('\n');
+        return new Response(wire, { headers: { 'content-type': 'text/event-stream' } });
+      };
+      const config = paidConfig(providerFetch);
+      const api = mountApi(config);
+      const visitor = route === 'legacy' ? await beginVisitor(api) : await beginScopingVisitor(api);
+      await (await sendInitial(api, visitor)).text();
+      if (charge.expected === null) expectCeilingSettled(config.databasePath, [0]);
+      else
+        expect(operations(config.databasePath)[0]).toMatchObject({
+          state: 'completed',
+          settlement: 'usage',
+          settled_micro_usd: charge.expected,
+        });
+      api.close();
+    });
+  }
+}
+
+test('cache-aware reservation uses effective ceilings while routing retains base prices', async () => {
+  const fake = fakeOpenRouter(() => structuredReply('Confirmed'));
+  const config = paidConfig(fake.providerFetch, {
+    openRouterInputUsdPerMillion: 0.11,
+    openRouterOutputUsdPerMillion: 0.55,
+    openRouterInputCeilingUsdPerMillion: 0.275,
+    openRouterOutputCeilingUsdPerMillion: 0.825,
+    openRouterMaxCompletionTokens: 700,
+  });
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  expect(operations(config.databasePath)[0]?.reserved_micro_usd).toBeGreaterThan(4000);
+  expect(fake.bodies[0]?.provider['max_price']).toEqual({
+    prompt: 0.11,
+    completion: 0.55,
+    request: 0,
+  });
+  api.close();
+});
+
+test('cache-aware reported overrun is recorded without clamping and trips the next site admission pause', async () => {
+  const fake = fakeOpenRouter(() => ({
+    reply: 'Confirmed',
+    usage: { prompt_tokens: 900, completion_tokens: 60, cost: 8.1 },
+  }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  expect(operations(config.databasePath)[0]?.settled_micro_usd).toBe(8_100_000);
+  expect(
+    count(
+      config.databasePath,
+      'SELECT count(*) AS count FROM conversation_operation WHERE overrun = 1',
+    ),
+  ).toBe(1);
+  const next = await beginVisitor(api);
+  const refused = await sendInitial(api, next, '198.51.100.19');
+  expect(refused.status).toBe(503);
+  expect(await refused.json()).toEqual({ code: 'provider_paused' });
+  expect(fake.bodies).toHaveLength(1);
+  api.close();
+});
+
+test('cache-aware unsafe token count and nonfinite serialized charge retain the full reservation', async () => {
+  for (const usage of [
+    { prompt_tokens: Number.MAX_SAFE_INTEGER + 1, completion_tokens: 1, cost: 0 },
+    { prompt_tokens: 900, completion_tokens: 60, cost: Number.NaN },
+    { prompt_tokens: 900, completion_tokens: 60, cost: '0.01' },
+  ]) {
+    const fake = fakeOpenRouter(() => ({ reply: 'Unconfirmed', usage }));
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor = await beginVisitor(api);
+    await (await sendInitial(api, visitor)).text();
+    expectCeilingSettled(config.databasePath, [0]);
+    api.close();
+  }
+});
+
+test('cache-aware pilot charge rounds up to 490 micro-USD through SDK raw usage', async () => {
+  const fake = fakeOpenRouter(() => ({
+    reply: 'Confirmed',
+    usage: { prompt_tokens: 3246, completion_tokens: 79, cost: 0.0004896925 },
+  }));
+  const config = paidConfig(fake.providerFetch, {
+    openRouterInputUsdPerMillion: 0.11,
+    openRouterOutputUsdPerMillion: 0.55,
+  });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  expect(operations(config.databasePath)[0]?.settled_micro_usd).toBe(490);
+  api.close();
+});
+
+test('cache-aware unsafe reservation refuses before paid transport', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Never purchased' }));
+  const config = paidConfig(fake.providerFetch, {
+    openRouterInputCeilingUsdPerMillion: Number.MAX_SAFE_INTEGER,
+  });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const failure = await sendInitial(api, visitor).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(Error);
+  expect(String(failure)).toContain('safe micro-USD');
+  expect(fake.bodies).toHaveLength(0);
+  expect(operations(config.databasePath)).toHaveLength(0);
+  api.close();
 });

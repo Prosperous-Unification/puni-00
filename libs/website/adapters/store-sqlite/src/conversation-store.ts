@@ -798,8 +798,8 @@ export function recordConversationGeneration(
  * Conservative settlement for an in-flight operation whose final usage is unknown (stop,
  * disconnect, timeout, provider or stream error, refused completion): it becomes `unknown` and
  * is settled at its full reservation with `settlement = 'reserved_ceiling'`. The reservation was
- * priced at the pinned `max_price` with the full output cap, so the recorded spend can only
- * over-count the provider's charge. The conversation stays open; the partial reply is not saved
+ * priced at verified effective cache/tier ceilings with the full output cap, conservatively covering
+ * the published applicable rates. The conversation stays open; the partial reply is not saved
  * and the visitor's message stays on the operation for a retry. Returns false when it was not in
  * flight.
  */

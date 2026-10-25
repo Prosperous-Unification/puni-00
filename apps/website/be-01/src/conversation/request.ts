@@ -91,7 +91,7 @@ export function composeConversationRequest(
 /**
  * A conservative reservation in micro-USD: every UTF-8 byte of the serialized request counted as
  * one input token, 2,000 tokens for message framing, and the full reply token cap, which bounds
- * reasoning and visible tokens together.
+ * reasoning and visible tokens together. Verified effective rate ceilings include cache and tier pricing.
  */
 export function priceConversationRequest(
   request: ConversationRequest,
@@ -106,9 +106,15 @@ export function priceConversationRequest(
     ) +
     (request.schema ? Buffer.byteLength(JSON.stringify(request.schema), 'utf8') : 0) +
     2_000;
-  return Math.ceil(
-    inputTokensBound * rates.inputUsdPerMillion + replyTokens * rates.outputUsdPerMillion,
+  // Proof: substituting base rates failed the mounted cache-aware reservation/routing test.
+  const reservedMicroUsd = Math.ceil(
+    inputTokensBound * rates.inputCeilingUsdPerMillion +
+      replyTokens * rates.outputCeilingUsdPerMillion,
   );
+  // Proof: removing this guard failed unsafe-reservation refusal before the mounted paid transport.
+  if (!Number.isSafeInteger(reservedMicroUsd) || reservedMicroUsd <= 0)
+    throw new Error('Conversation reservation exceeds safe micro-USD');
+  return reservedMicroUsd;
 }
 
 /** Canned loopback-demo replies, labelled as simulated, one per stage. */

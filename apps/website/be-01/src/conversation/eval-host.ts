@@ -62,6 +62,35 @@ export function readKeyBudget(payload: unknown, maximumUsd: number) {
     reset: key['limit_reset'],
   };
 }
+/** Validates complete published cache/tier prices; an omitted component never means free. */
+function readPriceBand(pricing: Record<string, unknown>) {
+  const read = (name: string) => {
+    // Proof: defaulting missing prices to zero reached fake inference in the host missing-cache case.
+    const value = pricing[name];
+    if (
+      typeof value !== 'string' ||
+      value.trim() === '' ||
+      !Number.isFinite(Number(value)) ||
+      Number(value) < 0 ||
+      !Number.isFinite(Number(value) * 1_000_000)
+    )
+      throw new Error(`Evaluation pricing ${name} missing or malformed`);
+    return Number(value) * 1_000_000;
+  };
+  const input = read('prompt');
+  const output = read('completion');
+  const cacheRead = read('input_cache_read');
+  const cacheWrite = read('input_cache_write');
+  return {
+    input,
+    output,
+    cacheRead,
+    cacheWrite,
+    inputCeiling: Math.max(input, cacheRead, cacheWrite),
+    outputCeiling: output,
+  };
+}
+
 /** Exact endpoint capability and prices are metadata evidence, separate from real acceptance. */
 export function validateEndpoint(
   payload: unknown,
@@ -82,19 +111,93 @@ export function validateEndpoint(
   )
     throw new Error('Evaluation endpoint metadata missing');
   const parameters = endpoint['supported_parameters'];
+  const pricing = endpoint['pricing'];
+  const rootKeys = [
+    'prompt',
+    'completion',
+    'input_cache_read',
+    'input_cache_write',
+    'overrides',
+    'web_search',
+    'request',
+    'discount',
+  ];
+  // Proof: admitting unknown pricing keys reached fake inference in the host unknown-charge case.
+  if (
+    !Object.keys(pricing).every((key) => rootKeys.includes(key)) ||
+    !Array.isArray(pricing['overrides'])
+  )
+    throw new Error('Evaluation pricing shape or tiers missing');
+  // Proof: bypassing request-fee refusal reached fake inference in the host request-fee case.
+  for (const field of ['request', 'web_search']) {
+    const value = pricing[field];
+    if (
+      value !== undefined &&
+      (typeof value !== 'string' ||
+        value.trim() === '' ||
+        !Number.isFinite(Number(value)) ||
+        Number(value) < 0 ||
+        (field === 'request' && Number(value) !== 0))
+    )
+      throw new Error(`Evaluation pricing ${field} is unsupported`);
+  }
+  // Proof: bypassing discount validation reached fake inference in the host invalid-discount case.
+  if (
+    pricing['discount'] !== undefined &&
+    (typeof pricing['discount'] !== 'number' ||
+      !Number.isFinite(pricing['discount']) ||
+      pricing['discount'] < 0)
+  )
+    throw new Error('Evaluation pricing discount is malformed');
+  const base = readPriceBand(pricing);
+  let threshold = 0;
+  const tiers = pricing['overrides'].map((tier: unknown) => {
+    // Proof: removing threshold validation reached fake inference in the host malformed-tier case.
+    if (
+      !isRecord(tier) ||
+      !Object.keys(tier).every((key) =>
+        [
+          'min_prompt_tokens',
+          'prompt',
+          'completion',
+          'input_cache_read',
+          'input_cache_write',
+        ].includes(key),
+      ) ||
+      typeof tier['min_prompt_tokens'] !== 'number' ||
+      !Number.isSafeInteger(tier['min_prompt_tokens']) ||
+      tier['min_prompt_tokens'] <= threshold
+    )
+      throw new Error('Evaluation pricing tier shape or order is malformed');
+    threshold = tier['min_prompt_tokens'];
+    return { minPromptTokens: threshold, ...readPriceBand(tier) };
+  });
   // Proof: removing endpoint price comparison failed the changed-rate preflight fixture.
   if (
     !['response_format', 'structured_outputs', 'reasoning'].every((parameter) =>
       parameters.includes(parameter),
     ) ||
     !(parameters.includes('max_tokens') || parameters.includes('max_completion_tokens')) ||
-    Math.abs(Number(endpoint['pricing']['prompt']) * 1_000_000 - inputRate) > 1e-10 ||
-    Math.abs(Number(endpoint['pricing']['completion']) * 1_000_000 - outputRate) > 1e-10 ||
-    !Number.isFinite(Number(endpoint['pricing']['prompt'])) ||
-    !Number.isFinite(Number(endpoint['pricing']['completion']))
+    !Number.isFinite(inputRate) ||
+    !Number.isFinite(outputRate) ||
+    Math.abs(base.input - inputRate) > 1e-10 ||
+    Math.abs(base.output - outputRate) > 1e-10
   )
-    throw new Error('Evaluation endpoint capabilities or rates differ');
-  return { provider: endpoint['provider_name'], pin, inputRate, outputRate, parameters };
+    throw new Error('Evaluation endpoint capabilities or base rates differ');
+  // Proof: ignoring tier prices failed the cache-aware endpoint all-tier ceiling assertion.
+  const inputCeiling = Math.max(base.inputCeiling, ...tiers.map((tier) => tier.inputCeiling));
+  const outputCeiling = Math.max(base.outputCeiling, ...tiers.map((tier) => tier.outputCeiling));
+  return {
+    provider: endpoint['provider_name'],
+    pin,
+    inputRate,
+    outputRate,
+    parameters,
+    base,
+    tiers,
+    inputCeiling,
+    outputCeiling,
+  };
 }
 
 if (import.meta.main) {
@@ -110,7 +213,6 @@ if (import.meta.main) {
     if (dirty.exitCode !== 0 || dirty.stdout.toString().trim())
       throw new Error('Evaluation tracked checkout must be clean');
     const environment = readEvaluationEnvironment(readFileSync(envPath, 'utf8'));
-    const provider = readEvaluationProvider(environment);
     const key = environment['OPENROUTER_API_KEY'];
     const model = environment['OPENROUTER_MODEL'];
     const pin = environment['OPENROUTER_PROVIDER'];
@@ -134,6 +236,11 @@ if (import.meta.main) {
       inputRate,
       outputRate,
     );
+    const provider = readEvaluationProvider({
+      ...environment,
+      OPENROUTER_INPUT_CEILING_USD_PER_MILLION: String(endpoint.inputCeiling),
+      OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION: String(endpoint.outputCeiling),
+    });
     const directory = join(process.cwd(), '.superpowers/evaluation-private');
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     // Proof: bypassing this gate made missing, unreadable, malformed, failed and different-SHA
@@ -161,6 +268,8 @@ if (import.meta.main) {
       pin,
       reasoning: provider.openRouterReasoningEffort,
       maxCompletionTokens: provider.openRouterMaxCompletionTokens,
+      inputCeilingUsdPerMillion: provider.openRouterInputCeilingUsdPerMillion,
+      outputCeilingUsdPerMillion: provider.openRouterOutputCeilingUsdPerMillion,
       maximumUsd,
       endpoint,
       budget,

@@ -26,6 +26,9 @@ export type ProviderFetch = (input: string, init: RequestInit) => Response | Pro
 export interface ProviderRates {
   inputUsdPerMillion: number;
   outputUsdPerMillion: number;
+  /** Verified effective rates covering cache writes/reads and every applicable tier. */
+  inputCeilingUsdPerMillion: number;
+  outputCeilingUsdPerMillion: number;
 }
 
 /** The OpenRouter reasoning efforts an operator may configure; higher efforts are refused. */
@@ -79,17 +82,53 @@ export function readFinalUsage(
   if (typeof usage !== 'object' || usage === null || Array.isArray(usage)) return null;
   const promptTokens: unknown = Reflect.get(usage, 'prompt_tokens');
   const completionTokens: unknown = Reflect.get(usage, 'completion_tokens');
-  // Proof: the missing-final-usage stream test fails if normalized SDK zeros settle this reservation.
+  // Proof: normalized SDK zeros failed missing-final-usage; allowing unsafe integers failed the mounted cache-aware unsafe-token test.
   if (
     typeof promptTokens !== 'number' ||
     typeof completionTokens !== 'number' ||
-    !Number.isInteger(promptTokens) ||
-    !Number.isInteger(completionTokens) ||
+    !Number.isSafeInteger(promptTokens) ||
+    !Number.isSafeInteger(completionTokens) ||
     promptTokens < 0 ||
     completionTokens < 0
   )
     return null;
   return { promptTokens, completionTokens };
+}
+
+/**
+ * Known charge requires both raw safe token counts and a reported USD cost. The conservative
+ * token floor survives cache discounts; provider surcharges are never discarded. Missing or
+ * malformed charge returns null so every settlement route retains its full reservation.
+ */
+export function readFinalCharge(
+  usage: unknown,
+  rates: Pick<ProviderRates, 'inputUsdPerMillion' | 'outputUsdPerMillion'>,
+) {
+  const tokens = readFinalUsage(usage);
+  const cost: unknown =
+    typeof usage === 'object' && usage !== null ? Reflect.get(usage, 'cost') : undefined;
+  // Proof: defaulting absent cost to zero failed missing-charge tests through all four mounted settlement routes.
+  if (!tokens || typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0) return null;
+  const ratedMicroUsd = Math.ceil(
+    tokens.promptTokens * rates.inputUsdPerMillion +
+      tokens.completionTokens * rates.outputUsdPerMillion,
+  );
+  const billedMicroUsd = Math.ceil(cost * 1_000_000);
+  // Proof: removing billed safe-integer validation failed all four mounted unsafe-charge cases.
+  if (
+    !Number.isSafeInteger(ratedMicroUsd) ||
+    ratedMicroUsd < 0 ||
+    !Number.isSafeInteger(billedMicroUsd) ||
+    billedMicroUsd < 0
+  )
+    return null;
+  // Proof: using only token cost failed surcharge/pilot rounding; using only billed cost failed all four zero-charge token floors.
+  return {
+    ...tokens,
+    ratedMicroUsd,
+    reportedCostUsd: cost,
+    accountedMicroUsd: Math.max(ratedMicroUsd, billedMicroUsd),
+  };
 }
 
 /**
@@ -123,8 +162,11 @@ export function isRefusalError(error: unknown): boolean {
   return isRefusalChunk({ error: data });
 }
 
-/** The routing block every paid request carries: the pinned endpoint, privacy flags and price ceilings. */
-export function providerRouting(provider: string, rates: ProviderRates) {
+/** The routing block every paid request carries: the pinned endpoint, privacy flags and base-price routing limits; effective cache/tier ceilings are separate. */
+export function providerRouting(
+  provider: string,
+  rates: Pick<ProviderRates, 'inputUsdPerMillion' | 'outputUsdPerMillion'>,
+) {
   return {
     only: [provider],
     zdr: true,
@@ -275,8 +317,6 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   let replyFailure: ReplyFailure | null = null;
   /** The last raw usage seen; a refusal's usage can ride the error chunk the SDK does not parse. */
   let rawUsage: unknown = undefined;
-  const inputRate = options.rates.inputUsdPerMillion;
-  const outputRate = options.rates.outputUsdPerMillion;
   const streamed = streamText({
     model: options.structured
       ? wrapLanguageModel({
@@ -325,20 +365,18 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
         if (finishReason === 'content-filter') refusal = 'content_filter';
         if (refusal) {
           // Proof: dropping the raw fallback settled 0 in the usage-on-the-error-chunk refusal test.
-          const reported = readFinalUsage(finalStep.usage.raw ?? rawUsage);
+          const reported = readFinalCharge(finalStep.usage.raw ?? rawUsage, options.rates);
           // Proof: settling absent refusal usage at zero failed structured accounting refusal missing usage.
           if (!reported) {
             options.markUnknown();
             return;
           }
-          const actualMicroUsd = Math.ceil(
-            reported.promptTokens * inputRate + reported.completionTokens * outputRate,
-          );
+          const actualMicroUsd = reported.accountedMicroUsd;
           declined = decline.complete(refusal, actualMicroUsd);
           if (!declined) options.markUnknown();
           return;
         }
-        const usage = readFinalUsage(finalStep.usage.raw);
+        const usage = readFinalCharge(finalStep.usage.raw, options.rates);
         if (options.structured) {
           if (!usage) {
             options.markUnknown();
@@ -346,9 +384,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           }
           const parsed = parseProviderScopingReply(text, finishReason !== 'stop');
           // Proof: fixed 400-token settlement and subtracting 600 reasoning tokens each failed structured accounting reasoning included once.
-          const actualMicroUsd = Math.ceil(
-            usage.promptTokens * inputRate + usage.completionTokens * outputRate,
-          );
+          const actualMicroUsd = usage.accountedMicroUsd;
           const reply = parsed.kind === 'valid' ? parsed.value : null;
           if (!options.structured.complete(reply, actualMicroUsd)) {
             options.markUnknown();
@@ -368,9 +404,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           return;
         }
         // Proof: subtracting reasoning_tokens here settled 502 instead of 1,558 in the reasoning settlement test.
-        const actualMicroUsd = Math.ceil(
-          usage.promptTokens * inputRate + usage.completionTokens * outputRate,
-        );
+        const actualMicroUsd = usage.accountedMicroUsd;
         if (!options.complete(text.trim(), actualMicroUsd, finishReason === 'length'))
           options.markUnknown();
       } catch (error) {

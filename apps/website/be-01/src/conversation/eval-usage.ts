@@ -1,10 +1,13 @@
 import { isRecord } from './eval-scoping';
-import { type ProviderFetch, readFinalUsage } from './stream';
+import { type ProviderFetch, readFinalCharge, readFinalUsage } from './stream';
 
 export interface OperationMeasure {
   promptTokens: number | null;
   completionTokens: number | null;
   reasoningTokens: number | null;
+  ratedMicroUsd: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
   knownMicroUsd: number;
   unknownReservedMicroUsd: number;
   reportedCostUsd: number | null;
@@ -16,7 +19,7 @@ export interface OperationMeasure {
 /** Tees only visible metadata. Final cumulative usage replaces earlier observations; reasoning is a completion subset. */
 export function meterUsage(
   base: ProviderFetch,
-  rates: { input: number; output: number },
+  rates: { input: number; output: number; inputCeiling: number; outputCeiling: number },
   maximumMicroUsd?: number,
 ) {
   const operations: OperationMeasure[] = [];
@@ -27,11 +30,15 @@ export function meterUsage(
     if (!isRecord(request) || typeof request['max_completion_tokens'] !== 'number')
       throw new Error('Evaluation provider completion bound is missing');
     // A conservative evaluation ceiling includes the entire wire body, exceeding the app's messages/schema reservation.
+    // Proof: substituting base input rates failed all unknown-charge effective-ceiling tests.
     const ceiling = Math.ceil(
-      (Buffer.byteLength(init.body, 'utf8') + 2000) * rates.input +
-        request['max_completion_tokens'] * rates.output,
+      (Buffer.byteLength(init.body, 'utf8') + 2000) * rates.inputCeiling +
+        request['max_completion_tokens'] * rates.outputCeiling,
     );
-    // Proof: removing this bound purchased the forbidden operation in eval-scoping.test.
+    // Proof: removing this guard reached transport in evaluation unsafe-reservation refusal.
+    if (!Number.isSafeInteger(ceiling) || ceiling <= 0)
+      throw new Error('Evaluation reservation exceeds safe micro-USD');
+    // Proof: removing this bound purchased the forbidden operation in eval-scoping.test and the reported-surcharge budget case.
     if (
       maximumMicroUsd !== undefined &&
       operations.reduce(
@@ -46,6 +53,9 @@ export function meterUsage(
       promptTokens: null,
       completionTokens: null,
       reasoningTokens: null,
+      ratedMicroUsd: null,
+      cacheReadTokens: null,
+      cacheWriteTokens: null,
       knownMicroUsd: 0,
       unknownReservedMicroUsd: ceiling,
       reportedCostUsd: null,
@@ -81,31 +91,52 @@ export function meterUsage(
         }
         operation.latencyMilliseconds = Math.round(performance.now() - started);
         const usage = readFinalUsage(finalUsage);
-        // Proof: missing raw usage in eval-scoping.test remains a positive reserved ceiling, not zero.
-        if (usage === null) return;
-        operation.promptTokens = usage.promptTokens;
-        operation.completionTokens = usage.completionTokens;
-        operation.knownMicroUsd = Math.ceil(
-          usage.promptTokens * rates.input + usage.completionTokens * rates.output,
-        );
-        operation.unknownReservedMicroUsd = 0;
-        if (isRecord(finalUsage)) {
-          const details = finalUsage['completion_tokens_details'];
-          const reasoning = isRecord(details) ? details['reasoning_tokens'] : undefined;
-          if (
-            typeof reasoning === 'number' &&
-            Number.isSafeInteger(reasoning) &&
-            reasoning >= 0 &&
-            reasoning <= usage.completionTokens
-          )
-            operation.reasoningTokens = reasoning;
-          if (
-            typeof finalUsage['cost'] === 'number' &&
-            Number.isFinite(finalUsage['cost']) &&
-            finalUsage['cost'] >= 0
-          )
-            operation.reportedCostUsd = finalUsage['cost'];
+        if (usage !== null) {
+          operation.promptTokens = usage.promptTokens;
+          operation.completionTokens = usage.completionTokens;
+          if (isRecord(finalUsage)) {
+            const completion = finalUsage['completion_tokens_details'];
+            const prompt = finalUsage['prompt_tokens_details'];
+            // Proof: removing the subset bound exposed impossible reasoning; bypassing the combined-cache guard exposed overlapping counts.
+            const boundedCount = (value: unknown, maximum: number): number | null =>
+              typeof value === 'number' &&
+              Number.isSafeInteger(value) &&
+              value >= 0 &&
+              value <= maximum
+                ? value
+                : null;
+            operation.reasoningTokens = boundedCount(
+              isRecord(completion) ? completion['reasoning_tokens'] : undefined,
+              usage.completionTokens,
+            );
+            operation.cacheReadTokens = boundedCount(
+              isRecord(prompt) ? prompt['cached_tokens'] : undefined,
+              usage.promptTokens,
+            );
+            operation.cacheWriteTokens = boundedCount(
+              isRecord(prompt) ? prompt['cache_write_tokens'] : undefined,
+              usage.promptTokens,
+            );
+            if (
+              operation.cacheReadTokens !== null &&
+              operation.cacheWriteTokens !== null &&
+              operation.cacheReadTokens + operation.cacheWriteTokens > usage.promptTokens
+            ) {
+              operation.cacheReadTokens = null;
+              operation.cacheWriteTokens = null;
+            }
+          }
         }
+        const charge = readFinalCharge(finalUsage, {
+          inputUsdPerMillion: rates.input,
+          outputUsdPerMillion: rates.output,
+        });
+        // Missing/malformed charge retains the complete effective-rate reservation even when tokens are known.
+        if (charge === null) return;
+        operation.ratedMicroUsd = charge.ratedMicroUsd;
+        operation.knownMicroUsd = charge.accountedMicroUsd;
+        operation.reportedCostUsd = charge.reportedCostUsd;
+        operation.unknownReservedMicroUsd = 0;
       })(),
     );
     return new Response(forApi, {
@@ -125,7 +156,7 @@ export function totalUsage(operations: OperationMeasure[]) {
       knownMicroUsd: totals.knownMicroUsd + operation.knownMicroUsd,
       unknownReservedMicroUsd: totals.unknownReservedMicroUsd + operation.unknownReservedMicroUsd,
       unknownUsageOperations:
-        totals.unknownUsageOperations + (operation.promptTokens === null ? 1 : 0),
+        totals.unknownUsageOperations + (operation.unknownReservedMicroUsd > 0 ? 1 : 0),
       unknownReasoningOperations:
         totals.unknownReasoningOperations + (operation.reasoningTokens === null ? 1 : 0),
     }),

@@ -75,6 +75,8 @@ export interface WebsiteApiConfig {
   openRouterProvider?: string;
   openRouterInputUsdPerMillion?: number;
   openRouterOutputUsdPerMillion?: number;
+  openRouterInputCeilingUsdPerMillion?: number;
+  openRouterOutputCeilingUsdPerMillion?: number;
   openRouterPrivacyVerified?: boolean;
   /** Sent on every paid call as excluded reasoning; unset sends no reasoning field. */
   openRouterReasoningEffort?: ReasoningEffort;
@@ -654,17 +656,30 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   function readProviderRates(): ProviderRates | null {
     const inputUsdPerMillion = config.openRouterInputUsdPerMillion;
     const outputUsdPerMillion = config.openRouterOutputUsdPerMillion;
-    // Proof: skipping this check failed the ten bad-rate cases of the mounted "paid inference with ..." conversation test.
+    const inputCeilingUsdPerMillion = config.openRouterInputCeilingUsdPerMillion;
+    const outputCeilingUsdPerMillion = config.openRouterOutputCeilingUsdPerMillion;
+    // Proof: skipping base checks failed ten bad-rate cases; bypassing ceiling checks failed the mounted missing-ceiling/manual-conversion test.
     if (
       typeof inputUsdPerMillion !== 'number' ||
       typeof outputUsdPerMillion !== 'number' ||
       !Number.isFinite(inputUsdPerMillion) ||
       !Number.isFinite(outputUsdPerMillion) ||
       inputUsdPerMillion <= 0 ||
-      outputUsdPerMillion <= 0
+      outputUsdPerMillion <= 0 ||
+      typeof inputCeilingUsdPerMillion !== 'number' ||
+      typeof outputCeilingUsdPerMillion !== 'number' ||
+      !Number.isFinite(inputCeilingUsdPerMillion) ||
+      !Number.isFinite(outputCeilingUsdPerMillion) ||
+      inputCeilingUsdPerMillion < inputUsdPerMillion ||
+      outputCeilingUsdPerMillion < outputUsdPerMillion
     )
       return null;
-    return { inputUsdPerMillion, outputUsdPerMillion };
+    return {
+      inputUsdPerMillion,
+      outputUsdPerMillion,
+      inputCeilingUsdPerMillion,
+      outputCeilingUsdPerMillion,
+    };
   }
 
   function providerReady(

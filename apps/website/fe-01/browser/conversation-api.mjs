@@ -158,7 +158,7 @@ function refusalChunk(id) {
     object: 'chat.completion.chunk',
     error: { code: 403, message: 'Upstream refused', metadata: { error_type: 'refusal' } },
     choices: [{ index: 0, delta: { content: '' }, finish_reason: 'error' }],
-    usage: { prompt_tokens: 900, completion_tokens: 4, total_tokens: 904 },
+    usage: { cost: 0, prompt_tokens: 900, completion_tokens: 4, total_tokens: 904 },
   })}\n\n`;
 }
 
@@ -228,6 +228,8 @@ const api = createWebsiteApi({
   openRouterProvider: 'azure/swedencentral',
   openRouterInputUsdPerMillion: 0.44,
   openRouterOutputUsdPerMillion: 1.76,
+  openRouterInputCeilingUsdPerMillion: 0.44,
+  openRouterOutputCeilingUsdPerMillion: 1.76,
   openRouterPrivacyVerified: true,
   operatorPassword: env['OPERATOR_PASSWORD'],
   providerFetch,

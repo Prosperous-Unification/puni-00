@@ -116,3 +116,44 @@ The public privacy notice and contextual explanations SHALL describe anonymous c
 
 - **WHEN** the visitor opens Privacy from the landing page, chat or email card
 - **THEN** the notice is accessible without sign-in and does not claim prospect accounts exist
+
+### Requirement: Paid readiness requires verified effective pricing
+
+Paid admission SHALL require explicit verified maximum effective input/output rates covering cache reads, cache writes and every applicable pricing tier, separately from base-price routing limits. Missing ceilings SHALL leave inference unconfigured with manual conversion available. Malformed rates SHALL fail at the configuration boundary. Missing metadata SHALL NOT imply free caching or a universal multiplier.
+
+#### Scenario: Existing enabled configuration lacks verified ceilings
+
+- **WHEN** a previously enabled configuration has only base input/output rates
+- **THEN** paid admission refuses before a provider call, while the saved brief and manual submission remain available
+
+### Requirement: Reservations cover cache and tier pricing
+
+Reservations SHALL use the conservative serialized-input token bound and full configured completion cap at verified effective ceilings. Reservations SHALL be positive safe integer micro-USD; an unsafe amount SHALL refuse before paid transport.
+
+#### Scenario: Base-price routing does not bound cache writes
+
+- **WHEN** base input/output prices are USD0.11/0.55 per million and verified effective ceilings are USD0.275/0.825
+- **THEN** reservation uses the effective ceilings while routing retains the base-price limits
+
+### Requirement: Settlement preserves reported provider charges
+
+Known settlement SHALL be the greater of the base-rate token estimate and validated provider charge, rounded upward to safe integer micro-USD. Reasoning SHALL remain included in completion once. Missing or malformed counts or charge SHALL retain the full reservation as unknown. An explicit zero charge SHALL preserve a nonzero token floor. Above-reservation charges SHALL remain recorded without clamping and preserve the existing overspend pause.
+
+#### Scenario: Cache write costs more than base input pricing
+
+- **WHEN** known tokens imply 401 micro-USD but the provider reports USD0.0004896925
+- **THEN** the operation accounts for 490 micro-USD, and its reservation was calculated from explicit verified effective-rate ceilings
+
+#### Scenario: Missing charge despite known token counts
+
+- **WHEN** a final response has valid prompt/completion counts but absent, negative, nonfinite or unsafe provider charge
+- **THEN** the operation follows the existing unknown/full-reservation path without claiming a zero or base-rate actual charge
+
+### Requirement: Evaluation verifies complete pricing coverage
+
+Bounded evaluation SHALL validate complete cache and tier pricing before inference, derive and record conservative ceilings without runtime configuration mutation, and account for final cumulative usage once. Missing or malformed pricing SHALL refuse instead of guessing a surcharge.
+
+#### Scenario: Endpoint cache or tier evidence is incomplete
+
+- **WHEN** a bounded evaluation prepares to call the pinned endpoint but cache or tier pricing is missing or malformed
+- **THEN** host preflight refuses before any paid inference request
