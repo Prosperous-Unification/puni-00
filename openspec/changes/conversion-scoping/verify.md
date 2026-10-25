@@ -1,0 +1,53 @@
+# Conversion scoping verification
+
+Status: implementation in progress. No launch or activation claim. About and the first blog post remain user-owned.
+
+## Shared contracts — 2026-10-25
+
+Commit `d2bd6b2a126fbcb51858d3b30a5f0b23f6c9d3c9` adds six starting choices, the question catalogue, strict reply/intake parsers, revision-bound answer resolution and explicit public test paths.
+
+- `bunx nx run website-contracts:test`: exit 0, 68 tests, 0 failures, then successful TypeScript check.
+- `bunx nx run website-contracts:lint`, `:typecheck`, `:build`: exit 0. Lint emitted an environment color warning; no lint diagnostics.
+- `bun test ./libs/website/adapters/store-sqlite/src/retention-journal-schema.test.ts --test-name-pattern 'migration lint accepts 010'`: exit 0, one public test passed. Before the path fix, Bun's substring selector collected the nested private copy too and failed there; the migration check was not weakened.
+- Each of 22 parser/lookup/revision guards was bypassed independently; its production-path test failed. Restored guards have adjacent Proof comments. One surviving explanation mutant exposed missing test coverage; the additional test failed on the mutant and passed after restoration.
+- Scoped review: no Critical or Important findings. API, storage, browser and real model integration remain later work.
+
+## Durable state and retention — 2026-10-25
+
+Commit `112f6b3ed8a67c7a29e082299c38ffa9c6e4132f` adds additive migration 011 with down.sql, explicit legacy/versioned state, revisioned edits, candidate preservation and retention coverage. Scoped review found no Critical, Important or Minor findings.
+
+- `env -u FORCE_COLOR -u NO_COLOR bunx nx run website-store-sqlite:test`: exit 0, 230 tests, 0 failures, 964 expectations, 16 public files; 48 scoping cases. Lint, typecheck and build also exited 0 without the previous color warning.
+- Production migration lint accepted both 011 SQL files. Downgrade ran only against disposable copies. Successful commit hooks passed.
+- Observed negatives cover stale overwrite, legacy-write bypass, first/later candidate overwrite, claim/expiry/consumption checks, missing/invalid trusted state, transaction requirement, every new text field omitted from erasure, SQL insert/update/ownership fences, first-content coverage and safe revision bounds. Restored checks carry adjacent Proof comments.
+- A real second SQLite connection exposed mixed old brief/new revision reads; one read transaction now returns a coherent snapshot.
+- A pre-erasure snapshot exposed unsettled inflight accounting during journal replay; replay now applies the existing conservative settlement helper, retaining the full reservation and erasing text. Repeated replay is idempotent.
+- Actual structured operation settlement/replay and HTTP/UI integration remain later work.
+
+## Private source map and baseline
+
+The licensed site is in the independently cloned private companion; its source is never copied into the public repository. Canonical public app/API/contracts/store snapshots will be refreshed only from a committed public revision.
+
+| Surface                           | Private path                                                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Hero and intake                   | `apps/website/site/src/pages/index.astro`, `src/components/RequestForm.astro`                                    |
+| Services                          | `apps/website/site/src/content/services.ts`, `src/pages/services/index.astro`, `src/pages/services/[slug].astro` |
+| Privacy                           | `apps/website/site/src/pages/privacy.astro`, `src/content/privacy-retention.ts`                                  |
+| Global layout / consent placement | `apps/website/site/src/layouts/BaseLayout.astro`                                                                 |
+| Existing blog                     | `apps/website/site/src/content/posts.ts`, `src/pages/blog/index.astro`, `src/pages/blog/[slug].astro`            |
+| About                             | No route in the inspected source; content remains user-owned.                                                    |
+
+Before integration, `bunx nx run-many -t test lint typecheck build -p website-site` passed all four targets uncached in 4.9 seconds.
+
+## Release observations
+
+Read-only HTTPS probes on 2026-10-25 found development HTTP 200 with noindex headers and a healthy API. `/release.json` reported private `f73bf92bf1ba81b37ce66e1f5d2f02233cd652b0`, public `1bde073c2b8fd8e4b84ca9c954c3b1a01a267b93`. The retained h2 Compose site/app containers are older, with its API absent; use the platform release workflow rather than historical Compose deployment instructions. Production currently serves a small placeholder.
+
+The current committed fleet configuration enables inference, disables the retention journal and uses report-only erasure. Live cluster reconciliation was not inspected: the available regular account cannot run kubectl, and the direct administrator SSH probe had no accepted credential. This is not proof of live erasure. Do not publish automatic deletion or backup-aging guarantees without activation evidence.
+
+The user supplied responsible person and request-review owner Danylo Fedorov, contact dany@puni.dev. No response-time promise has been approved.
+
+The retained website provider key was checked on h2 through [OpenRouter’s current-key endpoint](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key), keeping the credential on the server. It has a $50 monthly limit, $49.975511617 remaining at the probe, and is not a management key. Preserve this cap, which is stricter than the illustrative $100 ceiling. Its runtime file pins openai/gpt-6-luna, azure/eu, low reasoning and 700 completion tokens. Verify the current platform uses that same credential/configuration before treating this as activation evidence.
+
+## Outstanding validation
+
+API, frontend, private integration, browser journeys, actual provider quality/cost evaluation, operator receipt, release rollback and exact-SHA host gate remain outstanding. No new flow is deployed. No real request has been submitted and no outbound email sent by this work.

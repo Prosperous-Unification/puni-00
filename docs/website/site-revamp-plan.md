@@ -87,28 +87,28 @@ Editorial acceptance: named author, date, inspectable evidence, a plain-language
 | A. Conversion and cost          | Landing intent, six selectable paths, adaptive AI, references, editable brief, email handoff, existing spend controls | [Conversion tasks](../../openspec/changes/conversion-scoping/tasks.md)      |
 | B. Services and privacy         | Five matching offers, truthful AI/storage/follow-up copy and verified processor/retention facts                       | Conversion tasks, group 4                                                   |
 | C. Traffic and funnel analytics | Consented GA4, safe events, confirmed lead measurement, cross-host continuity and reports                             | [Analytics tasks](../../openspec/changes/website-funnel-analytics/tasks.md) |
-| D. Trust content                | About draft, proof asset and first blog draft, integrated into the actual private site                                | Content checklist below                                                     |
+| D. Trust content (user-owned)   | About draft, proof asset and first blog draft supplied by the user                                                    | Content checklist below                                                     |
 
 Build order:
 
 1. Shared contracts and compatibility; Improve my app end to end against a deterministic provider fixture.
 2. All other routes, optional references, corrections and human-review submission.
-3. Services/hero integration and About/first-post preparation in the private site. Consent adapter can be built against a fake sink while this proceeds.
+3. Services/hero integration in the private site; About and first-post preparation remain with the user. Consent adapter can be built against a fake sink while this proceeds.
 4. Verified privacy copy, bounded live AI evaluation and actual operator receipt.
 5. Analytics property/report setup, consent and leakage tests, final mobile/accessibility review, deploy/rollback checks.
 6. Pilot release and review after the first 100–200 conversations; only then adjust questions, model choice or budgets from observed outcomes.
 
-No calendar delivery date is asserted before the private source and release environment are inspected. Public app/API code exists; the licensed site checkout, live provider/account settings and GA property access were not verified in this planning session.
+No calendar delivery date is asserted. Execution findings and checks are recorded in each change’s verify.md; the original planning verification below remains historical.
 
 ## Cost policy
 
-Use the accepted $0.01/session planning allowance with the existing $0.15 conversation ceiling, eight visitor turns, source/day limits, $10 site/day ceiling and automatic pause. Verify a dedicated $100/month provider-key cap. Exact reservations, provider usage, cancellation and retries are covered in the [conversion design](../../openspec/changes/conversion-scoping/design.md#cost-and-quality-acceptance). Preserve manual conversion when AI is unavailable or capped.
+Use the accepted $0.01/session planning allowance with the existing $0.15 conversation ceiling, eight visitor turns, source/day limits, $10 site/day ceiling and automatic pause. Keep a dedicated provider-key cap at or below $100/month. The existing website key was verified at $50/month during execution; preserve that stricter cap and verify the deployment uses it. Exact reservations, provider usage, cancellation and retries are covered in the [conversion design](../../openspec/changes/conversion-scoping/design.md#cost-and-quality-acceptance). Preserve manual conversion when AI is unavailable or capped.
 
 Model charges are separate from hosting, acquisition and human follow-up. The low estimate is not a reason to omit abuse controls, and the ceiling is not the expected spend per visitor. Review quality, truncated replies, actual mean/high-percentile session costs and usable requests together before optimizing.
 
 ## Analytics choice and reports
 
-**Recommendation: GA4 for acquisition and measured funnel behavior, existing server records for submissions and spend.** Start with opt-in basic blocking, no remarketing or content capture, and separate production/development configuration. These are proposed activation choices, described in the [analytics design](../../openspec/changes/website-funnel-analytics/design.md).
+**Recommendation: GA4 for acquisition and measured funnel behavior, existing server records for submissions and spend.** Start with opt-in basic blocking, no remarketing or content capture, and separate production/development configuration. The user supplied development measurement ID `G-R0JM3R4SSV`; it must be loaded through the consented adapter described in the [analytics design](../../openspec/changes/website-funnel-analytics/design.md). Account settings and collected events still require verification.
 
 The first reports should answer:
 
@@ -126,7 +126,7 @@ GA4 lead events are neither qualified prospects nor paid clients. Review submitt
 - [ ] Select one platform proof asset, verify what it demonstrates, and label it as PUNI's own work.
 - [ ] Draft the first article from the editorial plan; review the historical claim against its source and collect any fresh demonstration before describing it as observed.
 - [ ] Inspect the actual private hero/services/About/blog/privacy components; record their paths, then integrate the approved content and shared CTAs. Check desktop, keyboard, mobile and reduced motion.
-- [ ] Assign human-review ownership and a sustainable internal response target. Do not publish an unowned response-time promise.
+- [x] Assign human-review ownership: Danylo Fedorov, dany@puni.dev, supplied by the user on 2026-10-25. No response-time promise is approved.
 - [ ] Resolve business/contact/processor/retention facts for privacy and record the evidence; do not treat an expiry timestamp as verified deletion.
 - [ ] Complete the two implementation task lists and their failure-proof/gate records; verify one real preview request reaches the operator with its edited brief and references intact.
 - [ ] Confirm analytics choice and property ownership, test denied/accepted/revoked states and sanitized events, and configure the three reports.
