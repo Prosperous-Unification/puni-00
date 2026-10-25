@@ -944,7 +944,14 @@ acceptance remains open; these corrections add no P2b/P3 activation or exposure 
 - [x] Implement bounded target-free FD5/FD6 framing, existing decoder/sequence composition, shared charged/reserved byte accounting and original absolute deadlines without changing profile or production behavior.
 - [x] Reproduce and correct completed-IO continuation, owned-child error, constructor-bound, mutable endpoint ownership and actual endpoint-settlement findings; retain watched faults, explicit rehearsal compiler inclusion and independent source review. [Bounded evidence](verify-source-stageb-channel.md).
 
-The complete fixed builder, journal, capture, genuine preparation/measurement runner, outer cleanup and authenticated archive remain required. This checkpoint grants no provider execution, native profile, application readiness, admission, activation, exposure or main merge; parent 10.2 and physical Stage B acceptance stay open.
+The complete fixed builder, journal integration, capture, genuine preparation/measurement runner, outer cleanup and authenticated archive remain required. This checkpoint grants no provider execution, native profile, application readiness, admission, activation, exposure or main merge; parent 10.2 and physical Stage B acceptance stay open.
+
+### Stage B owned journal source checkpoint
+
+- [x] Implement exclusive immutable control records, actual-owner directory/entry continuity, original intent/dispatch/reference tokens, fixed accounting and real owned-filesystem proofs without authenticating supplied identity claims. [Source evidence](verify-source-stageb-journal.md).
+- [x] Resolve independent pending-IO, late-leaf, constructor and error-retention findings; preserve deadline admission refusal while joining actual IO settlement. Add finite owner/platform/alias/short-write coverage and obtain scoped independent approval.
+
+This source component does not complete the provider. Input authority, builder/capture, journal integration, genuine preparation/measurement, outer cleanup and authenticated archive remain required. Noncancellable IO may keep failure/close settlement pending after the original admission deadline. Exact accounting and reduced-threshold filesystem proofs do not establish full-capacity stress, physical ownership, native cleanup or application readiness. Parent 10.2 and architectural main merge stay open.
 
 ### Published measures reconciliation
 
