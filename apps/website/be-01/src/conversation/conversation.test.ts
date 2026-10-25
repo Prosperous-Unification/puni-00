@@ -2264,7 +2264,20 @@ test('scoping answers preserve and price full text, replay old revisions and ref
       'SELECT reserved_micro_usd FROM conversation_operation ORDER BY rowid DESC LIMIT 1',
     )
     .get();
-  expect(reservation?.reserved_micro_usd).toBeGreaterThan(2000 * 0.44);
+  const outbound = fake.bodies.at(1);
+  if (!outbound) throw new Error('Selected answer has no outbound request');
+  const serializedMessages = JSON.stringify(
+    outbound.messages.map((message) => {
+      const { role, text } = textOf(message);
+      return { role, content: text };
+    }),
+  );
+  // Independently apply the reservation contract to the actual complete provider-bound request:
+  // every UTF-8 byte, 2,000 framing tokens, and the known 400-token completion ceiling.
+  const expectedReservation = Math.ceil(
+    (Buffer.byteLength(serializedMessages, 'utf8') + 2000) * 0.44 + 400 * 1.76,
+  );
+  expect(reservation?.reserved_micro_usd).toBe(expectedReservation);
   database.close();
   const initialReplay = await sendAutomatic(api, visitor);
   expect(initialReplay.status).toBe(200);

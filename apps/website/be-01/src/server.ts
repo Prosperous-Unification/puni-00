@@ -997,6 +997,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
               kind: 'paid',
               price: (history, stage) =>
                 priceConversationRequest(
+                  // Proof: pricing only the first 1,500 characters failed the mounted long-answer exact reservation assertion against the captured complete outbound request.
                   composeConversationRequest(history, message, stage),
                   provider.rates,
                   // Proof: pricing with the 400-token default failed the reasoning-effort reservation test.
