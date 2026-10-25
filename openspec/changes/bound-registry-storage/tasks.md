@@ -30,7 +30,7 @@ is permitted merely because planning validation passes.
 
 ## 2. Physical boundary and admission
 
-- [ ] 2.1 Add bounded storage provisioning and startup verification to
+- [x] 2.1 Add bounded storage provisioning and startup verification to
       `infra/ansible/playbooks/registry.yml`, a dedicated `registry_storage` role,
       `infra/platform/registry/production/` and the private fleet manifests.
       Provision retained block-backed registry and journal filesystems; verify exact
