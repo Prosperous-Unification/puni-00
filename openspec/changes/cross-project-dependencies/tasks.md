@@ -968,3 +968,10 @@ A1 emits private serialized bytes only. Actual producer joins, shared capture ac
 - [x] Complete combined source verification and independent finite source review; evidence in [verify-main-measures.md](verify-main-measures.md).
 
 - [x] Reconcile published claim history from fresh main without weakening connected prerequisites, journal decoding or client admission; [verification](verify-main-claims.md).
+
+### Stage B input verifier and generated bootstrap source checkpoint
+
+- [x] Implement the four original-token input APIs and deterministic fixed-entry assembler: exact embedded review bytes, authenticated nine-role index joins under the approved-artifact premise, actual fixed-descriptor access/identity, permanent nonce-only durable claim, detached exact-byte inspection and original cutoff. [Source and bounded proofs](verify-source-stageb-inputs.md).
+- [x] Correct independent FD6 before-close oracle and required lint findings; retain the original mixed fault result, six newly executed affected proofs and earlier failures. Obtain scoped independent source approval and pass explicit compiler inclusion, graph-backed lint, formatting and actual journal/archive integration.
+
+This is source evidence under synthetic trusted-bootstrap fixtures. The fixed framed component witness is not a provider reply, approval, readiness or measurement, and does not establish actual C/shared-budget integration. Actual independent controller approval, persistent registry custody, standard-age recipient/tool validation, artifact provenance, G1 fixture authority, full B/K/P/O/A2/R, cross-process cutoff translation, native measurement/cleanup and authenticated final archive remain required. Parent 10.2 and architectural main merge remain open.
