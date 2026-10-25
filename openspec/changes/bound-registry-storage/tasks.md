@@ -52,7 +52,7 @@ startup`, `second convergence changes nothing`; negatives: replace mount with
 
 ## 3. Publication and consumer integration
 
-- [ ] 3.1 Integrate admission and candidate protection into
+- [x] 3.1 Integrate admission and candidate protection into
       `tools/tool-dagger/src/main.ts`, `src/lib/publish.ts`, every tier publish entrypoint,
       `bin/publish-release.sh` and `tools/tool-fleet/src/platform-registry.ts` copy.
       Establish a bounded OCI export/size envelope before direct upload; preserve

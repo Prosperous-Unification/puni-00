@@ -244,6 +244,115 @@ fix round2: every finding addressed, no new Important or Critical breakage. Actu
 builder provisioning/export integration belongs to task3.1; full gate and live
 activation remain pending.
 
+## Publication — reviewed
+
+Public implementation commit 9259fe99b adds explicit trusted publication
+enrollment, bounded OCI export and managed copy/import through the shared
+publication authority. Selected malformed/missing enrollment refuses; legacy
+unenrolled publishing stays supported. Image roots remain manifests/indexes,
+with their verified transitive closure. One complete required repository set is
+reserved before target uploads, and partial failure retains ownership/reservation.
+Complete publication returns an exact durable bundle receipt and frees its slot.
+No private companion or production settings changed in this slice.
+
+The actual pinned Dagger 0.21.9 SDK/CLI and engine exported a tiny image on h4
+under the canonical heavy lock and explicit resource admission. The retained
+8,192-byte OCI archive contains root
+`sha256:27ddb6fd651405cb8f8b78089a405d330cff8e3154dde0b8bd90febfcd95d7ed`.
+The exporter also emits Docker compatibility metadata; OCI index/closure remains
+authoritative. The common writer uses those exact bytes, rehashes content,
+validates returned manifest digests and verifies the stored target closure.
+
+```sh
+REGISTRY_STORAGE_SSH=/tmp/puni-registry-ssh \
+REGISTRY_STORAGE_HOST=10.1.0.4 \
+REGISTRY_TEST_BUN=/var/tmp/puni-registry-runtime-uu926qx5/bun \
+bunx nx run tool-fleet:test:registry-publication --output-style=static
+```
+
+Restored-source native output: **2 pass, 0 fail, 16 assertions**, 27.45 seconds.
+Actual pinned Distribution and the fixed authority wrapper running as UID 59001
+produced a complete three-tier receipt and released its publisher slot. An
+oversized eight-repository envelope made no POSTs. A deliberate third-tier 503,
+after the first two target closures were verified, retained the unfinished bundle,
+failed owner and reservation. Scratch saturation, wrong/missing mounts, cross-mode
+refusal and trusted enrollment negatives are included. An actual 2 MiB export
+against a 1 MiB declared envelope was refused.
+
+Observed removal proofs cover content/tar/descriptor validation, complete required
+tiers, durable receipts, registry identity, pressure and scratch admission,
+continuation origin, redirects, manifest receipts, target closure, arithmetic
+bounds and authority responses. Removing publication orchestration allowed three
+complete native uploads with zero durable bundles; the covering test failed.
+Removing the post-export budget check admitted the oversized file. Removing the
+storage mode check created a scratch backing file from ordinary registry provision
+before a later error; the negative required refusal before that write. Native
+enrollment guard removals admitted their exact unsafe configurations. Production
+checks name these observed witnesses in adjacent proof comments.
+
+An earlier scratch test failure was traced to generated Python line 19, an exact
+shared-host free-byte equality assertion; line 18 had already verified ENOSPC.
+The corrected test requires unchanged owned backing allocation and at least
+20 GiB root reserve. It does not assume unrelated host writes stop during a test.
+
+The first affected test command exited 1: Dagger **68 pass/119 assertions**;
+fleet **720 pass, 2 skip, 1 fail/2643 assertions**. The failure was a stale raw
+workload image count: Task3's storage-patch.yaml added an approved reference,
+giving 11; excluding exactly that patch gave 10. Only the expected count/comment
+changed. The subsequent entire platform test file passed **88 tests/184
+assertions** in 9.44 seconds. The original full-suite run is not reported as passing.
+The two real-restic opt-in skips remain explicit.
+
+The shared physical-storage regression passed **1 test/16 assertions**, 41.45
+seconds; two unchanged tests were filtered. Both projects' lint/typecheck targets
+passed all four tasks uncached. Native strict TypeScript, ShellCheck, formatting
+and normal hooks passed. Self-review restored legacy copy CLI JSON-line output;
+its focused follow-up passed **18 tests/41 assertions**. The wrapper/per-tier
+contract tests passed **2 tests/11 assertions**. No product build or full host
+gate was run. Historical output contains inherited color-setting and deprecated
+Docker stop-option warnings; future harness/environment cleanup is in the fix.
+
+All owned h4 fixture paths, loop devices, containers and the verified temporary
+Bun runtime were removed. The newly introduced pinned Dagger engine image was
+verified unused and removed without force. Final root available bytes were 123228643328. No production PVC or product registry reference changed.
+
+Independent review found one Important receiving-boundary defect: source
+manifest/error bodies and authority stdout/stderr could be buffered before bounds
+were enforced, while target verification checked its known size only at EOF.
+Fix `044baa74a` adds bounded reception before buffering/hashing, HTTP cancellation,
+and subprocess termination and reaping. The final covering run passed **25 tests,
+71 assertions** in 341 ms. Four deliberate removals made the covering tests fail:
+receiving byte limit, reader cancellation, child termination, and an oversized
+managed response with real journal ownership. The latter confirms failure retains
+its unfinished bundle and reservation. Production proof comments identify these
+observed failures.
+
+Actual HTTP producers stopped after 4325376, 73728 and 8192 bytes respectively;
+overflow chunks never reached buffering or hashing. Actual stdout/stderr emitters
+were killed with SIGKILL, their exited promises settled, and their PIDs were absent.
+Both affected projects passed all four lint/typecheck tasks uncached in 12.5 seconds;
+after the final ownership test, typecheck passed again. Native strict TypeScript,
+ESLint, Prettier, ShellCheck, diff checks and normal commit hooks passed.
+
+The real `copyImages` path passed a native proof: **1 test/13 assertions** in
+27.31 seconds, using pinned source and target Distribution instances, trusted
+enrollment/scratch checks and the real authority CLI as UID 59001. It copied the
+retained OCI root into a complete three-tier durable bundle and cleaned its scratch.
+Only the SSH transport was replaced by a fixture adapter; installed production SSH
+access remains unverified. The first fixture run exposed that adapter intercepting
+a legitimate stat command; it was corrected to pass non-SSH calls through.
+Both owned fixture directories, all four mounts/loops, source/target processes and
+the hash-verified temporary Bun runtime were removed. Final root available bytes
+were 123291512832. Production services and product references were unchanged.
+
+The scoped independent re-review approved both spec compliance and task quality:
+all original findings addressed, no new blocking findings. Saved receipts and the
+fix diff were checked without rerunning suites. Future commands clear conflicting
+color variables and the retained Dagger harness uses `docker stop --timeout`;
+historical warning-bearing output remains intact. Public implementation range is
+`9efd6665e..044baa74a`; private fleet remains `b7e234415`. Full product build,
+installed-authority SSH, full host gate and production activation are not claimed.
+
 ## Checks and unverified work
 
 For each completed slice and fix, the affected files passed ESLint, Prettier and
@@ -262,18 +371,18 @@ This is a requirement-level checkpoint, not a completion claim. Every row still
 needs final integrated and live evidence before the goal can be marked complete.
 The slice receipts above are narrower evidence and do not substitute for that audit.
 
-| Requirement                                     | Current evidence and remaining work                                                                    |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Enforced registry storage boundary              | Physical fixtures and scoped review passed; production provisioning/startup pending.                   |
-| Publication admission and pressure response     | Native authority/supervisor proofs and fix review passed; publication callers/live activation pending. |
-| Protect images before referring to them         | Journal primitives reviewed; publication/deploy/rollback callers pending.                              |
-| Complete trusted consumer inventory             | Registered adapter and complete census implementation pending.                                         |
-| Release-aware retirement eligibility            | Pure retention policy reviewed; exact manifest retirement integration pending.                         |
-| Complete image dependency closure               | Pure graph validation reviewed; native complete registry census pending.                               |
-| Serialized recoverable maintenance              | Durable authority reviewed; coordinated backup/delete/GC/recovery integration pending.                 |
-| Bounded backup lifecycle                        | Budget, retention and isolated post-prune restore pending.                                             |
-| Proven monitoring and adoption                  | Real alert destination/delivery, missed-check proof and staged adoption pending.                       |
-| Physical backup accounting                      | Provider version/multipart census and budget admission pending.                                        |
-| Early pressure response                         | Threshold policy reviewed; periodic service/retirement/notification integration pending.               |
-| Per-environment rollback coverage               | Pure minimum-retention policy reviewed; real environment history/protection integration pending.       |
-| Independent journal capacity and durable fences | Independent journal/HTTP fence proofs and parser review passed; live activation pending.               |
+| Requirement                                     | Current evidence and remaining work                                                              |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Enforced registry storage boundary              | Physical fixtures and scoped review passed; production provisioning/startup pending.             |
+| Publication admission and pressure response     | Authority/supervisor and publication/copy proofs reviewed; live activation pending.              |
+| Protect images before referring to them         | Publication roots and journal primitives reviewed; deploy/rollback callers pending.              |
+| Complete trusted consumer inventory             | Registered adapter and complete census implementation pending.                                   |
+| Release-aware retirement eligibility            | Pure retention policy reviewed; exact manifest retirement integration pending.                   |
+| Complete image dependency closure               | Pure graph validation reviewed; native complete registry census pending.                         |
+| Serialized recoverable maintenance              | Durable authority reviewed; coordinated backup/delete/GC/recovery integration pending.           |
+| Bounded backup lifecycle                        | Budget, retention and isolated post-prune restore pending.                                       |
+| Proven monitoring and adoption                  | Real alert destination/delivery, missed-check proof and staged adoption pending.                 |
+| Physical backup accounting                      | Provider version/multipart census and budget admission pending.                                  |
+| Early pressure response                         | Threshold policy reviewed; periodic service/retirement/notification integration pending.         |
+| Per-environment rollback coverage               | Pure minimum-retention policy reviewed; real environment history/protection integration pending. |
+| Independent journal capacity and durable fences | Independent journal/HTTP fence proofs and parser review passed; live activation pending.         |
