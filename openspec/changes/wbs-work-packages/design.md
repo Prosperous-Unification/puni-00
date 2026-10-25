@@ -199,8 +199,7 @@ INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER` for the 25 indexes and
   an organization row. Stored JSON is not rewritten: `command_journal` and `plan_event` keep
   their payloads (their `project_id` is a column), and the saved-plan input body stays
   at schema ≤ 9 bytes (`saved_plan_body.bytes`, kind `input`) read through a new 9 → 10 upgrade step in the saved-plan reader (the
-  established reader-side chain; a stored body is not rewritten here, and only slice 3b's
-  step-id rewrite (E33) ever touches one; corrected 2026-10-24,
+  established reader-side chain; a stored body is not rewritten here, and since E33 is superseded by `wbs-step-catalogue` SC13 no migration touches one either; corrected 2026-10-24,
   WP-5, to agree with E10). Task 1.3 proves by
   replaying every journal kind through a migrated fixture that no payload names `projectId`;
   if one does, the migration rewrites it with `json_set` and the test proves that instead.
@@ -407,8 +406,7 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   steps per work item type, configured at the organization and added at space and project,
   become a separate design (that OpenSpec change does not exist yet). Slice 3b is blocked on
   it; the text below stays as the input that design starts from, not as this change's
-  decision. E33's rule (stored JSON rewritten once, no alias table) stays for any step
-  re-key that design makes. _Revised 2026-10-24 after review (option a; was: a
+  decision. E33 is superseded by that design's SC11–SC13 (Dany, 2026-10-25): every step keeps its id and merged ids are translated on read, never rewritten. _Revised 2026-10-24 after review (option a; was: a
   project-wide code vocabulary over per-work-package step rows, refusing a fresh code with
   `code_not_in_project`)._ The step set (code, name, order) is defined once on the project;
   a work package holds one row per project step for what genuinely differs per package, its
@@ -436,8 +434,7 @@ allowance_revision, estimate_unit)` with PK `(work_package_id, step_id)`, one ro
   `step_node_attempt_issued`, `step_parallel`, `step_progress`, and `typed_dependency` on
   both `predecessor_step_id` and `successor_step_id`), plus `plan_event.step_id` (a column
   without a foreign key). The map is injective inside one work package (codes are unique per
-  package today, `step_project_code`), so no per-work-item unique key can collide. _Stored
-  JSON revised 2026-10-24 by E33 (was: a permanent `step_lift_alias` table read at replay):_
+  package today, `step_project_code`), so no per-work-item unique key can collide. _Superseded 2026-10-25 by `wbs-step-catalogue` SC13 with E33; kept as input text only (revised 2026-10-24 by E33; was: a permanent `step_lift_alias` table read at replay):_
   the same migration rewrites, once, every step id inside `command_journal.payload` and
   `command_journal.inverse` and inside saved-plan input bodies (`saved_plan_body.bytes`,
   kind `input`) with `json_set`, the device E13 already names, mapping each lifted id to the
@@ -1079,9 +1076,7 @@ day.
 - E21 changes authoring flows (adding, renaming or reordering a step is a project write
   that every work package of the project sees); E22 adds one refusal on type assignment
   when a project narrows its allow-list. Both revised after review; flagged for Dany.
-- E21's lift (slice 3b) re-keys twelve foreign-keyed tables and `plan_event` and rewrites
-  stored journal and saved-plan JSON once (E33); it gets its own window so a failure there
-  rolls back only the step lift, never the settings of slice 3a.
+- The step migration (`wbs-step-catalogue`, replacing slice 3b) re-points thirteen foreign-key columns for merged ids and rewrites no stored JSON (SC11–SC13; E33 superseded); it gets its own window so a failure there rolls back only the step migration, never the settings of slice 3a.
 - Whether prod records a release could not be read from this machine. The gate refuses
   when one is recorded or the state cannot be read: prod's window is out of scope until an
   activation change defines it (E36). _Revised 2026-10-25 after the Codex review (F1); was
