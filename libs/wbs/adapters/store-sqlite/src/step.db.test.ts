@@ -168,7 +168,24 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const ORGANIZATION_ROLE_COLUMNS = ['organization_invitation.role', 'organization_membership.role'];
+const ORGANIZATION_ROLE_COLUMNS = [
+  'organization_invitation.role',
+  'organization_membership.role',
+  'access_grant.role_id',
+  'access_role_permission.role_id',
+];
+
+/**
+ * The access role catalogue of `20261025100000_add_access_grants` (`wbs-permissions`
+ * E7): an access role is its own domain term, like an organization role, so its
+ * table and its triggers are exempt by exact name and nothing else is.
+ */
+const ACCESS_ROLE_OBJECTS = [
+  'access_role',
+  'access_role_permission',
+  'access_role_reserved_name_insert',
+  'access_role_reserved_name_update',
+];
 
 describe('the names the schema uses', () => {
   /**
@@ -229,7 +246,9 @@ describe('the names the schema uses', () => {
           "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'",
         )
         .all();
-      expect(named.filter((each) => /role/i.test(each.name))).toEqual([]);
+      expect(
+        named.filter((each) => /role/i.test(each.name) && !ACCESS_ROLE_OBJECTS.includes(each.name)),
+      ).toEqual([]);
       const roleColumns = named
         .filter((each) => each.type === 'table')
         .flatMap((each) =>
@@ -237,8 +256,8 @@ describe('the names the schema uses', () => {
             .filter((column) => /role/i.test(column))
             .map((column) => `${each.name}.${column}`),
         )
-        // An organization role is its own domain term, not a leftover step:
-        // named here so any other `role` column is still a red.
+        // An organization role and an access role are their own domain terms,
+        // not leftover steps: named here so any other `role` column is still a red.
         .filter((column) => !ORGANIZATION_ROLE_COLUMNS.includes(column));
       expect(roleColumns).toEqual([]);
     } finally {

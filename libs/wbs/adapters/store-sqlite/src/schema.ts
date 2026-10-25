@@ -1,4 +1,5 @@
 import {
+  ACCESS_OBJECT_KINDS,
   allowanceHundredthsOf,
   type AllowancePercent,
   ATTEMPT_OUTCOMES,
@@ -7,6 +8,8 @@ import {
   COMPUTE_PROVIDER_KINDS,
   DOMAIN_CLAIM_STATUSES,
   type EstimateUnit,
+  GRANT_ORIGINS,
+  GRANT_SUBJECT_KINDS,
   HOLDS,
   INVITABLE_ROLES,
   JOIN_REQUEST_STATUSES,
@@ -4171,3 +4174,151 @@ export const measure = sqliteTable(
     ),
   ],
 );
+
+/**
+ * The access role catalogue (`wbs-permissions` "Tables", `wbs-custom-permissions`
+ * CP7), created by `20261025100000_add_access_grants`. A built-in has no
+ * organization, `id` = `name` and a display `level` that no decision reads
+ * (CP1); a custom role has an organization and no level. The
+ * `access_role_reserved_name_*` triggers refuse a custom name equal to a
+ * built-in id.
+ */
+export const accessRole = sqliteTable(
+  'access_role',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    objectKind: text('object_kind', { enum: ACCESS_OBJECT_KINDS }).notNull(),
+    level: integer('level'),
+    organizationId: text('organization_id').references(() => organization.id),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    check(
+      'access_role_object_kind',
+      sql`${t.objectKind} IN ('organization', 'project', 'work_package')`,
+    ),
+    check('access_role_level', sql`${t.level} BETWEEN 1 AND 5`),
+    check(
+      'access_role_built_in_or_custom',
+      sql`(${t.organizationId} IS NULL) = (${t.level} IS NOT NULL)`,
+    ),
+    unique().on(t.organizationId, t.name),
+  ],
+);
+
+export type AccessRoleRow = typeof accessRole.$inferSelect;
+
+/**
+ * One permission of one role's set. `permission` has no CHECK list (CP9): the
+ * store refuses an id outside `PERMISSIONS` on write and the evaluator throws
+ * on reading one.
+ */
+export const accessRolePermission = sqliteTable(
+  'access_role_permission',
+  {
+    roleId: text('role_id')
+      .notNull()
+      .references(() => accessRole.id, { onDelete: 'cascade' }),
+    permission: text('permission').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.roleId, t.permission] })],
+);
+
+export type AccessRolePermissionRow = typeof accessRolePermission.$inferSelect;
+
+/** A named set of an organization's members, used only by grants (`wbs-permissions` E7). */
+export const accessGroup = sqliteTable(
+  'access_group',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [unique().on(t.organizationId, t.name), unique().on(t.organizationId, t.id)],
+);
+
+export type AccessGroupRow = typeof accessGroup.$inferSelect;
+
+/**
+ * One member of one access group. Both composite keys carry the organization,
+ * so a group's member is always a current member of the group's own
+ * organization; removing that membership needs this row gone first.
+ */
+export const accessGroupMember = sqliteTable(
+  'access_group_member',
+  {
+    organizationId: text('organization_id').notNull(),
+    groupId: text('group_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at').notNull(),
+    createdBy: text('created_by').references(() => users.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.groupId, t.userId] }),
+    foreignKey({
+      columns: [t.organizationId, t.groupId],
+      foreignColumns: [accessGroup.organizationId, accessGroup.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.organizationId, t.userId],
+      foreignColumns: [organizationMembership.organizationId, organizationMembership.userId],
+    }),
+    index('access_group_member_user').on(t.organizationId, t.userId),
+  ],
+);
+
+export type AccessGroupMemberRow = typeof accessGroupMember.$inferSelect;
+
+/**
+ * One grant: a subject holds a role at a scope (`wbs-permissions` E7, P8, P17).
+ * `scope_id` and `subject_id` are polymorphic and unreferenced; the grant
+ * store checks them in the writing transaction. The
+ * `access_grant_organization_members_*` triggers hold an organization-members
+ * subject's `subject_id` to the grant's organization.
+ */
+export const accessGrant = sqliteTable(
+  'access_grant',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    scopeKind: text('scope_kind', { enum: ACCESS_OBJECT_KINDS }).notNull(),
+    scopeId: text('scope_id').notNull(),
+    subjectKind: text('subject_kind', { enum: GRANT_SUBJECT_KINDS }).notNull(),
+    subjectId: text('subject_id').notNull(),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => accessRole.id),
+    origin: text('origin', { enum: GRANT_ORIGINS }).notNull(),
+    createdAt: integer('created_at').notNull(),
+    createdBy: text('created_by').references(() => users.id),
+  },
+  (t) => [
+    check(
+      'access_grant_scope_kind',
+      sql`${t.scopeKind} IN ('organization', 'project', 'work_package')`,
+    ),
+    check(
+      'access_grant_subject_kind',
+      sql`${t.subjectKind} IN ('user', 'group', 'organization_members', 'machine_credential')`,
+    ),
+    check(
+      'access_grant_origin',
+      sql`${t.origin} IN ('backfill', 'route', 'invitation', 'creation')`,
+    ),
+    unique().on(t.organizationId, t.scopeKind, t.scopeId, t.subjectKind, t.subjectId, t.roleId),
+    index('access_grant_subject').on(t.organizationId, t.subjectKind, t.subjectId),
+    index('access_grant_scope').on(t.organizationId, t.scopeKind, t.scopeId),
+  ],
+);
+
+export type AccessGrantRow = typeof accessGrant.$inferSelect;

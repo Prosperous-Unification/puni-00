@@ -12,6 +12,7 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261023170000_add_work_item_budget';
 const BASELINE = '20261023160000_add_measure_estimate';
+const ACCESS_GRANTS = '20261025100000_add_access_grants';
 
 let dir: string;
 let path: string;
@@ -72,7 +73,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-budget-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([ACCESS_GRANTS, MIGRATION]);
   db = openDatabase(path);
   seedBaseline();
   db.close();
@@ -185,7 +186,7 @@ describe(MIGRATION, () => {
         .all();
     const before = facts();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([ACCESS_GRANTS, MIGRATION]);
     db = openDatabase(path);
     expect(db.query("SELECT name FROM sqlite_master WHERE name LIKE '%budget%'").all()).toEqual([]);
     expect(facts()).toEqual(before);

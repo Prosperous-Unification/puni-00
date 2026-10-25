@@ -374,6 +374,19 @@ Deploy slices 2–4 of `wbs-measure-budgets` together, in one swap: the migratio
 trios in money measures without a rate card, which would read as a basis of their own beside
 every priced figure and split those sums (design D44).
 
+### Access grants rollback
+
+`20261025100000_add_access_grants` (`wbs-permissions` slice 1) adds `access_role`,
+`access_role_permission`, `access_group`, `access_group_member` and `access_grant`, seeds the
+nine built-in roles and backfills one grant per membership, one `package-manager` grant per
+organization-owned project whose owner is a current member, and capped copies for live
+credentials bound to a member. No release reads them yet; `organization_membership.role` stays
+the authority. `down.sql` refuses under the named guard for each of: a grant whose origin is not
+`backfill`, an access group, a custom role, and a permission row of any role but a built-in.
+Record and delete each, then run `migrate-down-cli.ts --to=20261023170000_add_work_item_budget`;
+backfilled grants and the built-ins are dropped without a refusal, because the migration
+recreates them.
+
 ### Plan documents and saved plans after measures
 
 Slice 7 adds no migration. A plan holding a fact in a defined measure, a three-point trio, a

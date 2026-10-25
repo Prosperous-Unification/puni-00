@@ -21,6 +21,7 @@ const MEASURE_FACTS = '20261023150000_key_step_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
 const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
+const ACCESS_GRANTS = '20261025100000_add_access_grants';
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 /** The newer compute-provider migrations, which reverse before the limits ones. */
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
@@ -122,6 +123,7 @@ describe(MIGRATION, () => {
             MEASURE_FACTS,
             MEASURE_ESTIMATES,
             WORK_ITEM_BUDGETS,
+            ACCESS_GRANTS,
           ].includes(name),
       ),
     );
@@ -129,6 +131,7 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      ACCESS_GRANTS,
       WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,

@@ -12,6 +12,7 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
+const ACCESS_GRANTS = '20261025100000_add_access_grants';
 const BASELINE = '20261023150000_key_step_measure';
 
 let dir: string;
@@ -93,7 +94,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-measure-estimate-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([WORK_ITEM_BUDGETS, MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([ACCESS_GRANTS, WORK_ITEM_BUDGETS, MIGRATION]);
   db = openDatabase(path);
   seedBaseline();
   db.close();
@@ -226,7 +227,11 @@ describe(MIGRATION, () => {
   it('rolls back over single-point trios alone, keeping every legacy row, and comes forward again', () => {
     const before = legacyRows();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([WORK_ITEM_BUDGETS, MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      ACCESS_GRANTS,
+      WORK_ITEM_BUDGETS,
+      MIGRATION,
+    ]);
     db = openDatabase(path);
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name LIKE '%measure_estimate%'").all(),

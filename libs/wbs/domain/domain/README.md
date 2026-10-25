@@ -6,28 +6,29 @@ with it, and the two cannot disagree about a date.
 
 ## The nouns, and where each one lives
 
-| Ask                                        | Module                   | Decided by                                        |
-| ------------------------------------------ | ------------------------ | ------------------------------------------------- |
-| When does the work happen                  | `schedule.ts`            | 2,200 lines: CPM, leveling, slices, priorities    |
-| What is a workday, and how many between    | `workday.ts`             | ADR 0011 — `snapWorkdays` stays here              |
-| What a step's three points are worth       | `estimate.ts`            | ADR 0011 — rounded per step, then summed          |
-| What number a row carries                  | `derive-numbers.ts`      | position, not identity; a freeze pins it          |
-| Where a new sibling goes                   | `place-sibling.ts`       | one gap arithmetic, shared with the drag          |
-| Which team the work belongs to             | `effective-team.ts`      | ADR 0008 — an ancestor's **overrides**            |
-| Which service it is part of                | `effective-service.ts`   | ADR 0008 — overrides, like the team               |
-| What kind of thing it is (tags)            | `effective-tag.ts`       | ADR 0008 — tags **accumulate** down the tree      |
-| Its work item type                         | — nowhere                | ADR 0009 — a type does not inherit at all         |
-| How far into a predecessor an edge reaches | `dependency-reach.ts`    | ADR 0010 — the project's choice                   |
-| What a typed dependency's endpoints are    | `typed-dependency.ts`    | whole, step node or one step under a parent       |
-| What a priority number is called           | `priority-band.ts`       | five rungs, always                                |
-| What a priority is worth to the solver     | `priority-weight.ts`     | dense rank, because an absolute is never a weight |
-| How far the work has got                   | `progress.ts`            | states fold with `agree`, which is commutative    |
-| Who may write a project                    | `project-ownership.ts`   | unrestricted, or the restricted project's owner   |
-| How many of a team work at once            | `capacity.ts`            | per project, never a property of the team         |
-| How much one organization may hold         | `organization-limits.ts` | three caps, one decision: `refuseLimit`           |
-| How long an agent's claim stays held       | `claim-lease.ts`         | `leaseOf`, `isLeaseInForce`, `renewalAt`          |
-| Whether a row sits under another           | `is-within.ts`           | one upward walk, four copies before 2026-09-02    |
-| How long a slice is on the solver's axis   | `solver-quantum.ts`      | quantises `durationOf`, never restates it         |
+| Ask                                        | Module                   | Decided by                                          |
+| ------------------------------------------ | ------------------------ | --------------------------------------------------- |
+| When does the work happen                  | `schedule.ts`            | 2,200 lines: CPM, leveling, slices, priorities      |
+| What is a workday, and how many between    | `workday.ts`             | ADR 0011 — `snapWorkdays` stays here                |
+| What a step's three points are worth       | `estimate.ts`            | ADR 0011 — rounded per step, then summed            |
+| What number a row carries                  | `derive-numbers.ts`      | position, not identity; a freeze pins it            |
+| Where a new sibling goes                   | `place-sibling.ts`       | one gap arithmetic, shared with the drag            |
+| Which team the work belongs to             | `effective-team.ts`      | ADR 0008 — an ancestor's **overrides**              |
+| Which service it is part of                | `effective-service.ts`   | ADR 0008 — overrides, like the team                 |
+| What kind of thing it is (tags)            | `effective-tag.ts`       | ADR 0008 — tags **accumulate** down the tree        |
+| Its work item type                         | — nowhere                | ADR 0009 — a type does not inherit at all           |
+| How far into a predecessor an edge reaches | `dependency-reach.ts`    | ADR 0010 — the project's choice                     |
+| What a typed dependency's endpoints are    | `typed-dependency.ts`    | whole, step node or one step under a parent         |
+| What a priority number is called           | `priority-band.ts`       | five rungs, always                                  |
+| What a priority is worth to the solver     | `priority-weight.ts`     | dense rank, because an absolute is never a weight   |
+| How far the work has got                   | `progress.ts`            | states fold with `agree`, which is commutative      |
+| Who may write a project                    | `project-ownership.ts`   | unrestricted, or the restricted project's owner     |
+| What a grant lets its holder do            | `access-role.ts`         | set membership over `PERMISSIONS`; the matrix seeds |
+| How many of a team work at once            | `capacity.ts`            | per project, never a property of the team           |
+| How much one organization may hold         | `organization-limits.ts` | three caps, one decision: `refuseLimit`             |
+| How long an agent's claim stays held       | `claim-lease.ts`         | `leaseOf`, `isLeaseInForce`, `renewalAt`            |
+| Whether a row sits under another           | `is-within.ts`           | one upward walk, four copies before 2026-09-02      |
+| How long a slice is on the solver's axis   | `solver-quantum.ts`      | quantises `durationOf`, never restates it           |
 
 `effective-label.ts` is the walk those three `effective-*` modules share and is
 **not** exported from the barrel: it is the mechanism, not a fourth way to read a
