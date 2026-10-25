@@ -17,7 +17,7 @@ Application building, automatic reference browsing, uploads, generated previews,
 
 ## Constraints
 
-Use existing Bun/Nx, React, API, SQLite and OpenRouter boundaries. Keep anonymous claims, origin/CSRF checks, durable replay, retention and explicit proposal submission. Use additive reversible migrations. Preserve the 8-turn, $0.15 conversation, $0.30/source/day, three conversations/source/day and $10/site/day allowances. Treat $0.01/session as an estimate and $100/month as a provider-key launch setting to verify. Private landing source and human-review coverage are release dependencies, not assumed complete.
+Use existing Bun/Nx, React, API, SQLite and OpenRouter boundaries. Keep anonymous claims, origin/CSRF checks, durable replay, retention and explicit proposal submission. Use additive reversible migrations. Preserve the 8-turn, $0.15 conversation, $0.30/source/day, three conversations/source/day and $10/site/day allowances. Treat $0.01/session as an estimate and at most $100/month as the provider-key ceiling; preserve the verified $50/month key cap and confirm the deployment uses it. Private landing source and human-review coverage are release dependencies, not assumed complete.
 
 ## Capabilities
 

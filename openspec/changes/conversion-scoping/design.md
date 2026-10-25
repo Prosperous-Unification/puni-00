@@ -93,7 +93,7 @@ Retain eight visitor turns, $0.15/conversation, $0.30 and three conversations/so
 
 The accepted pilot uses Luna on the documented Azure EU route, low reasoning and a 700-token completion ceiling, subject to current endpoint/account verification. The new structured response must pass evaluation under that ceiling; if it truncates, revise the bounded configuration and recompute reservations together before activation. Never silently truncate the brief or increase the cap only at the provider.
 
-Planning allowance is $0.01/session; the illustrative five-call 15,000-input/2,500-output scenario costs $0.003025 at the 2026-10-25 endpoint rates of $0.11/$0.55 per million tokens. These are not measured averages; exclude hosting, fees, taxes, advertising and follow-up. Verify the dedicated $100/month provider-key limit. Review actual usage after 100–200 conversations, including aborted attempts and overhead. No live call is needed to implement deterministic tests.
+Planning allowance is $0.01/session; the illustrative five-call 15,000-input/2,500-output scenario costs $0.003025 at the 2026-10-25 endpoint rates of $0.11/$0.55 per million tokens. These are not measured averages; exclude hosting, fees, taxes, advertising and follow-up. Verify the dedicated provider key has a monthly limit at or below $100. The existing website key was checked at $50/month; preserve that stricter cap and confirm the deployment uses it. Review actual usage after 100–200 conversations, including aborted attempts and overhead. No live call is needed to implement deterministic tests.
 
 ## Risks / Trade-offs
 

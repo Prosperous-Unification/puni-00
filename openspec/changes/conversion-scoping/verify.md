@@ -23,6 +23,19 @@ Commit `112f6b3ed8a67c7a29e082299c38ffa9c6e4132f` adds additive migration 011 wi
 - A pre-erasure snapshot exposed unsettled inflight accounting during journal replay; replay now applies the existing conservative settlement helper, retaining the full reservation and erasing text. Repeated replay is idempotent.
 - Actual structured operation settlement/replay and HTTP/UI integration remain later work.
 
+## Versioned intake and admission — 2026-10-25
+
+Commits `7ddff6e3b`, `586eb25e6` and reviewed fix `10a818d81` implement versioned native/JSON intake, authorized automatic initial admission, revision-bound selections and durable raw Retry payloads in additive migration 012. Legacy behavior remains explicit.
+
+- All 16 scoped test/lint/typecheck/build targets passed across contracts, store, API and frontend: 594 tests in the main implementation receipt. Migration lint and OpenSpec validation passed. The report identifies cached outputs; current production API tests also ran uncached.
+- The full-answer pricing fault failed with expected 4,222 micro-USD versus truncated-price 3,996; restoring production passed all 71 conversation tests and API lint/typecheck. These are fixture rates, not observed live costs.
+- Review found two Important defects: native choice-only forms rejected an empty textarea, and exhaustion blocked completed version-1 replay. Both were reproduced before fixing. Forms now normalize only bounded blank text for a valid starter, preserving strict JSON, exact nonblank content and the original length bound. Completed version-1 replies and body conflicts resolve before exhaustion; fresh calls remain refused and legacy behavior remains unchanged.
+- Fix verification: 153 covering tests passed, then nine focused regressions passed after a test-only type annotation. API/store lint and typecheck passed all four targets uncached. Exact formatting, whitespace and commit hooks passed. Scoped re-review verified both findings addressed, with no new breakage or out-of-scope observations.
+- Observed production faults cover initial identity/authorization, unknown automatic retry, stale selection/race, raw answer hash identity and persistence, full-text pricing, blank form length, replay/exhaustion ordering, trusted DTO validation, every new raw payload retention/erasure/fence/restore path and frontend Retry forwarding. Restored guards carry adjacent Proof comments.
+- Live claims remain required for replay: expiry, consumption and actual erasure cannot reopen a completed operation. No replay adds provider work, reservations, turns or scoping revisions.
+- Required release constraint: a pre-scoping backend cannot maintain version-1 raw Retry payloads. Release preparation must guard the minimum backend protocol and rehearse a compatible rollback; additive SQL alone is insufficient.
+- No live provider call, browser journey, deployment or full host gate was part of this slice. Tool-wiki hooks explicitly reported inactive because the external activation root is absent; applicable secrets, format, lint, nesting, migration and message hooks passed without bypass.
+
 ## Private source map and baseline
 
 The licensed site is in the independently cloned private companion; its source is never copied into the public repository. Canonical public app/API/contracts/store snapshots will be refreshed only from a committed public revision.
@@ -50,4 +63,4 @@ The retained website provider key was checked on h2 through [OpenRouter’s curr
 
 ## Outstanding validation
 
-API, frontend, private integration, browser journeys, actual provider quality/cost evaluation, operator receipt, release rollback and exact-SHA host gate remain outstanding. No new flow is deployed. No real request has been submitted and no outbound email sent by this work.
+Structured AI replies, selectable UI, human-review integration, private integration, browser journeys, actual provider quality/cost evaluation, operator receipt, release rollback and exact-SHA host gate remain outstanding. No new flow is deployed. No real request has been submitted and no outbound email sent by this work.
