@@ -953,6 +953,13 @@ The complete fixed builder, journal integration, capture, genuine preparation/me
 
 This source component does not complete the provider. Input authority, builder/capture, journal integration, genuine preparation/measurement, outer cleanup and authenticated archive remain required. Noncancellable IO may keep failure/close settlement pending after the original admission deadline. Exact accounting and reduced-threshold filesystem proofs do not establish full-capacity stress, physical ownership, native cleanup or application readiness. Parent 10.2 and architectural main merge stay open.
 
+### Stage B private archive container source checkpoint
+
+- [x] Implement the five closed private collector/index/serializer APIs, fixed fifteen-slot membership, detached byte ownership, original deadline and complete encoded-byte accounting. [A1 source evidence](verify-source-stageb-archive.md).
+- [x] Correct three fault-selector setup failures found by independent review; retain their original failed attempts, twenty-six valid earlier faults and three fresh consumer failures with restored controls. Obtain scoped source/proof approval.
+
+A1 emits private serialized bytes only. Actual producer joins, shared capture accounting, input authority, standard-age preflight/encryption, durable ciphertext readback and trusted seal custody remain required. Base64 overhead is charged; the separate 96 MiB reply ceiling does not guarantee a complete maximum-size capture fits the 128 MiB container. Full-capacity stress/performance and physical acceptance remain unexecuted; parent 10.2 and architectural main merge stay open.
+
 ### Published measures reconciliation
 
 - [x] Preserve ordinary document11/input9 and normalize historical bodies without rewriting bytes; move unpublished connected contracts to document12/input10.
