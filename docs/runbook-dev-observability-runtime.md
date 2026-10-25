@@ -188,26 +188,44 @@ or failed preservation proof stops the sequence and is reported; do not continue
 To restore retained stores, start Elasticsearch from the original base first, prove readiness,
 verify existing retention/templates with its retained `health.mjs`/retention evidence, then start
 the other original services. Do not initialize/chown existing queue volumes again. Restore
-only Prometheus to candidate base plus its named overlay:
+only Prometheus to candidate base plus its named overlay. The readiness read has a 60-second
+budget and records attempt count and expected startup failures in its JSON output. Only HTTP
+408/503 and connection refusal/reset/timeout are retried; unexpected errors raise immediately,
+and exhaustion raises instead of advancing to the other services:
 
 ```sh
 ssh h3mon 'sudo -n docker compose --project-name puni-dev-observability --profile dev --file /home/monitor/puni-dev-observability/releases/a1ffe27e7/compose.json start elasticsearch'
 ssh h3mon python3 - <<'PYES'
-import json,time,urllib.request
-def get(route):
- with urllib.request.urlopen('http://127.0.0.1:19200/'+route,timeout=20) as response: return json.load(response)
-for attempt in range(12):
- health=get('_cluster/health?wait_for_status=yellow&timeout=10s')
- if health['cluster_name']=='puni-dev-observability' and health['status'] in ['yellow','green'] and health['timed_out'] is False: break
- if attempt==11: raise RuntimeError('Elasticsearch readiness did not converge')
- time.sleep(5)
+import json,time,urllib.request,urllib.error
+started=time.monotonic();deadline=started+60;attempts=0;startup=[]
+while True:
+ attempts+=1
+ remaining=deadline-time.monotonic()
+ if remaining<=0: raise RuntimeError('Retained Elasticsearch did not become ready within 60s')
+ try:
+  with urllib.request.urlopen('http://127.0.0.1:19200/_cluster/health?wait_for_status=yellow&timeout=5s',timeout=min(remaining,7)) as response: health=json.load(response)
+ except urllib.error.HTTPError as failure:
+  if failure.code not in [408,503]: raise
+  startup.append({"attempt":attempts,"httpStatus":failure.code})
+ except urllib.error.URLError as failure:
+  if not isinstance(failure.reason,(ConnectionRefusedError,ConnectionResetError,TimeoutError)): raise
+  startup.append({"attempt":attempts,"transport":type(failure.reason).__name__})
+ except (ConnectionResetError,TimeoutError) as failure:
+  startup.append({"attempt":attempts,"transport":type(failure).__name__})
+ else:
+  assert health['cluster_name']=='puni-dev-observability'
+  if health['status'] in ['green','yellow'] and health['timed_out'] is False: break
+ time.sleep(min(2,max(0,deadline-time.monotonic())))
+policies=[]
 for signal,age in [('logs','7d'),('traces','7d'),('metrics','1d')]:
- policy='puni-dev-'+signal
- assert get('_ilm/policy/'+policy)[policy]['policy']['phases']['delete']['min_age']==age
- templates=get('_component_template/'+signal+'-otel@custom')['component_templates']
- assert len(templates)==1
- assert templates[0]['component_template']['template']['settings']['index']['lifecycle']['name']==policy
-print('retained dev Elasticsearch readiness/retention verified')
+ name='puni-dev-'+signal
+ with urllib.request.urlopen('http://127.0.0.1:19200/_ilm/policy/'+name,timeout=5) as response: policy=json.load(response)
+ assert policy[name]['policy']['phases']['delete']['min_age']==age
+ with urllib.request.urlopen('http://127.0.0.1:19200/_component_template/'+signal+'-otel@custom',timeout=5) as response: templates=json.load(response)['component_templates']
+ assert len(templates)==1 and templates[0]['component_template']['template']['settings']['index']['lifecycle']['name']==name
+ policies.append({'name':name,'deleteAge':age})
+proof={'verifiedAt':int(time.time()*1000),'readinessSeconds':round(time.monotonic()-started,3),'attempts':attempts,'startup':startup,'health':health,'retainedPolicies':policies}
+print(json.dumps(proof))
 PYES
 ssh h3mon 'sudo -n docker compose --project-name puni-dev-observability --profile dev --file /home/monitor/puni-dev-observability/releases/a1ffe27e7/compose.json start kibana collector gateway alertmanager prometheus'
 ssh h3mon 'sudo -n docker compose --project-name puni-dev-observability --profile dev --file /home/monitor/puni-dev-observability/releases/c811f34bf/compose.json --file /home/monitor/puni-dev-observability/releases/c811f34bf/compose.grafana-query.json up --detach --no-deps prometheus'
@@ -222,6 +240,16 @@ proved their absence and the retained original receipt reads `removed`:
 operate_grafana capture grafana-integration-restored.json
 operate_grafana apply grafana-integration-restored.json
 ```
+
+For every subsequent rollback, use the currently applied restoration receipt in the rollback
+sequence above:
+
+```sh
+operate_grafana rollback grafana-integration-restored.json
+```
+
+The original `grafana-integration.json` at phase `removed` is immutable historical evidence;
+never replay or reset it to roll back the restored objects.
 
 Re-run fresh runtime preflight, then enable/start the new h1 pair as above, and prove advancing
 stored observations and UI queries again. No checkpoint initialization on restore.
