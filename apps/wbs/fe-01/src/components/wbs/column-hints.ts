@@ -188,6 +188,12 @@ const COLUMN_HINTS = new Map<string, string>([
       'inherits nothing: a row carries only the types somebody put on it. Types move no dates.',
   ],
   [
+    'resources',
+    'What this work holds while any of its steps runs — RAM, a staging environment, agent slots. ' +
+      'Rows that need more than the project states wait for each other, and a claim holds ' +
+      'these units until it is released. Never inherited.',
+  ],
+  [
     'in-parallel',
     'How many people may work on this item at once. Blank means one at a time. It compresses ' +
       'the item’s own effort across that many of its team’s people — never past the team’s size, ' +

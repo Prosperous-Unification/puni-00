@@ -117,6 +117,9 @@ yet`, measured, unreachable, stale at 3 × cadence), the adopt action writing
       is admin-only and the resources read carries the id alone. Undo is a second
       `setResourceCapacity` with the previous units or `null`, because the command is not
       journalled. The directory row chip moved to 5.3.
-- [ ] 5.3 Directory row chip (kind and instance name). Not done in slice 5: the directory page
+- [x] 5.3 Directory row chip (kind and instance name). Not done in slice 5: the directory page
       has no resource row and no directory-scoped resources read exists; both are
-      `wbs-resources` task 1.5.
+      `wbs-resources` task 1.5. Done on `feat/wbs-resource-facet`: the directory resource rows
+      are the project settings Resources section's (1.5); the project resources read carries
+      `provider { kind, name }` (additive, no migration, never the locator), so every reader's
+      row shows `SSH host · h4claw`; `verify.md` "Task 5.3".

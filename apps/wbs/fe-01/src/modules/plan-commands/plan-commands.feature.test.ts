@@ -32,6 +32,7 @@ function recordingRoutes(): {
       undo: (...args) => answer('undo', args),
       redo: (...args) => answer('redo', args),
       exportPlan: (...args) => answer('exportPlan', args),
+      readClaimHistory: (...args) => answer('readClaimHistory', args),
       setEstimateMethod: (...args) => answer('setEstimateMethod', args),
       setEstimateArithmetic: (...args) => answer('setEstimateArithmetic', args),
       setDepReach: (...args) => answer('setDepReach', args),
@@ -53,6 +54,8 @@ function recordingRoutes(): {
       addTypedDependency: (...args) => answer('addTypedDependency', args),
       updateTypedDependency: (...args) => answer('updateTypedDependency', args),
       removeTypedDependency: (...args) => answer('removeTypedDependency', args),
+      readResources: (...args) => answer('readResources', args),
+      setDemands: (...args) => answer('setDemands', args),
       patchWorkItem: (...args) => answer('patchWorkItem', args),
       setStatus: (...args) => answer('setStatus', args),
       setStepBlocked: (...args) => answer('setStepBlocked', args),
@@ -93,6 +96,7 @@ describe('the plan commands of one project', () => {
       commands.undo(),
       commands.redo(),
       commands.exportPlan(),
+      commands.readClaimHistory(),
       commands.setEstimateMethod('realistic'),
       commands.setEstimateArithmetic({ estimateRounding: 'ceil' }),
       commands.setDepReach('anchor-slice'),
@@ -123,12 +127,15 @@ describe('the plan commands of one project', () => {
         'FS',
       ),
       commands.removeTypedDependency('d1'),
+      commands.readResources(),
+      commands.setDemands([{ workItemId: 'w1', resourceId: 'r1', units: 4 }]),
     ];
 
     expect(calls).toStrictEqual([
       ['undo', 'p1'],
       ['redo', 'p1'],
       ['exportPlan', 'p1'],
+      ['readClaimHistory', 'p1'],
       ['setEstimateMethod', 'p1', 'realistic'],
       ['setEstimateArithmetic', 'p1', { estimateRounding: 'ceil' }],
       ['setDepReach', 'p1', 'anchor-slice'],
@@ -163,6 +170,8 @@ describe('the plan commands of one project', () => {
         'FS',
       ],
       ['removeTypedDependency', 'p1', 'd1'],
+      ['readResources', 'p1'],
+      ['setDemands', 'p1', [{ workItemId: 'w1', resourceId: 'r1', units: 4 }]],
     ]);
     // The route's own promise, not a wrapper: a refusal reaches the gesture as
     // the object be-01's client threw.

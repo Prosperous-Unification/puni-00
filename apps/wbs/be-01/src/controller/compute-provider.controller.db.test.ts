@@ -1,7 +1,10 @@
 import { readProjectResources, validateSchema } from '@wbs/contracts';
+import { computeProvidersOver } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { generateKeyPair } from 'jose';
 
+import { openDrizzle } from '../repository/db';
+import { WriteCoordinator } from '../repository/gate';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 import { delegationFor, mapUpstream } from '../testing/scim-fixture';
@@ -131,6 +134,18 @@ function providerOf(resourceId: string): string | null {
   return row.provider_id;
 }
 
+/** What the SQLite capacity reports store, read directly over the harness's file, threw. */
+async function storeRefusal(resourceIds: string[]): Promise<string> {
+  // A second connection to the harness's file, as the composed app's own is not exposed.
+  const db = openDrizzle(h.sqlite.filename);
+  try {
+    await computeProvidersOver(db, new WriteCoordinator()).reports.readingsOf(resourceIds);
+    return 'resolved';
+  } catch (error) {
+    return String(error);
+  }
+}
+
 /** The project resources read, through its own contract. */
 async function readResources(username: string) {
   const answer = await h.call(username, 'GET', `/api/projects/${projectA}/resources`);
@@ -146,6 +161,7 @@ async function readResources(username: string) {
       kind: string;
       unitLabel: string;
       providerId: string | null;
+      provider?: { kind: string; name: string };
       report?: Record<string, unknown>;
       measurement?: { state: string } & Record<string, unknown>;
     }[];
@@ -423,6 +439,15 @@ describe("a resource's provider reference", () => {
       providerId: h4claw,
       measurement: { declared: null, measured: null, measuredAt: null, state: 'no_report' },
     });
+    expect(read.resources.find((each) => each.id === ram)?.provider).toEqual({
+      kind: 'ssh_host',
+      name: 'h4claw',
+    });
+    // A member reads the instance's kind and name (task 5.3), never its locator.
+    // Proof: `withProviderReadings` answering `{ kind, name, locator: id }`
+    // failed this `toEqual`; watched 2026-10-25.
+    const member = (await readResources('mem')).resources.find((each) => each.id === ram);
+    expect(member?.provider).toEqual({ kind: 'ssh_host', name: 'h4claw' });
     expect(read.resources.find((each) => each.id === staging)).toEqual({
       id: staging,
       name: 'staging',
@@ -437,6 +462,40 @@ describe("a resource's provider reference", () => {
     expect(await h.optimizationHash(projectA)).toBe(before);
     expect((await reference('dany', ram, { providerId: null })).status).toBe(200);
     expect(providerOf(ram)).toBeNull();
+  });
+
+  it('names the instance to a viewer too, never its locator', async () => {
+    await h.register('vic');
+    h.member('org-a', 'vic', 'viewer');
+    h.bind('vic', 'org-a');
+    const h4claw = await registered('dany', 'h4claw');
+    expect((await reference('dany', ram, { providerId: h4claw })).status).toBe(200);
+    const viewer = (await readResources('vic')).resources.find((each) => each.id === ram);
+    expect(viewer?.provider).toEqual({ kind: 'ssh_host', name: 'h4claw' });
+  });
+
+  it('answers 500 on a reference naming no instance', async () => {
+    const h4claw = await registered('dany', 'h4claw');
+    expect((await reference('dany', ram, { providerId: h4claw })).status).toBe(200);
+    // Reachable: migrations rebuild tables with foreign keys off.
+    h.sqlite.run('PRAGMA foreign_keys = OFF');
+    h.sqlite.run('DELETE FROM compute_provider');
+    h.sqlite.run('PRAGMA foreign_keys = ON');
+    expect(await storeRefusal([ram])).toMatch(/is not registered/);
+    const answer = await h.call('mem', 'GET', `/api/projects/${projectA}/resources`);
+    expect(answer.status).toBe(500);
+  });
+
+  it('answers 500 on an instance of a malformed kind', async () => {
+    const h4claw = await registered('dany', 'h4claw');
+    expect((await reference('dany', ram, { providerId: h4claw })).status).toBe(200);
+    h.sqlite.run('PRAGMA ignore_check_constraints = ON');
+    h.sqlite.run("UPDATE compute_provider SET kind = 'vm'");
+    h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    // The store itself, since the route's response contract would also refuse `vm`.
+    expect(await storeRefusal([ram])).toMatch(/malformed kind/);
+    const answer = await h.call('mem', 'GET', `/api/projects/${projectA}/resources`);
+    expect(answer.status).toBe(500);
   });
 
   // Proof: with the instance check removed from `setResourceProvider`, this

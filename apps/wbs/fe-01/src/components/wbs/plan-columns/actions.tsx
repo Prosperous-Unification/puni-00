@@ -75,6 +75,20 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
               live.current.openMeasures(row.original.id);
             },
           },
+          // What the leaf holds while it runs (`wbs-resources` 1.5): the
+          // Resources cell's panel, here too because the column starts hidden
+          // and a phone has no table. A parent's demand charges nothing.
+          ...(row.subRows.length > 0
+            ? []
+            : [
+                {
+                  id: 'resources',
+                  label: 'Resources…',
+                  run: () => {
+                    live.current.openDemands(row.original.id);
+                  },
+                },
+              ]),
           ...(row.original.frozenNumber === null
             ? []
             : [

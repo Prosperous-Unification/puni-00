@@ -655,7 +655,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       return { ...context.plain(), kind: command.kind };
     },
     assignSubtree: async (command, context) => {
-      context.value(
+      const assigned = context.value(
         await workItems.assignSubtree(
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
@@ -663,7 +663,11 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.id(command.personId, command.personRef),
         ),
       );
-      return { ...context.plain(), kind: command.kind };
+      return {
+        ...context.plain(),
+        kind: command.kind,
+        reassignedClaimedSteps: assigned.reassignedClaimedSteps,
+      };
     },
     claimWorkItem: async (command, context) => {
       const claimed = context.claimValue(

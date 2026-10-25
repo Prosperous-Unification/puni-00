@@ -4,6 +4,9 @@
 
 **Status:** Implementation in progress; only recorded completed slices are verified.
 
+Latest isolated source reconciliation: [main reconciliation, 2026-10-25](verify-main-20261025.md).
+Its local checkpoint does not establish feature release or architectural adoption.
+
 **Prepared:** 2026-10-22. This is not a completed `openspec-verify-change` report.
 The schema normally produces final verify after apply; this initial record
 preserves reported design evidence and clearly separates all unrun obligations.

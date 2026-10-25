@@ -532,6 +532,15 @@
         }
       },
       {
+        "path": "openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/burokrat-workflow-binding-validation/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/burokrat-workflow-binding-validation/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
         "path": "apps/twilight-structure/twilight-dash/cli/fixtures/activation/pre-relocation-activation.tar",
         "format": "application/x-tar",
         "consumer": "apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts",

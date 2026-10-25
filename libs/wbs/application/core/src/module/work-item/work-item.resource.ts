@@ -263,9 +263,11 @@ import {
   type ClaimInput,
   type ClaimRefusalOutcome,
   claimsAround,
+  findReassignedClaimedSteps,
   isClaimAdmin,
   lineageOf,
   type NamedClaimHolder,
+  type ReassignedClaimedStep,
   refusalOf,
   type ReleaseInput,
 } from './claims';
@@ -274,6 +276,7 @@ import { withMeasureEstimates } from './measure-estimate-read';
 import { findPersonWork, type PersonWork } from './person-work';
 import { findProjectClaims, type ProjectClaims } from './project-claims';
 import { findStartableWork, type StartableWork } from './startable';
+import { namedDemandFields, readUntilNamed, withDemands } from './tree-demands';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -2210,7 +2213,19 @@ export class WorkItemService {
         return tree;
       }
       if (captured.kind !== 'isolated') {
-        const tree = await this.withMeasureEstimates(projectId, projectSharedTree(captured));
+        const projected = await this.withMeasureEstimates(projectId, projectSharedTree(captured));
+        // The snapshot's own demands and catalog, already under the
+        // organization's names, so a row's demand and its bar are one observation.
+        const tree =
+          captured.kind === 'shared' &&
+          captured.chain.kind !== 'engine_unavailable' &&
+          projected !== null &&
+          !('kind' in projected)
+            ? {
+                ...projected,
+                ...withDemands(captured.chain.reads.demands, captured.chain.reads.resources),
+              }
+            : projected;
         if (
           captured.kind === 'shared' &&
           captured.chain.kind === 'scheduled' &&
@@ -2235,10 +2250,34 @@ export class WorkItemService {
     }
     if (!(await this.admits(projectId, access))) return null;
     // Proof: bypassing the public isolated fixture read failed mounted disappearance (200 vs 404) and malformed-core export (200 vs 500).
-    const tree = await (this.opts.livePlans === undefined
-      ? this.tree(projectId)
-      : this.treeIsolated(projectId));
-    if (access.kind === 'legacy' || tree === null || 'kind' in tree) return tree;
+    const readTree = () =>
+      this.opts.livePlans === undefined ? this.tree(projectId) : this.treeIsolated(projectId);
+    if (access.kind === 'legacy') {
+      const tree = await readTree();
+      if (tree === null || 'kind' in tree) return tree;
+      return {
+        ...tree,
+        ...(await namedDemandFields(
+          () => this.opts.demands.listByProject(projectId),
+          () => this.opts.directory.listResources(),
+        )),
+      };
+    }
+    const organizationId = access.scope.organizationId;
+    const readCatalog = () => this.opts.directory.listInOrganization('resources', organizationId);
+    // The labels' catalog is read after the tree, so a removal between them is
+    // read again once (`readUntilNamed`, its proof in tree-demands.test.ts)
+    // before `withResourceLabels` may throw.
+    const { answer: tree, catalog: labelCatalog } = await readUntilNamed(
+      readTree,
+      readCatalog,
+      (answer) =>
+        answer === null || 'kind' in answer || answer.resourceLabels === undefined
+          ? []
+          : answer.resourceLabels.map(({ id }) => id),
+    );
+    if (tree === null || 'kind' in tree) return tree;
+    const readDemands = () => this.opts.demands.listByProject(projectId);
     // Assignees under their organization-local names, as the scoped people
     // list shows them; the tree read itself knows only the legacy name.
     // Proof: returning the tree's legacy names made `shows assignees under the
@@ -2265,14 +2304,12 @@ export class WorkItemService {
       ...(tree.resourceLabels === undefined
         ? {}
         : {
-            resourceLabels: withResourceLabels(
-              tree,
-              await this.opts.directory.listInOrganization(
-                'resources',
-                access.scope.organizationId,
-              ),
-            ).resourceLabels,
+            resourceLabels: withResourceLabels(tree, labelCatalog).resourceLabels,
           }),
+      // Proof: answering `tree` here unchanged failed `levels a demanded
+      // resource (isolated)` (resource-schedule.controller.db.test.ts) on
+      // `expected undefined to deeply equal [ … ]`; watched 2026-10-25.
+      ...(await namedDemandFields(readDemands, readCatalog)),
     };
   }
 
@@ -2670,7 +2707,10 @@ export class WorkItemService {
     );
   }
 
-  private async treeIsolated(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
+  private async treeIsolated(
+    projectId: string,
+    isRetry = false,
+  ): Promise<PlanTree | EngineUnavailable | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
     const seq = await this.opts.broadcast.latestSeq(projectId);
@@ -2770,7 +2810,14 @@ export class WorkItemService {
     // The resource labels are read only for a schedule that names a resource,
     // so a plan stating none reads no catalog and keeps its payload shape.
     if ('kind' in estimated || !namesAResource(estimated)) return estimated;
-    return withResourceLabels(estimated, await this.opts.directory.listResources());
+    const catalog = await this.opts.directory.listResources();
+    // A resource removed between the schedule's read and this one: the whole
+    // read is taken again once, then `withResourceLabels` throws (bounded).
+    // Proof: with the re-read skipped, `labels a bar of a resource removed
+    // between the two reads` (legacy-demands-read.test.ts) threw `a bar waited
+    // for resource …`; watched 2026-10-25.
+    if (!isRetry && !slicesNamedIn(estimated, catalog)) return this.treeIsolated(projectId, true);
+    return withResourceLabels(estimated, catalog);
   }
 
   /**
@@ -3630,8 +3677,13 @@ export class WorkItemService {
    * is a leaf — journalled as one entry whose undo puts back exactly the
    * assignee each leaf had, `null` where it had none (`wbs-resources` R7).
    *
-   * Like {@link assign} it reads neither team labels nor claims: labelling is
-   * not assigning (Dany, 2026-08-06), and a claim is beside an assignment (D1).
+   * Like {@link assign} it never reads team labels (labelling is not
+   * assigning, Dany, 2026-08-06) and no claim refuses it, because a claim is
+   * beside an assignment (D1). It does report the step claims it reassigns
+   * away from their holders, {@link findReassignedClaimedSteps}, so a swarm
+   * coordinator can tell (issue #669 F6), as of this command inside its
+   * batch. A redo reassigns again without listing. Throws when the service was
+   * built without a claim store.
    * `unknown_step` answers before any write; `unknown_person` comes from the
    * first write, inside its transaction, so nothing is written when it fires.
    */
@@ -3640,7 +3692,7 @@ export class WorkItemService {
     actorId: string,
     stepId: string,
     personId: string | null,
-  ): Promise<WorkItemOutcome<null>> {
+  ): Promise<WorkItemOutcome<{ reassignedClaimedSteps: ReassignedClaimedStep[] }>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3699,7 +3751,20 @@ export class WorkItemService {
         before: rows,
       },
     );
-    return { ok: true, value: null };
+    const claims = await this.claiming().claims.listByProject(workItem.projectId);
+    return {
+      ok: true,
+      value: {
+        reassignedClaimedSteps: findReassignedClaimedSteps({
+          rows,
+          leafIds,
+          stepId,
+          personId,
+          previous,
+          claims,
+        }),
+      },
+    };
   }
 
   /**
@@ -10670,7 +10735,7 @@ export function presentConnectedTree(projection: ConnectedTreeProjection): PlanT
   // optimized-refusal and postcommit edit/claim cases return 500 (2026-10-22).
   const { reads, metadata } = projection;
   const people = new Set(reads.assignments.map((assignment) => assignment.personId));
-  const tree = withCapturedMeasures(
+  const measured = withCapturedMeasures(
     projectTree(
       {
         project: metadata.project,
@@ -10699,6 +10764,11 @@ export function presentConnectedTree(projection: ConnectedTreeProjection): PlanT
     ),
     projection,
   );
+  // The target member owns both demand facts and this captured catalog; no live read
+  // or component-wide concatenation may replace that observation.
+  // Proof: omitting this attachment made all four scheduled/unavailable tree/treeWithin
+  // regressions return undefined demands; live demand and directory reads are poisoned.
+  const tree = { ...measured, ...withDemands(reads.demands, reads.resources) };
   // Proof: removing this final-availability guard made the mounted shared
   // calendar-range case retain abandoned foreign holder labels (2026-10-22).
   // Proof: omitting the remote root catalog from both return arms failed the unavailable
@@ -10879,6 +10949,14 @@ function measureEstimateReplay(
       key,
     })),
   };
+}
+
+/** Whether every resource a bar waited for is in `catalog`. */
+function slicesNamedIn(tree: PlanTree, catalog: readonly Resource[]): boolean {
+  const held = new Set(catalog.map(({ id }) => id));
+  return tree.slices.every(
+    (slice) => slice.capacityResource === undefined || held.has(slice.capacityResource.resourceId),
+  );
 }
 
 /** Whether any bar of the displayed schedule waited for a resource's pool. */

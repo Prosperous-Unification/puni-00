@@ -205,6 +205,7 @@ interface Startable {
   claimed: {
     workItemId: string;
     stepId: string;
+    claimId: string;
     holder: { personId: string };
     assignee: { personId: string } | null;
     runId: string | null;
@@ -860,7 +861,31 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     const batch = LEAVES.find((leaf) => leaf.key === heldKey)?.batch ?? 'A';
     const reviewer = outcome.released;
     if (reviewer === undefined || reviewer === holder) throw new Error('no free reviewer');
-    // `assignee-management`: assignSubtree "SHALL NOT read team labels or claims".
+    // `assignee-management` (issue #669 F6): assignSubtree never refuses on a claim, and lists
+    // each leaf step it reassigned while another person holds a step claim on it.
+    const batchLeaves = LEAVES.filter((each) => each.batch === batch);
+    const claimedDev = (await startable()).claimed.filter(
+      (each) => each.stepId === ids.steps.dev && each.holder.personId !== personOf(reviewer),
+    );
+    // In tree order, as the startable read lists claimed steps.
+    const expected = [];
+    for (const claimed of claimedDev) {
+      const key = keyOf(claimed.workItemId);
+      if (!batchLeaves.some((leaf) => leaf.key === key)) continue;
+      const previousPersonId = (await assigneesOf(key))[ids.steps.dev] ?? null;
+      if (previousPersonId === personOf(reviewer)) continue;
+      expected.push({
+        workItemId: claimed.workItemId,
+        stepId: ids.steps.dev,
+        previousPersonId,
+        holder: {
+          claimId: claimed.claimId,
+          personId: claimed.holder.personId,
+          runId: claimed.runId,
+        },
+      });
+    }
+    expect(expected.map(({ workItemId }) => keyOf(workItemId))).toContain(heldKey);
     const assigned = await adminCommands(ids.project, [
       {
         kind: 'assignSubtree',
@@ -870,7 +895,11 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       },
     ]);
     expect(assigned.status).toBe(200);
-    for (const leaf of LEAVES.filter((each) => each.batch === batch))
+    expect(
+      (assigned.body as { results: { reassignedClaimedSteps?: unknown }[] }).results[0]
+        ?.reassignedClaimedSteps,
+    ).toEqual(expected);
+    for (const leaf of batchLeaves)
       expect((await assigneesOf(leaf.key))[ids.steps.dev]).toBe(personOf(reviewer));
     // The claim is untouched: still held by its holder, now beside another assignee.
     const step = (await startable()).claimed.find(

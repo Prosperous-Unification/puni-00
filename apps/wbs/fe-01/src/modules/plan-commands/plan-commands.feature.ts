@@ -17,6 +17,7 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     // failed `sends every project command to the project it was bound to, with the rest as
     // given` with `exportPlan: expected Promise{…} to be Promise{…}`.
     exportPlan: (...rest) => routes.exportPlan(projectId, ...rest),
+    readClaimHistory: (...rest) => routes.readClaimHistory(projectId, ...rest),
     setEstimateMethod: (...rest) => routes.setEstimateMethod(projectId, ...rest),
     setEstimateArithmetic: (...rest) => routes.setEstimateArithmetic(projectId, ...rest),
     setDepReach: (...rest) => routes.setDepReach(projectId, ...rest),
@@ -45,6 +46,8 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     addTypedDependency: (...rest) => routes.addTypedDependency(projectId, ...rest),
     updateTypedDependency: (...rest) => routes.updateTypedDependency(projectId, ...rest),
     removeTypedDependency: (...rest) => routes.removeTypedDependency(projectId, ...rest),
+    readResources: (...rest) => routes.readResources(projectId, ...rest),
+    setDemands: (...rest) => routes.setDemands(projectId, ...rest),
     // Proof: on 2026-09-24, handing `patchWorkItem` the project in place of the work item failed
     // `passes every work-item command through unchanged, leaving out what the caller left out`:
     // the route received `p1` where `w1` was expected.

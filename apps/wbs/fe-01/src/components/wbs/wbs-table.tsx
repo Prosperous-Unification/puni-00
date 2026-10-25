@@ -17,8 +17,11 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import type { DemandStatement } from '@/lib/wbs-api';
+
 import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
+import { ClaimsSheet, useClaimsOffered } from './claims-sheet';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
 import { createDepLights, type DepLights } from './dep-light-store';
@@ -60,6 +63,7 @@ import { PlanToolbar } from './plan-toolbar';
 import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
+import { DemandPanel, type DemandWriteOutcome, demandWriteOutcome } from './resource-demand-panel';
 import { scheduleUnavailableWords } from './schedule-unavailable-words';
 import { statusOffersOf, type StatusRow } from './status-offers';
 import { blockageLabelsOf } from './step-blockage';
@@ -864,11 +868,14 @@ export function WbsTable({
   const [moveUnderFor, setMoveUnderFor] = useState<string | null>(null);
   /** The row whose Measures panel is open, by id, for `refsEditing`'s reason. */
   const [measuresFor, setMeasuresFor] = useState<string | null>(null);
+  /** The leaf whose Resources panel is open, by id, for `refsEditing`'s reason. */
+  const [demandsFor, setDemandsFor] = useState<string | null>(null);
   useEffect(() => {
     if (planActive) return;
     setCheatSheetOpen(false);
     setMoveUnderFor(null);
     setMeasuresFor(null);
+    setDemandsFor(null);
     setCompletionFor(null);
     setRefsEditing(null);
     setOpenMenuRowId(null);
@@ -1158,6 +1165,15 @@ export function WbsTable({
     () => (measuresFor === null ? null : (flat.find((row) => row.id === measuresFor) ?? null)),
     [flat, measuresFor],
   );
+  // Null once the row is gone or has gained a child: a parent's demand charges
+  // nothing, so its panel is a surface that simply is not there.
+  const demandsRow = useMemo(
+    () =>
+      demandsFor === null
+        ? null
+        : (flat.find((row) => row.id === demandsFor && row.subRows.length === 0) ?? null),
+    [flat, demandsFor],
+  );
   const {
     namedInTheTree,
     effectiveTeams,
@@ -1202,6 +1218,7 @@ export function WbsTable({
     facetTeams,
     facetTags,
     facetServices,
+    facetResources,
     facetPeople,
     facetBands,
     facetSteps,
@@ -1744,6 +1761,7 @@ export function WbsTable({
     addChild,
     openMoveUnder: setMoveUnderFor,
     openMeasures: setMeasuresFor,
+    openDemands: setDemandsFor,
     deleteRow,
     commitNameCell,
     onKeyDown,
@@ -1849,6 +1867,40 @@ export function WbsTable({
   };
   const live = useRef(liveNow);
   live.current = liveNow;
+
+  /** The directory's resources for an open Resources panel, read once per opening. */
+  const readResources = useCallback(() => commands.readResources(), [commands]);
+  /**
+   * A Resources panel's save: one `setDemand` batch through the same `run` as
+   * every edit, so it is one journal entry the plan's Undo takes back whole.
+   * A refusal of the request is the panel's to say, beside the box it names,
+   * and is not handed on to the writer's toast; a failure that says the screen
+   * is behind is rethrown for the writer to toast and reread
+   * ({@link demandWriteOutcome}).
+   *
+   * Proof: with the catch below rethrowing every refusal, `says a refused save
+   * once, in place, naming the box` (resource-demand-panel.test.tsx) found the
+   * refusal toasted as well; with it answering `landed`, `says a refused save
+   * in place and stays open` found no alert; both watched 2026-10-25.
+   */
+  const writeDemands = async (
+    statements: readonly DemandStatement[],
+  ): Promise<DemandWriteOutcome> => {
+    // A holder the closure writes: a `let` would read as never reassigned here.
+    const answer: { refused: DemandWriteOutcome | null } = { refused: null };
+    const ran = await run(async (write) => {
+      try {
+        await write.perform(['tree'], () => commands.setDemands(statements));
+      } catch (thrown: unknown) {
+        const outcome = demandWriteOutcome(thrown, statements);
+        if (outcome.kind === 'reported') throw thrown;
+        answer.refused = outcome;
+      }
+    });
+    if (answer.refused !== null) return answer.refused;
+    // A gesture the writer refused (its own toast, or the reader left) did not land.
+    return ran === 'refused' ? { kind: 'reported' } : { kind: 'landed' };
+  };
 
   // Keyed on the rule's values, not on the read's object identities: every
   // tree read hands over a fresh `pertWeights`, and a new rule each read would
@@ -2477,6 +2529,7 @@ export function WbsTable({
       Reset layout
     </Button>
   );
+  const claimsOffered = useClaimsOffered(projectId, claims);
   const toolbarControls = (
     <PlanToolbar
       // Its urgent Find value belongs to one project. Proof: this key removed,
@@ -2517,6 +2570,7 @@ export function WbsTable({
       facetTeams={facetTeams}
       facetTags={facetTags}
       facetServices={facetServices}
+      facetResources={facetResources}
       facetPeople={facetPeople}
       facetBands={facetBands}
       facetSteps={facetSteps}
@@ -2563,6 +2617,18 @@ export function WbsTable({
       // beside the start date and the method it records. Above `md` the shelf
       // is in the app header and the sheet is not rendered at all.
       sheetExtras={{ view: sheetResetLayout, schedule: savedPlansShelf }}
+      claimsSheet={
+        <ClaimsSheet
+          claims={claims}
+          claimsMayBeStale={claimsMayBeStale}
+          treeGeneration={chartRead.generation}
+          readHistory={commands.readClaimHistory}
+          steps={steps}
+          zone={chartRead.timezone}
+          leaseClock={leaseClock}
+          offered={claimsOffered}
+        />
+      }
     />
   );
 
@@ -3021,6 +3087,7 @@ export function WbsTable({
                 },
                 moveUnder: setMoveUnderFor,
                 measures: setMeasuresFor,
+                resources: setDemandsFor,
                 unfreeze: (rowId) => {
                   void run((write) =>
                     write.perform(['tree'], () => commands.unfreezeWorkItem(rowId)),
@@ -3529,6 +3596,16 @@ export function WbsTable({
           writes={measureWrites(measuresRow.id)}
           onOpenChange={(open) => {
             if (!open) setMeasuresFor(null);
+          }}
+        />
+      )}
+      {planActive && demandsRow !== null && (
+        <DemandPanel
+          row={demandsRow}
+          read={readResources}
+          write={writeDemands}
+          onOpenChange={(open) => {
+            if (!open) setDemandsFor(null);
           }}
         />
       )}

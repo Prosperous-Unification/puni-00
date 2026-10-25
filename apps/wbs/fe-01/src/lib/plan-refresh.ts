@@ -100,6 +100,11 @@ export interface PlanRefreshSnapshot {
   steps: ResourceRead<readonly StepView[]>;
   directory: ResourceRead<DirectoryRead>;
   markers: ResourceRead<readonly CalendarMarkerView[]>;
+  /**
+   * Every claim held in the project (`wbs-claim-display` C3): optional, so its
+   * failure is its own stale state and never the plan's (C12), and it holds no
+   * acknowledgement (C20). Reread on `tree_replaced` and `claims_changed`.
+   */
   claims: ResourceRead<InstalledClaims>;
   staleResources: readonly RefreshResource[];
   /** A covered anchor, replaced only by an explicit full resynchronization. */

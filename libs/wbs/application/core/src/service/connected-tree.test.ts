@@ -1006,3 +1006,64 @@ it.each(['tree', 'treeWithin'] as const)(
     }
   },
 );
+
+for (const method of ['tree', 'treeWithin'] as const) {
+  it.each([false, true])(
+    `presents only captured target demands through ${method} when calendar missing is %s`,
+    async (missingCalendar) => {
+      const resources = [
+        { id: 'target', name: 'Target pool', kind: 'divisible' as const, unitLabel: 'slots' },
+        { id: 'foreign', name: 'Foreign pool', kind: 'divisible' as const, unitLabel: 'seats' },
+        { id: 'unused', name: 'Unused catalog entry', kind: 'exclusive' as const, unitLabel: '' },
+      ];
+      const packet = live(
+        connectedCapture(
+          {
+            ...connectedReads('A'),
+            resources,
+            demands: [{ workItemId: 'a', resourceId: 'foreign', units: 1 }],
+            resourceCapacities: [{ resourceId: 'foreign', units: 1 }],
+          },
+          {
+            ...connectedReads('B', missingCalendar ? null : '2026-10-05'),
+            resources,
+            demands: [{ workItemId: 'b', resourceId: 'target', units: 2 }],
+            resourceCapacities: [{ resourceId: 'target', units: 2 }],
+          },
+        ),
+      );
+      const before = structuredClone(packet);
+      const unused = () => {
+        throw new Error('connected demand presentation reread a live store');
+      };
+      const fixture = inMemoryServices({
+        livePlans: {
+          read: () => Promise.resolve(packet),
+          readProject: () => Promise.resolve(packet),
+          readExport: unused,
+          readExecution: unused,
+          readAggregate: unused,
+        },
+      });
+      const calls = [
+        spyOn(fixture.stores.demands, 'listByProject').mockImplementation(unused),
+        spyOn(fixture.stores.directory, 'listResources').mockImplementation(unused),
+        spyOn(fixture.stores.directory, 'listInOrganization').mockImplementation(unused),
+      ];
+      try {
+        const tree =
+          method === 'tree'
+            ? await fixture.service.tree('B')
+            : await fixture.service.treeWithin('B', { kind: 'legacy' });
+        if (tree === null || 'kind' in tree) throw new Error('connected demand fixture missing');
+        expect(tree.scheduleError === null).toBe(!missingCalendar);
+        expect(tree.demands).toEqual([{ workItemId: 'b', resourceId: 'target', units: 2 }]);
+        expect(tree.demandedResources).toEqual([resources[0]]);
+        expect(packet).toEqual(before);
+        for (const call of calls) expect(call).not.toHaveBeenCalled();
+      } finally {
+        for (const call of calls) call.mockRestore();
+      }
+    },
+  );
+}

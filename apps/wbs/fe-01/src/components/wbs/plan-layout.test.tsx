@@ -193,9 +193,19 @@ async function threeRoots() {
       // `fact-end` with it since `work-item-status-and-facts`, for the same
       // reason — and because a baseline short of the default hide-list reads
       // as a reader's own choice, which is what offers `Reset layout`.
+      // `resources` since `wbs-resources` 1.5, `type`'s reason again.
       localStorage.setItem(
         key,
-        JSON.stringify(['team', 'service', 'type', 'deadline', 'status', 'fact-start', 'fact-end']),
+        JSON.stringify([
+          'team',
+          'service',
+          'type',
+          'resources',
+          'deadline',
+          'status',
+          'fact-start',
+          'fact-end',
+        ]),
       );
     }
   }
@@ -1966,6 +1976,7 @@ describe('the columns a reader has hidden', () => {
         'team',
         'service',
         'type',
+        'resources',
         'deadline',
         'status',
         'fact-start',
@@ -2089,6 +2100,8 @@ describe('the columns a reader has hidden', () => {
       // Unticked like Teams and Services: `work-item-types` put `type` in
       // `DEFAULT_HIDDEN_COLUMNS` so the default table stays the width it was.
       { label: 'Types', checked: false },
+      // Unticked for Types' reason (`wbs-resources` 1.5).
+      { label: 'Resources', checked: false },
       { label: 'People at once', checked: true },
       { label: 'Dev', checked: true },
       { label: 'QA', checked: true },
@@ -2133,6 +2146,7 @@ describe('the columns a reader has hidden', () => {
           'team',
           'service',
           'type',
+          'resources',
           'deadline',
           'status',
           'fact-start',
@@ -2149,6 +2163,7 @@ describe('the columns a reader has hidden', () => {
           'team',
           'service',
           'type',
+          'resources',
           'deadline',
           'status',
           'fact-start',
@@ -2173,6 +2188,7 @@ describe('the columns a reader has hidden', () => {
         'refs',
         'service',
         'type',
+        'resources',
         'deadline',
         'status',
         'fact-start',

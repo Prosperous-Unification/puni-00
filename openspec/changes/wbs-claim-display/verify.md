@@ -852,3 +852,231 @@ wbs-contracts, wbs-core (+module), wbs-conformance, wbs-store-sqlite, wbs-store-
 wbs-be-01 (+module), wbs-mcp-01 pass; Burokrat `check-indexes working . HEAD` exit 0;
 `openspec validate --all --json` 280 of 280; `tool-devsync:test` 921 tests, target succeeded.
 Not run locally: the full be-01 and fe-01 suites (CI carries them).
+
+### Slice 9: Claims sheet (fe-01), 2026-10-24
+
+Branch `feat/wbs-claim-display-sheet` on `origin/feat/wbs-claim-history` at `167ab6f82` (#706,
+slice 8, which already holds main with slices 1–7). Commands ran with `env -u CLAUDECODE` and
+`TZ=UTC` from `apps/wbs/fe-01`. No contracts change: slice 8's `readClaimHistory` shape is
+used as it is.
+
+**Plumbing.** `ProjectApi.readClaimHistory` (`ClaimHistoryEventView`, `ClaimHistoryClaimView`)
+reads `GET /api/projects/:id/claim-history` at be-01's default bound through the shape list;
+`plan-refusal.ts` words its refusals exhaustively. It reaches the table as a bound project route
+of `PlanCommands` (`readClaimHistory`, beside `exportPlan`, the other read there), so no new
+runtime member. The fakes (`fake-project-api.ts`, the shape-checked `refusing-api.ts` boundary,
+`claims-fixture.ts` with `history` and `historyReads`) answer it.
+
+**9.1** `claims-sheet.tsx` (`ClaimsSheet`, `groupHeldClaims`): a `Claims` toolbar button with
+the held count, a right-side sheet (the whole screen on a phone) listing held claims grouped by
+holder (by name), then run (read order), each row number, name, step or `subtree`, lease text
+(the plan's lease clock against the read's own clock, C6) and since; claims the tree lacks are
+listed by the read's own number and name. Below, the recent claims and releases newest first,
+each naming who, `claimed` or `released`, the items (`a deleted person`, `a deleted item` for
+null) and the reason (`lease expired`, `credential revoked`). The history is read on open and on
+each change of the installed tree's generation while open, never on `claims_changed` and never
+while closed; its failure is said in place ("Claim history could not be read.", `Retry
+history`) with the held list kept; a failed claims read is said in place over the last claims.
+No claim or release control: the sheet's only button is its ✕. Ten cases in
+`claims-sheet.test.tsx` at first push. Red before the green: 8 of the first 9 failed (no
+button, no dialog); the zero-claims case passed vacuously until its fault below. The tenth,
+`says a failed claims read in place …`, was written after the green, its weight resting on its
+watched fault.
+
+| R5 fault (watched)                                        | Observed                                                                                           |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| history reread on `claims_changed` (`claims` in the deps) | `rereads the history on a tree change while open, and not on claims_changed`: `expected 2 to be 1` |
+| `treeGeneration` dropped from the deps                    | same case, on the tree change: `expected 1 to be 2`                                                |
+| button drawn with no claim held                           | `is not drawn while no claim is held …`: `expected <button …> to be null`                          |
+| history failure answered as an empty list                 | `says the history could not be read in place …`: the sentence not found                            |
+| claims failure not said in the sheet                      | `says a failed claims read in place …`: `expected undefined to be 'Claims could not be read. …'`   |
+
+**9.2** The phone `Plan actions` sheet's View group carries the same button; it opens the Claims
+sheet over the actions sheet (its trigger is `aria-haspopup`, so the actions sheet stays, as
+Project settings does). Case `is offered on the Plan actions sheet, and opens over it` in
+`plan-cards.test.tsx`.
+
+| R5 fault (watched)             | Observed                                               |
+| ------------------------------ | ------------------------------------------------------ |
+| button left off the View group | the case found no `Claims, 5 held` button in the sheet |
+
+Deviations:
+
+- C16 amended (first push: drawn only while a claim is held or the sheet is open; replaced in
+  the review round below by the latch).
+- The history read is a `PlanCommands` route rather than a new `ProjectRuntime` member, as
+  `exportPlan` is: a new runtime member would change the runtime's enumerated surface for one
+  sheet-local read.
+
+By eye (2026-10-24, Chromium 1440×900 and 390×844 at 2x, light and dark, a scratch Vite page
+over `claims-fixture.ts` with seven claims, one on a row the tree lacks, a 52-character run id,
+and five history acts including a batch and a deleted person and item; not committed): the
+button sits after `2 unestimated` with its count in the claim tint; the sheet lists the groups
+with the run ids in mono, long names truncated before the lease and since columns, the long run
+id wrapping inside the sheet (no horizontal overflow: scrollWidth equals clientWidth at both
+widths); the failed history reads one line with its retry. Fixed during review: browser-default
+list margins and indent (an empty band above each run's rows) and the kit's 90vh cap leaving the
+right sheet short of the bottom edge (`max-h-dvh`). Screenshots kept outside the repo.
+
+Results (fresh, 2026-10-24):
+
+- `nx run wbs-fe-01:typecheck` (with `typecheck:module`, `--skip-nx-cache`) succeeded.
+- eslint on the 14 changed TypeScript files: exit 0; Prettier written on them.
+- vitest over `src/components/wbs`, `src/modules`, `src/lib` and `src/testing`, serial: 156
+  files, 3560 pass (`claims-sheet.test.tsx` 10).
+- `apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`: exit 0.
+- `openspec validate --all --json`: 282 of 282.
+
+Not run locally: the full fe-01 suite, e2e and pixels (CI carries them; laptop RAM). No e2e
+plan holds a claim, so no e2e toolbar count or width moves and no pixels baseline is expected to
+change.
+
+**Review round (#710 at `7c541b40a`, no blocker).** Coordinator decisions recorded as
+assumptions for Dany.
+
+- S1 The latch: `useClaimsOffered` in `claims-sheet.tsx`, held by the table (on a phone the
+  sheet mounts only while `Plan actions` is open), offers the button once a claims read in this
+  table has listed a claim for the project, and while the sheet is open. A never-claimed plan's
+  toolbar is unchanged; a plan whose last claim was reaped keeps a count-less button, so the
+  reason stays reachable (C13). C16 and the spec delta say so, with the scenario "The last claim
+  is reaped while the sheet is closed"; case `stays, with no number, when the last claim is
+reaped while it is closed`.
+- S2 Focus: the "last claim goes while open" case now closes the sheet with Escape and asserts
+  the focus is back on the trigger.
+- S3 Two deferred-promise cases: a close and reopen, and a tree change whose read lands before an
+  older one. Proof beside the `current` guards.
+- S4 The toolbar on the scratch plan (light, Chromium), `measureToolbar`'s sum:
+
+  | Width | Plan                            | laidOut | Rows | Overflow right | Page scroll |
+  | ----- | ------------------------------- | ------- | ---- | -------------- | ----------- |
+  | 1280  | never claimed                   | 1332.48 | 2    | 0              | 0           |
+  | 1280  | seven claims (`Claims 7`, 83px) | 1421.84 | 2    | 0              | 0           |
+  | 1024  | never claimed                   | 1332.48 | 2    | 0              | 0           |
+  | 1024  | seven claims                    | 1421.84 | 2    | 0              | 0           |
+
+  The never-claimed figure equals `project-settings.spec.ts`' pin (1332.5). With claims the
+  button ends row one and the `Whole plan` group stays whole and right-aligned on row two
+  (top 44, right edge 1272 and 1016); no third row, nothing clipped. Screenshots
+  `toolbar-{1280,1024}-light-claimed.png`.
+
+- Nits: a Proof on the never-read-while-closed return; a reopened sheet starts from `Reading…`
+  and a reread while open dims the list it keeps (`data-claim-history-rereading`); the history
+  failure comment cites the spec scenario; a `Reading…` line in the held section before the
+  first claims read; the amended design and spec lines rewrapped; the API JSDoc points at the
+  contract for the bound instead of repeating it; `PROJECT_COMMAND_ROUTES`' JSDoc names the
+  project-scoped reads.
+- Eye review: run ids break after `:`, `-` and `/` (`<wbr>`, `overflow-wrap: anywhere` only as
+  the last resort), so `…-long-` / `run-identifier`; `Retry history` is an outline button; a
+  history entry naming several claims reads `released 2 items` with one item per line, a
+  deleted one still `a deleted item`.
+
+| R5 fault (watched)               | Observed                                                                                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| latch dropped (`return holding`) | `stays, with no number, when … closed`: `expected undefined to be 'Claims'`; the open case's focus: `expected <body …> to be <button …>` |
+| both `current` guards removed    | the two race cases: `expected [ 'old' ] to deeply equal [ 'new' ]`                                                                       |
+| `if (!open) return` removed      | `rereads the history …`: `expected 3 to be +0`                                                                                           |
+| no history reset on close        | `dims the list while open and rereading, and shows none of it on a reopen`: `expected [ 'second' ] to deeply equal []`                   |
+| no rereading mark                | same case: `expected null not to be null`                                                                                                |
+
+Results after the round (fresh, 2026-10-24): `nx run wbs-fe-01:typecheck --skip-nx-cache`
+succeeded; eslint on the changed files exit 0; vitest over the same four trees, serial: 156
+files, 3564 pass (`claims-sheet.test.tsx` 14); `openspec validate --all --json` 282 of 282; Burokrat `check-indexes working . HEAD` exit 0.
+
+Screenshots re-shot: every sheet shot (desktop and phone, light and dark, history failed) and the
+two toolbar shots, in the session scratchpad's `claim-sheet-shots`.
+
+### 10.2: record, 2026-10-24
+
+- `CONTEXT.md` holds **Claim chip**, **Releasing claim** and **Claim history** (lines 584–595),
+  added by slice 1's change; checked, not duplicated.
+- Module indexes: the be-01 reads live in `module.application.work-item`
+  (`libs/wbs/application/core/src/module/work-item/README.md`), whose index lists
+  `project-claims.ts`, `claim-history.ts` and their tests and whose prose names the claim history
+  read; fe-01's claims resource is `module.frontend.plan-feed`, whose README now names claims as
+  the fifth resource (C3, C12, C20, C21) and "the five resources" in its generation ledger. The
+  Claims sheet is in `components/wbs`, which carries no module index. Burokrat
+  `check-indexes working . HEAD`: exit 0.
+- fe-01 claims resource JSDoc: `PlanRefreshSnapshot.claims` in `lib/plan-refresh.ts` (beside
+  `InstalledClaims`, `resourcesFor` and the owner's claims read, which already carried theirs).
+- `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1 are ticked with "Superseded 2026-10-24 by
+  `wbs-claim-display`", the convention `puni-website-funnel` 5.0 uses.
+
+### Local swarm rehearsal (10.1 rehearsed locally; dev by-eye owed), 2026-10-24
+
+Dev is Dany's, so 10.1 stays open. This ran the branch's own be-01, gw-01 and fe-01 on the
+laptop, with a real swarm driven over HTTP.
+
+**Stack.** be-01: a scratch entry (not committed) beside
+`apps/wbs/be-01/src/testing/organization-browser-server.ts`, booting `bootBe01`'s production
+composition over a fresh migrated SQLite file. It used that fixture's dev-only constants
+(`TEST_JWT_KEY`, a 32-character `x` internal secret, `TEST_ORGANIZATION_DEFAULT_LIMITS`,
+password sessions `enabled`), but pushed to a real gw-01 on 7301 rather than `gw.invalid`. It
+registered `dany` (password `correct-horse`, the fixture's), inserted organization `org-swarm`
+with dany as `super_admin`, and committed the activation marker. gw-01: `bun src/main.ts` with
+`AUTH_MODE=oidc` and the same JWT key and internal secret. Its OIDC discovery is lazy, so a
+dummy discovery URL is never fetched: native session tokens verify on the JWT key. fe-01: Vite
+on 7400 (`VITE_BE_URL`/`VITE_GW_URL`), as `playwright.organization.config.ts` runs it. The
+browser (Playwright Chromium) logged in through `/api/auth/login` and carried the token in
+`__Host-wbs_access`, as `organization-context.real.spec.ts` does. It chose `org-swarm` on
+`/organization`; the header read **Live**. `AUTH_MODE=local` could not serve this: every
+request is `local-dev` there, so API keys never authenticate.
+
+**Lease timing.** No knob exists: `CLAIM_LEASE_MS` (15 min) and the 30 s sweep interval are
+constants (`@wbs/domain` `claim-lease.ts`, core `claim-lease-sweep.ts`). The rehearsal waited
+the real 15 minutes.
+
+**Swarm (scratch driver over be-01's routes; keys kept in a scratch file, never printed).**
+
+1. `POST /api/directory/commands`: team, persons `claire`, `codex`, `ada`; then `patchPerson
+kind: agent` binds `claire` and `codex` to dany's account → 200.
+2. `POST /api/organization/machine-credentials` `{ source: 'api_key' }` per agent → 201 each.
+3. Resources `h4claw RAM` (divisible, GiB) and `staging slot` (exclusive); project `Swarm
+rehearsal`; capacities RAM 16, staging 1. Tree `010 Hotfix the winch`, `020 Release 2.4`
+   with `Prime the mast`, `Sand the deck`, `Paint the hull`; estimates. Demands: Paint 6 GiB +
+   staging, Sand 6 GiB, Prime 8 GiB + staging.
+4. Claims, each with the agent's own key:
+   - claire claims the `Release 2.4` subtree → 200.
+   - claire claims Sand under it with `assign: true` → 200: acquired 6 GiB, both steps assigned.
+   - codex claims Paint Dev under claire's subtree claim with `assign: true` → 200: acquired
+     6 GiB + staging, Dev assigned.
+   - codex claims Prime → **409 `resources_exhausted`**: staging asked 1 free 0 held by codex;
+     RAM asked 8 free 4 held by codex and claire.
+   - dany claims Hotfix QA for `ada` (human, no lease) → 200.
+5. claire heartbeats `POST /api/claims/renew` every minute → 200 `{ leases: 3 }`. codex stops.
+6. After codex's lease and the sweep: `DELETE /api/organization/machine-credentials/:claire` → 204. Then `releaseWorkItem` of ada's Hotfix by dany → 200.
+
+**What fe-01 showed** (one page left open throughout; times from the page's open). Screenshots
+are in the session scratchpad's `swarm-rehearsal-shots`:
+
+| Time  | Shot                                                                 | Seen                                                                                                                                                              |
+| ----- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 s   | `01-phone-cards`, `02-phone-claims-sheet`                            | phone chips and the sheet from `Plan actions`                                                                                                                     |
+| 0 s   | `03-desktop-dark-claims-sheet`                                       | the sheet in dark mode                                                                                                                                            |
+| 0 s   | `04-desktop-chips-folded`, `05-desktop-dev-unfolded`                 | chips per holder: `CL 14m` on the subtree, `CL` on both Sand steps with claire assigned, `CO` beside codex on Paint Dev, `AD` (no lease) on Hotfix QA; `Claims 5` |
+| 0 s   | `06-desktop-claims-sheet-start`                                      | held list grouped ada / claire / codex with runs; history rows, a batch as "claimed 2 items"                                                                      |
+| 383 s | `07-desktop-countdown-codex-stopped`                                 | codex `CO 8m`, claire still `CL 14m` (renewed)                                                                                                                    |
+| 911 s | `08-desktop-codex-releasing`                                         | codex reads `CO releasing`, dashed                                                                                                                                |
+| 926 s | `09-desktop-after-sweep`                                             | the sweep released codex's claim: chip gone, claire's stay                                                                                                        |
+| 927 s | `10-desktop-sheet-lease-expired-row`                                 | history: "codex released 020.3 Paint the hull · Dev, lease expired"                                                                                               |
+| 931 s | `11-desktop-sheet-credential-revoked-row`                            | claire's key revoked: within 3 s her three claims went; "claire released 3 items … credential revoked"                                                            |
+| 935 s | `12-desktop-latch-button-no-count`, `13-desktop-latch-sheet-history` | ada released; no claim held, the button stays as `Claims` with no number; the sheet says "No claims are held." over the whole history                             |
+
+Claire's own **releasing** state did not show: a revocation is not announced (C4), and the sweep
+released her claims about 3 s after the revoke, before any claims read.
+
+**Found, outside this change's scope (reported, not fixed).**
+
+- `POST /api/claims/renew` with any JSON body (even `{}`) answers **500**. be-01 logs `Endpoint
+postApiClaimsRenew has no declared validation refusal` (`apps/wbs/be-01/src/http/elysia/mount.ts`
+  `refuse`). The shape `renewClaimLeases` in
+  `libs/wbs/domain/contracts/src/http/claim-lease-shapes.ts` declares no body and no 400. Repro:
+  `curl -X POST localhost:7300/api/claims/renew -H 'authorization: Bearer <agent key>' -H
+'content-type: application/json' -d '{}'`. mcp-01 sends no body for it
+  (`wbs-client.ts buildRequest` sends one only when the tool declares body inputs), so MCP agents
+  are unaffected; a raw HTTP agent sending `{}` loses its heartbeat and its claims are reaped at
+  15 min. The first rehearsal run hit this: every claim, claire's included, expired with codex's.
+  It belongs to `wbs-claim-leases`, or to a general rule that a bodiless endpoint refuses a body
+  with 400.
+- Seen and left: a released claim's `assign: true` assignees stay (claire on Sand, codex on Paint
+  Dev). The `claimWorkItem` description says assignments are "undone with the claim", which this
+  run reads as undo of the claim command, not release.

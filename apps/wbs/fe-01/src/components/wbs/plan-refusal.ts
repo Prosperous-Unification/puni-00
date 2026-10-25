@@ -164,6 +164,25 @@ function claimsReadCode(refusal: RefusalOf<'getApiProjectsByIdClaims'>): string 
   }
 }
 
+function claimHistoryReadCode(refusal: RefusalOf<'getApiProjectsByIdClaim-history'>): string {
+  switch (refusal.error) {
+    case 'invalid_params':
+    case 'invalid_query':
+    case 'invalid_body':
+    case 'invalid_json':
+    case 'unauthenticated':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+    case 'not_found':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
 // Proof: omitting external_dependencies_inactive made the real writer dormant-admission test throw (2026-10-22).
 function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
   switch (refusal.error) {
@@ -577,10 +596,10 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'below_held_occupancy':
     case 'resources_exhausted':
       return refusal.error;
-    // Resources (`wbs-resources`): the table sends none of these until 1.5, so
-    // they arrive only from a batch another client wrote, or from the project
-    // settings' Resources section (`compute-providers` slice 5), which sends
-    // `setResourceCapacity` and a provider reference.
+    // Resources (`wbs-resources`): the row's Resources panel sends `setDemand`
+    // and the project settings' Resources section sends the directory's three
+    // resource commands, `setResourceCapacity` and a provider reference (1.5,
+    // `compute-providers` slice 5); the sentences are in {@link PLAN_REFUSALS}.
     case 'kind_is_immutable':
     case 'resourceKind_must_be_exclusive_or_divisible':
     case 'units_required':
@@ -691,6 +710,26 @@ function measuresReadCode(refusal: RefusalOf<'getApiMeasures'>): string {
   }
 }
 
+/** The project resources read's refusals (`wbs-resources` 1.5), each its own word. */
+function resourcesReadCode(refusal: RefusalOf<'getApiProjectsByIdResources'>): string {
+  switch (refusal.error) {
+    case 'invalid_query':
+    case 'invalid_params':
+    case 'invalid_body':
+    case 'invalid_json':
+    case 'unauthenticated':
+    case 'not_found':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
 function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string {
   switch (problem.operation) {
     case 'getApiPeople':
@@ -721,6 +760,8 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return markerListCode(problem.refusal);
     case 'getApiProjectsByIdClaims':
       return claimsReadCode(problem.refusal);
+    case 'getApiProjectsByIdClaim-history':
+      return claimHistoryReadCode(problem.refusal);
     case 'postApiProjectsByIdCalendar-markers':
     case 'patchApiProjectsByIdCalendar-markersByMarkerId':
       return markerWriteCode(problem.refusal);
@@ -737,6 +778,8 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return timezonesReadCode(problem.refusal);
     case 'getApiMeasures':
       return measuresReadCode(problem.refusal);
+    case 'getApiProjectsByIdResources':
+      return resourcesReadCode(problem.refusal);
     default:
       return unreachable(problem);
   }
@@ -986,6 +1029,24 @@ export const PLAN_REFUSALS: RefusalWords = {
       'This row’s figures are the sums of the rows beneath it; estimate on those. Nothing was changed.',
     organization_required:
       'Measures belong to an organization, and this workspace does not belong to one yet. Nothing was changed.',
+    // The demand and resource refusals (`wbs-resources` 1.5), as the Resources
+    // panel and the settings' Resources section reach them. Neither keeps a copy
+    // of be-01's rules, so each is reachable from one box.
+    // Proof: with these entries struck, `words every resource refusal the
+    // panels can reach` (resource-demand-panel.test.tsx) read the fallback
+    // carrying the code; watched 2026-10-25.
+    exclusive_demand_is_one:
+      'A resource used one at a time is needed or not — it takes no number. Nothing was changed.',
+    units_must_be_a_whole_number_from_1:
+      'Units are a whole number of 1 or more; leave the box blank for none. Nothing was changed.',
+    units_must_be_a_whole_number_from_0:
+      'A stated capacity is a whole number of 0 or more; leave it blank for unstated. Nothing was changed.',
+    unknown_resource:
+      'That resource is no longer in the directory — someone may have removed it. Nothing was changed.',
+    unitLabel_must_be_at_most_40_characters:
+      'A unit label is at most 40 characters. Nothing was changed.',
+    kind_is_immutable:
+      'A resource’s kind never changes; remove it and add it again to change it. Nothing was changed.',
     // {@link INVALID_REQUEST}'s three, worded from the one list that also decides
     // whether the plan is read again.
     ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),
@@ -999,6 +1060,11 @@ export const PLAN_REFUSALS: RefusalWords = {
       // to fall silently back to printing the wire code the day it did.
       prefix: 'maxParallel_must_be_at_most_',
       says: (limit) => `People at once is at most ${limit}.`,
+    },
+    {
+      // be-01 spells `MOST_RESOURCE_UNITS` into the code, `maxParallel`'s bargain.
+      prefix: 'units_must_be_at_most_',
+      says: (limit) => `Units are at most ${limit}. Nothing was changed.`,
     },
   ],
   // Matched as a family rather than listed: a proxy in front of be-01 can answer

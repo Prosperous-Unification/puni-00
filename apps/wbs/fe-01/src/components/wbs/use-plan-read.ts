@@ -27,6 +27,7 @@ import type { GeneralPanelProps } from './general-panel';
 import type { FocusIntent } from './live-editing';
 import { forgetRefusedDrafts } from './live-editing';
 import { NOTHING_TO_REDO, NOTHING_TO_UNDO, refusalSentence } from './plan-refusal';
+import { demandsByWorkItem } from './resource-demand-words';
 import { type Toast, type ToastStackApi } from './toasts';
 import { useChannelListener } from './use-channel-listener';
 import { dropDrafts, rowOfCellKey, stepOfCellKey, stepOfDraftKey } from './use-estimate-drafts';
@@ -240,7 +241,7 @@ type DeliveredTree = NonNullable<DeliveredPlan['tree']>;
 function rowsOf(tree: DeliveredTree): TreeRow[] {
   const drawn = drawnRows.get(tree);
   if (drawn !== undefined) return drawn;
-  const rows = toTree(tree.value.workItems);
+  const rows = toTree(tree.value.workItems, demandsByWorkItem(tree.value));
   drawnRows.set(tree, rows);
   return rows;
 }

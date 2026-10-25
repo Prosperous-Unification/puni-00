@@ -92,6 +92,7 @@ export function FilterFacets({
   teams,
   tags,
   services,
+  resources,
   people,
   bands,
   steps,
@@ -103,6 +104,8 @@ export function FilterFacets({
   teams: readonly FacetOption[];
   tags: readonly FacetOption[];
   services: readonly FacetOption[];
+  /** The resources the plan's leaves demand (`wbs-resources` task 3.4). */
+  resources: readonly FacetOption[];
   people: readonly FacetOption[];
   bands: readonly FacetOption[];
   steps: readonly FacetOption[];
@@ -247,6 +250,14 @@ export function FilterFacets({
           ...facets,
           serviceIds,
         }))}
+        {/*
+          What a leaf needs while it runs, beside who runs it. Gone on a plan
+          stating no demand, as every group with nothing to offer is.
+        */}
+        {group('Resource', 'resource', resources, facets.resourceIds, (resourceIds) => ({
+          ...facets,
+          resourceIds,
+        }))}
         {group('Assignee', 'assignee', people, facets.assigneeIds, (assigneeIds) => ({
           ...facets,
           assigneeIds,
@@ -347,6 +358,7 @@ export const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['tag', 'Tags'],
   ['service', 'Services'],
   ['type', 'Types'],
+  ['resources', 'Resources'],
   ['in-parallel', 'People at once'],
   ['final-total', 'Days'],
   ['not-before', 'Not before'],
@@ -734,6 +746,7 @@ export function PlanToolbar({
   facetTeams,
   facetTags,
   facetServices,
+  facetResources,
   facetPeople,
   facetBands,
   facetSteps,
@@ -769,6 +782,7 @@ export function PlanToolbar({
   startDate,
   chooseEstimateMethod,
   sheetExtras,
+  claimsSheet,
 }: {
   criteria: FilterCriteria;
   freezeMenuOpen: boolean;
@@ -806,6 +820,7 @@ export function PlanToolbar({
   facetTeams: FacetOption[];
   facetTags: FacetOption[];
   facetServices: FacetOption[];
+  facetResources: FacetOption[];
   facetPeople: FacetOption[];
   facetBands: { id: string; label: string }[];
   facetSteps: { id: string; label: string }[];
@@ -852,6 +867,11 @@ export function PlanToolbar({
    * the app header and the reset is on the chart's own strip.
    */
   sheetExtras?: { view?: React.ReactNode; schedule?: React.ReactNode };
+  /**
+   * The Claims sheet's button and sheet (`wbs-claim-display` C16), built by the
+   * table, which holds the claims; it draws nothing while no claim is held.
+   */
+  claimsSheet?: React.ReactNode;
 }) {
   /** Whether this is the phone's `Plan actions` sheet, where every control carries its words. */
   const sheet = renderer === 'cards';
@@ -1338,6 +1358,7 @@ export function PlanToolbar({
         teams={facetTeams}
         tags={facetTags}
         services={facetServices}
+        resources={facetResources}
         people={facetPeople}
         bands={facetBands}
         steps={facetSteps}
@@ -1903,6 +1924,10 @@ export function PlanToolbar({
           {arrange}
           {columns}
           {shortcuts}
+          {/* Proof: left off this sheet, `is offered on the Plan actions sheet,
+          and opens over it` (plan-cards.test.tsx) found no `Claims, 5 held`
+          button; watched 2026-10-24. */}
+          {claimsSheet}
           {sheetExtras?.view}
         </PlanSheetGroup>
         <PlanSheetGroup title="Find and filter">
@@ -1946,6 +1971,7 @@ export function PlanToolbar({
       {filterCount}
       {noMatches}
       {unestimated}
+      {claimsSheet}
       {/*
         The end of the bar as one flex item (UI review F-056, after F-005): the
         icon buttons that act on the plan as a whole — Undo, Redo, Keyboard

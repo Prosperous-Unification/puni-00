@@ -39,6 +39,11 @@ _Avoid_: tenant, workspace, account; not Twilight Structure's installation
 One user's association with one organization: it admits the user and lets access grants name them, and by itself opens nothing but their own agent persons and credentials. Access grants, not the membership, decide access. Separate from a directory person's service-team membership.
 _Avoid_: team membership, IdP group, role
 
+**Principal**:
+Whoever an access grant can name and a request acts as in an organization: a member's
+account or a machine principal.
+_Avoid_: user (alone), actor, identity, caller
+
 **Access grant**:
 One statement that a principal holds one access role at one grant scope of an organization. Grants add up and the strongest wins; nothing subtracts.
 _Avoid_: permission (what a role implies), ACL entry, share, binding, role assignment
@@ -63,8 +68,13 @@ _Avoid_: permissions, computed role, access level
 The grant subject that stands for every current member of the organization, resolved at check time; how "every member may view every project" is one row.
 _Avoid_: everyone, public, wildcard user, base permission
 
+**Machine principal**:
+A machine credential acting as a principal: it holds only the access grants that name the
+credential, never those of its agent person's bound account, under the machine cap.
+_Avoid_: bot, service account, machine user, agent account
+
 **Machine cap**:
-The ceiling of contributor applied to every effective role of a machine principal, whatever its bound account holds and however the grant reaches it.
+The ceiling of contributor applied to every effective role of a machine principal, whatever its credential's grants name and whatever its bound account holds.
 _Avoid_: role cap, scope narrowing, member cap
 
 **Active organization**:
@@ -232,9 +242,10 @@ them. Every project belongs to exactly one organization.
 _Avoid_: engagement, programme, portfolio, project (for one WBS)
 
 **Default project**:
-The project named "Default project" that the first project migration gives each organization
-holding work packages, so that every work package has a project. Ordinary afterwards: renamed,
-emptied or deleted like any other.
+The one project of each organization that receives a work package created or imported without
+naming a project. Every organization has exactly one. It can be renamed, emptied and replaced
+by another project as the default; it cannot be deleted while it holds work packages or is the
+organization's only project.
 _Avoid_: root project, unfiled, inbox
 
 **Project abbreviation**:
@@ -404,8 +415,8 @@ _Avoid_: references, dependents, blast radius
 
 **Directory**:
 The people and service teams projects in one organization draw from — one list scoped to that
-organization, not a per-project list or an account on this tool. Current members may read it;
-current member, admin and super-admin roles may edit it.
+organization, not a per-project list or an account on this tool. Members holding any access
+grant may read it; `org-admin` and `org-super-admin` may edit it.
 _Avoid_: roster, address book, org chart, users
 
 **Service team**:
@@ -614,8 +625,8 @@ _Avoid_: claim log, activity feed, audit trail
 **Machine credential**:
 An organization's record that lets one agent person act in WBS: pinned to that person,
 issued by a member or admin account, admitting a token of one credential source, and
-revocable. The token acts as the person's bound account with read and write only, never as
-its issuer.
+revocable. The token acts within the person's bound account's membership with read and
+write only, holding only the access grants that name the credential, never as its issuer.
 _Avoid_: Fleet credential (the 2026-10-19 name), agent account, service account, machine
 identity, bot user, API user
 

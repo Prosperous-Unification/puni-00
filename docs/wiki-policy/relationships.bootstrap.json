@@ -93,6 +93,7 @@
           "default",
           "^production",
           "{workspaceRoot}/bin/with-heavy-lock.sh",
+          "{workspaceRoot}/bin/h2puni-gate.sh",
           "{workspaceRoot}/bin/heavy-lock-lib.sh",
           "{workspaceRoot}/docs/runbook-prod-deploy.md",
           "{workspaceRoot}/apps/wbs/be-01/**/*",

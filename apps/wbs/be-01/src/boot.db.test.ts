@@ -1605,19 +1605,64 @@ describe('OIDC boot wiring', () => {
   });
 });
 
-for (const passwordLoginEnabled of [false, true]) {
-  it(`keeps boot verifier outages as 500 with password login ${String(passwordLoginEnabled)}`, async () => {
+// With password login on, a native session verifies on the JWT key and its
+// credential evidence never asks the verifier, so a discovery outage leaves
+// it working on data routes too (issue #669 F5). With password login off, or
+// for a token that is not native, the token reaches the verifier and its
+// outage stays a 500.
+describe('a native session under a verifier outage', () => {
+  async function bootWithOutage(passwordLoginEnabled: boolean) {
     const oidc = oidcOptions(passwordLoginEnabled);
     oidc.verifier = { verify: () => Promise.reject(new Error('discovery unavailable')) };
     const be = await boot(undefined, oidc);
     const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
     if (!registered.ok) throw new Error('password fixture was not registered');
-    const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
-      headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
+    return { port: be.port, token: registered.value.token };
+  }
+
+  for (const route of ['/api/auth/me', '/api/projects', '/api/people']) {
+    // Proof: with first-party principals still asking the upstream verifier
+    // in `organizationCredentialEvidence`, `/api/projects` and `/api/people`
+    // answered 500 for both carriers; watched 2026-10-24.
+    it(`answers ${route} 200 by cookie and by Bearer with password login on`, async () => {
+      const { port, token } = await bootWithOutage(true);
+      const byCookie = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { cookie: `__Host-wbs_access=${token}` },
+      });
+      const byBearer = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect([byCookie.status, byBearer.status]).toEqual([200, 200]);
+    });
+  }
+
+  it('answers 500 with password login off', async () => {
+    const { port, token } = await bootWithOutage(false);
+    const me = await fetch(`http://localhost:${String(port)}/api/people`, {
+      headers: { cookie: `__Host-wbs_access=${token}` },
     });
     expect(me.status).toBe(500);
   });
-}
+
+  it('still answers an RS256 token 500 rather than admitting it', async () => {
+    const { port } = await bootWithOutage(true);
+    const { privateKey } = await generateKeyPair('RS256');
+    const upstream = await new SignJWT({ sub: 'upstream-user' })
+      .setProtectedHeader({ alg: 'RS256' })
+      .setIssuer('https://idp.test')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(privateKey);
+    const statuses = [];
+    for (const route of ['/api/auth/me', '/api/people']) {
+      const answer = await fetch(`http://localhost:${String(port)}${route}`, {
+        headers: { authorization: `Bearer ${upstream}` },
+      });
+      statuses.push(answer.status);
+    }
+    expect(statuses).toEqual([500, 500]);
+  });
+});
 
 it('refuses boot after migrations when blockage admission authority is missing', async () => {
   const dbPath = join(tempDir('wbs-blockage-boot-'), 'plan.db');

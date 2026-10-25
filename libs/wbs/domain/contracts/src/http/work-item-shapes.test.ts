@@ -20,6 +20,36 @@ test('command replies reserve every known entity field across untagged variants'
   ).toBeUndefined();
 });
 
+test('assignSubtree replies declare each claimed step they reassigned', async () => {
+  const reassigned = {
+    workItemId: 'b',
+    stepId: 'review',
+    previousPersonId: null,
+    holder: { claimId: 'c1', personId: 'claire', runId: null },
+  };
+  expect(
+    (
+      await validateSchema(commandResults, {
+        results: [{ index: 0, reassignedClaimedSteps: [reassigned] }],
+      })
+    ).issues,
+  ).toBeUndefined();
+  const { holder: _dropped, ...withoutHolder } = reassigned;
+  for (const malformed of [
+    withoutHolder,
+    { ...reassigned, previousPersonId: 1 },
+    { ...reassigned, holder: { personId: 'claire', runId: null } },
+    { ...reassigned, holder: [reassigned.holder] },
+  ])
+    expect(
+      (
+        await validateSchema(commandResults, {
+          results: [{ index: 0, reassignedClaimedSteps: [malformed] }],
+        })
+      ).issues,
+    ).toBeDefined();
+});
+
 test('parser vocabulary is closed and preserves recognized command context', async () => {
   expect(
     (

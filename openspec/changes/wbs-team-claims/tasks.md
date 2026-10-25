@@ -39,9 +39,9 @@
 - [x] 1.6 Registry entries, descriptions, refusal shapes in `@wbs/contracts`; MCP tool list
       snapshot moves by zero (the batch tool carries the new kinds) — test: the registry shape
       tests plus the OpenAPI emit diff.
-- [ ] 1.7 fe-01: a claimed step shows its holder and run beside the assignee cell, a subtree
-      claim shows on the parent row; no new control — test: the table's rendering tests with a
-      claim-shaped tree.
+- [x] 1.7 Superseded 2026-10-24 by `wbs-claim-display` (C18, slices 4 to 7): fe-01: a claimed
+      step shows its holder and run beside the assignee cell, a subtree claim shows on the parent
+      row; no new control — test: the table's rendering tests with a claim-shaped tree.
 
 ## 2. Binding and credentials
 

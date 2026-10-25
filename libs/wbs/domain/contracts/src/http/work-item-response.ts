@@ -378,6 +378,17 @@ export const workItemTree = type({
   // Present exactly when a slice's `capacityResource` names a resource
   // (`wbs-resources` R5): one label per resource named.
   'resourceLabels?': type({ id: 'string', name: 'string', unitLabel: 'string' }).array(),
+  // Both present exactly when a work item of the project states a demand
+  // (`wbs-resources` 1.5): each demand in work-item then resource-id order, and
+  // one entry per resource a demand names, under the caller's directory names.
+  // The tree read alone carries them; an export writes its own file-local lists.
+  'demands?': type({ workItemId: 'string', resourceId: 'string', units: 'number' }).array(),
+  'demandedResources?': type({
+    id: 'string',
+    name: 'string',
+    kind: "'exclusive' | 'divisible'",
+    unitLabel: 'string',
+  }).array(),
   slices: workItemSlice.array(),
   steps: stepShape.array(),
   assignedPeople: named.array(),

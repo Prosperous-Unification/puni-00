@@ -488,6 +488,10 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // Proof (2026-10-23): omitting dependency-navigation.tsx from dependency-lookup's mapped
     // consumers while its index declared that production importer made observe lint exit 1 with
     // `pilot module external consumers disagree with index …/dependency-lookup/README.md`.
+    // Proof (2026-10-25): CI run40159790962 refused the workflow-binding proof gzip.
+    // Both original shipped policies reproduced that refusal; exact-file declarations restored
+    // binary classification and both still refused a same-byte unlisted gzip control.
+    // See openspec/changes/burokrat-workflow-binding-validation/evidence/inventory-repair.json.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

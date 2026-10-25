@@ -12,6 +12,11 @@ healthy tests at random (WBS 080.15), so every Bun test a target runs states its
   file only and overrides the flag there; later files fall back to 5 seconds. That is why the dev
   poller's overlap test kept timing out at 5000 ms under the shared preload.
   `tools/test/scratch/scratch.test.ts` proves the flag ends a hang in every file.
+- The shared scratch cleanup hook has an explicit 30-second allowance. This changes only
+  teardown: ordinary test, job and phase limits stay unchanged. A synchronous overrun is
+  reported after return and cannot interrupt a blocked filesystem call.
+  `tools/test/scratch/cleanup-budget.test.ts` injects finite latency into the actual remover,
+  verifies physical removal, and proves inherited/reduced hook limits and ordinary hangs fail.
 - A test that needs more than its target's budget states its own as the third argument.
 - The target budget is the smallest of 10, 30 or 60 seconds that is at least 3 times the slowest
   idle run and 1.5 times the slowest loaded run. Count only the tests that have no budget of their

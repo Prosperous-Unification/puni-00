@@ -12,6 +12,8 @@ import { removeProcessRoot } from '.';
 // Proof: tool-git-hooks:typecheck caught a deliberate string assigned to number
 // here (TS2322); removing ../test/scratch/**/*.ts from its spec include hid the
 // same error. The temporary assignment was removed after both runs.
+// Proof: omitting this allowance failed cleanup-budget.test.ts with an unnamed
+// hook timeout under injected rmSync latency; ordinary hangs still timed out at 20ms.
 afterAll(removeScratchAfterAll, 30_000);
 
 /**
