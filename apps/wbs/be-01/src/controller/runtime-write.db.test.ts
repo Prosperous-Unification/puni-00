@@ -10,6 +10,7 @@ import type {
   RuntimeReply,
   RuntimeWriteRequest,
 } from '@wbs/contracts';
+import type { ResourceRuntimeActor } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import {
   createPlanCommandRunner,
@@ -27,6 +28,7 @@ import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
+import { SqliteResourceRuntime } from '@wbs/store-sqlite/resource-runtime';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -983,6 +985,164 @@ describe('runtime write transaction boundaries', () => {
     );
     expect(await snapshot()).toEqual(before);
     expect(captures()).toBe(capturedBefore + 1);
+  });
+
+  // Proof: the late receipt trigger required staged cleanup and then raised its distinct cause;
+  // all six resource tables and the existing runtime/claim/journal/event snapshot rolled back.
+  // Removing the trigger accepted the same release; exact replay preserved every row.
+  it('rolls back claim-release cleanup on late receipt failure and replays its accepted request once', async () => {
+    const fixture = await held(true);
+    const { sqlite, runner, write, claim } = fixture;
+    const runtime = new SqliteResourceRuntime(sqlite.db, sqlite.gate);
+    const credentialId = '00000000-0000-4000-8000-000000000001';
+    for (const statement of [
+      "INSERT INTO compute_provider (id,organization_id,kind,name,locator,created_at,created_by) VALUES ('resource-provider','org-a','ssh_host','Release host','display-only',2,'ada')",
+      "INSERT INTO resource (id,name,kind,unit_label,provider_id) VALUES ('release-disk','Release disk','divisible','GB','resource-provider')",
+      "INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('release-disk','org-a','Release disk')",
+      "INSERT INTO machine_credential (id,organization_id,person_id,issued_by,source,name,created_at,created_by) VALUES ('00000000-0000-4000-8000-000000000001','org-a','other-agent','ada','api_key','Release controller',2,'ada')",
+      "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
+    ])
+      sqlite.db.run(statement);
+    const controller: ResourceRuntimeActor = {
+      id: 'ada',
+      personId: 'other-agent',
+      credentialId,
+      fingerprint: 'release-controller',
+      access: { ...context.access },
+    };
+    expect(
+      await runtime.bind(
+        'release-runtime',
+        { ...controller, credentialId: null, personId: null },
+        { providerId: 'resource-provider', credentialId, epoch: 'release-epoch' },
+        2,
+      ),
+    ).toMatchObject({ ok: true });
+    sqlite.db.run(
+      "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
+    );
+    expect(
+      await runtime.ingest(
+        'release-runtime',
+        controller,
+        {
+          eventId: 'release-registration',
+          epoch: 'release-epoch',
+          sequence: 1,
+          useId: 'release-runtime-use',
+          incarnation: 'release-incarnation',
+          revision: 1,
+          kind: 'registered',
+          observedAt: 2,
+          reason: 'Track the exact runtime claim session',
+          use: {
+            projectId: 'a1',
+            resourceId: 'release-disk',
+            workItemId: claim.workItemId,
+            agentRun: claim.execution.sessionId,
+            responsiblePersonId: 'agent',
+            locator: '/display/release-checkout',
+            units: 1,
+            kind: 'git_worktree',
+            reservedDiskUnits: 1,
+            reservedWorkspaceUnits: 1,
+          },
+        },
+        2,
+      ),
+    ).toEqual({
+      ok: true,
+      value: { acceptedSequence: 1, useId: 'release-runtime-use', revision: 1 },
+    });
+    const snapshot = async () => ({
+      ordinary: await fixture.snapshot(),
+      uses: sqlite.db.all('SELECT * FROM resource_use ORDER BY id'),
+      history: sqlite.db.all('SELECT * FROM resource_use_event ORDER BY use_id,revision'),
+      requests: sqlite.db.all('SELECT * FROM resource_cleanup_request ORDER BY request_id'),
+      occupancy: sqlite.db.all('SELECT * FROM claim_occupancy ORDER BY claim_id,resource_id'),
+      allocation: sqlite.db.all(
+        "SELECT * FROM sqlite_sequence WHERE name='resource_cleanup_request'",
+      ),
+      authorities: sqlite.db.all('SELECT * FROM resource_authority ORDER BY authority_id'),
+      runtimeUses: sqlite.db.all('SELECT * FROM resource_runtime_use ORDER BY use_id'),
+      runtimeEvents: sqlite.db.all(
+        'SELECT * FROM resource_runtime_event ORDER BY authority_id,sequence',
+      ),
+    });
+    const request = await write([{ ...progress, state: 'done' }, release], 'resource-release');
+    const before = await snapshot();
+    expect(
+      sqlite.db.get<{
+        source: string;
+        state: string;
+        revision: number;
+        pending: number;
+        runtimeRevision: number;
+      }>(
+        "SELECT json_extract(snapshot,'$.source') AS source,state,revision,json_extract(snapshot,'$.pendingCleanupRequest') AS pending,json_extract(snapshot,'$.runtimeRevision') AS runtimeRevision FROM resource_use WHERE id='release-runtime-use'",
+      ),
+    ).toEqual({ source: 'runtime', state: 'active', revision: 1, pending: 0, runtimeRevision: 1 });
+    expect(before.history).toHaveLength(1);
+    expect(before.requests).toEqual([]);
+    expect(before.runtimeUses).toHaveLength(1);
+    expect(before.runtimeEvents).toHaveLength(1);
+    const journalBefore = sqlite.db.get<{ count: number }>(
+      'SELECT count(*) AS count FROM command_journal',
+    );
+    sqlite.db.run(
+      `CREATE TRIGGER reject_resource_release_receipt BEFORE INSERT ON runtime_command_receipt
+      WHEN NEW.command_id='resource-release' BEGIN
+        SELECT CASE WHEN
+          (SELECT count(*) FROM claim)=0
+          AND (SELECT count(*) FROM step_progress WHERE work_item_id='leaf' AND step_id='dev' AND state='done')=1
+          AND (SELECT count(*) FROM command_journal)>${String(journalBefore.count)}
+          AND (SELECT count(*) FROM resource_cleanup_request WHERE authority_id='release-runtime' AND use_id='release-runtime-use' AND incarnation='release-incarnation' AND expected_revision=1 AND acknowledged_sequence IS NULL)=1
+          AND (SELECT count(*) FROM resource_authority WHERE authority_id='release-runtime' AND accepted_sequence=1)=1
+          AND (SELECT count(*) FROM resource_use_event WHERE use_id='release-runtime-use' AND revision=2 AND json_extract(snapshot,'$.kind')='cleanup_requested')=1
+          AND (SELECT count(*) FROM resource_use WHERE id='release-runtime-use' AND state='active' AND revision=2 AND json_extract(snapshot,'$.pendingCleanupRequest')=1 AND json_extract(snapshot,'$.runtimeRevision')=1)=1
+        THEN RAISE(ABORT,'late receipt after exact resource cleanup staging')
+        ELSE RAISE(ABORT,'late receipt missing exact resource cleanup staging') END;
+      END`,
+    );
+    try {
+      await runner.writeRuntime(context, request).then(
+        () => {
+          throw new Error('resource release receipt unexpectedly resolved');
+        },
+        (fault: unknown) => {
+          expect(fault).toBeInstanceOf(Error);
+          if (!(fault instanceof Error)) throw fault;
+          expect(fault.message).toContain('INSERT INTO runtime_command_receipt');
+          expect(fault.cause).toMatchObject({
+            message: 'late receipt after exact resource cleanup staging',
+          });
+        },
+      );
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      sqlite.db.run('DROP TRIGGER reject_resource_release_receipt');
+    }
+    const accepted = value(await runner.writeRuntime(context, request));
+    expect(await fixture.source.stores.claims.findById('a1', claim.claimId)).toBeNull();
+    expect(
+      sqlite.db.get<{ state: string; revision: number; pending: number; runtimeRevision: number }>(
+        "SELECT state,revision,json_extract(snapshot,'$.pendingCleanupRequest') AS pending,json_extract(snapshot,'$.runtimeRevision') AS runtimeRevision FROM resource_use WHERE id='release-runtime-use'",
+      ),
+    ).toEqual({ state: 'active', revision: 2, pending: 1, runtimeRevision: 1 });
+    expect(await runtime.requests('release-runtime', controller, 0, 50)).toMatchObject({
+      ok: true,
+      value: {
+        requests: [
+          { useId: 'release-runtime-use', incarnation: 'release-incarnation', expectedRevision: 1 },
+        ],
+        nextCursor: null,
+      },
+    });
+    expect(sqlite.db.all('SELECT * FROM resource_use_event')).toHaveLength(2);
+    expect(sqlite.db.all('SELECT * FROM resource_cleanup_request')).toHaveLength(1);
+    const committed = await snapshot();
+    expect(await runner.writeRuntime(context, request)).toEqual({ ok: true, value: accepted });
+    expect(await snapshot()).toEqual(committed);
   });
 
   it('recovers committed write after reply loss, close/reopen, lookup and exact retry without effects', async () => {

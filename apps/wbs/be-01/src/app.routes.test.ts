@@ -58,6 +58,19 @@ import { testWrites } from './testing/writes-fixture';
 
 function options(): AppOptions {
   return {
+    resourceRuntime: {
+      bind: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      read: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      admit: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      ingest: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      requests: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+    },
+    resourceUses: {
+      register: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      append: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      list: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      history: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+    },
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -191,40 +204,44 @@ const SIGNED_IN_OPERATIONS = [
   'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganization',
+  'getApiOrganizationActive',
+  'getApiOrganizationCompute-providers',
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationLimits',
+  'getApiOrganizationMachine-credentials',
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
-  'getApiOrganizationActive',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
-  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationResourceAuthoritiesByAuthorityId',
   'getApiOrganizationSession-policy',
   'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
-  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdCalendar-markers',
   'getApiProjectsByIdClaim-history',
   'getApiProjectsByIdClaims',
   'getApiProjectsByIdHistory',
   'getApiProjectsByIdPeopleByPersonIdWork',
+  'getApiProjectsByIdResourceUses',
+  'getApiProjectsByIdResourceUsesByUseIdHistory',
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
-  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
   'getApiProjectsByIdWork-itemsByWorkItemId',
   'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
   'getApiSaved-plansById',
   'getApiServices',
   'getApiSpaces',
@@ -296,6 +313,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiProjectsByIdOpened',
   'postApiProjectsByIdOptimizationRetry',
   'postApiProjectsByIdRedo',
+  'postApiProjectsByIdResourceUses',
+  'postApiProjectsByIdResourceUsesByUseIdEvents',
   'postApiProjectsByIdSaved-plans',
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
@@ -304,7 +323,10 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
   'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  'putApiOrganizationResourceAuthoritiesByAuthorityId',
   'putApiOrganizationSession-policy',
+  'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+  'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
 const INTERNAL_OPERATIONS = [
   'postInternalForward',
@@ -389,6 +411,8 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiProjectsByIdOpened',
   'postApiProjectsByIdOptimizationRetry',
   'postApiProjectsByIdRedo',
+  'postApiProjectsByIdResourceUses',
+  'postApiProjectsByIdResourceUsesByUseIdEvents',
   'postApiProjectsByIdSaved-plans',
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
@@ -398,12 +422,14 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
   'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  'putApiOrganizationResourceAuthoritiesByAuthorityId',
   'putApiOrganizationSession-policy',
+  'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+  'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
   'lookupRuntimeReceipt',
   'readRuntimeState',
-  'postInternalGatewayProjectBrowserAccess',
   'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
@@ -412,40 +438,45 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiExternal-systems',
   'getApiMeasures',
   'getApiOnboarding',
-  'getApiOrganizationMemberships',
-  'getApiOrganizationActive',
   'getApiOrganization',
+  'getApiOrganizationActive',
+  'getApiOrganizationCompute-providers',
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationLimits',
+  'getApiOrganizationMachine-credentials',
   'getApiOrganizationMembers',
+  'getApiOrganizationMemberships',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
-  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationResourceAuthoritiesByAuthorityId',
   'getApiOrganizationSession-policy',
+  'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
-  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdCalendar-markers',
   'getApiProjectsByIdClaim-history',
   'getApiProjectsByIdClaims',
   'getApiProjectsByIdExport',
   'getApiProjectsByIdPeopleByPersonIdWork',
+  'getApiProjectsByIdResourceUses',
+  'getApiProjectsByIdResourceUsesByUseIdHistory',
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
-  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
   'getApiProjectsByIdWork-itemsByWorkItemId',
   'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
   'getApiSaved-plansById',
   'getApiServices',
   'getApiSpaces',
@@ -460,14 +491,14 @@ const NO_ORIGIN_OPERATIONS = [
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalGatewayProjectAccess',
+  'postInternalGatewayProjectBrowserAccess',
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
   'postInternalMcpOrganizations',
-  'postInternalGatewayProjectAccess',
   'postInternalResume',
-  'getApiOrganizationSso-connections',
 ] as const;
 
 async function reachabilityOptions(
@@ -1023,5 +1054,29 @@ describe('shared HTTP shape reachability through the production app', () => {
 
       expect(modeledNotFoundCount).toBeGreaterThan(0);
     });
+  }
+});
+
+it('returns explicit unavailability for admission in a composition without runtime storage', async () => {
+  const composition = options();
+  const authentication = spyOn(composition.auth, 'authenticateOrRefuse').mockResolvedValue({
+    id: 'runtime-actor',
+    username: 'runtime-actor',
+    scopes: ['read', 'write'],
+    authentication: { kind: 'machine', credentialId: 'runtime-key', personId: 'runtime-person' },
+  });
+  try {
+    const app = buildApp({ ...composition, resourceRuntime: undefined });
+    const response = await app.handle(
+      new Request('http://localhost/api/resource-authorities/dash/admissions', {
+        method: 'PUT',
+        headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' },
+        body: JSON.stringify(REQUEST_BODIES['putApiResourceAuthoritiesByAuthorityIdAdmissions']),
+      }),
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'resource_tracking_unavailable' });
+  } finally {
+    authentication.mockRestore();
   }
 });

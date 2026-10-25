@@ -114,7 +114,20 @@ import {
   revokeProvisioningToken,
   rotateProvisioningToken,
 } from './provisioning-token-shapes';
+import {
+  admitResourceRuntimeUse,
+  bindResourceAuthority,
+  ingestResourceRuntimeEvent,
+  readResourceAuthority,
+  readResourceCleanupRequests,
+} from './resource-runtime-shapes';
 import { readProjectResources } from './resource-shapes';
+import {
+  appendResourceUseEvent,
+  listResourceUses,
+  readResourceUseHistory,
+  registerResourceUse,
+} from './resource-use-shapes';
 import { runtimeCommandShapes } from './runtime-command-shapes';
 import {
   compareSavedPlans,
@@ -162,6 +175,15 @@ import {
 
 /** Migrated HTTP declarations; legacy families join this table as their handlers migrate. */
 const ordinaryHttpShapes = [
+  bindResourceAuthority,
+  readResourceAuthority,
+  admitResourceRuntimeUse,
+  ingestResourceRuntimeEvent,
+  readResourceCleanupRequests,
+  registerResourceUse,
+  listResourceUses,
+  appendResourceUseEvent,
+  readResourceUseHistory,
   health,
   metrics,
   registerPassword,

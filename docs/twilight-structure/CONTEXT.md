@@ -376,6 +376,31 @@ _Avoid_: Scheduling, launch
 A claim on part of a capacity pool or budget held for one admitted activity.
 _Avoid_: Allocation, quota
 
+**Resource use**:
+A specific resource managed for an execution and backed by runtime reservations; the use
+remains attributable after the execution ends.
+_Avoid_: Reservation, WBS occupancy, allocation
+
+**Resource cleanup**:
+Settlement of resource uses by preserving required work, withdrawing access, and verifying
+release or accepted continuing ownership.
+_Avoid_: Claim release, work outcome, garbage collection
+
+**Resource release**:
+Verified return of particular reserved runtime capacity after the corresponding use ends.
+Returning reusable capacity and destroying a disposable resource are distinct releases.
+_Avoid_: Lease expiry, cancellation, production release
+
+**Release record**:
+The attributable evidence for one verified resource release, including its capacity and
+resource identity; retrying its delivery does not create a second release.
+_Avoid_: Cleanup request, capacity report, receipt (without qualification)
+
+**Retained resource**:
+A resource use kept under an identified continuing owner, reason and review deadline,
+whose physical capacity remains charged.
+_Avoid_: Released reservation, free capacity
+
 **Lease**:
 Time-bounded ownership of a reservation or workspace, fenced by a token so an
 expired owner cannot act.

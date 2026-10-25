@@ -180,6 +180,7 @@ export * from './money-basis';
 export * from './machine-credential';
 // Provider instances and capacity reports beside a declared capacity (compute-providers P2-P7).
 export * from './compute-provider';
+export * from './resource-use';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

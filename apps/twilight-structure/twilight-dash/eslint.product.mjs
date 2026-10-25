@@ -207,5 +207,11 @@ export default ({
       ],
       rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
     },
+    {
+      files: ['apps/twilight-structure/twilight-dash/cli/src/resources/**/*.ts'],
+      // Proof: removing this exact override failed `Dash resources reach only the WBS
+      // transport contract at their scoped paths`; sibling/relative imports remain denied.
+      rules: boundary(['^@wbs/contracts$']),
+    },
   ];
 };
