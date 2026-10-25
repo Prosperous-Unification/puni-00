@@ -23,8 +23,15 @@ the directory capacity across projects.
 
 #### Scenario: Two concurrent claims in two projects
 
-- **WHEN** a claim in A and a claim in B each ask 10 of a directory capacity of 16 at once
+- **WHEN** a claim in A and a claim in B each ask 10 of a directory capacity of 16 at once,
+  on one connection or on two
 - **THEN** exactly one is applied and the other is refused `resources_exhausted`
+
+#### Scenario: One batch claims two leaves
+
+- **WHEN** one batch in A claims two leaves asking 10 each of a directory capacity of 16
+- **THEN** the batch is refused `resources_exhausted` for the second leaf and nothing is
+  written
 
 ### Requirement: A shortage names the scope that bound it
 
@@ -45,10 +52,10 @@ free units bind, and on a tie `organization`.
 
 ### Requirement: Undo, redo and release act across projects
 
-A redo of a claim and an undo of a release SHALL re-acquire through the same check and,
-refused, answer `stale_undo` whose detail begins `resources_exhausted:` and names the scope. A
-release or a lease sweep SHALL free the units for every project at once. Lowering a directory
-capacity below what is held SHALL release nothing.
+A redo of a claim, an undo of a release and an undo of a delete that restores claims SHALL
+re-acquire through the same check, leaf by leaf and all or nothing, and, refused, answer
+`stale_undo` whose detail begins `resources_exhausted:` and names the scope. A release or a
+lease sweep SHALL free the units for every project at once.
 
 #### Scenario: Undo in A refused by B
 
@@ -56,25 +63,41 @@ capacity below what is held SHALL release nothing.
 - **THEN** the undo is refused `stale_undo` with detail `resources_exhausted:` naming
   `organization`
 
+#### Scenario: Undo of a delete that restores claims
+
+- **WHEN** deleting a claimed leaf in A dropped its 8 GB claim, B then took 12 of 16, and the
+  delete is undone
+- **THEN** the undo is refused `stale_undo` with detail `resources_exhausted:`, and with B
+  holding 8 instead it is applied and A holds 8 again
+
+#### Scenario: Undo of a cascading release
+
+- **WHEN** a superagent's release in A freed two delegated leaves of 4 GB each, B then took 10
+  of 16, and the release is undone
+- **THEN** the undo is refused for the second leaf and neither leaf's claims return
+
 #### Scenario: A lease sweep in A frees B
 
 - **WHEN** A's 16 GB claim's lease runs out and the sweep releases it
 - **THEN** B's next startable read shows 16 free and B's claim of 16 is applied
 
-### Requirement: Holders in other projects respect the reader's access
+### Requirement: Units held elsewhere are an organization fact; holders follow the reader's access
 
-Each holder named by `resources_exhausted`, the startable read and the project resources read
-SHALL carry its `projectId`. A holder in a project the reader may read SHALL be named in full;
-holders in projects the reader may not read SHALL be folded into one `elsewhere: { units,
-claims }` per resource, carrying no project id, project name, person, run or work item. A
-machine principal SHALL be judged by its own grants.
+For a resource with a directory capacity, every reader of a project that uses it SHALL see the
+units held by projects it may not read, as one `elsewhere: { units }` per resource in
+`resources_exhausted`, the startable read and the project resources read, carrying no claim
+count, project id, project name, person, run or work item. Holders in projects the reader may
+read SHALL be named in full and carry `projectId`. A machine principal SHALL be judged by its
+own grants.
 
 #### Scenario: A reader without access to A
 
 - **WHEN** a principal that may read B but not A is refused for `host ram` held by A
-- **THEN** the refusal carries `elsewhere: { units: 16, claims: 1 }` and no identifier from A
+- **THEN** the refusal carries `elsewhere: { units: 16 }` and none of A's project, person,
+  run or work item ids appear anywhere in the body
 
 #### Scenario: An organization member reads both
 
 - **WHEN** a member who may read A and B is refused for the same resource
-- **THEN** A's holder is named with person, run, work item and `projectId`
+- **THEN** A's holder is named with person, run, work item and `projectId`, and `elsewhere`
+  carries 0 units

@@ -658,7 +658,7 @@ _Avoid_: Quota, limit, size
 
 **Directory capacity**:
 How many units of one resource exist for every project of its organization, stated on the
-resource; the number shared occupancy is counted against. Unstated, a resource has none.
+resource; the number shared occupancy is counted against. Stated or unstated, never remembered.
 _Avoid_: Total, pool size, quota, share
 
 **Demand**:
