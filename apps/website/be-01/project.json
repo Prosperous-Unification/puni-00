@@ -20,7 +20,7 @@
       ],
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test apps/website/be-01/src --timeout=30000"
+        "command": "bun test ./apps/website/be-01/src --timeout=30000"
       }
     },
     "lint": {

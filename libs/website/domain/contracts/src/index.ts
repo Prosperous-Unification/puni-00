@@ -93,3 +93,4 @@ export interface SubmissionView {
 export * from './brief';
 export * from './browser-check';
 export * from './reply-stream';
+export * from './scoping';
