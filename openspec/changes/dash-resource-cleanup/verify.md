@@ -337,3 +337,39 @@ The resources boundary test now validates those options and types its comparison
 the adjacent activation boundary test. `bunx tsc --build --force tools/tool-devsync/tsconfig.json`
 then exited0. Its focused real ESLint boundary regression passed (one test, 13 assertions),
 and scoped lint/format checks passed. No import allowance or assertion was weakened.
+
+## Measure-column browser teardown correction (2026-10-25)
+
+GitHub run `40194109802`, pixels shard 2, failed the fresh-reader case in
+`measure-columns.spec.ts` with `apiResponse.json: Response has been disposed`.
+The retained trace shows the second reader's intercepted plan fetch starting at
+750856.665, the header and empty-measure-headings assertions finishing at 750904.972
+while the body was empty, and the fetch returning at 750954.369 after context close
+had started. Header visibility did not establish that this reader had loaded its plan.
+
+The test now waits for every seeded row by its row ID before checking initial,
+reloaded, and second-reader column preferences. The second page drains intercepted
+handlers with `unrouteAll({ behavior: 'wait' })` in `finally` before closing its context;
+the primary page drains in `afterEach`. Errors still fail the test. All column,
+preference, budget, and write/read assertions remain intact; no retry, fixed delay,
+timeout increase, or production UI change was added.
+
+The real four-case file passed with the repository's ordinary server configuration:
+
+```sh
+CI=1 E2E_PORT_SHIFT=8000 E2E_TEST_DATABASE=<task-temp>/test.db \
+  PWTEST_CACHE_DIR=<task-temp>/cache bunx playwright test \
+  --config apps/wbs/fe-01/playwright.config.ts \
+  apps/wbs/fe-01/e2e/measure-columns.spec.ts --project chromium \
+  --reporter=list --output <task-temp>/results
+```
+
+Playwright returned 0: **4 passed in 37.4s**, including the failed case in 8.5s.
+`bunx eslint apps/wbs/fe-01/e2e/measure-columns.spec.ts` and `git diff --check` passed.
+The task created local `.env` files through `bun run dev:setup`, then removed only
+those initially absent files plus its temporary database, cache, and browser outputs.
+All three isolated ports (11100, 11200, 12200) were confirmed stopped after cleanup.
+The temporary launcher reported a variable-shadowing error after the successful
+Playwright subprocess and completed cleanup; this was outside the test run.
+The original CI trace is the observed failure evidence; no synthetic delay was needed.
+A new GitHub run remains required to verify the complete shard.
