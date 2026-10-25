@@ -579,6 +579,9 @@ export const RESTART_PATHS: readonly string[] = [
   // that exists on disk` when the two design-system kit manifests were omitted.
   'libs/shared/adapters/ui-core-01/project.json',
   'libs/shared/adapters/ui-saas-01/project.json',
+  // Proof: omitting this manifest failed `names every library project.json that exists on disk`
+  // with this exact analytics path (2026-10-26).
+  'libs/website/adapters/analytics/project.json',
   'libs/website/adapters/portability-fixture/project.json',
   'libs/website/adapters/store-sqlite/project.json',
   'libs/website/domain/contracts/project.json',
