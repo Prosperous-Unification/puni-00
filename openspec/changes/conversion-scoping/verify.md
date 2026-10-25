@@ -36,6 +36,19 @@ Commits `7ddff6e3b`, `586eb25e6` and reviewed fix `10a818d81` implement versione
 - Required release constraint: a pre-scoping backend cannot maintain version-1 raw Retry payloads. Release preparation must guard the minimum backend protocol and rehearse a compatible rollback; additive SQL alone is insufficient.
 - No live provider call, browser journey, deployment or full host gate was part of this slice. Tool-wiki hooks explicitly reported inactive because the external activation root is absent; applicable secrets, format, lint, nesting, migration and message hooks passed without bypass.
 
+## Structured replies, prompt and accounting — 2026-10-25
+
+Commit `b2b81382c` adds the separately versioned `puni-scoping-v1` prompt, strict structured output, coherent admitted context/schema pricing, atomic reply/state/accounting settlement and adaptive capture counts. The independent task review approved spec compliance and quality, with one JSDoc correction handled before the next slice.
+
+- All 16 affected test/lint/typecheck/build targets passed: contracts 69, frontend 114, store 253, API 214, totaling 650 tests. Final API/store suites ran with the final fixtures; 12 matching target outputs were cached. The API suite included an actual 30-second deadline/abort test. Verification and hook logs had no warning diagnostics.
+- Nineteen temporary production faults failed their matching regressions and were restored. They cover envelope validation/bounds/truncation, pre-commit publication, fixed completion and reasoning mischarging, missing-refusal zero charging, stranded inflight settlement, reservations/pause/cap/schema pricing, duplicate/invalid capture, failure SQL/trusted/frontend validation, prompt equality and lost draft ownership.
+- Known-invalid output with known usage settles actual cost and exposes a durable failure using additive migration 013. It saves fixed server-owned manual-path prose, no raw invalid text, question, candidate or capture. Missing/invalid usage, including refusal without usage, settles the full reservation. Explicit reported zero remains zero. Completed accounting is not a useful AI answer.
+- Valid envelope, readable transcript, current state, capture and usage commit in one immediate transaction. Current visitor edits survive inference. Replay decodes historical prose without restoring an old current question or purchasing another call. A thrown settlement now conservatively clears inflight accounting before propagating the error.
+- Exact request pricing includes the outbound schema and the same admitted history/brief/reference snapshot. Fixture costs include 502 micro-USD for 900 prompt + 60 completion tokens and 1,558 for 900 prompt + 660 completion tokens, including 600 reasoning tokens, at $0.44/$1.76 per million. These are deterministic fixture checks, not measured live costs.
+- Six scripted click routes and typed/mixed/uncertain/curiosity fixtures passed. They establish shape/control behavior only. Model judgment, actual endpoint acceptance and 700-token truncation frequency remain live-evaluation work.
+- Migration 013 lint and exact disposable rollback checks passed; existing retention/journal fixtures now unwind dependent migrations in order. Restored-snapshot coverage includes real versioned envelope content and erasure fences. OpenSpec validation, formatting, whitespace and applicable hooks passed; tool-wiki remains explicitly inactive because its external activation root is not provisioned.
+- Browser rendering, revisioned editing/human-review UI, paid evaluation, deployment and exact-SHA host gate were not run in this slice. These are required downstream checks, not inferred from passing unit/mounted tests.
+
 ## Private source map and baseline
 
 The licensed site is in the independently cloned private companion; its source is never copied into the public repository. Canonical public app/API/contracts/store snapshots will be refreshed only from a committed public revision.
@@ -63,4 +76,4 @@ The retained website provider key was checked on h2 through [OpenRouter’s curr
 
 ## Outstanding validation
 
-Structured AI replies, selectable UI, human-review integration, private integration, browser journeys, actual provider quality/cost evaluation, operator receipt, release rollback and exact-SHA host gate remain outstanding. No new flow is deployed. No real request has been submitted and no outbound email sent by this work.
+Selectable UI, revisioned editing and human-review integration, private integration, browser journeys, actual provider quality/cost evaluation, operator receipt, release rollback and exact-SHA host gate remain outstanding. No new flow is deployed. No real request has been submitted and no outbound email sent by this work.
