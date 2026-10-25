@@ -6,7 +6,7 @@ import type { ComputeProvider } from '@/components/organization/compute-provider
 import { type ResourceScope } from '@/lib/organization-context';
 import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@/testing/organization-render';
-import { answerJson as answer, stubServer } from '@/testing/stub-server';
+import { answerJson as answer, stubServer as baseStubServer } from '@/testing/stub-server';
 
 import { type ProjectResource, ResourceRow, ResourcesPanel } from './resources-panel';
 
@@ -17,6 +17,12 @@ const PROVIDERS = 'GET /api/organization/compute-providers';
 const PLAN = 'POST /api/projects/p1/commands';
 const DIRECTORY = 'POST /api/directory/commands';
 const STARTABLE = 'GET /api/projects/p1/startable';
+const RESOURCE_USES = 'GET /api/projects/p1/resource-uses';
+const stubServer = (routes: Parameters<typeof baseStubServer>[0]) =>
+  baseStubServer({
+    [RESOURCE_USES]: [() => answer(200, { uses: [], nextCursor: null })],
+    ...routes,
+  });
 
 beforeEach(() => {
   // Only `Date`: the panel's 30 s tick and every promise stay on the real clock.
@@ -877,5 +883,67 @@ describe('resources section holdings from an older server', () => {
     mount();
     const ram = await row('h2puni ram');
     expect(await within(ram).findByText('No holdings were reported for it.')).toBeDefined();
+  });
+});
+
+describe('resource-use integration', () => {
+  it('shows a registered use in the live Resources section', async () => {
+    stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [RESOURCE_USES]: [
+        () =>
+          answer(200, {
+            uses: [
+              {
+                id: 'u1',
+                source: 'reported',
+                organizationId: 'org-a',
+                projectId: 'p1',
+                projectName: 'Plan',
+                resourceId: 'r1',
+                resourceName: 'h2puni ram',
+                unitLabel: 'GB',
+                providerId: 'cp-1',
+                providerName: 'h2puni',
+                workItemId: 'w1',
+                workItemName: 'Compile',
+                stepId: null,
+                attemptNumber: null,
+                agentRun: 'run-7',
+                responsiblePersonId: 'agent-1',
+                responsiblePersonName: 'Build agent',
+                locator: '/work/build-7',
+                units: 12,
+                state: 'cleanup_pending',
+                revision: 2,
+                createdAt: NOW,
+                updatedAt: NOW,
+                createdBy: 'u1',
+                updatedBy: 'u1',
+                retention: null,
+              },
+            ],
+            nextCursor: null,
+          }),
+      ],
+    });
+    mount();
+    expect(
+      await screen.findByRole('listitem', { name: /h2puni ram for Compile/ }),
+    ).toHaveTextContent('Cleanup pending');
+    expect(await row('h2puni ram')).toBeDefined();
+  });
+
+  it('keeps the resource editor available when tracking is refused', async () => {
+    stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [RESOURCE_USES]: [() => answer(503, { error: 'resource_tracking_unavailable' })],
+    });
+    mount();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Resource uses could not be read');
+    expect(await row('h2puni ram')).toBeDefined();
+    expect(screen.getByRole('button', { name: /Edit h2puni ram/ })).toBeDefined();
   });
 });
