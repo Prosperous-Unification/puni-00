@@ -292,3 +292,60 @@ export function sparseCommandRefusalTypes() {
   // @ts-expect-error A printable node identifier does not replace a concrete pair.
   expectTypeOf<CommandRefusal>(printableNodes);
 }
+
+/** Both public refusal types retain the two money bases, including unpriced figures. */
+export function assertMixedRateCardRefusalTypes() {
+  expectTypeOf<CommandRefusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [
+      { currency: 'USD', rateCardDigest: 'card-a' },
+      { currency: 'USD', rateCardDigest: 'card-b' },
+    ],
+  });
+  expectTypeOf<Refusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [null, { currency: 'USD', rateCardDigest: 'card-b' }],
+  });
+  expectTypeOf<CommandRefusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [{ currency: 'USD', rateCardDigest: 'card-a' }, null],
+  });
+  // @ts-expect-error A command mix refusal must name both bases.
+  expectTypeOf<CommandRefusal>({ error: 'mixed_rate_cards', at: 0, kind: 'deleteWorkItem' });
+  // @ts-expect-error The global envelope must also retain the bases.
+  expectTypeOf<Refusal>({ error: 'mixed_rate_cards', at: 0, kind: 'deleteWorkItem' });
+  expectTypeOf<CommandRefusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    // @ts-expect-error One basis cannot describe a mix.
+    bases: [null],
+  });
+  // @ts-expect-error A mix names exactly two bases.
+  expectTypeOf<Refusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [null, null, null],
+  });
+  expectTypeOf<CommandRefusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    // @ts-expect-error A priced basis must include its rate card digest.
+    bases: [{ currency: 'USD' }, null],
+  });
+  // @ts-expect-error A priced basis must include its currency.
+  expectTypeOf<Refusal>({
+    error: 'mixed_rate_cards',
+    at: 0,
+    kind: 'deleteWorkItem',
+    bases: [null, { rateCardDigest: 'card-b' }],
+  });
+}
