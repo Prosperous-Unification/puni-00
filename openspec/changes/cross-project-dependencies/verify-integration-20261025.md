@@ -144,3 +144,59 @@ Subsequent evidence wording clarifies historical attribution and summarizes thes
 results; runtime source remains frozen. Exact committed-head policy/index checks,
 the new candidate's CI and its isolated canonical host gate remain separate
 requirements. No parent checkbox is closed by this document.
+
+## Normal candidate CI completed
+
+Published head `cbe9d63b961e3fc0b780282f89ba5f9fe393e7af` passed
+[normal CI 40211349061](https://github.com/Prosperous-Unification/puni-00/actions/runs/40211349061)
+and [infra 40211349021](https://github.com/Prosperous-Unification/puni-00/actions/runs/40211349021),
+attempt 1. Normal CI’s 19 executed jobs, including the final gate, succeeded;
+both infrastructure jobs succeeded. One alternative docs route was intentionally skipped. PR #630 remained open, draft and unmerged
+with auto-merge disabled. The later channel checkpoint is not part of this head.
+
+The actual validated synthetic merge was
+`6adc5f1ab3a6e6f15fd6ec3a9b8cc8721d255cf3`, with first parent
+`2cc76418d848c8833c81f524ef269928015318f2` and second parent `cbe9`. Main had
+advanced through the standalone work-package rename tool. The Actions event API
+also retained the earlier base `a116`; that snapshot is not the validated runtime
+base. Checkout, emitted selection and complete partition logs agree on the actual
+synthetic source. No source verifier or production guard was weakened.
+
+| Partition                  | Complete observed outcome                                                                                                                                                               |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model                      | All 16 exact full-model cases passed: 2,103 assertions, 1,000.05 s. All 11 exact filtered readiness/barrier cases passed; parent 21 passes, 141 assertions, 1,697.55 s.                 |
+| Backend                    | 4,528 passes, 3 skips, 0 failures across 296 files; 77,895 assertions. All 14 expanded arrangement cases, including the new staged-link and rollback cases, passed. Types/build passed. |
+| Remote rest                | 3,348 passes, 2 skips, 0 failures across 141 files; 88,735 assertions. Factory, temporary-root, logical-deadline and setsid cases passed. Types/build passed.                           |
+| Frontend                   | Unit 88 files/1,085 tests, UTC 244 files/4,925 tests, zoned 4 files/5 tests passed. Overlapping tiers are not summed as unique coverage. Types/build passed.                            |
+| Workspace                  | 49 projects plus 7 dependencies passed tests/types/build; configured source/shared lint passed.                                                                                         |
+| Twilight                   | Dash 2,201 passes and Burokrat 2,514 passes; types/build passed.                                                                                                                        |
+| Browser and infrastructure | All eight browser shards and aggregate passed; fleet-check and Kubernetes rehearsal passed.                                                                                             |
+
+The model used the original static child import **without the diagnostic
+observer**. No generic manifest refusal occurred. This passing normal run does
+not identify the earlier transient's cause or establish that a race is absent.
+
+The three backend skips were two shared-people host/container process cases and
+one solver orphan process-boundary case; the two remote skips were optional real
+Docker cleanup cases. They remain unexecuted physical evidence, not passed native
+checks. Trusted Wiki certification is not established by an inactive/skipped
+external activation path.
+
+All six complete Nx logs were retained with run/head/attempt metadata, and root
+independently verified twelve evidence hashes. These are extracted raw
+`nx-gate.log` hashes, not ZIP hashes:
+
+| Artifact    | Partition   | Raw log SHA-256                                                    |
+| ----------- | ----------- | ------------------------------------------------------------------ |
+| 12606178984 | Model       | `f5d09f7efd1d7b6ca898cc0498c41a859641b43cfaf53da23416138b05b5555e` |
+| 12606713093 | Backend     | `4258bc7d0e8bf7d71e2efc6464c1e0371d350d10c99e88f56d2513a43db1fee2` |
+| 12606927182 | Frontend    | `2a62efdb75d7219590ddc96ef8d32ba4f3c5e3d0490ed371f7fd66bcb9df3743` |
+| 12606862174 | Workspace   | `0ce07a5e6de57ee891571c3f4298dce7e9760a5aada03489b6174acc55ad43f3` |
+| 12607043969 | Remote rest | `5f9de4655262f0b0710e5bd26e0587d0bdfb87efb263413aa9f035b371ad64dd` |
+| 12606589371 | Twilight    | `b48fa9fff80151f32e340286cd33e3ccaab84374d6f26ca321f4fd47dac33f86` |
+
+The canonical host gate did not execute: its single caller exhausted the
+30-minute lock queue and returned 75 before acquiring the lock or checking out
+the candidate. That is a capacity result, not a source-test failure or host-gate
+pass. The exact-SHA host requirement, full provider implementation/measurement,
+restoration/handoff/adoption and architectural main merge remain open.

@@ -7653,3 +7653,9 @@ new corrected-head CI or host gate, and approve no architectural main merge.
 ## Integration reconciliation and bounded acceptance — 2026-10-25
 
 See [the frozen fixture, main reconciliation, staged-arrangement and one-attempt CI evidence](verify-integration-20261025.md). Parent tasks and architectural main merge remain open; diagnostic success is instrumented non-reproduction, not a manifest-race fix.
+
+## Stage B inherited channel source checkpoint
+
+[Channel source, ordinary IPC, lifecycle corrections and watched faults](verify-source-stageb-channel.md) records the reviewed `ae90692ad` checkpoint. Root independently ran the same 89-test/206-Bun-assertion suite and explicit rehearsal compiler with all frozen hashes preserved. This is source/owned-inert-IPC evidence only; the complete real provider and authorized physical measurement remain required.
+
+[Normal candidate CI](verify-integration-20261025.md#normal-candidate-ci-completed) records the successful `cbe9` run separately. Neither that run nor the channel tests close parent activation, restoration, controller-adoption or architectural merge tasks.

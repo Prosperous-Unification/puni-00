@@ -939,6 +939,13 @@ acceptance remains open; these corrections add no P2b/P3 activation or exposure 
 - [x] Complete frozen ordinary model composition and independent whole-observer source review: 97 outer tests and 16 ordered child cases; exact frozen hashes unchanged.
 - [ ] Complete native StageB, HTTP/collector coordination and full P2b/P3 acceptance; source/model success does not establish these.
 
+### Stage B inherited channel source checkpoint
+
+- [x] Implement bounded target-free FD5/FD6 framing, existing decoder/sequence composition, shared charged/reserved byte accounting and original absolute deadlines without changing profile or production behavior.
+- [x] Reproduce and correct completed-IO continuation, owned-child error, constructor-bound, mutable endpoint ownership and actual endpoint-settlement findings; retain watched faults, explicit rehearsal compiler inclusion and independent source review. [Bounded evidence](verify-source-stageb-channel.md).
+
+The complete fixed builder, journal, capture, genuine preparation/measurement runner, outer cleanup and authenticated archive remain required. This checkpoint grants no provider execution, native profile, application readiness, admission, activation, exposure or main merge; parent 10.2 and physical Stage B acceptance stay open.
+
 ### Published measures reconciliation
 
 - [x] Preserve ordinary document11/input9 and normalize historical bodies without rewriting bytes; move unpublished connected contracts to document12/input10.
