@@ -162,12 +162,6 @@ valid `MCP_BE_INTERNAL_SECRET`. It SHALL then reread the credential through
 otherwise answer `401 unknown_identity`. A grant SHALL be reusable until `exp` and SHALL cost no
 write other than the coarse last-use touch.
 
-#### Scenario: A grant without the secret
-
-- **WHEN** a client extracts the grant from its token and calls `GET /api/projects` with it
-  and no `MCP_BE_INTERNAL_SECRET`
-- **THEN** the answer is `401 invalid_token`
-
 #### Scenario: Revocation at the next call
 
 - **WHEN** an admin revokes a credential while its token still has 10 hours to run
@@ -186,6 +180,17 @@ write other than the coarse last-use touch.
 
 - **WHEN** a machine token makes 100 tool reads within one minute
 - **THEN** the delegation-use table gains no row and `last_used_at` changes at most once
+
+### Requirement: One answer for a missing or wrong internal secret
+
+A missing or wrong `MCP_BE_INTERNAL_SECRET`, on grant admission or on any `/internal/mcp/*`
+route, SHALL be answered `401 internal_unauthorized`, which mcp-01 reports as a fault.
+
+#### Scenario: A grant without the secret
+
+- **WHEN** a client extracts the grant from its token and calls `GET /api/projects` with it,
+  once with no `MCP_BE_INTERNAL_SECRET` and once with a wrong one
+- **THEN** both answer `401 internal_unauthorized`
 
 ### Requirement: The machine grant is verified apart from delegations
 
@@ -322,8 +327,7 @@ the metadata SHALL omit them. On `/mcp`, a JWT carrying `token_use: machine` SHA
 
 No API key, base64 Basic form of it, workload assertion, machine grant or access token SHALL
 appear in route evidence, unexpected-failure reports, audit details, error bodies, or the
-`toString`/`toJSON` of their carriers. `machine_token_issued` SHALL be written at most once per credential,
-run and UTC day, without them.
+`toString`/`toJSON` of their carriers.
 
 #### Scenario: A failing token request
 
@@ -331,6 +335,55 @@ run and UTC day, without them.
 - **THEN** the report, route evidence and audit row contain neither the key, nor
   `base64(id:key)`, nor the assertion, checked with the `plaintext-secrets` pattern and by
   exact substring
+
+### Requirement: Issuance audit volume is bounded per credential and day
+
+be-01 SHALL write one `machine_token_issued` row per distinct run of a credential in a UTC day,
+up to 100 rows per credential per day. After that it SHALL write one
+`machine_token_issued_overflow` row for that credential and day, and nothing more that day. The
+count and the insert SHALL run in one write transaction. Issuance itself is never refused for
+audit reasons. No audit row carries a secret.
+
+#### Scenario: A client that invents runs
+
+- **WHEN** one credential is issued tokens for 150 distinct `wbs_run` values in one UTC day
+- **THEN** 100 `machine_token_issued` rows and one `machine_token_issued_overflow` row exist
+  for it that day, and every issuance answered `200`
+
+#### Scenario: The same run twice
+
+- **WHEN** a credential is issued two tokens for the same run, and two with no run, on one day
+  at a real-epoch time
+- **THEN** exactly two `machine_token_issued` rows exist
+
+### Requirement: The token helper's cache is private and recovers from a 401
+
+`twilight-dash mcp token` SHALL open its cache file with `O_NOFOLLOW` and `fstat` the
+descriptor. It SHALL refuse, with a warning on stderr, a file or directory that is not owned by
+the current uid or that has group or other bits. A re-run from the **same parent process**
+within 30 s of serving an entry SHALL drop the entry and issue a new token. On a `429` it SHALL
+wait the `Retry-After` seconds, capped at 8 s on the helper path, retry once, then fail.
+
+#### Scenario: A 401 retry gets a new token
+
+- **WHEN** Claude Code re-runs the helper (same parent PID) 3 s after it served a cached token
+- **THEN** the helper issues and serves a new token
+
+#### Scenario: A staggered batch reuses the cache
+
+- **WHEN** ten `claude -p` processes, each its own parent, run the helper within 30 s
+- **THEN** one token is issued and nine are served from the cache
+
+#### Scenario: An unsafe cache
+
+- **WHEN** the cache file is a symlink, or has mode `0644`, or its directory is owned by
+  another uid
+- **THEN** the helper warns on stderr, ignores the cache and issues afresh
+
+#### Scenario: Retry-After on the helper path
+
+- **WHEN** the token endpoint answers `429` with `Retry-After: 30`
+- **THEN** the helper waits 8 s, retries once, and exits non-zero if that is refused too
 
 ### Requirement: Run scoping is opt-in through wbs_run
 

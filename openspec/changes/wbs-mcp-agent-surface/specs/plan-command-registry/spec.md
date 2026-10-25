@@ -26,10 +26,8 @@ these that holds, in this order (the order of `definitions.ts`):
 - `run_mismatch`: the caller is a machine grant with a run (`wbs-mcp-agent-surface` M15), the
   claimant **is** its pinned person, and `runId` names another run;
 - `parent_claim_unknown`, `parent_claim_foreign`, `parent_claim_not_ancestor`: the named
-  parent claim is absent or released; or it was written by another account; or the caller is
-  pinned, its pinned person is on no claim of the parent's chain, and the parent's holder is
-  not a `person`-kind person bound to the caller's account; or it does not sit on a strict
-  ancestor of the work item;
+  parent claim is absent or released, was written by another account, or does not sit on a
+  strict ancestor of the work item;
 - `steps_on_subtree`, `resources_on_subtree`: `steps` or `resources` are named on a non-leaf;
 - `item_done`: the work item's derived status is `done`;
 - `no_steps`: the project defines no steps;
@@ -180,24 +178,6 @@ when claims sit on more than one deleted row, or when the parent holds a claim i
 - **THEN** the redo is refused `stale_undo` with detail beginning `claim_limit:` and nothing
   is written
 
-#### Scenario: A worker claims under its own delegated claim
-
-- **WHEN** lead agent A, holding a subtree claim, writes a delegated subtree claim for agent B,
-  and B, pinned, claims a step under that delegated claim
-- **THEN** B's claim is admitted
-
-#### Scenario: Nested delegation
-
-- **WHEN** B, pinned, holds a delegated subtree claim under A's, and pinned agent C claims
-  under a delegated claim B wrote for C
-- **THEN** C's claim is admitted, because C is on the parent's chain
-
-#### Scenario: A worker claims directly under the lead's claim
-
-- **WHEN** pinned agent B of the same account names lead agent A's subtree claim as its
-  `parentClaim`, without a delegated claim of its own
-- **THEN** the claim is refused `parent_claim_foreign`
-
 #### Scenario: An opted-in lead writes a worker's delegated claim
 
 - **WHEN** lead A, a grant with run `a`, claims for worker B with B's `runId: 'b'` under A's
@@ -213,10 +193,15 @@ every step when none is named. On a non-leaf it SHALL remove that person's subtr
 every claim that names it as parent, transitively. Progress SHALL NOT change. It SHALL be
 one undoable journal entry. It SHALL refuse `not_claimed_by` when the person holds no claim
 it would remove, and `person_not_bound` and `credential_not_for_person` under the rules of
-`claimWorkItem`. When the caller is a machine grant with a run and the person **is** its pinned
+`claimWorkItem`, and `steps_on_subtree` when `steps` are named on a non-leaf, for claim and
+release alike. When the caller is a machine grant with a run and the person **is** its pinned
 person, it SHALL remove only that person's claims of that run, and SHALL refuse `run_mismatch`
-when the person holds claims on the item only under other runs; a release of another person's
-claim (a lead releasing a worker's delegated claim) is judged as without a run.
+when the person holds claims on the item only under other runs. With `steps` named,
+`not_claimed_by` is judged first, over every run, and `run_mismatch` second, so a step nobody
+holds stays `not_claimed_by`. A claim of the person with **no** run (taken before it opted in)
+counts as the caller's own run and is released with it, so an opted-in owner can always release
+its pre-opt-in claims. A release of another person's claim (a lead releasing a worker's
+delegated claim) is judged as without a run.
 
 #### Scenario: A holder releases a half-done leaf
 
@@ -240,6 +225,11 @@ claim (a lead releasing a worker's delegated claim) is judged as without a run.
 - **WHEN** person P holds `Impl` under run `a` and `Review` under run `b`, and a grant with run
   `a` releases the leaf for P naming no steps
 - **THEN** only the run `a` claim is removed
+
+#### Scenario: A pre-opt-in claim
+
+- **WHEN** P claimed a step with no run, then opted in with run `a`, and releases the step
+- **THEN** the claim is released
 
 #### Scenario: Releasing only another run's claims
 

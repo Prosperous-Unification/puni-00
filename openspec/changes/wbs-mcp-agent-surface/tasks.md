@@ -19,10 +19,18 @@
   - (d) M7: pools.
   - (e) M9: the cut.
   - (f) M15: opt-in run scoping.
-  - (g) M16: the `parent_claim_foreign` rule, which **reverses part of `wbs-team-claims` D7**
-    for pinned callers, and with it the `wbs-machine-credentials` scenario "A delegated claim
-    keeps working". For claire fleets, `claire` writes a delegated claim for `claire-worker`
-    before the worker claims under it; D6 and nested delegation still work.
+  - (g) **Open question, M16: the account-keyed parent check.** This change leaves
+    `parent_claim_foreign` and `wbs-team-claims` D7 exactly as they are. Today any agent bound
+    to an account may claim under another agent's subtree claim of the same account. Options
+    (Fable):
+    1. keep D7 for agents bound to the same account (today);
+    2. give a lease, renewed by the worker's heartbeat, to a claim a lead writes for an agent
+       that holds a live credential;
+    3. allow a delegated claim on the same item as its parent.
+
+    A narrow laundering note: a member can relabel an agent as a human through `patchPerson`
+    `kind`. That affects only the leaseless claims of agents that have no credential, because
+    `patchPerson` refuses a kind change for a person with a live credential (A24).
 - [ ] 0.3 Preconditions:
   - #731 is merged;
   - undo per person is merged; it is in progress on branch `fix/wbs-undo-per-person` (PR
@@ -31,8 +39,10 @@
     `wbs-organization-limits` are archived before this change. Its `machine-credentials`,
     `claim-leases` and `plan-command-registry` requirements are MODIFIED deltas built on their
     merged text; the claim requirement is modified by the last three.
-  - `wbs-permissions`' copy of the machine-token requirement takes the same scenario change
-    as this change's machine-credentials delta (M16).
+  - `wbs-permissions` replaces A23's member cap with a contributor cap for machine tokens.
+    Wherever this change's requirement bodies say a machine principal is capped at `member`
+    (M6 parity, the pool scenarios, the read-only scope), read `wbs-permissions`' contributor
+    cap once that change lands. Whichever lands second rewrites the other's wording.
 
 ## 1. be-01: the machine grant
 
@@ -52,7 +62,14 @@
   - compares mcp-01's sent issuer with `WBS_MCP_AUTHORIZATION_SERVER` and reports a mismatch
     as a fault;
   - returns the credential's scopes;
-  - writes `machine_token_issued` at most once per (credential, run, UTC day).
+  - writes `machine_token_issued` at most once per (credential, run, UTC day), and after 100
+    such rows in a day one `machine_token_issued_overflow` row; the count and the insert run
+    in one write transaction. **This task ships the migration** that widens the audit CHECK
+    for both actions, and their targeted partial unique indexes, so slice 1 depends on neither
+    slice 6 nor the undo branch;
+  - answers a missing or wrong `MCP_BE_INTERNAL_SECRET` with `401 internal_unauthorized`
+    (today's internal routes answer `401 unauthorized`; `/internal/mcp/*` moves to the new
+    code).
 
   Test: `machine-grant.controller.db.test.ts`. Negatives, each watched failing with a `Proof:`
   adjacent:
@@ -65,10 +82,14 @@
     `created_at / 86400000`, and three issuances in one run and day, **and three no-run
     issuances**, each write three rows. The test runs at a **real-epoch timestamp**
     (2026-10-26), because a small fake clock hides the day bug;
-  - write with `INSERT OR IGNORE`, or an untargeted `ON CONFLICT DO NOTHING`, instead of the
-    targeted `ON CONFLICT (…) WHERE action = 'machine_token_issued' DO NOTHING`. An injected
-    CHECK violation, or a primary-key collision, is then silently skipped instead of thrown;
-  - drop the 256-runs-per-day cap, and a 257th run is admitted;
+  - write with `INSERT OR IGNORE`, and an injected CHECK violation is silently skipped
+    instead of thrown;
+  - write with an untargeted `ON CONFLICT DO NOTHING`. The fixture **collides on the row id
+    with a different dedupe key**, and the collision is swallowed instead of thrown. (An
+    untargeted form still throws on a CHECK, so the CHECK case cannot observe it);
+  - count outside the write transaction, and two concurrent issuances at row 100 write two
+    overflow rows (`fc.asyncModelRun`);
+  - drop the overflow stop, and 150 runs write 150 rows;
   - answer a missing secret with `unknown_grant_key`, and mcp-01's fault test sees a
     re-fetch instead of a reported fault.
 
@@ -120,22 +141,6 @@
   - release every run's claims, and "A leaf held under two runs" reddens;
   - accept a command's `runId` over the grant's, and "forged run id" reddens.
 
-- [ ] 1.7 `parent_claim_foreign` for pinned callers (M16, the `plan-command-registry` MODIFIED
-      delta). The decision gains the `ClaimRequest` input `parentHolder: { kind, accountId }`,
-      read with the parent claim. The rule refuses when the pinned person holds no claim on
-      the parent's chain and the holder is not a `person`-kind person bound to the caller's
-      account. Tests:
-  - "A worker claims under its own delegated claim" (admitted, D6);
-  - "Nested delegation" (admitted through the chain);
-  - "A worker claims directly under the lead's claim" (refused);
-  - a pinned agent under a human's subtree claim of the same account (admitted);
-  - under a human bound to another account (refused);
-  - the machine-credentials delta's reversed "A delegated claim keeps working" pair.
-
-  Negatives:
-  - keep the account-only comparison, and the direct claim is admitted;
-  - check only the immediate parent, and "Nested delegation" is refused.
-
 ## 2. mcp-01: the token endpoint
 
 - [ ] 2.1 Red: the form parser.
@@ -181,10 +186,14 @@
   - a second `headersHelper` run within the cache window issues no token, and one with
     another `wbs_run` or issuer does (the cache key);
   - a cache file with mode `0644`, a directory with mode `0755`, a file owned by another uid,
-    and a symlinked file or directory are each refused;
-  - **a re-run within 30 s of serving an entry (the 401 retry) issues a new token**. Negative:
-    always serve the cache, and the re-run returns the rejected token;
-  - a `429` with `Retry-After: 2` waits 2 s and retries once.
+    and a symlinked file or directory are each refused, with a warning on stderr. The file is
+    opened with `O_NOFOLLOW` and its descriptor `fstat`ed. Negative: check with `lstat` and
+    then open by path, and a symlink swapped in between is followed;
+  - **a re-run from the same parent PID within 30 s (the 401 retry) issues a new token**.
+    Negative: always serve the cache, and the re-run returns the rejected token;
+  - ten `claude -p` processes with different parents within 30 s issue one token. Negative:
+    ignore the parent PID, and nine more tokens are issued;
+  - a `429` with `Retry-After: 30` waits 8 s on the helper path and retries once.
 
 ## 3. mcp-01: `/mcp` admission
 
@@ -244,9 +253,8 @@
       missing.
 - [ ] 6.1 Migrations:
   - `add_agent_pool` and `machine_credential.agent_pool_id`;
-  - the audit actions `agent_pool_created`, `agent_pool_revoked`, `agent_pool_rekeyed` and
-    `machine_token_issued`, with the unique key `(credential, run, day)` on that action's
-    detail columns, by compatible rebuild;
+  - the audit actions `agent_pool_created`, `agent_pool_revoked` and `agent_pool_rekeyed`, by
+    compatible rebuild (`machine_token_issued` shipped in task 1.2);
   - guarded `down.sql` files.
 
   Negative: drop each guard.

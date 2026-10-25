@@ -23,8 +23,8 @@ Verification of the sources SHALL remain reachable only through
 #### Scenario: The internal route still verifies
 
 - **WHEN** mcp-01 posts the same key to `/internal/mcp/machine-grants` with the secret
-- **THEN** it answers a grant naming that credential; with gw-01's `x-internal-auth` value
-  instead it answers `401 unauthorized`
+- **THEN** it answers a grant naming that credential. With gw-01's `x-internal-auth` value
+  instead, or with no secret, it answers `401 internal_unauthorized`
 
 ## MODIFIED Requirements
 
@@ -89,55 +89,3 @@ lists any row not named in `WBS_ACCEPT_BREAKING_AUDIENCES`.
 
 - **WHEN** an admin deletes a trusted issuer two unrevoked credentials name
 - **THEN** WBS answers `409 in_use` with `machineCredentials: 2` and changes nothing
-
-### Requirement: A machine token acts as its pinned person's account with capped scopes
-
-A request admitted by a machine credential SHALL act as the account the pinned person is
-bound to, with scopes exactly `read` and `write`, bound to the credential's organization,
-and with the credential's person as the pin the claim decision reads. In that organization
-it SHALL hold at most the role `member`, whatever role the bound account holds, so no
-admin rule (the claim-admin bypass, person binding) applies to it. Organization
-administration routes SHALL refuse it `403 insufficient_scope`. A claim or release naming
-another person, outside a delegated claim under the pinned person's claim, SHALL be refused
-`credential_not_for_person` as today. An account no longer a member of the credential's
-organization SHALL be refused `403 not_a_member` with the credential unchanged. Enforced SSO
-and the session policy SHALL NOT refuse a machine token.
-
-#### Scenario: An admin's account, a member's reach
-
-- **WHEN** a credential's person is bound to an account holding `super_admin` in A
-- **THEN** a command batch on A's project is accepted and `GET /api/organization/members`
-  is refused `403 insufficient_scope`
-
-#### Scenario: An admin's account gives a machine no admin rule
-
-- **WHEN** a key pinned to `claire`, bound to an account holding `super_admin` in A, sends
-  `patchPerson` binding another person to an account, or claims as a person bound to
-  another account
-- **THEN** the patch is refused `403 forbidden` and the claim `person_not_bound`, and
-  nothing is written
-
-#### Scenario: A claim for the wrong person
-
-- **WHEN** a machine token pinned to `claire` claims a step as `claude-code` outside any
-  subtree claim of `claire`
-- **THEN** the batch is refused `credential_not_for_person` and writes nothing
-
-#### Scenario: A delegated claim keeps working
-
-- **WHEN** `claire` holds a subtree claim, writes a delegated subtree claim for `claire-worker`
-  under it, and a token pinned to `claire-worker`, bound to the same account, claims a leaf
-  naming that delegated claim as parent
-- **THEN** the claim is accepted
-
-#### Scenario: A worker directly under the lead's claim
-
-- **WHEN** a token pinned to `claire-worker` claims a leaf naming `claire`'s own subtree claim
-  as parent, with no claim of `claire-worker` on that chain
-- **THEN** the batch is refused `parent_claim_foreign` (`wbs-mcp-agent-surface` M16; this
-  reverses the earlier form of this scenario)
-
-#### Scenario: Enforced SSO does not refuse a machine
-
-- **WHEN** A enforces SSO and a request bears A's live API key
-- **THEN** the request is admitted

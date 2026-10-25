@@ -3,8 +3,8 @@
 Agents reach WBS two ways: a human-consented MCP session, or be-01's HTTP API with a machine
 credential. An API key or trusted-issuer token gets `401 invalid_token` on `/mcp`, and one
 connector entry holds one consent, so a swarm cannot get per-agent identities over MCP
-without a browser sign-in each. Two surfaces mean two sets of tools and docs to maintain;
-Dany chose MCP (2026-10-25).
+without a browser sign-in each. Two surfaces mean two of everything to maintain; Dany
+chose MCP (2026-10-25).
 
 ## What Changes
 
@@ -62,7 +62,7 @@ compatibility window.
 
 - `machine-credentials`: `/api` refuses machine bearers; audiences sit under mcp-01's issuer;
   its non-goal "MCP `client_credentials`" is reversed.
-- `claim-leases`, `plan-command-registry`: opt-in runs; `parent_claim_foreign` by holder.
+- `claim-leases`, `plan-command-registry`: opt-in runs.
 
 ## Domain Terms
 
