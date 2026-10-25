@@ -45,6 +45,44 @@ const inventory = () => ({
 });
 
 describe('publication admission', () => {
+  it('refuses the exact byte cutoff near the safe-integer capacity limit', () => {
+    const input = admission();
+    input.capacity.maximumBytes = 9007199254740990;
+    input.capacity.usableBytes = 9007199254740990;
+    input.capacity.usedBytes = 8106479329266890;
+    input.envelope.bytes = 1;
+    expect(admitPublication(input)).toMatchObject({
+      status: 'refused',
+      reasons: ['bytes'],
+      requiredBytes: 1,
+    });
+  });
+  it('refuses the exact inode cutoff near the safe-integer capacity limit', () => {
+    const input = admission();
+    input.capacity.totalInodes = 9007199254740990;
+    input.capacity.usedInodes = 8106479329266890;
+    input.envelope.inodes = 1;
+    expect(admitPublication(input)).toMatchObject({
+      status: 'refused',
+      reasons: ['inodes'],
+      requiredInodes: 1,
+    });
+  });
+  it.each([
+    { usedBytes: 6305039478318693, pressure: 'normal' },
+    { usedBytes: 7205759403792792, pressure: 'warn' },
+  ])(
+    'keeps large safe-integer usage below its exact pressure threshold: %s',
+    ({ usedBytes, pressure }) => {
+      const input = admission();
+      input.capacity.maximumBytes = 9007199254740991;
+      input.capacity.usableBytes = 9007199254740991;
+      input.capacity.usedBytes = usedBytes;
+      input.envelope.bytes = 1;
+      expect(admitPublication(input)).toMatchObject({ status: 'admitted', pressure });
+    },
+  );
+
   it('admits the last byte below ninety percent but refuses the exact cutoff', () => {
     const input = admission();
     input.capacity.usedBytes = 44 * GiB - 1;

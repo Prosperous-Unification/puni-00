@@ -124,8 +124,10 @@ function budgetBytes(capacity: RegistryCapacity): number {
   return Math.min(capacity.maximumBytes, capacity.usableBytes);
 }
 
-function threshold(capacity: number, percent: number): number {
-  return Math.ceil((capacity * percent) / 100);
+/** Round the percentage up exactly; validated safe-integer capacity bounds the converted answer. */
+function threshold(capacity: number, percent: 70 | 80 | 90): number {
+  // Proof: restoring floating multiplication failed all four safe-integer byte/inode/pressure regressions.
+  return Number((BigInt(capacity) * BigInt(percent) + 99n) / 100n);
 }
 
 function assessPressure(capacity: RegistryCapacity): RegistryPressure {
