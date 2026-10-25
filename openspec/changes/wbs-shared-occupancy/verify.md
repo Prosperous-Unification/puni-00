@@ -300,9 +300,15 @@ passed).
   | 2   | 31.960 / 46.652       | 29.716 / 43.413         | 3.239 ms, 7.46 %   |
   | 3   | 39.873 / 83.689       | 37.016 / 67.227         | 16.462 ms, 24.49 % |
 
+  Three more at load average 4 to 5: 2.597 ms p50 delta with p99 48.253 / 41.560 (6.693 ms,
+  16.10 %), 44.794 / 45.020 (−0.226 ms), 48.136 / 45.503 (2.633 ms, 5.79 %). With 200 runs
+  each, p99 is the second-largest sample, so one slow batch moves it by several ms.
+
   The median cost fell from about 4 ms to about 2.5 ms; run 3 crossed 5 ms at p99 with the
-  host's load average at 14 to 17 (another agent's suites). By the task's rule 3.5 stays
-  open; the next step is a quiet-host rerun before any index.
+  host's load average at 14 to 17 (another agent's suites), and run 4 crossed it at load 5.
+  By the task's rule 3.5 stays open: two of six runs crossed 5 ms; the 25 % bound held in
+  all six. Next: more runs per side (p99 over 200 is two samples) on a quiet host, then the
+  index if it still crosses.
 
 - **S3-1 done.** Legacy access is refused `organization_required` before any read. Test:
   `refuses legacy access organization_required, writing nothing`
@@ -345,6 +351,8 @@ wbs-contracts wbs-conformance wbs-be-01 wbs-mcp-01 wbs-fe-01 --skip-nx-cache` �
   (after one test-literal fix).
 - `bunx nx run-many -t lint` on the nine affected projects → exit 0.
 - The 46 migration-pinning and capacity test files → 765 pass, 0 fail.
+- `store-sqlite/src/testing/source-conformance.db.test.ts` rerun alone at load 5 → 75 pass,
+  0 fail; tool-devsync `check-documents-target`, `adr-index`, `current-documents` → 25 pass.
 - Core, store, domain and conformance suites (30 files) → 613 pass, 6 fail: all six in
   `store-sqlite/src/testing/source-conformance.db.test.ts`, each `timed out after 5000ms`
   at load average 14 to 17; alone, the file went 73 pass, 2 fail, and of those, `reinjects
