@@ -76,7 +76,7 @@ not a released protection`, `retiring environment does not release another owner
 
 ## 4. Retirement and recovery
 
-- [ ] 4.1 Implement complete manifest census and dependency closure in new
+- [x] 4.1 Implement complete manifest census and dependency closure in new
       `registry-inventory.ts` and tests, reusing verified transport from
       `platform-registry.ts`. Bind plans to journal revision, storage identity and
       binary digest. Tests: `keeps untagged child of protected index`, `retains shared
