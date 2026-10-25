@@ -49,7 +49,8 @@ permits_writes() {
     IFS= read -r record <&3 || return 1
     # Proof: trailing text/blank-line HTTP405 negatives become HTTP202 when this check is removed.
     test "${#record}" -eq "$((size - 1))" || return 1
-  } 3< "$permission"
+  # Proof: failed-open HTTP405 becomes stale-record HTTP202 when propagation is removed.
+  } 3< "$permission" || return 1
   read -r version boot issued expires first second extra <<RECORD
 $record
 RECORD

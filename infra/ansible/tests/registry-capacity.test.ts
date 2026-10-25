@@ -137,5 +137,9 @@ it('requires one complete writable permit record in pinned Distribution', async 
     );
   for (const fault of ['trailing-content', 'blank-second-line', 'double-space'])
     expect(stdout).toContain(`PASS removed complete-record guard admits ${fault} with HTTP202`);
+  expect(stdout).toContain('PASS failed permit open cannot reuse prior record with HTTP405');
+  expect(stdout).toContain(
+    'PASS removed open-failure propagation reuses prior record with HTTP202',
+  );
   expect(stdout).toContain('PASS cleanup');
 }, 120000);
