@@ -155,13 +155,16 @@ speaks it).
   - The request is `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer` with the workload
     token as `assertion`, and client authentication is optional.
   - _`client_id` on this grant._ mcp-01 never looks a `client_id` up in its registered-client
-    store for this grant, whether it arrives in the body or in a Basic header (today's code at
-    `oauth.ts` 598–632 would answer `invalid_client`). A `client_id` that is sent must equal
+    store for this grant, whether it arrives in the body or in a Basic header. Today's token
+    endpoint (`oauth.ts` 1046–1073) answers `invalid_grant` for any grant it does not know;
+    the new grant gets its own branch there. A `client_id` that is sent must equal
     the matched credential's id. A Basic **secret** on this grant is `invalid_request`.
   - _Assertion type._ The grant dispatches on the assertion's `typ`: absent or `JWT` is
     admitted. `oauth-id-jag+jwt` (the identity assertion of MCP's Enterprise-Managed
     Authorization extension, named from memory) is refused `invalid_grant` with a description
-    saying ID-JAG is not supported. Every other `typ` is also `invalid_grant`.
+    saying ID-JAG is not supported. `at+jwt` (an RFC 9068 access token) is refused the same way,
+    and so is every other `typ`. The audience preflight cannot know which `typ` an issuer will
+    mint, so it does not list such issuers; the refusal names the `typ` at first use.
   - _Undefined cases defined._ Before activation the JWT-bearer grant answers `invalid_grant`.
     `client_credentials` carrying only a `client_assertion`, with no secret, is
     `invalid_client`, because WBS supports no assertion-based client authentication.
@@ -185,8 +188,15 @@ speaks it).
     Actions token URL, or a reread of the projected service-account token file), `resource`
     and, when configured, `wbs_run`.
   - _It caches the access token._ The provider and `twilight-dash mcp token` reuse it until
-    5 minutes before `exp`. That way a `headersHelper` run per connection, or a batch of
-    `claude -p` runs, does not issue a token each.
+    5 minutes before `exp`, keyed by `(credential, wbs_run, issuer)`. That way a
+    `headersHelper` run per connection, or a batch of `claude -p` runs, does not issue a
+    token each.
+    - The helper's cache is a file under `$XDG_RUNTIME_DIR/twilight-dash/mcp-tokens/` (or
+      `~/.cache/twilight-dash/mcp-tokens/` when that is unset). It is created with mode
+      `0600` in a `0700` directory, and the helper refuses a cache file with wider modes.
+    - The cache never hits when the assertion lives less than about 6 minutes, because the
+      token's `exp` is capped by the assertion's and the reuse window ends 5 minutes before
+      it. Such a workload issues a token per connection.
 
 - _Metadata._ It advertises:
   - `grant_types_supported`: `client_credentials` and the JWT-bearer URN, beside the consent
@@ -267,9 +277,20 @@ assertion minted for WBS could also be valid elsewhere).
   401 becomes an in-band tool error inside an HTTP 200 (`wbs-client.ts` 288–291, with
   `enableJsonResponse` at `http.ts` 156), and the first refusal keeps that shape:
   - the refused call answers a tool error `machine_credential_refused`;
-  - in a JSON-RPC batch, calls already answered keep their results (their writes are
-    committed), and the calls after the refusal are **not sent** and answer the same error;
-  - mcp-01 records the token's `jti` in a per-replica refused set until the token's `exp`;
+  - in a JSON-RPC batch, the SDK dispatches every message at once
+    (`webStandardStreamableHttp.js` 598–605) and the handlers run concurrently
+    (`protocol.js` 359–367). So **each call that be-01 serves after the revocation commits
+    answers `machine_credential_refused`**, because be-01 rereads on every call; calls served
+    before the commit keep their results. mcp-01 does not serialise a machine principal's
+    calls: that would add one be-01 round trip per call to every batch's latency, for no
+    safety the reread does not already give;
+  - **only** be-01's `unknown_identity` on a grant enters the per-replica refused set, which
+    holds the token's `jti` until the token's `exp`. A service-secret mismatch is a reported
+    server fault and never enters it;
+  - be-01's `invalid_token` for a grant with an unknown `kid` (after a key rotation) is mapped
+    to HTTP `401 invalid_token`, so a `headersHelper` re-runs and fetches a token under the new
+    key. `WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS` is kept for at least
+    `MOST_MACHINE_GRANT_SECONDS` after a rotation, so a planned rotation causes no 401 at all;
   - every later HTTP request with that token gets HTTP `401 invalid_token` with
     `WWW-Authenticate`, so a helper or SDK client re-fetches and then meets `invalid_client`
     or `invalid_grant`. Another replica learns it at its own first refused call.
@@ -283,9 +304,16 @@ assertion minted for WBS could also be valid elsewhere).
   audience, the assertion's `exp` (which caps the grant) and the per-call credential reread.
 - _Audit._ Issuance volume follows the client, not the TTL. Even with M2's token caching, a
   `headersHelper` on a fresh machine and a batch of `claude -p` runs issue often. So
-  `machine_token_issued` is written **at most once per (credential, run, UTC day)**, through
-  an insert-or-ignore on a unique key. It names the credential, person, source and run, never
-  a secret. Volume is bounded by runs per day, not requests.
+  `machine_token_issued` is written **at most once per (credential, run, UTC day)**. It names
+  the credential, person, source and run, never a secret.
+  - The audit detail is one JSON text column (`schema.ts` 3499–3524). The key is therefore a
+    partial expression index on `(json_extract(detail, '$.credentialId'),
+coalesce(json_extract(detail, '$.runId'), ''), date(created_at))` where
+    `action = 'machine_token_issued'`. The `coalesce` matters: SQLite treats NULLs as
+    distinct, and Fable's probe wrote 3 rows for 3 no-run issuances without it.
+  - The write is `INSERT … ON CONFLICT (…) DO NOTHING`, never `INSERT OR IGNORE`, which also
+    silently skipped a CHECK violation in the same probe.
+  - Volume is bounded by runs per day, and by the per-credential issuance limit (M10).
 - _Keys absent at activation._ be-01 boot requires `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` once
   the activation marker is set. The activation runbook's preflight lists the missing key and
   refuses to activate. A process that is already running when activation happens without the
@@ -318,8 +346,9 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
 **M5. Machine admission reads no mcp-01 store.**
 
 - be-01 refuses to issue a grant before activation (`409 not_activated`). Machine tokens
-  carry no epoch claim, skip `credentialEpoch()`, and are verified by signature, `aud` and
-  `exp` only. The machine path never calls `familyForSession`.
+  carry no epoch claim and skip `credentialEpoch()`. A machine token is verified by
+  signature, `aud`, `exp` and **a lookup of its `jti` in the per-replica refused set** (M3),
+  which is memory, not a store. The machine path never calls `familyForSession`.
 - Replicas share the signing keys, M14's secret and `WBS_API_URL`. The consent path keeps its
   shared store.
 - A machine token at `/refresh` is `invalid_grant`, and at `/revoke` it is
@@ -337,8 +366,9 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
 `{ kind: 'machine', credentialId, personId, runId? }`. That is the API-key principal plus an
 optional run (M15), so it is no longer byte for byte. `CredentialAuthentication` and the pin
 gain `runId?`, and the sites that test `'personId' in credential` read it:
-`claim-lease.routes.ts` 29, `plan-commands.feature.ts` 547, `compensating.ts` 1153 and
-`claim-store.ts` 257.
+`claim-lease.routes.ts` 29, `plan-commands.feature.ts` 547 and `claim-store.ts` 257, plus the
+`claimWorkItem` and `releaseWorkItem` command bindings, which pass the run to the decision.
+(`compensating.ts` 1153 tests a person shape, not a credential, and is unaffected.)
 A23, A24, L1, the claim pin and the caps apply. `postApiClaimsRenew` is the heartbeat. Refusals
 a principal can meet are stated once in the description.
 
@@ -403,14 +433,14 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
   issuances are limited per credential, separately, so a stranger who knows a public id cannot
   lock it out.
 
-| Limit                                 | Default per replica | Sized for                                                                  |
-| ------------------------------------- | ------------------- | -------------------------------------------------------------------------- |
-| Failed auth per `(client_id, IP)`     | 5 / min             | guessing one id                                                            |
-| Failed auth per IP                    | 30 / min            | a scanner                                                                  |
-| Successful issuances per credential   | 6 / min, burst 3    | helper re-runs                                                             |
-| Successful issuances per IP           | 300 / min           | one orchestrator re-keying a pool of 100                                   |
-| `tools/call` messages per credential  | 10 / s, burst 20    | a batch of 100 counts 100                                                  |
-| In-flight tool calls per organization | 128                 | about 60 at the design load (100 agents × 2 calls/s × 300 ms); 2× headroom |
+| Limit                                 | Default per replica | Sized for                                                                    |
+| ------------------------------------- | ------------------- | ---------------------------------------------------------------------------- |
+| Failed auth per `(client_id, IP)`     | 5 / min             | guessing one id                                                              |
+| Failed auth per IP                    | 30 / min            | a scanner                                                                    |
+| Successful issuances per credential   | 60 / min, burst 20  | a rollout of up to 20 pods on one service account; more answer 429 and retry |
+| Successful issuances per IP           | 300 / min           | one orchestrator re-keying a pool of 100                                     |
+| `tools/call` messages per credential  | 10 / s, burst 20    | a batch of 100 counts 100                                                    |
+| In-flight tool calls per organization | 128                 | about 60 at the design load (100 agents × 2 calls/s × 300 ms); 2× headroom   |
 
 - With R replicas, the effective organization in-flight limit is 128 × R. These are
   per-replica fences; the authoritative fences are be-01's transactional caps.
@@ -425,7 +455,11 @@ _Alternatives:_ a shared limiter (exact across replicas); per-organization limit
 `token_use: machine` is 401 and **never forwarded** to be-01. That is a new branch, with a
 real negative. A `wbs_mk_` bearer is already 401 today, because `decodeJwt` throws on it
 (`caller-auth.ts` 31, `http.ts` 101–111). No separate prefix branch is added, so there is
-nothing for a check to observe there.
+nothing for a check to observe there. The negative for the machine-JWT branch must not be
+masked by scopes: a machine token decoded as gateway claims gets empty scopes
+(`oidc-identity.ts` 32–45), and `server.ts` 182–188 would then answer `insufficient_scope`
+before any be-01 call. So the test token also carries `wbs_groups: ['dev:wbs:read']`, and the
+test observes HTTP 401 against 200 as well as be-01's fake.
 
 **M12. Docs and the REST surface's status.**
 
@@ -496,7 +530,15 @@ enforced, so a client that runs several processes on one credential can opt in t
     `run_mismatch`. A fleet that already sends its own `runId` sets `wbs_run` to the same
     value;
   - `postApiClaimsRenew` and batch renewal renew only `(person, run)` leases;
-  - `releaseWorkItem` by such a principal refuses a claim of another run (`run_mismatch`);
+  - `releaseWorkItem` by such a principal refuses a claim **of its own pinned person** under
+    another run (`run_mismatch`). A lead's release of a worker's delegated claim is judged as
+    today (D6, D8);
+  - `run_mismatch` sits right after `credential_not_for_person` in `claimWorkItem`'s
+    "Refused, first match" order (`definitions.ts` 299), before the parent-claim checks;
+  - `renewLeases(personId, null)` means **every** lease of the person, not "`run_id IS NULL`".
+    So a no-run principal (a raw API key in the test seam, or a token without `wbs_run`)
+    also renews opted-in processes' leases. That is stated in the port's JSDoc and pinned by
+    a test;
   - re-fetching with the same `wbs_run` keeps the leases.
 - _Why not the MCP session id._ mcp-01 is stateless and issues none. Claude Code subagents
   share their parent's connection, and so one run.
@@ -515,15 +557,15 @@ _Alternative:_ the stated invariant of the earlier draft (unenforceable).
 **M16. State keyed by account, not person.** A pool's N persons share the admin's account
 (A12), and so do any agents bound to one account today.
 
-| State                                                | Keyed by                             | Decision                                                                                                                                                                                                                                                                                                                  |
-| ---------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Undo and redo (`command_journal`, `(project, user)`) | account                              | In progress on branch `fix/wbs-undo-per-person` (another worker; PR number to follow). It makes undo per **person**, not per run: a run-scoped principal undoes its person's latest entry whichever run wrote it. Stated, not fixed here. Slice 6 waits for that branch.                                                  |
-| `releaseWorkItem`                                    | person                               | per run for an opted-in principal (M15), per person otherwise                                                                                                                                                                                                                                                             |
-| `parent_claim_foreign` (domain `claim.ts` 266)       | account                              | Today any pool agent may claim under another agent's subtree claim, or under the admin's. **Decision:** a pinned principal may claim under a parent written by the same person, or by its account unpinned (D7's human delegating to an agent). Under another pinned person's claim the answer is `parent_claim_foreign`. |
-| Membership and the A23 role cap                      | account                              | intended                                                                                                                                                                                                                                                                                                                  |
-| `created_by` and audit actors                        | account                              | accepted; the person is in the claim and audit detail                                                                                                                                                                                                                                                                     |
-| Project-opened and recents                           | account                              | shared, harmless                                                                                                                                                                                                                                                                                                          |
-| Claim cap and leases                                 | person, plus run when opted in (M15) | unaffected                                                                                                                                                                                                                                                                                                                |
+| State                                                | Keyed by                             | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Undo and redo (`command_journal`, `(project, user)`) | account                              | In progress on branch `fix/wbs-undo-per-person` (another worker; PR number to follow). It makes undo per **person**, not per run: a run-scoped principal undoes its person's latest entry whichever run wrote it. Stated, not fixed here. Slice 6 waits for that branch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `releaseWorkItem`                                    | person                               | per run for an opted-in principal (M15), per person otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `parent_claim_foreign` (domain `claim.ts` 266)       | account                              | Today any pool agent may claim under another agent's subtree claim, or under the admin's. **Decision, stated against stored data** (`Claim` records the holder `personId` and the writing `accountId` only, `claim.ts` 23–32). For a **pinned** caller, the parent is admitted when its holder is the caller's pinned person, or a `person`-kind (human) person of the caller's account. It is refused `parent_claim_foreign` when its holder is another `agent`-kind person (`PERSON_KINDS`, `stored-vocabularies.ts` 59). **This reverses part of `wbs-team-claims` D7** (its design.md 129–133: "the subagent's person may differ") for pinned callers; it is the MODIFIED `plan-command-registry` delta. The lead/worker pool shape still works through D6: the lead writes a delegated subtree claim _for_ the worker, and the worker claims under that claim, whose holder is itself. What stops working is a worker claiming directly under the lead's own subtree claim. |
+| Membership and the A23 role cap                      | account                              | intended                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `created_by` and audit actors                        | account                              | accepted; the person is in the claim and audit detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Project-opened and recents                           | account                              | shared, harmless                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Claim cap and leases                                 | person, plus run when opted in (M15) | unaffected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 Task 6.0 greps every `userId` key and adds any check missing from this table before slice 6.
 

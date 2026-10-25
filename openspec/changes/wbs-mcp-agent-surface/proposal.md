@@ -18,7 +18,7 @@ Dany chose MCP (2026-10-25).
 **Who it is on MCP**
 
 - From: a human, or an agent person a human consented to.
-- To: also the credential's agent person, with today's principal, cap and tools, and run-scoped leases.
+- To: also the credential's agent person, with today's principal, cap and tools; run scoping is opt-in.
 
 **What be-01's HTTP API is**
 
@@ -39,7 +39,7 @@ compatibility window.
 ## Non-Goals
 
 - Changing consent or hosted-connector sign-in.
-- Raw keys at `/mcp` (Dany's option), OIDC pools, machines minting credentials.
+- Raw keys at `/mcp` (Dany's option), OIDC pools, machine-minted credentials.
 - A REST deprecation period.
 
 ## Constraints
@@ -60,9 +60,9 @@ compatibility window.
 
 ### Modified Capabilities
 
-- `machine-credentials` (`wbs-machine-credentials`): be-01 refuses machine bearers on `/api`;
-  trusted-issuer audiences must sit under mcp-01's issuer (amends A25). Reverses its non-goal
-  "MCP `client_credentials`".
+- `machine-credentials`: `/api` refuses machine bearers; audiences sit under mcp-01's issuer;
+  its non-goal "MCP `client_credentials`" is reversed.
+- `claim-leases`, `plan-command-registry`: opt-in runs; `parent_claim_foreign` by holder.
 
 ## Domain Terms
 

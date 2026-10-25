@@ -19,13 +19,16 @@
   - (d) M7: pools.
   - (e) M9: the cut.
   - (f) M15: opt-in run scoping.
-  - (g) M16: the `parent_claim_foreign` rule.
+  - (g) M16: the `parent_claim_foreign` rule, which **reverses part of `wbs-team-claims` D7**
+    for pinned callers (a worker can no longer claim directly under another agent's claim; D6
+    delegation still works).
 - [ ] 0.3 Preconditions:
   - #731 is merged;
   - undo per person is merged; it is in progress on branch `fix/wbs-undo-per-person` (PR
     number to follow), and slice 6 waits for it;
-  - `wbs-machine-credentials` is archived before this change, because the trusted-issuer
-    requirement is a MODIFIED delta of its spec.
+  - `wbs-machine-credentials`, `wbs-claim-leases` and `wbs-team-claims` are archived before
+    this change, because its `machine-credentials`, `claim-leases` and `plan-command-registry`
+    requirements are MODIFIED deltas of theirs.
 
 ## 1. be-01: the machine grant
 
@@ -54,7 +57,10 @@
     **current grant `kid`** and the delegation key's material; the "grant signed with the
     delegation key" scenario admits;
   - add a `jti` consume, and "A reused Kubernetes token" reddens;
-  - drop the audit unique key, and three issuances in one run and day write three rows.
+  - drop the audit unique index, or the `coalesce` in it, and three issuances in one run and
+    day, **and three no-run issuances**, each write three rows;
+  - write with `INSERT OR IGNORE` instead of `ON CONFLICT … DO NOTHING`, and an injected CHECK
+    violation is silently skipped instead of thrown.
 
 - [ ] 1.3 The grant verifier and exact audience dispatch in `identity.ts`, with constant-time
       secret admission. Tests: "A grant without the secret", "Revocation at the next call",
@@ -68,8 +74,9 @@
       gains `runId?`, and the `'personId' in credential` sites (M6) are updated. Negative: omit
       `personId` from the grant principal, and the lease assertion reddens.
 - [ ] 1.5 The A25 audience rule (machine-credentials MODIFIED delta), in two steps:
-  - **Now:** `WBS_MCP_AUTHORIZATION_SERVER`, boot-checked by the canonicalisation function
-    from `oauth.ts` 270, moved to `@wbs/contracts`. New registrations and narrowings must
+  - **Now:** `WBS_MCP_AUTHORIZATION_SERVER`, boot-checked by the canonicalisation function,
+    which moves to `@wbs/contracts`. Both existing copies, `oauth.ts` 269–271 and `http.ts`
+    25–29, are replaced by calls to it. New registrations and narrowings must
     equal it or sit under it with `/`. The preflight CLI is a dry run.
   - **With slice 7:** refuse non-conforming stored rows at use.
 
@@ -92,10 +99,21 @@
   - default the run to the token `jti`, and the re-fetch scenario reddens with
     `already_claimed`;
   - renew by person only, and "two processes" reddens;
+  - make `renewLeases(personId, null)` mean `run_id IS NULL`, and "A no-run heartbeat renews
+    every run" (claim-leases delta) reddens; the port's JSDoc states the "every lease"
+    meaning;
+  - refuse a lead's release of a worker's delegated claim with `run_mismatch`, and "A lead
+    releases a worker's delegated claim" reddens;
   - accept a command's `runId` over the grant's, and "forged run id" reddens.
 
-- [ ] 1.7 `parent_claim_foreign` for pinned principals (M16). Tests: the two-pool-agents
-      scenario. Negative: keep the account-only comparison, and B's claim under A is admitted.
+- [ ] 1.7 `parent_claim_foreign` for pinned callers (M16, the `plan-command-registry` MODIFIED
+      delta), judged on stored data: the parent's holder `personId` and its person kind.
+      Tests:
+  - "A worker claims under its own delegated claim" (admitted, D6);
+  - "A worker claims directly under the lead's claim" (refused);
+  - a pinned agent under a human's subtree claim of the same account (admitted).
+
+  Negative: keep the account-only comparison, and the direct claim is admitted.
 
 ## 2. mcp-01: the token endpoint
 
@@ -125,6 +143,9 @@
     a valid loopback redirect);
   - fall through to upstream;
   - look `client_id` up in the registered-client store, and the `client_id` scenario reddens;
+    driven by a **raw request**, because the provider sends no `client_id`;
+  - accept any `typ`, and the ID-JAG and `at+jwt` scenario reddens;
+  - accept a Basic secret on the JWT-bearer grant, and its `invalid_request` test reddens;
   - make the provider cache its first assertion.
 
 - [ ] 2.3 Secrets: inject a throw in be-01's route during a Basic request. The test asserts
@@ -136,7 +157,9 @@
       assertion and adds `wbs_run`. Access tokens are cached until 5 minutes before `exp`.
       Tests:
   - no dynamic-registration request is made;
-  - a second `headersHelper` run within the cache window issues no token.
+  - a second `headersHelper` run within the cache window issues no token, and one with
+    another `wbs_run` or issuer does (the cache key);
+  - a cache file with mode `0644` is refused.
 
 ## 3. mcp-01: `/mcp` admission
 
@@ -149,8 +172,13 @@
       Negatives:
   - forward the access token;
   - read the epoch;
-  - keep sending the batch after the refusal, and be-01's fake sees the third call;
-  - skip the refused set, and the next request answers 200.
+  - reuse the first call's admission for a batch's later calls (no reread), and a call served
+    after the revocation commit succeeds;
+  - skip the refused set, and the next request answers 200;
+  - put a secret mismatch into the refused set, and a token stays refused after the secret is
+    fixed;
+  - map an unknown-`kid` `invalid_token` to a tool error, and the rotation test (with
+    `_PREVIOUS` dropped early) sees no HTTP 401, so the helper is not re-run.
 - [ ] 3.3 Only if Dany chooses M1 (ii), and only after slice 7: raw keys. Negative: inject
       "mcp-01 answers from the cache without calling be-01 on the tool call", and watch the
       revoked-key scenario redden.
@@ -158,9 +186,11 @@
       equals the expanded template. Negative: **replace the path encoder with the identity
       function**, and an `id` of `x/../../claims` reaches be-01's fake as `/api/claims` unless
       the pathname assertion refuses it. Watch it pass through with the assertion removed.
-- [ ] 3.5 Gateway mode (M11): the real negative is the `token_use: machine` JWT. Remove that
-      branch and the decode path forwards the token, which be-01's fake records. A `wbs_mk_`
-      key is already 401 through `decodeJwt`, and no check is claimed for it.
+- [ ] 3.5 Gateway mode (M11): the real negative is the `token_use: machine` JWT. The test token
+      carries `wbs_groups: ['dev:wbs:read']`, so that scopes don't mask it, and calls a read
+      tool. Remove the branch, and the answer becomes 200 with a request recorded by be-01's
+      fake. A `wbs_mk_` key is already 401 through `decodeJwt`, and no check is claimed for
+      it.
 - [ ] 3.6 Hosted connector check on dev: claude.ai consent with `none` is unchanged. Record it.
 - [ ] 3.7 Secret cutover (M14), with each secret tested on `/internal/mcp/delegation`. The old
       secret is removed in release N+1 (a follow-up).

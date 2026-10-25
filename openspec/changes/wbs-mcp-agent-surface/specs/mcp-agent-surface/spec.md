@@ -74,13 +74,15 @@ SHALL be `400 invalid_grant`.
 
 #### Scenario: A client_id the registered-client store has never seen
 
-- **WHEN** the provider sends `client_id` equal to the credential id with the assertion
+- **WHEN** a raw token request (the provider sends none) carries `client_id` equal to the
+  credential id beside the assertion
 - **THEN** the answer is `200`, and the registered-client store was not read
 
 #### Scenario: An ID-JAG assertion
 
-- **WHEN** an assertion with `typ: oauth-id-jag+jwt` is presented
-- **THEN** the answer is `400 invalid_grant` naming ID-JAG as unsupported
+- **WHEN** assertions with `typ` `oauth-id-jag+jwt` (ID-JAG) and `at+jwt` (an RFC 9068 access
+  token) are presented
+- **THEN** each answers `400 invalid_grant`, whose description names the unsupported `typ`
 
 ### Requirement: Token requests are parsed strictly
 
@@ -175,9 +177,10 @@ write other than the coarse last-use touch.
 
 #### Scenario: Revocation inside a batch
 
-- **WHEN** a JSON-RPC batch of three tool calls meets the refusal at its second call
-- **THEN** the first call's result stands, and the second and third answer
-  `machine_credential_refused`, the third without any be-01 request
+- **WHEN** a JSON-RPC batch of three tool calls is in flight while the revocation commits
+- **THEN** each call that be-01 answered before the commit keeps its result, and each call
+  after the commit answers `machine_credential_refused`, because be-01 rereads the credential
+  on every call
 
 #### Scenario: No write per call
 
@@ -310,8 +313,10 @@ the metadata SHALL omit them. On `/mcp`, a JWT carrying `token_use: machine` SHA
 
 #### Scenario: A machine token in gateway mode
 
-- **WHEN** gateway-mode mcp-01 receives a validly signed machine token on `/mcp`
-- **THEN** it answers `401 invalid_token`, and be-01's fake records no request
+- **WHEN** gateway-mode mcp-01 receives a validly signed machine token that also carries
+  `wbs_groups: ['dev:wbs:read']`, so that forwarding would be observable, and calls a read tool
+- **THEN** it answers HTTP `401 invalid_token` (not `200`), and be-01's fake records no
+  request
 
 ### Requirement: Secrets never reach logs or reports
 
@@ -342,7 +347,8 @@ API key today. A run SHALL never be defaulted from the token's `jti`.
 ### Requirement: An opted-in run scopes renewal, claims and release
 
 With a run, a claim SHALL take that run as its `runId`. A command naming another `runId`, or a
-`releaseWorkItem` of another run's claim, SHALL be refused `run_mismatch`. Renewal, by
+`releaseWorkItem` of a claim of the caller's own pinned person under another run, SHALL be
+refused `run_mismatch`; a release of another person's delegated claim is judged as today. Renewal, by
 `postApiClaimsRenew` or by a committed batch, SHALL renew only that person's leases of that
 run. Undo SHALL stay per person.
 
@@ -356,20 +362,13 @@ run. Undo SHALL stay per person.
 - **WHEN** a process re-fetches its token with the same `wbs_run`
 - **THEN** its next heartbeat renews the leases it took under the previous token
 
+#### Scenario: A lead releases a worker's delegated claim
+
+- **WHEN** lead agent A, with run `a`, releases the delegated claim it wrote for worker B
+- **THEN** the release is judged as today (D6, D8), not refused `run_mismatch`
+
 #### Scenario: A forged run id
 
 - **WHEN** a grant principal with run `a` sends `claimWorkItem` with `runId: 'b'`, or releases
   run `b`'s claim
 - **THEN** each is refused `run_mismatch` and nothing is applied
-
-### Requirement: A pinned principal claims only under its own or its human's parent claims
-
-`parent_claim_foreign` SHALL refuse a pinned principal whose parent claim was written by
-another pinned person, even of the same account. A parent written by the same person, or by
-the account unpinned, SHALL be admitted.
-
-#### Scenario: Two pool agents
-
-- **WHEN** pool agent B claims under agent A's subtree claim
-- **THEN** the claim is refused `parent_claim_foreign`; under the admin's own unpinned subtree
-  claim it is admitted
