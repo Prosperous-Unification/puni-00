@@ -12,8 +12,9 @@ Under organization access `deleteResource` SHALL be refused `forbidden` (403, na
 command's index and kind) for a caller who is neither an organization admin nor a
 super-admin, before the resource is looked up and on every route that carries directory
 commands (`POST /api/directory/commands` and a project's `POST /api/projects/:id/commands`);
-a viewer's batch stays refused whole. `createResource` and `patchResource` stay open to every
-role that may write.
+a viewer's batch stays refused whole. A machine credential or an MCP consent caller SHALL be
+refused whatever its account's role, since each acts as at most a member. `createResource` and
+`patchResource` stay open to every role that may write.
 
 #### Scenario: A host's RAM is declared
 
@@ -117,10 +118,12 @@ panel listing every resource with this work item's units, an exclusive one as ne
 and saving SHALL send every changed demand as one batch, so the plan's Undo takes the edit back
 whole. A parent SHALL be offered no demand edit. Loading, an empty directory, a failed read
 and every refusal (a role that may not write included) SHALL be rendered in place. Remove
-SHALL be offered only to an organization admin (read, as for the provider picker, off the
-admin-only providers list) and to every caller without organizations; a member, a viewer and a
-reader whose providers read failed get no Remove, and a `forbidden` removal still arriving SHALL
-be said in place and close its confirm.
+SHALL be offered only to an organization admin or super-admin, read off
+`GET /api/organization/active` on each read of the section, and to every caller without
+organizations. A member and a viewer get no Remove and are told only an admin may remove a
+resource; a failed role read, or one naming another organization, offers no Remove and says so.
+A `forbidden` removal still arriving, on the plain delete or the cascade, SHALL be said in place,
+close its confirm and reread the role.
 
 #### Scenario: A demand set from the table is undone in one step
 
@@ -131,7 +134,8 @@ be said in place and close its confirm.
 #### Scenario: A member is offered no Remove
 
 - **WHEN** a member opens the Resources section of a project
-- **THEN** each resource row offers Edit and no Remove, and the Add form is shown
+- **THEN** each resource row offers Edit and no Remove, the section says only an organization
+  admin can remove a resource, and the Add form is shown
 
 #### Scenario: A demanded resource is removed only on confirm
 

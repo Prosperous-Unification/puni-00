@@ -132,13 +132,14 @@ describe('resources in an organization', () => {
           status: 404,
           body: { at: 0, kind: command.kind, error: 'unknown_resource' },
         });
-      for (const command of [
-        { kind: 'patchResource', resourceId, patch: { unitLabel: 'TB' } },
-        { kind: 'deleteResource', resourceId, cascade: true },
-      ])
-        // An admin, who alone may remove a resource, so the refusal is about the id.
+      // A member's patch, and an admin's removal (only an admin may remove), so
+      // each refusal is about the id.
+      for (const [username, command] of [
+        ['ada', { kind: 'patchResource', resourceId, patch: { unitLabel: 'TB' } }],
+        ['sue', { kind: 'deleteResource', resourceId, cascade: true }],
+      ] as const)
         expect(
-          await h.call('sue', 'POST', '/api/directory/commands', { commands: [command] }),
+          await h.call(username, 'POST', '/api/directory/commands', { commands: [command] }),
         ).toEqual({ status: 404, body: { at: 0, kind: command.kind, error: 'not_found' } });
     }
     expect(h.sqlite.query('SELECT count(*) AS n FROM work_item_resource_demand').get()).toEqual({
@@ -235,6 +236,17 @@ describe('resources in an organization', () => {
       }
     expect(demands()).toEqual({ n: 1 });
     expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 2 });
+    // Refused before the lookup: a foreign or absent id answers the member as
+    // their own does, never `not_found`.
+    // Proof: with the role check moved after the lookup in
+    // `removeResourceWithin`, these answered 404 not_found; watched 2026-10-25.
+    const theirs = await declare('grace', 'b ram');
+    for (const resourceId of [theirs, 'no-such-resource'])
+      expect(
+        await h.call('ada', 'POST', '/api/directory/commands', {
+          commands: [{ kind: 'deleteResource', resourceId }],
+        }),
+      ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
     // Creating and editing stay open to a member.
     expect(
       await h.call('ada', 'POST', '/api/directory/commands', {
@@ -256,7 +268,7 @@ describe('resources in an organization', () => {
         commands: [{ kind: 'deleteResource', resourceId: staging }],
       }),
     ).toMatchObject({ status: 200 });
-    expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 0 });
+    expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 1 }); // grace's, in org-b
   });
 
   /** Every top-level key of a version 11 document but `optimization`, the same in both modes. */

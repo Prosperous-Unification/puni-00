@@ -95,9 +95,16 @@ it is an organization act, like defining a measure (`wbs-measure-budgets` D70): 
 caller who is neither an admin nor a super-admin is refused `forbidden`. The check sits in
 `removeResourceWithin`, the one path every `deleteResource` takes (directory batch, project
 batch, MCP through the same routes); legacy access carries no role and keeps writing the whole
-directory. Create and patch were not part of the decision and stay open to every writing role.
-fe-01 offers Remove only where the admin-only providers list was read, as it does the picker.
-This settles the open question of #719's review (`verify.md` "Review fixes", S2-3).
+directory. No agent can remove a resource: a machine credential and an MCP consent delegation
+act as at most a member (`organizationRoleOf`, `wbs-machine-credentials` A23), whatever their
+account's role, so an agent acting for an admin is refused too. Create and patch were not part
+of the decision and stay open to every writing role. fe-01 reads the caller's role from
+`GET /api/organization/active` on each read of the section and offers Remove to an admin or
+super-admin only; it does not infer the role from the providers list, so opening that list to
+members would not bring Remove back. The `wbs-permissions` matrix gives `deleteResource` its own
+admin row, beside the measures, so the planned grants cannot fold it into the member-level
+directory permission. This settles the open question of #719's review (`verify.md` "Review
+fixes", S2-3).
 
 ## Risks / Trade-offs
 

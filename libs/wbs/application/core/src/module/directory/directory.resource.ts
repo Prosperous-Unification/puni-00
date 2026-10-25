@@ -560,8 +560,11 @@ export class DirectoryService {
       // Proof: with this refusal skipped, `refuses a member removing a resource
       // on either route, an admin and a super-admin allowed`
       // (resource-organization.controller.db.test.ts) answered the member's
-      // cascade 200 (`results: [{ index: 0 }]`), the demand removed with it;
-      // watched 2026-10-25.
+      // cascade 200 (`results: [{ index: 0 }]`), the demand removed with it, and
+      // `refuses an agent key of a super-admin removing a resource, as a member`
+      // (compute-provider.controller.db.test.ts) answered the agent 200; moved
+      // after the `ownEntry` lookup, the member's foreign and absent ids answered
+      // 404 not_found; watched 2026-10-25.
       if (!mayRemoveResourceInOrganization(scope.role)) return { ok: false, reason: 'forbidden' };
       if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
         return { ok: false, reason: 'not_found' };

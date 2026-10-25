@@ -4,6 +4,7 @@ import {
   applyProjectCommands,
   type ClientReply,
   listComputeProviders,
+  readActiveOrganization,
   readProjectResources,
   readStartableWork,
 } from '@wbs/contracts';
@@ -21,6 +22,7 @@ const RESOURCE_SHAPES = [
   readProjectResources,
   readStartableWork,
   listComputeProviders,
+  readActiveOrganization,
   applyProjectCommands,
   applyDirectoryCommands,
 ] as const;
@@ -59,6 +61,18 @@ type Occupancy =
   | { readonly kind: 'unreported' }
   | { readonly kind: 'unavailable' };
 
+/**
+ * Whether this viewer is offered Remove (`wbs-resources` R8a), read off
+ * `GET /api/organization/active` on every read of the section: `granted` to an
+ * organization admin or super-admin and to every caller without organizations;
+ * `withheld` from a member or viewer, and when the active organization is no
+ * longer the one this runtime captured; `unknown` when the role read failed,
+ * which offers no Remove either. A drawing hint only: be-01 decides.
+ */
+interface RemovalRight {
+  readonly kind: 'granted' | 'withheld' | 'unknown';
+}
+
 type View =
   | { kind: 'idle' }
   | { kind: 'loading' }
@@ -69,6 +83,7 @@ type View =
       declared: ReadonlyMap<string, number>;
       providers: ProviderChoice;
       occupancy: Occupancy;
+      removal: RemovalRight;
     };
 
 /**
@@ -123,7 +138,7 @@ export interface ResourcesPanelProps extends SettingsSectionReport {
  * Every refusal is said in place, a role that may not change the directory
  * included; nothing is hidden by role but the provider picker, whose list
  * only an admin may read, and Remove, which only an admin may send
- * (`wbs-resources` R8a): see {@link mayRemoveResources}.
+ * (`wbs-resources` R8a): see {@link RemovalRight}.
  */
 export function ResourcesPanel({
   projectId,
@@ -135,6 +150,7 @@ export function ResourcesPanel({
   const client = useResourceClient(RESOURCE_SHAPES);
   const scope = useResourceScope();
   const isOrganization = scope.organization.kind === 'active';
+  const captured = scope.organization.kind === 'active' ? scope.organization.organizationId : null;
   const [view, setView] = useState<View>({ kind: 'idle' });
   const [message, setMessage] = useState('');
   const [adoption, setAdoption] = useState<Adoption | null>(null);
@@ -179,10 +195,11 @@ export function ResourcesPanel({
 
   const read = useCallback(
     async (version: number) => {
-      const [listed, instances, startable] = await Promise.all([
+      const [listed, instances, startable, active] = await Promise.all([
         client.getApiProjectsByIdResources({ params: { id: projectId } }),
         isOrganization ? client['getApiOrganizationCompute-providers']({}) : null,
         client.getApiProjectsByIdStartable({ params: { id: projectId }, query: {} }),
+        captured === null ? null : client.getApiOrganizationActive({}),
       ]);
       if (version !== generation.current) return;
       switch (listed.kind) {
@@ -231,6 +248,20 @@ export function ResourcesPanel({
         current !== null && declared.get(current.resourceId) !== current.units ? null : current,
       );
       if (startable.kind === 'failure' && startable.failure.code === 'cancelled') return;
+      if (active?.kind === 'failure' && active.failure.code === 'cancelled') return;
+      // Proof: 2026-10-25, granting Remove whatever the role read answered failed
+      // `offers a member no Remove, and says only an admin may`, `offers a viewer
+      // no Remove…`, `offers no Remove while the role read failed…` and `offers
+      // no Remove when the active organization is another one`.
+      const removal: RemovalRight =
+        active === null
+          ? { kind: 'granted' }
+          : active.kind !== 'success'
+            ? { kind: 'unknown' }
+            : active.body.organizationId === captured &&
+                (active.body.role === 'admin' || active.body.role === 'super_admin')
+              ? { kind: 'granted' }
+              : { kind: 'withheld' };
       // Proof: 2026-10-25, reading a failed startable read as `read` with no
       // entries failed `says the holdings are missing when the startable read
       // fails` on `Unable to find an element with the text: What claims hold…`:
@@ -259,9 +290,10 @@ export function ResourcesPanel({
         declared,
         providers,
         occupancy,
+        removal,
       });
     },
-    [client, projectId, isOrganization],
+    [client, projectId, isOrganization, captured],
   );
 
   const refresh = useCallback(async () => {
@@ -441,6 +473,21 @@ export function ResourcesPanel({
    * unseen. be-01 has no conditional cascade, so a use landing between the two
    * requests is the one window left.
    */
+  /**
+   * Says a removal be-01 refused `forbidden` (a role demoted since the section
+   * read it), closes the confirm and rereads, so the role read takes Remove
+   * away. False for every other refusal.
+   */
+  function sayForbiddenRemoval(refusal: BatchRefusal): boolean {
+    if (refusal.error !== 'forbidden') return false;
+    setRemoval(null);
+    setMessage('Your role no longer allows removing a resource. Nothing was changed.');
+    // Proof: 2026-10-25, without this reread `says a refused removal in place,
+    // closes its confirm and takes Remove away` still found `Remove h2puni ram`.
+    observe(refresh(), 'read');
+    return true;
+  }
+
   async function remove(resource: ProjectResource, step: 'ask' | 'confirm' | 'cascade') {
     // Proof: 2026-10-25, with `ask` sending the delete at once, `removes an
     // unused resource only after a confirm naming its provider link` failed:
@@ -457,14 +504,10 @@ export function ResourcesPanel({
       resource.name,
       (refusal) => {
         // Proof: 2026-10-25, with this arm skipped, `says a refused removal
-        // in place and closes its confirm` failed on `Unable to find an
-        // element with the text: Only an organization admin can remove…`:
+        // in place, closes its confirm and takes Remove away` failed on `Unable to find an
+        // element with the text: Your role no longer allows removing…`:
         // only the create/edit sentence for a role was said.
-        if (refusal.error === 'forbidden') {
-          setRemoval(null);
-          setMessage('Only an organization admin can remove a resource. Nothing was changed.');
-          return true;
-        }
+        if (sayForbiddenRemoval(refusal)) return true;
         // Proof: 2026-10-25, with this arm answering false, `names what still
         // uses a resource and removes it with them on confirm` failed on
         // `Unable to find role="alert"` in the row: only the generic sentence
@@ -486,6 +529,9 @@ export function ResourcesPanel({
         await directory(
           { kind: 'deleteResource', resourceId: resource.id, cascade: true },
           resource.name,
+          // Proof: 2026-10-25, without this `says a refused cascade in place
+          // and closes its confirm` found the `in_use` confirm still open.
+          sayForbiddenRemoval,
         )
       ) {
         setRemoval(null);
@@ -633,7 +679,7 @@ export function ResourcesPanel({
                 onRename={(name, unitLabel) => rename(resource, name, unitLabel)}
                 projectId={projectId}
                 onRemove={
-                  mayRemoveResources(view.providers, isOrganization)
+                  view.removal.kind === 'granted'
                     ? (step) => {
                         observe(remove(resource, step), 'removal');
                       }
@@ -647,6 +693,13 @@ export function ResourcesPanel({
             ))}
           </ul>
         ))}
+      {view.kind === 'ready' && view.resources.length > 0 && view.removal.kind !== 'granted' && (
+        <p className="text-muted-foreground m-0 text-sm">
+          {view.removal.kind === 'withheld'
+            ? 'Only an organization admin can remove a resource.'
+            : 'Your role could not be read, so removing a resource is not offered.'}
+        </p>
+      )}
       {message !== '' && (
         <p role="alert" className="text-destructive m-0 text-sm">
           {message}
@@ -655,21 +708,6 @@ export function ResourcesPanel({
       {view.kind === 'ready' && <NewResourceForm busy={busy} onCreate={create} />}
     </div>
   );
-}
-
-/**
- * Whether this viewer is offered Remove (`wbs-resources` R8a): only an
- * organization admin may remove a resource, and admin rights are read off the
- * providers list as for the picker. Without organizations every caller may.
- * A failed providers read leaves the role unknown, so Remove stays hidden
- * until a reread names it; be-01 still decides, and its `forbidden` is said
- * in place.
- *
- * Proof: 2026-10-25, answering true here failed `offers a member Edit but no
- * Remove`: the member's row carried `Remove h2puni ram`.
- */
-function mayRemoveResources(providers: ProviderChoice, isOrganization: boolean): boolean {
-  return !isOrganization || providers.kind === 'named';
 }
 
 /** What the Add form holds: a new resource's name, kind and unit label. */
