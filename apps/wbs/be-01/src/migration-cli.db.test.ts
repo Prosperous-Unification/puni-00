@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261023170000_add_work_item_budget');
+    expect(baselineLedger.at(-1)?.name).toBe('20261025100100_add_resource_directory_capacity');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1159,7 +1159,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261023140000_add_measure' &&
           name !== '20261023150000_key_step_measure' &&
           name !== '20261023160000_add_measure_estimate' &&
-          name !== '20261023170000_add_work_item_budget',
+          name !== '20261023170000_add_work_item_budget' &&
+          name !== '20261025100000_widen_organization_audit_directory_capacity' &&
+          name !== '20261025100100_add_resource_directory_capacity',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1228,7 +1230,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261023140000_add_measure' &&
           name !== '20261023150000_key_step_measure' &&
           name !== '20261023160000_add_measure_estimate' &&
-          name !== '20261023170000_add_work_item_budget',
+          name !== '20261023170000_add_work_item_budget' &&
+          name !== '20261025100000_widen_organization_audit_directory_capacity' &&
+          name !== '20261025100100_add_resource_directory_capacity',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1264,7 +1268,9 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261023170000_add_work_item_budget');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
+      '20261025100100_add_resource_directory_capacity',
+    );
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

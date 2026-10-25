@@ -61,3 +61,36 @@ Run on the worktree with this change staged, 2026-10-25:
 
 Each task's fault line, watched failing with the check removed, with its `Proof:` comment
 beside the check and the command output recorded here.
+
+## Implementation record (branch `feat/wbs-shared-occupancy-1`, built on assumed S1 to S12)
+
+All commands run in the worktree with `env -u CLAUDECODE` (the Bun output tests misreport
+under `CLAUDECODE=1`). Only targeted files ran; the full suites are CI's.
+
+### Slice 1.0 and 1.1: the two migrations
+
+`20261025100000_widen_organization_audit_directory_capacity` and
+`20261025100100_add_resource_directory_capacity`, each with a guarded `down.sql`.
+
+- `bun test apps/wbs/be-01/src/directory-capacity-migration.db.test.ts` → 8 pass, 0 fail.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` over both folders' four files →
+  exit 0; `migration-lint.test.ts` gained `accepts the directory capacity audit rebuild`.
+- Every test pinning the newest migration or listing the reversal order (45 files: be-01
+  migration tests and store-sqlite `*.db.test.ts`) gained the two names; run together →
+  750 pass, 3 fail, the three table-list expectations (`calendar-marker-migration`,
+  `organization-records`, `optimized-schedule-cache`), which then gained
+  `resource_directory_capacity` → 54 pass, 0 fail.
+
+R5 proofs, each fault injected into the file, the test run, the file restored:
+
+| Fault                                                               | Observed                                                                                                               |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `compute_provider_removed` dropped from the forward rebuild's CHECK | `keeps one row of every earlier action and subject kind through the rebuild` failed: `runMigrations` threw on the copy |
+| audit `down.sql` guard filter replaced by `WHERE 0`                 | `refuses rollback over one directory capacity audit row` failed: the narrow table's `CHECK constraint failed: action`  |
+| `typeof` half of the table CHECK removed                            | `refuses a negative or a text directory capacity` failed: `'sixteen'` was stored                                       |
+| table `down.sql` guard comparison made `>= 0`                       | `refuses rollback over a stated directory capacity, keeping it` failed: the rollback exited 0                          |
+| forward fk guard `CHECK (violations = 0)` made `CHECK (1)`          | `accepts the directory capacity audit rebuild` failed: `contains destructive statement: DROP TABLE`                    |
+
+A text `'16'` is not refused by the database: the column's INTEGER affinity stores it as
+16 (as `project_resource_capacity` does). The CHECK's `typeof` refuses text that is not an
+integer; the command boundary refuses every non-integer before SQL.

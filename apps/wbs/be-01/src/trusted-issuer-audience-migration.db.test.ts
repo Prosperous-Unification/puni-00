@@ -21,6 +21,9 @@ const MEASURE = '20261023140000_add_measure';
 const MEASURE_FACTS = '20261023150000_key_step_measure';
 const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
+/** This change's two migrations (`wbs-shared-occupancy`), newer still, which reverse first. */
+const SHARED_OCCUPANCY =
+  '20261025100100_add_resource_directory_capacity, 20261025100000_widen_organization_audit_directory_capacity';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const ISSUER = 'https://token.actions.githubusercontent.com';
@@ -120,7 +123,7 @@ describe(AUDIENCE_SCOPE, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
+      `rolled back: ${SHARED_OCCUPANCY}, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}`,
     );
     runMigrations(dbPath, join(root, 'drizzle'));
   }, 60_000);

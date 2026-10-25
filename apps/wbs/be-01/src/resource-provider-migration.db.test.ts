@@ -16,6 +16,8 @@ const AUDIT_WIDENING = '20261022140100_widen_organization_audit_compute_provider
 const CLAIM_LEASE = '20261023100000_add_claim_lease';
 /** The measure migrations (`wbs-measure-budgets`), newer still, which reverse before it. */
 const MEASURES = [
+  '20261025100100_add_resource_directory_capacity',
+  '20261025100000_widen_organization_audit_directory_capacity',
   '20261023170000_add_work_item_budget',
   '20261023160000_add_measure_estimate',
   '20261023150000_key_step_measure',

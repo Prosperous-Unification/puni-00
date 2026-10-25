@@ -11,6 +11,9 @@ import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261023170000_add_work_item_budget';
+/** This change's two migrations (`wbs-shared-occupancy`), newer still, which reverse first. */
+const DIRECTORY_CAPACITY = '20261025100100_add_resource_directory_capacity';
+const DIRECTORY_AUDIT = '20261025100000_widen_organization_audit_directory_capacity';
 const BASELINE = '20261023160000_add_measure_estimate';
 
 let dir: string;
@@ -72,7 +75,11 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-budget-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    DIRECTORY_CAPACITY,
+    DIRECTORY_AUDIT,
+    MIGRATION,
+  ]);
   db = openDatabase(path);
   seedBaseline();
   db.close();
@@ -185,7 +192,11 @@ describe(MIGRATION, () => {
         .all();
     const before = facts();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      DIRECTORY_CAPACITY,
+      DIRECTORY_AUDIT,
+      MIGRATION,
+    ]);
     db = openDatabase(path);
     expect(db.query("SELECT name FROM sqlite_master WHERE name LIKE '%budget%'").all()).toEqual([]);
     expect(facts()).toEqual(before);

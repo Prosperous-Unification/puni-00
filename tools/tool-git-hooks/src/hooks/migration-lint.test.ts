@@ -363,3 +363,16 @@ describe('the compute provider audit rebuild', () => {
     expect(await lintMigration(file, root)).toBeNull();
   });
 });
+
+describe('the directory capacity audit rebuild', () => {
+  // Proof: replacing `CHECK (violations = 0)` in that script with `CHECK (1)` made this report
+  // `contains destructive statement: DROP TABLE`; watched 2026-10-25.
+  it('accepts the directory capacity audit rebuild', async () => {
+    const root = new URL('.', WORKSPACE).pathname.replace(/\/$/, '');
+    const file = join(
+      root,
+      'apps/wbs/be-01/drizzle/20261025100000_widen_organization_audit_directory_capacity/migration.sql',
+    );
+    expect(await lintMigration(file, root)).toBeNull();
+  });
+});

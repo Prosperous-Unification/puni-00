@@ -18,7 +18,7 @@
 
 ## 1. Directory capacity (no claim effect)
 
-- [ ] 1.0 Migration `widen_organization_audit_directory_capacity`: the compatible rebuild of
+- [x] 1.0 Migration `widen_organization_audit_directory_capacity`: the compatible rebuild of
       `organization_audit` carrying the whole current action and subject-kind vocabulary
       plus `directory_capacity_changed` and `resource`, as
       `20261022140100_widen_organization_audit_compute_providers` did; guarded `down.sql`
@@ -27,7 +27,7 @@
       Fault lines: drop one existing action from the rebuilt CHECK and the seeded row fails
       the forward test; drop the guard and the rollback runs over a
       `directory_capacity_changed` row the old CHECK rejects, and the refusal test fails.
-- [ ] 1.1 Migration `add_resource_directory_capacity` with CHECK
+- [x] 1.1 Migration `add_resource_directory_capacity` with CHECK
       `typeof(units) = 'integer' AND units >= 0`, cascade from `resource`, guarded
       `down.sql` — test: forward, back, refusal with one row; a text `'16'` is refused.
       Fault lines: drop the guard and the rollback test deletes a stated capacity; drop the
