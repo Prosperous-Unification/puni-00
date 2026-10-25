@@ -41,8 +41,9 @@ operator removes it (requirement "Today's memberships are backfilled into grants
 ### Requirement: A grant at an ancestor reaches everything beneath it, including what is created later
 
 A grant SHALL name one grant scope: the organization, a project or a work package. The
-effective role of a principal at a work package SHALL be the strongest grant that names
-that package, its project or its organization (`MAX(level)`), held directly, through an
+effective role of a principal at a work package SHALL be the union of the permission sets
+of every grant that names that package, its project or its organization (set membership,
+`wbs-custom-permissions` CP1), held directly, through an
 access group the principal belongs to, or through the organization members subject. A
 project-kind permission SHALL consider organization and project grants; an
 organization-kind permission SHALL consider organization grants only. A grant SHALL reach
@@ -85,7 +86,7 @@ package-manager)` through group G
 
 ### Requirement: A role counts only for the kinds it governs
 
-The effective level for a permission SHALL consider only grants whose role's object kind is
+The effective set for a permission SHALL consider only grants whose role's object kind is
 the permission's kind or an ancestor of it: organization roles for organization
 permissions; organization and project roles for project permissions; all three for
 package permissions. A `package-*` role granted at organization scope SHALL therefore never
@@ -120,12 +121,14 @@ A machine credential SHALL be a grant subject (`subject_kind = 'machine_credenti
 `subject_id` the credential's id). For a principal whose `authentication.kind` is
 `machine` or `consent`, the evaluator SHALL consider only the grants naming that
 credential, never the bound account's direct grants, its access groups' grants or the
-organization members subject's, and SHALL apply `MIN(MAX(level), 2)`, so a machine never
-holds manager, admin or super-admin permissions, `package.claim_for_others` included.
+organization members subject's, and SHALL intersect the effective set with the contributor cap set (the seeded
+`project-contributor` and `package-contributor` sets, `wbs-custom-permissions` CP8), so a
+machine never holds manager, admin or super-admin permissions, `package.claim_for_others`
+included.
 Current membership SHALL still be read from the bound account. A new credential SHALL hold
 no grant. Granting to or revoking from a credential SHALL need the permission the same
-grant to a person needs, and SHALL NOT bind a role above the granter's own effective level
-at that scope. Revoking a credential SHALL delete its grants in the same transaction. A
+grant to a person needs, and SHALL NOT bind a role whose set is not a subset of the granter's own
+effective set at that scope. Revoking a credential SHALL delete its grants in the same transaction. A
 grant write or an access-group write requested by a machine principal SHALL be refused
 `403 forbidden` naming the grant permission, before any grant row is read or written.
 Renewing a principal's claim leases SHALL move only the leases in work packages the
@@ -310,9 +313,9 @@ for an organization role, `organization.manage_access` for a project or package 
 the same for the grant it removes; a `machine_credential` subject SHALL need the same as a
 person. Removing a member SHALL need `organization.manage_members`, and removing one who
 holds an organization-role grant directly SHALL also need
-`organization.manage_organization_roles`. A granter SHALL NOT bind a role whose level exceeds
-their own effective level at the target scope for that role's kind, evaluated without the
-restricted rule. The store SHALL refuse
+`organization.manage_organization_roles`. A granter SHALL NOT bind a role whose permission set is not a
+subset of their own effective set at the target scope (`wbs-custom-permissions` CP5),
+evaluated without the restricted rule. The store SHALL refuse
 `409 role_scope_mismatch` for a role above its scope kind, `409 not_a_member` for a
 non-member subject, `404 unknown_group` for a foreign group, `404 unknown_credential` for
 a foreign or revoked credential, `409 already_granted` for a

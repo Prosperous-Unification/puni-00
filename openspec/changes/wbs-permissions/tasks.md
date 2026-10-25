@@ -20,7 +20,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
 
 ## 1. Catalogue, grant tables and backfill
 
-- [ ] 1.1 Migration `add_access_grants`: `access_role` seeded with the nine roles,
+- [ ] 1.1 Migration `add_access_grants`: `access_role` (with `name`, nullable `level`, the built-in/custom CHECK) seeded with the nine roles, `access_role_permission` seeded with their sets from permission-matrix.md and the reserved-name trigger (`wbs-custom-permissions` 1.1),
       `access_group`, `access_group_member`, `access_grant` with the CHECKs, unique and
       composite foreign keys, the `organization_members` trigger, the two indexes, the
       backfill of memberships and work package owners (no project-scope row) and the
@@ -33,11 +33,13 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       the credential copy and an `org-admin`'s credential receives `org-admin`; watched.
 - [ ] 1.2 Red: `access-role.test.ts` in `@wbs/domain` for the pure catalogue,
       the `ScopeChain` value type shared with #698 (design.md P13) and
-      `may(effective, permission)`: the 9 × 21 table of permission-matrix.md as a
-      property (every cell), kind filtering (a project role never satisfies an
-      organization permission), and the cap — test: one case per permission plus the
-      table; negative: lower `package.claim_for_others` to level 2 and the machine case
-      passes; watched.
+      `may(effective, permission)`: the matrix of permission-matrix.md as a
+      property (every cell is a seeded set row), `may` as set membership, the kind rule
+      (a project role never satisfies an organization permission) and `CONTRIBUTOR_CAP`
+      as a set (`wbs-custom-permissions` 1.2) — test: one case per permission plus the
+      table; negatives: widen the cap with `project.manage_budgets` and the machine case
+      manages budgets; add `package.claim_for_others` to `package-contributor`'s seed and
+      the machine case passes; watched.
 - [ ] 1.3 Green: port `AccessDecisions` (`effectiveRoleAt`, `readablePackageIds`) in
       `@wbs/core`, SQLite implementation with the two statements of design.md, exposed on
       the admitted turn's stores and the read stores; provenance returned; work package
@@ -45,13 +47,13 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       `access-decisions.db.test.ts`: direct, group, members subject, strongest wins, the
       kind filter, the restricted rule (org-admin and org-super-admin read, org-viewer,
       organization-scope project and package roles and the members subject skipped),
-      membership gone, cap 2 and 5, a machine principal holding only its credential's
+      membership gone, the cap set and no cap, an injected unknown permission row throwing `UnknownPermissionRow` (`wbs-custom-permissions` 1.3), a machine principal holding only its credential's
       grants (P17), one statement per call (statement counter);
       negatives: remove the membership `EXISTS` and a removed member keeps access; remove
       the kind filter and the case "a package role at organization scope satisfies a
       project permission" passes where it must fail; remove the P5 clause and an
       `org-viewer` reads a restricted work package; remove the `CASE` and an `org-admin`
-      writes one; replace `MIN(…, :cap)` with `MAX` and the machine case is manager;
+      writes one; widen the cap set and the machine case is manager; catch-and-skip the unknown row and the throw test fails;
       drop the `:machine = 0` guards and an `org-admin`'s agent writes a package no grant
       of its credential names; watched.
 - [ ] 1.4 Grant store `AccessGrants` (`grant`, `revoke`, `list`, groups and members) with

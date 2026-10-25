@@ -49,8 +49,16 @@ One statement that a principal holds one access role at one grant scope of an or
 _Avoid_: permission (what a role implies), ACL entry, share, binding, role assignment
 
 **Access role**:
-A named rung of the seeded catalogue, prefixed by the object kind it governs (`org-`, `project-`, `package-`) and ranked by level. Code checks the permissions a role implies, never the role's name.
-_Avoid_: role (alone), permission set, custom role, scope
+A named set of permissions over one object kind (organization, project, work package), either built-in or custom. Code checks whether a permission is in the set, never the role's name.
+_Avoid_: role (alone), policy, rung, scope
+
+**Built-in access role**:
+One of the nine seeded access roles, prefixed by its object kind (`org-`, `project-`, `package-`); never edited or renamed.
+_Avoid_: managed policy, default role, system role
+
+**Custom access role**:
+An access role an organization defines and names for itself from the permission vocabulary; granted and revoked like a built-in one.
+_Avoid_: customer policy, user role, role template
 
 **Access group**:
 An organization's named set of member accounts that exists only to be named by access grants. Not a service team, and never a constraint on who may be assigned work.

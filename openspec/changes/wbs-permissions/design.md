@@ -167,9 +167,12 @@ an ancestor kind. _Made normative 2026-10-24 after review:_ the effective-level 
 carries `AND r.object_kind IN (<kinds for the target>)` (organization: `organization`;
 project: `organization`, `project`; work package: all three), so a `package-*` role granted
 at organization scope never satisfies a project or organization permission; without the
-filter its level 3 would read as `project.manage_settings`. Custom roles later add rows with `organization_id` and an
-`access_role_permission` table, and `may` switches from a threshold to set membership;
-grants reference `role_id` unchanged. Deny later adds `access_denial` with the same subject
+filter its level 3 would read as `project.manage_settings`. _Revised 2026-10-25 by Dany (`wbs-custom-permissions` CP1):_ `may` is **set membership from
+slice 1**, not a threshold: every role, built-in or custom, is a row set in
+`access_role_permission` (built-ins seeded from permission-matrix.md), `EffectiveRole` carries
+the union of the reaching roles' sets filtered by the kind rule, and `level` stays only on
+built-ins for display order; no decision reads it. Custom roles, their routes and lifecycle
+are that change's; grants reference `role_id` unchanged. Deny later adds `access_denial` with the same subject
 and scope columns, evaluated as an exclusion; grants are untouched. Neither reshapes
 `access_grant`.
 
@@ -202,8 +205,8 @@ cost `wbs-measure-budgets` D47 removed from the command refusals and
 (`organization.manage_organization_roles`); `org-admin` grants and revokes project and
 package roles at any scope and administers access groups (`organization.manage_access`);
 `project-manager` grants and revokes package roles inside its project (`project.grant`). A
-granter never binds a role whose level exceeds their own effective level at the target
-scope for that role's kind, evaluated without P5's restriction rule (the Kubernetes
+granter never binds a role whose permission set is not a subset of their own effective
+set at the target scope (set form of the level rule, `wbs-custom-permissions` CP5), evaluated without P5's restriction rule (the Kubernetes
 escalation rule, today's `mayAdministerMembership`). Revoking the last `org-super-admin` grant, or removing that
 member, is refused `409 last_super_admin` in the store's transaction. Removing a member needs
 `organization.manage_members`; removing one who holds an organization-role grant directly
@@ -215,9 +218,9 @@ Invitations and join-request approvals carry an optional initial grant from the 
 scope, or none); SCIM-provisioned and onboarding-created members arrive with none, except
 the organization's creator, who is `org-super-admin`.
 
-**P12. Machine cap at check and at grant.** The evaluator applies `cap = 2` when the
-principal's `authentication.kind` is `machine` or `consent`, `5` otherwise:
-`MIN(MAX(level), cap)`. A machine principal's only subject is its credential (P17), so
+**P12. Machine cap at check and at grant.** The evaluator intersects the effective set with `CONTRIBUTOR_CAP` (the union of the
+seeded `project-contributor` and `package-contributor` sets, `wbs-custom-permissions` CP8)
+when the principal's `authentication.kind` is `machine` or `consent`; otherwise no cap. A machine principal's only subject is its credential (P17), so
 groups and the organization-members subject never reach it; the cap holds over the
 credential's own grants.
 A grant write by a machine principal is refused `403 forbidden` naming the grant permission
@@ -310,15 +313,24 @@ All additive, one migration `add_access_grants` with `down.sql`; names are SQLit
 
 ```sql
 CREATE TABLE access_role (
-  id              text PRIMARY KEY,   -- 'org-super-admin' … 'package-viewer'
+  id              text PRIMARY KEY,   -- built-in: the name ('org-super-admin' …); custom: ULID
+  name            text NOT NULL,      -- built-in: = id (wbs-custom-permissions CP7)
   object_kind     text NOT NULL CHECK (object_kind IN ('organization','project','work_package')),
-  level           integer NOT NULL CHECK (level BETWEEN 1 AND 5),
-  organization_id text REFERENCES organization(id),   -- NULL = built-in; custom roles later
-  UNIQUE (object_kind, level, organization_id)
+  level           integer CHECK (level BETWEEN 1 AND 5),   -- built-ins only, display order (CP1)
+  organization_id text REFERENCES organization(id),   -- NULL = built-in
+  created_at integer NOT NULL, updated_at integer, created_by text REFERENCES users(id),
+  CHECK ((organization_id IS NULL) = (level IS NOT NULL)),
+  UNIQUE (organization_id, name)
 );
--- seeded: org-super-admin 5, org-admin 4, org-viewer 1 (organization);
---         project-manager 3, project-contributor 2, project-viewer 1 (project);
---         package-manager 3, package-contributor 2, package-viewer 1 (work_package)
+CREATE TABLE access_role_permission (
+  role_id    text NOT NULL REFERENCES access_role(id) ON DELETE CASCADE,
+  permission text NOT NULL,           -- validated at the boundary, thrown on read if unknown (CP9)
+  PRIMARY KEY (role_id, permission)
+);
+-- seeded: the nine built-ins (org-super-admin 5, org-admin 4, org-viewer 1; project-manager 3,
+--         project-contributor 2, project-viewer 1; package-manager 3, package-contributor 2,
+--         package-viewer 1) and their sets from permission-matrix.md, asserted equal by test;
+--         a trigger refuses a custom name equal to a built-in id (reserved_name)
 
 CREATE TABLE access_group (
   id text PRIMARY KEY, organization_id text NOT NULL REFERENCES organization(id),
@@ -376,6 +388,11 @@ Invariants the store checks in the grant's transaction (each with a negative):
 
 ## Permission vocabulary
 
+_Amended 2026-10-25 (`wbs-custom-permissions` CP1, CP4):_ a permission's \"minimum level\"
+below describes which built-ins are seeded with it (permission-matrix.md is the seed); the
+decision itself is set membership. The vocabulary is the 27 ids; a new permission is a new
+row plus a seed for the built-ins that imply it.
+
 Twenty-one permissions over four evaluation kinds. The full inventory of every
 plan-command kind (61), every directory command (21 of those 61) and every route family
 (133 contract endpoints today, 155 after #698 and this change; counted at `0b1dddaa0`) with
@@ -425,7 +442,7 @@ change adds behaviour without renumbering.
 // @wbs/domain
 type Permission = (typeof PERMISSIONS)[number]['id'];
 interface EffectiveRole {
-  level: 1 | 2 | 3 | 4 | 5;
+  permissions: ReadonlySet<Permission>; // union of the reaching roles' sets, kind-filtered, cap-intersected (CP1, CP8)
   via: GrantProvenance[];
 }
 function may(effective: EffectiveRole | null, permission: Permission): boolean;
@@ -471,27 +488,32 @@ target with the organization and package rows only (a store-private
 `{ organizationId, workPackageId }` reader; no project grant can exist yet); slice 3
 switches every caller to `ScopeChain`. Every existing check becomes one call:
 
-| Today                                                                                              | Becomes                                                                                                                                                                                             |
-| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `canWriteInOrganization(role)` in batches, steps, markers, saved plans, import                     | `package.write` at the package; `organization.manage_directory` for directory batches; create and import as P16                                                                                     |
-| `mayBindAccountInOrganization(role)`                                                               | `organization.manage_directory`                                                                                                                                                                     |
-| `canEditProjectInOrganization`, `mayEditProjectWithin`, `canEditProject`                           | `package.write` (restriction is the evaluator's, P5; `owner_id` no longer read)                                                                                                                     |
-| `classifyProjectEdit`                                                                              | `ordinary` when `package.write` or `package.manage_settings` holds; `recovery` when it does not, the edit only clears `restricted` and `organization.recover_restricted` holds (P5); else `refused` |
-| `mayAdministerMembership(actor, current, requested)`                                               | grant and revoke rules of P11 (`organization.manage_organization_roles`, `organization.manage_access`, `project.grant`, escalation, last super-admin)                                               |
-| `mayInvite(actor, role)`                                                                           | `organization.manage_members` plus the grant rule for the initial grant                                                                                                                             |
-| `findProjectWithin`                                                                                | `findReadablePackage`: `effectiveRoleAt` null answers null, so every caller keeps one 404                                                                                                           |
-| `isClaimAdmin(access)`                                                                             | `package.claim_for_others` at the package                                                                                                                                                           |
-| `maySwitchCapacityMode` and `roleMaySwitchCapacityMode`                                            | `organization.manage_capacity_mode`; delegations still refused                                                                                                                                      |
-| `machineCredentialReachOf`                                                                         | `every` when `organization.manage_directory` holds, else `own`; machines and delegations `none`                                                                                                     |
-| `scopesOfRoles` (`editor` for admins)                                                              | `editor` when the organization-kind level is 4 or more; it serves the groups-less upstream token (`wbs-team-claims` D6b, authentication kind `upstream`), which the cap does not reach (P17)        |
-| `mayDefineMeasuresInOrganization` (measure definitions; plan import, `plan-import.feature.ts:212`) | `organization.manage_directory`                                                                                                                                                                     |
-| work package rank move's admin check (`project-rank.resource.ts:61`)                               | `organization.manage_spaces`                                                                                                                                                                        |
-| `organizationRoleOf` (A23 cap)                                                                     | the evaluator's `cap` (P12)                                                                                                                                                                         |
-| directory "every agent" reach (`directory.resource.ts:1753`, inside `machineCredentialReachOf`)    | `organization.manage_directory`                                                                                                                                                                     |
-| `super_admin` exceptions in `step.resource.ts`, `save-plan.ts`, `project.resource.ts`              | removed; the only recovery is the audited flag clear (P5)                                                                                                                                           |
-| store-side `super_admin` reads (domains, SSO, session policy, provisioning, shared-people restore) | `organization.manage_security` evaluated in the same transaction                                                                                                                                    |
+| Today                                                                                              | Becomes                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canWriteInOrganization(role)` in batches, steps, markers, saved plans, import                     | `package.write` at the package; `organization.manage_directory` for directory batches; create and import as P16                                                                                             |
+| `mayBindAccountInOrganization(role)`                                                               | `organization.manage_directory`                                                                                                                                                                             |
+| `canEditProjectInOrganization`, `mayEditProjectWithin`, `canEditProject`                           | `package.write` (restriction is the evaluator's, P5; `owner_id` no longer read)                                                                                                                             |
+| `classifyProjectEdit`                                                                              | `ordinary` when `package.write` or `package.manage_settings` holds; `recovery` when it does not, the edit only clears `restricted` and `organization.recover_restricted` holds (P5); else `refused`         |
+| `mayAdministerMembership(actor, current, requested)`                                               | grant and revoke rules of P11 (`organization.manage_organization_roles`, `organization.manage_access`, `project.grant`, escalation, last super-admin)                                                       |
+| `mayInvite(actor, role)`                                                                           | `organization.manage_members` plus the grant rule for the initial grant                                                                                                                                     |
+| `findProjectWithin`                                                                                | `findReadablePackage`: `effectiveRoleAt` null answers null, so every caller keeps one 404                                                                                                                   |
+| `isClaimAdmin(access)`                                                                             | `package.claim_for_others` at the package                                                                                                                                                                   |
+| `maySwitchCapacityMode` and `roleMaySwitchCapacityMode`                                            | `organization.manage_capacity_mode`; delegations still refused                                                                                                                                              |
+| `machineCredentialReachOf`                                                                         | `every` when `organization.manage_directory` holds, else `own`; machines and delegations `none`                                                                                                             |
+| `scopesOfRoles` (`editor` for admins)                                                              | `editor` when `organization.manage_directory` is in the effective set; it serves the groups-less upstream token (`wbs-team-claims` D6b, authentication kind `upstream`), which the cap does not reach (P17) |
+| `mayDefineMeasuresInOrganization` (measure definitions; plan import, `plan-import.feature.ts:212`) | `organization.manage_directory`                                                                                                                                                                             |
+| work package rank move's admin check (`project-rank.resource.ts:61`)                               | `organization.manage_spaces`                                                                                                                                                                                |
+| `organizationRoleOf` (A23 cap)                                                                     | the evaluator's `cap` (P12)                                                                                                                                                                                 |
+| directory "every agent" reach (`directory.resource.ts:1753`, inside `machineCredentialReachOf`)    | `organization.manage_directory`                                                                                                                                                                             |
+| `super_admin` exceptions in `step.resource.ts`, `save-plan.ts`, `project.resource.ts`              | removed; the only recovery is the audited flag clear (P5)                                                                                                                                                   |
+| store-side `super_admin` reads (domains, SSO, session policy, provisioning, shared-people restore) | `organization.manage_security` evaluated in the same transaction                                                                                                                                            |
 
 ### Effective level of one principal on one work package
+
+_Amended 2026-10-25 (`wbs-custom-permissions` CP1):_ the statement below is written with
+`MAX(level)`; the shipped form joins `access_role_permission` and returns the distinct
+permissions with provenance (that change's design.md, \"Effective set\"); the cap is applied
+as a set intersection in `@wbs/domain`. Shape and statement count are unchanged.
 
 ```sql
 WITH subject(kind, id) AS (   -- :machine = 1 for authentication kind machine or consent (P17)
