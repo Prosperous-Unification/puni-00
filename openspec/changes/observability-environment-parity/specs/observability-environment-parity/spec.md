@@ -53,6 +53,12 @@ Every persistent environment SHALL enforce authenticated private access, query-v
 - **THEN** the request is refused through the real deployed route
 - **AND** a valid identity succeeds through the same route
 
+#### Scenario: Local backup transport exercises certificate verification
+
+- **WHEN** a local rehearsal candidate connects to its disposable snapshot or backup destination
+- **THEN** it uses authenticated HTTPS with the configured trust anchor
+- **AND** an unknown CA or a plaintext/certificate-verification bypass makes acceptance fail rather than becoming an environment exception
+
 #### Scenario: A dev identity cannot access the production instance
 
 - **WHEN** a valid dev client identity reaches a production ingest or query listener

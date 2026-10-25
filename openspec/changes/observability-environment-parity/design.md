@@ -57,6 +57,12 @@ If existing capacity cannot safely host the overlap or the required isolation, r
 
 The list allows field-specific values, not arbitrary patches. Security disabled in dev, missing trace pipelines, silent telemetry loss, omitted persistent queues and manual-only process recovery are not acceptable steady-state exceptions. A laptop running a small fixture may remain useful for editing, but that result is labelled component evidence, not environment parity.
 
+### Discovered local snapshot transport gap
+
+Actual candidate comparison found the local Elasticsearch snapshot client uses HTTP for the disposable MinIO endpoint while production uses HTTPS. This is an unresolved security/recovery difference, not an approved exception. Converge the local server and affected Elasticsearch, bucket-initialization and backup clients on verified HTTPS with disposable local trust, then rerun comparison. Public-provider system trust and a private rehearsal CA can differ explicitly while certificate verification remains enabled. Preserve existing production inputs; local test identities do not authorize persistent secret changes. The checker must report the candidate failing until this prerequisite is verified.
+
+Executable retention logic must be common across profiles. Policy identities belong in the existing retention configuration; exceptions for complete source-code lines would hide more than a scalar identity and are not acceptable.
+
 ### Validation boundary
 
 Add a semantic comparison of rendered service configuration and effective Helm/workload output. Validate the exception records themselves, reject unused/stale paths and compare siblings after each permitted scalar difference. Do not normalize all annotations, environment variables or URLs away: those can contain routing, auth and ownership behavior.
