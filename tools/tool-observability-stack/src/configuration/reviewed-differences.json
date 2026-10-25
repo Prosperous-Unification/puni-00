@@ -7,7 +7,7 @@
       "production": "production"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1source/logs/log_record/0",
@@ -17,7 +17,7 @@
       "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1source/traces/span/0",
@@ -27,7 +27,7 @@
       "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1source/metrics/datapoint/0",
@@ -37,7 +37,7 @@
       "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/logs/log_record/0",
@@ -47,7 +47,7 @@
       "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/traces/span/0",
@@ -57,7 +57,7 @@
       "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/metrics/datapoint/0",
@@ -67,7 +67,7 @@
       "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1source/logs/log_record/0",
@@ -77,7 +77,7 @@
       "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1source/traces/span/0",
@@ -87,7 +87,7 @@
       "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1source/metrics/datapoint/0",
@@ -97,7 +97,7 @@
       "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/logs/log_record/0",
@@ -107,7 +107,7 @@
       "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/traces/span/0",
@@ -117,7 +117,7 @@
       "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/metrics/datapoint/0",
@@ -127,7 +127,7 @@
       "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/resource~1stream/attributes/0/value",
@@ -137,7 +137,7 @@
       "production": "prod"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/logs-template.json/template/settings/index.lifecycle.name",
@@ -147,7 +147,7 @@
       "production": "puni-prod-logs"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/metrics-template.json/template/settings/index.lifecycle.name",
@@ -157,7 +157,7 @@
       "production": "puni-prod-metrics"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/logs/policyName",
@@ -167,7 +167,7 @@
       "production": "puni-prod-logs"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/logs/template/template/settings/index.lifecycle.name",
@@ -177,7 +177,7 @@
       "production": "puni-prod-logs"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/traces/policyName",
@@ -187,7 +187,7 @@
       "production": "puni-prod-traces"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/traces/template/template/settings/index.lifecycle.name",
@@ -197,7 +197,7 @@
       "production": "puni-prod-traces"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/metrics/policyName",
@@ -207,7 +207,7 @@
       "production": "puni-prod-metrics"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/metrics/template/template/settings/index.lifecycle.name",
@@ -217,7 +217,7 @@
       "production": "puni-prod-metrics"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/data/traces-template.json/template/settings/index.lifecycle.name",
@@ -227,7 +227,7 @@
       "production": "puni-prod-traces"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/ConfigMap:observability:signal-configuration/metadata/name",
@@ -237,7 +237,7 @@
       "production": "signal-configuration-8gm59h4895"
     },
     "reason": "Exact Kustomize content-addressed configuration identity; complete payload and workload siblings remain compared.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/StatefulSet:observability:signal-collector/spec/template/spec/volumes/0/configMap/name",
@@ -247,7 +247,7 @@
       "production": "signal-configuration-8gm59h4895"
     },
     "reason": "Exact Kustomize content-addressed configuration identity; complete payload and workload siblings remain compared.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/StatefulSet:observability:signal-gateway/spec/template/spec/volumes/0/configMap/name",
@@ -257,7 +257,7 @@
       "production": "signal-configuration-8gm59h4895"
     },
     "reason": "Exact Kustomize content-addressed configuration identity; complete payload and workload siblings remain compared.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/Job:observability:elastic-settings/spec/template/spec/volumes/0/configMap/name",
@@ -267,7 +267,7 @@
       "production": "signal-configuration-8gm59h4895"
     },
     "reason": "Exact Kustomize content-addressed configuration identity; complete payload and workload siblings remain compared.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/config/s3.client.default.endpoint",
@@ -277,7 +277,7 @@
       "production": "hel1.your-objectstorage.com"
     },
     "reason": "Disposable local object-store endpoint versus production backup destination; transport protocol remains mandatory.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/containers/0/env/0/value",
@@ -327,7 +327,7 @@
       "production": "platform-production"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/NetworkPolicy:observability:otlp-ingress/spec/ingress/1/from/0/ipBlock/cidr",
@@ -337,7 +337,7 @@
       "production": "10.1.0.0/16"
     },
     "reason": "Local Docker rehearsal network versus production enrolled worker network; every other ingress rule remains compared.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/config/s3.client.default.endpoint",
@@ -347,7 +347,7 @@
       "production": "hel1.your-objectstorage.com"
     },
     "reason": "Disposable local object-store endpoint versus production backup destination; transport protocol remains mandatory.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec/containers/0/env/0/value",
@@ -397,7 +397,7 @@
       "production": "platform-production"
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
-    "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
   },
   {
     "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value",

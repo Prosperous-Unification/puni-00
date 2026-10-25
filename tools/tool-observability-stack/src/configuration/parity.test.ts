@@ -31,7 +31,7 @@ function candidate(local: boolean) {
             {
               image: 'gateway@sha256:111',
               authentication: true,
-              resources: { limits: { memory: local ? '2Gi' : '4Gi' } },
+              resources: { limits: { memory: '1Gi' } },
             },
           ],
         },
@@ -47,7 +47,29 @@ function candidate(local: boolean) {
         'retention.json': '{}',
       },
     },
-    ...releases.map((name) => document('HelmRelease', name)),
+    { ...document('ConfigMap', 'puni-telemetry'), data: { environment: 'common' } },
+    document('NetworkPolicy', 'otlp-ingress'),
+    ...releases.map((name) =>
+      document(
+        'HelmRelease',
+        name,
+        name === 'elasticsearch'
+          ? {
+              values: {
+                nodeSets: [
+                  {
+                    podTemplate: {
+                      spec: {
+                        containers: [{ resources: { limits: { memory: local ? '2Gi' : '4Gi' } } }],
+                      },
+                    },
+                  },
+                ],
+              },
+            }
+          : {},
+      ),
+    ),
   ];
   return {
     rendered:
@@ -66,6 +88,7 @@ function candidate(local: boolean) {
         document('Deployment', 'kps-operator'),
         document('Deployment', 'kube-prometheus-stack-kube-state-metrics'),
         document('DaemonSet', 'kube-prometheus-stack-prometheus-node-exporter'),
+        document('ServiceMonitor', 'kube-prometheus-stack-kube-state-metrics'),
       ]
         .map((manifest) => stringify(manifest))
         .join('---\n'),
@@ -78,7 +101,7 @@ function input() {
     candidates: { local: candidate(true), production: candidate(false) },
     differences: [
       {
-        path: '/rendered/StatefulSet:observability:signal-gateway/spec/template/spec/containers/0/resources/limits/memory',
+        path: '/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/limits/memory',
         candidates: ['local', 'production'],
         expected: { local: '2Gi', production: '4Gi' },
         reason: 'Bounded disposable capacity',
@@ -189,8 +212,20 @@ test('stale concrete value refuses', () => {
 test('unused equal-value exception refuses', () => {
   const payload = input();
   change(payload, (documents) => {
-    documents[1].setIn(
-      ['spec', 'template', 'spec', 'containers', 0, 'resources', 'limits', 'memory'],
+    findElastic(documents).setIn(
+      [
+        'spec',
+        'values',
+        'nodeSets',
+        0,
+        'podTemplate',
+        'spec',
+        'containers',
+        0,
+        'resources',
+        'limits',
+        'memory',
+      ],
       '2Gi',
     );
   });
@@ -372,8 +407,20 @@ test('unknown effective Helm release in both refuses', () => {
 test('capacity exception cannot remove a resource bound', () => {
   const payload = input();
   change(payload, (documents) => {
-    documents[1].setIn(
-      ['spec', 'template', 'spec', 'containers', 0, 'resources', 'limits', 'memory'],
+    findElastic(documents).setIn(
+      [
+        'spec',
+        'values',
+        'nodeSets',
+        0,
+        'podTemplate',
+        'spec',
+        'containers',
+        0,
+        'resources',
+        'limits',
+        'memory',
+      ],
       null,
     );
   });
@@ -396,6 +443,7 @@ function findElastic(documents: Document[]): Document {
 }
 function createTrustInput(localMode = 'system-roots-plus-ca', productionMode = 'system-roots') {
   const payload = input();
+  payload.differences = [];
   for (const [name, mode] of [
     ['local', localMode],
     ['production', productionMode],
@@ -520,7 +568,7 @@ for (const view of ['rendered', 'effective'] as const) {
       else payload.candidates[candidateName].effective.elasticsearch = updated;
     }
     payload.differences.push({
-      ...payload.differences[1],
+      ...payload.differences[0],
       path: trustRoot[view] + '/initContainers/0/env/1/value',
     });
 
@@ -542,7 +590,7 @@ for (const view of ['rendered', 'effective'] as const) {
       payload.candidates.production.effective.elasticsearch = elastic.toString();
     }
     payload.differences.push({
-      ...payload.differences[1],
+      ...payload.differences[0],
       path: trustRoot[view].replace('/podTemplate/spec', '') + '/config/s3.client.default.protocol',
       expected: { local: 'https', production: 'http' },
     });
@@ -580,9 +628,267 @@ for (const view of ['rendered', 'effective'] as const) {
       else payload.candidates[candidateName].effective.elasticsearch = updated;
     }
     payload.differences.push({
-      ...payload.differences[1],
+      ...payload.differences[0],
       path: trustRoot[view] + '/initContainers/0/command/2',
     });
     refuses(payload, 'forbidden exception');
   });
 }
+
+function setPolicyLeaf(
+  payload: ReturnType<typeof input>,
+  candidateName: 'local' | 'production',
+  path: string,
+  value: unknown,
+) {
+  const segments = path
+    .split('/')
+    .slice(1)
+    .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'));
+  const view = segments.shift();
+  const effective: Record<string, string> = payload.candidates[candidateName].effective;
+  const release = view === 'effective' ? segments.shift() : undefined;
+  const identity = segments.shift();
+  if (identity === undefined) throw new Error('missing policy fixture identity');
+  const [kind, , name] = identity.split(':');
+  const documents = parseAllDocuments(
+    view === 'rendered' ? payload.candidates[candidateName].rendered : effective[release!],
+  );
+  const manifest = documents.find(
+    (document) =>
+      document.get('kind') === kind &&
+      (document.getIn(['metadata', 'name']) === name ||
+        (name === 'signal-configuration' &&
+          String(document.getIn(['metadata', 'name'])).startsWith('signal-configuration-'))),
+  );
+  if (manifest === undefined) throw new Error('missing policy fixture manifest');
+  if (
+    kind === 'ConfigMap' &&
+    segments[0] === 'data' &&
+    /\.(yaml|json)$/.test(segments[1]) &&
+    segments.length > 2
+  ) {
+    const content = manifest.getIn(segments.slice(0, 2));
+    const nested = parseDocument(typeof content === 'string' ? content : '{}');
+    nested.setIn(
+      segments.slice(2).map((segment) => (/^\d+$/.test(segment) ? Number(segment) : segment)),
+      value,
+    );
+    manifest.setIn(
+      segments.slice(0, 2),
+      segments[1].endsWith('.json')
+        ? JSON.stringify(nested.toJSON())
+        : nested.toString({ directives: false }),
+    );
+  } else
+    manifest.setIn(
+      segments.map((segment) => (/^\d+$/.test(segment) ? Number(segment) : segment)),
+      value,
+    );
+  const text = documents.map((document) => document.toString({ directives: false })).join('---\n');
+  if (view === 'rendered') payload.candidates[candidateName].rendered = text;
+  else effective[release!] = text;
+}
+function createPolicyInput(path: string, local: unknown, production: unknown) {
+  const payload = input();
+  for (const [candidateName, value] of [
+    ['local', local],
+    ['production', production],
+  ] as const)
+    setPolicyLeaf(payload, candidateName, path, value);
+  const existing = payload.differences.find((difference) => difference.path === path);
+  const expected = { local, production };
+  if (existing !== undefined) Object.assign(existing.expected, expected);
+  else
+    payload.differences.push({
+      path,
+      candidates: ['local', 'production'],
+      expected: expected as { local: string; production: string },
+      reason: 'Exact reviewed profile inputs',
+      verification: 'tools/tool-observability-stack/src/configuration/parity.test.ts',
+    });
+  return payload;
+}
+const elasticValues = '/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0';
+for (const [name, path, local, production, bad] of [
+  [
+    'endpoint',
+    elasticValues + '/config/s3.client.default.endpoint',
+    'object-store.puni-backup.svc:9000',
+    'hel1.your-objectstorage.com',
+    [null, 'http://hel1.your-objectstorage.com', 'https://unreviewed.test', 'broken endpoint'],
+  ],
+  [
+    'capacity',
+    elasticValues + '/podTemplate/spec/containers/0/resources/limits/memory',
+    '2Gi',
+    '4Gi',
+    [null, '1Mi', '8Gi'],
+  ],
+  [
+    'JVM heap',
+    elasticValues + '/podTemplate/spec/containers/0/env/0/value',
+    '-Xms1g -Xmx1g',
+    '-Xms2g -Xmx2g',
+    ['-Xms0g -Xmx0g', '-Xms3g -Xmx3g'],
+  ],
+  [
+    'ingress',
+    '/rendered/NetworkPolicy:observability:otlp-ingress/spec/ingress/1/from/0/ipBlock/cidr',
+    '172.16.0.0/12',
+    '10.1.0.0/16',
+    [null, '0.0.0.0/0', '::/0', '10.0.0.0/8', 'private'],
+  ],
+  [
+    'metric cluster',
+    '/rendered/HelmRelease:observability:kube-prometheus-stack/spec/values/kube-state-metrics/prometheus/monitor/metricRelabelings/0/replacement',
+    'platform-local',
+    'platform-production',
+    [null, 'foreign-production'],
+  ],
+  [
+    'environment',
+    '/rendered/ConfigMap:observability:puni-telemetry/data/environment',
+    'local',
+    'production',
+    ['unreviewed'],
+  ],
+  [
+    'policy name',
+    '/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/logs/policyName',
+    'puni-dev-logs',
+    'puni-prod-logs',
+    [null, 'puni-prod-traces', 'foreign-policy'],
+  ],
+] as const) {
+  test(`exception policy accepts exact ${name} profile`, () => {
+    const payload = createPolicyInput(path, local, production);
+    expect(run(payload).exitCode).toBe(0);
+  });
+  test(`exception policy refuses ${name} local value with matching record`, () => {
+    refuses(createPolicyInput(path, bad[0], production), 'forbidden exception');
+  });
+  for (const value of bad)
+    test(`exception policy refuses ${name} value ${JSON.stringify(value)} with matching record`, () => {
+      refuses(createPolicyInput(path, local, value), 'forbidden exception');
+    });
+}
+
+for (const [name, suffix, local, production] of [
+  [
+    'endpoint',
+    'config/s3.client.default.endpoint',
+    'object-store.puni-backup.svc:9000',
+    'hel1.your-objectstorage.com',
+  ],
+  ['capacity', 'resources/limits/memory', '2Gi', '4Gi'],
+  ['heap', 'env/0/value', '-Xms1g -Xmx1g', '-Xms2g -Xmx2g'],
+  ['ingress', 'ipBlock/cidr', '172.16.0.0/12', '10.1.0.0/16'],
+  ['metric cluster', 'metricRelabelings/0/replacement', 'platform-local', 'platform-production'],
+  ['environment', 'puni-telemetry/data/environment', 'local', 'production'],
+] as const)
+  test(`exception policy refuses ${name} at a lookalike destination`, () => {
+    refuses(
+      createPolicyInput(
+        '/rendered/Deployment:observability:signal-metrics/spec/forged/' + suffix,
+        local,
+        production,
+      ),
+      'forbidden exception',
+    );
+  });
+test('exception policy refuses policy name at a lookalike destination', () => {
+  refuses(
+    createPolicyInput(
+      '/rendered/ConfigMap:observability:signal-configuration/data/retention.json/forged/policyName',
+      'puni-dev-logs',
+      'puni-prod-logs',
+    ),
+    'forbidden exception',
+  );
+});
+for (const role of ['collector', 'gateway'])
+  for (const family of ['source', 'platform'])
+    for (const signal of ['logs/log_record', 'traces/span', 'metrics/datapoint']) {
+      const path =
+        '/rendered/ConfigMap:observability:signal-configuration/data/' +
+        role +
+        '.yaml/processors/filter~1' +
+        family +
+        '/' +
+        signal +
+        '/0';
+      const source = (environment: string) =>
+        `(resource.attributes["deployment.environment.name"] != "${environment}") or resource.attributes["service.name"] == nil or resource.attributes["service.name"] == ""`;
+      const platform = (environment: string) =>
+        `(resource.attributes["puni.cluster"] != "platform-${environment}" and resource.attributes["puni.cluster"] != "workers-${environment}") or resource.attributes["deployment.environment.name"] != nil`;
+      const local = family === 'source' ? source('dev') : platform('local');
+      const production = family === 'source' ? source('prod') : platform('production');
+      test(`canonical exception accepts ${role} ${family} ${signal}`, () => {
+        expect(run(createPolicyInput(path, local, production)).exitCode).toBe(0);
+      });
+      test(`canonical exception refuses ${role} ${family} ${signal} service behavior with matching records`, () => {
+        refuses(
+          createPolicyInput(
+            path,
+            local + ' or resource.attributes["service.name"] == "dev"',
+            production + ' or resource.attributes["service.name"] == "prod"',
+          ),
+          'forbidden exception',
+        );
+      });
+    }
+
+test('reviewed exception verification references resolve to concrete sources', () => {
+  const records = JSON.parse(
+    readFileSync(join(import.meta.dir, 'reviewed-differences.json'), 'utf8'),
+  ) as { verification: string }[];
+  for (const record of records)
+    expect(readFileSync(join(root, record.verification), 'utf8').length).toBeGreaterThan(0);
+});
+test('exception policy binds generated references to the actual ConfigMap identity', () => {
+  refuses(
+    createPolicyInput(
+      '/rendered/StatefulSet:observability:signal-gateway/spec/template/spec/volumes/0/configMap/name',
+      'signal-configuration-wronglocal',
+      'signal-configuration-wrongproduction',
+    ),
+    'forbidden exception',
+  );
+});
+test('exception policy refuses a generated reference at a lookalike volume', () => {
+  const names = {
+    local: 'signal-configuration-local',
+    production: 'signal-configuration-production',
+  };
+  const metadata = '/rendered/ConfigMap:observability:signal-configuration/metadata/name';
+  const payload = createPolicyInput(metadata, names.local, names.production);
+  const path =
+    '/rendered/StatefulSet:observability:signal-gateway/spec/template/spec/volumes/1/configMap/name';
+  for (const candidateName of ['local', 'production'] as const)
+    setPolicyLeaf(payload, candidateName, path, names[candidateName]);
+  payload.differences.push({ ...payload.differences[1], path });
+  refuses(payload, 'forbidden exception');
+});
+
+for (const family of ['source', 'platform'])
+  test(`canonical exception refuses ${family} at a lookalike configuration file`, () => {
+    const local =
+      family === 'source'
+        ? '(resource.attributes["deployment.environment.name"] != "dev") or resource.attributes["service.name"] == nil or resource.attributes["service.name"] == ""'
+        : '(resource.attributes["puni.cluster"] != "platform-local" and resource.attributes["puni.cluster"] != "workers-local") or resource.attributes["deployment.environment.name"] != nil';
+    const production =
+      family === 'source'
+        ? '(resource.attributes["deployment.environment.name"] != "prod") or resource.attributes["service.name"] == nil or resource.attributes["service.name"] == ""'
+        : '(resource.attributes["puni.cluster"] != "platform-production" and resource.attributes["puni.cluster"] != "workers-production") or resource.attributes["deployment.environment.name"] != nil';
+    refuses(
+      createPolicyInput(
+        '/rendered/ConfigMap:observability:signal-configuration/data/unreviewed.yaml/processors/filter~1' +
+          family +
+          '/logs/log_record/0',
+        local,
+        production,
+      ),
+      'forbidden exception',
+    );
+  });

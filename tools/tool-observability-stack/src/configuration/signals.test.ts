@@ -469,3 +469,13 @@ it('render requires explicit collection ownership', () => {
   Reflect.deleteProperty(inputs.source, 'collection');
   expect(() => renderSignalConfiguration(inputs)).toThrow(/collection/);
 });
+
+it('persistent builder retains canonical source and platform exclusion expressions', () => {
+  const configuration = createSignalConfiguration(createInputs());
+  expect(configuration.collector.processors['filter/source'].logs.log_record).toEqual([
+    '(resource.attributes["deployment.environment.name"] != "dev") or resource.attributes["service.name"] == nil or resource.attributes["service.name"] == ""',
+  ]);
+  expect(configuration.gateway.processors['filter/platform'].metrics.datapoint).toEqual([
+    '(resource.attributes["puni.cluster"] != "platform-local") or resource.attributes["deployment.environment.name"] != nil',
+  ]);
+});

@@ -5,6 +5,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { type } from 'arktype';
 import { parse, parseAllDocuments } from 'yaml';
 
+import { createPlatformExpression, createSourceExpression } from './signals';
+
 const Scalar = type('string | number | boolean | null');
 const Difference = type({
   path: 'string>0',
@@ -212,59 +214,86 @@ const trustModePaths = new Set([
   '/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value',
   '/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value',
 ]);
-function isPermittedPath(path: string, local: Json, production: Json): boolean {
+/** Current reviewed profile differences are a closed path/value contract; record metadata cannot authorize a new destination or weaker value. */
+function createScalarContracts(): ReadonlyMap<string, { local: string; production: string }> {
+  const contracts = new Map<string, { local: string; production: string }>();
+  const add = (path: string, local: string, production: string): void => {
+    contracts.set(path, { local, production });
+  };
+  for (const root of [
+    '/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0',
+    '/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0',
+  ]) {
+    add(
+      root + '/config/s3.client.default.endpoint',
+      'object-store.puni-backup.svc:9000',
+      'hel1.your-objectstorage.com',
+    );
+    add(root + '/podTemplate/spec/containers/0/env/0/value', '-Xms1g -Xmx1g', '-Xms2g -Xmx2g');
+    for (const bound of ['requests', 'limits'])
+      add(root + '/podTemplate/spec/containers/0/resources/' + bound + '/memory', '2Gi', '4Gi');
+    add(root + '/volumeClaimTemplates/0/spec/resources/requests/storage', '10Gi', '100Gi');
+  }
+  add('/rendered/ConfigMap:observability:puni-telemetry/data/environment', 'local', 'production');
+  add(
+    '/rendered/NetworkPolicy:observability:otlp-ingress/spec/ingress/1/from/0/ipBlock/cidr',
+    '172.16.0.0/12',
+    '10.1.0.0/16',
+  );
+  for (const path of [
+    '/rendered/HelmRelease:observability:kube-prometheus-stack/spec/values/kube-state-metrics/prometheus/monitor/metricRelabelings/0/replacement',
+    '/effective/kube-prometheus-stack/ServiceMonitor:observability:kube-prometheus-stack-kube-state-metrics/spec/endpoints/0/metricRelabelings/0/replacement',
+  ])
+    add(path, 'platform-local', 'platform-production');
+  const configuration = '/rendered/ConfigMap:observability:signal-configuration/data/';
+  add(configuration + 'gateway.yaml/processors/resource~1stream/attributes/0/value', 'dev', 'prod');
+  for (const signal of ['logs', 'traces', 'metrics']) {
+    for (const path of [
+      signal + '-template.json/template/settings/index.lifecycle.name',
+      'retention.json/elastic/' + signal + '/policyName',
+      'retention.json/elastic/' + signal + '/template/template/settings/index.lifecycle.name',
+    ])
+      add(configuration + path, 'puni-dev-' + signal, 'puni-prod-' + signal);
+  }
+  for (const role of ['collector', 'gateway'])
+    for (const signal of ['logs/log_record', 'traces/span', 'metrics/datapoint']) {
+      add(
+        configuration + role + '.yaml/processors/filter~1source/' + signal + '/0',
+        createSourceExpression(['dev']),
+        createSourceExpression(['prod']),
+      );
+      add(
+        configuration + role + '.yaml/processors/filter~1platform/' + signal + '/0',
+        createPlatformExpression(['platform-local', 'workers-local']),
+        createPlatformExpression(['platform-production', 'workers-production']),
+      );
+    }
+  return contracts;
+}
+const scalarContracts = createScalarContracts();
+const configurationNamePath =
+  '/rendered/ConfigMap:observability:signal-configuration/metadata/name';
+const configurationReferences = new Set([
+  configurationNamePath,
+  '/rendered/StatefulSet:observability:signal-collector/spec/template/spec/volumes/0/configMap/name',
+  '/rendered/StatefulSet:observability:signal-gateway/spec/template/spec/volumes/0/configMap/name',
+  '/rendered/Job:observability:elastic-settings/spec/template/spec/volumes/0/configMap/name',
+]);
+function isPermittedPath(
+  path: string,
+  local: Json,
+  production: Json,
+  names: { local: Json | undefined; production: Json | undefined },
+): boolean {
   // Proof: broadening these exact paths admits lookalike-field CLI negatives; widening either closed mode admits unknown/swapped-mode negatives.
   if (trustModePaths.has(path))
     return local === 'system-roots-plus-ca' && production === 'system-roots';
-  if (
-    /^\/rendered\/(ConfigMap:observability:signal-configuration\/metadata\/name|(StatefulSet:observability:signal-(collector|gateway)|Job:observability:elastic-settings)\/spec\/template\/spec\/volumes\/\d+\/configMap\/name)$/.test(
-      path,
-    )
-  )
-    return (
-      typeof local === 'string' &&
-      typeof production === 'string' &&
-      /^signal-configuration-[a-z0-9]+$/.test(local) &&
-      /^signal-configuration-[a-z0-9]+$/.test(production)
-    );
-  // Proof: removing the positive-quantity constraint admits null memory in the capacity-exception CLI negative.
-  if (
-    (/\/resources\/(limits|requests)\/(memory|cpu|storage)$/.test(path) &&
-      [local, production].every(
-        (value) => typeof value === 'string' && /^[1-9]\d*(?:m|Ki|Mi|Gi|Ti|K|M|G|T)?$/.test(value),
-      )) ||
-    (path.endsWith('/env/0/value') &&
-      typeof local === 'string' &&
-      /^-Xms\dg -Xmx\dg$/.test(local) &&
-      typeof production === 'string' &&
-      /^-Xms\dg -Xmx\dg$/.test(production))
-  )
-    return true;
-  if (
-    /\/s3\.client\.default\.endpoint$|\/metricRelabelings\/0\/replacement$|puni-telemetry\/data\/environment$|\/ipBlock\/cidr$/.test(
-      path,
-    )
-  )
-    return true;
-  if (!path.startsWith('/rendered/ConfigMap:observability:signal-configuration/data/'))
-    return false;
-  if (/\/(policyName|index\.lifecycle\.name)$/.test(path)) return true;
-  if (/\/gateway.yaml\/processors\/resource~1stream\/attributes\/0\/value$/.test(path))
-    return local === 'dev' && production === 'prod';
-  if (
-    /\/processors\/filter~1(source|platform)\/(logs\/log_record|metrics\/datapoint|traces\/span)\/0$/.test(
-      path,
-    )
-  )
-    return (
-      typeof local === 'string' &&
-      typeof production === 'string' &&
-      local
-        .replaceAll('platform-local', 'platform-production')
-        .replaceAll('workers-local', 'workers-production')
-        .replaceAll('"dev"', '"prod"') === production
-    );
-  return false;
+  // Proof: accepting arbitrary hashes loses the wrong-reference CLI negative; suffix-only paths lose the lookalike-reference negative.
+  if (configurationReferences.has(path))
+    return local === names.local && production === names.production;
+  const contract = scalarContracts.get(path);
+  // Proof: bypassing scope/value equality admits matching-record endpoint/CIDR/capacity/heap/identity negatives; canonical-expression negatives catch global substitution.
+  return contract?.local === local && contract.production === production;
 }
 /** Compares complete parsed renders and Helm output; reviewed differences apply to individual existing scalar leaves only. This never establishes live readiness. */
 export function assertParity(input: ParityInput): {
@@ -293,13 +322,19 @@ export function assertParity(input: ParityInput): {
       (typeof right === 'object' && right !== null)
     )
       throw new Error(`subtree exception: ${difference.path}`);
+    // Proof: removing this guard loses the unused/equal record CLI diagnostic before policy checks.
+    if (isDeepStrictEqual(left, right)) throw new Error(`unused exception: ${difference.path}`);
     // Proof: each image/auth/queue/protocol/Secret/probe exception CLI negative exercises the semantic allowlist.
-    if (!isPermittedPath(difference.path, left, right))
+    if (
+      !isPermittedPath(difference.path, left, right, {
+        local: local.get(configurationNamePath),
+        production: production.get(configurationNamePath),
+      })
+    )
       throw new Error(`forbidden exception: ${difference.path}`);
     // Proof: duplicate exception CLI negative observes collision rather than last-writer-wins.
     if (reviewed.has(difference.path)) throw new Error(`duplicate exception: ${difference.path}`);
-    // Proof: unused/equal and stale concrete-value CLI negatives exercise both reviewed value contracts.
-    if (isDeepStrictEqual(left, right)) throw new Error(`unused exception: ${difference.path}`);
+    // Proof: stale concrete-value CLI negatives exercise the reviewed value contract.
     if (
       !isDeepStrictEqual(left, difference.expected.local) ||
       !isDeepStrictEqual(right, difference.expected.production)

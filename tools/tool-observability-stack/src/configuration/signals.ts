@@ -180,14 +180,27 @@ function assertInputs(inputs: SignalInputs): void {
     throw new Error('source environment is not admitted');
 }
 
-function createAdmission(inputs: SignalInputs) {
-  const environments = inputs.source.admittedEnvironments
+/** Canonical source exclusion expression. The configuration boundary validates nonempty admitted identities before calling this generator. */
+export function createSourceExpression(environments: readonly string[]): string {
+  const predicates = environments
     .map(
       (environment) =>
         `resource.attributes["deployment.environment.name"] != ${JSON.stringify(environment)}`,
     )
     .join(' and ');
-  const admission = `(${environments}) or resource.attributes["service.name"] == nil or resource.attributes["service.name"] == ""`;
+  // Proof: replacing this expression with false fails the persistent-builder canonical exclusion test.
+  return `(${predicates}) or resource.attributes["service.name"] == nil or resource.attributes["service.name"] == ""`;
+}
+/** Canonical infrastructure exclusion expression; source identity operands never rewrite unrelated program literals. */
+export function createPlatformExpression(clusters: readonly string[]): string {
+  const predicates = clusters
+    .map((cluster) => `resource.attributes["puni.cluster"] != ${JSON.stringify(cluster)}`)
+    .join(' and ');
+  // Proof: replacing this expression with false fails the persistent-builder canonical exclusion test.
+  return `(${predicates}) or resource.attributes["deployment.environment.name"] != nil`;
+}
+function createAdmission(inputs: SignalInputs) {
+  const admission = createSourceExpression(inputs.source.admittedEnvironments);
   return {
     error_mode: 'propagate',
     logs: { log_record: [admission] },
@@ -226,7 +239,7 @@ export function createSignalConfiguration(
   };
   const renameAdmission = (processors: string[]) =>
     processors.map((processor) => (processor === 'filter/dev' ? 'filter/source' : processor));
-  const platformCondition = `(${inputs.source.infrastructureClusters.map((cluster) => `resource.attributes["puni.cluster"] != ${JSON.stringify(cluster)}`).join(' and ')}) or resource.attributes["deployment.environment.name"] != nil`;
+  const platformCondition = createPlatformExpression(inputs.source.infrastructureClusters);
   const platformAdmission = {
     error_mode: 'propagate',
     logs: { log_record: [platformCondition] },
