@@ -352,7 +352,10 @@ write at an organization, space or project, a project entering or leaving a spac
 space deletion SHALL change the resolved values beneath at once and announce
 `work_package_settings_changed` for each affected work package; any of them that would
 leave a work item with a type outside its resolved `allowedWorkItemTypes` SHALL be refused
-`409 types_in_use { count }` and change nothing.
+`409 types_in_use { count, workItems }`, listing every such work item (`id`, `name`, `typeId`,
+`workPackageId`, `projectId`; the first 200, `count` the total) and change nothing; each such
+write SHALL accept `dryRun: true` and answer the same list, or the work packages that would be
+announced, under the write's permission without writing or announcing.
 
 #### Scenario: Inherited, overridden, cleared
 
@@ -405,7 +408,16 @@ budgetFactor: 1.5 }`
 - **WHEN** work item I of W in project P carries type `spike` and
   `PATCH /api/projects/P/settings { allowedWorkItemTypes: [<epic id>] }` is sent, and again
   when P is added to a space whose list lacks `spike`
-- **THEN** both answer `409 types_in_use { count: 1 }` and nothing changes
+- **THEN** both answer `409 types_in_use { count: 1, workItems: [{ id: I, name, typeId: spike, workPackageId: W, projectId: P }] }`
+  and nothing changes
+
+#### Scenario: A dry run lists what would break without writing
+
+- **WHEN** the same two writes are sent with `dryRun: true`, and then
+  `PATCH /api/projects/P/settings { timezone: 'Europe/Kyiv', dryRun: true }`
+- **THEN** the first two answer `200 { wouldRefuse: 'types_in_use', count: 1, workItems: [I…] }`,
+  the third answers `200 { wouldRefuse: null, affectedWorkPackages: [W] }`, no setting, space
+  membership or audit row changes, and no `work_package_settings_changed` is announced
 
 #### Scenario: A space change applies at once
 
