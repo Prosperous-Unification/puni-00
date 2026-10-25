@@ -4175,24 +4175,31 @@ export const measure = sqliteTable(
 );
 
 /** Durable operational snapshots; source deletions never cascade into reported responsibility. */
-export const resourceUseRecord = sqliteTable('resource_use', {
-  id: text('id').primaryKey(),
-  organizationId: text('organization_id'),
-  projectId: text('project_id').notNull(),
-  workItemId: text('work_item_id').notNull(),
-  responsiblePersonId: text('responsible_person_id').notNull(),
-  agentRun: text('agent_run').notNull(),
-  stepId: text('step_id'),
-  attemptNumber: integer('attempt_number'),
-  state: text('state').notNull(),
-  revision: integer('revision').notNull(),
-  snapshot: text('snapshot', { mode: 'json' }).$type<ResourceUse>().notNull(),
-  requestId: text('request_id').notNull(),
-  requestFingerprint: text('request_fingerprint').notNull(),
-  registrationResponse: text('registration_response', { mode: 'json' })
-    .$type<ResourceUse>()
-    .notNull(),
-});
+export const resourceUseRecord = sqliteTable(
+  'resource_use',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id'),
+    projectId: text('project_id').notNull(),
+    workItemId: text('work_item_id').notNull(),
+    responsiblePersonId: text('responsible_person_id').notNull(),
+    agentRun: text('agent_run').notNull(),
+    stepId: text('step_id'),
+    attemptNumber: integer('attempt_number'),
+    state: text('state').notNull(),
+    revision: integer('revision').notNull(),
+    snapshot: text('snapshot', { mode: 'json' }).$type<ResourceUse>().notNull(),
+    requestId: text('request_id').notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    registrationResponse: text('registration_response', { mode: 'json' })
+      .$type<ResourceUse>()
+      .notNull(),
+  },
+  (t) => [
+    index('resource_use_project').on(t.projectId, t.id),
+    index('resource_use_lifecycle').on(t.workItemId, t.responsiblePersonId, t.agentRun),
+  ],
+);
 /** Append-only reports and exact original responses for retries after subsequent transitions. */
 export const resourceUseEventRecord = sqliteTable('resource_use_event', {
   id: text('id').notNull(),
@@ -4234,13 +4241,17 @@ export const resourceRuntimeEventRecord = sqliteTable('resource_runtime_event', 
     .notNull(),
 });
 /** Durable request queue; only an accepted matching runtime event acknowledges a request. */
-export const resourceCleanupRequestRecord = sqliteTable('resource_cleanup_request', {
-  requestId: integer('request_id').primaryKey({ autoIncrement: true }),
-  authorityId: text('authority_id').notNull(),
-  useId: text('use_id').notNull(),
-  incarnation: text('incarnation').notNull(),
-  expectedRevision: integer('expected_revision').notNull(),
-  reason: text('reason').notNull(),
-  at: integer('at').notNull(),
-  acknowledgedSequence: integer('acknowledged_sequence'),
-});
+export const resourceCleanupRequestRecord = sqliteTable(
+  'resource_cleanup_request',
+  {
+    requestId: integer('request_id').primaryKey({ autoIncrement: true }),
+    authorityId: text('authority_id').notNull(),
+    useId: text('use_id').notNull(),
+    incarnation: text('incarnation').notNull(),
+    expectedRevision: integer('expected_revision').notNull(),
+    reason: text('reason').notNull(),
+    at: integer('at').notNull(),
+    acknowledgedSequence: integer('acknowledged_sequence'),
+  },
+  (t) => [index('resource_cleanup_request_authority').on(t.authorityId, t.requestId)],
+);

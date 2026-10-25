@@ -93,7 +93,12 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-measure-estimate-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([WORK_ITEM_BUDGETS, MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    '20261025130000_add_resource_runtime',
+    '20261025120000_add_resource_use',
+    WORK_ITEM_BUDGETS,
+    MIGRATION,
+  ]);
   db = openDatabase(path);
   seedBaseline();
   db.close();
@@ -226,7 +231,12 @@ describe(MIGRATION, () => {
   it('rolls back over single-point trios alone, keeping every legacy row, and comes forward again', () => {
     const before = legacyRows();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([WORK_ITEM_BUDGETS, MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
+      WORK_ITEM_BUDGETS,
+      MIGRATION,
+    ]);
     db = openDatabase(path);
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name LIKE '%measure_estimate%'").all(),

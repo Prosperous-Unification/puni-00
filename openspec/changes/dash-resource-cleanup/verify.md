@@ -277,3 +277,25 @@ process as its own UID while mapping reads return EACCES. It was terminated and 
 accounts, services or live resource roots were created. This task's temporary evidence, Nx
 cache and typecheck outputs are removed after recording these results; the original shared
 node_modules symlink and source branch remain.
+
+## Rollout gate regression corrections (2026-10-25)
+
+The full h2puni gate on `b463045a0d1020ca9cde1d9397d2ff61a2bb9731` exposed stale
+migration expectations and a schema declaration mismatch. The resource migrations now appear
+in exact ascending ledgers and descending rollback lists, newest-migration assertions, refusal
+ledger expectations, and the three complete rollback table inventories. The SQL migrations
+were unchanged. `schema.ts` now declares the three indexes already created by their SQL:
+`resource_use_project`, `resource_use_lifecycle`, and `resource_cleanup_request_authority`.
+
+Before correction, the focused schema-index/organization-limit run reported 7 pass and 3 fail;
+the backend migration CLI group reported 76 pass and 9 fail. The covering store run after the
+first corrections reported 659 pass and three newly exposed table-inventory failures. After
+correcting those exact inventories, their four-file run (including the unchanged schema-index
+regression) passed all 56 tests and 166 assertions. The seven backend migration files passed
+all 85 tests and 591 assertions. No assertion operator or migration/rollback behavior changed.
+An independent review approved the complete 45-file correction without findings.
+
+Formatting and whitespace checks passed. After explicitly generating the Nx project graph,
+changed-file ESLint was rerun so module-boundary checks could execute. A new full remote gate
+and GitHub CI are still required on the corrected commit; the failed earlier gate is not a
+release approval.
