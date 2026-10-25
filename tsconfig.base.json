@@ -132,6 +132,12 @@
       "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"],
       "@website/contracts": ["./libs/website/domain/contracts/src/index.ts"],
       "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"],
+      "@tools/observability-parity": [
+        "./tools/tool-observability-stack/src/configuration/parity.ts"
+      ],
+      "@tools/observability-parity/render": [
+        "./tools/tool-observability-stack/src/configuration/parity-render.ts"
+      ],
       "@tools/observability-signals": [
         "./tools/tool-observability-stack/src/configuration/signals.ts"
       ]

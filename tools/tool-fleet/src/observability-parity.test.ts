@@ -274,7 +274,13 @@ it('production path requires the metrics write credential declaration', async ()
 });
 
 /** Execute the committed Job program; only network and CA material are fixture boundaries. */
-async function runRetention(reply: string, at = 0, status = 200, password = 'fixture') {
+async function runRetention(
+  reply: string,
+  at = 0,
+  status = 200,
+  password = 'fixture',
+  environment = 'production',
+) {
   const directory = await scratchAsync('observability-retention-');
   const receipts = join(directory, 'requests.json');
   const preload = join(directory, 'preload.js');
@@ -300,7 +306,7 @@ process.on('exit', () => writeFileSync(${JSON.stringify(receipts)}, JSON.stringi
       process.execPath,
       '--preload',
       preload,
-      join(root, 'infra/platform/observability/production/apply.js'),
+      join(root, `infra/platform/observability/${environment}/apply.js`),
     ],
     { env: { ...process.env, ELASTIC_PASSWORD: password }, stdout: 'pipe', stderr: 'pipe' },
   );
@@ -403,4 +409,28 @@ it('retention Job refuses missing credentials before network access', async () =
   expect(receipt.exitCode).not.toBe(0);
   expect(receipt.requests).toHaveLength(0);
   expect(receipt.stderr).toContain('ELASTIC_PASSWORD is required');
+});
+
+it('one retention executable consumes each candidate policy identity', async () => {
+  const files = await renderObservability(root);
+  expect(files['observability/local/apply.js']).toBe(files['observability/production/apply.js']);
+  for (const [environment, source] of [
+    ['local', 'dev'],
+    ['production', 'prod'],
+  ]) {
+    const receipt = await runRetention(
+      '{"status":"green","timed_out":false}',
+      0,
+      200,
+      'fixture',
+      environment,
+    );
+    expect(receipt.exitCode).toBe(0);
+    expect(receipt.requests.slice(1).map((request) => request.url)).toEqual(
+      ['logs', 'traces', 'metrics'].flatMap((signal) => [
+        `https://elasticsearch-es-http.observability.svc:9200/_ilm/policy/puni-${source}-${signal}`,
+        `https://elasticsearch-es-http.observability.svc:9200/_component_template/${signal}-otel@custom`,
+      ]),
+    );
+  }
 });

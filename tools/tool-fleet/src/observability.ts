@@ -582,11 +582,13 @@ async function mutate(path, filename) {
       files[`observability/${environment}/${signal}-template.json`] = JSON.stringify(
         policy.template,
       );
-      statements.push(
-        `await mutate('/_ilm/policy/${policy.policyName}', '${signal}-policy.json');`,
-        `await mutate('/_component_template/${policy.templateName}', '${signal}-template.json');`,
-      );
     }
+    statements.push(`const retention = JSON.parse(await Bun.file(import.meta.dir + '/retention.json').text());
+for (const signal of ['logs', 'traces', 'metrics']) {
+  const policy = retention.elastic[signal];
+  await mutate('/_ilm/policy/' + policy.policyName, signal + '-policy.json');
+  await mutate('/_component_template/' + policy.templateName, signal + '-template.json');
+}`);
     files[`observability/${environment}/apply.js`] = statements.join('\n') + '\n';
   }
   return files;

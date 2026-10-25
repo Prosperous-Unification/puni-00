@@ -165,6 +165,13 @@
       "options": {
         "command": "bun tools/tool-fleet/src/object-store-image-cli.ts"
       }
+    },
+    "validate-observability-parity": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun tools/tool-fleet/src/observability-parity-cli.ts . \"$PUNI_PARITY_TOOLS\""
+      },
+      "cache": false
     }
   }
 }

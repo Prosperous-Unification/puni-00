@@ -29,9 +29,9 @@ assertResponse(await request('/_cluster/health?wait_for_status=yellow&timeout=12
 async function mutate(path, filename) {
   assertResponse(await request(path, 'PUT', await Bun.file(import.meta.dir + '/' + filename).text()), { acknowledged: [true] });
 }
-await mutate('/_ilm/policy/puni-prod-logs', 'logs-policy.json');
-await mutate('/_component_template/logs-otel@custom', 'logs-template.json');
-await mutate('/_ilm/policy/puni-prod-traces', 'traces-policy.json');
-await mutate('/_component_template/traces-otel@custom', 'traces-template.json');
-await mutate('/_ilm/policy/puni-prod-metrics', 'metrics-policy.json');
-await mutate('/_component_template/metrics-otel@custom', 'metrics-template.json');
+const retention = JSON.parse(await Bun.file(import.meta.dir + '/retention.json').text());
+for (const signal of ['logs', 'traces', 'metrics']) {
+  const policy = retention.elastic[signal];
+  await mutate('/_ilm/policy/' + policy.policyName, signal + '-policy.json');
+  await mutate('/_component_template/' + policy.templateName, signal + '-template.json');
+}
