@@ -16,6 +16,9 @@ const PlatformPins = type({
 
 export interface DevService {
   image: string;
+  command?: string[];
+  entrypoint?: string[];
+  environment?: Record<string, string>;
   profiles: string[];
   mem_limit: number;
   cpus: number;
@@ -48,9 +51,9 @@ const mib = 1024 ** 2;
 const gib = 1024 ** 3;
 
 /**
- * Produces a Compose scaffold only. Images reuse infra/versions/toolchain.json;
- * the gateway digest was inspected with elastic-agent otel components. Commands, mounts,
- * health checks, retention and binary validation belong to the configuration slice.
+ * Produces isolated runnable Compose inputs. Images reuse infra/versions/toolchain.json;
+ * the gateway digest was inspected with elastic-agent otel components. Commands and mounts target renderDevConfiguration output in the Compose directory.
+ * Runtime health is checked by a separate bounded caller; distroless images have no shell.
  * This artifact must never be treated as an apply authorization.
  */
 export function renderDevCompose(
@@ -132,6 +135,32 @@ export function renderDevCompose(
       volumes: [`${name}:${storage}`],
     };
   }
+  services['collector'].command = ['--config=/etc/puni/collector.yaml'];
+  services['gateway'].entrypoint = ['/usr/share/elastic-agent/elastic-agent'];
+  services['gateway'].command = ['otel', '--config=/etc/puni/gateway.yaml'];
+  services['elasticsearch'].environment = { ES_JAVA_OPTS: '-Xms512m -Xmx512m' };
+  services['prometheus'].command = [
+    '--config.file=/etc/puni/prometheus.yaml',
+    '--storage.tsdb.path=/prometheus',
+    '--storage.tsdb.retention.time=7d',
+    '--storage.tsdb.retention.size=1GB',
+  ];
+  services['alertmanager'].command = [
+    '--config.file=/etc/puni/alertmanager.yaml',
+    '--storage.path=/alertmanager',
+    '--data.retention=168h',
+    '--cluster.listen-address=',
+  ];
+  for (const [name, service] of Object.entries(services)) {
+    const destination =
+      name === 'elasticsearch'
+        ? '/usr/share/elasticsearch/config/elasticsearch.yml'
+        : name === 'kibana'
+          ? '/usr/share/kibana/config/kibana.yml'
+          : `/etc/puni/${name}.yaml`;
+    service.volumes.push(`./${name}.yaml:${destination}:ro`);
+  }
+  services['prometheus'].volumes.push('./rules.yaml:/etc/puni/rules.yaml:ro');
   return {
     name: 'puni-dev-observability',
     services,
@@ -219,6 +248,10 @@ export async function preflightDevDeployment(
     'elasticsearch.yaml',
     'kibana.yaml',
     'rollback.json',
+    // Proof: removing these dependencies failed the three missing-runnable-input negatives.
+    'rules.yaml',
+    'retention.sh',
+    'health.mjs',
   ]) {
     // Proof: redirecting collector.yaml to gateway.yaml failed the missing-input negative.
     const path = join(request.configDirectory, name);

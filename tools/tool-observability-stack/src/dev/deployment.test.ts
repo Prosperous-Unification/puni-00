@@ -22,6 +22,9 @@ async function fixture(): Promise<DevPreflight> {
     'elasticsearch.yaml',
     'kibana.yaml',
     'rollback.json',
+    'rules.yaml',
+    'retention.sh',
+    'health.mjs',
   ]) {
     await writeFile(
       join(directory, name),
@@ -221,3 +224,12 @@ describe('dev deployment preflight', () => {
     },
   );
 });
+
+it.each(['rules.yaml', 'retention.sh', 'health.mjs'])(
+  'refuses missing runnable input %s',
+  async (name) => {
+    const request = await fixture();
+    await rm(join(request.configDirectory, name));
+    await expectRefusal(request, new RegExp(name));
+  },
+);
