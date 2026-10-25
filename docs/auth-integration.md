@@ -242,7 +242,11 @@ there, added once a connection is seen displaying that exact URI. Unproven clien
 expire after 10 minutes of DCR inactivity. Starting authorization can extend an
 unproven client only to an absolute 20-minute lifetime, and a new flow is
 refused with 429 when that ceiling cannot cover the browser and code-exchange
-window; a successful exchange promotes the client to 24 hours. Registered
+window. A successful code exchange promotes the client to proven, and each
+code exchange or successful refresh renews it to 30 days after that use
+(`PROVEN_CLIENT_TTL_MS`), so it outlives its refresh families (14-day idle,
+30-day absolute) and a connector that caches its `client_id`, such as Claude
+Code, can still start a fresh authorization after a family lapses. Registered
 clients live in the MCP store (`MCP_STORE_PATH`), so restarts and deploys keep
 them and their lifetimes; authorization with an unknown or expired `client_id`
 answers `400 invalid_client` to the browser with an `error_description` asking
@@ -256,7 +260,8 @@ unredeemed grants and live sessions are each capped at 1,000 globally. New
 requests at capacity return 429 and never evict another connector's state. A
 session-capacity refusal preserves the valid grant for retry until its five-
 minute expiry. Claude users share Anthropic's forwarding egress, so a burst
-above the per-source limits can return 429 until the oldest state expires.
+above the per-source limits can return 429 until the oldest state expires;
+a proven client holds its per-source slot for 30 days after its last use.
 
 Before cutover, the absent `/home/puni1/wbs-dev/state/mcp-exposure` marker makes
 the MCP public probe skip. Cutover atomically writes `enabled` to that mode-600

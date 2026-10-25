@@ -35,7 +35,7 @@ function fixture(
     clientLimit?: number;
     clientSourceLimit?: number;
     clientTtlMs?: number;
-    activeClientTtlMs?: number;
+    provenClientTtlMs?: number;
     grantLimit?: number;
     provenClientSourceLimit?: number;
     sessionLimit?: number;
@@ -502,7 +502,7 @@ describe('McpOAuthServer', () => {
   // anonymous clients, then lets both promote and exceed the authenticated cap.
   it('reserves proven-source capacity before consuming a token grant', async () => {
     const { advance, oauth } = fixture({
-      activeClientTtlMs: 1_000,
+      provenClientTtlMs: 1_000,
       clientLimit: 3,
       clientSourceLimit: 2,
       provenClientSourceLimit: 1,
@@ -3090,6 +3090,9 @@ describe('registered clients across a restart', () => {
       get oauth() {
         return current.oauth;
       },
+      get store() {
+        return store;
+      },
       restart: () => {
         store.close();
         store = new McpSessionStore(path, [key]);
@@ -3233,6 +3236,121 @@ describe('registered clients across a restart', () => {
     server.advance(600_001);
     const expired = await server.oauth.response(new Request(authorizeUrl(clientId)));
     expect(await expired?.json()).toEqual(INVALID_CLIENT);
+    server.close();
+  });
+
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  /** An upstream that issues a refresh token, so the family outlives the 5-minute access token. */
+  const refreshable = {
+    exchange: () =>
+      Promise.resolve({
+        accessToken: 'upstream-okta-token',
+        expiresIn: 300,
+        refreshToken: 'upstream-refresh-token',
+      }),
+    refresh: () =>
+      Promise.resolve({
+        accessToken: 'upstream-okta-token',
+        expiresIn: 300,
+        refreshToken: 'upstream-refresh-token',
+      }),
+  };
+
+  async function signIn(oauth: McpOAuthServer, clientId: string): Promise<string> {
+    const verifier = 'v'.repeat(43);
+    const { response } = await completedAuthorization(oauth, verifier, clientId);
+    const code = new URL(response.headers.get('location') ?? '').searchParams.get('code');
+    const issued = await tokenResponse(oauth, clientId, code ?? '', verifier);
+    expect(issued.status).toBe(200);
+    return ((await issued.json()) as { refresh_token: string }).refresh_token;
+  }
+
+  async function refreshed(
+    oauth: McpOAuthServer,
+    clientId: string,
+    refreshToken: string,
+  ): Promise<string> {
+    const response = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: clientId,
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(response?.status).toBe(200);
+    return ((await response?.json()) as { refresh_token: string }).refresh_token;
+  }
+
+  // Proof: 2026-10-25, the pre-fix oauth.ts (24 h promotion, refresh not renewing the client)
+  // made this authorization answer 400 invalid_client instead of 302, the failure seen on dev.
+  it('authorizes a client 25 h after its code exchange when it refreshed since, across a restart', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const refreshToken = await signIn(server.oauth, clientId);
+    server.advance(13 * HOUR);
+    await refreshed(server.oauth, clientId, refreshToken);
+    server.restart();
+    server.advance(12 * HOUR);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, restoring the 24 h promotion lifetime (PROVEN_CLIENT_TTL_MS = 86_400_000)
+  // made this authorization answer 400 invalid_client instead of 302.
+  it('authorizes a client 25 h after its code exchange without a refresh, across a restart', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    await signIn(server.oauth, clientId);
+    server.restart();
+    server.advance(25 * HOUR);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, dropping the `extendClient` call from refreshGrant failed both: the stored
+  // expiry stayed at the exchange's 30 days, and the day-50 authorization answered invalid_client.
+  it('renews the client at each refresh, so it outlives a lapsed family for re-authorization', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const exchangedAt = 1_700_000_000_000;
+    const first = await signIn(server.oauth, clientId);
+    expect(server.store.client(clientId, exchangedAt)?.expiresAt).toBe(exchangedAt + 30 * DAY);
+    server.advance(13 * DAY);
+    const second = await refreshed(server.oauth, clientId, first);
+    expect(server.store.client(clientId, exchangedAt)?.expiresAt).toBe(exchangedAt + 43 * DAY);
+    server.restart();
+    server.advance(13 * DAY);
+    await refreshed(server.oauth, clientId, second);
+    // The family's absolute 30 days end at day 30; the client, last used at day 26, lives to day 56.
+    server.advance(24 * DAY);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, a proven lifetime of 2 * REFRESH_ABSOLUTE_MS made this authorization
+  // answer 302 instead of invalid_client; dropping the cleanup sweep kept the expired row.
+  it('deletes an expired proven client with no live family and answers invalid_client', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    await signIn(server.oauth, clientId);
+    server.restart();
+    server.advance(30 * DAY + 1);
+
+    const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+    expect(server.store.clientsFromSource('unknown', 0)).toEqual([]);
     server.close();
   });
 });

@@ -601,7 +601,7 @@ export class McpSessionStore {
       .run(expiresAt, clientId);
   }
 
-  /** Marks the client proven after a code exchange and gives it the active lifetime. */
+  /** Marks the client proven after a code exchange and sets its proven lifetime to `expiresAt`. */
   promoteClient(clientId: string, expiresAt: number): void {
     this.db
       .query('UPDATE mcp_client SET proven = 1, expires_at = ? WHERE client_id = ?')
