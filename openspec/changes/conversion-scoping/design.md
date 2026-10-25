@@ -50,12 +50,12 @@ The model selects relevant questions and writes judgment; the server checks the 
 Migration 013 adds only `conversation_operation.reply_failure`, a nullable enum constrained to
 `invalid_scoping_reply` on completed usage-settled rows with null `reply_version`. Completed
 means accounting finished, not necessarily a useful AI answer. Known malformed/truncated
-output settles actual provider usage, stores fixed manual-path prose and no model content,
+output uses the [shared accounting policy](#provider-pricing-and-accounting), stores fixed manual-path prose and no model content,
 and captures no brief or question. GET operation records expose `replyFailure`; live and replay
 streams carry `data-reply-failure` with `{code: "invalid_scoping_reply"}` after the fixed prose.
 Same-key replay repeats this failure without a paid call; continuation needs a fresh explicit
-message or manual review. Missing/invalid usage, including refusals, remains unknown at the
-full reservation. Explicit reported zero remains zero. There is no repair call.
+message or manual review. Missing/invalid usage or charge, including refusals, remains unknown
+at the full reservation. Zero charges follow the shared token-floor policy. There is no repair call.
 
 Valid envelopes use `reply_version = 1` in the existing reply column. The settlement immediate
 transaction also applies the scoping state and saves readable assistant prose plus the catalogue
@@ -119,13 +119,23 @@ The public code documents 24-hour anonymous access and 12-month request deadline
 
 Suggested short copy before starting: “AI-guided questions. Your answers are processed by our AI providers and saved to prepare your request. Privacy.” At submission: “We’ll use your email to respond to this request. Privacy.” Final wording must match verified storage and processing. Reference entry says not to include credentials or confidential access links. Analytics consent is separate; refusing analytics never disables chat or human review.
 
+### Provider pricing and accounting
+
+The first real scoping pilot exposed a provider charge above the base-token estimate. Automatic cache writes can cost more than plain input, and `provider.max_price` filters base endpoint prices rather than establishing a cache-inclusive spending bound. Keep automatic caching and the prompt unchanged; do not infer a universal multiplier from one endpoint.
+
+Add `OPENROUTER_INPUT_CEILING_USD_PER_MILLION` and `OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION`. Existing input/output rates continue to pin routing base prices and the conservative token estimate. Paid readiness additionally requires finite positive ceilings at least as high as those base rates. Missing ceilings use the existing unconfigured/manual path; malformed configuration throws. Disabled/demo configurations and persisted replay remain supported. Deployments with only the old settings need the two independently verified nonsecret values before admitting new paid work. No environment, key cap or deployment is changed by this amendment.
+
+Price the existing byte-token/framing bound and full completion allowance using the effective ceilings. Validate safe integer token counts and provider `usage.cost`; round the greater of base-rate token cost and provider-reported charge upward to safe integer micro-USD. Missing/malformed charge follows the existing unknown/full-reservation path. Explicit zero is valid; a positive token floor still applies. Keep all existing above-reservation recording, pause and no-clamping behavior. The existing ledger columns are sufficient; no migration or browser contract change.
+
+The evaluator shares these accounting rules, retaining base estimate, reported charge, cache read/write counts and unknown reservations separately. Its host preflight validates exact cache/tier shapes and derives conservative ceilings from every advertised tier, records them, and passes them in memory without modifying the protected runtime file. The observed `azure/eu` metadata requires at least USD0.275 input and USD0.825 output per million when all advertised tiers are covered; these are endpoint-specific activation inputs, never defaults. Missing cache/tier evidence blocks paid evaluation. Bounded paid evaluation requires a reviewed runner and a passing same-SHA pilot before full mode. Actual provider acceptance, debit, quality and release evidence belong in verify.md.
+
 ### Cost and quality acceptance
 
-Retain eight visitor turns, $0.15/conversation, $0.30 and three conversations/source/UTC-day, $10/site/UTC-day, four unsettled site calls, existing 80% pause and 30-second provider deadline. Reserve the exact request and full completion ceiling atomically before inference. Malformed output with known usage is accounted at actual usage; missing usage remains ceiling-settled. Preserve cancellation, refusal, price pinning, no fallback and no automatic SDK retry.
+Retain eight visitor turns, $0.15/conversation, $0.30 and three conversations/source/UTC-day, $10/site/UTC-day, four unsettled site calls, existing 80% pause and 30-second provider deadline. Reserve the exact request and full completion ceiling atomically before inference. Malformed replies and missing billing details follow the shared accounting policy. Preserve cancellation, refusal, price pinning, no fallback and no automatic SDK retry.
 
 The accepted pilot uses Luna on the documented Azure EU route, low reasoning and a 700-token completion ceiling, subject to current endpoint/account verification. The new structured response must pass evaluation under that ceiling; if it truncates, revise the bounded configuration and recompute reservations together before activation. Never silently truncate the brief or increase the cap only at the provider.
 
-Planning allowance is $0.01/session; the illustrative five-call 15,000-input/2,500-output scenario costs $0.003025 at the 2026-10-25 endpoint rates of $0.11/$0.55 per million tokens. These are not measured averages; exclude hosting, fees, taxes, advertising and follow-up. Verify the dedicated provider key has a monthly limit at or below $100. The existing website key was checked at $50/month; preserve that stricter cap and confirm the deployment uses it. Review actual usage after 100–200 conversations, including aborted attempts and overhead. No live call is needed to implement deterministic tests.
+Planning allowance is $0.01/session. A five-call 15,000-input/2,500-output illustration gives a base-rate estimate of $0.003025 at the observed $0.11/$0.55 per million tokens, before cache discounts, cache-write surcharges or tier effects. This is not a measured average or a cache-inclusive spending bound; it excludes hosting, fees, taxes, advertising and follow-up. Verify the dedicated provider key has a monthly limit at or below $100. The existing website key was checked at $50/month; preserve that stricter cap and confirm the deployment uses it. Review actual usage after 100–200 conversations, including aborted attempts and overhead. No live call is needed to implement deterministic tests.
 
 ## Risks / Trade-offs
 
@@ -146,14 +156,4 @@ Planning allowance is $0.01/session; the illustrative five-call 15,000-input/2,5
 
 ## Open Questions
 
-Release inputs, not unresolved application design: the private site's actual file map, live endpoint/account eligibility, verified cleanup/backups, responsible-business privacy details, and the named human-review owner. Record these in verify.md when obtained; do not claim they were verified during planning.
-
-### 2026-10-25 pricing amendment from the bounded pilot
-
-The first real scoping pilot exposed a provider charge above the base-token estimate. Automatic cache writes can cost more than plain input, and `provider.max_price` filters base endpoint prices rather than establishing a cache-inclusive spending bound. Keep automatic caching and the prompt unchanged; do not infer a universal multiplier from one endpoint.
-
-Add `OPENROUTER_INPUT_CEILING_USD_PER_MILLION` and `OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION`. Existing input/output rates continue to pin routing base prices and the conservative token estimate. Paid readiness additionally requires finite positive ceilings at least as high as those base rates. Missing ceilings use the existing unconfigured/manual path; malformed configuration throws. Disabled/demo configurations and persisted replay remain supported. Deployments with only the old settings need the two independently verified nonsecret values before admitting new paid work. No environment, key cap or deployment is changed by this amendment.
-
-Price the existing byte-token/framing bound and full completion allowance using the effective ceilings. Validate safe integer token counts and provider `usage.cost`; round the greater of base-rate token cost and provider-reported charge upward to safe integer micro-USD. Missing/malformed charge follows the existing unknown/full-reservation path. Explicit zero is valid; a positive token floor still applies. Keep all existing above-reservation recording, pause and no-clamping behavior. The existing ledger columns are sufficient; no migration or browser contract change.
-
-The evaluator shares these accounting rules, retaining base estimate, reported charge, cache read/write counts and unknown reservations separately. Its host preflight validates exact cache/tier shapes and derives conservative ceilings from every advertised tier, records them, and passes them in memory without modifying the protected runtime file. The observed `azure/eu` metadata requires at least USD0.275 input and USD0.825 output per million when all advertised tiers are covered; these are endpoint-specific activation inputs, never defaults. Missing cache/tier evidence blocks paid evaluation. The original pilot establishes the observation, not corrected accounting or full-corpus acceptance. All further paid work waits for the amended implementation's review.
+No application-design question blocks implementation. Deployment/account eligibility, production analytics configuration and current cleanup/backup evidence are activation inputs tracked in verify.md. Owner-supplied identity and review coverage must remain attributed to that source; planning is not independent live verification.
