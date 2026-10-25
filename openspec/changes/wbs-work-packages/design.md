@@ -317,6 +317,8 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   remove a project marker (that is a project write). "Override" for a set means adding.
   Rejected: a work package's own set replacing the project's (holidays vanish the moment a
   work package adds one marker).
+  _Generalised 2026-10-25 by Dany:_ multi-day ranges with scheduling kinds, at every level,
+  are designed in `openspec/changes/wbs-calendar-ranges`; slice 3a still ships point markers.
 - **E20. What the slice 3a migration lifts.** `work_package.timezone` and the three
   `pert_weight_*` columns move into `setting_value` rows at the work package level **only
   where the stored value differs from the catalogue default** (`UTC`; 1, 4, 1); equal values
