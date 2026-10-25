@@ -385,3 +385,29 @@ The first correctly configured frontend run exposed those two fixture mismatches
 2 fail); after their correction, both resource panel files passed all 82 tests. The frontend
 Nx typecheck and its dependency passed with cache bypassed (43.0s). Independent comparison
 against the incoming merge stage confirmed every upstream permission check was preserved.
+
+## Resource integration dependency graph correction (2026-10-25)
+
+The canonical h2 gate at `071f3e602` exposed two stale tool-devsync expectations:
+Dash was expected not to import WBS contracts, and the product graph omitted the
+resource runtime contract edge and the executable WBS/Dash smoke composition.
+Both failures reproduced locally before edits (0 pass, 2 fail).
+
+The hash oracle now expects the direct WBS contract dependency and additionally
+requires the resource-runtime transport shape in the actual Nx task hash. The
+product graph allows that contract edge under the already-tested resources-only
+ESLint alias restriction. The WBS-to-Dash exception requires Nx to attribute all
+imports to exactly `apps/wbs/be-01/scripts/resource-cleanup-smoke.ts`; it is not a
+blanket product exception. Product tags, global policy and ESLint allowances are
+unchanged.
+
+Two watched mutations independently failed the exact-file assertion: an additional
+production WBS importer, and an implicit dependency with the smoke import removed
+(no contributing source file). All mutations were restored. The focused graph,
+cache-input and effective ESLint checks then passed 5 tests and 25 assertions.
+The missing-attribution mutation runner initially rejected Bun's diff formatting
+while validating its output; inspection confirmed the intended test failed on the
+empty source list, and the runner's finally block restored both source files.
+
+The complete workspace-projects and workspace-targets suites passed all 43 tests
+and 116 assertions (4.83s). The tool-devsync forced TypeScript build exited 0.

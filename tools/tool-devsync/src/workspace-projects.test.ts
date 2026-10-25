@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
+import { fileDataDepTarget } from 'nx/src/config/project-graph';
 import { createProjectGraphAsync, type ProjectGraph } from 'nx/src/devkit-exports';
+import { getFileMap } from 'nx/src/project-graph/build-project-graph';
 
 import { APPLICATION_SUITES, productConstraints, readProjects } from '../workspace-projects.mjs';
 
@@ -84,6 +86,9 @@ const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-test-clock-reads'],
   ['twilight-dash', 'tool-test-scratch'],
   ['twilight-dash', 'twilight-burokrat'],
+  // The resources-only exact-alias ESLint regression pins this transport boundary.
+  // Proof: omitting this pair reported twilight-dash -> wbs-contracts (2026-10-25).
+  ['twilight-dash', 'wbs-contracts'],
 ] as const;
 
 // Both suite apps' `no-ambient-clock.test.ts` apply the shared clock-read detector. Proof:
@@ -481,6 +486,19 @@ describe('productConstraints', () => {
             ...ALLOWED_NAVIGATOR_RECORD_EDGES,
           ].some(([source, reached]) => project.name === source && target.name === reached)
         ) {
+          continue;
+        }
+        if (project.name === 'wbs-be-01' && target.name === 'twilight-dash') {
+          const importers = getFileMap()
+            .fileMap.projectFileMap[project.name].filter((file) =>
+              file.deps?.some((dependency) => fileDataDepTarget(dependency) === target.name),
+            )
+            .map((file) => file.file)
+            .sort();
+          // The executable smoke composes both real applications; production WBS must not.
+          // Proof: an extra production importer and an unattributed implicit edge each
+          // failed this exact-file assertion (2026-10-25).
+          expect(importers).toEqual(['apps/wbs/be-01/scripts/resource-cleanup-smoke.ts']);
           continue;
         }
         // Excused only when the edge is reached through an allowed alias and through no
