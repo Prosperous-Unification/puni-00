@@ -88,15 +88,16 @@ Editorial acceptance: named author, date, inspectable evidence, a plain-language
 | B. Services and privacy         | Five matching offers, truthful AI/storage/follow-up copy and verified processor/retention facts                       | Conversion tasks, group 4                                                   |
 | C. Traffic and funnel analytics | Consented GA4, safe events, confirmed lead measurement, cross-host continuity and reports                             | [Analytics tasks](../../openspec/changes/website-funnel-analytics/tasks.md) |
 | D. Trust content (user-owned)   | About draft, proof asset and first blog draft supplied by the user                                                    | Content checklist below                                                     |
+| E. Production release           | Isolated production target, environment-aware artifacts, compatible baseline and rollback                             | [Release tasks](../../openspec/changes/website-production-release/tasks.md) |
 
 Build order:
 
 1. Shared contracts and compatibility; Improve my app end to end against a deterministic provider fixture.
 2. All other routes, optional references, corrections and human-review submission.
-3. Services/hero integration in the private site; About and first-post preparation remain with the user. Consent adapter can be built against a fake sink while this proceeds.
-4. Verified privacy copy, bounded live AI evaluation and actual operator receipt.
-5. Analytics property/report setup, consent and leakage tests, final mobile/accessibility review, deploy/rollback checks.
-6. Pilot release and review after the first 100–200 conversations; only then adjust questions, model choice or budgets from observed outcomes.
+3. Shared consent/events, app analytics hooks, bounded live AI evaluation, public platform namespace and backend capability; choose and gate a stable public revision.
+4. Private dependency snapshot and environment-aware release tools; retain a compatible baseline with the prior landing before integrating the new hero/services/privacy and site analytics. About and first-post preparation remain with the user.
+5. Analytics property/report setup, consent/leakage/navigation tests, isolated production target, actual operator receipt, final mobile/accessibility and compatible rollback checks.
+6. Present the concrete candidate and activation prerequisites; pilot release follows authorization. Review after the first 100–200 conversations before changing questions, model or budgets from observed outcomes.
 
 No calendar delivery date is asserted. Execution findings and checks are recorded in each change’s verify.md; the original planning verification below remains historical.
 
@@ -128,7 +129,7 @@ GA4 lead events are neither qualified prospects nor paid clients. Review submitt
 - [ ] Inspect the actual private hero/services/About/blog/privacy components; record their paths, then integrate the approved content and shared CTAs. Check desktop, keyboard, mobile and reduced motion.
 - [x] Assign human-review ownership: Danylo Fedorov, dany@puni.dev, supplied by the user on 2026-10-25. No response-time promise is approved.
 - [ ] Resolve business/contact/processor/retention facts for privacy and record the evidence; do not treat an expiry timestamp as verified deletion.
-- [ ] Complete the two implementation task lists and their failure-proof/gate records; verify one real preview request reaches the operator with its edited brief and references intact.
+- [ ] Complete the conversion, analytics and production-release task lists and their failure-proof/gate records; verify one real preview request reaches the operator with its edited brief and references intact.
 - [ ] Confirm analytics choice and property ownership, test denied/accepted/revoked states and sanitized events, and configure the three reports.
 - [ ] Perform an end-to-end release review: campaign/article/service → chat → useful brief → explicit request → human reply process. Keep AI and analytics independently disableable.
 
@@ -142,4 +143,4 @@ These choices stay visible for review. Implementation details with a clear exist
 
 On 2026-10-25, both new changes passed individual strict OpenSpec validation. `openspec validate --all --json` reported 290 items passed, zero failed. Formatting and scoped document link/path/selector checks passed for the new planning artifacts. These checks establish document structure, not implemented behavior.
 
-The schema explicitly creates `verify.md` after implementation, so those artifacts remain absent and all implementation tasks remain unchecked. Runtime tests, the host gate, paid-provider evaluation, private-site integration and GA4 account checks were not run for this documentation-only planning work. No deployment, tag activation, email or post publication occurred.
+At initial planning, verification artifacts were absent and implementation tasks were unchecked. That documentation-only step ran no runtime tests, host gate, paid-provider evaluation, private-site integration or GA4 account checks, and performed no deployment, tag activation, email or post publication. Current completed slices and remaining checks live in each change’s task and verification records. The production-release extension defines the environment and protocol-compatible rollback work discovered during execution; its verification artifact is created after implementation.
