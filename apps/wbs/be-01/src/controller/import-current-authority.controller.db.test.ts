@@ -114,7 +114,7 @@ const operations = ['mounted', 'direct', 'mounted-external'] as const;
 
 function createExternalDocument() {
   const document = planDocumentFixture();
-  document.document.version = 11;
+  document.document.version = 12;
   document.typedDependencies = [
     {
       id: 'external',
@@ -134,7 +134,7 @@ function createExternalDocument() {
       successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
     },
   ];
-  // HTTP v11 carries attempts keyed by step; the application fixture stores an array.
+  // HTTP v12 carries attempts keyed by step; the application fixture stores an array.
   return { ...document, workItems: document.workItems.map((row) => ({ ...row, attempts: {} })) };
 }
 describe('current import authority on the process writer', () => {

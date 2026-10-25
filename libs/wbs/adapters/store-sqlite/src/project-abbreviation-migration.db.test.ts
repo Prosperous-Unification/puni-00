@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,14 +7,9 @@ import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const MIGRATION = '20261022210000_add_project_abbreviations';
-const EXTERNAL = '20261022211000_add_external_dependencies';
-const CERTIFICATES = '20261022213000_add_optimization_boundary_certificates';
-const CLAIM_LEASE = '20261023100000_add_claim_lease';
-const AUTHORITY = '20261022212000_add_cross_project_dependency_activation';
 const BASE = '20261022140100_widen_organization_audit_compute_providers';
 let directory: string;
 let path: string;
@@ -67,8 +61,8 @@ it('old writer insert allocates five letters', () => {
   });
 });
 it('backfills every project and rollback preserves old project rows and complete ledger', () => {
-  // Proof: deleting the retained resource-provider ledger row in rollbackAppliedRows
-  // made reapplication attempt the existing compute_provider table and fail this case.
+  // Proof: deleting the retained resource-provider ledger row after rollback
+  // failed the complete baseline snapshot comparison (2026-10-25).
   rollbackTo(path, FOLDER, BASE);
   const before = raw((sqlite) => {
     insert(sqlite, 'p');
@@ -80,53 +74,18 @@ it('backfills every project and rollback preserves old project rows and complete
       ledger: sqlite.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all(),
     };
   });
+  const additions = readMigrationFolders(FOLDER)
+    .filter(({ name }) => name > BASE)
+    .map(({ name, hash }) => ({ name, hash }));
   runMigrations(path, FOLDER);
   expect(raw(codes)).toHaveLength(2);
   expect(
     raw((sqlite) => sqlite.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all()),
-  ).toEqual([
-    ...before.ledger,
-    {
-      name: MIGRATION,
-      hash: createHash('sha256')
-        .update(readFileSync(join(FOLDER, MIGRATION, 'migration.sql')))
-        .digest('hex'),
-    },
-    {
-      name: EXTERNAL,
-      hash: createHash('sha256')
-        .update(readFileSync(join(FOLDER, EXTERNAL, 'migration.sql')))
-        .digest('hex'),
-    },
-    {
-      name: AUTHORITY,
-      hash: createHash('sha256')
-        .update(readFileSync(join(FOLDER, AUTHORITY, 'migration.sql')))
-        .digest('hex'),
-    },
-    {
-      name: CERTIFICATES,
-      hash: createHash('sha256')
-        .update(readFileSync(join(FOLDER, CERTIFICATES, 'migration.sql')))
-        .digest('hex'),
-    },
-    {
-      name: CLAIM_LEASE,
-      hash: createHash('sha256')
-        .update(readFileSync(join(FOLDER, CLAIM_LEASE, 'migration.sql')))
-        .digest('hex'),
-    },
-  ]);
+  ).toEqual([...before.ledger, ...additions]);
   expect(raw((sqlite) => codes(sqlite).find((row) => row.project_id === 'q')?.namespace)).toBe(
     'org:a',
   );
-  expect(rollbackTo(path, FOLDER, BASE)).toEqual([
-    CLAIM_LEASE,
-    CERTIFICATES,
-    AUTHORITY,
-    EXTERNAL,
-    MIGRATION,
-  ]);
+  expect(rollbackTo(path, FOLDER, BASE)).toEqual(additions.map(({ name }) => name).reverse());
   expect(
     raw((sqlite) => ({
       projects: sqlite.query('SELECT * FROM project ORDER BY id').all(),

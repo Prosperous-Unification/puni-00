@@ -1,5 +1,4 @@
 import { connectSolverSupervisor } from '../src/module/solver-supervisor/solver-supervisor.repository';
-import { runComposedImageScenario } from './connected-composed-image-scenario';
 import {
   connectedImageScenario,
   verifyConnectedImageResponse,
@@ -26,11 +25,6 @@ if (unix === undefined || requestPath === undefined || attemptToken === undefine
 const callerId = process.env['HOSTNAME'];
 if (callerId === undefined || !/^[0-9a-f]{12}$/.test(callerId)) {
   throw new Error('solver supervisor image smoke: caller hostname is not a 12-hex Docker id');
-}
-
-if (requestPath === 'connected-composed') {
-  await runComposedImageScenario({ unix, callerId, inventoryPath: attemptToken });
-  process.exit(0);
 }
 
 /** Keep connected validation paired with the exact captured stage sent to the child. */

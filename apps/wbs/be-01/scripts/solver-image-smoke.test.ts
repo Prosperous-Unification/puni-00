@@ -1,17 +1,21 @@
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+
+import { COMPOSED_IMAGE_FIXTURES } from './composed-image-fixtures';
 
 const SUPPLIED_IMAGE = `registry.example/wbs-be-01@sha256:${'a'.repeat(64)}`;
 
@@ -130,6 +134,10 @@ esac
 
 const FAKE_BUN = `#!/usr/bin/env bash
 case "$1" in
+  *composed-image-fixtures.ts)
+    printf '%s\\n' "$3" > "$WBS_FIXTURE_STAGE_LOG"
+    exec "$WBS_REAL_BUN" "$@"
+    ;;
   *solver-supervisor-image-host.ts)
     printf '%s\\n' "$*" >> "$WBS_HOST_LOG"
     exec "$WBS_REAL_BUN" -e 'const listener = Bun.listen({ unix: process.argv[1], socket: { data() {} } }); process.on("SIGTERM", () => { listener.stop(true); process.exit(process.env["WBS_FAKE_FAULT"] === "supervisor-stop-fails" ? 1 : 0); })' "$3"
@@ -147,6 +155,8 @@ type SmokeFault =
   | 'registry-rm-fails'
   | 'registry-rm-ignored'
   | 'registry-inspect-permission'
+  | 'fixture-delete-fails-after-remove'
+  | 'fixture-rm-ignored'
   | 'shared-client-run'
   | 'connected-composed-run'
   | 'inventory-rm-fails'
@@ -184,11 +194,14 @@ interface SmokeRun {
   survivingTags: string[];
   survivingContainers: string[];
   socketExists: boolean;
+  fixtureDirectory: string | null;
+  fixturesExist: boolean;
 }
 
 let root: string;
 let retainedDirectory: string | undefined;
 let retainedSocket: string | undefined;
+const stagedFixtureRoots: string[] = [];
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'wbs-solver-image-smoke-'));
@@ -196,6 +209,8 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
+  for (const directory of stagedFixtureRoots.splice(0))
+    rmSync(directory, { recursive: true, force: true });
   if (retainedSocket) {
     rmSync(retainedSocket, { recursive: true, force: true });
     retainedSocket = undefined;
@@ -220,6 +235,7 @@ function runSmoke(
     orphan?: boolean;
     retain?: boolean;
     cleanupToken?: string;
+    script?: string;
   } = {},
 ): SmokeRun {
   const commands = join(root, 'commands');
@@ -227,6 +243,7 @@ function runSmoke(
   const containers = join(root, 'containers');
   const dockerLog = join(root, 'docker.log');
   const hostLog = join(root, 'host.log');
+  const fixtureLog = join(root, 'fixture-stage.log');
   mkdirSync(commands);
   mkdirSync(store);
   mkdirSync(containers);
@@ -248,7 +265,7 @@ function runSmoke(
   writeCommand(
     commands,
     'rm',
-    '#!/usr/bin/env bash\nif [ "${WBS_FAKE_FAULT:-}" = inventory-rm-fails ] && [[ "$*" == *composed-attempts* ]]; then exit 1; fi\nexec /usr/bin/rm "$@"\n',
+    '#!/usr/bin/env bash\nif [ "${WBS_FAKE_FAULT:-}" = inventory-rm-fails ] && [[ "$*" == *composed-attempts* ]]; then exit 1; fi\nif [[ "$*" == *wbs-composed-fixtures.* ]]; then\n  if [ "${WBS_FAKE_FAULT:-}" = fixture-rm-ignored ]; then exit 0; fi\n  if [ "${WBS_FAKE_FAULT:-}" = fixture-delete-fails-after-remove ]; then /usr/bin/rm "$@"; exit 1; fi\nfi\nexec /usr/bin/rm "$@"\n',
   );
   writeCommand(commands, 'curl', '#!/usr/bin/env bash\n');
   writeCommand(
@@ -259,7 +276,7 @@ function runSmoke(
   writeCommand(
     commands,
     'mktemp',
-    `#!/usr/bin/env bash\nmkdir -p "$WBS_FAKE_SOCKET_DIRECTORY"\nprintf '%s\\n' "$WBS_FAKE_SOCKET_DIRECTORY"\n`,
+    `#!/usr/bin/env bash\nif [[ "$*" == *wbs-solver-smoke.* ]]; then\n  mkdir -p "$WBS_FAKE_SOCKET_DIRECTORY"\n  printf '%s\\n' "$WBS_FAKE_SOCKET_DIRECTORY"\nelse\n  exec /usr/bin/mktemp "$@"\nfi\n`,
   );
   const socketDirectory = options.retain
     ? `/run/user/${String(process.getuid?.())}/wbs-solver-smoke.11111111-2222-4333-8444-555555555555`
@@ -286,7 +303,11 @@ function runSmoke(
     retainedDirectory = retained;
   }
   const invocation = Bun.spawnSync(
-    ['bash', SCRIPT, ...(options.args ?? (options.supplied ? [`--image=${SUPPLIED_IMAGE}`] : []))],
+    [
+      'bash',
+      options.script ?? SCRIPT,
+      ...(options.args ?? (options.supplied ? [`--image=${SUPPLIED_IMAGE}`] : [])),
+    ],
     {
       env: {
         ...process.env,
@@ -294,6 +315,7 @@ function runSmoke(
         PATH: `${commands}:${process.env['PATH'] ?? ''}`,
         WBS_DOCKER_LOG: dockerLog,
         WBS_HOST_LOG: hostLog,
+        WBS_FIXTURE_STAGE_LOG: fixtureLog,
         WBS_FAKE_IMAGE_STORE: store,
         WBS_FAKE_CONTAINER_STORE: containers,
         WBS_FAKE_SOCKET_DIRECTORY: socketDirectory,
@@ -308,7 +330,13 @@ function runSmoke(
       stderr: 'pipe',
     },
   );
+  const fixtureDirectory = existsSync(fixtureLog)
+    ? dirname(readFileSync(fixtureLog, 'utf8').trim())
+    : null;
+  if (fixtureDirectory !== null) stagedFixtureRoots.push(fixtureDirectory);
   return {
+    fixtureDirectory,
+    fixturesExist: fixtureDirectory !== null && existsSync(fixtureDirectory),
     exitCode: invocation.exitCode,
     stderr: invocation.stderr.toString(),
     stdout: invocation.stdout.toString(),
@@ -330,14 +358,23 @@ describe('solver-image-smoke image lifecycle', () => {
 
     expect(smoke.stderr).toBe('');
     expect(smoke.exitCode).toBe(0);
-    const clients = smoke.dockerCalls.filter((call) =>
-      call.includes('solver-supervisor-image-client.ts'),
+    const clients = smoke.dockerCalls.filter(
+      (call) =>
+        call.includes('solver-supervisor-image-client.ts') ||
+        call.includes('solver-composed-image-client.ts'),
     );
     expect(clients).toHaveLength(5);
     expect(clients[1]).toContain(' shared-person ');
     expect(clients[2]).toContain(' connected-feasible ');
     expect(clients[3]).toContain(' connected-fractional ');
     expect(clients[4]).toContain(' connected-composed ');
+    expect(clients[4]).toContain('/src/testing/solver-composed-image-client.ts');
+    if (smoke.fixtureDirectory === null) throw new Error('fixture staging omitted its path');
+    expect(clients[4]).toContain(
+      `--volume ${smoke.fixtureDirectory}/files:/app/apps/wbs/be-01/src/testing:ro`,
+    );
+    for (const client of clients.slice(0, 4)) expect(client).not.toContain('/src/testing');
+    expect(smoke.fixturesExist).toBe(false);
     expect(new Set(clients.map((client) => client.split(' ').at(-1))).size).toBe(5);
     const removed = smoke.dockerCalls.filter((call) => call.startsWith('image rm '));
     expect(removed).toHaveLength(3);
@@ -440,8 +477,10 @@ describe('solver-image-smoke supplied immutable image', () => {
         new RegExp(`^container inspect (wbs-solver-smoke-caller-${UUID}|wbs-solver-${UUID})$`),
       );
     }
-    const clients = smoke.dockerCalls.filter((call) =>
-      call.includes('solver-supervisor-image-client.ts'),
+    const clients = smoke.dockerCalls.filter(
+      (call) =>
+        call.includes('solver-supervisor-image-client.ts') ||
+        call.includes('solver-composed-image-client.ts'),
     );
     expect(clients).toHaveLength(5);
     for (const client of clients) {
@@ -452,6 +491,13 @@ describe('solver-image-smoke supplied immutable image', () => {
     expect(clients[2]).toContain(' connected-feasible ');
     expect(clients[3]).toContain(' connected-fractional ');
     expect(clients[4]).toContain(' connected-composed ');
+    expect(clients[4]).toContain('/src/testing/solver-composed-image-client.ts');
+    if (smoke.fixtureDirectory === null) throw new Error('fixture staging omitted its path');
+    expect(clients[4]).toContain(
+      `--volume ${smoke.fixtureDirectory}/files:/app/apps/wbs/be-01/src/testing:ro`,
+    );
+    for (const client of clients.slice(0, 4)) expect(client).not.toContain('/src/testing');
+    expect(smoke.fixturesExist).toBe(false);
     expect(new Set(clients.map((client) => client.split(' ').at(-1))).size).toBe(5);
     expect(smoke.dockerCalls.some((call) => /^(build|tag|push|pull|image rm) /.test(call))).toBe(
       false,
@@ -707,3 +753,68 @@ it('retains composed inventory pathname when caller cannot stop', () => {
   expect(existsSync(join(root, 'socket', 'composed-attempts'))).toBe(true);
   expect(smoke.socketExists).toBe(true);
 });
+
+/** A production-script checkout with only the exact test closure needed before Docker starts. */
+function fixtureFailureScript(
+  fault: 'missing' | 'unreadable' | 'symlink' | 'corrupt' | 'unlisted',
+) {
+  const repository = join(root, 'stage-source');
+  const scripts = join(repository, 'apps/wbs/be-01/scripts');
+  const testing = join(repository, 'apps/wbs/be-01/src/testing');
+  mkdirSync(scripts, { recursive: true });
+  mkdirSync(testing, { recursive: true });
+  copyFileSync(SCRIPT, join(scripts, 'solver-image-smoke.sh'));
+  const helperPath = join(scripts, 'composed-image-fixtures.ts');
+  let helper = readFileSync(join(import.meta.dir, 'composed-image-fixtures.ts'), 'utf8');
+  for (const name of COMPOSED_IMAGE_FIXTURES)
+    copyFileSync(join(import.meta.dir, '../src/testing', name), join(testing, name));
+  const fixture = join(testing, 'app-fixture.ts');
+  if (fault === 'missing' || fault === 'symlink') {
+    rmSync(fixture);
+    if (fault === 'symlink')
+      symlinkSync(join(import.meta.dir, '../src/testing/app-fixture.ts'), fixture);
+  } else if (fault === 'unreadable') chmodSync(fixture, 0);
+  else {
+    writeFileSync(join(repository, 'fault.ts'), 'controlled copied-fixture fault');
+    const copyFault =
+      fault === 'corrupt'
+        ? "copyFileSync(join(repository, 'fault.ts'), destination);"
+        : "copyFileSync(join(repository, 'fault.ts'), join(directory, 'unlisted.ts'));";
+    helper = helper.replace(
+      'stageComposedImageFixtures(repository, directory)',
+      `stageComposedImageFixtures(repository, directory, (source, destination) => {
+        copyFileSync(source, destination);
+        ${copyFault}
+      })`,
+    );
+  }
+  writeFileSync(helperPath, helper);
+  return join(scripts, 'solver-image-smoke.sh');
+}
+
+for (const supplied of [false, true]) {
+  it.each(['missing', 'unreadable', 'symlink', 'corrupt', 'unlisted'] as const)(
+    `refuses %s external fixtures before Docker in ${supplied ? 'supplied' : 'built'} mode`,
+    (fault) => {
+      const smoke = runSmoke(undefined, { supplied, script: fixtureFailureScript(fault) });
+      expect(smoke.exitCode).not.toBe(0);
+      expect(smoke.dockerCalls).toEqual([]);
+      expect(smoke.hostCalls).toEqual([]);
+      expect(smoke.fixturesExist).toBe(false);
+    },
+  );
+}
+
+for (const supplied of [false, true]) {
+  it.each(['fixture-delete-fails-after-remove', 'fixture-rm-ignored'] as const)(
+    `refuses external fixture cleanup fault %s in ${supplied ? 'supplied' : 'built'} mode`,
+    (fault) => {
+      const smoke = runSmoke(fault, { supplied });
+      expect(smoke.exitCode).not.toBe(0);
+      expect(smoke.stdout).not.toContain('[solver-image-smoke] cleanup-complete');
+      expect(smoke.stderr).toContain('composed fixtures');
+      expect(smoke.fixturesExist).toBe(fault === 'fixture-rm-ignored');
+      expect(smoke.survivingTags).toEqual(supplied ? [SUPPLIED_IMAGE] : []);
+    },
+  );
+}

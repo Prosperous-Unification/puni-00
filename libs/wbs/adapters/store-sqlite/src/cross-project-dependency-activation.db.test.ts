@@ -217,6 +217,7 @@ it('refuses enabled-empty rollback without losing authority or ledger', () => {
   expect(inspectDependencyActivation(connection.db).state).toBe('ENABLED');
 });
 it('rolls dormant authority back without changing local rows', async () => {
+  rollbackTo(path, FOLDER, MIGRATION);
   seed();
   const repository = new TypedDependencyRepository(connection.db, OPEN);
   await repository.add(

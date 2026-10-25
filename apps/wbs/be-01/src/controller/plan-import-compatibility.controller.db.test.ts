@@ -39,7 +39,7 @@ async function exportDocument(projectId: string) {
 }
 
 /** Proof: ignoring occupied abbreviations made this mounted import refuse with 409. */
-test('outgoing-only downloaded v11 imports with a distinct destination abbreviation', async () => {
+test('outgoing-only downloaded v12 imports with a distinct destination abbreviation', async () => {
   harness = OrganizationHarness.openComposedWith({});
   const { source, downstream } = await connectedTransferFixture(harness);
   harness.sqlite
@@ -51,7 +51,7 @@ test('outgoing-only downloaded v11 imports with a distinct destination abbreviat
     expect.objectContaining({ id: 'outgoing', projectId: downstream.projectId }),
   ]);
   expect(downloaded).toMatchObject({
-    document: { version: 11 },
+    document: { version: 12 },
     project: { id: source.projectId, abbreviation: original.abbreviation },
     connected: {
       relationships: outgoing,
@@ -75,9 +75,9 @@ test('outgoing-only downloaded v11 imports with a distinct destination abbreviat
   expect(reexported['typedDependencies']).toHaveLength(1);
 });
 
-/** Proof: bypassing the version fence admitted valid v12 and misclassified malformed v12. */
+/** Proof: bypassing the version fence admitted the unsupported next version and misclassified its malformed variant. */
 test.each([false, true])(
-  'unsupported v12 (malformed content: %s) refuses exactly without writes',
+  'unsupported v13 (malformed content: %s) refuses exactly without writes',
   async (malformed) => {
     await openHarness();
     const seeded = await harness.call('ada', 'POST', '/api/projects/import', planDocumentFixture());
@@ -87,7 +87,7 @@ test.each([false, true])(
       document: { version: number };
       workItems: Record<string, unknown>[];
     };
-    downloaded.document.version = 12;
+    downloaded.document.version = 13;
     if (malformed) Reflect.set(downloaded.workItems[0] ?? {}, 'priority', 'invalid-future-value');
     const before = transferSnapshot(harness);
     const refused = await harness.call('ada', 'POST', '/api/projects/import', downloaded);

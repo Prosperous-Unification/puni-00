@@ -157,7 +157,7 @@ function sqliteState(): Record<string, unknown[]> {
 }
 
 for (const seeded of [false, true]) {
-  it(`mounted v11 external import refuses before any SQLite write (seeded storage authority: ${String(seeded)})`, async () => {
+  it(`mounted v12 external import refuses before any SQLite write (seeded storage authority: ${String(seeded)})`, async () => {
     if (seeded) {
       const main = h.sqlite
         .query<{ name: string; file: string }, []>('PRAGMA database_list')
@@ -167,7 +167,7 @@ for (const seeded of [false, true]) {
       seedDependencyAuthority(main.file);
     }
     const document = planDocumentFixture();
-    document.document.version = 11;
+    document.document.version = 12;
     Reflect.set(document.workItems[0] ?? {}, 'attempts', {});
     document.typedDependencies = [
       {

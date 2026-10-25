@@ -161,6 +161,7 @@ describe('a claim lease over HTTP', () => {
 
   it('refuses a heartbeat carrying a body or a query as a typed 400, renewing nothing', async () => {
     await claimAsAgent();
+    await claimAnother(projectId, stepId, 'run-2');
     now = T + 2 * 60_000;
     expect(await asAgent('POST', '/api/claims/renew', {})).toMatchObject({
       status: 400,

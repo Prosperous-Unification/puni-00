@@ -46,6 +46,7 @@ socket_directory=''
 socket_path=''
 supervisor_pid=''
 composed_inventory=''
+composed_fixture_directory=''
 created_images=()
 retained_inventory="${WBS_SOLVER_SMOKE_INVENTORY:-}"
 # The outer proof owns this fresh directory; files are never placed in the removable socket tree.
@@ -187,6 +188,22 @@ collect_composed_attempts() {
   return "$invalid"
 }
 
+# Only this invocation creates this directory. Fixture bytes are external CI inputs,
+# not immutable production-image bytes; no product source path is mounted over.
+cleanup_composed_fixtures() {
+  if [ -z "$composed_fixture_directory" ]; then return 0; fi
+  # Proof: omitting status admission accepted fixture-delete-fails-after-remove in both image modes.
+  if ! rm -rf -- "$composed_fixture_directory"; then
+    echo '[solver-image-smoke] could not remove external composed fixtures' >&2
+    return 1
+  fi
+  # Proof: omitting readback accepted fixture-rm-ignored and falsely issued cleanup-complete.
+  if [ -e "$composed_fixture_directory" ] || [ -L "$composed_fixture_directory" ]; then
+    echo '[solver-image-smoke] external composed fixtures outlived cleanup' >&2
+    return 1
+  fi
+}
+
 # Runs every cleanup step even when one fails, and turns a passing smoke into a failure when
 # any step failed, so a leaked container or image never hides behind the original status.
 cleanup() {
@@ -240,6 +257,7 @@ cleanup() {
     # the invocation UUID name now survives in cleanup's inventory before docker run.
     if ! remove_owned_container "$baseline_name"; then cleanup_failed=1; fi
   fi
+  if [ "$caller_stopped" -eq 1 ] && ! cleanup_composed_fixtures; then cleanup_failed=1; fi
   # Proof: ignoring rmdir refusal made socket-rmdir-fails exit 0.
   if [ "$caller_stopped" -eq 1 ] && ! rmdir "$socket_directory"; then cleanup_failed=1; fi
   # Proof: with this call removed, or run only after a passing smoke, solver-image-smoke.test.ts
@@ -259,6 +277,14 @@ cleanup() {
   fi
   exit "$status"
 }
+# Stage and verify the exact external test closure before ANY Docker invocation.
+# The temporary EXIT trap also owns early image-inspection/socket-setup refusals;
+# the complete cleanup below takes that ownership once it is installed.
+composed_fixture_directory="$(mktemp -d "${TMPDIR:-/tmp}/wbs-composed-fixtures.XXXXXX")"
+trap 'status=$?; if ! cleanup_composed_fixtures; then exit 1; fi; exit "$status"' EXIT
+bun "$script_dir/composed-image-fixtures.ts" "$repo_root" "$composed_fixture_directory/files" \
+  > "$composed_fixture_directory/provenance.json"
+
 # Proof: skipping this probe let the missing-digest negative reach the clients; treating a
 # daemon refusal as absence lost the distinct inspect-failure diagnosis.
 if [ -n "$supplied_image" ]; then
@@ -412,12 +438,16 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
   connected-fractional \
   "$connected_fractional_token"
 
-# This fifth client joins real SQLite/service admission, installed Python and durable publication.
+# Proof: omitting only this fixture mount failed the built/supplied client-argv regressions;
+# the actual Bun consumer also refuses empty delivery and a missing transitive clock fixture.
+# This fifth external test driver joins the unchanged in-image scenario to its
+# exact read-only fixtures. The original four clients receive no fixture mount.
 # Proof: omitting this invocation fails both image inventories and composed-client fault tests.
 docker run --rm "${client_pull[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver" \
+  --volume "$composed_fixture_directory/files:/app/apps/wbs/be-01/src/testing:ro" \
   --entrypoint bun "$solver_image" \
-  /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
+  /app/apps/wbs/be-01/src/testing/solver-composed-image-client.ts \
   /run/wbs-solver/supervisor.sock \
   connected-composed \
   /run/wbs-solver/composed-attempts

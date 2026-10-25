@@ -10,6 +10,7 @@ import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
+import { seedDependencyAuthority } from './testing/dependency-activation';
 import { TypedDependencyRepository } from './typed-dependency';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -254,6 +255,8 @@ it('down refuses external rows and preserves local rows and their audit when emp
 });
 
 it('refuses external rows in the historical single-project capture', async () => {
+  runMigrations(path, FOLDER);
+  seedDependencyAuthority(path);
   await repository().add(link(), stamp);
   const capture = new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) });
   expect(await rejection(capture.readPlanInput('b'))).toContain('external');

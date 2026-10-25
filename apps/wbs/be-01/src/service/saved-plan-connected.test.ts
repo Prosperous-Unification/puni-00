@@ -23,7 +23,7 @@ test.each(['isolated', 'shared'] as const)(
   async (mode) => {
     const captured = await captureSavedConnectedFixture(mode);
     const prepared = captureConnectedHistory(captured, 'a1');
-    expect(readSavedPlanInput(prepared.input, 9)).toEqual(prepared.input);
+    expect(readSavedPlanInput(prepared.input, 10)).toEqual(prepared.input);
     const history = prepared.input.dependencyHistory;
     if (history.kind !== 'connected') throw new Error('connected history expected');
     expect(history.mode).toBe(mode);

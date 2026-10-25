@@ -172,7 +172,7 @@ test('real backend imports an external declaration through unchanged production 
   const history = running.sqlite.query('SELECT * FROM command_journal').all();
   const imported = await request('/api/projects/import', {
     ...document,
-    document: { ...document.document, version: 11 },
+    document: { ...document.document, version: 12 },
     workItems: document.workItems.map(({ attempts: _attempts, ...row }) => ({
       ...row,
       attempts: {},
@@ -226,7 +226,7 @@ test('real backend imports an external declaration through unchanged production 
   const beforeFailure = snapshot(running);
   const refused = await request('/api/projects/import', {
     ...document,
-    document: { ...document.document, version: 11 },
+    document: { ...document.document, version: 12 },
     workItems: document.workItems.map(({ attempts: _attempts, ...row }) => ({
       ...row,
       attempts: {},

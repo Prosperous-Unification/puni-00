@@ -111,3 +111,91 @@ source-approved under standing authorization; architectural merge, adoption,
 deployment and feature completion remain held. The final evidence-only commit
 preserves all15 reviewed source hashes. The existing PR remains a draft, with
 auto-merge disabled and its operational body unchanged.
+
+## First integrated CI feedback
+
+Draft head `a0ad0b34cb77febb030d12413c8066aa759b39dc` was submitted only for
+verification. CI run40176150295 passed the frontend, remote and Twilight partitions
+and all eight browser shards plus their aggregate. Its final conclusion is failure.
+Infrastructure run40176150346 passed both fleet checks
+and the k3s rehearsal. These outcomes do not close the full feature gate.
+The pull-request run reports feature headA0 above, but its selected test tree is
+GitHub's synthetic merge `e801b2b922f5b65dca4dc6a1b442ebb37a232d4a`, based on main
+`93b6f3555ede68c08d3d83b571f1fcd15a44f37b`. That main includes the concurrently merged
+admin-only resource deletion fix. CI results are attributed to that merge tree,
+not to an identical local A0 source tree. Fetching main changed no checkout; an
+object-only merge check against A0 was clean. The active fixture and packaging
+proofs run on the explicitly identified local source and retain that boundary.
+
+The completed backend partition reported4461 passing tests,3 skips and18 failures;
+the SQLite suite in the workspace partition reported2390 passes,1 skip and3 failures.
+The solver smoke also failed: its ordinary image client imported the composed test
+scenario statically, but the image deliberately excludes backend testing fixtures.
+The existing production bundle check independently detected that import. A bounded
+packaging correction is under implementation; production exclusions, the genuine
+composed scenario and the existing bundle guard remain required.
+
+Independent Astra inspection approved bounded test-fixture reconciliation for the
+remaining backend/storage failures. Existing production formats remain ordinary
+document11, connected document12, ordinary saved input9 and connected saved input10.
+Connected fixture headers, future-version negatives, the exact supported-version
+reply, a missing second real claim and migration-specific fixture baselines need
+correction. Full refusal/ordering, row and ledger assertions must remain; no format
+renumbering, production guard change or timeout increase is approved by this ruling.
+
+The remote-model partition failed two children during source-startup manifest
+construction, before their intended injected faults. In an independently installed
+copy pinned to this same head, both exact children passed with their original
+conditions and deadlines: lost-exec-reap128 assertions/69.43s and missing-done133
+assertions/67.51s. Bounded diagnostic instrumentation did not observe a scanner
+failure. This local replay does not explain or clear the CI failure; no speculative
+candidate fix is justified. An initial diagnostic-only restrictive umask caused a
+different fixture-permission refusal and was corrected before the reported replay.
+
+The queued feature host gate for this obsolete head was cancelled before checkout
+or any tests, with exit143. It supplies no passing evidence. The separate merged
+PR721 host gate continues independently and cannot establish feature acceptance.
+PR630 remains draft, with auto-merge disabled; architectural merge, activation and
+deployment remain held.
+
+The bounded eight-file backend fixture correction passed the complete affected
+files:273 tests/1570 assertions in89.75s. A separate selector covering all17 original
+non-packaging backend failures passed17 tests/116 assertions in7.99s. Scoped lint,
+format and frozen-hash checks passed. Independent Astra source review found no
+blocking issue or weakened assertion and independently replayed6 cases/41 assertions
+in4.72s. These are focused results, not a replacement for the next complete CI run.
+
+The three storage fixture files passed139 tests/389 assertions in23.80s, with
+scoped lint and format passing. Expected migration additions now come from the
+checked on-disk name/hash set, independently of the observed database answer.
+Full row/ledger equality remains. The dormant rollback baseline excludes unrelated
+later migrations before its snapshot, and only the historical capture case uses
+the current schema with explicit synthetic fixture authority. Deleting an actual
+retained resource-provider ledger row after rollback made the unchanged complete
+baseline comparison fail; restoring the fixture passed the selected test.
+Independent Astra storage source review approved the frozen three-file packet and
+replayed the three originally failing cases:3 passes/10 assertions in2.91s. Hashes
+remained unchanged. This approval does not extend to architectural adoption or merge.
+
+The six-file smoke packaging correction separates the fifth composed test driver
+from the four ordinary image-client modes. Only the fifth invocation receives a
+read-only mount containing its exact21 excluded fixtures plus that test driver;
+the selected image digest and original in-image scenario are unchanged. Staging
+checks regular files, readability, byte readback, exact membership and permissions,
+and cleanup owns only its fresh directory. Those supplied fixture hashes describe
+external test-harness bytes; they are not immutable-image or native-adoption proof.
+
+All six frozen hashes matched. The root ignore, Dockerfile, genuine composed scenario
+and existing production bundle guard remained byte-identical to HEAD. Restored
+fixture/production-boundary tests passed20 cases/110 assertions in10.67s; focused
+build/supplied-image staging and cleanup controls passed16 cases/119 assertions
+in7.79s. Thirteen watched guard omissions failed their intended controls and were
+restored. Backend TypeScript, scoped lint, formatting and ShellCheck passed. The
+actual Docker smoke remains required in CI: local daemon access was denied and no
+physical container success is claimed from these harness tests.
+The final frozen complete harness passed91 tests/355 assertions in64.34s.
+Independent Astra source review approved all six hashes without a blocking finding,
+replayed20 fixture/bundle cases/110 assertions and16 smoke controls/119 assertions,
+and inspected the13 omission logs. Its first smoke replay hit a sandbox Unix-socket
+permission refusal; the approved exact replay passed. This approval permits a normal
+draft checkpoint and further verification, not architectural merge or activation.
