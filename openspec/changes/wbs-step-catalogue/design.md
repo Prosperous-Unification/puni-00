@@ -154,8 +154,7 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   "matching descendants". Whole and node endpoints are unchanged; cycle validation runs on
   the per-leaf graph. Saved plans schedule through SC13. Fast and solver must agree on a
   mixed story/spike fixture.
-- **SC17. One applicability invariant guards every protected fact** (F5; assumed,
-  overrulable). Protected facts per (leaf, step): `estimate`, `actual`, `step_progress`,
+- **SC17. One applicability invariant guards every protected fact, and lists what it protects before and when it refuses** (F5; settled by Dany 2026-10-25 with his rule "if changing configs breaks smth - must list what will be broken before change can happen"). Protected facts per (leaf, step): `estimate`, `actual`, `step_progress`,
   `step_measure`, `measure_estimate`, `step_node_attempt`, `step_node_attempt_issued`,
   `assignment`, `claim` (lease, revocation and delegation fields included),
   `typed_dependency` at either endpoint (parent-scoped references included), `step_blockage`
@@ -163,9 +162,7 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   cascades its labels), moving a leaf or a package across projects, changing a project's
   space, deleting a space, undo/redo/restore and copy, and a leaf becoming a parent. One
   store-level check, evaluated in the writer's transaction by every such path and by every
-  fact writer (`setEstimate`, `setActual`, … refuse `422 step_not_resolved`), refuses
-  `409 step_nodes_in_use`. Issued-attempt counters are retained facts: they block removal,
-  so attempt numbers are never reused.
+  fact writer (`setEstimate`, `setActual`, … refuse `422 step_not_resolved`), refuses `409 step_nodes_in_use { count, pairs }`: `pairs` lists each vanishing (work item `id`, `name`, `stepId`, `workPackageId`) with the kinds of protected facts on it, the first 200 by package and rank, `count` the total. Every applicability-changing write (unbind, retype, type deletion, leaf and package move, space change, space deletion) accepts `dryRun: true` and answers `200 { wouldRefuse: 'step_nodes_in_use', count, pairs }` or `200 { wouldRefuse: null }` from a rolled-back transaction under the write's own permission, writing and announcing nothing; `GET …/step-nodes-in-use` stays for browsing a binding's usage. Issued-attempt counters are retained facts: they block removal, so attempt numbers are never reused. Rejected: dropping the facts (the schedule changes and nobody can tell why) and hiding the node with its facts (the data leaves every read).
 - **SC18. Binding identity and a total order** (F6; assumed, overrulable). `type_key` is a
   virtual generated column `COALESCE(work_item_type_id, '*')` and
   `UNIQUE (scope_kind, scope_id, step_id, type_key)`; on bun's SQLite 3.53.4 this refused
@@ -275,7 +272,7 @@ foreign key. Lease state lives on `claim`; `claim_occupancy` keys on claim ids, 
 - **Q3.** (a) May space and project managers create organization-wide definitions? Recommend
   yes, only through `defineAndBindStep`, with renaming and defaults afterwards
   organization-level (SC20). (b) Reorder inherited steps per project: recommend no (SC4).
-- **Q4.** Refuse versus hide step nodes that would vanish: recommend refuse (SC7, SC17).
+- **Q4.** _Settled 2026-10-25 by Dany: refuse, listing the pairs in the refusal and in a `dryRun` preview (SC17)._ (Was: refuse versus hide step nodes that would vanish.)
 - **Q5.** _Settled 2026-10-25 by Dany: SC13 confirmed, E33 superseded._ (Was: the historical identity map revises E33's rejection of an alias table: confirm.)
 
 ## Risks / Trade-offs
