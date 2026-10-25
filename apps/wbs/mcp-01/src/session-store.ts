@@ -613,8 +613,10 @@ export class McpSessionStore {
 
   /**
    * Marks the client proven after a code exchange and sets its lifetime to `expiresAt`. A client
-   * already proven only moves forward (MAX): a process still running the former 24 h lifetime
-   * (blue and green mid-swap) cannot shorten a lifetime the other process granted. The first
+   * already proven only moves forward (MAX), so a later release with a shorter lifetime, or a
+   * process with a skewed clock, cannot shorten it. The colour still running the former 24 h
+   * code during this change's own swap can (its statement sets the expiry outright); the
+   * client then lives 24 h and its next refresh on the new colour renews it. The first
    * promotion sets it outright, replacing the unproven authorization-flow lifetime.
    */
   promoteClient(clientId: string, expiresAt: number): void {
