@@ -72,10 +72,14 @@ function compose(source: SqliteSource, optimizer?: OptimizerRuntime) {
     pushFetch: () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
     ...(optimizer === undefined ? {} : { optimizer }),
   });
-  cleanups.push(async () => {
+  let closed = false;
+  const close = async () => {
+    if (closed) return;
     await services.optimizer?.stop();
     await source.close();
-  });
+    closed = true;
+  };
+  cleanups.push(close);
   if (bound === undefined) throw Error('source was not bound');
   const app = testApp({
     ...services,
@@ -103,7 +107,7 @@ function compose(source: SqliteSource, optimizer?: OptimizerRuntime) {
       }[];
     };
   };
-  return { services, errors, source, bound, tree, app };
+  return { services, errors, source, bound, tree, app, close };
 }
 function stream(bytes: string) {
   return new ReadableStream<Uint8Array>({
@@ -827,3 +831,323 @@ for (const shortUnits of [8, 9] as const) {
     expect(f.errors).toEqual([]);
   });
 }
+
+async function outgoingFixture() {
+  const f = await fractionalFixture(9);
+  f.sqlite.run("DELETE FROM estimate WHERE work_item_id='a1-short'");
+  f.sqlite.run("DELETE FROM work_item WHERE id='a1-short'");
+  for (const [id, days] of [
+    ['a2-anchor', 0.2],
+    ['a1-dep', 1],
+    ['a3-short', 1.2],
+  ] as const)
+    f.sqlite.run(
+      'UPDATE estimate SET optimistic=?,realistic=?,pessimistic=? WHERE work_item_id=?',
+      [days, days, days, id],
+    );
+  return f;
+}
+
+test('mounted outgoing terminal survives recompose and an authored successor edit without losing Q1', async () => {
+  const f = await outgoingFixture();
+  const q1Stage = await f.capture();
+  expect(q1Stage.projects.map(({ projectId, rank }) => [projectId, rank])).toEqual([
+    ['a2', 1],
+    ['a3', 2],
+    ['a1', 3],
+  ]);
+  expect(q1Stage.mode).toBe('isolated');
+  expect(q1Stage.starts.get('a2-anchor\u0000a2-s')).toBe(0);
+  expect(q1Stage.finishes.get('a2-anchor\u0000a2-s')).toBe(0.19999999999999998);
+  expect(q1Stage.starts.get('a1-dep\u0000a1-s')).toBe(0.19999999999999998);
+  expect(q1Stage.finishes.get('a1-dep\u0000a1-s')).toBe(1.2);
+  expect(q1Stage.starts.get('a3-short\u0000a3-s')).toBe(0);
+  expect(q1Stage.starts.get('a3-long\u0000a3-s')).toBe(1.2);
+  const q1 = prepareConnectedQuestion(q1Stage, installed, (bytes) =>
+    new Bun.CryptoHasher('sha256').update(bytes).digest('hex'),
+  );
+  for (const objective of ['pri', 'time'] as const) {
+    const built = q1.requests[objective];
+    expect(built.kind).toBe('boundary-infeasible');
+    if (built.kind !== 'boundary-infeasible') throw Error('genuine outgoing contradiction missing');
+    expect(built.evidence).toMatchObject({ kind: 'contradictory-bounds', lower: 10, upper: 9 });
+    expect(built.request.quantum).toBe(48);
+    expect(built.request.scope.boundaries).toMatchObject([
+      { direction: 'incoming', minimumStartUnits: 10 },
+      { direction: 'outgoing', maximumStartUnits: 9 },
+    ]);
+  }
+  const baseline = await f.tree();
+  expect(
+    baseline.slices.map(({ id, earliestStart, earliestFinish }) => [
+      id,
+      earliestStart,
+      earliestFinish,
+    ]),
+  ).toEqual([['a1-dep\u0000a1-s', 0.19999999999999998, 1.2]]);
+  await drain(f);
+  expect(f.launched).toEqual([]);
+  expect(f.sqlite.query('SELECT * FROM solver_queue').all()).toEqual([]);
+  expect(f.sqlite.query('SELECT * FROM solver_slot').all()).toEqual([]);
+  const certificates = f.sqlite
+    .query<{ certificate_json: string; objective: 'pri' | 'time'; input_hash: string }, []>(
+      'SELECT * FROM optimization_boundary_certificate ORDER BY objective',
+    )
+    .all();
+  expect(certificates).toHaveLength(2);
+  expect(certificates.map(({ objective }) => objective)).toEqual(['pri', 'time']);
+  for (const row of certificates) {
+    const { stageBytes: _stageBytes, ...identity } = q1.questions[row.objective];
+    expect(row.input_hash).toBe(q1.questions[row.objective].inputHash);
+    expect(JSON.parse(row.certificate_json)).toMatchObject({
+      kind: 'boundary-infeasible',
+      scope: { kind: 'connected-stage', projectId: 'a1' },
+      identity,
+      evidence: { kind: 'contradictory-bounds', lower: 10, upper: 9 },
+    });
+  }
+  expect(
+    f.sqlite
+      .query('SELECT message FROM event_log ORDER BY id')
+      .all()
+      .map((row) => (JSON.parse((row as { message: string }).message) as { type: string }).type),
+  ).toEqual([
+    'elsewhere_changed',
+    'elsewhere_changed',
+    'schedule_optimization_boundary_infeasible',
+    'elsewhere_changed',
+    'elsewhere_changed',
+    'elsewhere_changed',
+    'elsewhere_changed',
+    'schedule_optimization_boundary_infeasible',
+    'elsewhere_changed',
+    'elsewhere_changed',
+    'elsewhere_changed',
+    'elsewhere_changed',
+  ]);
+  const terminal = {
+    optimization: {
+      inputHash: q1.questions.pri.inputHash,
+      displayed: 'fast',
+      scope: { kind: 'connected-stage', projectId: 'a1', mode: 'isolated', quantum: 48 },
+      variants: {
+        pri: {
+          state: 'boundary-infeasible',
+          certificate: {
+            kind: 'boundary-infeasible',
+            evidence: 'contradictory-bounds',
+            question: {
+              inputHash: q1.questions.pri.inputHash,
+              questionHash: q1.questions.pri.questionHash,
+            },
+          },
+        },
+        time: {
+          state: 'boundary-infeasible',
+          certificate: {
+            kind: 'boundary-infeasible',
+            evidence: 'contradictory-bounds',
+            question: {
+              inputHash: q1.questions.time.inputHash,
+              questionHash: q1.questions.time.questionHash,
+            },
+          },
+        },
+      },
+    },
+  };
+  expect(await f.tree()).toMatchObject(terminal);
+  const settledQ1 = wholeStore(f.sqlite);
+  await f.close();
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: f.path,
+    openReadOnlyConnection: (filename) => {
+      const connection = openReadOnlyConnection(filename);
+      f.probe.open += 1;
+      return {
+        ...connection,
+        close: () => {
+          connection.close();
+          f.probe.open -= 1;
+        },
+      };
+    },
+  });
+  const launches: ReservedSpawnRequest[] = [];
+  const restarted = compose(source, {
+    ...installed,
+    spawn: (asked) => {
+      expect(f.probe.open).toBe(0);
+      if (asked.kind !== 'connected') throw Error('connected Q2 child required');
+      launches.push(asked);
+      return Promise.resolve({
+        pid: 200 + launches.length,
+        stdout: stream(stdout(asked.request, { 'a1-dep\u0000a1-s': 10 / 48 })),
+        stderr: stream(''),
+        exited: Promise.resolve(0),
+        verdict: () => undefined,
+        kill: () => undefined,
+      });
+    },
+  });
+  const optimizer = restarted.services.optimizer;
+  if (optimizer === undefined) throw Error('recomposed optimizer required');
+  const capture = async () => {
+    const captured = await restarted.services.workItems.optimizationCapture('a1');
+    if (captured.kind !== 'scheduled' || captured.input.kind !== 'connected')
+      throw Error('recomposed connected capture required');
+    return captured.input.stage;
+  };
+  const edit = async (days: number) => {
+    const response = await restarted.app.handle(
+      new Request('http://localhost/api/projects/a3/commands', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
+        body: JSON.stringify({
+          commands: [
+            {
+              kind: 'setEstimate',
+              workItemId: 'a3-short',
+              stepId: 'a3-s',
+              days: { optimistic: days, realistic: days, pessimistic: days },
+            },
+          ],
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    if (response.status !== 200) throw Error('authored successor edit refused');
+    await optimizer.drain();
+  };
+  const refuseQ1 = async () => {
+    const before = wholeStore(f.sqlite);
+    const response = await restarted.app.handle(
+      new Request('http://localhost/api/projects/a1/optimization/retry', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
+        body: JSON.stringify({ inputHash: q1.questions.pri.inputHash, objective: 'pri' }),
+      }),
+    );
+    expect(response.status).toBe(409);
+    const body: unknown = await response.json();
+    expect(wholeStore(f.sqlite)).toEqual(before);
+    expect(f.launched).toEqual([]);
+    expect(launches).toHaveLength(0);
+    expect(body).toEqual({ code: 'not-retryable', state: 'boundary-infeasible' });
+  };
+  try {
+    for (let repeat = 0; repeat < 2; repeat++) {
+      const tree = await restarted.tree();
+      expect(tree).toMatchObject(terminal);
+      expect(tree.slices).toEqual(baseline.slices);
+      expect(wholeStore(f.sqlite)).toEqual(settledQ1);
+    }
+    await refuseQ1();
+    await edit(1.25);
+    const q2Stage = await capture();
+    const q2 = prepareConnectedQuestion(q2Stage, installed, (bytes) =>
+      new Bun.CryptoHasher('sha256').update(bytes).digest('hex'),
+    );
+    expect(q2Stage.relationships).toEqual(q1Stage.relationships);
+    expect(q2Stage.projects).toEqual(q1Stage.projects);
+    expect(q2Stage.finishes.get('a2-anchor\u0000a2-s')).toBe(0.19999999999999998);
+    expect(q2Stage.starts.get('a3-long\u0000a3-s')).toBe(1.25);
+    expect(q2.questions.pri.inputHash).not.toBe(q1.questions.pri.inputHash);
+    for (const objective of ['pri', 'time'] as const) {
+      const built = q2.requests[objective];
+      expect(built.kind).toBe('request');
+      if (built.kind !== 'request') throw Error('genuine feasible outgoing request required');
+      expect(built.request.scope.boundaries).toMatchObject([
+        { direction: 'incoming', minimumStartUnits: 10 },
+        { direction: 'outgoing', maximumStartUnits: 12 },
+      ]);
+    }
+    await restarted.tree();
+    await optimizer.drain();
+    expect(launches).toHaveLength(2);
+    expect(launches.map(({ objective }) => objective).sort()).toEqual(['pri', 'time']);
+    for (const asked of launches) {
+      if (asked.kind !== 'connected') throw Error('connected child required');
+      const built = q2.requests[asked.objective];
+      if (built.kind !== 'request') throw Error('Q2 request required');
+      expect(asked.request).toEqual(built.request);
+    }
+    const ready = await restarted.tree();
+    expect(ready).toMatchObject({
+      optimization: { variants: { pri: { state: 'ready' }, time: { state: 'ready' } } },
+    });
+    expect(
+      ready.slices.map(({ id, earliestStart, earliestFinish }) => [
+        id,
+        earliestStart,
+        earliestFinish,
+      ]),
+    ).toEqual([['a1-dep\u0000a1-s', 0.19999999999999998, 1.2]]);
+    expect(ready.slices).toMatchObject([
+      { float: 0.05000000000000002, latestStart: 0.25, latestFinish: 1.25, critical: false },
+    ]);
+    const storedQ2 = f.sqlite
+      .query<{ result_json: string }, [string]>(
+        'SELECT result_json FROM optimized_schedule_cache WHERE input_hash=? ORDER BY objective',
+      )
+      .all(q2.questions.pri.inputHash);
+    expect(storedQ2).toHaveLength(2);
+    for (const row of storedQ2)
+      expect(JSON.parse(row.result_json)).toMatchObject({ dtoVersion: 2, publication: 'baseline' });
+    const fixedSuccessor = await restarted.tree(restarted.app, 'a3');
+    expect(
+      fixedSuccessor.slices.map(({ id, earliestStart, earliestFinish }) => [
+        id,
+        earliestStart,
+        earliestFinish,
+      ]),
+    ).toEqual([
+      ['a3-long\u0000a3-s', 1.25, 2.25],
+      ['a3-short\u0000a3-s', 0, 1.25],
+    ]);
+    expect(
+      f.sqlite.query('SELECT * FROM optimization_boundary_certificate ORDER BY objective').all(),
+    ).toEqual(certificates);
+    expect(f.sqlite.query('SELECT * FROM solver_queue').all()).toEqual([]);
+    expect(f.sqlite.query('SELECT * FROM solver_slot').all()).toEqual([]);
+    const settledQ2 = wholeStore(f.sqlite);
+    await restarted.tree();
+    expect(wholeStore(f.sqlite)).toEqual(settledQ2);
+    expect(launches).toHaveLength(2);
+    const q2Generation = f.sqlite.query('SELECT * FROM optimization_generation').all();
+    expect(q2Generation).toMatchObject([
+      { project_id: 'a1', input_hash: q2.questions.pri.inputHash, generation: 2 },
+    ]);
+    await edit(1.2);
+    expect(f.sqlite.query('SELECT * FROM optimization_generation').all()).toEqual(q2Generation);
+    const returned = await capture();
+    expect(canonicalConnectedStageInput(returned)).toBe(canonicalConnectedStageInput(q1Stage));
+    const generation = f.sqlite.query('SELECT * FROM optimization_generation').all();
+    const beforeRetry = wholeStore(f.sqlite);
+    const refused = await restarted.app.handle(
+      new Request('http://localhost/api/projects/a1/optimization/retry', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
+        body: JSON.stringify({ inputHash: q1.questions.pri.inputHash, objective: 'pri' }),
+      }),
+    );
+    expect(refused.status).toBe(409);
+    const decision: unknown = await refused.json();
+    expect(wholeStore(f.sqlite)).toEqual(beforeRetry);
+    expect(f.sqlite.query('SELECT * FROM optimization_generation').all()).toEqual(generation);
+    expect(launches).toHaveLength(2);
+    expect(decision).toEqual({ code: 'not-retryable', state: 'boundary-infeasible' });
+    expect(
+      f.sqlite.query('SELECT * FROM optimization_boundary_certificate ORDER BY objective').all(),
+    ).toEqual(certificates);
+    expect(await restarted.tree()).toMatchObject(terminal);
+    await optimizer.drain();
+    expect(wholeStore(f.sqlite)).toEqual(beforeRetry);
+    expect(launches).toHaveLength(2);
+    expect(f.errors).toEqual([]);
+    expect(restarted.errors).toEqual([]);
+  } finally {
+    await restarted.close();
+  }
+});

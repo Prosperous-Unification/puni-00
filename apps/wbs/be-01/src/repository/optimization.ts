@@ -95,6 +95,9 @@ export function retryPreflightIn(tx: Transaction, ask: RetryAsk): RetryPreflight
           ],
         };
   // Proof: bypassing terminal lookup made mounted Retry after generation replacement return idle instead of boundary-infeasible.
+  // Proof: omitting only this return in services-connected-publication's mounted outgoing
+  // lifecycle preserved HTTP409 and whole-store/launch counts but returned idle for Q1
+  // after authored Q2→Q1 (puni-task74-retained-retry-fault.log).
   if (retained?.outcome.kind === 'boundary-infeasible')
     return {
       kind: 'refused',
