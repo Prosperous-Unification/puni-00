@@ -201,20 +201,30 @@ export interface ConfirmedReplyOptions {
 }
 
 /**
- * Streams one paid conversation reply as an AI SDK UI message stream and emits the finish event
- * only after {@link ConfirmedReplyOptions.complete} has stored the reply with final provider usage.
- * A timeout, abort, browser disconnect, provider or stream error, missing raw usage, an empty or
- * oversized reply, or a refused completion marks the operation unknown and ends the stream with an
- * error chunk. A provider refusal ({@link ProviderRefusal}) instead completes with the decline
- * reply at the provider-reported usage; missing refusal usage settles the reserved ceiling. It streams a confirmed decline with
- * a `stop` finish; the refusal's own error chunk is never forwarded. Partial text may already
- * have streamed before the refusal, so the decline is sent as a `data-reply-replace` part
- * ({@link replyReplacePart}) after every open text part is ended: the replacement supersedes the
- * partial text and the folded stream equals the stored reply. Ordinary replies still stream token
- * by token. Durable cancellation is checked every 50 ms while the provider is running and before
- * forwarding each chunk; completion remains fenced by the store. Cleanup in another process therefore aborts an idle
- * provider and suppresses subsequent publication, including queued provider chunks. Already delivered text
- * cannot be recalled. The watcher is released with the provider deadline on every terminal outcome.
+ * Streams one paid reply through the AI SDK UI protocol; finish is published only after durable
+ * settlement. Legacy mode streams text progressively and settles through
+ * {@link ConfirmedReplyOptions.complete}.
+ * An empty or oversized legacy reply is unknown and settles at its reserved ceiling.
+ *
+ * Structured mode buffers the entire envelope, validates it and commits through
+ * {@link ConfirmedReplyOptions.structured} before publishing readable prose. A malformed,
+ * oversized or truncated envelope with valid usage completes accounting at the actual cost and
+ * publishes the fixed manual-path reply with `data-reply-failure`; no invalid model content or
+ * scoping action is published or saved. A valid envelope publishes only its committed prose.
+ *
+ * A provider refusal ({@link ProviderRefusal}) with valid usage completes with the server-owned
+ * decline at the reported cost. Legacy mode ends open text parts and sends {@link replyReplacePart}
+ * to replace any already-streamed partial text; structured mode publishes the decline only after
+ * settlement. Both finish with `stop` and suppress the provider refusal's own error chunk.
+ * Missing or invalid usage, including refusal usage, always settles at the full reserved ceiling
+ * and ends with an error chunk. Explicitly reported zero usage remains distinct from missing usage.
+ * Timeout, abort, disconnect, provider/stream errors and rejected completion likewise mark the
+ * operation unknown rather than publishing a confirmed reply.
+ *
+ * Durable cancellation is checked every 50 ms and before forwarding chunks; the store fences
+ * completion too. Cleanup in another process aborts an idle provider and suppresses subsequent
+ * publication, including queued chunks. Already delivered legacy text cannot be recalled. The
+ * watcher and provider deadline are released on every terminal outcome.
  */
 export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const abort = new AbortController();
