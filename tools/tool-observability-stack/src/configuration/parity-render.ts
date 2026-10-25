@@ -38,9 +38,14 @@ function execute(path: string, arguments_: string[]): string {
 export async function renderParityInput(rootPath: string, toolsPath: string): Promise<ParityInput> {
   const root = resolve(rootPath),
     tools = resolve(toolsPath);
-  const lock = Lock.assert(
-    JSON.parse(await readFile(join(root, 'infra/versions/toolchain.json'), 'utf8')),
-  );
+  const lockText = await readFile(join(root, 'infra/versions/toolchain.json'), 'utf8');
+  let lock: typeof Lock.infer;
+  try {
+    // Proof: bypassing this schema loses the malformed-lock required-field/type CLI diagnostics; malformed JSON also refuses here.
+    lock = Lock.assert(JSON.parse(lockText));
+  } catch (failure) {
+    throw new Error('malformed renderer lock', { cause: failure });
+  }
   const kubectl = join(tools, 'kubectl'),
     helm = join(tools, 'helm');
   let kubectlBytes: Buffer;
@@ -55,6 +60,7 @@ export async function renderParityInput(rootPath: string, toolsPath: string): Pr
   const version = type({ clientVersion: { gitVersion: 'string' } }).assert(
     JSON.parse(execute(kubectl, ['version', '--client', '-o', 'json'])),
   );
+  // Proof: removing either version comparison loses its independently controlled kubectl/Helm CLI negative.
   if (
     version.clientVersion.gitVersion !== lock.binaries.kubectl.version ||
     execute(helm, ['version', '--template', '{{.Version}}']).trim() !== lock.binaries.helm.version
@@ -96,6 +102,7 @@ export async function renderParityInput(rootPath: string, toolsPath: string): Pr
           throw new Error(`renderer chart hash differs: ${release.metadata.name}`);
         const values = join(directory, `${environment}-${release.metadata.name}.json`);
         await writeFile(values, JSON.stringify(release.spec.values));
+        // Proof: removing this guard loses the duplicate-HelmRelease CLI diagnostic before semantic comparison.
         if (Object.hasOwn(effective, release.metadata.name))
           throw new Error('duplicate rendered HelmRelease');
         effective[release.metadata.name] = execute(helm, [

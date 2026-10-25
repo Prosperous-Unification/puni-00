@@ -208,7 +208,14 @@ function flatten(value: Json, path = '', leaves = new Map<string, Json>()): Map<
   } else leaves.set(path, value);
   return leaves;
 }
+const trustModePaths = new Set([
+  '/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value',
+  '/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value',
+]);
 function isPermittedPath(path: string, local: Json, production: Json): boolean {
+  // Proof: broadening these exact paths admits lookalike-field CLI negatives; widening either closed mode admits unknown/swapped-mode negatives.
+  if (trustModePaths.has(path))
+    return local === 'system-roots-plus-ca' && production === 'system-roots';
   if (
     /^\/rendered\/(ConfigMap:observability:signal-configuration\/metadata\/name|(StatefulSet:observability:signal-(collector|gateway)|Job:observability:elastic-settings)\/spec\/template\/spec\/volumes\/\d+\/configMap\/name)$/.test(
       path,

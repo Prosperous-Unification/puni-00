@@ -276,7 +276,7 @@
       "local": "object-store.puni-backup.svc:9000",
       "production": "hel1.your-objectstorage.com"
     },
-    "reason": "Disposable local object-store endpoint versus production backup destination; transport protocol remains mandatory and is currently refused.",
+    "reason": "Disposable local object-store endpoint versus production backup destination; transport protocol remains mandatory.",
     "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
   },
   {
@@ -346,7 +346,7 @@
       "local": "object-store.puni-backup.svc:9000",
       "production": "hel1.your-objectstorage.com"
     },
-    "reason": "Disposable local object-store endpoint versus production backup destination; transport protocol remains mandatory and is currently refused.",
+    "reason": "Disposable local object-store endpoint versus production backup destination; transport protocol remains mandatory.",
     "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
   },
   {
@@ -398,5 +398,25 @@
     },
     "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
     "verification": "openspec/changes/observability-environment-parity/specs/observability-environment-parity/spec.md#requirement-explicit-reviewed-differences"
+  },
+  {
+    "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "system-roots-plus-ca",
+      "production": "system-roots"
+    },
+    "reason": "The disposable local object store adds its CA to bundled system roots; production uses bundled system roots. Both retain the same certificate-verifying JVM executable, mounts and resource bounds.",
+    "verification": "tools/tool-fleet/src/backup-tls.test.ts"
+  },
+  {
+    "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "system-roots-plus-ca",
+      "production": "system-roots"
+    },
+    "reason": "The disposable local object store adds its CA to bundled system roots; production uses bundled system roots. Both retain the same certificate-verifying JVM executable, mounts and resource bounds.",
+    "verification": "tools/tool-fleet/src/backup-tls.test.ts"
   }
 ]

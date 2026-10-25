@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { expect, test } from 'bun:test';
-import { type Document, parseAllDocuments, stringify } from 'yaml';
+import { type Document, parseAllDocuments, parseDocument, stringify } from 'yaml';
 
 const root = resolve(import.meta.dir, '../../../..');
 const cli = join(import.meta.dir, 'parity-cli.ts');
@@ -110,7 +110,7 @@ function change(
   const documents = parseAllDocuments(payload.candidates[candidateName].rendered);
   edit(documents);
   payload.candidates[candidateName].rendered = documents
-    .map((document) => document.toString())
+    .map((document) => document.toString({ directives: false }))
     .join('---\n');
 }
 test('all reviewed candidates satisfy one contract', () => {
@@ -380,3 +380,209 @@ test('capacity exception cannot remove a resource bound', () => {
   Object.assign(payload.differences[0].expected, { production: null });
   refuses(payload, 'forbidden exception');
 });
+
+const trustRoot = {
+  rendered:
+    '/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec',
+  effective:
+    '/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec',
+};
+function findElastic(documents: Document[]): Document {
+  const elastic = documents.find(
+    (document) => document.getIn(['metadata', 'name']) === 'elasticsearch',
+  );
+  if (elastic === undefined) throw new Error('missing Elasticsearch test fixture');
+  return elastic;
+}
+function createTrustInput(localMode = 'system-roots-plus-ca', productionMode = 'system-roots') {
+  const payload = input();
+  for (const [name, mode] of [
+    ['local', localMode],
+    ['production', productionMode],
+  ] as const) {
+    const shared = parseDocument(
+      readFileSync(
+        join(root, 'infra/platform/observability/elastic/base/elasticsearch.yaml'),
+        'utf8',
+      ),
+    );
+    shared.setIn(
+      [
+        'spec',
+        'values',
+        'nodeSets',
+        0,
+        'podTemplate',
+        'spec',
+        'initContainers',
+        0,
+        'env',
+        0,
+        'value',
+      ],
+      mode,
+    );
+    change(
+      payload,
+      (documents) => {
+        findElastic(documents).setIn(['spec', 'values'], shared.getIn(['spec', 'values']));
+      },
+      name,
+    );
+    const elastic = parseDocument(
+      stringify({
+        apiVersion: 'elasticsearch.k8s.elastic.co/v1',
+        kind: 'Elasticsearch',
+        metadata: { name: 'elasticsearch' },
+      }),
+    );
+    elastic.set('spec', shared.getIn(['spec', 'values']));
+    payload.candidates[name].effective.elasticsearch = elastic.toString();
+  }
+  for (const path of Object.values(trustRoot))
+    payload.differences.push({
+      path: path + '/initContainers/0/env/0/value',
+      candidates: ['local', 'production'],
+      expected: { local: localMode, production: productionMode },
+      reason:
+        'Disposable local CA extends bundled roots; production retains bundled roots. Verified transport, the common executable and every sibling remain compared.',
+      verification: 'tools/tool-fleet/src/backup-tls.test.ts',
+    });
+  return payload;
+}
+function changeTrust(
+  payload: ReturnType<typeof input>,
+  view: keyof typeof trustRoot,
+  path: (string | number)[],
+  value: unknown,
+) {
+  if (view === 'rendered')
+    change(payload, (documents) => {
+      findElastic(documents).setIn(
+        ['spec', 'values', 'nodeSets', 0, 'podTemplate', 'spec', ...path],
+        value,
+      );
+    });
+  else {
+    const elastic = parseDocument(payload.candidates.production.effective.elasticsearch);
+    elastic.setIn(['spec', 'nodeSets', 0, 'podTemplate', 'spec', ...path], value);
+    payload.candidates.production.effective.elasticsearch = elastic.toString();
+  }
+}
+test('closed Elasticsearch trust modes satisfy one contract', () => {
+  const outcome = run(createTrustInput());
+  expect(outcome.exitCode).toBe(0);
+  expect(outcome.stderr.toString()).toBe('');
+});
+for (const [name, localMode, productionMode] of [
+  ['unknown local', 'insecure', 'system-roots'],
+  ['unknown production', 'system-roots-plus-ca', 'insecure'],
+  ['swapped', 'system-roots', 'system-roots-plus-ca'],
+  ['heap-shaped unknown', '-Xms1g -Xmx1g', '-Xms2g -Xmx2g'],
+] as const)
+  test(`closed Elasticsearch trust modes refuse ${name} even with matching exception values`, () => {
+    refuses(createTrustInput(localMode, productionMode), 'forbidden exception');
+  });
+for (const view of ['rendered', 'effective'] as const) {
+  for (const [name, path, value] of [
+    ['executable', ['initContainers', 0, 'command', 2], 'export NODE_TLS_REJECT_UNAUTHORIZED=0'],
+    ['mode variable', ['initContainers', 0, 'env', 0, 'name'], 'SKIP_TLS_VERIFY'],
+    ['JVM mount', ['containers', 0, 'volumeMounts', 1, 'readOnly'], false],
+    ['CA reference', ['volumes', 1, 'secret', 'secretName'], 'untrusted-credentials'],
+    ['init resources', ['initContainers', 0, 'resources', 'limits', 'memory'], '1Mi'],
+  ] satisfies [string, (string | number)[], unknown][])
+    test(`${view} trust-mode exception still compares ${name}`, () => {
+      const payload = createTrustInput();
+      changeTrust(payload, view, path, value);
+      refuses(payload, 'unreviewed difference');
+    });
+  test(`${view} trust allowance refuses a lookalike field path`, () => {
+    const payload = createTrustInput();
+    for (const candidateName of ['local', 'production'] as const) {
+      const text =
+        view === 'rendered'
+          ? payload.candidates[candidateName].rendered
+          : payload.candidates[candidateName].effective.elasticsearch;
+      const documents = parseAllDocuments(text);
+      findElastic(documents).setIn(
+        view === 'rendered'
+          ? ['spec', 'values', 'nodeSets', 0, 'podTemplate', 'spec', 'initContainers', 0, 'env', 1]
+          : ['spec', 'nodeSets', 0, 'podTemplate', 'spec', 'initContainers', 0, 'env', 1],
+        {
+          name: 'UNREVIEWED_MODE',
+          value: candidateName === 'local' ? 'system-roots-plus-ca' : 'system-roots',
+        },
+      );
+      const updated = documents
+        .map((document) => document.toString({ directives: false }))
+        .join('---\n');
+      if (view === 'rendered') payload.candidates[candidateName].rendered = updated;
+      else payload.candidates[candidateName].effective.elasticsearch = updated;
+    }
+    payload.differences.push({
+      ...payload.differences[1],
+      path: trustRoot[view] + '/initContainers/0/env/1/value',
+    });
+
+    refuses(payload, 'forbidden exception');
+  });
+  test(`${view} HTTP cannot be excepted beside the trust mode`, () => {
+    const payload = createTrustInput();
+    const path =
+      view === 'rendered'
+        ? ['spec', 'values', 'nodeSets', 0, 'config', 's3.client.default.protocol']
+        : ['spec', 'nodeSets', 0, 'config', 's3.client.default.protocol'];
+    if (view === 'rendered')
+      change(payload, (documents) => {
+        findElastic(documents).setIn(path, 'http');
+      });
+    else {
+      const elastic = parseDocument(payload.candidates.production.effective.elasticsearch);
+      elastic.setIn(path, 'http');
+      payload.candidates.production.effective.elasticsearch = elastic.toString();
+    }
+    payload.differences.push({
+      ...payload.differences[1],
+      path: trustRoot[view].replace('/podTemplate/spec', '') + '/config/s3.client.default.protocol',
+      expected: { local: 'https', production: 'http' },
+    });
+    refuses(payload, 'forbidden exception');
+  });
+  test(`${view} common trust program cannot be excepted`, () => {
+    const payload = createTrustInput();
+    for (const candidateName of ['local', 'production'] as const) {
+      const documents = parseAllDocuments(
+        view === 'rendered'
+          ? payload.candidates[candidateName].rendered
+          : payload.candidates[candidateName].effective.elasticsearch,
+      );
+      findElastic(documents).setIn(
+        view === 'rendered'
+          ? [
+              'spec',
+              'values',
+              'nodeSets',
+              0,
+              'podTemplate',
+              'spec',
+              'initContainers',
+              0,
+              'command',
+              2,
+            ]
+          : ['spec', 'nodeSets', 0, 'podTemplate', 'spec', 'initContainers', 0, 'command', 2],
+        candidateName === 'local' ? 'system-roots-plus-ca' : 'system-roots',
+      );
+      const updated = documents
+        .map((document) => document.toString({ directives: false }))
+        .join('---\n');
+      if (view === 'rendered') payload.candidates[candidateName].rendered = updated;
+      else payload.candidates[candidateName].effective.elasticsearch = updated;
+    }
+    payload.differences.push({
+      ...payload.differences[1],
+      path: trustRoot[view] + '/initContainers/0/command/2',
+    });
+    refuses(payload, 'forbidden exception');
+  });
+}
