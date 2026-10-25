@@ -700,6 +700,8 @@ describe('readMigrationFolders', () => {
       '20261023170000_add_work_item_budget',
       '20261025120000_add_resource_use',
       '20261025130000_add_resource_runtime',
+      '20261025140000_widen_organization_audit_directory_capacity',
+      '20261025140100_add_resource_directory_capacity',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -775,7 +777,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261025130000_add_resource_runtime');
+      expect(originalNames.at(-1)).toBe('20261025140100_add_resource_directory_capacity');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -903,11 +905,15 @@ describe('rollbackTo, against a real database', () => {
         '20261023170000_add_work_item_budget',
         '20261025120000_add_resource_use',
         '20261025130000_add_resource_runtime',
+        '20261025140000_widen_organization_audit_directory_capacity',
+        '20261025140100_add_resource_directory_capacity',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261025140100_add_resource_directory_capacity',
+        '20261025140000_widen_organization_audit_directory_capacity',
         '20261025130000_add_resource_runtime',
         '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
@@ -1120,6 +1126,8 @@ describe('rollbackTo, against a real database', () => {
         '20261023170000_add_work_item_budget',
         '20261025120000_add_resource_use',
         '20261025130000_add_resource_runtime',
+        '20261025140000_widen_organization_audit_directory_capacity',
+        '20261025140100_add_resource_directory_capacity',
       ]);
     } finally {
       db.cleanup();
@@ -1191,6 +1199,8 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261025140100_add_resource_directory_capacity',
+        '20261025140000_widen_organization_audit_directory_capacity',
         '20261025130000_add_resource_runtime',
         '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
@@ -1331,6 +1341,8 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261025140100_add_resource_directory_capacity',
+        '20261025140000_widen_organization_audit_directory_capacity',
         '20261025130000_add_resource_runtime',
         '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
@@ -1456,6 +1468,8 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261025140100_add_resource_directory_capacity',
+        '20261025140000_widen_organization_audit_directory_capacity',
         '20261025130000_add_resource_runtime',
         '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',

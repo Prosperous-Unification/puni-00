@@ -56,6 +56,8 @@ describe('space rollback save, remove and restore', () => {
     expect(snapshot()).toEqual({ spaces: [], members: [] });
 
     expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+      '20261025140100_add_resource_directory_capacity',
+      '20261025140000_widen_organization_audit_directory_capacity',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',

@@ -21,6 +21,11 @@ const MEASURES = [
   '20261023150000_key_step_measure',
   '20261023140000_add_measure',
 ];
+/** `wbs-shared-occupancy`'s two migrations, the newest, which reverse first. */
+const SHARED_OCCUPANCY = [
+  '20261025140100_add_resource_directory_capacity',
+  '20261025140000_widen_organization_audit_directory_capacity',
+];
 const roots: string[] = [];
 
 afterEach(() => {
@@ -83,7 +88,13 @@ function limitsOnlyStore(): string {
   const root = mkdtempSync(join(tmpdir(), 'wbs-resource-provider-baseline-'));
   roots.push(root);
   cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
-  for (const name of [RESOURCE_PROVIDER, AUDIT_WIDENING, CLAIM_LEASE, ...MEASURES])
+  for (const name of [
+    RESOURCE_PROVIDER,
+    AUDIT_WIDENING,
+    CLAIM_LEASE,
+    ...MEASURES,
+    ...SHARED_OCCUPANCY,
+  ])
     rmSync(join(root, 'drizzle', name), { recursive: true });
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, join(root, 'drizzle'));
@@ -186,7 +197,7 @@ describe(RESOURCE_PROVIDER, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
+      `rolled back: ${SHARED_OCCUPANCY.join(', ')}, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
     );
     expect(columnsOf(dbPath, 'resource')).not.toContain('provider_id');
     expect(columnsOf(dbPath, 'compute_provider')).toEqual([]);

@@ -749,6 +749,8 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261025140100_add_resource_directory_capacity',
+      '20261025140000_widen_organization_audit_directory_capacity',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',
@@ -833,6 +835,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'resource_runtime_use' &&
           name !== 'resource_use' &&
           name !== 'resource_use_event' &&
+          name !== 'resource_directory_capacity' &&
           name !== 'shared_people_restore_operation' &&
           name !== 'shared_people_restore_receipt' &&
           name !== 'shared_people_restore_consumption' &&

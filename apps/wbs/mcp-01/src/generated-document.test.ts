@@ -185,6 +185,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiOrganizationJoinRequestsByIdApprove',
     'postApiOrganizationJoinRequestsByIdDeny',
     'postApiOrganizationProjectsByIdRank',
+    'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
     // Proof: removing approveSharedPeopleRestore only from production httpShapes made
     // this pin fail with this operation expected-only (0 pass, 1 fail), 2026-10-14.
     'postApiOrganizationSharedPeopleRestoreApprovals',

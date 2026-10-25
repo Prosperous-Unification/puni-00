@@ -315,6 +315,17 @@ compose `env_file`: compose merges every env file into one namespace, so `be-01.
 The old image-based dev containers (`dev-*-blue`, `dev-*-green`) were kept, not removed, as the
 rollback, together with the `site-dev.caddy.bak-*` backups; delete them after a week of stability.
 
+**Directory capacities (`wbs-shared-occupancy`).** be-01 applies
+`20261025140000_widen_organization_audit_directory_capacity` and
+`20261025140100_add_resource_directory_capacity` at its restart. State a directory capacity
+only after that restart has finished and `/health` proves the new commit: a capacity stated
+while an older be-01 still serves is not counted by it. Rolling back past the table needs every
+capacity cleared first (`setDirectoryCapacity`, `units: null`); once any was written, the
+audit rows stop the rollback at the widening, so run
+`bun run src/migrate-down-cli.ts --to=20261025140000_widen_organization_audit_directory_capacity`
+in the be-01 directory of the dev checkout and report it (`docs/runbook-prod-deploy.md`,
+_Directory capacity_).
+
 **What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke
 test used to run on dev before prod. They no longer do. Run a prod dry-run deliberately
 before any prod deploy; dev will not catch a regression in that path.

@@ -253,6 +253,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiTimezones',
   'getApiWork-item-types',
   'postApiOrganizationActive',
+  'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
@@ -393,6 +394,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',

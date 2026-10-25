@@ -1,5 +1,7 @@
 import type {
   AssignmentWritten,
+  AuditedAct,
+  DirectoryCapacitySet,
   DirectoryCatalog,
   DirectoryCatalogRows,
   DirectoryRemoved,
@@ -38,7 +40,7 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import type { MeasureDefinition, MeasureUsage } from '@wbs/domain';
+import type { MeasureDefinition, MeasureUsage, ResourceCapacity } from '@wbs/domain';
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -75,6 +77,7 @@ import {
   projectTeamCapacity,
   resource,
   resourceCapacityReport,
+  resourceDirectoryCapacity,
   resourceOrganization,
   service,
   serviceOrganization,
@@ -1033,6 +1036,89 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
+  /** The stated directory capacities of `resourceIds`, on this repository's connection. */
+  async directoryCapacitiesOf(resourceIds: readonly string[]): Promise<ResourceCapacity[]> {
+    await Promise.resolve();
+    if (resourceIds.length === 0) return [];
+    return this.db
+      .select({
+        resourceId: resourceDirectoryCapacity.resourceId,
+        units: resourceDirectoryCapacity.units,
+      })
+      .from(resourceDirectoryCapacity)
+      .where(inArray(resourceDirectoryCapacity.resourceId, [...resourceIds]))
+      .orderBy(asc(resourceDirectoryCapacity.resourceId))
+      .all();
+  }
+
+  /**
+   * States or clears a directory capacity with its audit row in one
+   * transaction (`wbs-shared-occupancy` S1, S11). The organization is the
+   * resource's own `resource_organization` row: a legacy resource has none
+   * and is refused `organization_required` (S2).
+   *
+   * Proof: with the audit append removed, `writes one audit row per change,
+   * never a journal entry` (directory-capacity.controller.db.test.ts) found no
+   * row; with the organization refusal removed, the SQLite certification's
+   * `directory.setDirectoryCapacity:state-clear-remove` failed on the audit
+   * insert for the unowned stage; watched 2026-10-25.
+   */
+  async setDirectoryCapacity(
+    resourceId: string,
+    units: number | null,
+    act: AuditedAct,
+  ): Promise<DirectoryCapacitySet> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx): DirectoryCapacitySet => {
+        const held = tx
+          .select({ organizationId: resourceOrganization.organizationId })
+          .from(resource)
+          .leftJoin(resourceOrganization, eq(resourceOrganization.resourceId, resource.id))
+          .where(eq(resource.id, resourceId))
+          .get();
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        const { organizationId } = held;
+        if (organizationId === null) return { ok: false, reason: 'organization_required' };
+        const before =
+          tx
+            .select({ units: resourceDirectoryCapacity.units })
+            .from(resourceDirectoryCapacity)
+            .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+            .get()?.units ?? null;
+        if (units === null)
+          tx.delete(resourceDirectoryCapacity)
+            .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+            .run();
+        else
+          tx.insert(resourceDirectoryCapacity)
+            .values({ resourceId, units, ...auditOnCreate(act.stamp) })
+            .onConflictDoUpdate({
+              target: resourceDirectoryCapacity.resourceId,
+              set: { units, ...auditOnUpdate(act.stamp) },
+            })
+            .run();
+        appendOrganizationAudit(tx, {
+          id: act.auditId,
+          organizationId,
+          actorId: act.actor,
+          action: 'directory_capacity_changed',
+          subjectKind: 'resource',
+          subjectId: resourceId,
+          detail: { before, after: units },
+          at: act.stamp.at,
+        });
+        return {
+          ok: true,
+          before,
+          after: units,
+          organizationId,
+          projectIds: this.projectsNamingResource(tx, resourceId),
+        };
+      });
+    });
+  }
+
   /**
    * What names one resource right now — a fast path for the confirmation.
    * {@link DirectoryRepository.removeResource} decides.
@@ -1067,7 +1153,10 @@ export class DirectoryRepository implements DirectoryStore {
       return this.db.transaction((tx) => {
         const usage = this.resourceUsageIn(tx, resourceId);
         const inUse =
-          usage.demands.length > 0 || usage.capacities.length > 0 || usage.occupancies > 0;
+          usage.demands.length > 0 ||
+          usage.capacities.length > 0 ||
+          usage.occupancies > 0 ||
+          usage.directoryCapacity !== null;
         // Proof: removing outstandingUses admitted cascade deletion with unresolved runtime responsibility (2026-10-25).
         if ((!cascade && inUse) || (usage.outstandingUses ?? 0) > 0)
           return { ok: false, reason: 'in_use', usage };
@@ -1167,6 +1256,16 @@ export class DirectoryRepository implements DirectoryStore {
       // its removal is refused in_use` in `compute-provider.controller.db.test.ts`
       // read `providerId: null`; watched 2026-10-22.
       providerId: referenced?.providerId ?? null,
+      // Proof: with null answered here, `refuses removing a resource with a
+      // stated directory capacity, counting it` (directory-capacity.controller.db.test.ts)
+      // and the SQLite certification's `directory.setDirectoryCapacity:state-clear-remove`
+      // failed; watched 2026-10-25.
+      directoryCapacity:
+        reader
+          .select({ units: resourceDirectoryCapacity.units })
+          .from(resourceDirectoryCapacity)
+          .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+          .get()?.units ?? null,
       ...(tracked.count > 0 ? { outstandingUses: tracked.count } : {}),
     };
   }

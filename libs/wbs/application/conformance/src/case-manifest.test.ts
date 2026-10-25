@@ -105,6 +105,7 @@ describe('the closed case manifest', () => {
       'claims.observeProject:legacy-observation',
       'claims.lease:revoked-instant-read',
       'claims.occupancy:hold-read-cascade',
+      'claims.occupancy:organization-scope',
     ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],

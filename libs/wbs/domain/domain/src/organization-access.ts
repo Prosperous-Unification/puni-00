@@ -67,6 +67,21 @@ export function mayRemoveResourceInOrganization(role: OrganizationRole): boolean
 }
 
 /**
+ * Whether `role` may state, change or clear a resource's directory capacity,
+ * or preview that change or read the resource's holders across projects
+ * (`wbs-shared-occupancy` S11, S12, assumed): an admin or a super-admin, as
+ * {@link mayRemoveResourceInOrganization} decides a removal. The units of a
+ * shared resource bind every project of the organization, so stating them is
+ * an organization act. `role` is the one `organizationRoleOf` answered, so a
+ * machine credential and an MCP consent delegation acting as an agent person
+ * arrive as at most a member and are refused, while an admin's own MCP
+ * session keeps the admin's role.
+ */
+export function mayStateDirectoryCapacityInOrganization(role: OrganizationRole): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
+/**
  * Whether the scoped user may write to a project of that organization: a writing
  * role, and for a restricted project its creator.
  *

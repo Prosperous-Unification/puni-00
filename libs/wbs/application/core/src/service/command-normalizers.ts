@@ -491,6 +491,14 @@ export const commandNormalizers = {
       resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
       cascade: asOptionalFlag(raw.cascade, 'cascade'),
     }),
+  setDirectoryCapacity: (raw: CommandInput<'setDirectoryCapacity'>) =>
+    present({
+      kind: 'setDirectoryCapacity' as const,
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
+      units: resourceUnitsOf(raw, 0),
+      confirm: asOptionalFlag(raw.confirm, 'confirm'),
+    }),
   createMeasure: (raw: CommandInput<'createMeasure'>) =>
     present({
       kind: 'createMeasure' as const,

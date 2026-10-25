@@ -95,6 +95,13 @@ export function createWorkingPlanDirectory(
       (...parameters) => source().setResourceProvider(...parameters),
       ok,
     ),
+    // Read through, uncached: the claim check reads it inside the batch's turn.
+    directoryCapacitiesOf: (resourceIds) => source().directoryCapacitiesOf(resourceIds),
+    // A directory capacity names no plan row: nothing a working plan retains moves.
+    setDirectoryCapacity: afterWrite(
+      (...parameters) => source().setDirectoryCapacity(...parameters),
+      never,
+    ),
     usageOfResource: (resourceId) => source().usageOfResource(resourceId),
     // A cascaded removal takes demands and moves their rows' revisions, so the
     // retained plan reloads as after every other successful directory write.

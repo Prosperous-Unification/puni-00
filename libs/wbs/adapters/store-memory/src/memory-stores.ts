@@ -249,6 +249,13 @@ export class MemoryState {
       next.tables.directory.resources.capacities,
     );
     replaceMap(this.tables.directory.resources.demands, next.tables.directory.resources.demands);
+    // Proof: with the capacities' copy removed, `states and clears a directory
+    // capacity with its unit of work` (directory-capacity.test.ts in
+    // core) read no capacity after it committed; watched 2026-10-25.
+    replaceMap(
+      this.tables.directory.resources.directoryCapacities,
+      next.tables.directory.resources.directoryCapacities,
+    );
     // Proof: with this copy removed, `defines, patches and removes a measure,
     // listing it after the seeded five` (measure-command.test.ts) read no
     // `gpu_minutes` after its batch committed; watched 2026-10-23.
@@ -398,6 +405,26 @@ export function bindStores(
         organizationId,
         stamp,
       );
+      if (!written.ok) return written;
+      return {
+        ...written,
+        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+      };
+    },
+    // SQLite's twin over the ownership this source keeps: every id not the
+    // organization's, an unowned project included.
+    // Proof: with this override removed, the scoped directory capacity write
+    // of directory-capacity.test.ts threw `the in-memory directory has
+    // no project ownership` (2 pass, 2 fail); watched 2026-10-25.
+    projectsOutside(projectIds, organizationId) {
+      return Promise.resolve(
+        projectIds.filter(
+          (id) => state.tables.organizationLimits.projectOrganization.get(id) !== organizationId,
+        ),
+      );
+    },
+    async setDirectoryCapacity(resourceId, units, act) {
+      const written = await fixtureDirectory.setDirectoryCapacity(resourceId, units, act);
       if (!written.ok) return written;
       return {
         ...written,
@@ -703,6 +730,8 @@ export function bindStores(
         projects: state.tables.projects,
         workItems: state.tables.workItems,
         people: state.tables.directory.people,
+        projectOrganization: state.tables.organizationLimits.projectOrganization,
+        resourceOrganization: state.tables.directory.organizationOf,
       },
     ),
     dependencies,

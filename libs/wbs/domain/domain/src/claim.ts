@@ -94,6 +94,14 @@ export interface ClaimRequest {
   readonly capacities: readonly ResourceCapacity[];
   /** Every occupancy row of the project's claims ({@link OccupancyRow}). */
   readonly occupancy: readonly OccupancyRow[];
+  /**
+   * The stated directory capacities of the resources the leaf may ask for
+   * (`wbs-shared-occupancy` S1); a resource with none is counted within the
+   * project alone.
+   */
+  readonly directoryCapacities: readonly ResourceCapacity[];
+  /** The units every leaf of the organization holds of those resources ({@link refuseOccupancy}). */
+  readonly organizationOccupied: readonly ResourceUnits[];
 }
 
 /** One holder a refusal names; the command adds the person's name. */
@@ -338,6 +346,8 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
       asked: carried,
       capacities: request.capacities,
       occupancy: request.occupancy,
+      directoryCapacities: request.directoryCapacities,
+      organizationOccupied: request.organizationOccupied,
     });
     if (exhausted !== null) return refused(exhausted);
     occupancy = carried;
