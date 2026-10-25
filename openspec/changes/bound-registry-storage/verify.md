@@ -353,6 +353,65 @@ historical warning-bearing output remains intact. Public implementation range is
 `9efd6665e..044baa74a`; private fleet remains `b7e234415`. Full product build,
 installed-authority SSH, full host gate and production activation are not claimed.
 
+## Deployment integration checkpoint — native proof pending
+
+Task 3.2 remains open. Initial implementation commits are public
+`89fd22613838abf43d2c9598f19171f315593e93`, private website
+`1a3cc1139e9d115945a7c5dccb8febf483911595`, and private fleet
+`58831dbb4c62d8d5b425f2423592dd171599bf38`. Independent review found four
+Important defects: Kubernetes discovery omits nonpreferred served API versions;
+the private artifact client omits credentials required by native publication;
+the private reader confuses registered configuration identity with its owning
+Git directory; and the Compose reader rejects the supported service-free dev
+base. Fix round 1 addressed all four defects in public
+`7f6c436dc9c50ecc64d50158581a8ad87837f473` and private website
+`d4ead6ef7e518a76878d649773975d07336a92b8`. Independent scoped re-review
+passed spec compliance and code quality, with no new Critical/Important finding.
+The fixes passed 30 distinct public and six distinct private tests, actual
+publication/collector boundary rehearsals, and eleven deliberate safety-check
+removal boundaries. Initial static-check failures were corrected and the affected
+checks passed. No activation approval or installed-proof claim follows from this
+code review.
+
+Read-only manifest census implementation may proceed from these reviewed
+contracts while the parent-owned smoke proof remains queued. Task 3.2 stays open;
+all outstanding evidence remains required before final integration and activation.
+
+The configured public test targets passed: fleet **770 pass, 2 skip, 0 fail**
+and deploy **846 pass, 0 fail**, using
+`bunx nx run-many -t test -p tool-fleet tool-deploy --parallel=2 --skip-nx-cache --output-style=stream`.
+The exact remote-script source command from its project directory,
+`bun test src --preload ../test/scratch/preload.ts --timeout=10000`, passed
+**804 tests, 2 skips, 0 failures**. Its separate `test:caddy` dependency was
+not run in this slice. The fleet skips are opt-in native restic cases; the
+remote-script skips are opt-in native Docker solver-cleanup cases. Public
+lint/typecheck/build completed all 16 tasks; private website checks completed
+all five tasks, and private fleet test/lint/typecheck completed all three.
+These receipts precede the review fixes and do not verify those changes.
+
+The pinned Bun 1.4.2 website test target passed **173 tests, 728 assertions**;
+a subsequent source-parser check passed **17 assertions**. The actual private
+client/public bundled authority rehearsal passed durable promotion-receipt
+repair and the native private reader contract. Its observations remain fixture
+ports, and the independent review identified the unexercised registration and
+publication boundaries above. These checks do not prove installed adoption.
+
+Two earlier failures remain recorded as failures: the aggregate public test
+invocation selected generated duplicate tests and exposed a real missing
+unmanaged dependency in a replay fixture; the initial private suite had six
+cleanup-hook failures after asynchronous Docker removal. The replay fixture was
+corrected, and bounded checked cleanup convergence preceded the passing private
+rerun. Neither original command is counted as green.
+
+The corrected native Compose success/failure/cancellation proof is still queued
+under the canonical h4 heavy lock. An earlier invocation swallowed a failing
+`find` status and is not accepted as complete cleanup proof. The queued artifact
+has reviewed behavioral equivalence to the committed functions, not exact final
+bundle identity. Task 5.2 still requires the exact-revision installed proof,
+authenticated SSH reader transport, actual global Docker ownership census,
+compatible catalog rollout and full canonical host gate. No live product pins,
+registry storage, cleanup service or protection enrollment changed in this slice.
+
 ## Checks and unverified work
 
 For each completed slice and fix, the affected files passed ESLint, Prettier and
@@ -371,18 +430,18 @@ This is a requirement-level checkpoint, not a completion claim. Every row still
 needs final integrated and live evidence before the goal can be marked complete.
 The slice receipts above are narrower evidence and do not substitute for that audit.
 
-| Requirement                                     | Current evidence and remaining work                                                              |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Enforced registry storage boundary              | Physical fixtures and scoped review passed; production provisioning/startup pending.             |
-| Publication admission and pressure response     | Authority/supervisor and publication/copy proofs reviewed; live activation pending.              |
-| Protect images before referring to them         | Publication roots and journal primitives reviewed; deploy/rollback callers pending.              |
-| Complete trusted consumer inventory             | Registered adapter and complete census implementation pending.                                   |
-| Release-aware retirement eligibility            | Pure retention policy reviewed; exact manifest retirement integration pending.                   |
-| Complete image dependency closure               | Pure graph validation reviewed; native complete registry census pending.                         |
-| Serialized recoverable maintenance              | Durable authority reviewed; coordinated backup/delete/GC/recovery integration pending.           |
-| Bounded backup lifecycle                        | Budget, retention and isolated post-prune restore pending.                                       |
-| Proven monitoring and adoption                  | Real alert destination/delivery, missed-check proof and staged adoption pending.                 |
-| Physical backup accounting                      | Provider version/multipart census and budget admission pending.                                  |
-| Early pressure response                         | Threshold policy reviewed; periodic service/retirement/notification integration pending.         |
-| Per-environment rollback coverage               | Pure minimum-retention policy reviewed; real environment history/protection integration pending. |
-| Independent journal capacity and durable fences | Independent journal/HTTP fence proofs and parser review passed; live activation pending.         |
+| Requirement                                     | Current evidence and remaining work                                                      |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Enforced registry storage boundary              | Physical fixtures and scoped review passed; production provisioning/startup pending.     |
+| Publication admission and pressure response     | Authority/supervisor and publication/copy proofs reviewed; live activation pending.      |
+| Protect images before referring to them         | Publication and deployment code reviewed; native and installed proofs pending.           |
+| Complete trusted consumer inventory             | Adapter code reviewed; installed readers and complete native registry census pending.    |
+| Release-aware retirement eligibility            | Pure retention policy reviewed; exact manifest retirement integration pending.           |
+| Complete image dependency closure               | Pure graph validation reviewed; native complete registry census pending.                 |
+| Serialized recoverable maintenance              | Durable authority reviewed; coordinated backup/delete/GC/recovery integration pending.   |
+| Bounded backup lifecycle                        | Budget, retention and isolated post-prune restore pending.                               |
+| Proven monitoring and adoption                  | Real alert destination/delivery, missed-check proof and staged adoption pending.         |
+| Physical backup accounting                      | Provider version/multipart census and budget admission pending.                          |
+| Early pressure response                         | Threshold policy reviewed; periodic service/retirement/notification integration pending. |
+| Per-environment rollback coverage               | History/protection code reviewed; native and installed proof pending.                    |
+| Independent journal capacity and durable fences | Independent journal/HTTP fence proofs and parser review passed; live activation pending. |
