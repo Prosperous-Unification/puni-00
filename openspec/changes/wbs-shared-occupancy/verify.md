@@ -216,3 +216,22 @@ wbs-contracts wbs-conformance wbs-be-01 wbs-mcp-01 tool-git-hooks` → exit 0.
 
 Not proven here: the spec's roll-up scenario for 1.3 (a space roll-up recomputed against the
 clamped pool) needs 6.1's clamp; the announce half is proven above.
+
+### Task 3.5: the measurement (recorded, not yet passed)
+
+`bun libs/wbs/adapters/store-sqlite/src/testing/measure-shared-occupancy.ts`: 50 projects of one
+organization, 20 standing claims each of `host ram` (two claim rows per leaf, one per step),
+200 claim batches with a directory capacity stated and 200 without, alternated, on the
+author's laptop with another heavy agent possibly running. Three runs, 2026-10-25:
+
+| Run | stated p50 / p99 (ms) | unstated p50 / p99 (ms) | added at p99      |
+| --- | --------------------- | ----------------------- | ----------------- |
+| 1   | 19.432 / 28.075       | 15.584 / 23.289         | 4.786 ms, 20.55 % |
+| 2   | 21.201 / 42.988       | 17.132 / 36.137         | 6.851 ms, 18.96 % |
+| 3   | 19.519 / 28.125       | 15.512 / 23.805         | 4.320 ms, 18.15 % |
+
+The percentage bound (25 %) held in all three; the 5 ms bound was crossed once (run 2, a
+noisy p99), and the median cost is a steady 4 ms: the organization read answers every
+standing row (about 2,000) and the check folds them in JavaScript. By the task's own rule
+the remedy comes first: a per-resource sum query (units per leaf summed in SQL, holders read
+only for a refusal) or the index `claim_occupancy (resource_id, claim_id)`. 3.5 stays open.
