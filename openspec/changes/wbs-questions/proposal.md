@@ -2,9 +2,9 @@
 
 ## Why
 
-Agents meet decisions the plan left open and blockers they cannot pass. Those land in resume
-notes, memory and chat; nothing counts how many were never looked at, and the agent grades
-its own freedom to assume. Dany, 2026-10-25: "single place to track them … track how much
+Agents meet decisions the plan left open and blockers they cannot pass. Those land in notes
+and chat; nothing counts how many were never looked at, and the agent grades its own freedom
+to assume. Dany, 2026-10-25: "single place to track them … track how much
 assumptions go unnoticed … author will need to receive notifications about blockers".
 
 ## What Changes
@@ -18,7 +18,7 @@ WBS answers `queued`, `notified` or `blocked`. Blocked writes the existing step 
 ends the attempt; the other two let the agent proceed on its proposed answer.
 
 **Reviewers answer.** Accept closes; overturn stores the real answer and creates a follow-up
-work item under the same leaf; resolve answers a blocker and removes the blockage.
+work item beside the leaf; resolve answers a blocker and removes the blockage.
 
 **Policy per project**, inherited from organization and deployment default: mode `by_step`
 or `offline`, a profile per step phase, topics with push flags, notice settings. Hard gates
@@ -26,19 +26,19 @@ are fixed per deployment.
 
 **Notices** per reviewer on open, on aging, and in a daily digest, via the OpenClaw gateway.
 **Counts** per project and agent: unnoticed, overturn rate, wrong-fact rate, blocked time.
-**Queue page** in fe-01 by derived priority.
+**Queue page** in fe-01.
 
 ## Non-Goals
 
 No parking of a running attempt. No per-project hard gates. No email adapter yet. No question
-on a parent. No scheduler input beyond the owned step blockage. No re-dispatch after resolve;
-the node becomes startable.
+on a parent. No scheduler input beyond the owned blockage. No re-dispatch after resolve. No
+undo for submit, review or resolve.
 
 ## Constraints
 
 Additive migrations with `down.sql`. New command kinds move the contracts and mcp-01 pins.
-Disposition is computed inside the submit write and stored with the policy version. A missing
-risk fact is a refusal, never a default. Every rule and count has a production-path negative.
+Disposition is computed inside the submit write and stored with its basis. A missing risk
+fact is a refusal, never a default. Every rule and count has a production-path negative.
 
 ## Capabilities
 
@@ -49,9 +49,10 @@ risk fact is a refusal, never a default. Every rule and count has a production-p
 
 ## Domain Terms
 
-Question, Question kind, Risk fact, Topic, Disposition, Review, Follow-up work item, Question
-policy, Policy mode, Step phase, Phase profile, Hard gate, Reviewer, Notice, Question priority,
-Unnoticed question — new, in `CONTEXT.md`.
+Question, Question kind, Risk fact, Fact condition, Topic, Disposition, Policy basis, Review,
+Follow-up work item, Question policy, Policy mode, Step phase, Phase profile, Hard gate,
+Reviewer, Notice, Downstream reach, Question priority, Unnoticed question — new, in
+`CONTEXT.md`.
 
 ## Decisions Recorded
 

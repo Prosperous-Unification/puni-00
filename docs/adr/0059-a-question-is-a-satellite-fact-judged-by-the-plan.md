@@ -31,5 +31,12 @@ is derived on read from the work item's priority and the sub-tree the node unloc
   through the step blockage it owns while blocked.
 - Hard gates are fixed per deployment, so no project configuration, including `offline`, can
   make an agent assume a destructive, spending, production or access change.
-- A disposition is stored with the policy version that produced it; changing a policy never
-  rewrites history, so the counts stay comparable over time.
+- A disposition is stored with a basis snapshot that replays it without any policy row;
+  changing a policy, the deployment default or the hard gates never rewrites history, so
+  the counts stay comparable over time.
+- A blocked question owns the blockage it wrote: ordinary blockage writes, attempt starts
+  and plan imports refuse to go around it until a reviewer resolves it.
+- Submit, review and resolve are audited facts outside the command journal; nothing undoes
+  them. The follow-up work item an overturn creates is an ordinary work item and can be.
+- Who may answer is the permission to edit the plan; the reviewer list only decides who is
+  told. A project has no owner, so an empty list means nobody is told.
