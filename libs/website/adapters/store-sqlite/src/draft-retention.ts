@@ -44,7 +44,8 @@ export interface DraftCleanupOutcome {
 }
 
 // A retained draft is blanked, and intake never stores a blank description, so `description <> ''`
-// keeps an already-retained draft out of later cohorts.
+// keeps an already-retained draft out of later cohorts unless a prior binary left raw Retry text.
+// Proof: removing the request_json rescue predicate left the expired payload-only fixture unselected.
 const candidateQuery = `
   SELECT draft.id, draft.expires_at, talk.id AS conversation_id,
     (SELECT count(*) FROM conversation_turn WHERE conversation_id = talk.id) AS turns,
@@ -54,7 +55,7 @@ const candidateQuery = `
       WHERE conversation_id = talk.id AND (state <> 'completed' OR utc_day >= ?2)) AS retained_operations
   FROM intake_draft AS draft
   LEFT JOIN conversation AS talk ON talk.draft_id = draft.id
-  WHERE draft.expires_at <= ?1 AND draft.consumed_at IS NULL AND draft.description <> ''
+  WHERE draft.expires_at <= ?1 AND draft.consumed_at IS NULL AND (draft.description <> '' OR EXISTS (SELECT 1 FROM conversation_operation WHERE conversation_id = talk.id AND request_json IS NOT NULL))
     AND NOT EXISTS (SELECT 1 FROM proposal_submission WHERE draft_id = draft.id)
     AND NOT EXISTS (SELECT 1 FROM software_request WHERE draft_id = draft.id)
     AND NOT EXISTS (SELECT 1 FROM account_request WHERE draft_id = draft.id)

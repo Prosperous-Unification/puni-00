@@ -407,3 +407,39 @@ export function resolveScopingAnswer(
     },
   };
 }
+
+/** Raw visitor input retained for an explicit retry under the original operation identity. */
+export type ScopingAnswerRequest =
+  | { message: string; selected?: ScopingAnswerSelection }
+  | { message?: string; selected: ScopingAnswerSelection };
+
+/** Validates a raw answer independently of live revision; admission owns the revision comparison. */
+export function parseScopingAnswerRequest(input: unknown): ScopingParse<ScopingAnswerRequest> {
+  // Proof: bypassing this shape guard made the normalized-answer fixture throw on null instead of returning invalid.
+  if (!isRecord(input)) return { kind: 'invalid', reason: 'answer_shape' };
+  const selected = input['selected'];
+  let current: ScopingQuestionState = { questionId: null, revision: 0 };
+  if (Object.hasOwn(input, 'selected')) {
+    // Proof: bypassing this boundary made the normalized-answer fixture throw on unknown IDs/revisions instead of returning invalid.
+    if (
+      !isRecord(selected) ||
+      !isQuestionId(selected['questionId']) ||
+      !isRevision(selected['revision'])
+    )
+      return { kind: 'invalid', reason: 'selection_fields' };
+    current = { questionId: selected['questionId'], revision: selected['revision'] };
+  }
+  const parsed = resolveScopingAnswer(input, current);
+  // Proof: bypassing raw validation failed the normalized-answer fixture for empty/oversized text and forged fields.
+  if (parsed.kind !== 'valid') return { kind: 'invalid', reason: 'answer_request' };
+  const message = input['message'];
+  if (parsed.value.selected !== null)
+    return {
+      kind: 'valid',
+      value: {
+        ...(typeof message === 'string' ? { message } : {}),
+        selected: parsed.value.selected,
+      },
+    };
+  return { kind: 'valid', value: { message: parsed.value.message } };
+}

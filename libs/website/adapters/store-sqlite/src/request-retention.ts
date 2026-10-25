@@ -92,6 +92,7 @@ const previewContent = nonblank('body');
  */
 function draftContentTimes(draftId: string): string {
   // Proof: omitting scoping text lost both scoping-only coverage/first-content fixtures.
+  // Proof: omitting request_json lost the payload-only coverage and first-content-bound fixture.
   return `SELECT first_content_at AS created_at FROM draft_scoping
       WHERE draft_id = ${draftId} AND (${nonblank("coalesce(reference_text, '')")} OR ${nonblank("coalesce(candidate_brief, '')")})
     UNION ALL SELECT turn.created_at FROM conversation AS talk
@@ -100,7 +101,7 @@ function draftContentTimes(draftId: string): string {
     UNION ALL SELECT step.created_at FROM conversation AS talk
       JOIN conversation_operation AS step ON step.conversation_id = talk.id
       WHERE talk.draft_id = ${draftId}
-        AND (${nonblank('step.message')} OR ${nonblank("coalesce(step.reply, '')")})`;
+        AND (${nonblank('step.message')} OR ${nonblank("coalesce(step.reply, '')")} OR ${nonblank("coalesce(step.request_json, '')")})`;
 }
 // Proof: removing the conversation_turn branch left the turn-only draft request uncovered in the coverage test.
 const requestHasContent = `(

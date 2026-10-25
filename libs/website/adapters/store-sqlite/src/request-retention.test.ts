@@ -22,6 +22,7 @@ const retentionMigrations: readonly string[] = [
   '006_retention_subject',
   '010_retention_journal',
   '011_scoping',
+  '012_conversation_request',
 ];
 const leapDay = Date.UTC(2024, 1, 29, 15, 0, 0, 0);
 const leapDeadline = Date.UTC(2025, 1, 28, 15, 0, 0, 0);

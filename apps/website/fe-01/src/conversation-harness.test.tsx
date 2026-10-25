@@ -17,6 +17,7 @@ const reply = [
 ].join('\n');
 
 const briefed: Conversation = {
+  scoping: { version: 'legacy' },
   stage: 'contact',
   turns: [
     { role: 'user', content: 'A booking tool' },
@@ -634,5 +635,50 @@ test('a refused check from the API shows the manual path', async () => {
   );
   expect(api.posts).toHaveLength(1);
   expect(harness.container.querySelector('.harness-interrupted')).toBeNull();
+  harness.unmount();
+});
+
+test('rendered Retry posts exact persisted selected answer after remount', async () => {
+  const answer = {
+    selected: { questionId: 'launch-purpose' as const, answerId: 'buy-book', revision: 2 },
+    message: '  Exact explanation  ',
+  };
+  const stopped: Conversation = {
+    ...briefed,
+    stage: 'clarify',
+    brief: '',
+    scoping: {
+      version: 1,
+      startConversation: true,
+      startingChoice: 'launch',
+      questionId: 'launch-purpose',
+      revision: 2,
+      references: null,
+      candidateBrief: null,
+      emailInvitationDeclined: false,
+    },
+    latestOperation: {
+      state: 'unknown',
+      truncated: false,
+      idempotencyKey: 'selected-retry-key',
+      message: 'Buy or book\n\n  Exact explanation  ',
+      answer,
+    },
+  };
+  const api = stubApi({ streamStatus: 503, streamCode: 'provider_unavailable' });
+  const harness = await mountHarness(stopped, () => Promise.resolve(null));
+  const button = [...harness.container.querySelectorAll('button')].find((candidate) =>
+    candidate.textContent.includes('Retry'),
+  );
+  if (!button) throw new Error('Retry missing');
+  await act(async () => {
+    button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+  });
+  await settleUntil(
+    () => api.posts.length === 1,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts).toEqual([{ idempotencyKey: 'selected-retry-key', ...answer }]);
   harness.unmount();
 });

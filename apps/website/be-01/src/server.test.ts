@@ -743,6 +743,7 @@ test('GET /conversation reads only the claimed draft and reports the disabled pr
   expect(owner.headers.get('cache-control')).toBe('no-store');
   expect(owner.headers.get('set-cookie')).toBeNull();
   expect(await owner.json()).toEqual({
+    scoping: { version: 'legacy' },
     stage: 'clarify',
     turns: [],
     visitorTurnsRemaining: 8,
@@ -1583,4 +1584,135 @@ test('the funnel overview needs an operator session', async () => {
   expect(await missing.json()).toEqual({ code: 'operator_unauthorized' });
   const forged = await readFunnel(`puni_operator=${'a'.repeat(64)}`);
   expect(forged.status).toBe(401);
+});
+
+for (const encoding of ['json', 'form'] as const) {
+  for (const opening of [
+    { startingChoice: 'launch', description: undefined, expected: 'Launch an app or website' },
+    {
+      startingChoice: undefined,
+      description: '  My exact opening  ',
+      expected: '  My exact opening  ',
+    },
+    {
+      startingChoice: 'automate',
+      description: '  Keep this text  ',
+      expected: '  Keep this text  ',
+    },
+  ])
+    test(`versioned ${encoding} intake persists ${opening.expected}`, async () => {
+      const { config } = fixture();
+      const api = mountApi({ ...config, appBuildUrl: `${config.appOrigin}/studio` });
+      const fields = {
+        ...(opening.startingChoice ? { startingChoice: opening.startingChoice } : {}),
+        ...(opening.description ? { description: opening.description } : {}),
+        startConversation: true,
+      };
+      const response = await api.fetch(
+        new Request('http://localhost:3101/intakes', {
+          method: 'POST',
+          headers: {
+            origin: config.publicOrigin,
+            'content-type':
+              encoding === 'json' ? 'application/json' : 'application/x-www-form-urlencoded',
+          },
+          body:
+            encoding === 'json'
+              ? JSON.stringify(fields)
+              : new URLSearchParams({ ...fields, startConversation: 'true' }).toString(),
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(await response.json()).toEqual({ next: '/studio' });
+      const cookie = response.headers.get('set-cookie')?.split(';')[0];
+      const conversation = await api.fetch(
+        request('/conversation', 'GET', config.appOrigin, undefined, cookie),
+      );
+      expect(await conversation.json()).toMatchObject({
+        description: opening.expected,
+        scoping: {
+          version: 1,
+          startConversation: true,
+          startingChoice: opening.startingChoice ?? null,
+          questionId: null,
+          revision: 0,
+          references: null,
+          candidateBrief: null,
+          emailInvitationDeclined: false,
+        },
+      });
+      api.close();
+    });
+}
+
+test('versioned intake rejects malformed intent before creating any drafts', async () => {
+  const { api, config } = fixture();
+  for (const fields of [
+    { startingChoice: 'unknown', startConversation: true },
+    { description: 'Typed opening', startingChoice: 'unknown', startConversation: true },
+    { startConversation: true },
+    {},
+    { description: 'text', startConversation: 'true' },
+    { description: 'text', startingChoice: null },
+    { description: 'text', startConversation: null },
+    { description: 'text', extra: 'ignored?' },
+  ]) {
+    const response = await api.fetch(request('/intakes', 'POST', config.publicOrigin, fields));
+    expect(response.status).toBe(400);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  }
+  const malformedForm = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: { origin: config.publicOrigin, 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'description=hello&startConversation=yes',
+    }),
+  );
+  expect(malformedForm.status).toBe(400);
+  const forged = await api.fetch(
+    request('/intakes', 'POST', 'https://foreign.example', {
+      startingChoice: 'launch',
+      startConversation: true,
+    }),
+  );
+  expect(forged.status).toBe(403);
+  const database = new Database(config.databasePath, { readonly: true });
+  expect(database.query('SELECT count(*) AS count FROM intake_draft').get()).toEqual({ count: 0 });
+  expect(database.query('SELECT count(*) AS count FROM conversation_operation').get()).toEqual({
+    count: 0,
+  });
+  database.close();
+  api.close();
+});
+
+test('versioned native intake redirects without visitor content and legacy remains manual', async () => {
+  const { config } = fixture();
+  const api = mountApi({ ...config, appBuildUrl: `${config.appOrigin}/studio` });
+  const response = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: {
+        origin: config.publicOrigin,
+        accept: 'text/html',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: 'startingChoice=unsure&startConversation=false',
+    }),
+  );
+  expect(response.status).toBe(303);
+  expect(response.headers.get('location')).toBe(`${config.appOrigin}/studio`);
+  expect(await response.text()).toBe('');
+  const versionedCookie = response.headers.get('set-cookie')?.split(';')[0];
+  expect(
+    await (
+      await api.fetch(request('/conversation', 'GET', config.appOrigin, undefined, versionedCookie))
+    ).json(),
+  ).toMatchObject({ scoping: { version: 1, startConversation: false, startingChoice: 'unsure' } });
+  const { cookie } = await beginDraft(api);
+  expect(
+    await (
+      await api.fetch(request('/conversation', 'GET', config.appOrigin, undefined, cookie))
+    ).json(),
+  ).toMatchObject({ scoping: { version: 'legacy' } });
+  api.close();
 });

@@ -1,4 +1,5 @@
 import type { BrowserChallenge } from './browser-check';
+import type { QuestionId, ScopingAnswerRequest, StartingChoiceId } from './scoping';
 
 export type ProposalStatus = 'submitted' | 'reviewing' | 'contacted' | 'closed';
 
@@ -59,8 +60,23 @@ export interface ConversationOperationView {
   truncated: boolean;
 }
 
+/** Durable questionnaire state exposed without persistence adapter types. */
+export type ConversationScoping =
+  | { version: 'legacy' }
+  | {
+      version: 1;
+      startConversation: boolean;
+      startingChoice: StartingChoiceId | null;
+      questionId: QuestionId | null;
+      revision: number;
+      references: string | null;
+      candidateBrief: string | null;
+      emailInvitationDeclined: boolean;
+    };
+
 /** `GET /conversation`: the claim-bound anonymous conversation over one intake draft. */
 export interface ConversationView {
+  scoping: ConversationScoping;
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
   visitorTurnsRemaining: number;
@@ -71,7 +87,8 @@ export interface ConversationView {
   description: string;
   csrfToken: string;
   initialOperation: ConversationOperationView | null;
-  latestOperation: (ConversationOperationView & { message: string }) | null;
+  latestOperation:
+    (ConversationOperationView & { message: string; answer: ScopingAnswerRequest | null }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
   /**
    * The browser check to solve before the first paid reply; null once the conversation has an

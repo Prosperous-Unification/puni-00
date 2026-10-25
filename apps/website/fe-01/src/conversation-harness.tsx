@@ -223,7 +223,11 @@ export function LiveHarness({
                 initial: true,
                 ...(solution ? { check: solution } : {}),
               }
-            : { idempotencyKey: attempt.idempotencyKey, message: attempt.message },
+            : {
+                idempotencyKey: attempt.idempotencyKey,
+                // Proof: dropping raw answer forwarding made rendered Retry post resolved prose instead of the persisted selection.
+                ...(attempt.answer ?? { message: attempt.message }),
+              },
         }),
       });
       const stream = await transport.sendMessages({

@@ -966,3 +966,43 @@ test('every store on one database derives the same daily source salt and drops o
   blue.close();
   green.close();
 });
+
+test('scoping initial identity and opening are bound before any reservation', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  store.createDraft(
+    'scoping-draft',
+    'Persisted opening',
+    'scoping-claim',
+    day,
+    day + 60_000,
+    'source-a',
+    { version: 1, startingChoice: 'launch', startConversation: true },
+  );
+  let prices = 0;
+  const pricing: ConversationPricing = {
+    kind: 'paid',
+    price: () => {
+      prices++;
+      return 1000;
+    },
+  };
+  for (const fields of [
+    { idempotencyKey: 'forged-initial', message: 'Persisted opening' },
+    { idempotencyKey: 'initial:scoping-draft', message: 'Forged browser opening' },
+  ]) {
+    expect(
+      store.admitConversationOperation(
+        ask('scoping-claim', fields.idempotencyKey, fields.message, {
+          initial: true,
+          automatic: true,
+          pricing,
+        }),
+      ),
+    ).toEqual({ kind: 'invalid_initial' });
+  }
+  expect(prices).toBe(0);
+  expect(rows(databasePath, 'SELECT id FROM conversation_operation')).toEqual([]);
+  expect(rows(databasePath, 'SELECT id FROM conversation')).toEqual([]);
+  store.close();
+});

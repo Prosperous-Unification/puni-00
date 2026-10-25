@@ -6,6 +6,8 @@ import {
   type ConversationView,
   deriveStage,
   type DraftView,
+  parseScopingIntake,
+  type ScopingAnswerRequest,
 } from '@website/contracts';
 import {
   type ConversationAdmission,
@@ -29,6 +31,7 @@ import { mintBrowserCheck, verifyBrowserCheck } from './conversation/browser-che
 import {
   composeConversationRequest,
   defaultConversationReplyTokens,
+  parseConversationAnswer,
   priceConversationRequest,
   simulateReply,
   visitorMessageLimit,
@@ -729,6 +732,9 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       ],
       paused: ['provider_paused', 503],
       challenge_required: ['challenge_required', 428],
+      stale_answer: ['stale_answer', 409],
+      automatic_forbidden: ['automatic_forbidden', 409],
+      invalid_initial: ['invalid_initial', 409],
     } as const;
     const [code, status] = refusals[admitted.kind];
     return failure(code, status);
@@ -788,8 +794,17 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const rate = admitRequestRate('/intakes', source, now);
       if (rate.kind !== 'admitted') return rateRefusal(rate);
       const body = await readBody(request);
-      const description = body && textField(body['description'], 2000);
-      if (!description) return failure('invalid_description', 400);
+      if (
+        body &&
+        request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')
+      ) {
+        const intent = body['startConversation'];
+        if (intent === 'true' || intent === 'false') body['startConversation'] = intent === 'true';
+      }
+      // Proof: bypassing the shared unknown-choice guard accepted typed text with an invented choice in the mounted versioned-intake refusal test.
+      const intake = parseScopingIntake(body);
+      if (intake.kind !== 'valid') return failure('invalid_description', 400);
+      const { description, protocol, startingChoice, startConversation } = intake.value;
       const priorClaim = draftClaim(request);
       const claim = secret();
       const created = store.createDraft(
@@ -799,6 +814,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         now,
         now + draftLifetime,
         source,
+        protocol === 'scoping' ? { version: 1, startingChoice, startConversation } : undefined,
       );
       // Proof: answering 201 with the claim cookie here put a Set-Cookie on the mounted draft-cap refusal.
       if (created.kind !== 'created') return attachSiteCors(capRefusal(created.kind, now));
@@ -869,6 +885,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
             )
           : null;
       const view: ConversationView = {
+        scoping: draft.scoping,
         challenge,
         stage: deriveStage(conversation?.state ?? 'open', visitorTurns),
         turns,
@@ -889,6 +906,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
               idempotencyKey: latest.idempotencyKey,
               truncated: latest.truncated,
               message: latest.message,
+              answer: latest.answer,
             }
           : null,
         exhaustedReason: conversation?.exhaustedReason ?? null,
@@ -909,13 +927,53 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const suppliedKey = body?.['idempotencyKey'];
       if (typeof suppliedKey !== 'string' || !/^[A-Za-z0-9:_-]{8,120}$/.test(suppliedKey))
         return attachCors(failure('invalid_idempotency_key', 400), origin);
-      const initial = body?.['initial'] === true;
+      // Proof: bypassing flag types accepted string/null flags in the mounted malformed-flags fixture.
+      if (
+        !body ||
+        (Object.hasOwn(body, 'initial') && typeof body['initial'] !== 'boolean') ||
+        (Object.hasOwn(body, 'automatic') && typeof body['automatic'] !== 'boolean')
+      )
+        return attachCors(failure('invalid_initial', 400), origin);
+      const initial = body['initial'] === true;
+      const automatic = body['automatic'] === true;
+      // Proof: bypassing this shape guard changed the mounted automatic-follow-up refusal from 400 to 409.
+      if ((automatic && !initial) || (initial && Object.hasOwn(body, 'selected')))
+        return attachCors(failure('invalid_initial', 400), origin);
       const draft = store.findDraft(digest(claim), now);
       if (!draft) return attachCors(failure('draft_unavailable', 401), origin);
-      const message = initial
-        ? draft.description
-        : textField(body?.['message'], visitorMessageLimit);
-      if (!message) return attachCors(failure('invalid_message', 400), origin);
+      let message = draft.description;
+      let normalizedAnswer: ScopingAnswerRequest | undefined;
+      if (!initial && draft.scoping.version === 1) {
+        const answer = parseConversationAnswer({
+          ...(Object.hasOwn(body, 'message') ? { message: body['message'] } : {}),
+          ...(Object.hasOwn(body, 'selected') ? { selected: body['selected'] } : {}),
+        });
+        if (answer.kind !== 'valid') return attachCors(failure('invalid_message', 400), origin);
+        message = answer.value.message;
+        normalizedAnswer = answer.value.request;
+      } else if (!initial) {
+        if (Object.hasOwn(body, 'selected'))
+          return attachCors(failure('invalid_message', 400), origin);
+        const legacyMessage = textField(body['message'], visitorMessageLimit);
+        if (!legacyMessage) return attachCors(failure('invalid_message', 400), origin);
+        message = legacyMessage;
+      }
+      // Proof: omitting selected identity made equal-label answers across questions/revisions replay instead of conflict.
+      const bodyHash =
+        draft.scoping.version === 1
+          ? digest(
+              JSON.stringify(
+                initial
+                  ? {
+                      initial: true,
+                      message,
+                      startingChoice: draft.scoping.startingChoice,
+                      startConversation: draft.scoping.startConversation,
+                    }
+                  : { initial: false, answer: normalizedAnswer },
+              ),
+            )
+          : digest(`${initial ? 'initial' : 'message'}:${message}`);
       // Proof: using the browser's key for an initial operation made the replay test answer 429.
       const idempotencyKey = initial ? `initial:${draft.id}` : suppliedKey;
       const provider = selectConversationProvider();
@@ -952,9 +1010,11 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         claimHash: digest(claim),
         sourceHash: source,
         idempotencyKey,
-        bodyHash: digest(`${initial ? 'initial' : 'message'}:${message}`),
+        bodyHash,
         message,
         initial,
+        automatic,
+        answer: normalizedAnswer,
         promptVersion: salesPromptVersion,
         pricing,
         browserCheck,

@@ -7,6 +7,7 @@ import {
   parseConversation,
   parseDraft,
   parseEntry,
+  selectStoppedAttempt,
 } from './build-contract';
 
 describe('Build entry', () => {
@@ -130,4 +131,160 @@ describe('conversation provider values', () => {
         parseConversation({ ...view, provider: 'openrouter', challenge: broken }),
       ).toThrow(InvalidConversation);
   });
+});
+
+describe('versioned conversation scoping boundary', () => {
+  const legacy = {
+    stage: 'clarify',
+    turns: [],
+    visitorTurnsRemaining: 8,
+    visitorTurnLimit: 8,
+    provider: 'demo',
+    brief: '',
+    description: 'Opening',
+    csrfToken: 'token',
+    initialOperation: null,
+    latestOperation: null,
+    exhaustedReason: null,
+    challenge: null,
+  };
+  const scoping = {
+    version: 1,
+    startConversation: true,
+    startingChoice: 'launch',
+    questionId: 'launch-purpose',
+    revision: 3,
+    references: ' exact references ',
+    candidateBrief: 'Candidate',
+    emailInvitationDeclined: false,
+  } as const;
+  test('accepts old legacy responses deliberately and exposes complete durable scoping', () => {
+    expect(parseConversation(legacy).scoping).toEqual({ version: 'legacy' });
+    expect(parseConversation({ ...legacy, scoping: { version: 'legacy' } }).scoping).toEqual({
+      version: 'legacy',
+    });
+    expect(parseConversation({ ...legacy, scoping }).scoping).toEqual(scoping);
+    expect(
+      parseConversation({
+        ...legacy,
+        scoping: {
+          ...scoping,
+          startConversation: false,
+          startingChoice: null,
+          questionId: null,
+          references: null,
+          candidateBrief: null,
+        },
+      }).scoping,
+    ).toMatchObject({
+      version: 1,
+      startConversation: false,
+      startingChoice: null,
+      questionId: null,
+      references: null,
+      candidateBrief: null,
+    });
+  });
+  test('rejects malformed present scoping instead of downgrading it to legacy', () => {
+    for (const broken of [
+      undefined,
+      null,
+      [],
+      {},
+      { version: 'legacy', revision: 1 },
+      { ...scoping, version: 2 },
+      { ...scoping, extra: 'unknown' },
+      { ...scoping, startConversation: 'true' },
+      { ...scoping, startingChoice: 'invented' },
+      { ...scoping, questionId: 'invented' },
+      { ...scoping, revision: -1 },
+      { ...scoping, revision: Number.MAX_SAFE_INTEGER + 1 },
+      { ...scoping, references: 3 },
+      { ...scoping, references: 'x'.repeat(4001) },
+      { ...scoping, candidateBrief: '' },
+      { ...scoping, candidateBrief: 'x'.repeat(4001) },
+      { ...scoping, emailInvitationDeclined: 0 },
+    ])
+      expect(() => parseConversation({ ...legacy, scoping: broken })).toThrow(InvalidConversation);
+    for (const field of Object.keys(scoping)) {
+      const missing = Object.fromEntries(Object.entries(scoping).filter(([key]) => key !== field));
+      expect(() => parseConversation({ ...legacy, scoping: missing })).toThrow(InvalidConversation);
+    }
+  });
+});
+
+test('selected stopped attempts retain their raw retry payload and reject malformed durable answers', () => {
+  const answer = {
+    selected: { questionId: 'launch-purpose' as const, answerId: 'buy-book', revision: 2 },
+    message: '  Exact  ',
+  };
+  const current = {
+    stage: 'clarify',
+    turns: [],
+    visitorTurnsRemaining: 7,
+    visitorTurnLimit: 8,
+    provider: 'demo',
+    brief: '',
+    description: 'Opening',
+    csrfToken: 'token',
+    initialOperation: { state: 'completed', idempotencyKey: 'initial:draft', truncated: false },
+    latestOperation: {
+      state: 'unknown',
+      idempotencyKey: 'selected-retry',
+      truncated: false,
+      message: 'Buy or book\n\n  Exact  ',
+      answer,
+    },
+    exhaustedReason: null,
+    challenge: null,
+    scoping: {
+      version: 1,
+      startConversation: true,
+      startingChoice: 'launch',
+      questionId: 'launch-purpose',
+      revision: 2,
+      references: null,
+      candidateBrief: null,
+      emailInvitationDeclined: false,
+    },
+  };
+  expect(selectStoppedAttempt(parseConversation(current))).toEqual({
+    idempotencyKey: 'selected-retry',
+    initial: false,
+    message: 'Buy or book\n\n  Exact  ',
+    answer,
+  });
+  for (const broken of [
+    null,
+    undefined,
+    {},
+    { message: '' },
+    { ...answer, extra: 'forged' },
+    { selected: { ...answer.selected, answerId: 'unknown' } },
+  ])
+    expect(() =>
+      parseConversation({
+        ...current,
+        latestOperation: { ...current.latestOperation, answer: broken },
+      }),
+    ).toThrow(InvalidConversation);
+  expect(() => parseConversation({ ...current, scoping: { version: 'legacy' } })).toThrow(
+    InvalidConversation,
+  );
+  expect(() =>
+    parseConversation({
+      ...current,
+      latestOperation: { ...current.latestOperation, idempotencyKey: 'initial:draft' },
+    }),
+  ).toThrow(InvalidConversation);
+  expect(
+    parseConversation({
+      ...current,
+      latestOperation: { ...current.latestOperation, message: '', answer: null },
+    }).latestOperation?.answer,
+  ).toBeNull();
+  const { answer: _answer, ...withoutAnswer } = current.latestOperation;
+  expect(() => parseConversation({ ...current, latestOperation: withoutAnswer })).toThrow(
+    InvalidConversation,
+  );
 });

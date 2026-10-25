@@ -1,3 +1,11 @@
+import {
+  type ConversationScoping,
+  isQuestionId,
+  isStartingChoiceId,
+  parseScopingAnswerRequest,
+  type ScopingAnswerRequest,
+} from '@website/contracts';
+
 export type EntryStatus =
   { available: true; reason: null } | { available: false; reason: 'missing' | 'expired' };
 
@@ -52,6 +60,7 @@ export interface BrowserChallenge {
 
 /** The `GET /conversation` body: the conversation bound to this browser's draft claim. */
 export interface Conversation {
+  scoping: ConversationScoping;
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
   visitorTurnsRemaining: number;
@@ -62,7 +71,8 @@ export interface Conversation {
   description: string;
   csrfToken: string;
   initialOperation: ConversationOperation | null;
-  latestOperation: (ConversationOperation & { message: string }) | null;
+  latestOperation:
+    (ConversationOperation & { message: string; answer?: ScopingAnswerRequest | null }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
   challenge: BrowserChallenge | null;
 }
@@ -193,6 +203,53 @@ function parseOperation(value: unknown, field: string): ConversationOperation | 
   };
 }
 
+function parseScoping(value: unknown): ConversationScoping {
+  // Proof: bypassing this shape check made the malformed-present-scoping fixture throw TypeError instead of InvalidConversation.
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new InvalidConversation('scoping');
+  const fields: Record<string, unknown> = Object.fromEntries(Object.entries(value));
+  if (fields['version'] === 'legacy' && Object.keys(fields).length === 1)
+    return { version: 'legacy' };
+  const {
+    version,
+    startConversation,
+    startingChoice,
+    questionId,
+    revision,
+    references,
+    candidateBrief,
+    emailInvitationDeclined,
+  } = fields;
+  // Proof: individually bypassing count, version, intent, IDs, safe/nonnegative revision, reference/candidate or invitation validation failed the malformed-present-scoping fixture.
+  if (
+    Object.keys(fields).length !== 8 ||
+    version !== 1 ||
+    typeof startConversation !== 'boolean' ||
+    (startingChoice !== null && !isStartingChoiceId(startingChoice)) ||
+    (questionId !== null && !isQuestionId(questionId)) ||
+    typeof revision !== 'number' ||
+    !Number.isSafeInteger(revision) ||
+    revision < 0 ||
+    (references !== null && (typeof references !== 'string' || references.length > 4000)) ||
+    (candidateBrief !== null &&
+      (typeof candidateBrief !== 'string' ||
+        candidateBrief.length > 4000 ||
+        candidateBrief.trim() === '')) ||
+    typeof emailInvitationDeclined !== 'boolean'
+  )
+    throw new InvalidConversation('scoping');
+  return {
+    version,
+    startConversation,
+    startingChoice,
+    questionId,
+    revision,
+    references,
+    candidateBrief,
+    emailInvitationDeclined,
+  };
+}
+
 /**
  * Validates the `GET /conversation` body at the API boundary.
  * @throws InvalidConversation when any field is absent or outside the contract, including an
@@ -205,6 +262,9 @@ export function parseConversation(value: unknown): Conversation {
   // Proof: defaulting an absent provider to 'disabled' made the build-page.test.ts
   // missing-provider and malformed-harness cases stop throwing.
   const provider = pickOne(value.provider, providers, 'provider');
+  const scoping = Object.hasOwn(value, 'scoping')
+    ? parseScoping('scoping' in value ? value.scoping : undefined)
+    : { version: 'legacy' as const };
   const stage = pickOne('stage' in value ? value.stage : undefined, stages, 'stage');
   if (
     !('visitorTurnsRemaining' in value) ||
@@ -262,12 +322,33 @@ export function parseConversation(value: unknown): Conversation {
         ? latestRaw.message
         : undefined;
     if (typeof message !== 'string') throw new InvalidConversation('latestOperation');
-    latestOperation = { ...latest, message };
+    const rawAnswer =
+      typeof latestRaw === 'object' && latestRaw !== null && 'answer' in latestRaw
+        ? latestRaw.answer
+        : undefined;
+    const expectsAnswer =
+      scoping.version === 1 &&
+      latest.idempotencyKey !== initialOperation?.idempotencyKey &&
+      message !== '';
+    if (rawAnswer === null || rawAnswer === undefined) {
+      // Proof: bypassing absence validation accepted missing/null raw input in the stopped-selection fixture.
+      if (expectsAnswer) throw new InvalidConversation('latestOperation.answer');
+      latestOperation = { ...latest, message, ...(rawAnswer === null ? { answer: null } : {}) };
+    } else {
+      // Proof: bypassing this branch admitted raw follow-up payloads on legacy/initial responses in the stopped-selection fixture.
+      if (scoping.version !== 1 || latest.idempotencyKey === initialOperation?.idempotencyKey)
+        throw new InvalidConversation('latestOperation.answer');
+      const parsed = parseScopingAnswerRequest(rawAnswer);
+      // Proof: bypassing raw parsing accepted malformed retry payloads in the stopped-selection fixture.
+      if (parsed.kind !== 'valid') throw new InvalidConversation('latestOperation.answer');
+      latestOperation = { ...latest, message, answer: parsed.value };
+    }
   }
   // Proof: defaulting an absent challenge to null made the missing-challenge contract case pass.
   if (!('challenge' in value)) throw new InvalidConversation('challenge');
   const challenge = parseChallenge(value.challenge);
   return {
+    scoping,
     challenge,
     stage,
     turns,
@@ -315,6 +396,8 @@ export interface ConversationAttempt {
   idempotencyKey: string;
   message: string;
   initial: boolean;
+  /** Exact normalized raw answer when retrying a versioned follow-up. */
+  answer?: ScopingAnswerRequest;
 }
 
 /** What the live composer offers; see {@link selectComposerMode}. */
@@ -367,6 +450,7 @@ export function selectStoppedAttempt(conversation: Conversation): ConversationAt
     idempotencyKey: latest.idempotencyKey,
     message: latest.message,
     initial: latest.idempotencyKey === conversation.initialOperation?.idempotencyKey,
+    ...(latest.answer ? { answer: latest.answer } : {}),
   };
 }
 

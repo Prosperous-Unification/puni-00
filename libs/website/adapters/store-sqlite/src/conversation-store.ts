@@ -4,10 +4,13 @@ import {
   type ConversationReplyStage,
   type ConversationState,
   deriveReplyStage,
+  parseScopingAnswerRequest,
+  type ScopingAnswerRequest,
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
 import { sweepAdmissionCounts, tripInferencePause } from './guardrail-store';
+import { readDraftScoping } from './scoping-store';
 
 export interface ConversationTurn {
   role: 'user' | 'assistant';
@@ -28,6 +31,7 @@ export interface ConversationOperationRecord {
   state: ConversationOperationState;
   truncated: boolean;
   message: string;
+  answer: ScopingAnswerRequest | null;
 }
 
 /**
@@ -62,6 +66,10 @@ export interface ConversationAdmissionRequest {
   bodyHash: string;
   message: string;
   initial: boolean;
+  /** Mount-triggered initial attempt; unknown operations always require explicit Retry. */
+  automatic?: boolean;
+  /** Exact validated raw answer for Retry; selected identity is rechecked only for new attempts. */
+  answer?: ScopingAnswerRequest;
   promptVersion: string;
   pricing: ConversationPricing;
   /**
@@ -94,7 +102,10 @@ export type ConversationAdmission =
         | 'initial_required'
         | 'provider_unavailable'
         | 'busy'
-        | 'challenge_required';
+        | 'challenge_required'
+        | 'stale_answer'
+        | 'automatic_forbidden'
+        | 'invalid_initial';
     };
 
 interface ConversationRow {
@@ -200,19 +211,42 @@ export function findConversation(database: Database, draftId: string): Conversat
   return row ? { id: row.id, state: row.state, exhaustedReason: row.exhausted_reason } : null;
 }
 
+/**
+ * Reads exact raw Retry input. Legacy and initial operations have no payload. An erased
+ * accounting operation has both an empty message and a null payload; other versioned
+ * follow-ups require valid saved input. @throws for missing, malformed or misplaced payloads.
+ */
 function toOperationRecord(row: {
   id: string;
   idempotency_key: string;
   state: ConversationOperationState;
   truncated: number;
   message: string;
+  initial: number;
+  request_json: string | null;
+  scoping_version: number | null;
 }): ConversationOperationRecord {
+  let answer: ScopingAnswerRequest | null = null;
+  if (row.request_json !== null) {
+    // Proof: bypassing this branch accepted raw payloads on initial and legacy rows in the saved-answer fixture.
+    if (row.initial !== 0 || row.scoping_version !== 1)
+      throw new Error('Unexpected saved conversation answer');
+    const source: unknown = JSON.parse(row.request_json);
+    const parsed = parseScopingAnswerRequest(source);
+    // Proof: bypassing this check accepted malformed saved objects in the saved-answer fixture.
+    if (parsed.kind !== 'valid') throw new Error('Malformed saved conversation answer');
+    answer = parsed.value;
+    // Proof: bypassing this absence check accepted missing non-erased retry input in the saved-answer fixture.
+  } else if (row.scoping_version === 1 && row.initial === 0 && row.message !== '') {
+    throw new Error('Missing saved conversation answer');
+  }
   return {
     id: row.id,
     idempotencyKey: row.idempotency_key,
     state: row.state,
     truncated: row.truncated === 1,
     message: row.message,
+    answer,
   };
 }
 
@@ -230,10 +264,13 @@ export function findConversationOperation(
         state: ConversationOperationState;
         truncated: number;
         message: string;
+        initial: number;
+        request_json: string | null;
+        scoping_version: number | null;
       },
       [string, string]
     >(
-      'SELECT id, idempotency_key, state, truncated, message FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
+      'SELECT step.id, step.idempotency_key, step.state, step.truncated, step.message, step.initial, step.request_json, draft.scoping_version FROM conversation_operation AS step JOIN conversation AS talk ON talk.id = step.conversation_id JOIN intake_draft AS draft ON draft.id = talk.draft_id WHERE step.conversation_id = ? AND step.idempotency_key = ? ORDER BY step.rowid DESC LIMIT 1',
     )
     .get(conversationId, idempotencyKey);
   return row ? toOperationRecord(row) : null;
@@ -251,10 +288,13 @@ export function findLatestConversationOperation(
         state: ConversationOperationState;
         truncated: number;
         message: string;
+        initial: number;
+        request_json: string | null;
+        scoping_version: number | null;
       },
       [string]
     >(
-      'SELECT id, idempotency_key, state, truncated, message FROM conversation_operation WHERE conversation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+      'SELECT step.id, step.idempotency_key, step.state, step.truncated, step.message, step.initial, step.request_json, draft.scoping_version FROM conversation_operation AS step JOIN conversation AS talk ON talk.id = step.conversation_id JOIN intake_draft AS draft ON draft.id = talk.draft_id WHERE step.conversation_id = ? ORDER BY step.created_at DESC, step.rowid DESC LIMIT 1',
     )
     .get(conversationId);
   return row ? toOperationRecord(row) : null;
@@ -339,11 +379,14 @@ function refuseReservation(
  * concurrent writer in another process waits for the lock instead of reading stale totals.
  * Order: live draft, conversation state, idempotent lookup of the key's latest attempt (replay,
  * conflict, in-flight; an `unknown` attempt was settled at its ceiling and may be retried under
- * the same key as a new attempt), the initial-once and turn rules, the per-conversation in-flight rule, then the
+ * the same key as an explicit new attempt), durable selection revision, the initial-once and turn rules, the per-conversation in-flight rule, then the
  * priced ceilings. A turn or spend refusal stores the conversation as `exhausted` with its
  * reason; saved turns never change. The conversation row is created on the first admitted
  * attempt, only with a verified browser check under paid pricing, and carries the salted source
  * hash; later operations, retries and replays never need a check because the row exists.
+ * Versioned initial requests bind the key and opening to persisted intent. Automatic requests
+ * require landing authorization and never retry unknown attempts. Selected-answer revisions
+ * are matched only after completed/inflight replay and body conflict resolution.
  *
  * @throws when stored state contradicts its invariants (an exhausted row without a reason, a
  * completed operation without a reply) or the pricing returns a non-positive amount.
@@ -355,11 +398,34 @@ export function admitConversationOperation(
   return database
     .transaction((): ConversationAdmission => {
       const draft = database
-        .query<{ id: string }, [string, number]>(
-          'SELECT id FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
+        .query<
+          {
+            id: string;
+            description: string;
+            scoping_version: unknown;
+            start_conversation: unknown;
+            starting_choice: unknown;
+          },
+          [string, number]
+        >(
+          'SELECT id, description, scoping_version, start_conversation, starting_choice FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
         )
         .get(request.claimHash, request.now);
       if (!draft) return { kind: 'draft_unavailable' };
+      const scoping = readDraftScoping(database, draft.id, draft);
+      // Proof: bypassing either key or description comparison admitted the forged-initial fixture before reservation.
+      if (
+        request.initial &&
+        scoping.version === 1 &&
+        (request.idempotencyKey !== `initial:${draft.id}` || request.message !== draft.description)
+      )
+        return { kind: 'invalid_initial' };
+      // Proof: bypassing persisted intent admitted automatic requests in both legacy/manual mounted fixtures.
+      if (
+        request.automatic &&
+        (!request.initial || scoping.version !== 1 || !scoping.startConversation)
+      )
+        return { kind: 'automatic_forbidden' };
       let conversation = findConversationRow(database, draft.id);
       if (!conversation) {
         if (request.pricing.kind === 'closed') return { kind: 'provider_unavailable' };
@@ -393,7 +459,9 @@ export function admitConversationOperation(
         // Proof: dropping this comparison made the changed-body admission test return `completed` instead of `conflict`.
         if (existing.body_hash !== request.bodyHash) return { kind: 'conflict' };
         if (existing.state === 'completed') {
-          if (request.initial && visitorTurns > 1) return { kind: 'turn_limit' };
+          // Proof: restoring the legacy-only limit for version 1 made completed initial navigation after a selected answer return 429.
+          if (request.initial && scoping.version === 'legacy' && visitorTurns > 1)
+            return { kind: 'turn_limit' };
           if (existing.reply === null)
             throw new Error('Completed conversation operation has no reply');
           return { kind: 'completed', reply: existing.reply };
@@ -401,6 +469,19 @@ export function admitConversationOperation(
         if (existing.state === 'inflight') return { kind: 'inflight' };
         // An `unknown` attempt was settled at its ceiling; the same key may start a new attempt.
       }
+      // Proof: bypassing this check made the mounted unknown-initial fixture reserve a second automatic attempt.
+      if (request.automatic && existing?.state === 'unknown')
+        return { kind: 'automatic_forbidden' };
+      // Proof: moving this block before replay lookup rejected the mounted successful same-key answer after revision advanced.
+      const selection = request.answer?.selected;
+      // Proof: bypassing question identity admitted the wrong-question fixture; bypassing revision admitted the real second-connection stale race before pricing.
+      if (
+        selection &&
+        (scoping.version !== 1 ||
+          selection.questionId !== scoping.questionId ||
+          selection.revision !== scoping.revision)
+      )
+        return { kind: 'stale_answer' };
       if (request.pricing.kind === 'closed') return { kind: 'provider_unavailable' };
       if (request.initial && visitorTurns > 0) return { kind: 'turn_limit' };
       if (!request.initial && visitorTurns === 0) return { kind: 'initial_required' };
@@ -416,6 +497,9 @@ export function admitConversationOperation(
         'in-flight operation',
       ).count;
       if (running > 0) return { kind: 'inflight' };
+      // Proof: bypassing this invariant admitted the missing-normalized-answer fixture instead of throwing before pricing.
+      if (scoping.version === 1 && !request.initial && !request.answer)
+        throw new Error('Missing normalized conversation answer');
       const stage = deriveReplyStage(visitorTurns);
       const history = listModelContext(database, conversation.id);
       let reservedMicroUsd: number | null = null;
@@ -435,7 +519,7 @@ export function admitConversationOperation(
       const id = crypto.randomUUID();
       database
         .query(
-          "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'inflight', ?, ?, ?)",
+          "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at, request_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'inflight', ?, ?, ?, ?)",
         )
         .run(
           id,
@@ -450,6 +534,8 @@ export function admitConversationOperation(
           utcDayOf(request.now),
           reservedMicroUsd,
           request.now,
+          // Proof: storing null here failed mounted selected Retry after remount.
+          request.answer ? JSON.stringify(request.answer) : null,
         );
       return { kind: 'started', id, conversationId: conversation.id, stage, history };
     })
@@ -661,6 +747,7 @@ export function handOffConversation(database: Database, draftId: string): void {
  * operations and by request-retention erasure.
  */
 export function eraseConversationContent(database: Database, draftId: string): void {
+  // Proof: omitting request_json blanking retained the raw sentinel in both subject erasures, expired accounting cleanup and the pre-erasure journal snapshot replay.
   database
     .query(
       "UPDATE conversation_turn SET content = '' WHERE conversation_id IN (SELECT id FROM conversation WHERE draft_id = ?)",
@@ -668,7 +755,7 @@ export function eraseConversationContent(database: Database, draftId: string): v
     .run(draftId);
   database
     .query(
-      "UPDATE conversation_operation SET message = '', reply = CASE WHEN reply IS NULL THEN NULL ELSE '' END WHERE conversation_id IN (SELECT id FROM conversation WHERE draft_id = ?)",
+      "UPDATE conversation_operation SET request_json = NULL, message = '', reply = CASE WHEN reply IS NULL THEN NULL ELSE '' END WHERE conversation_id IN (SELECT id FROM conversation WHERE draft_id = ?)",
     )
     .run(draftId);
 }

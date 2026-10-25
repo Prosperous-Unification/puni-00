@@ -614,9 +614,10 @@ test('legacy conversation completion cannot capture a brief on a versioned draft
     const admitted = store.admitConversationOperation({
       claimHash: 'claim',
       sourceHash: 'source',
-      idempotencyKey: `turn-${String(turn)}`,
+      idempotencyKey: turn === 0 ? 'initial:draft' : `turn-${String(turn)}`,
       bodyHash: `hash-${String(turn)}`,
-      message: 'Visitor message',
+      message: turn === 0 ? 'Opening' : 'Visitor message',
+      ...(turn === 0 ? {} : { answer: { message: 'Visitor message' } }),
       initial: turn === 0,
       promptVersion: 'legacy',
       pricing: { kind: 'free' },

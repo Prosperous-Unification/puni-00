@@ -690,6 +690,11 @@ test('restoring a pre-erasure snapshot clears scoping references and candidates 
     INSERT INTO conversation (id, draft_id, source_hash, state, created_at) VALUES ('scoping-talk', 'scoping', 'source', 'open', 1);
     INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at, reply_version) VALUES ('scoping-op', 'scoping-talk', 'key', 'source', 'hash', 'SECRET message', 1, 'clarify', 'v1', 'inflight', '1970-01-01', 500, 2, 1);
   `);
+  database
+    .query(
+      "UPDATE conversation_operation SET initial = 0, request_json = ? WHERE id = 'scoping-op'",
+    )
+    .run(JSON.stringify({ message: 'SECRET raw retry explanation' }));
   database.run(`VACUUM INTO '${snapshotPath}'`);
   const session = await openRetentionJournal(database, remote, options());
   fenceSubject(database, subject('req-3'));
@@ -698,13 +703,22 @@ test('restoring a pre-erasure snapshot clears scoping references and candidates 
   const restored = open(snapshotPath);
   try {
     await openRetentionJournal(restored, remote, options());
+    expect(() =>
+      restored
+        .query('UPDATE conversation_operation SET request_json = ?')
+        .run(JSON.stringify({ message: 'SECRET resurrected retry' })),
+    ).toThrow('fenced');
+    await openRetentionJournal(restored, remote, options());
+    expect(restored.query('SELECT request_json FROM conversation_operation').get()).toEqual({
+      request_json: null,
+    });
     expect(
       restored.query('SELECT reference_text, candidate_brief FROM draft_scoping').get(),
     ).toEqual({ reference_text: null, candidate_brief: null });
     expect(
       restored
         .query(
-          "SELECT state, reserved_micro_usd, settled_micro_usd, reply_version FROM conversation_operation WHERE id = 'scoping-op'",
+          "SELECT state, reserved_micro_usd, settled_micro_usd, reply_version, request_json FROM conversation_operation WHERE id = 'scoping-op'",
         )
         .get(),
     ).toEqual({
@@ -712,6 +726,7 @@ test('restoring a pre-erasure snapshot clears scoping references and candidates 
       reserved_micro_usd: 500,
       settled_micro_usd: 500,
       reply_version: 1,
+      request_json: null,
     });
     expect(() => restored.run("UPDATE draft_scoping SET candidate_brief = 'SECRET late'")).toThrow(
       'fenced',
@@ -725,6 +740,9 @@ test('restoring a pre-erasure snapshot clears scoping references and candidates 
   }
   new WebsiteStore(snapshotPath).close();
   const reopened = open(snapshotPath);
+  expect(reopened.query('SELECT request_json FROM conversation_operation').get()).toEqual({
+    request_json: null,
+  });
   expect(reopened.query('SELECT reference_text, candidate_brief FROM draft_scoping').get()).toEqual(
     { reference_text: null, candidate_brief: null },
   );

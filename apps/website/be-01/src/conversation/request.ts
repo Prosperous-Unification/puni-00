@@ -1,4 +1,10 @@
-import { briefCloseMarker, briefOpenMarker, type ConversationReplyStage } from '@website/contracts';
+import {
+  briefCloseMarker,
+  briefOpenMarker,
+  type ConversationReplyStage,
+  parseScopingAnswerRequest,
+  resolveScopingAnswer,
+} from '@website/contracts';
 
 import type { ChatMessage, ProviderRates } from './stream';
 import { composeSystemText } from './system-prompt';
@@ -12,8 +18,26 @@ export const defaultConversationReplyTokens = 400;
 /** Characters of saved history sent with one reply. */
 export const historyCharacterLimit = 12_000;
 
-/** Visitor message length after the Home request. */
+/** Legacy visitor message length after the Home request; version 1 validates raw text at 2,000. */
 export const visitorMessageLimit = 1_500;
+
+/**
+ * Validates raw explanations and catalogue IDs independently of the current durable revision.
+ * Admission compares that revision after replay lookup under its write lock, before pricing.
+ * The resolved bound is 2,000 raw characters plus the longest catalogue label and two newlines;
+ * the complete resolved text is priced and persisted without truncation.
+ */
+export function parseConversationAnswer(input: Record<string, unknown>) {
+  const request = parseScopingAnswerRequest(input);
+  if (request.kind !== 'valid') return request;
+  const selected = request.value.selected;
+  const answer = resolveScopingAnswer(request.value, {
+    questionId: selected?.questionId ?? null,
+    revision: selected?.revision ?? 0,
+  });
+  if (answer.kind !== 'valid') return answer;
+  return { kind: 'valid' as const, value: { ...answer.value, request: request.value } };
+}
 
 export interface ConversationRequest {
   system: string;

@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import {
   getScopingQuestion,
   getStartingChoice,
+  parseScopingAnswerRequest,
   parseScopingIntake,
   parseScopingReply,
   type QuestionId,
@@ -315,4 +316,31 @@ test('malformed trusted question state throws before accepting an answer', () =>
   expect(() =>
     resolveScopingAnswer({ message: 'Hello' }, { questionId: 'app-area', revision: -1 }),
   ).toThrow();
+});
+
+test('normalized answer requests preserve exact retry fields and reject forged identity', () => {
+  const selected = { questionId: 'launch-purpose' as const, answerId: 'buy-book', revision: 4 };
+  expect(parseScopingAnswerRequest({ selected, message: '  Exact explanation  ' })).toEqual({
+    kind: 'valid',
+    value: { selected, message: '  Exact explanation  ' },
+  });
+  expect(parseScopingAnswerRequest({ selected })).toEqual({ kind: 'valid', value: { selected } });
+  expect(parseScopingAnswerRequest({ message: '  Typed only  ' })).toEqual({
+    kind: 'valid',
+    value: { message: '  Typed only  ' },
+  });
+  for (const input of [
+    null,
+    [],
+    {},
+    { message: '' },
+    { selected: null },
+    { selected: { ...selected, answerId: 'unknown' } },
+    { selected: { ...selected, questionId: 'unknown' } },
+    { selected: { ...selected, revision: -1 } },
+    { selected: { ...selected, revision: '4' } },
+    { selected, message: 'x'.repeat(2001) },
+    { selected, extra: 'forged' },
+  ])
+    expect(parseScopingAnswerRequest(input).kind).toBe('invalid');
 });

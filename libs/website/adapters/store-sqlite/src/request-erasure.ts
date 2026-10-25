@@ -56,6 +56,7 @@ interface SubmissionLineage {
  * Empty `ensureBlankRequest` rows and migration 004 placeholders hold none.
  */
 // Proof: omitting scoping text erased the identity retained by another reference-only or candidate-only request.
+// Proof: omitting request_json erased the identity retained by another payload-only request.
 const requestRetainsContent = `(
   SELECT ${nonblank('request.description')} OR ${nonblank('request.brief')}
     OR EXISTS (SELECT 1 FROM chat_turn WHERE request_id = request.id AND ${nonblank('content')})
@@ -72,7 +73,7 @@ const requestRetainsContent = `(
       WHERE talk.draft_id = request.draft_id AND ${nonblank('turn.content')})
     OR EXISTS (SELECT 1 FROM conversation AS talk JOIN conversation_operation AS step ON step.conversation_id = talk.id
       WHERE talk.draft_id = request.draft_id
-        AND (${nonblank('step.message')} OR ${nonblank("coalesce(step.reply, '')")}))
+        AND (${nonblank('step.message')} OR ${nonblank("coalesce(step.reply, '')")} OR ${nonblank("coalesce(step.request_json, '')")}))
   FROM software_request AS request WHERE request.id = ?1)`;
 
 function subjectState(

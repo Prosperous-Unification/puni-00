@@ -2,7 +2,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { readReplyReplacement, replyReplacePart, solveBrowserCheck } from '@website/contracts';
+import {
+  type ConversationScoping,
+  readReplyReplacement,
+  replyReplacePart,
+  type ScopingAnswerRequest,
+  solveBrowserCheck,
+} from '@website/contracts';
 import { WebsiteStore } from '@website/store-sqlite';
 import { isTextUIPart, readUIMessageStream, type UIMessageChunk } from 'ai';
 import { Database } from 'bun:sqlite';
@@ -210,6 +216,7 @@ async function beginVisitor(api: Api, description = 'A booking tool for a bike w
 }
 
 interface View {
+  scoping: ConversationScoping;
   stage: string;
   turns: { role: string; content: string }[];
   visitorTurnsRemaining: number;
@@ -218,7 +225,12 @@ interface View {
   brief: string;
   csrfToken: string;
   initialOperation: { state: string; idempotencyKey: string; truncated: boolean };
-  latestOperation: { state: string; idempotencyKey: string; message: string } | null;
+  latestOperation: {
+    state: string;
+    idempotencyKey: string;
+    message: string;
+    answer: ScopingAnswerRequest | null;
+  } | null;
   exhaustedReason: string | null;
   challenge: {
     salt: string;
@@ -2082,5 +2094,388 @@ test('a later turn sends the model no refused exchange, but keeps every other tu
   const view = await readConversation(api, visitor.cookie);
   expect(view.turns.map(({ content }) => content)).toContain('Track my ex secretly');
   expect(view.visitorTurnsRemaining).toBe(4);
+  api.close();
+});
+
+async function beginScopingVisitor(api: Api, startConversation = true): Promise<Visitor> {
+  const intake = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: { origin: publicOrigin, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        description: '  Persisted opening  ',
+        startingChoice: 'launch',
+        startConversation,
+      }),
+    }),
+  );
+  expect(intake.status).toBe(201);
+  const cookie = intake.headers.get('set-cookie')?.split(';')[0];
+  if (!cookie) throw new Error('Missing claim');
+  const view = await readConversation(api, cookie);
+  return { cookie, csrf: view.csrfToken, initialKey: view.initialOperation.idempotencyKey };
+}
+
+async function sendAutomatic(api: Api, visitor: Visitor, check?: unknown) {
+  return api.fetch(
+    post('/conversation/stream', visitor, {
+      idempotencyKey: 'browser-chosen-key',
+      initial: true,
+      automatic: true,
+      message: 'Forged browser opening',
+      ...(check ? { check } : {}),
+    }),
+    visitorAddress,
+  );
+}
+
+test('scoping initial intent admits two tabs and repeated navigation only once', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'First question' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await readConversation(api, visitor.cookie);
+  await readConversation(api, visitor.cookie);
+  expect(fake.bodies).toHaveLength(0);
+  expect(operations(config.databasePath)).toHaveLength(0);
+  const check = await solveCheck(api, visitor);
+  const [first, otherTab] = await Promise.all([
+    sendAutomatic(api, visitor, check),
+    sendAutomatic(api, visitor, check),
+  ]);
+  expect([first.status, otherTab.status].sort()).toEqual([200, 409]);
+  await first.text();
+  await otherTab.text();
+  const replay = await sendAutomatic(api, visitor);
+  expect(replay.status).toBe(200);
+  expect(await replay.text()).toContain('First question');
+  expect(fake.bodies).toHaveLength(1);
+  expect(operations(config.databasePath)).toHaveLength(1);
+  expect(fake.bodies[0]?.messages.map(textOf).at(-1)).toEqual({
+    role: 'user',
+    text: '  Persisted opening  ',
+  });
+  const database = new Database(config.databasePath, { readonly: true });
+  expect(database.query('SELECT idempotency_key FROM conversation_operation').get()).toEqual({
+    idempotency_key: visitor.initialKey,
+  });
+  database.close();
+  api.close();
+});
+
+for (const opening of ['legacy', 'manual'] as const)
+  test(`scoping automatic start refuses ${opening} intent but explicit Send works`, async () => {
+    const fake = fakeOpenRouter(() => ({ reply: 'Explicit reply' }));
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor =
+      opening === 'legacy' ? await beginVisitor(api) : await beginScopingVisitor(api, false);
+    const check = await solveCheck(api, visitor);
+    const refused = await sendAutomatic(api, visitor, check);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ code: 'automatic_forbidden' });
+    expect(fake.bodies).toHaveLength(0);
+    expect(operations(config.databasePath)).toHaveLength(0);
+    const explicit = await sendInitial(api, visitor);
+    expect(explicit.status).toBe(200);
+    await explicit.text();
+    expect(fake.bodies).toHaveLength(1);
+    api.close();
+  });
+
+test('scoping unknown initial never automatically retries, explicit Retry retains identity', async () => {
+  const fake = fakeOpenRouter((call) =>
+    call === 1 ? { status: 502 } : { reply: 'Retry confirmed' },
+  );
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  const first = await sendAutomatic(api, visitor, await solveCheck(api, visitor));
+  await first.text();
+  expect((await readConversation(api, visitor.cookie)).initialOperation.state).toBe('unknown');
+  const automatic = await sendAutomatic(api, visitor);
+  expect(automatic.status).toBe(409);
+  expect(await automatic.json()).toEqual({ code: 'automatic_forbidden' });
+  expect(fake.bodies).toHaveLength(1);
+  expect(operations(config.databasePath)).toHaveLength(1);
+  const explicit = await sendInitial(api, visitor);
+  expect(explicit.status).toBe(200);
+  await explicit.text();
+  expect(fake.bodies).toHaveLength(2);
+  expect(operations(config.databasePath)).toHaveLength(2);
+  api.close();
+});
+
+test('scoping malformed flags and automatic follow-ups reserve and call nothing', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  for (const fields of [
+    { initial: 'true' },
+    { initial: true, automatic: 'true' },
+    { initial: true, automatic: null },
+    {
+      initial: true,
+      selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 0 },
+    },
+    { automatic: true, message: 'follow-up' },
+  ]) {
+    const response = await api.fetch(
+      post('/conversation/stream', visitor, { idempotencyKey: 'invalid-flag-key', ...fields }),
+    );
+    expect(response.status).toBe(400);
+  }
+  expect(fake.bodies).toHaveLength(0);
+  expect(operations(config.databasePath)).toHaveLength(0);
+  api.close();
+});
+
+function setQuestion(databasePath: string, revision: number, questionId = 'launch-purpose') {
+  const database = new Database(databasePath);
+  database
+    .query('UPDATE draft_scoping SET question_id = ?, revision = ?')
+    .run(questionId, revision);
+  database.close();
+}
+
+test('scoping answers preserve and price full text, replay old revisions and refuse different stale keys', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Confirmed question' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const selected = { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 };
+  const explanation = '  ' + 'x'.repeat(1996) + '  ';
+  const fields = { idempotencyKey: 'selected-key-001', selected, message: explanation };
+  const accepted = await api.fetch(post('/conversation/stream', visitor, fields));
+  expect(accepted.status).toBe(200);
+  await accepted.text();
+  expect(fake.bodies[1]?.messages.map(textOf).at(-1)).toEqual({
+    role: 'user',
+    text: 'Buy or book\n\n' + explanation,
+  });
+  const saved = await readConversation(api, visitor.cookie);
+  expect(saved.turns.at(-2)?.content).toBe('Buy or book\n\n' + explanation);
+  const database = new Database(config.databasePath, { readonly: true });
+  const reservation = database
+    .query<{ reserved_micro_usd: number }, []>(
+      'SELECT reserved_micro_usd FROM conversation_operation ORDER BY rowid DESC LIMIT 1',
+    )
+    .get();
+  expect(reservation?.reserved_micro_usd).toBeGreaterThan(2000 * 0.44);
+  database.close();
+  const initialReplay = await sendAutomatic(api, visitor);
+  expect(initialReplay.status).toBe(200);
+  expect(await initialReplay.text()).toContain('Confirmed question');
+  const afterInitialReplay = await readConversation(api, visitor.cookie);
+  expect(afterInitialReplay.scoping).toEqual(saved.scoping);
+  expect(afterInitialReplay.turns).toEqual(saved.turns);
+  expect(operations(config.databasePath)).toHaveLength(2);
+  const wrongQuestion = await api.fetch(
+    post('/conversation/stream', visitor, {
+      ...fields,
+      idempotencyKey: 'wrong-question-key',
+      selected: { questionId: 'launch-stage', answerId: 'not-sure', revision: 1 },
+    }),
+  );
+  expect(wrongQuestion.status).toBe(409);
+  expect(await wrongQuestion.json()).toEqual({ code: 'stale_answer' });
+  setQuestion(config.databasePath, 2, 'launch-stage');
+  const replay = await api.fetch(post('/conversation/stream', visitor, fields));
+  expect(replay.status).toBe(200);
+  expect(await replay.text()).toContain('Confirmed question');
+  const afterSelectionReplay = await readConversation(api, visitor.cookie);
+  expect(afterSelectionReplay.scoping).toMatchObject({
+    version: 1,
+    questionId: 'launch-stage',
+    revision: 2,
+  });
+  expect(afterSelectionReplay.turns).toEqual(saved.turns);
+  const stale = await api.fetch(
+    post('/conversation/stream', visitor, { ...fields, idempotencyKey: 'different-stale-key' }),
+  );
+  expect(stale.status).toBe(409);
+  expect(await stale.json()).toEqual({ code: 'stale_answer' });
+  const conflict = await api.fetch(
+    post('/conversation/stream', visitor, { ...fields, message: 'changed' }),
+  );
+  expect(conflict.status).toBe(409);
+  expect(await conflict.json()).toEqual({ code: 'idempotency_conflict' });
+  const invalidReplay = await api.fetch(
+    post('/conversation/stream', visitor, {
+      ...fields,
+      selected: { ...selected, answerId: 'unknown' },
+    }),
+  );
+  expect(invalidReplay.status).toBe(400);
+  expect(fake.bodies).toHaveLength(2);
+  expect(operations(config.databasePath)).toHaveLength(2);
+  api.close();
+});
+
+test('scoping rejects invalid selections before reservation and accepts typed-only or choice-only answers', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Question' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const selected = { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 };
+  for (const fields of [
+    { selected: { ...selected, label: 'Forged' } },
+    { selected: { ...selected, questionId: 'unknown' } },
+    { selected: { ...selected, revision: -1 } },
+    { selected: { ...selected, revision: '1' } },
+    { selected: { ...selected, revision: Number.MAX_SAFE_INTEGER + 1 } },
+    { selected: { answerId: 'buy-book', revision: 1 } },
+    { selected: { questionId: 'launch-purpose', answerId: 'buy-book' } },
+    { selected: null },
+    { selected: [] },
+    { selected: 'bad' },
+    { selected: { ...selected, answerId: 'unknown' } },
+    { selected, message: 'x'.repeat(2001) },
+    { message: 'x'.repeat(2001) },
+  ]) {
+    const response = await api.fetch(
+      post('/conversation/stream', visitor, { idempotencyKey: 'invalid-selection', ...fields }),
+    );
+    expect(response.status).toBe(400);
+  }
+  expect(fake.bodies).toHaveLength(1);
+  expect(operations(config.databasePath)).toHaveLength(1);
+  const choice = await api.fetch(
+    post('/conversation/stream', visitor, { idempotencyKey: 'choice-only-key', selected }),
+  );
+  expect(choice.status).toBe(200);
+  await choice.text();
+  expect(fake.bodies[1]?.messages.map(textOf).at(-1)?.text).toBe('Buy or book');
+  const typed = await sendMessage(api, visitor, 'typed-only-key', '  ' + 't'.repeat(1996) + '  ');
+  expect(typed.status).toBe(200);
+  await typed.text();
+  expect(fake.bodies[2]?.messages.map(textOf).at(-1)?.text).toBe('  ' + 't'.repeat(1996) + '  ');
+  expect(fake.bodies).toHaveLength(3);
+  api.close();
+});
+
+test('scoping stale race from a second connection refuses before pricing or provider', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Initial question' }));
+  let changed = false;
+  let prices = 0;
+  const config = paidConfig(fake.providerFetch, {
+    openStore: (databasePath) => {
+      const store = new WebsiteStore(databasePath);
+      const admit = store.admitConversationOperation.bind(store);
+      store.admitConversationOperation = (admission) => {
+        if (admission.answer?.selected && !changed) {
+          changed = true;
+          // A committed writer between HTTP's snapshot and the actual admission transaction.
+          const other = new Database(databasePath);
+          other.query('UPDATE draft_scoping SET revision = revision + 1').run();
+          other.close();
+        }
+        const pricing = admission.pricing;
+        return admit({
+          ...admission,
+          pricing:
+            pricing.kind === 'paid'
+              ? {
+                  kind: 'paid',
+                  price: (history, stage) => {
+                    prices++;
+                    return pricing.price(history, stage);
+                  },
+                }
+              : pricing,
+        });
+      };
+      return store;
+    },
+  });
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const stale = await api.fetch(
+    post('/conversation/stream', visitor, {
+      idempotencyKey: 'racing-answer-key',
+      selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 },
+    }),
+  );
+  expect(stale.status).toBe(409);
+  expect(await stale.json()).toEqual({ code: 'stale_answer' });
+  expect(changed).toBe(true);
+  expect(prices).toBe(1);
+  expect(fake.bodies).toHaveLength(1);
+  expect(operations(config.databasePath)).toHaveLength(1);
+  api.close();
+});
+
+test('scoping equal answer labels retain distinct normalized question and revision identity', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Confirmed' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const first = await api.fetch(
+    post('/conversation/stream', visitor, {
+      idempotencyKey: 'same-label-answer',
+      selected: { questionId: 'launch-purpose', answerId: 'not-sure', revision: 1 },
+    }),
+  );
+  expect(first.status).toBe(200);
+  await first.text();
+  setQuestion(config.databasePath, 2, 'launch-stage');
+  for (const selected of [
+    { questionId: 'launch-stage', answerId: 'not-sure', revision: 2 },
+    { questionId: 'launch-purpose', answerId: 'not-sure', revision: 2 },
+  ]) {
+    const conflict = await api.fetch(
+      post('/conversation/stream', visitor, { idempotencyKey: 'same-label-answer', selected }),
+    );
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toEqual({ code: 'idempotency_conflict' });
+  }
+  expect(fake.bodies).toHaveLength(2);
+  expect(operations(config.databasePath)).toHaveLength(2);
+  api.close();
+});
+
+test('scoping selected Retry survives remount with exact persisted raw answer', async () => {
+  const fake = fakeOpenRouter((call) => (call === 2 ? { status: 502 } : { reply: 'Confirmed' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginScopingVisitor(api);
+  await (await sendInitial(api, visitor)).text();
+  setQuestion(config.databasePath, 1);
+  const answer = {
+    selected: { questionId: 'launch-purpose', answerId: 'buy-book', revision: 1 },
+    message: '  Exact explanation  ',
+  };
+  const first = await api.fetch(
+    post('/conversation/stream', visitor, { idempotencyKey: 'selected-retry-key', ...answer }),
+  );
+  await first.text();
+  const current = await readConversation(api, visitor.cookie);
+  expect(current.latestOperation).toMatchObject({
+    state: 'unknown',
+    idempotencyKey: 'selected-retry-key',
+    answer,
+  });
+  const retry = await api.fetch(
+    post('/conversation/stream', visitor, {
+      idempotencyKey: current.latestOperation?.idempotencyKey,
+      ...current.latestOperation?.answer,
+    }),
+  );
+  expect(retry.status).toBe(200);
+  await retry.text();
+  expect(fake.bodies).toHaveLength(3);
+  expect(fake.bodies[2]?.messages.map(textOf).at(-1)?.text).toBe(
+    'Buy or book\n\n  Exact explanation  ',
+  );
+  expect(operations(config.databasePath)).toHaveLength(3);
   api.close();
 });
