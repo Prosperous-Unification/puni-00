@@ -217,9 +217,13 @@ async function connect(
   return { access: body.access_token, refresh: body.refresh_token, clientId };
 }
 
-/** Posts the choice of `agent` (or of yourself) on the consent page `page`. */
+/** The agent labels of the last choice page, in page order. */
+let offeredAgents: string[] = [];
+
+/** Posts the choice of `agent` (or of yourself), by its label, on the consent page `page`. */
 async function choose(page: Response, agent: string | undefined): Promise<Response> {
   const html = await page.text();
+  offeredAgents = [...html.matchAll(/<small>as agent ([^<]*)<\/small>/g)].map((match) => match[1]);
   const cookie = page.headers
     .getSetCookie()
     .find((value) => value.startsWith('__Host-wbs_mcp_select='))
@@ -413,10 +417,12 @@ describe('MCP organization delegation against a booted be-01', () => {
   });
 
   test("offers dany's agents at consent, and a consent as claire mints her credential", async () => {
-    await fixture('agent', { id: 'claire', account: 'dany' });
-    await fixture('agent', { id: 'codex', account: 'dany' });
-    await fixture('agent', { id: 'loose', account: null });
-    const connected = await connect('auth0|dany', { agent: 'claire' });
+    await fixture('agent', { id: 'claire', account: 'dany', name: 'Claire' });
+    await fixture('agent', { id: 'codex', account: 'dany', name: 'Atlas' });
+    await fixture('agent', { id: 'loose', account: null, name: 'Loose' });
+    const connected = await connect('auth0|dany', { agent: 'Claire' });
+    // The names people read, by name: never the person ids `codex` and `claire`.
+    expect(offeredAgents).toEqual(['Atlas', 'Claire']);
     Object.assign(claire, connected);
     expect(await consents()).toEqual([{ personId: 'claire', issuedBy: 'u-dany', revokedAt: null }]);
     const listed = await tool(claire.access, 'getApiProjects', {});
@@ -479,7 +485,7 @@ describe('MCP organization delegation against a booted be-01', () => {
   });
 
   test('a second consent for the same agent mints a second credential', async () => {
-    const second = await connect('auth0|dany', { agent: 'claire' });
+    const second = await connect('auth0|dany', { agent: 'Claire' });
     sessions['claireSecond'] = second.access;
     expect(await consents()).toEqual([
       { personId: 'claire', issuedBy: 'u-dany', revokedAt: null },
@@ -504,7 +510,7 @@ describe('MCP organization delegation against a booted be-01', () => {
   });
 
   test('a family mcp-01 ends marks its credential revoked in WBS', async () => {
-    const third = await connect('auth0|dany', { agent: 'claire' });
+    const third = await connect('auth0|dany', { agent: 'Claire' });
     expect((await consents()).at(-1)).toEqual({
       personId: 'claire',
       issuedBy: 'u-dany',
