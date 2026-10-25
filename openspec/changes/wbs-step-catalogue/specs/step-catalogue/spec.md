@@ -153,8 +153,9 @@ report row of design.md SC23 until the rules file rules it, SHALL record each me
 #### Scenario: One project with disjoint sets
 
 - **WHEN** packages W1 and W2 of project P hold `{dev}` and `{qa}`
-- **THEN** the report has one `divergent_project_set` row for P and the migration refuses;
-  with `expand: true` for P both packages resolve `{dev, qa}`
+- **THEN** the report has one `divergent_project_set` row for P naming `W1: dev` and
+  `W2: qa`, `apply` refuses whatever the rules file says, and neither package gains a step;
+  after W2 is moved to project P2, `apply` succeeds and W1 resolves `{dev}`, W2 `{qa}`
 
 #### Scenario: A saved plan reads after a merge
 

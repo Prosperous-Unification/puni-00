@@ -33,8 +33,7 @@ story and a spike then estimate different steps, and `Dev` is not redefined per 
 **Migration**
 
 - Every step keeps its id and is bound at its project for every type, so stored history is
-  never rewritten (SC11). Identical shared codes merge automatically; divergent codes, divergent
-  sets and type conflicts are reported and refused until an operator's rules file decides (SC12, SC15, SC23); merged ids are
+  never rewritten (SC11). Identical shared codes merge automatically; divergent codes and type conflicts wait for an operator's rules file, divergent sets for regrouping; no package gains a step (SC12, SC15, SC23); merged ids are
   translated on read (SC13).
 
 Depends on #723 (`wbs-work-packages` slices 1–3a) and #724; replaces slice 3b.
@@ -68,7 +67,7 @@ boundary**, **Step usage** amended; **Step binding**, **Default estimate unit** 
 
 ## Decisions Recorded
 
-SC1–SC24 assumed by the planner; Q1–Q3 await Dany; Q4 (SC17) and Q5 (SC13, supersedes E33) settled 2026-10-25. No ADR yet.
+SC1–SC24 assumed by the planner; Q1b, Q2, Q3 await Dany; Q1a, Q4, Q5 settled 2026-10-25 (SC15, SC17, SC13 superseding E33). No ADR yet.
 
 ## Impact
 

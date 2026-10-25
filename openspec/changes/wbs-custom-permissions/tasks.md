@@ -8,7 +8,7 @@ CP10's precedence) and fails only there.
 ## 0. Decisions
 
 - [x] 0.1 Dany fixed CP1–CP6 (2026-10-25); CP7–CP20 assumed by the planner, overrulable by
-      id; CP13 settled 2026-10-25 (implement); CP14, CP18's flag and CP20 await Dany. Nothing merges until Dany's
+      id; CP13 and CP14 settled 2026-10-25 (implement); CP18's flag and CP20 await Dany. Nothing merges until Dany's
       in-progress changes land (goal of 2026-10-25), #723 first.
 
 ## 1. Inside `wbs-permissions` slice 1 (amended there)
