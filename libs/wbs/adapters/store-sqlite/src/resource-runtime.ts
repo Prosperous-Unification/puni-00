@@ -1,4 +1,9 @@
-import { type ResourceAuthority, type ResourceRuntimeEvent, resourceUse } from '@wbs/contracts';
+import {
+  type ResourceAuthority,
+  type ResourceRuntimeEvent,
+  resourceRuntimeEvent,
+  resourceUse,
+} from '@wbs/contracts';
 import type { ResourceRuntime, ResourceRuntimeActor, ResourceUseAnswer } from '@wbs/core';
 import type { ResourceUse, ResourceUseEvent } from '@wbs/domain';
 import { and, asc, desc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
@@ -66,12 +71,14 @@ function authorityIn(
     if (actor.credentialId !== authority.credentialId || actor.personId === null)
       return 'forbidden';
     // Proof: removing revoked_at accepted an already-admitted grant after revocation in the composed grant test (2026-10-25).
+    // Proof: without current person/account binding, queued unbound and rebound actors both committed sequence 2 in the composed review regression (2026-10-25).
     const live = tx.get<
       { id: string } | undefined
-    >(sql`SELECT c.id FROM machine_credential c JOIN compute_provider p ON p.id=${authority.providerId}
-      JOIN person_organization o ON o.resource_id=c.person_id AND o.organization_id=c.organization_id
-      WHERE c.id=${authority.credentialId} AND c.organization_id=${organizationId} AND p.organization_id=${organizationId}
-      AND c.person_id=${actor.personId} AND c.revoked_at IS NULL`);
+    >(sql`SELECT c.id FROM machine_credential c JOIN compute_provider provider ON provider.id=${authority.providerId}
+      JOIN person p ON p.id=c.person_id
+      JOIN person_organization o ON o.resource_id=p.id AND o.organization_id=c.organization_id
+      WHERE c.id=${authority.credentialId} AND c.organization_id=${organizationId} AND provider.organization_id=${organizationId}
+      AND c.person_id=${actor.personId} AND p.account_id=${actor.id} AND p.kind='agent' AND c.revoked_at IS NULL`);
     if (live === undefined) return 'forbidden';
   }
   return {
@@ -201,9 +208,10 @@ export class SqliteResourceRuntime implements ResourceRuntime {
           !event.evidence.locator.trim())
       )
         return refused('invalid_body');
+      // Proof: comparing with delivery time rejected an overdue but valid historical retention event and blocked its following sequence (2026-10-25).
       if (
         event.kind === 'retained' &&
-        (event.retention === undefined || event.retention.reviewAt <= at)
+        (event.retention === undefined || event.retention.reviewAt <= event.observedAt)
       )
         return refused('invalid_body');
       if (
@@ -360,11 +368,36 @@ export class SqliteResourceRuntime implements ResourceRuntime {
             .orderBy(desc(resourceUseEventRecord.revision))
             .limit(1)
             .get();
-          if (
-            previous?.snapshot.kind !== 'release_verified' ||
-            previous.snapshot.evidence !== event.evidence?.locator ||
-            previous.snapshot.evidenceDigest !== event.evidence.digest
-          )
+          if (previous?.snapshot.kind !== 'release_verified') return refused('conflict');
+          // The immutable source envelope retains all proof fields, including facts omitted from the display projection.
+          const recorded = tx
+            .select()
+            .from(resourceRuntimeEventRecord)
+            .where(
+              and(
+                eq(resourceRuntimeEventRecord.authorityId, authorityId),
+                eq(resourceRuntimeEventRecord.eventId, previous.id),
+              ),
+            )
+            .get();
+          if (recorded === undefined)
+            throw new Error('terminal runtime evidence envelope is absent');
+          const original = resourceRuntimeEvent.assert(JSON.parse(recorded.fingerprint)).evidence;
+          if (original === undefined || event.evidence === undefined) return refused('conflict');
+          const originalProof = [
+            original.digest,
+            original.locator,
+            original.disposition,
+            original.reclaimedBytes,
+          ];
+          const repeatedProof = [
+            event.evidence.digest,
+            event.evidence.locator,
+            event.evidence.disposition,
+            event.evidence.reclaimedBytes,
+          ];
+          // Proof: comparing only digest/locator accepted removed-to-not_created in the composed terminal-evidence regression (2026-10-25).
+          if (JSON.stringify(originalProof) !== JSON.stringify(repeatedProof))
             return refused('conflict');
         }
         // Pending status is derived from other unacknowledged requests, so a late request-1 event cannot erase request 2.

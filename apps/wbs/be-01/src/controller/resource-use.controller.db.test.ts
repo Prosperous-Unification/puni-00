@@ -1,3 +1,4 @@
+import { resourceRuntimeEvent } from '@wbs/contracts';
 import { openDatabase } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
@@ -968,4 +969,170 @@ it('accepts authoritative retry observations without manufacturing an intermedia
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ state: 'release_verified', runtimeRevision: 9 }],
   });
+});
+
+it('delivers historical retention after its deadline without wedging ordered recovery', async () => {
+  const r = await runtimeSetup();
+  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  const observedAt = Date.now() - 60000;
+  const reviewAt = observedAt + 1000;
+  const retained = {
+    ...r.runtimeEvent,
+    eventId: 'delayed-retention',
+    sequence: 2,
+    revision: 2,
+    kind: 'retained',
+    observedAt,
+    retention: { ownerPersonId: 'agent-a', reviewAt },
+  };
+  expect(
+    (
+      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+        ...retained,
+        retention: { ...retained.retention, reviewAt: observedAt },
+      })
+    ).status,
+  ).toBe(400);
+  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, retained)).status).toBe(200);
+  expect((await h.call('owner', 'GET', path)).body).toMatchObject({
+    uses: [{ state: 'retained', retention: { reviewAt } }],
+  });
+  expect(
+    (
+      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+        ...r.runtimeEvent,
+        eventId: 'after-retention',
+        sequence: 3,
+        revision: 3,
+        kind: 'cleanup_pending',
+      })
+    ).status,
+  ).toBe(200);
+});
+
+it.each(['unbound', 'rebound'] as const)(
+  'rejects a queued runtime actor after its person is %s',
+  async (change) => {
+    const r = await runtimeSetup();
+    expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+    const actor = {
+      id: h.userId('owner'),
+      personId: 'runtime-controller',
+      credentialId: r.issued.id,
+      fingerprint: 'previously-admitted',
+      access: {
+        kind: 'scoped' as const,
+        scope: {
+          organizationId: 'org-a',
+          userId: h.userId('owner'),
+          role: 'super_admin' as const,
+          delegated: true as const,
+        },
+      },
+    };
+    const release = Promise.withResolvers<undefined>();
+    const entered = Promise.withResolvers<undefined>();
+    const held = h.holdWriteTurn(release.promise, () => {
+      entered.resolve(undefined);
+    });
+    await entered.promise;
+    const queued = h.resourceRuntime().ingest(
+      r.authorityId,
+      actor,
+      resourceRuntimeEvent.assert({
+        ...r.runtimeEvent,
+        eventId: 'queued-after-binding-change',
+        sequence: 2,
+        revision: 2,
+        kind: 'cleanup_pending',
+      }),
+      Date.now(),
+    );
+    const requests = h.resourceRuntime().requests(r.authorityId, actor, 0, 50);
+    try {
+      h.sqlite.run('UPDATE person SET account_id=? WHERE id=?', [
+        change === 'unbound' ? null : h.userId('viewer'),
+        'runtime-controller',
+      ]);
+    } finally {
+      release.resolve(undefined);
+    }
+    await held;
+    expect(await queued).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await requests).toEqual({ ok: false, reason: 'forbidden' });
+    expect(
+      (await h.call('owner', 'GET', `/api/organization/resource-authorities/${r.authorityId}`))
+        .body,
+    ).toMatchObject({ acceptedSequence: 1 });
+    expect((await h.call('owner', 'GET', path)).body).toMatchObject({
+      uses: [{ state: 'active', runtimeRevision: 1 }],
+    });
+    if (change === 'unbound')
+      expect(
+        (
+          await h.callWith(
+            r.issued.key,
+            'GET',
+            `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
+          )
+        ).status,
+      ).toBe(401);
+  },
+);
+
+it('requires the whole original terminal evidence before acknowledging a pending request', async () => {
+  const r = await runtimeSetup();
+  await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
+  await event(r.runtimeUseId, 'cleanup_requested', 1);
+  const requests = (
+    await h.callWith(
+      r.issued.key,
+      'GET',
+      `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
+    )
+  ).body as { requests: { requestId: number }[] };
+  await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+    ...r.runtimeEvent,
+    eventId: 'proof-pending',
+    sequence: 2,
+    revision: 2,
+    kind: 'cleanup_pending',
+  });
+  const proof = {
+    digest: 'a'.repeat(64),
+    locator: 'dash-resource://proof/complete',
+    disposition: 'removed',
+    reclaimedBytes: null,
+  };
+  const released = {
+    ...r.runtimeEvent,
+    eventId: 'proof-release',
+    sequence: 3,
+    revision: 3,
+    kind: 'release_verified',
+    evidence: proof,
+  };
+  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, released)).status).toBe(200);
+  const acknowledgment = {
+    ...released,
+    eventId: 'proof-acknowledged',
+    sequence: 4,
+    revision: 4,
+    requestId: requests.requests[0].requestId,
+  };
+  expect(
+    (
+      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+        ...acknowledgment,
+        evidence: { ...proof, disposition: 'not_created' },
+      })
+    ).status,
+  ).toBe(409);
+  expect(
+    (await h.call('owner', 'GET', `/api/organization/resource-authorities/${r.authorityId}`)).body,
+  ).toMatchObject({ acceptedSequence: 3 });
+  expect((await h.call('owner', 'GET', path)).body).toMatchObject({
+    uses: [{ state: 'release_verified', pendingCleanupRequest: true, runtimeRevision: 3 }],
+  });
+  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, acknowledgment)).status).toBe(200);
 });
