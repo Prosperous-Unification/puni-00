@@ -90,6 +90,8 @@ adapters, durable coordinator dispatch, S0.08 recovery or S7a.
 
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
+G2 is decided: [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) selects durable execution records and reconciliation while rebuilding scheduling from WBS. This direction approval closes no implementation checkbox and authorizes no architectural merge.
+
 Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the
 [storage design](storage-design.md). Their checkboxes remain the parent acceptance gate.
 

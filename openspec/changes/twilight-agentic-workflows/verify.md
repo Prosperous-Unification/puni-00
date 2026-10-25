@@ -2595,3 +2595,9 @@ The next planned adapters were checked against current primary-source package me
 Root independently re-read the Codex permission guard, harness cleanup and usage normalization, ACP migration guide, installed usage declarations and current prototype/boundary callers. Four official registry tarball SHA512 integrity values matched retained downloads; four key source files matched independently fetched GitHub API source (apart from the API CLI's output newline). A browser raw-source cache miss was recovered through the official GitHub API.
 
 No SDK/session/model/provider/process execution, credential access, token spend, dependency change, application test, build or full gate ran. Only research Markdown and this verification link changed; runtime, storage, SQL and authorization source remain unchanged. No architectural merge or runtime publication is part of this research.
+
+## G2 recovery direction selected — 2026-10-25
+
+After the two recovery models were explained with the crash-after-PR-before-WBS-update scenario, the project owner replied: "ok let's go with the recomendations". The recommendation was durable execution records, receipt-based reconciliation, scheduling rebuilt from WBS, explicit unresolved outcomes and replaceable storage adapters. [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) records that narrow authority decision; design/tasks now link it. Existing glossary terms already describe these concepts, so no implementation decisions were added to CONTEXT.md.
+
+This resolves G2 for further private work. It does not approve architectural merging, the whole proposed ADR 0057, missing S0/S7a behavior, exact-SHA integration gates or the separately rejected persistent Dash guard-removal patch. That patch remains unapplied and the protected planner/migration source is unchanged by this decision record.

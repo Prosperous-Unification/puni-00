@@ -163,6 +163,8 @@ code throws.
 
 ## Run coordination
 
+The project owner selected durable execution records with receipt-based reconciliation on 2026-10-25 after comparing both recovery models. [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) records G2 and its limits. The existing implementation, recovery proofs and release gates remain separate acceptance work; architectural merges remain held.
+
 ### Accepted boundaries
 
 The coordinator depends on semantic `RunStore` and `ArtifactStore` ports, and on the WBS
