@@ -92,11 +92,12 @@ lists any row not named in `WBS_ACCEPT_BREAKING_AUDIENCES`.
 
 ### Requirement: One verification path admits every source
 
-The verification path below SHALL be reached only through `POST /internal/mcp/machine-grants`
-(which answers a machine grant or the refusal named) and through the test-only composition
-seam. On `/api`, an API key, a trusted-issuer token and a groups-less configured-issuer token
-are refused `machine_bearer_not_accepted` before it (`wbs-mcp-agent-surface` M9). On that path
-be-01 SHALL admit a presented token by exactly one of: a
+The API-key and trusted-issuer branches below, and the groups-less refusal, SHALL be reached
+only through `POST /internal/mcp/machine-grants` (which answers a machine grant or the refusal
+named) and through the test-only composition seam. On `/api`, an API key, a trusted-issuer
+token and a groups-less configured-issuer token are refused `machine_bearer_not_accepted`
+before them (`wbs-mcp-agent-surface` M9). The consent-delegation branch stays on `/api`, where
+mcp-01 presents it. be-01 SHALL admit a presented token by exactly one of: a
 WBS-signed delegation naming a live `mcp_consent` credential; an API key
 `wbs_mk_<credential id>.<secret>` whose id selects an unrevoked credential by primary key
 and whose secret's SHA-256 digest equals, compared in constant time, one of that

@@ -197,9 +197,11 @@ speaks it).
       once per run. M10's success limit is raised for that: 300 a minute, burst 100. In the
       steady state an issuance costs be-01 one credential read, then either a SHA-256 (API
       key, read by primary key) or a JWKS verification (OIDC, credential selected by `iss`,
-      `aud` and `sub`), plus a signature. There is **no write**: the audit row for the day and
-      run already exists (M3, read-first). Failures are limited separately, so the success
-      limit only stops a runaway client.
+      `aud` and `sub`). Then come the bound account's read, the two audit lookups (M3) and a
+      signature. **No audit write** happens, because the day's row already exists. The only
+      write is `touchLastUsed`, which both verification paths run (`authentication.feature.ts`
+      402, 494) and which is due at most once a minute per credential. Failures are limited
+      separately, so the success limit only stops a runaway client.
     - _Recorded alternative, rejected for simplicity._ Fable's grandparent key: key the cache
       on the Claude Code process, taking the parent's parent when the parent is a shell. A key
       on the immediate parent never matches: Claude Code 2.1.310 runs the helper with
@@ -348,14 +350,23 @@ action = 'machine_token_issued' DO NOTHING`. The `WHERE` must repeat the partial
   - _Read first, as #668 did_ (`touchLastUsed` in `machine-credential.ts` 159–171,
     `renewLeases` in `claim.ts` 320–324). Every write takes be-01's single write lane
     (`writeImmediately` → `WriteCoordinator`), and a command batch keeps that lane across its
-    awaits (`gate.ts` 3–9). So an issuance first looks up, **outside the lane**, the
-    `(credential, day, run)` row and the `(credential, day)` overflow row. If either exists,
-    it writes nothing and never waits. Otherwise it enters the lane and repeats both lookups
-    and the count inside it before inserting. The lane serialises issuances within one
-    process; `BEGIN IMMEDIATE` adds protection only across the blue and green processes that
-    share the SQLite file mid-swap. Steady-state issuance therefore never queues behind a
-    claim batch, an import or an optimisation save, and the helper's 10 s budget holds. Issuance is never refused for audit reasons, so audit volume is at most
-    101 rows per credential per day.
+    awaits (`libs/wbs/adapters/store-sqlite/src/gate.ts` 3–9).
+    - **Outside the lane**, an issuance reads exactly two rows and no count: the
+      `(credential, day, run)` row and the `(credential, day)` overflow row. If either exists,
+      it writes no audit row.
+    - Otherwise it enters the lane in `writeImmediately` (`BEGIN IMMEDIATE`). Inside it takes
+      **one instant**, used for the day key, both lookups, the count and `created_at`, and
+      repeats the lookups and the count before inserting.
+    - The lane serialises issuances within one process. `BEGIN IMMEDIATE` adds protection
+      only across the blue and green processes that share the SQLite file mid-swap.
+    - _The residual._ The audit step never queues in the steady state. The `touchLastUsed`
+      due once a minute (M2) still enters the lane, so the first issuance after an idle
+      minute may wait behind a claim batch, an import or an optimisation save. That is at
+      most one lane entry per credential per minute, the same residual #668 accepted for
+      `/api`.
+
+    Issuance is never refused for audit reasons, so audit volume is at most 101 rows per
+    credential per day.
 - _Keys absent at activation._ be-01 boot requires `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` once
   the activation marker is set. The activation runbook's preflight lists the missing key and
   refuses to activate. A process that is already running when activation happens without the

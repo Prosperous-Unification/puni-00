@@ -359,11 +359,13 @@ reasons, and no audit row carries a secret.
 
 be-01 SHALL look up the day's run row and overflow row first, outside the write lane. An
 issuance whose run row or overflow row already exists SHALL write nothing. Otherwise the
-lookups and the count SHALL be repeated inside the write lane before the insert.
+lookups and the count SHALL be repeated inside the write lane (`writeImmediately`,
+`BEGIN IMMEDIATE`) at one instant, which is also the row's `created_at`, before the insert.
 
 #### Scenario: Issuance while a batch holds the write turn
 
-- **WHEN** today's row for a credential and run exists and a command batch holds the write turn
+- **WHEN** today's row for a credential and run exists, its last use is fresh (under a minute),
+  and a command batch holds the write turn
 - **THEN** a token request for that credential and run answers `200` without waiting for the
   turn
 

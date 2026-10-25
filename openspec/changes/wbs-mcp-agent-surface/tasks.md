@@ -65,7 +65,8 @@
   - writes `machine_token_issued` at most once per (credential, run, UTC day), and after 100
     such rows in a day one `machine_token_issued_overflow` row. It **reads first outside the
     write lane**, writes nothing when either row exists, and otherwise repeats the lookups and
-    the count inside the lane (M3). **This task ships the migration** that widens the audit
+    the count inside the lane in `writeImmediately` (`BEGIN IMMEDIATE`), at one instant used
+    for the lookups, the count and `created_at` (M3). **This task ships the migration** that widens the audit
     CHECK for both actions and adds their targeted partial unique indexes
     (`(credential, day, run)` and `(credential, day)`), with a guarded `down.sql` that refuses
     by name while any row of either action exists. It follows the latest audit widening at
@@ -82,9 +83,10 @@
     **current grant `kid`** and the delegation key's material; the "grant signed with the
     delegation key" scenario admits;
   - add a `jti` consume, and "A reused Kubernetes token" reddens;
-  - change the run index **and** the `ON CONFLICT` target together (drop the `coalesce`, or
-    use `date(created_at)` instead of `created_at / 86400000`), and three issuances in one run
-    and day, **and three no-run issuances**, each write three rows. Changing the index alone
+  - change the run index **and** the `ON CONFLICT` target together. Dropping the `coalesce`
+    makes the three no-run issuances write three rows. Using `date(created_at)` instead of
+    `created_at / 86400000` makes three issuances in one run and day, and three no-run
+    issuances, each write three rows. Changing the index alone
     makes the targeted insert throw "does not match any … UNIQUE constraint", so the pair
     must move together for the negative to observe duplicates. The test runs at a
     **real-epoch timestamp** (2026-10-26), because a small fake clock hides the day bug;
@@ -98,8 +100,9 @@
   - remove the read-first path, and "Issuance while a batch holds the write turn" (using the
     existing `holdWriteTurn` harness) times out;
   - drop the overflow stop, and 150 runs write 150 rows;
-  - change the overflow index and its `ON CONFLICT` target together to a non-unique key, and
-    every issuance past 100 writes another overflow row;
+  - change the overflow index and its `ON CONFLICT` target together to a unique key that never
+    collides, such as `(credential, created_at)`, and every issuance past 100 writes another
+    overflow row. A non-unique index would throw at prepare instead;
   - drop the `down.sql` guard, and the rollback test no longer sees the guard's **named
     refusal** (as the latest audit widening's own test asserts). The narrow table's CHECK
     would reject the copied rows anyway, so "rows deleted" cannot be observed;

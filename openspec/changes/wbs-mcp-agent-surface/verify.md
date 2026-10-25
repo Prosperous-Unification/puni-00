@@ -174,6 +174,15 @@ Client facts (Claude Code, Agent SDK, Messages API connector, claude.ai connecto
 | S3-5 per-IP burst                      | M10: 300/min, burst 100                                                                                                                                                                                                                                                                                                                                                                       |
 | nits                                   | M3's stale "token caching" sentence; task 2.4 memoise negative; `Retry-After` ≤ 0 means no retry; `BEGIN IMMEDIATE` scoped to blue/green; task 1.2 follows the latest widening (L13); sixth-review rows S2-5, S3-2, S3-12 marked superseded                                                                                                                                                   |
 
+## Ninth review of e3b5d1e32 (Fable, high): ready for Dany; S3 tidy-up
+
+| Item                                        | Where                                                                                                                                                                                                                                           |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-a the consent delegation stays on `/api` | machine-credentials body: only the API-key and trusted-issuer branches and the groups-less refusal are limited to the grant route and the seam                                                                                                  |
+| S3-b `touchLastUsed` still enters the lane  | M2 (the only write is `touchLastUsed`), M3 (the residual: at most one lane entry per credential per minute, as #668 accepted); the scenario adds "its last use is fresh"                                                                        |
+| S3-c two task 1.2 negatives                 | the overflow index uses a never-colliding unique key such as `(credential, created_at)`; dropping `coalesce` affects only the no-run issuances                                                                                                  |
+| nits                                        | `writeImmediately` named in the spec and task 1.2; one instant inside the lane; M3 says the outside step reads exactly two rows and no count; full `gate.ts` path; long line wrapped; M2's cost line names the account read and the two lookups |
+
 ## Commands run for this proposal
 
 Recorded in the PR description with their output: `openspec validate wbs-mcp-agent-surface
