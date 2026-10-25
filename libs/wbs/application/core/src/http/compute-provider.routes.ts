@@ -233,7 +233,7 @@ type ResourcesRead = Extract<HttpReply<typeof readProjectResources>, { ok: true 
 export interface PlannedResources {
   resources: readonly Omit<
     ResourcesRead['resources'][number],
-    'providerId' | 'report' | 'measurement'
+    'providerId' | 'provider' | 'report' | 'measurement'
   >[];
   capacities: ResourcesRead['capacities'];
   demands: ResourcesRead['demands'];
@@ -242,8 +242,9 @@ export interface PlannedResources {
 /**
  * Adds each resource's provider reference, latest report and declared-versus-
  * measured comparison to the project resources read (`compute-providers` P3,
- * P7). The planned read is taken as it was: nothing here feeds back into it.
- * A resource with no instance gets `providerId: null` and nothing else.
+ * P7), and the instance's kind and name for every reader (task 5.3). The
+ * planned read is taken as it was: nothing here feeds back into it. A resource
+ * with no instance gets `providerId: null` and nothing else.
  *
  * @throws when a listed resource has no reading: the reports store reads the
  * same rows the directory listed.
@@ -259,10 +260,12 @@ export async function withProviderReadings(
     resources: planned.resources.map((each) => {
       const reading = readings.get(each.id);
       if (reading === undefined) throw new Error(`resource ${each.id} has no provider reading`);
-      if (reading.providerId === null) return { ...each, providerId: null };
+      if (reading.provider === null) return { ...each, providerId: null };
+      const { id, kind, name } = reading.provider;
       return {
         ...each,
-        providerId: reading.providerId,
+        providerId: id,
+        provider: { kind, name },
         ...(reading.report === null ? {} : { report: reportWire(reading.report) }),
         measurement: compareCapacity(declared.get(each.id) ?? null, reading.report, now),
       };

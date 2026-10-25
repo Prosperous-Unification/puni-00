@@ -196,7 +196,46 @@ describe('resources section states', () => {
     expect(within(disk).queryByRole('button', { name: /Adopt/ })).toBeNull();
   });
 
-  it('shows a member each reference unnamed, with no picker and no adopt', async () => {
+  it('names the instance on the row for a member, with no picker and no adopt', async () => {
+    stubServer({
+      [READ]: [
+        readOf(
+          [resourceOf({ provider: { kind: 'ssh_host', name: 'h2puni' }, report: measured() })],
+          [{ resourceId: 'r1', units: 12 }],
+        ),
+      ],
+      [PROVIDERS]: [() => answer(403, { error: 'forbidden' })],
+      [STARTABLE]: [startableOf({ resourceId: 'r1', capacity: 12, occupied: 0, free: 12 })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    const chip = within(ram).getByLabelText('Compute provider: SSH host h2puni');
+    expect(chip).toHaveTextContent('SSH host·h2puni');
+    expect(within(ram).queryByText('Fulfilled by a compute provider')).toBeNull();
+    expect(within(ram).queryByRole('combobox')).toBeNull();
+    expect(within(ram).queryByRole('button', { name: /Adopt/ })).toBeNull();
+  });
+
+  it('shows the chip to an admin beside the picker, and none on a resource without one', async () => {
+    stubServer({
+      [READ]: [
+        readOf([
+          resourceOf({ provider: { kind: 'docker', name: 'builder' }, providerId: 'cp-2' }),
+          resourceOf({ id: 'r2', name: 'worktrees', unitLabel: '', providerId: null }),
+        ]),
+      ],
+      [PROVIDERS]: [providersOf(h2puni, builder)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(within(ram).getByLabelText('Compute provider: Docker builder')).toBeDefined();
+    expect(within(ram).getByLabelText('Compute provider of h2puni ram')).toHaveValue('cp-2');
+    const worktrees = await row('worktrees');
+    expect(worktrees.querySelector('[data-provider-chip]')).toBeNull();
+  });
+
+  it('shows a member each reference unnamed while the read names no instance', async () => {
+    // The swap window: an outgoing be-01 answers `providerId` without `provider`.
     stubServer({
       [READ]: [readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 12 }])],
       [PROVIDERS]: [() => answer(403, { error: 'forbidden' })],

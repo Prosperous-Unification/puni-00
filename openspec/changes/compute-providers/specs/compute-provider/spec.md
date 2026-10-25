@@ -127,7 +127,9 @@ carry a report or a `providerId`.
 ### Requirement: Declared capacity is shown with the measured figure and adopted only by an explicit command
 
 `GET /api/projects/:id/resources` SHALL carry, per resource, `providerId`; a resource that
-names an instance SHALL also carry, when a report exists, `report` as stored, and always
+names an instance SHALL also carry `provider { kind, name }` for every reader (never the
+locator, which only the admin-only instances list carries), when a report exists, `report`
+as stored, and always
 `measurement { declared, measured, measuredAt, state }`: this project's stated units or null,
 the latest measured capacity or null, the latest report's `observedAt` or null, and `state`
 one of `no_report`, `measured`, `unreachable` or `stale` (`stale` once
@@ -135,10 +137,11 @@ one of `no_report`, `measured`, `unreachable` or `stale` (`stale` once
 SHALL show, beside a capacity whose resource names an instance, the report in one of the
 rendered states: `no report yet`, `measured <capacity> <unit>, <usage> in use, <age>`,
 `unreachable <age>: <reason>`, each marked `stale` once `now - observedAt > 3 ×
-cadenceSeconds`; a resource without an instance SHALL show nothing extra. An organization
-admin SHALL see the instance's kind and name; a member or a viewer SHALL see that a compute
-provider fulfils the resource, unnamed, because the resources read carries only `providerId`
-and the instances list is admin-only. "Adopt measured" SHALL write `setResourceCapacity {
+cadenceSeconds`; a resource without an instance SHALL show nothing extra. Each directory
+resource row of the Resources section SHALL carry a chip naming the instance's kind and name
+(`SSH host · h4claw`) for every reader, off the read's `provider`; an admin additionally gets
+the picker that changes the reference. A read naming an instance without `provider` (an
+outgoing be-01 mid-swap) SHALL show that a compute provider fulfils the resource, unnamed. "Adopt measured" SHALL write `setResourceCapacity {
 resource, units: capacityUnits }` for that project, the explicit command a project writer
 could always send for declared capacity; the UI SHALL offer Adopt to organization admins only.
 `setResourceCapacity` is not journalled, so the plan's undo does not reverse it: the UI's Undo
@@ -152,6 +155,14 @@ adopt a measurement without that act.
   with 8 in use, observed 4 minutes ago at a cadence of 300 s
 - **THEN** the row reads `32 GB` with `ssh_host h4claw · measured 15 GB, 8 in use, 4 min ago`
   and no stale mark; at 16 minutes it is marked stale
+
+#### Scenario: The directory row names the instance for a member
+
+- **WHEN** a member opens project settings → Resources and `h4claw ram` names the `ssh_host`
+  instance `h4claw`
+- **THEN** the resources read carries `provider { kind: ssh_host, name: h4claw }` and no
+  locator, the row shows the chip `SSH host · h4claw`, and the member gets no picker and no
+  Adopt; `staging`, naming no instance, shows no chip
 
 #### Scenario: Adopting the measurement
 

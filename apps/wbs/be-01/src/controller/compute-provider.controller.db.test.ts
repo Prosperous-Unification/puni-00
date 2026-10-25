@@ -146,6 +146,7 @@ async function readResources(username: string) {
       kind: string;
       unitLabel: string;
       providerId: string | null;
+      provider?: { kind: string; name: string };
       report?: Record<string, unknown>;
       measurement?: { state: string } & Record<string, unknown>;
     }[];
@@ -423,6 +424,11 @@ describe("a resource's provider reference", () => {
       providerId: h4claw,
       measurement: { declared: null, measured: null, measuredAt: null, state: 'no_report' },
     });
+    // A member reads the instance's kind and name (task 5.3), never its locator.
+    // Proof: `withProviderReadings` answering `{ kind, name, locator: id }`
+    // failed this `toEqual`; watched 2026-10-25.
+    const member = (await readResources('mem')).resources.find((each) => each.id === ram);
+    expect(member?.provider).toEqual({ kind: 'ssh_host', name: 'h4claw' });
     expect(read.resources.find((each) => each.id === staging)).toEqual({
       id: staging,
       name: 'staging',

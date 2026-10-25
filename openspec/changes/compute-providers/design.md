@@ -236,7 +236,8 @@ instance is `409 provider_mismatch` at the first report and the loop exits.
 fulfils; register, rename or relocate, remove with the `in_use` confirmation carrying the
 resources' names), the resources section of project settings (`wbs-resources` task 1.5, not
 yet built: the provider chip and the report sit beside each capacity, with the adopt action
-for admins), and the directory page's resource row (provider chip). The loading, query-failure
+for admins), and the directory resource row of that section (provider chip: kind and name,
+for every reader, off the read's `provider { kind, name }`; task 5.3). The loading, query-failure
 and empty states are rendered; an impossible report union reaches the Error Boundary.
 
 **P13. The first two instances are PUNI's own.** Slice 2 ends by registering `h2puni` and

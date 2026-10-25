@@ -747,3 +747,44 @@ Remaining S3s, recorded and not fixed:
 - The section's clock does not pause on `visibilitychange`.
 - Later refinement: carry `provider { kind, name }` on the resources read, so a member sees
   which instance fulfils a resource.
+
+### Task 5.3: the directory row chip (2026-10-25)
+
+Branch `feat/wbs-resource-facet` from main `830e774d2`. The directory resource rows are the
+project settings Resources section's (`wbs-resources` 1.5), so the chip lives there.
+
+What landed:
+
+- The project resources read carries `provider { kind, name }` on every resource naming an
+  instance, for every reader, never the locator (contracts `resource-shapes.ts`, additive;
+  `providerKind` exported from `compute-provider-shapes.ts`). The port's
+  `ResourceProviderReading` holds `provider { id, kind, name } | null` in place of `providerId`;
+  the SQLite `readingsOf` left-joins `compute_provider` and throws on a reference naming no
+  instance or a malformed kind (broken trusted state: removal clears references); the memory
+  twin answers `provider: null`. No migration; MCP tool count unchanged.
+- `resources-panel.tsx`: `ProviderChip` (`SSH host · h4claw`) beside the resource's kind and
+  unit on every row naming an instance, for admin, member and viewer. An admin still has the
+  picker below; a member no longer reads "Fulfilled by a compute provider" unless the read lacks
+  `provider` (an outgoing be-01 mid-swap), which keeps that sentence.
+- Spec: `compute-provider` drops "a member sees the reference unnamed", adds the chip and the
+  scenario "The directory row names the instance for a member"; `resource-directory` names
+  `provider` on the project resources read; design P12 says where the chip lives.
+
+Assumed (overrulable): naming the instance's kind and name to members and viewers is acceptable;
+the locator stays admin-only. Slice 5's review listed this as the "later refinement".
+
+Commands (fresh, `env -u CLAUDECODE`): `compute-provider.controller.db.test.ts` 27 pass; be-01
+`boot.db.test.ts`, `app.routes.test.ts`, the controller test and the resource tests: 6 files,
+90 pass, 0 fail; contracts 506 pass; core `bun test src` 1337 pass; `resources-panel.test.tsx`
+inside the fe-01 run of the 3.4 entry (250 pass); typecheck and lint of the five projects as
+recorded there. Not run: the full be-01 suite (laptop RAM cap; CI runs it).
+
+| Fault injected (watched 2026-10-25)                                | Observed failing test                                                                                                                                         |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `withProviderReadings` answers `provider: { kind, name, locator }` | `sets, reads and clears the reference, and the schedule input does not move` (member's `provider` not equal)                                                  |
+| the chip not rendered                                              | `names the instance on the row for a member, with no picker and no adopt`; `shows the chip to an admin beside the picker, and none on a resource without one` |
+
+Eye review (same stack and seed as `wbs-resources` 3.4): `05-resources-{admin,member}-{1280,375}-{light,dark}`
+in `resource-facet-shots/`. Page errors 0, overflow 0 px. The chip sits on the name line and
+wraps under the name at 375. An admin sees the chip and the select naming the same instance on
+separate lines; kept, since the chip is what the row reads as and the select is the editor.
