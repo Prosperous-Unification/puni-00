@@ -253,8 +253,9 @@ only for a refusal) or the index `claim_occupancy (resource_id, claim_id)`. 3.5 
 - `bunx prettier --check` over every changed `.ts`, `.tsx`, `.md`, `.json`, `.mjs` and `.yml`
   → "All matched files use Prettier code style!".
 - tool-devsync `adr-index`, `module-labels`, `namespace-layout`, `eslint-boundaries`,
-  `product-constraints`, `current-documents`, `check-documents-target` tests: see the run
-  after the index commit below.
+  `product-constraints`, `current-documents`, `check-documents-target`,
+  `workspace-inventory`, `workspace-projects` and `test-levels` tests, after the index commit
+  → 211 pass, 0 fail (before it, `check-documents-target` failed 5 on the unindexed test).
 
 Not run: the full suites, `bin/h2puni-gate.sh` (CI and the gate host own them, and the laptop
 cap allows two heavy agents), the mcp-01 boot tests and `swarm-rehearsal.boot.db.test.ts`
