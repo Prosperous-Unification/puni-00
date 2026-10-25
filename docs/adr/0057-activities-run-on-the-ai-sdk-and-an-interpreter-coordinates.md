@@ -7,8 +7,8 @@ Twilight Dash needs to drive three kinds of agent from one workflow: API models 
 OpenAI, OpenRouter), coding-agent CLIs (Claude Code, Codex) and ACP agents, and to walk a
 WBS leaf's steps durably. We decided that every agent activity runs behind one port whose
 adapters are built on the Vercel AI SDK 7, and that coordination is an interpreter of Dash's
-own over provider-neutral RunStore and ArtifactStore ports, not LangGraph. SQLite is the
-current adapter choice; any conformant provider can replace it without changing the core. The AI SDK is the only TypeScript layer with
+own that keeps every run fact in WBS (claims, attempts, progress, measures), not LangGraph
+and not a run store of its own (G2, Dany 2026-10-25). The AI SDK is the only TypeScript layer with
 first-party adapters for all three kinds behind one stream shape, it is Apache-2.0 and needs
 no Vercel account, and the website already runs on it. It has no durable graph engine, and
 our graph is data from WBS, so a code-built StateGraph would be a second state model over the
@@ -40,5 +40,6 @@ compiled workflow the glossary already names.
 Keep CTT's unified hints API; no separate planDag graph representation. Retain immutable
 binding manifests and referenced versions. Reconcile ownership, surviving workers and
 uncertain effects before retry. S7a's safe compatibility runtime precedes deployment and
-real dogfood; S7b adds the required type-specific DAG integration. Storage ports specify
-atomic semantics; adapter schemas and migration mechanisms remain implementation details.
+real dogfood; S7b adds the required type-specific DAG integration. _Amended 2026-10-25 (G2):_
+the coordinator persists nothing outside WBS; the RunStore and ArtifactStore ports of this
+refinement are withdrawn.

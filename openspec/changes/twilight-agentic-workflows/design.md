@@ -74,7 +74,7 @@ The one static piece, the binding's schema and validator, is Burokrat's.
 | `twilight-burokrat/cli/src/contracts/workflow-binding.ts` | ArkType schema of the binding; `twib validate workflow-binding <file> --steps <codes>`                                                  |
 | `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port, the five adapters, the provider registry, the fakes                                                            |
 | `twilight-dash/cli/src/bridge/`                           | WBS HTTP client over `@wbs/contracts` shapes under a machine credential (pinned to the coordinator's agent person); every refusal typed |
-| `twilight-dash/cli/src/runs/`                             | RunStore/ArtifactStore ports and adapters, attempt states, the interpreter, `run-coordinator` and `inspect-runs` commands               |
+| `twilight-dash/cli/src/runs/`                             | the reconcile loop over the bridge, attempt states read from WBS, the interpreter, `run-coordinator` and `inspect-runs` commands        |
 | `.twilight/workflows.yaml`                                | puni-00's own binding                                                                                                                   |
 
 Dash does not import WBS app internals; the shared contracts package is the boundary, as
@@ -173,24 +173,31 @@ the interpreter decides on; an unlisted code throws.
 
 ## Run coordination
 
-### Accepted boundaries
+### WBS is the ledger (G2, settled 2026-10-25)
 
-The coordinator depends on semantic `RunStore` and `ArtifactStore` ports, and on the WBS
-HTTP bridge. WBS's WorkflowRepository remains behind WBS's own API. SQLite is the current
-adapter choice, not part of the core contract: any store satisfying atomicity, revision,
-uniqueness, fencing, consistent-read and recovery requirements can implement the ports.
-SQL, SQLite `user_version`, connection handles and provider migration details stay inside
-adapters. Memory is a test provider, not proof of durability. A second durable adapter runs
-the same conformance suite before interchangeability is claimed.
+_Dany, 2026-10-25: "answer A, all info in WBS"._ The coordinator is a reconcile loop, level
+triggered like a Kubernetes controller: every tick, and every restart, rebuilds the walk from
+WBS (step graph, progress, claims, attempts) and admits up to the cap. Nothing about the walk
+is persisted outside WBS; the coordinator holds no journal. The 2026-10-21 "Accepted
+boundaries" text (semantic `RunStore` and `ArtifactStore` ports, an outbox between WBS and a
+run store, receipt replay) is withdrawn: it treated WBS as a foreign system to reconcile
+against, and WBS is ours. Each job it gave the run store maps onto WBS:
 
-RunStore operations atomically admit an attempt with capacity/identity/owner checks, store
-immutable binding manifests, commit outcomes with outgoing WBS intents, and deduplicate
-incoming decisions and command receipts. ArtifactStore stores immutable content with
-integrity and retention metadata; verify uploads before committing an outcome reference.
-Version portable records independently of each adapter's physical schema. WBS and RunStore
-are separate commits: use an outbox and guarded idempotent writes/read-back reconciliation,
-not a distributed exactly-once promise. Store names or filesystem paths in CLI configuration
-select adapters; the core does not require a database file.
+| Run-store job                        | WBS                                                                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| admission intent before launch       | `claimWorkItem` and `startAttempt` in one command batch under the machine credential, with the claim lease of `wbs-team-claims` |
+| receipts of what happened            | `endAttempt` (outcome, note, reference), `setProgress`, `setMeasure`, the event log                                             |
+| capacity reservation                 | the claim limit, `wbs-resources` leases and `wbs-measure-budgets` holds, each refused inside the write                          |
+| run history                          | project history and the attempt list                                                                                            |
+| worker or session locators           | the attempt's `reference` (URL or label) and `note`                                                                             |
+| artifacts (logs, diffs, transcripts) | a later WBS attachment table or a plain file store keyed by attempt, not a database of its own                                  |
+| human waits and decisions            | a later WBS inbox on the attempt; until then the prompt and correlation key sit on the running attempt                          |
+
+What survives of the withdrawn text, restated against WBS: guarded idempotent writes (every
+command names the exact claim and attempt it acts on and WBS refuses a stale one), recovery
+by inspecting surviving workers before replacing them, `unresolved` as an explicit operator
+outcome, and fencing by WBS claim ownership rather than a local owner generation. #660's
+receipt-replay runtime is not the foundation; its resume task (eeb8e50a 010.11) carries this.
 
 ### One hints API
 
@@ -211,27 +218,28 @@ turn completion alone never advances business progress.
 
 ### Admission and recovery
 
-Persist admission/launch intent before external calls. Reserve capacity atomically, acquire
-the exact WBS claim, persist session/worker locators, validate outputs, then atomically save
-the outcome and outgoing progress intent. Deliver that intent idempotently and confirm its
-WBS receipt before releasing successors. `effect_succeeded_pending_progress` preserves the
-result while the WBS update is retried; it must not cause the activity to run again.
+Admission is one WBS command batch: claim the step and start the attempt (the lease and the
+budget hold are refused inside that write) before any external call; the attempt's
+`reference` carries the session or worker locator as soon as it is known. An outcome is one
+WBS command batch too: `endAttempt`, `setProgress`, `setMeasure`. If the agent finished but
+that batch has not landed, the attempt is still running in WBS and the next tick retries the
+write from the executor's answer; it must not run the activity again.
 
-On startup, obtain/fence valid ownership before changing attempt state. Inventory running
-attempts and locate surviving workers/sessions and their effects by operation identity.
-Reattach when safe; otherwise cancel/quiesce and confirm termination before replacement.
-A coordinator dying is not proof that an agent died. Unknown worker/effect state is an
-explicit `unresolved` outcome for operator reconciliation, never automatic retry. Keep
-capacity reserved while physical work may survive. Completion/release checks exact
-claim/run/attempt authority; local fencing cannot promise protection against an external
-system that does not enforce it.
+On startup there is nothing to replay. The first tick reads the running attempts from WBS,
+locates surviving workers or sessions by the attempt's reference and reattaches when safe;
+otherwise it cancels or quiesces and confirms termination before replacement. A coordinator
+dying is not proof that an agent died. Unknown worker or effect state is an explicit
+`unresolved` outcome for operator reconciliation, never automatic retry. The claim stays held
+while physical work may survive. Completion and release name the exact claim and attempt, and
+WBS enforces that (`wbs-team-claims`); there is no local fencing to keep in step.
 
-Attempt state distinguishes queued, running, waiting-for-person, reconciling, interrupted,
-effect-succeeded-pending-progress, unresolved and terminal outcomes. An attempt becomes
-interrupted only after recovery establishes that safe interpretation. A retry creates a new
-attempt ordinal within the persisted budget while retaining the logical operation key.
-Human waits persist prompts/correlation keys and use an authorized deduplicated inbox;
-release running capacity only after work settles. WBS business progress stays authoritative.
+Attempt state is WBS's attempt (running, then succeeded, failed or cancelled). Waiting for a
+person, unresolved and finished-pending-write are derived each tick from the attempt's note
+and the executor's answer, never stored as a second state machine. An attempt is ended
+`cancelled` only after recovery establishes that the worker is gone. A retry is the next
+attempt number on the same step node within the budget hold. A human wait keeps its prompt
+and correlation key on the attempt; a decision delivered twice is consumed once by that key;
+capacity is released only when the attempt ends. WBS business progress stays authoritative.
 
 Budget admission is WBS's (`wbs-measure-budgets` D68): the claim or attempt start takes the
 spend hold inside the write and refuses `budget_exhausted`; the coordinator never admits from
@@ -273,7 +281,7 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 - `twilight-control-plane` proposal, constraints: "LangGraph/LangChain and ACP-first agent
   access" becomes "the AI SDK executor port with ACP as one adapter"; Task 1's LangGraph
-  checkpointer proof becomes the run-store restart proof; Task 6 runs its first real ACP
+  checkpointer proof becomes the reconcile-loop restart proof; Task 6 runs its first real ACP
   activity through this port.
 - `docs/twilight-structure/research/runtime-patterns.md` recommendation: superseded by
   ADR 0057; the note stays as dated evidence.
@@ -282,14 +290,14 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike                                   | Fallback                                                          |
-| -------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                                     | Claude Agent SDK direct behind the same port                      |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                                     | plain tool calling for `plan`                                     |
-| Harness packages break between 1.0.x releases            | 0.3                                     | exact pins, one renovate lane, the port absorbs                   |
-| ACP attempts report no usage                             | modelled                                | `Usage.unknown`, shown, never defaulted                           |
-| Concurrent or surviving owners                           | S7a recovery proof                      | fence ownership, inspect workers/effects; unresolved blocks retry |
-| CTT minor releases change the hints API                  | exact pin 0.11.0 and a conformance test | the compatibility adapter absorbs                                 |
+| Risk                                                     | Spike                                   | Fallback                                                                            |
+| -------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                                     | Claude Agent SDK direct behind the same port                                        |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                                     | plain tool calling for `plan`                                                       |
+| Harness packages break between 1.0.x releases            | 0.3                                     | exact pins, one renovate lane, the port absorbs                                     |
+| ACP attempts report no usage                             | modelled                                | `Usage.unknown`, shown, never defaulted                                             |
+| Surviving workers after a coordinator crash              | S7a recovery proof                      | the claim stays held; inspect workers by attempt reference; unresolved blocks retry |
+| CTT minor releases change the hints API                  | exact pin 0.11.0 and a conformance test | the compatibility adapter absorbs                                                   |
 
 ### Pending renames
 
