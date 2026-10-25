@@ -9,6 +9,8 @@ import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
+import { SqliteResourceRuntime } from '@wbs/store-sqlite';
+import { SqliteResourceUses } from '@wbs/store-sqlite';
 import {
   computeProvidersOver,
   ConsentCredentialRepository,
@@ -649,6 +651,8 @@ export async function bootBe01(
               // (boot.db.test.ts) throw `boot did not wire compute providers`;
               // watched 2026-10-22.
               computeProviders: computeProvidersOver(db, services.gate),
+              resourceUses: new SqliteResourceUses(db, services.gate),
+              resourceRuntime: new SqliteResourceRuntime(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),

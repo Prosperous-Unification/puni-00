@@ -1316,6 +1316,21 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      # Dash's real process fixtures require UID mapping and an isolated procfs before Nx starts.
+      # Proof: toolchain-pins.test.ts failed with this step absent, late or unscoped, with a
+      # wrong executable/missing probe, and with either loader/probe failure ignored (2026-10-25).
+      - name: Provision unshare for Dash resource tests
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-dash') }}
+        run: |
+          set -euo pipefail
+          # Ubuntu restricts user namespaces through AppArmor. Admit this executable only;
+          # preserve the host-wide restriction and run the probe/tests as the runner account.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile unshare /usr/bin/unshare flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/unshare > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/unshare
+          unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true
+
       # The same log, annotation and exit-status contract as the workspace shard's Nx step,
       # whose note explains each part. The workspace shard excludes `twilight-dash`, so its lint
       # runs here, uncached like Burokrat's source lint.

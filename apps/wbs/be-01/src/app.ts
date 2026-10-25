@@ -4,6 +4,8 @@ import type { DependencyClientRefusal } from '@wbs/contracts';
 import type { SessionFeatures } from '@wbs/contracts';
 import type { DependencyContext } from '@wbs/core';
 import type { CommandAccess } from '@wbs/core';
+import type { ResourceRuntime } from '@wbs/core';
+import type { ResourceUses } from '@wbs/core';
 import type { StepParallelStore } from '@wbs/core';
 import type {
   Broadcaster,
@@ -61,6 +63,8 @@ import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectAddressRoutes } from '@wbs/core/http/project-address.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
+import { resourceRuntimeRoutes } from '@wbs/core/http/resource-runtime.routes';
+import { resourceUseRoutes } from '@wbs/core/http/resource-use.routes';
 import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
 import { sharedPeopleRestoreRoutes } from '@wbs/core/http/shared-people-restore.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
@@ -280,6 +284,8 @@ export interface AppOptions {
    * names no instance. Production and the organization harnesses wire the
    * SQLite store (`boot.db.test.ts`).
    */
+  resourceUses?: ResourceUses;
+  resourceRuntime?: ResourceRuntime;
   computeProviders?: {
     readonly administration: ComputeProviderAdministration;
     readonly reports: CapacityReports;
@@ -612,6 +618,8 @@ export function mountedEndpoints(
       () => opts.claimLeases?.requestSweep(),
     ),
     ...claimLeaseRoutes(opts.organizations, commands),
+    ...resourceUseRoutes(opts.organizations, opts.resourceUses, opts.clock),
+    ...resourceRuntimeRoutes(opts.organizations, opts.resourceRuntime, opts.clock),
     ...trustedIssuerRoutes(
       opts.organizations,
       opts.trustedIssuers?.administration ?? INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,

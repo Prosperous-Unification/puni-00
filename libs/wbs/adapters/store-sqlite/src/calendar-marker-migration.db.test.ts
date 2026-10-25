@@ -244,6 +244,8 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',
       '20261023160000_add_measure_estimate',
       '20261023150000_key_step_measure',
@@ -339,6 +341,12 @@ describe('20260905090000_add_calendar_marker', () => {
           n !== 'work_item_budget' &&
           n !== 'compute_provider' &&
           n !== 'resource_capacity_report' &&
+          n !== 'resource_authority' &&
+          n !== 'resource_cleanup_request' &&
+          n !== 'resource_runtime_event' &&
+          n !== 'resource_runtime_use' &&
+          n !== 'resource_use' &&
+          n !== 'resource_use_event' &&
           n !== 'shared_people_restore_operation' &&
           n !== 'shared_people_restore_receipt' &&
           n !== 'shared_people_restore_consumption' &&

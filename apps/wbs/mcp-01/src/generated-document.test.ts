@@ -185,6 +185,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiOrganizationLimits',
     'getApiOrganizationMembers',
     'getApiOrganizationProject-rank',
+    'getApiOrganizationResourceAuthoritiesByAuthorityId',
     'getApiOrganizationSession-policy',
     'getApiOrganizationSso-connections',
     'getApiPeople',
@@ -202,6 +203,8 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiProjectsByIdExport',
     'getApiProjectsByIdHistory',
     'getApiProjectsByIdPeopleByPersonIdWork',
+    'getApiProjectsByIdResourceUses',
+    'getApiProjectsByIdResourceUsesByUseIdHistory',
     'getApiProjectsByIdResources',
     'getApiProjectsByIdSaved-plans',
     'getApiProjectsByIdSaved-plansCompare',
@@ -211,6 +214,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiProjectsByIdWork-items',
     'getApiProjectsByIdWork-itemsByWorkItemId',
     'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+    'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
     'getApiSaved-plansById',
     'getApiServices',
     'getApiSpaces',
@@ -254,6 +258,8 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiProjectsByIdOpened',
     'postApiProjectsByIdOptimizationRetry',
     'postApiProjectsByIdRedo',
+    'postApiProjectsByIdResourceUses',
+    'postApiProjectsByIdResourceUsesByUseIdEvents',
     'postApiProjectsByIdSaved-plans',
     'postApiProjectsByIdSteps',
     'postApiProjectsByIdUndo',
@@ -261,7 +267,10 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiSpaces',
     'postApiSpacesByIdProjects',
     'postApiSpacesByIdProjectsByProjectIdMove',
+    'putApiOrganizationResourceAuthoritiesByAuthorityId',
     'putApiOrganizationSession-policy',
+    'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+    'putApiResourceAuthoritiesByAuthorityIdEvents',
   ]);
 });
 
@@ -308,4 +317,23 @@ test('generated command and startable documents expose execution prerequisites',
   expect(serialized).toContain('prerequisites_unmet');
   expect(serialized).toContain('relationshipId');
   expect(JSON.stringify(paths['/api/projects/{id}/startable'])).toContain('finishBlockers');
+});
+
+test('exposes runtime admission without requiring an ordered sequence before authorization', () => {
+  const tool = toolsFromDocument(readDocument()).find(
+    (candidate) => candidate.name === 'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+  );
+  expect(tool).toBeDefined();
+  for (const field of [
+    'authorityId',
+    'eventId',
+    'epoch',
+    'useId',
+    'incarnation',
+    'observedAt',
+    'reason',
+    'use',
+  ])
+    expect(tool?.inputSchema.required).toContain(field);
+  expect(tool?.inputSchema.properties).not.toHaveProperty('sequence');
 });

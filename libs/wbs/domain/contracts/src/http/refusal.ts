@@ -397,6 +397,7 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  outstandingUses?: number;
   /**
    * The provider instance the resource names, whose reference and report a
    * confirmed removal takes with it (`compute-providers` P3), or null.
@@ -537,6 +538,8 @@ export type CommandRefusalDetail = {
 };
 
 type BareRefusalCode =
+  | 'conflict'
+  | 'resource_tracking_unavailable'
   // Proof: omission failed the closed-registry compiler case with TS2345 (mutation-registry.txt, 2026-10-17).
   | 'unsupported_step_parallelism'
   | 'step_blockage_inactive'

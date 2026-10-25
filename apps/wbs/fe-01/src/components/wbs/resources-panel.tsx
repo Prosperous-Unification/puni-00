@@ -23,6 +23,7 @@ import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient, useResourceScope } from '@/runtime/organization-resources';
 
 import { type BatchRefusal, batchRefusalSentence } from './plan-refusal';
+import { ResourceUsesPanel } from './resource-uses-panel';
 import type { SettingsSectionReport } from './teams-panel';
 
 const RESOURCE_SHAPES = [
@@ -227,15 +228,17 @@ export function ResourcesPanel({
     setRemovedAt(null);
   }, [removedAt, view]);
   const [busy, setBusy] = useState(false);
+  const [usesDirty, setUsesDirty] = useState(false);
+  const [usesBusy, setUsesBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [fault, setFault] = useState<Error | null>(null);
   const isPending = useRef(false);
   const generation = useRef(0);
 
   useEffect(() => {
-    onDirtyChange(busy);
-    onBusyChange?.(busy);
-  }, [busy, onDirtyChange, onBusyChange]);
+    onDirtyChange(busy || usesDirty);
+    onBusyChange?.(busy || usesBusy);
+  }, [busy, usesDirty, usesBusy, onDirtyChange, onBusyChange]);
   useEffect(
     () => () => {
       onDirtyChange(false);
@@ -789,9 +792,16 @@ export function ResourcesPanel({
                       }
                     : undefined
                 }
-                onUndo={(adopted) => {
-                  observe(undo(adopted, resource), 'undo');
-                }}
+                // Proof: 2026-10-25, passing Undo regardless of mayWrite failed
+                // `withdraws Undo after the post-adoption read observes viewer`:
+                // the viewer still found the Undo button.
+                onUndo={
+                  mayWrite
+                    ? (adopted) => {
+                        observe(undo(adopted, resource), 'undo');
+                      }
+                    : undefined
+                }
                 onProvider={(providerId) => {
                   setProvider(resource, providerId);
                 }}
@@ -828,6 +838,12 @@ export function ResourcesPanel({
         </p>
       )}
       {mayWrite && <NewResourceForm busy={busy} onCreate={create} />}
+      <ResourceUsesPanel
+        projectId={projectId}
+        shown={shown}
+        onDirtyChange={setUsesDirty}
+        onBusyChange={setUsesBusy}
+      />
     </div>
   );
 }
@@ -1211,13 +1227,17 @@ export function ResourceRow({
   adoption: Adoption | null;
   /** Adopts a measurement as the declared capacity; absent offers no Adopt. */
   onAdopt?: (units: number) => void;
-  onUndo: (adoption: Adoption) => void;
+  /** Restores the previous capacity; absent offers no Undo. */
+  onUndo?: (adoption: Adoption) => void;
   onProvider: (providerId: string | null) => void;
   /** A removal under way on this row, or null. */
   removal?: Removal | null;
   /** The project whose settings show the row, named `this project` in the usage. */
   projectId?: string;
-  /** Renames the resource or changes its unit label; answers whether it landed. */
+  /**
+   * Renames the resource or changes its unit label; answers whether it landed.
+   * Losing this capability discards an open edit, including on later recovery.
+   */
   onRename?: (name: string, unitLabel: string) => Promise<boolean>;
   /** Removes the resource; `cascade` takes what still uses it with it. */
   onRemove?: (step: 'ask' | 'confirm' | 'cascade') => void;
@@ -1229,6 +1249,11 @@ export function ResourceRow({
 }): React.JSX.Element {
   const isAdmin = providers.kind === 'named';
   const [editing, setEditing] = useState<{ name: string; unitLabel: string } | null>(null);
+  // Proof: 2026-10-25, omitting this reset failed `withdraws the edit form
+  // after forbidden rename observes viewer`: the viewer retained the edit form.
+  if (onRename === undefined && editing !== null) {
+    setEditing(null);
+  }
   const editIds = useId();
   const editButton = useRef<HTMLButtonElement>(null);
   const removeButton = useRef<HTMLButtonElement>(null);
@@ -1525,18 +1550,23 @@ export function ResourceRow({
               : unitsWords(adoption.previous, adoption.unitLabel)}
             ).
           </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            aria-label={`Undo adopting the measurement of ${adoption.name}`}
-            onClick={() => {
-              onUndo(adoption);
-            }}
-          >
-            Undo
-          </Button>
+          {/* Proof: 2026-10-25, rendering Undo without its callback failed
+              `withdraws Undo after the post-adoption read observes viewer`:
+              the viewer still found the Undo button. */}
+          {onUndo !== undefined && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              aria-label={`Undo adopting the measurement of ${adoption.name}`}
+              onClick={() => {
+                onUndo(adoption);
+              }}
+            >
+              Undo
+            </Button>
+          )}
         </div>
       )}
       {removal !== null && (

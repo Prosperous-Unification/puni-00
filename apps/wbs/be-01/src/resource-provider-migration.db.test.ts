@@ -13,6 +13,8 @@ const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limit
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
 const AUDIT_WIDENING = '20261022140100_widen_organization_audit_compute_providers';
 const NEWER = [
+  '20261025130000_add_resource_runtime',
+  '20261025120000_add_resource_use',
   '20261023170000_add_work_item_budget',
   '20261023160000_add_measure_estimate',
   '20261023150000_key_step_measure',

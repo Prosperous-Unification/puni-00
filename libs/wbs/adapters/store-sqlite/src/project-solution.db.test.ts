@@ -143,6 +143,8 @@ describe('scoped solution links', () => {
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
       expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20261025130000_add_resource_runtime',
+        '20261025120000_add_resource_use',
         '20261023170000_add_work_item_budget',
         '20261023160000_add_measure_estimate',
         '20261023150000_key_step_measure',

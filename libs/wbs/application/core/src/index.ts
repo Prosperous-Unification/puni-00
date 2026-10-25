@@ -212,6 +212,8 @@ export type {
 export { withDependencyContext } from './ports/dependency-context';
 export * from './ports/project-address-search';
 export * from './ports/resource-capacity-store';
+export * from './ports/resource-runtime';
+export * from './ports/resource-uses';
 export * from './ports/shared-people-restore-approvals';
 export * from './ports/shared-people-values';
 export * from './ports/step-blockage-store';
