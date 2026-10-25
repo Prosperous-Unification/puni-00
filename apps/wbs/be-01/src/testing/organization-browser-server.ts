@@ -1,5 +1,24 @@
+import { parseArgs } from 'node:util';
+
 import { BootedBrowserProcess } from './booted-browser-process';
 
+/** Loopback only: the JWT key and the fixture password are public in this repository. */
+const HOSTNAME = '127.0.0.1';
+
+/**
+ * `--port` (0 picks a free one), required so the caller owns the port.
+ *
+ * @throws naming the flag when it is missing or not a non-negative integer.
+ */
+function portFromArguments(): number {
+  const { values } = parseArgs({ options: { port: { type: 'string' } }, strict: true });
+  if (values.port === undefined || values.port === '') throw new Error('--port is required');
+  const port = Number(values.port);
+  if (!Number.isInteger(port) || port < 0) throw new Error('--port must be a non-negative integer');
+  return port;
+}
+
+const port = portFromArguments();
 /** Local acceptance alone activates this newly migrated disposable database. */
 const backend = await BootedBrowserProcess.open('enabled', undefined, 'http://localhost:7400');
 await backend.register('ada');
@@ -22,7 +41,8 @@ backend.sqlite.run(
 );
 backend.activate();
 const server = Bun.serve({
-  port: 7300,
+  hostname: HOSTNAME,
+  port,
   fetch: (request: Request) => {
     if (request.method === 'POST' && new URL(request.url).pathname === '/api/__fixture/remove-a') {
       backend.sqlite.run(
@@ -34,7 +54,9 @@ const server = Bun.serve({
     return backend.app.handle(request);
   },
 });
-console.log('organization fixture: enabled authority; activated disposable SQLite; localhost:7300');
+console.log(
+  `organization fixture: enabled authority; activated disposable SQLite; http://${String(server.hostname)}:${String(server.port)}`,
+);
 async function stop() {
   await server.stop(true);
   await backend.close();
