@@ -2,6 +2,7 @@ import {
   type BrowserCheckSolution,
   displayReply,
   getScopingQuestion,
+  readConversationAdmission,
   readReplyReplacement,
   type ScopingAnswerRequest,
   type ScopingAnswerSelection,
@@ -9,6 +10,7 @@ import {
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
+import { readStartingChoice, useMilestone, useMilestones } from './analytics-flow';
 import { ApiFailure, apiOrigin, requestJson, streamFetch } from './api';
 import { describeFailure, unreachableMessage } from './app-flow';
 import { type BrowserCheckSolver, solveInBrowser } from './browser-check';
@@ -102,6 +104,7 @@ export function LiveHarness({
   /** Solves the browser check; tests pass a stub. */
   solveCheck?: BrowserCheckSolver;
 }) {
+  const milestones = useMilestones();
   const [conversation, setConversation] = useState(initial);
   const [isChecking, setChecking] = useState(false);
   const [isCheckFailed, setCheckFailed] = useState(false);
@@ -128,6 +131,30 @@ export function LiveHarness({
   const stopped = live === null ? selectStoppedAttempt(conversation) : null;
   const isBusy = live?.phase === 'submitted' || live?.phase === 'streaming';
 
+  const visibleQuestion =
+    conversation.scoping.version === 1 &&
+    mode.kind === 'open' &&
+    !isReviewFocused &&
+    !isBusy &&
+    live === null &&
+    conversation.latestOperation?.replyFailure !== 'invalid_scoping_reply'
+      ? conversation.scoping.questionId
+      : null;
+  const turnCount = conversation.visitorTurnLimit - conversation.visitorTurnsRemaining;
+  useMilestone(
+    visibleQuestion !== null && conversation.scoping.version === 1
+      ? `question:${conversation.csrfToken}:${String(conversation.scoping.revision)}:${visibleQuestion}`
+      : null,
+    visibleQuestion === null
+      ? null
+      : {
+          name: 'scoping_question_view',
+          question_id: visibleQuestion,
+          turn_bucket:
+            turnCount <= 1 ? '1' : turnCount <= 3 ? '2-3' : turnCount <= 6 ? '4-6' : '7+',
+          starting_choice: readStartingChoice(conversation.scoping),
+        },
+  );
   // The check is solved in the background as soon as a paid conversation without an operation
   // loads, so it is ready by the time the visitor presses Send.
   useEffect(() => {
@@ -281,6 +308,20 @@ export function LiveHarness({
         const next = await reader.read();
         if (next.done) break;
         const chunk = next.value;
+        // Proof: emitting optimistically in send failed mounted analytics for both 409 and 429.
+        const admission = readConversationAdmission(chunk);
+        if (admission?.kind === 'initial')
+          milestones?.observe(`initial:${conversation.csrfToken}`, {
+            name: 'conversation_start',
+            starting_choice: readStartingChoice(conversation.scoping),
+            funnel_version: conversation.scoping.version === 1 ? '1' : 'legacy',
+          });
+        if (admission?.kind === 'answer')
+          milestones?.observe(`answer:${attempt.idempotencyKey}`, {
+            name: 'scoping_answer',
+            question_id: admission.question_id,
+            answer_mode: admission.answer_mode,
+          });
         // After Stop the remaining chunks are drained, not shown; stop() owns the state.
         if (isStopRequested()) continue;
         // A provider refusal after partial text replaces it with the stored decline.
@@ -295,10 +336,13 @@ export function LiveHarness({
           setLive({ attempt, text, phase: 'streaming', failure: '' });
         } else if (chunk.type === 'error') errorText = chunk.errorText;
         else if (chunk.type === 'finish') isFinished = true;
+        else if (chunk.type === 'data-reply-failure')
+          milestones?.failure(new Error('Invalid reply'));
       }
     } catch (error) {
       // Stop already rendered the stopped state and posts the cancel itself.
       if (controller.signal.aborted || isStopRequested()) return;
+      milestones?.failure(error);
       if (
         error instanceof ApiFailure &&
         (error.code === 'challenge_invalid' || error.code === 'challenge_required')
@@ -344,6 +388,7 @@ export function LiveHarness({
       setLive(null);
       return;
     }
+    milestones?.failure(new Error('Interrupted reply'));
     // A stream that ends without `finish` was settled at its reservation by the server.
     setLive({ attempt, text, phase: 'failed', failure: errorText || interruptedText });
     await refresh();
@@ -541,6 +586,13 @@ export function LiveHarness({
               </button>
               <RequestEditor
                 draft={conversation}
+                route={
+                  conversation.stage === 'exhausted'
+                    ? 'exhausted'
+                    : offersProposal(conversation)
+                      ? 'default'
+                      : 'early'
+                }
                 contact={isReviewOpen}
                 onFocusChange={updateReviewFocus}
                 open={
@@ -738,6 +790,17 @@ function ProposalCard({
   const [brief, setBrief] = useState(conversation.brief || conversation.description);
   const [savedBrief, setSavedBrief] = useState(brief);
   const [isSaved, setSaved] = useState(false);
+  const milestones = useMilestones();
+  useMilestone(receipt === null ? `brief:${conversation.csrfToken}` : null, {
+    name: 'brief_view',
+    route: conversation.stage === 'exhausted' ? 'exhausted' : 'default',
+    starting_choice: readStartingChoice(conversation.scoping),
+  });
+  useMilestone(receipt === null ? `email:${conversation.csrfToken}` : null, {
+    name: 'email_request_view',
+    route: conversation.stage === 'exhausted' ? 'exhausted' : 'default',
+    starting_choice: readStartingChoice(conversation.scoping),
+  });
   const [email, setEmail] = useState('');
   const [isPending, setPending] = useState(false);
   const [failure, setFailure] = useState('');
@@ -795,8 +858,15 @@ function ProposalCard({
         headers: { 'X-Puni-CSRF': conversation.csrfToken },
         body: JSON.stringify({ email, brief, idempotencyKey: readProposalKey() }),
       });
+      milestones?.confirm(answer.receipt, {
+        name: 'generate_lead',
+        route: 'chat',
+        funnel_version: 'legacy',
+        starting_choice: readStartingChoice(conversation.scoping),
+      });
       onSubmitted(answer.receipt);
     } catch (error) {
+      milestones?.failure(error);
       setFailure(
         error instanceof ApiFailure && error.code === 'invalid_proposal'
           ? 'Check the email address and the brief.'
@@ -930,6 +1000,7 @@ export function PausedHarness({
           {conversation.scoping.version === 1 ? (
             <RequestEditor
               draft={conversation}
+              route="manual"
               open
               onOpen={() => undefined}
               onClose={() => undefined}

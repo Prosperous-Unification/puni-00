@@ -1,5 +1,7 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import {
+  type ConversationAdmissionMarker,
+  conversationAdmissionPart,
   invalidScopingReplyText,
   readScopingReply,
   type ReplyFailure,
@@ -143,10 +145,12 @@ export function replayReply(
   reply: string,
   replyVersion: 1 | null = null,
   replyFailure: ReplyFailure | null = null,
+  admission?: ConversationAdmissionMarker,
 ): Response {
   const prose = replyVersion === 1 ? scopingReplyText(readScopingReply(reply)) : reply;
   const stream = createUIMessageStream({
     execute: ({ writer }) => {
+      if (admission) writer.write({ type: conversationAdmissionPart, data: admission });
       const id = crypto.randomUUID();
       writer.write({ type: 'text-start', id });
       writer.write({ type: 'text-delta', id, delta: prose });
@@ -168,6 +172,7 @@ export interface ProviderDecline {
 }
 
 export interface ConfirmedReplyOptions {
+  admission?: ConversationAdmissionMarker;
   pin: ProviderPin;
   rates: ProviderRates;
   system: string;
@@ -396,6 +401,8 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   let connected = true;
   const confirmed = new ReadableStream<UIMessageChunk>({
     start(controller) {
+      if (options.admission)
+        controller.enqueue({ type: conversationAdmissionPart, data: options.admission });
       // The pump runs on the server after browser disconnect; only settled turns get a finish event.
       void (async () => {
         let finishChunk: UIMessageChunk | null = null;

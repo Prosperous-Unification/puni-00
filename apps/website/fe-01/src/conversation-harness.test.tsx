@@ -1,3 +1,4 @@
+import type { Analytics } from '@website/analytics';
 import { replyReplacePart } from '@website/contracts';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { JSDOM } from 'jsdom';
@@ -5,6 +6,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { createMilestones, MilestonesContext } from './analytics-flow';
 import type { Conversation } from './build-contract';
 import { LiveHarness, PausedHarness } from './conversation-harness';
 
@@ -458,7 +460,12 @@ const unsentWithCheck: Conversation = {
 };
 
 /** Stubs fetch: records stream POST bodies and answers them with `streamStatus`. */
-function stubApi(options: { streamStatus?: number; streamCode?: string; reread?: unknown }) {
+function stubApi(options: {
+  streamStatus?: number;
+  streamCode?: string;
+  reread?: unknown;
+  marker?: unknown;
+}) {
   const posts: unknown[] = [];
   const reads: string[] = [];
   globalThis.fetch = Object.assign(
@@ -478,7 +485,9 @@ function stubApi(options: { streamStatus?: number; streamCode?: string; reread?:
             headers: { 'content-type': 'application/json' },
           });
         return new Response(
-          'data: {"type":"start"}\n\ndata: {"type":"finish"}\n\ndata: [DONE]\n\n',
+          (options.marker
+            ? `data: ${JSON.stringify({ type: 'data-conversation-admission', data: options.marker })}\n\n`
+            : '') + 'data: {"type":"start"}\n\ndata: {"type":"finish"}\n\ndata: [DONE]\n\n',
           {
             headers: { 'content-type': 'text/event-stream' },
           },
@@ -500,6 +509,7 @@ function stubApi(options: { streamStatus?: number; streamCode?: string; reread?:
 async function mountHarness(
   conversation: Conversation,
   solveCheck: (challenge: unknown) => Promise<number | null>,
+  milestones: ReturnType<typeof createMilestones> | null = null,
 ) {
   const container = dom.window.document.createElement('div');
   dom.window.document.body.replaceChildren(container);
@@ -511,12 +521,14 @@ async function mountHarness(
   observer.observe(container, { childList: true, subtree: true });
   await act(async () => {
     root.render(
-      <LiveHarness
-        initial={conversation}
-        onReload={() => undefined}
-        onHandedOff={() => undefined}
-        solveCheck={solveCheck}
-      />,
+      <MilestonesContext.Provider value={milestones}>
+        <LiveHarness
+          initial={conversation}
+          onReload={() => undefined}
+          onHandedOff={() => undefined}
+          solveCheck={solveCheck}
+        />
+      </MilestonesContext.Provider>,
     );
     await Promise.resolve();
   });
@@ -1008,3 +1020,55 @@ test('candidate save synchronously blocks a same-event paid Retry', async () => 
   );
   harness.unmount();
 });
+
+for (const status of [409, 429, 200])
+  test(`mounted analytics waits for authoritative admission: ${String(status)}`, async () => {
+    const events: unknown[] = [];
+    const analytics = {
+      dispatch: (event: unknown) => {
+        events.push(event);
+        return 'sent';
+      },
+    } as Analytics;
+    const milestones = createMilestones(analytics);
+    const api = stubApi(
+      status === 200
+        ? {
+            marker: { kind: 'answer', question_id: 'launch-stage', answer_mode: 'text' },
+            reread: scoped,
+          }
+        : {
+            streamStatus: status,
+            streamCode: status === 409 ? 'stale_answer' : 'rate_limited',
+            reread: scoped,
+          },
+    );
+    const harness = await mountHarness(scoped, () => Promise.resolve(null), milestones);
+    try {
+      const choice = [...harness.container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'Recurring bugs',
+      );
+      if (!choice) throw new Error('Missing choice');
+      act(() => {
+        choice.click();
+        choice.click();
+      });
+      await settleUntil(
+        () => api.posts.length === 1 && !harness.container.textContent.includes('Thinking'),
+        () => harness.container.textContent,
+      );
+      const answers = events.filter(
+        (event) => (event as { name: string }).name === 'scoping_answer',
+      );
+      expect(answers).toEqual(
+        status === 200
+          ? [{ name: 'scoping_answer', question_id: 'launch-stage', answer_mode: 'text' }]
+          : [],
+      );
+      expect(
+        events.filter((event) => (event as { name: string }).name === 'scoping_question_view'),
+      ).toHaveLength(1);
+    } finally {
+      harness.unmount();
+    }
+  });

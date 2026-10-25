@@ -132,7 +132,7 @@ export function resolvePage(
   return {
     // Object.entries comes only from the fixed page registry above.
     page_id: pageId as AnalyticsPageId,
-    // Proof: forwarding href exposed the query/hash sentinel in initialization-and-navigation.
+    // Proof: forwarding href exposed query/hash in initialization-and-navigation and the mounted analytics.mjs metadata case.
     page_location: `${url.origin}${page.path}`,
     page_title: page.title,
     page_referrer: origin,

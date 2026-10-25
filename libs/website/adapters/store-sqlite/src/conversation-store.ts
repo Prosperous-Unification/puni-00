@@ -103,6 +103,8 @@ export interface ConversationAdmissionRequest {
 export type ConversationAdmission =
   | {
       kind: 'started';
+      /** True only for the first attempt of this logical input, never an unknown Retry. */
+      isNewInput: boolean;
       id: string;
       conversationId: string;
       stage: ConversationReplyStage;
@@ -587,7 +589,16 @@ export function admitConversationOperation(
           // Proof: storing null here failed mounted selected Retry after remount.
           request.answer ? JSON.stringify(request.answer) : null,
         );
-      return { kind: 'started', id, conversationId: conversation.id, stage, history, context };
+      // Proof: marking every attempt new repeated admission in unknown-initial and selected-Retry mounted tests.
+      return {
+        kind: 'started',
+        isNewInput: existing === null,
+        id,
+        conversationId: conversation.id,
+        stage,
+        history,
+        context,
+      };
     })
     .immediate();
 }

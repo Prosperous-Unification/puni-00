@@ -1,6 +1,7 @@
-import type { ConversationScoping } from '@website/contracts';
+import type { AnalyticsReviewRoute, ConversationScoping } from '@website/contracts';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
+import { readStartingChoice, useMilestone, useMilestones } from './analytics-flow';
 import { ApiFailure, requestJson } from './api';
 import { describeFailure } from './app-flow';
 import { parseDraft, parseScoping } from './build-contract';
@@ -135,6 +136,7 @@ export function RequestEditor({
   draft,
   open,
   contact = false,
+  route = 'default',
   onOpen,
   onClose,
   onRefresh,
@@ -144,12 +146,14 @@ export function RequestEditor({
   draft: EditableDraft;
   open: boolean;
   contact?: boolean;
+  route?: AnalyticsReviewRoute;
   onOpen: () => void;
   onClose: () => void;
   onRefresh?: () => Promise<void>;
   onFocusChange?: (isFocused: boolean) => void;
   onSubmitted: () => void;
 }) {
+  const milestones = useMilestones();
   const [restored] = useState(() => readFields(draft));
   const [fields, setFields] = useState(restored.fields);
   const [failure, setFailure] = useState('');
@@ -192,6 +196,17 @@ export function RequestEditor({
         receipt === null,
     );
   }, [isEditorOpen, isEditing, isContactOpen, isPending, isDirty, remote, receipt, onFocusChange]);
+  useMilestone(isEditorOpen && receipt === null ? `brief:${draft.csrfToken}` : null, {
+    name: 'brief_view',
+    route,
+    starting_choice: readStartingChoice(draft.scoping),
+  });
+  useMilestone(
+    isEditorOpen && !isEditing && isContactOpen && receipt === null
+      ? `email:${draft.csrfToken}`
+      : null,
+    { name: 'email_request_view', route, starting_choice: readStartingChoice(draft.scoping) },
+  );
   useEffect(() => {
     if (open) {
       setEditorOpen(true);
@@ -337,6 +352,7 @@ export function RequestEditor({
       await onRefresh?.();
       return true;
     } catch (error) {
+      milestones?.failure(error);
       setFailure(
         `Your edits are still here. AI chat has not received them yet. ${describeFailure(error)}`,
       );
@@ -388,6 +404,7 @@ export function RequestEditor({
       }));
       await onRefresh?.();
     } catch (error) {
+      milestones?.failure(error);
       setFailure(describeFailure(error));
     } finally {
       isWriting.current = false;
@@ -409,6 +426,7 @@ export function RequestEditor({
       onClose();
       await onRefresh?.();
     } catch (error) {
+      milestones?.failure(error);
       setFailure(describeFailure(error));
     } finally {
       isWriting.current = false;
@@ -456,6 +474,13 @@ export function RequestEditor({
           idempotencyKey: key,
         }),
       });
+      // Proof: moving confirmation before the POST failed mounted confirmation while still pending.
+      milestones?.confirm(answer.receipt, {
+        name: 'generate_lead',
+        route: route === 'manual' ? 'manual' : 'chat',
+        funnel_version: draft.scoping?.version === 1 ? '1' : 'legacy',
+        starting_choice: readStartingChoice(draft.scoping),
+      });
       setReceipt(answer.receipt);
       try {
         sessionStorage.removeItem('puni_pending_proposal');
@@ -467,6 +492,7 @@ export function RequestEditor({
       }
       onSubmitted();
     } catch (error) {
+      milestones?.failure(error);
       setFailure(
         `${describeFailure(error)} If the response was lost, recover the receipt on the manual page.`,
       );

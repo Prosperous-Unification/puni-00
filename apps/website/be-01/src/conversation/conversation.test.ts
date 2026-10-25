@@ -1119,6 +1119,15 @@ test('a cleanup fence suppresses later provider text and final usage before the 
   }
 });
 
+/** The admission marker precedes provider output; mid-stream cancellation waits for actual text. */
+async function readProviderText(reader: ReadableStreamDefaultReader<Uint8Array>) {
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error('Provider stream ended before text');
+    if (new TextDecoder().decode(chunk.value).includes('text-delta')) return;
+  }
+}
+
 test('a browser disconnect mid-stream aborts the call and leaves the operation unknown', async () => {
   const fake = fakeOpenRouter(() => ({ hang: 'Partial' }));
   const config = paidConfig(fake.providerFetch);
@@ -1127,7 +1136,7 @@ test('a browser disconnect mid-stream aborts the call and leaves the operation u
   const streaming = await sendInitial(api, visitor);
   const reader = streaming.body?.getReader();
   if (!reader) throw new Error('Missing stream body');
-  await reader.read();
+  await readProviderText(reader);
   await reader.cancel();
   await Bun.sleep(20);
   expect(fake.signals[0]?.aborted).toBe(true);
@@ -1135,11 +1144,11 @@ test('a browser disconnect mid-stream aborts the call and leaves the operation u
   api.close();
 });
 
-/** Starts a hanging reply under `key`, reads its first chunk, cancels it and drains the stream. */
+/** Starts a hanging reply under `key`, waits for provider text, cancels it and drains the stream. */
 async function stopReply(api: Api, visitor: Visitor, request: Promise<Response>, key: string) {
   const reader = (await request).body?.getReader();
   if (!reader) throw new Error('Missing stream body');
-  await reader.read();
+  await readProviderText(reader);
   const cancelled = await api.fetch(post('/conversation/cancel', visitor, { idempotencyKey: key }));
   expect(cancelled.status).toBe(200);
   while (!(await reader.read()).done);
@@ -1336,6 +1345,7 @@ test('an unavailable provider refuses a broken store admission without contactin
   WebsiteStore.prototype.admitConversationOperation = function () {
     return {
       kind: 'started',
+      isNewInput: true,
       id: 'injected-invalid-admission',
       conversationId: 'injected',
       stage: 'clarify',
@@ -2162,8 +2172,8 @@ test('scoping initial intent admits two tabs and repeated navigation only once',
     sendAutomatic(api, visitor, check),
   ]);
   expect([first.status, otherTab.status].sort()).toEqual([200, 409]);
-  await first.text();
-  await otherTab.text();
+  const wires = await Promise.all([first.text(), otherTab.text()]);
+  expect(wires.filter((wire) => wire.includes('data-conversation-admission'))).toHaveLength(1);
   const replay = await sendAutomatic(api, visitor);
   expect(replay.status).toBe(200);
   expect(await replay.text()).toContain('First question');
@@ -2209,7 +2219,7 @@ test('scoping unknown initial never automatically retries, explicit Retry retain
   const api = mountApi(config);
   const visitor = await beginScopingVisitor(api);
   const first = await sendAutomatic(api, visitor, await solveCheck(api, visitor));
-  await first.text();
+  expect(await first.text()).toContain('data-conversation-admission');
   expect((await readConversation(api, visitor.cookie)).initialOperation.state).toBe('unknown');
   const automatic = await sendAutomatic(api, visitor);
   expect(automatic.status).toBe(409);
@@ -2218,7 +2228,7 @@ test('scoping unknown initial never automatically retries, explicit Retry retain
   expect(operations(config.databasePath)).toHaveLength(1);
   const explicit = await sendInitial(api, visitor);
   expect(explicit.status).toBe(200);
-  await explicit.text();
+  expect(await explicit.text()).not.toContain('data-conversation-admission');
   expect(fake.bodies).toHaveLength(2);
   expect(operations(config.databasePath)).toHaveLength(2);
   api.close();
@@ -2492,7 +2502,7 @@ test('scoping selected Retry survives remount with exact persisted raw answer', 
   const first = await api.fetch(
     post('/conversation/stream', visitor, { idempotencyKey: 'selected-retry-key', ...answer }),
   );
-  await first.text();
+  expect(await first.text()).toContain('data-conversation-admission');
   const current = await readConversation(api, visitor.cookie);
   expect(current.latestOperation).toMatchObject({
     state: 'unknown',
@@ -2506,7 +2516,7 @@ test('scoping selected Retry survives remount with exact persisted raw answer', 
     }),
   );
   expect(retry.status).toBe(200);
-  await retry.text();
+  expect(await retry.text()).not.toContain('data-conversation-admission');
   expect(fake.bodies).toHaveLength(3);
   expect(fake.bodies[2]?.messages.map(textOf).at(-1)?.text).toBe(
     'Buy or book\n\n  Exact explanation  ',
@@ -3148,4 +3158,39 @@ test('structured source permits three conversations per day and refuses the four
   expect(await response.json()).toEqual({ code: 'source_limit', exhaustedReason: 'source_spend' });
   expect(fake.bodies).toHaveLength(3);
   api.close();
+});
+
+test('admission marker identifies fresh logical input, authoritative typed question and invalid output, never replay', async () => {
+  const fake = fakeOpenRouter((call) =>
+    call === 1 ? { reply: 'First question' } : { reply: 'INVALID SYNTHETIC', raw: true },
+  );
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  try {
+    const visitor = await beginScopingVisitor(api);
+    const initial = await (await sendInitial(api, visitor)).text();
+    expect(initial).toContain('"type":"data-conversation-admission","data":{"kind":"initial"}');
+    expect(await (await sendInitial(api, visitor)).text()).not.toContain(
+      'data-conversation-admission',
+    );
+    setQuestion(config.databasePath, 1, 'launch-stage');
+    const answer = await (
+      await sendMessage(api, visitor, 'admitted-text', 'Synthetic typed answer')
+    ).text();
+    expect(answer).toContain('"kind":"answer","question_id":"launch-stage","answer_mode":"text"');
+    expect(answer).toContain('invalid_scoping_reply');
+    expect(
+      await (await sendMessage(api, visitor, 'admitted-text', 'Synthetic typed answer')).text(),
+    ).not.toContain('data-conversation-admission');
+    const database = new Database(config.databasePath);
+    database.query('UPDATE draft_scoping SET question_id = NULL').run();
+    database.close();
+    const continuation = await (
+      await sendMessage(api, visitor, 'admitted-continuation', 'Another synthetic answer')
+    ).text();
+    expect(continuation).toContain('"kind":"continuation"');
+    expect(continuation).not.toContain('"question_id"');
+  } finally {
+    api.close();
+  }
 });

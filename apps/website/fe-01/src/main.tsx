@@ -3,6 +3,14 @@ import './style.css';
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { createAppAnalytics } from './analytics';
+import {
+  createMilestones,
+  MilestonesContext,
+  readStartingChoice,
+  useMilestone,
+  useMilestones,
+} from './analytics-flow';
 import { ApiFailure, requestJson } from './api';
 import { describeFailure, describeOperatorFailure, offersAi } from './app-flow';
 import { type Draft, parseDraft } from './build-contract';
@@ -18,6 +26,7 @@ import {
 } from './chrome';
 import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
+import { PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
 
 interface Submission {
@@ -105,6 +114,7 @@ type LoadState =
 const briefLimit = 8000;
 
 function ManualPage() {
+  const milestones = useMilestones();
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
   const [brief, setBrief] = useState('');
   const [email, setEmail] = useState('');
@@ -120,6 +130,18 @@ function ManualPage() {
   );
   const feedback = useRef<HTMLParagraphElement>(null);
   const [requestKey, setRequestKey] = useState(recovery.requestKey);
+  useMilestone(
+    load.kind === 'ready' && load.draft.scoping?.version !== 1
+      ? `brief:${load.draft.csrfToken}`
+      : null,
+    { name: 'brief_view', route: 'manual', starting_choice: 'typed' },
+  );
+  useMilestone(
+    load.kind === 'ready' && load.draft.scoping?.version !== 1
+      ? `email:${load.draft.csrfToken}`
+      : null,
+    { name: 'email_request_view', route: 'manual', starting_choice: 'typed' },
+  );
 
   useEffect(() => {
     requestJson<unknown>('/draft')
@@ -169,6 +191,11 @@ function ManualPage() {
         brief: pending.brief,
         idempotencyKey: pending.idempotencyKey,
       }),
+    });
+    milestones?.confirm(answer.receipt, {
+      name: 'generate_lead',
+      route: 'manual',
+      funnel_version: pending.version === 1 ? '1' : 'legacy',
     });
     sessionStorage.removeItem(pendingKey);
     sessionStorage.removeItem('puni_proposal_key');
@@ -238,8 +265,15 @@ function ManualPage() {
       sessionStorage.removeItem(pendingKey);
       sessionStorage.removeItem('puni_proposal_key');
       setPendingProposal(null);
+      milestones?.confirm(answer.receipt, {
+        name: 'generate_lead',
+        route: 'manual',
+        funnel_version: 'legacy',
+        starting_choice: readStartingChoice(load.draft.scoping),
+      });
       setReceipt(answer.receipt);
     } catch (error) {
+      milestones?.failure(error);
       setMessage(describeFailure(error));
     } finally {
       setPending(false);
@@ -264,6 +298,7 @@ function ManualPage() {
     <div className="page-shell night-band">
       <HeroMedia />
       <SiteHeader buildCurrent="true" tone="night" />
+      <PrivacyChoices />
       <main className="manual-layout" id="main">
         <aside className="context-panel" aria-label="About this step">
           <p className="eyebrow">01 / Request</p>
@@ -399,6 +434,7 @@ function ManualPage() {
                 {load.draft.scoping?.version === 1 ? (
                   <RequestEditor
                     draft={load.draft}
+                    route="manual"
                     contact
                     open
                     onOpen={() => undefined}
@@ -650,16 +686,19 @@ function OperatorPage() {
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing app root');
+const milestones = createMilestones(createAppAnalytics(window));
 createRoot(root).render(
-  window.location.pathname.startsWith('/operator') ? (
-    <OperatorPage />
-  ) : window.location.pathname.startsWith('/manual') ? (
-    <AppErrorBoundary>
-      <ManualPage />
-    </AppErrorBoundary>
-  ) : (
-    <AppErrorBoundary>
-      <BuildPage />
-    </AppErrorBoundary>
-  ),
+  <MilestonesContext.Provider value={milestones}>
+    {window.location.pathname.startsWith('/operator') ? (
+      <OperatorPage />
+    ) : window.location.pathname.startsWith('/manual') ? (
+      <AppErrorBoundary>
+        <ManualPage />
+      </AppErrorBoundary>
+    ) : (
+      <AppErrorBoundary>
+        <BuildPage />
+      </AppErrorBoundary>
+    )}
+  </MilestonesContext.Provider>,
 );

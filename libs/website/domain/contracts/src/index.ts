@@ -114,5 +114,6 @@ export interface SubmissionView {
 export * from './analytics';
 export * from './brief';
 export * from './browser-check';
+export * from './conversation-admission';
 export * from './reply-stream';
 export * from './scoping';

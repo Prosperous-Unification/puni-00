@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import {
   browserCheckDifficulty,
+  type ConversationAdmissionMarker,
   type ConversationProvider,
   type ConversationView,
   deriveStage,
@@ -1047,11 +1048,30 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         response.headers.set('Cache-Control', 'no-store');
         return attachCors(response, origin);
       }
+      const currentQuestion =
+        admitted.context.scoping.version === 1 ? admitted.context.scoping.questionId : null;
+      const admission: ConversationAdmissionMarker | undefined = !admitted.isNewInput
+        ? undefined
+        : initial
+          ? { kind: 'initial' }
+          : currentQuestion === null
+            ? { kind: 'continuation' }
+            : {
+                kind: 'answer',
+                question_id: currentQuestion,
+                answer_mode: normalizedAnswer?.selected
+                  ? normalizedAnswer.message?.trim()
+                    ? 'mixed'
+                    : normalizedAnswer.selected.answerId === 'not-sure'
+                      ? 'unsure'
+                      : 'choice'
+                  : 'text',
+              };
       if (provider.kind === 'demo') {
         const reply = simulateReply(admitted.stage, draft.description);
         if (!store.completeConversationOperation(admitted.id, reply, null, Date.now(), false))
           throw new Error('Demo conversation operation failed to complete');
-        const response = replayReply(reply);
+        const response = replayReply(reply, null, null, admission);
         response.headers.set('Cache-Control', 'no-store');
         return attachCors(response, origin);
       }
@@ -1066,6 +1086,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         admitted.context,
       );
       const response = streamConfirmedReply({
+        admission,
         pin: {
           key: String(config.openRouterKey),
           model: String(config.openRouterModel),
