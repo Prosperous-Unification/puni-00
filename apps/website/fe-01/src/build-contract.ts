@@ -61,6 +61,7 @@ export interface BrowserChallenge {
 
 /** The `GET /conversation` body: the conversation bound to this browser's draft claim. */
 export interface Conversation {
+  expiresAt?: string;
   scoping: ConversationScoping;
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
@@ -80,6 +81,7 @@ export interface Conversation {
 
 /** The `GET /draft` body: the manual brief's draft and the conversation provider now. */
 export interface Draft {
+  scoping?: ConversationScoping;
   description: string;
   brief: string;
   csrfToken: string;
@@ -118,7 +120,16 @@ export function parseDraft(value: unknown): Draft {
   const provider = 'provider' in value ? value.provider : undefined;
   const known = providers.find((candidate) => candidate === provider);
   if (known === undefined) throw new InvalidDraft('provider');
-  return { description, brief, csrfToken, expiresAt, provider: known };
+  return {
+    description,
+    brief,
+    csrfToken,
+    expiresAt,
+    provider: known,
+    scoping: Object.hasOwn(value, 'scoping')
+      ? parseScoping('scoping' in value ? value.scoping : undefined)
+      : { version: 'legacy' },
+  };
 }
 
 /** The `GET /conversation` body did not match the API contract. */
@@ -216,7 +227,8 @@ function parseOperation(value: unknown, field: string): ConversationOperation | 
   };
 }
 
-function parseScoping(value: unknown): ConversationScoping {
+/** Validates the shared committed scoping state on conversation, draft and edit responses. */
+export function parseScoping(value: unknown): ConversationScoping {
   // Proof: bypassing this shape check made the malformed-present-scoping fixture throw TypeError instead of InvalidConversation.
   if (typeof value !== 'object' || value === null || Array.isArray(value))
     throw new InvalidConversation('scoping');
@@ -360,7 +372,15 @@ export function parseConversation(value: unknown): Conversation {
   // Proof: defaulting an absent challenge to null made the missing-challenge contract case pass.
   if (!('challenge' in value)) throw new InvalidConversation('challenge');
   const challenge = parseChallenge(value.challenge);
+  const expiresAt = 'expiresAt' in value ? value.expiresAt : undefined;
+  // Proof: bypassing date validation accepted malformed expiry values in build-contract.test.ts.
+  if (
+    Object.hasOwn(value, 'expiresAt') &&
+    (typeof expiresAt !== 'string' || Number.isNaN(Date.parse(expiresAt)))
+  )
+    throw new InvalidConversation('expiresAt');
   return {
+    ...(typeof expiresAt === 'string' ? { expiresAt } : {}),
     scoping,
     challenge,
     stage,
@@ -411,6 +431,7 @@ export interface ConversationAttempt {
   initial: boolean;
   /** Exact normalized raw answer when retrying a versioned follow-up. */
   answer?: ScopingAnswerRequest;
+  automatic?: boolean;
 }
 
 /** What the live composer offers; see {@link selectComposerMode}. */
@@ -473,6 +494,9 @@ export function selectStoppedAttempt(conversation: Conversation): ConversationAt
  * without a brief, so the card does not interrupt the first questions.
  */
 export function offersProposal(conversation: Conversation): boolean {
+  // Proof: legacy stage-only invitation opened contact without a v1 brief in build-contract.test.ts.
+  if (conversation.scoping.version === 1)
+    return conversation.brief.trim() !== '' || conversation.stage === 'exhausted';
   // Proof: returning true unconditionally failed the two no-brief rows of the build-page.test.ts card table.
   return (
     conversation.stage === 'contact' ||

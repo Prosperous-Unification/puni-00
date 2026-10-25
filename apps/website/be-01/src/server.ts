@@ -56,6 +56,7 @@ import {
   type GuardrailAlertKind,
   readWebhookUrl,
 } from './guardrail-alerts';
+import { parseScopingEdit } from './scoping-edit';
 
 export interface WebsiteApiConfig {
   databasePath: string;
@@ -861,6 +862,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (!claim || !draft) return attachCors(failure('draft_unavailable', 401), origin);
       const view: DraftView = {
         description: draft.description,
+        scoping: draft.scoping,
         brief: draft.brief,
         csrfToken: draftCsrf(claim),
         expiresAt: new Date(draft.expiresAt).toISOString(),
@@ -900,6 +902,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
             )
           : null;
       const view: ConversationView = {
+        expiresAt: new Date(draft.expiresAt).toISOString(),
         scoping: draft.scoping,
         challenge,
         stage: deriveStage(conversation?.state ?? 'open', visitorTurns),
@@ -1172,6 +1175,25 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         origin,
       );
     }
+    if (path === '/scoping' && request.method === 'PATCH') {
+      const claim = draftClaim(request);
+      if (!claim) return attachCors(failure('draft_unavailable', 401), origin);
+      if (!validDraftCsrf(request, claim))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      const rate = admitRequestRate('/scoping', source, now);
+      if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
+      const parsed = parseScopingEdit(await readBody(request));
+      if (parsed === null) return attachCors(failure('invalid_scoping_edit', 400), origin);
+      // Proof: substituting the current revision admitted the stale mounted write instead of 409.
+      const edited = store.editScoping(digest(claim), parsed.revision, parsed.edit, now);
+      if (edited.kind === 'missing') return attachCors(failure('draft_unavailable', 401), origin);
+      if (edited.kind !== 'updated')
+        return attachCors(failure(`scoping_${edited.kind}`, 409), origin);
+      const draft = store.findDraft(digest(claim), now);
+      // Proof: a broken findDraft dependency loses contextual failure if this readback guard is removed.
+      if (draft === null) throw new Error('Edited scoping draft disappeared');
+      return attachCors(json({ scoping: edited.scoping, brief: draft.brief }), origin);
+    }
     if (path === '/brief' && request.method === 'PATCH') {
       const claim = draftClaim(request);
       if (!claim || !store.findDraft(digest(claim), now))
@@ -1198,11 +1220,24 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const email = body && emailField(body['email']);
-      const brief = body && textField(body['brief'], 8000);
+      const version = body?.['version'];
+      if (body && Object.hasOwn(body, 'version') && version !== 1)
+        return attachCors(failure('invalid_proposal', 400), origin);
+      const rawBrief = body?.['brief'];
+      // Proof: trimming v1 or validating trimmed length failed exact reviewed bytes and oversized raw input.
+      const brief =
+        version === 1
+          ? typeof rawBrief === 'string' && rawBrief.trim() !== '' && rawBrief.length <= 8000
+            ? rawBrief
+            : null
+          : textField(rawBrief, 8000);
       const idempotencyKey = body && textField(body['idempotencyKey'], 128);
       if (!email || !brief || !idempotencyKey || !/^[a-zA-Z0-9_-]{8,128}$/.test(idempotencyKey))
         return attachCors(failure('invalid_proposal', 400), origin);
-      const bodyHash = digest(JSON.stringify({ email, brief }));
+      // Proof: omitting version or trimming v1 broke whitespace conflict/legacy replay compatibility.
+      const bodyHash = digest(
+        JSON.stringify(version === 1 ? { version: 1, email, brief } : { email, brief }),
+      );
       const receipt = randomBytes(16).toString('hex');
       const priorReplay = priorClaim
         ? store.replaySubmission(digest(priorClaim), idempotencyKey, bodyHash, now)

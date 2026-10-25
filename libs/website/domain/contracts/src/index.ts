@@ -4,6 +4,7 @@ import type { QuestionId, ReplyFailure, ScopingAnswerRequest, StartingChoiceId }
 export type ProposalStatus = 'submitted' | 'reviewing' | 'contacted' | 'closed';
 
 export interface DraftView {
+  scoping: ConversationScoping;
   description: string;
   brief: string;
   csrfToken: string;
@@ -78,6 +79,7 @@ export type ConversationScoping =
 
 /** `GET /conversation`: the claim-bound anonymous conversation over one intake draft. */
 export interface ConversationView {
+  expiresAt: string;
   scoping: ConversationScoping;
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];

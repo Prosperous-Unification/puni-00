@@ -101,3 +101,22 @@ Recorded for `website-on-k3s`, not built here (design D7): a Traefik `RateLimit`
 ## Funnel
 
 The operator page shows a Funnel panel below Guardrails: per UTC day for the last 30 days, the drafts, started conversations, captured briefs, exhausted conversations by reason, proposal requests split into manual and from-chat, and ceiling-settled operations, with the from-chat share of the window's proposal requests. Every figure is a count over rows the funnel already stores (`GET /operator/funnel`, operator session only, counts only); no analytics script or beacon runs in the browser, and a conversion is a `proposal_submission` row. Exhaustions count on the conversation's first day, and days whose drafts were erased by [draft retention](draft-retention.md) undercount drafts, conversations and briefs. The Guardrails panel's [`Ceiling-settled today`](#reading-the-operator-panels) line bounds the spend over-count. The counting rules are in the [website-funnel-counts design](../../openspec/changes/website-funnel-counts/design.md).
+
+## Browser request recovery
+
+Version-1 chat and manual review share an editor. It stores unsent brief body, references,
+email and saved-field baselines in tab-scoped `sessionStorage`, keyed by the claim's CSRF
+identity. These fields do not cause inference or proposal submission. The cache uses the authoritative draft access deadline returned by the API, keeps it
+across reloads, removes expired entries when read, and is cleared on explicit
+draft discard, successful submission/recovery or changing claims in that tab. There is no
+background browser deletion job. A fresh tab without a cache loads the canonical brief and
+separate references from the server. Missing version-1 expiry metadata and denied browser storage are visible recovery limitations;
+the in-memory review and explicit submission remain available. Anonymous access expiry is
+not proof that server or provider content has been deleted.
+
+The final preview composes brief and references once. New proposal requests explicitly send
+`version: 1`, preserving raw reviewed bytes and a versioned idempotency hash; stored pending
+recovery forwards the same version. Legacy pending requests omit the version and retain
+trimmed brief/hash semantics. The receipt confirms a saved request, with the destination
+email and next review step; it makes no automatic email-delivery or response-time promise.
+The private site's privacy integration and analytics remain separate release work.

@@ -88,10 +88,58 @@ function readOutbound(body) {
     typeof message.content === 'string'
       ? message.content
       : message.content.map((part) => part.text).join('');
+  const contextMessage = messages.find((message) =>
+    text(message).startsWith('Untrusted current scoping context: '),
+  );
+  if (contextMessage) {
+    const context = JSON.parse(
+      text(contextMessage).slice('Untrusted current scoping context: '.length),
+    );
+    return { stage: null, visitor: text(messages.at(-1)), context };
+  }
   const hint = text(messages[0]).split('\n').at(-1) ?? '';
   const stage = /^Stage: (clarify|brief|contact)\./.exec(hint)?.[1];
   if (!stage) throw new Error('Outbound system message lacks its stage hint');
   return { stage, visitor: text(messages.at(-1)) };
+}
+
+/** Deterministic catalogue fixture only; never substitutes model judgment evidence. */
+function scopedReply(context, visitor) {
+  if (/invalid envelope/i.test(visitor)) return '{broken';
+  const starting = context.scoping.startingChoice ?? 'unsure';
+  const first = {
+    launch: 'launch-purpose',
+    improve: 'improve-blocker',
+    similar: 'similar-change',
+    assistant: 'assistant-help',
+    automate: 'automate-task',
+    unsure: 'unsure-reason',
+  };
+  const current = context.scoping.questionId;
+  const nextQuestionId =
+    current === null && context.scoping.candidateBrief === null
+      ? first[starting]
+      : current === 'improve-blocker'
+        ? 'app-area'
+        : current === 'app-area'
+          ? 'improve-outcome'
+          : null;
+  const brief =
+    nextQuestionId === null
+      ? /sign-in/i.test(visitor)
+        ? 'Improve the existing app: inspect sign-in and agree the next milestone. Details need inspection.'
+        : starting === 'improve'
+          ? 'Improve the existing app: recurring bugs affect payments. First milestone: accept payments. Inspect the payment journey before recommending changes.'
+          : 'Explore the requested software goal. Confirm the audience, current workflow and first useful milestone with a person.'
+      : null;
+  return JSON.stringify({
+    version: 1,
+    message: nextQuestionId
+      ? 'Let’s clarify one part of your request.'
+      : 'Here is a starting point to review. We still need to inspect the details.',
+    nextQuestionId,
+    brief,
+  });
 }
 
 function chunk(id, delta, finish = null, usage = null) {
@@ -116,9 +164,11 @@ function refusalChunk(id) {
 
 /** A scripted OpenRouter SSE response that honours the request's abort signal. */
 function providerFetch(_input, init) {
-  const { stage, visitor } = readOutbound(init.body);
+  const { stage, visitor, context } = readOutbound(init.body);
   const isRefused = /refuse/i.test(visitor);
-  const words = (isRefused ? 'I can’t help build' : replies[stage]).split(/(?<= )/);
+  const words = (
+    isRefused ? 'I can’t help build' : context ? scopedReply(context, visitor) : replies[stage]
+  ).split(/(?<= )/);
   const delay = /slowly/i.test(visitor) ? 400 : wordMilliseconds;
   const id = `gen-fixture-${String(Date.now())}`;
   const encoder = new globalThis.TextEncoder();

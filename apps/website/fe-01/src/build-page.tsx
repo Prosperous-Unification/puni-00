@@ -11,6 +11,7 @@ import {
 } from './build-contract';
 import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
 import { LiveHarness, PausedHarness } from './conversation-harness';
+import { clearRequestEditor, RequestEditor } from './request-editor';
 
 /** Renders an impossible app state explicitly instead of a blank page. */
 export class AppErrorBoundary extends React.Component<
@@ -87,6 +88,7 @@ function StartOver({ csrfToken }: { csrfToken: string }) {
         headers: { 'X-Puni-CSRF': csrfToken },
         body: JSON.stringify({}),
       });
+      clearRequestEditor(csrfToken);
       window.location.assign(startOverUrl(siteOrigin));
     } catch (error) {
       setFailure(describeFailure(error));
@@ -159,6 +161,15 @@ function DisabledHarness({ conversation }: { conversation: Conversation }) {
               Shape your brief <span aria-hidden="true">→</span>
             </a>
           </div>
+          {conversation.scoping.version === 1 && (
+            <RequestEditor
+              draft={conversation}
+              open
+              onOpen={() => undefined}
+              onClose={() => undefined}
+              onSubmitted={() => undefined}
+            />
+          )}
         </div>
       </section>
     </div>

@@ -4,6 +4,7 @@ import {
   buildReturnUrl,
   InvalidConversation,
   InvalidDraft,
+  offersProposal,
   parseConversation,
   parseDraft,
   parseEntry,
@@ -45,7 +46,7 @@ describe('manual draft boundary', () => {
   };
 
   test('accepts the draft contract with its provider', () => {
-    expect(parseDraft(draft)).toEqual(draft);
+    expect(parseDraft(draft)).toEqual({ ...draft, scoping: { version: 'legacy' } });
     expect(parseDraft({ ...draft, provider: 'paused' }).provider).toBe('paused');
   });
 
@@ -330,4 +331,37 @@ test('reply failure survives refresh and completed failure is not a stopped retr
       initialOperation: { ...view.initialOperation, state: 'unknown' },
     }),
   ).toThrow(InvalidConversation);
+});
+
+test('versioned contact does not open from the legacy third-turn stage alone', () => {
+  const conversation = parseConversation({
+    provider: 'openrouter',
+    stage: 'contact',
+    turns: [],
+    visitorTurnsRemaining: 5,
+    visitorTurnLimit: 8,
+    brief: '',
+    description: 'Improve my app',
+    csrfToken: 'claim',
+    initialOperation: { state: 'completed', idempotencyKey: 'initial:draft', truncated: false },
+    latestOperation: null,
+    exhaustedReason: null,
+    challenge: null,
+    scoping: {
+      version: 1,
+      startConversation: true,
+      startingChoice: 'improve',
+      questionId: 'improve-outcome',
+      revision: 3,
+      references: null,
+      candidateBrief: null,
+      emailInvitationDeclined: false,
+    },
+  });
+  expect(offersProposal(conversation)).toBe(false);
+  expect(
+    parseConversation({ ...conversation, expiresAt: '2026-10-26T12:00:00.000Z' }).expiresAt,
+  ).toBe('2026-10-26T12:00:00.000Z');
+  for (const expiresAt of ['', 42, null, 'tomorrow'])
+    expect(() => parseConversation({ ...conversation, expiresAt })).toThrow(InvalidConversation);
 });

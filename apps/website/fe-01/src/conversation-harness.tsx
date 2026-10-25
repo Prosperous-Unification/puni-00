@@ -1,4 +1,11 @@
-import { type BrowserCheckSolution, displayReply, readReplyReplacement } from '@website/contracts';
+import {
+  type BrowserCheckSolution,
+  displayReply,
+  getScopingQuestion,
+  readReplyReplacement,
+  type ScopingAnswerRequest,
+  type ScopingAnswerSelection,
+} from '@website/contracts';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
@@ -18,6 +25,7 @@ import {
   selectStoppedAttempt,
 } from './build-contract';
 import { siteOrigin } from './chrome';
+import { RequestEditor } from './request-editor';
 
 /** Characters a visitor may send after the Home request; the API refuses longer messages. */
 const messageLimit = 1_500;
@@ -77,8 +85,8 @@ function readProposalKey(): string {
 }
 
 /**
- * The live anonymous conversation: saved turns from `GET /conversation`, an explicit first Send
- * of the read-only Home request under the server identity, streamed replies with a typing
+ * The live anonymous conversation: saved turns from `GET /conversation`, one authorized
+ * versioned mount start or legacy explicit Send under the server identity, replies with a typing
  * indicator, Stop (which posts the cancel), Retry under the same identity, the inline proposal
  * card and the exhausted line. `onReload` reruns the page load when the claim or provider changed.
  */
@@ -102,6 +110,10 @@ export function LiveHarness({
   const [live, setLive] = useState<LiveReply | null>(null);
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState('');
+  const [isReviewOpen, setReviewOpen] = useState(false);
+  const [isReviewFocused, setReviewFocused] = useState(false);
+  const isSending = useRef(false);
+  const isMountedStart = useRef(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   const reading = useRef<AbortController | null>(null);
   const stopping = useRef<string | null>(null);
@@ -118,6 +130,21 @@ export function LiveHarness({
     if (challenge !== null && check.current?.challenge.challenge !== challenge.challenge)
       startCheck(challenge);
   }, [conversation.challenge?.challenge]);
+
+  useEffect(() => {
+    // Proof: bypassing durable not-started eligibility made the unknown-initial mount test post automatically.
+    if (
+      !isMountedStart.current &&
+      conversation.scoping.version === 1 &&
+      conversation.scoping.startConversation &&
+      conversation.initialOperation?.state === 'not-started' &&
+      conversation.latestOperation === null &&
+      mode.kind === 'initial'
+    ) {
+      isMountedStart.current = true;
+      void send({ ...mode.attempt, automatic: true });
+    }
+  }, []);
 
   function startCheck(challenge: BrowserChallenge): PendingCheck {
     const pending: PendingCheck = { challenge, isSettled: false, number: solveCheck(challenge) };
@@ -188,7 +215,9 @@ export function LiveHarness({
   }
 
   async function send(attempt: ConversationAttempt): Promise<void> {
-    if (isBusy || isPreparing.current) return;
+    // Proof: removing this synchronous fence admitted two posts in the selected-answer double-click test.
+    if (isSending.current || isBusy || isPreparing.current) return;
+    isSending.current = true;
     let solution: BrowserCheckSolution | undefined;
     if (attempt.initial) {
       isPreparing.current = true;
@@ -196,6 +225,7 @@ export function LiveHarness({
       isPreparing.current = false;
       if (prepared.kind === 'failed') {
         setCheckFailed(true);
+        isSending.current = false;
         return;
       }
       if (prepared.kind === 'solved') solution = prepared.check;
@@ -221,6 +251,7 @@ export function LiveHarness({
             ? {
                 idempotencyKey: attempt.idempotencyKey,
                 initial: true,
+                ...(attempt.automatic ? { automatic: true } : {}),
                 ...(solution ? { check: solution } : {}),
               }
             : {
@@ -268,9 +299,26 @@ export function LiveHarness({
         setCheckFailed(true);
         return;
       }
+      if (
+        attempt.answer &&
+        error instanceof ApiFailure &&
+        ['stale_answer', 'idempotency_conflict'].includes(error.code)
+      ) {
+        setLive(null);
+        setNotice(
+          'The question changed. Your text is still here; review the refreshed choices and send again.',
+        );
+        await refresh();
+        return;
+      }
       setLive({ attempt, text, phase: 'failed', failure: describeStreamFailure(error) });
-      if (error instanceof ApiFailure && error.status === 503) onReload();
-      else if (changesConversation(error)) {
+      if (error instanceof ApiFailure && error.status === 503) {
+        if (conversation.scoping.version === 'legacy') onReload();
+        else {
+          await refresh();
+          setReviewOpen(true);
+        }
+      } else if (changesConversation(error)) {
         await refresh();
         if (error instanceof ApiFailure && error.status === 429 && error.code !== 'provider_busy')
           setLive(null);
@@ -278,10 +326,13 @@ export function LiveHarness({
       return;
     } finally {
       if (reading.current === controller) reading.current = null;
+      isSending.current = false;
     }
     if (isStopRequested()) return;
     if (isFinished) {
       await refresh();
+      if (attempt.answer)
+        setDraft((current) => (current === (attempt.answer?.message ?? '') ? '' : current));
       setLive(null);
       return;
     }
@@ -315,12 +366,28 @@ export function LiveHarness({
     await refresh();
   }
 
-  function sendDraft(): void {
-    const message = draft.trim();
-    if (!message || isBusy || mode.kind !== 'open') return;
-    // The message moves into the thread; a failed reply keeps it there with Retry.
-    setDraft('');
-    void send({ idempotencyKey: crypto.randomUUID(), message, initial: false });
+  function sendDraft(selected?: ScopingAnswerSelection): void {
+    const message = conversation.scoping.version === 1 ? draft : draft.trim();
+    if ((!message.trim() && !selected) || isBusy || mode.kind !== 'open') return;
+    if (conversation.scoping.version === 1) {
+      const answer: ScopingAnswerRequest = selected
+        ? { selected, ...(message.trim() ? { message } : {}) }
+        : { message };
+      const label = selected
+        ? getScopingQuestion(selected.questionId).answers.find(
+            (choice) => choice.id === selected.answerId,
+          )?.label
+        : null;
+      void send({
+        idempotencyKey: crypto.randomUUID(),
+        message: label ? `${label}${message.trim() ? `\n\n${message}` : ''}` : message,
+        initial: false,
+        answer,
+      });
+    } else {
+      setDraft('');
+      void send({ idempotencyKey: crypto.randomUUID(), message, initial: false });
+    }
   }
 
   function handleKeys(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
@@ -334,7 +401,7 @@ export function LiveHarness({
 
   const retryable = live?.phase === 'stopped' || live?.phase === 'failed' ? live.attempt : stopped;
   const pendingMessage = live?.attempt.message ?? stopped?.message ?? null;
-  const assistantLabel = isSimulated ? 'PUNI · SIMULATED' : 'PUNI';
+  const assistantLabel = isSimulated ? 'PUNI · SIMULATED' : 'PUNI · AI';
   // Once the Home request is in the thread (sending, stopped or failed), the composer stops
   // repeating it; Retry in the thread resends it under the same identity.
   const isHomeInThread = mode.kind === 'initial' && pendingMessage !== null;
@@ -360,7 +427,9 @@ export function LiveHarness({
           )}
           {conversation.turns.length === 0 && pendingMessage === null && (
             <p className="harness-empty">
-              Your Home request is ready below. Press Send when you want to start the conversation.
+              {conversation.scoping.version === 1 && conversation.scoping.startConversation
+                ? 'Starting your conversation…'
+                : 'Your Home request is ready below. Press Send when you want to start the conversation.'}
             </p>
           )}
           {conversation.turns.map((turn, index) => (
@@ -412,26 +481,107 @@ export function LiveHarness({
               <button
                 type="button"
                 className="harness-text-button"
-                onClick={() => void send(retryable)}
+                onClick={() => void send({ ...retryable, automatic: false })}
               >
                 [ Retry ]
               </button>
             </div>
           )}
-          {(offersProposal(conversation) || receipt !== null) && (
-            <ProposalCard
-              conversation={conversation}
-              receipt={receipt}
-              onSubmitted={(reference) => {
-                sessionStorage.removeItem(proposalKeyName);
-                setReceipt(reference);
-                onHandedOff();
-              }}
-            />
+          {conversation.scoping.version === 1 &&
+            mode.kind === 'open' &&
+            !isBusy &&
+            live === null &&
+            // Proof: without this exclusion, the known-invalid render repeated old choices before manual review.
+            conversation.latestOperation?.replyFailure !== 'invalid_scoping_reply' &&
+            conversation.scoping.questionId !== null && (
+              <div role="group" aria-label="Suggested answers" className="scoping-answers">
+                {getScopingQuestion(conversation.scoping.questionId).answers.map((choice) => (
+                  <button
+                    type="button"
+                    className="glass-button quiet"
+                    key={choice.id}
+                    onClick={() => {
+                      // Proof: replacing the committed revision with zero failed selected-answer transport in conversation-harness.test.tsx.
+                      if (
+                        conversation.scoping.version === 1 &&
+                        conversation.scoping.questionId !== null
+                      )
+                        sendDraft({
+                          questionId: conversation.scoping.questionId,
+                          answerId: choice.id,
+                          revision: conversation.scoping.revision,
+                        });
+                    }}
+                  >
+                    {choice.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          {conversation.scoping.version === 1 && (
+            <>
+              <button
+                type="button"
+                className="harness-text-button"
+                onClick={() => {
+                  setReviewOpen(true);
+                }}
+              >
+                Send my request now
+              </button>
+              <RequestEditor
+                draft={conversation}
+                contact={isReviewOpen}
+                onFocusChange={setReviewFocused}
+                open={
+                  isReviewOpen ||
+                  (offersProposal(conversation) && !conversation.scoping.emailInvitationDeclined)
+                }
+                onOpen={() => {
+                  setReviewOpen(true);
+                }}
+                onClose={() => {
+                  setReviewOpen(false);
+                }}
+                onRefresh={refresh}
+                onSubmitted={() => {
+                  setReceipt('saved');
+                  onHandedOff();
+                }}
+              />
+            </>
           )}
+          {conversation.scoping.version === 'legacy' &&
+            (offersProposal(conversation) || receipt !== null) && (
+              <ProposalCard
+                conversation={conversation}
+                receipt={receipt}
+                onSubmitted={(reference) => {
+                  sessionStorage.removeItem(proposalKeyName);
+                  setReceipt(reference);
+                  onHandedOff();
+                }}
+              />
+            )}
         </div>
       </div>
-      <div className="harness-dock">
+      {/* Proof: removing this Stop-only control failed the paid reply review/cancel test. */}
+      {isReviewFocused && isBusy && (
+        <div className="harness-dock">
+          <div className="harness-column">
+            <button
+              type="button"
+              className="glass-button quiet"
+              aria-label="Stop response"
+              onClick={() => void stop()}
+            >
+              Stop response
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Proof: forcing this dock visible failed the human-review composer-hiding test. */}
+      <div className="harness-dock" hidden={isReviewFocused}>
         <div className="harness-column">
           {notice && (
             <p className="harness-status" role="status">
@@ -489,7 +639,7 @@ export function LiveHarness({
                     id="build-message"
                     value={draft}
                     placeholder="Reply to PUNI…"
-                    maxLength={messageLimit}
+                    maxLength={conversation.scoping.version === 1 ? 2000 : messageLimit}
                     rows={1}
                     onChange={(event) => {
                       setDraft(event.target.value);
@@ -756,7 +906,7 @@ export function PausedHarness({
           <p className="harness-eyebrow">[ AI can do everything. It doesn’t want anything. ]</p>
           {turns.map((turn, index) => (
             <div key={index} className={`build-message ${turn.role}`}>
-              <span className="message-label">{turn.role === 'user' ? 'YOU' : 'PUNI'}</span>
+              <span className="message-label">{turn.role === 'user' ? 'YOU' : 'PUNI · AI'}</span>
               <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
             </div>
           ))}
@@ -767,15 +917,25 @@ export function PausedHarness({
               Shape your brief <span aria-hidden="true">→</span>
             </a>
           </div>
-          <ProposalCard
-            conversation={conversation}
-            receipt={receipt}
-            onSubmitted={(reference) => {
-              sessionStorage.removeItem(proposalKeyName);
-              setReceipt(reference);
-              onHandedOff();
-            }}
-          />
+          {conversation.scoping.version === 1 ? (
+            <RequestEditor
+              draft={conversation}
+              open
+              onOpen={() => undefined}
+              onClose={() => undefined}
+              onSubmitted={onHandedOff}
+            />
+          ) : (
+            <ProposalCard
+              conversation={conversation}
+              receipt={receipt}
+              onSubmitted={(reference) => {
+                sessionStorage.removeItem(proposalKeyName);
+                setReceipt(reference);
+                onHandedOff();
+              }}
+            />
+          )}
         </div>
       </section>
     </div>

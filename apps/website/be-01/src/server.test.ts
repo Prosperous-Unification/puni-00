@@ -750,6 +750,7 @@ test('GET /conversation reads only the claimed draft and reports the disabled pr
     visitorTurnLimit: 8,
     provider: 'disabled',
     brief: '',
+    expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) as unknown as string,
     challenge: null,
     description: 'A booking tool for a local studio',
     csrfToken: csrf,
@@ -1812,5 +1813,189 @@ test('starter blank textarea normalization preserves raw bounds, JSON strictness
       await api.fetch(request('/conversation', 'GET', config.appOrigin, undefined, cookie))
     ).json(),
   ).toMatchObject({ description: typed, scoping: { startConversation: false } });
+  api.close();
+});
+
+test('revisioned scoping edits preserve references and refuse stale or malformed writes', async () => {
+  const { api, config } = fixture();
+  const intake = await api.fetch(
+    request('/intakes', 'POST', config.publicOrigin, {
+      startingChoice: 'improve',
+      startConversation: true,
+    }),
+  );
+  const cookie = intake.headers.get('set-cookie')?.split(';')[0];
+  const read = async () =>
+    (await (
+      await api.fetch(request('/draft', 'GET', config.appOrigin, undefined, cookie))
+    ).json()) as { csrfToken: string; scoping: { version: number } };
+  const draft = await read();
+  expect(draft.scoping.version).toBe(1);
+  const edit = (body: unknown, origin = config.appOrigin, csrf = draft.csrfToken) =>
+    api.fetch(request('/scoping', 'PATCH', origin, body, cookie, csrf));
+  const references = 'https://one.test — borrow navigation\nDemo Two — avoid its checkout';
+  expect((await edit({ revision: 0, kind: 'references', references })).status).toBe(200);
+  expect((await edit({ revision: 0, kind: 'brief', brief: 'Stale overwrite' })).status).toBe(409);
+  expect((await edit({ revision: 1, kind: 'brief', brief: 'My exact brief' })).status).toBe(200);
+  expect(await read()).toMatchObject({
+    brief: 'My exact brief',
+    scoping: { references, revision: 2 },
+  });
+  expect((await edit({ revision: 2, kind: 'accept_candidate' })).status).toBe(409);
+  expect(
+    (
+      await api.fetch(
+        request('/scoping', 'PATCH', config.appOrigin, { revision: 2, kind: 'decline_email' }),
+      )
+    ).status,
+  ).toBe(401);
+  for (const body of [
+    { revision: 2, kind: 'brief', brief: 'x', extra: true },
+    { revision: -1, kind: 'decline_email' },
+    { revision: 2, kind: 'references', references: 'x'.repeat(4001) },
+    { revision: 2, kind: 'brief', brief: 'x'.repeat(8001) },
+  ])
+    expect((await edit(body)).status).toBe(400);
+  expect((await edit({ revision: 2, kind: 'decline_email' }, 'https://foreign.test')).status).toBe(
+    403,
+  );
+  expect(
+    (await edit({ revision: 2, kind: 'decline_email' }, config.appOrigin, 'wrong')).status,
+  ).toBe(403);
+  expect((await edit({ revision: 2, kind: 'decline_email' })).status).toBe(200);
+  expect(await read()).toMatchObject({
+    scoping: { emailInvitationDeclined: true, revision: 3, references },
+  });
+  const draftReader = Object.getOwnPropertyDescriptor(WebsiteStore.prototype, 'findDraft');
+  if (!draftReader) throw new Error('Draft reader descriptor absent');
+  WebsiteStore.prototype.findDraft = () => null;
+  try {
+    let readFailure: unknown;
+    try {
+      await edit({ revision: 3, kind: 'decline_email' });
+    } catch (error) {
+      readFailure = error;
+    }
+    expect(readFailure).toBeInstanceOf(Error);
+    expect(readFailure instanceof Error ? readFailure.message : null).toBe(
+      'Edited scoping draft disappeared',
+    );
+  } finally {
+    Object.defineProperty(WebsiteStore.prototype, 'findDraft', draftReader);
+  }
+  api.close();
+});
+
+test('proposal preserves exact reviewed bytes and replays the same whitespace once', async () => {
+  const { api, config } = fixture();
+  const { cookie, csrf } = await beginDraft(api);
+  const brief =
+    '  Human wording\n\nReferences\nOne — borrow search\nhttps://two.test — avoid checkout  \n';
+  const payload = {
+    version: 1,
+    email: 'exact@example.test',
+    brief,
+    idempotencyKey: 'exact-reviewed-request',
+  };
+  expect(
+    (
+      await api.fetch(
+        request(
+          '/proposals',
+          'POST',
+          config.appOrigin,
+          { ...payload, brief: ' '.repeat(8000) + 'x' },
+          cookie,
+          csrf,
+        ),
+      )
+    ).status,
+  ).toBe(400);
+  for (const version of [null, false, '1', 0, 2])
+    expect(
+      (
+        await api.fetch(
+          request('/proposals', 'POST', config.appOrigin, { ...payload, version }, cookie, csrf),
+        )
+      ).status,
+    ).toBe(400);
+  const first = await api.fetch(
+    request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf),
+  );
+  expect(first.status).toBe(201);
+  expect(
+    (await api.fetch(request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf)))
+      .status,
+  ).toBe(200);
+  expect(
+    (
+      await api.fetch(
+        request(
+          '/proposals',
+          'POST',
+          config.appOrigin,
+          { ...payload, brief: brief.trim() },
+          cookie,
+          csrf,
+        ),
+      )
+    ).status,
+  ).toBe(409);
+  const store = new WebsiteStore(config.databasePath);
+  expect(store.listSubmissions()).toHaveLength(1);
+  expect(store.listSubmissions()[0]?.brief).toBe(brief);
+  store.close();
+  api.close();
+});
+
+test('legacy pending proposals retain normalized hashing across the versioned boundary', async () => {
+  const { api, config } = fixture();
+  const { cookie, csrf } = await beginDraft(api);
+  const payload = {
+    email: 'legacy-pending@example.test',
+    brief: '  Legacy body  ',
+    idempotencyKey: 'legacy-before-versioned',
+  };
+  const first = await api.fetch(
+    request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf),
+  );
+  expect(first.status).toBe(201);
+  const receipt: unknown = await first.json();
+  const legacyHash = createHash('sha256')
+    .update(JSON.stringify({ email: payload.email, brief: 'Legacy body' }))
+    .digest('hex');
+  const database = new Database(config.databasePath);
+  expect(
+    database.query<{ body_hash: string }, []>('SELECT body_hash FROM submission_replay').get()
+      ?.body_hash,
+  ).toBe(legacyHash);
+  database.query('UPDATE submission_replay SET body_hash = ?').run(legacyHash);
+  database.close();
+  const replay = await api.fetch(
+    request(
+      '/proposals',
+      'POST',
+      config.appOrigin,
+      { ...payload, brief: 'Legacy body' },
+      cookie,
+      csrf,
+    ),
+  );
+  expect(replay.status).toBe(200);
+  expect(await replay.json()).toEqual(receipt);
+  expect(
+    (
+      await api.fetch(
+        request(
+          '/proposals',
+          'POST',
+          config.appOrigin,
+          { ...payload, brief: 'Legacy body', version: 1 },
+          cookie,
+          csrf,
+        ),
+      )
+    ).status,
+  ).toBe(409);
   api.close();
 });

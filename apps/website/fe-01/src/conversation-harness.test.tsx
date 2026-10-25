@@ -682,3 +682,238 @@ test('rendered Retry posts exact persisted selected answer after remount', async
   expect(api.posts).toEqual([{ idempotencyKey: 'selected-retry-key', ...answer }]);
   harness.unmount();
 });
+
+const scoped: Conversation = {
+  ...briefed,
+  stage: 'clarify',
+  brief: '',
+  scoping: {
+    version: 1,
+    startConversation: true,
+    startingChoice: 'improve',
+    questionId: 'improve-blocker',
+    revision: 1,
+    references: null,
+    candidateBrief: null,
+    emailInvitationDeclined: false,
+  },
+  latestOperation: null,
+};
+
+test('authorized mount starts once; unknown initial waits for explicit Retry', async () => {
+  const unsent = {
+    ...scoped,
+    turns: [],
+    initialOperation: {
+      state: 'not-started' as const,
+      idempotencyKey: 'initial:draft-1',
+      truncated: false,
+    },
+  };
+  const api = stubApi({ streamStatus: 503, streamCode: 'provider_unavailable' });
+  const harness = await mountHarness(unsent, () => Promise.resolve(null));
+  await settleUntil(
+    () => api.posts.length === 1,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts[0]).toMatchObject({ initial: true, automatic: true });
+  harness.unmount();
+  const stopped = {
+    ...unsent,
+    initialOperation: { ...unsent.initialOperation, state: 'unknown' as const },
+    latestOperation: {
+      ...unsent.initialOperation,
+      state: 'unknown' as const,
+      message: unsent.description,
+    },
+  };
+  const waiting = await mountHarness(stopped, () => Promise.resolve(null));
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  });
+  expect(api.posts).toHaveLength(1);
+  expect(waiting.container.textContent).toContain('Retry');
+  waiting.unmount();
+});
+
+test('selected answer carries current revision and exact text once across double click', async () => {
+  const api = stubApi({
+    streamStatus: 409,
+    streamCode: 'stale_answer',
+    reread: { ...scoped, scoping: { ...scoped.scoping, revision: 2 } },
+  });
+  const harness = await mountHarness(scoped, () => Promise.resolve(null));
+  const textarea = harness.container.querySelector('#build-message');
+  if (!(textarea instanceof dom.window.HTMLTextAreaElement)) throw new Error('composer absent');
+  act(() => {
+    const setter = Object.getOwnPropertyDescriptor(
+      dom.window.HTMLTextAreaElement.prototype,
+      'value',
+    );
+    setter?.set?.call(textarea, '  Exact context  ');
+    textarea.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+  const choice = [...harness.container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Recurring bugs',
+  );
+  if (!choice) throw new Error('suggested answer absent');
+  act(() => {
+    choice.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    choice.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  });
+  await settleUntil(
+    () => api.posts.length === 1,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts[0]).toMatchObject({
+    selected: { questionId: 'improve-blocker', answerId: 'bugs', revision: 1 },
+  });
+  expect(harness.container.textContent).toContain('question changed');
+  expect(harness.container.querySelector('.harness-interrupted')).toBeNull();
+  harness.unmount();
+});
+
+test('Retry after an automatic initial refusal is an explicit request', async () => {
+  const api = stubApi({ streamStatus: 502, streamCode: 'provider_error' });
+  const harness = await mountHarness(
+    {
+      ...scoped,
+      turns: [],
+      initialOperation: {
+        state: 'not-started',
+        idempotencyKey: 'initial:draft-1',
+        truncated: false,
+      },
+    },
+    () => Promise.resolve(null),
+  );
+  await settleUntil(
+    () => harness.container.querySelector('.harness-interrupted button') !== null,
+    () => harness.container.innerHTML,
+  );
+  const retry = harness.container.querySelector('.harness-interrupted button');
+  if (!(retry instanceof dom.window.HTMLButtonElement)) throw new Error('Retry absent');
+  act(() => {
+    retry.click();
+  });
+  await settleUntil(
+    () => api.posts.length === 2,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts[0]).toMatchObject({ automatic: true });
+  expect(api.posts[1]).toEqual({ initial: true, idempotencyKey: 'initial:draft-1' });
+  harness.unmount();
+});
+
+test('human review hides the composer but keeps one working Stop for a paid reply', async () => {
+  let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+  let cancels = 0;
+  const unsent: Conversation = {
+    ...scoped,
+    turns: [],
+    initialOperation: { state: 'not-started', idempotencyKey: 'initial:draft-1', truncated: false },
+  };
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/conversation/stream'))
+        return Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                streamController = controller;
+              },
+            }),
+            { headers: { 'content-type': 'text/event-stream' } },
+          ),
+        );
+      if (url.endsWith('/conversation/cancel')) {
+        cancels += 1;
+        streamController?.close();
+        return Promise.resolve(
+          new Response('{}', { headers: { 'content-type': 'application/json' } }),
+        );
+      }
+      if (url.endsWith('/conversation'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ...unsent,
+              initialOperation: {
+                state: 'unknown',
+                idempotencyKey: 'initial:draft-1',
+                truncated: false,
+              },
+              latestOperation: {
+                state: 'unknown',
+                idempotencyKey: 'initial:draft-1',
+                truncated: false,
+                message: unsent.description,
+              },
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          ),
+        );
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const harness = await mountHarness(unsent, () => Promise.resolve(null));
+  const shortcut = [...harness.container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Send my request now',
+  );
+  if (!shortcut) throw new Error('early review absent');
+  act(() => {
+    shortcut.click();
+  });
+  await settleUntil(
+    () =>
+      harness.container
+        .querySelector('form.harness-composer')
+        ?.closest('.harness-dock')
+        ?.hasAttribute('hidden') === true,
+    () => harness.container.innerHTML,
+  );
+  const stops = [
+    ...harness.container.querySelectorAll('button[aria-label="Stop response"]'),
+  ].filter((button) => button.closest('[hidden]') === null);
+  expect(stops).toHaveLength(1);
+  act(() => {
+    stops[0]?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  });
+  await settleUntil(
+    () => cancels === 1,
+    () => String(cancels),
+  );
+  expect(cancels).toBe(1);
+  harness.unmount();
+});
+
+test('known-invalid reply offers manual review without repeating old choices', () => {
+  const markup = renderToStaticMarkup(
+    <LiveHarness
+      initial={{
+        ...scoped,
+        turns: [
+          {
+            role: 'assistant',
+            content:
+              'The reply could not be confirmed. You can send another message or edit your brief and request human review.',
+          },
+        ],
+        latestOperation: {
+          state: 'completed',
+          idempotencyKey: 'invalid-answer',
+          truncated: false,
+          message: 'invalid envelope',
+          answer: { message: 'invalid envelope' },
+          replyFailure: 'invalid_scoping_reply',
+        },
+      }}
+      onReload={() => undefined}
+      onHandedOff={() => undefined}
+    />,
+  );
+  expect(markup).toContain('Send my request now');
+  expect(markup).not.toContain('aria-label="Suggested answers"');
+});
