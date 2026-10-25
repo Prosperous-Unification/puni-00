@@ -63,3 +63,35 @@ bin/h2puni-gate.test.sh`: all cases passed. `shellcheck bin/h2puni-gate.sh` and 
   `NodeJS.ProcessEnv`; the restored three controls passed again after that correction.
 - Hosted CI, canonical host gate, peer review and normal commit hooks remain separate checks
   until recorded by the source handoff and orchestrator.
+
+### Gate entrypoint cache input, 2026-10-25
+
+The actual-entrypoint regression reads `bin/h2puni-gate.sh` outside tool-dagger's project.
+Its cached `test` target now declares that exact file as an input; no oracle, cache setting,
+project edge or test behavior changes.
+
+Proof: the existing production oracle `names every file a suite reads from outside its own
+project` failed with `tool-dagger:test does not declare bin/h2puni-gate.sh` before the declaration
+(0 pass, 1 fail), then passed with it (1 pass, 2 assertions). The omitted-input control was
+replayed in a disposable detached worktree; no gate script was edited in the shared candidate.
+
+A native Nx `InProcessTaskHasher` probe in that disposable worktree measured the actual
+`tool-dagger:test` hash. Each phase used a fresh `NX_WORKSPACE_DATA_DIRECTORY` and process:
+
+| Declared gate input | Baseline            | Gate comment edit   | Restored bytes      |
+| ------------------- | ------------------- | ------------------- | ------------------- |
+| No                  | 4818375019595797862 | 4818375019595797862 | 4818375019595797862 |
+| Yes                 | 4163411403700645528 | 6667071901470446934 | 4163411403700645528 |
+
+Nx's collected files excluded the gate when omitted and included it when declared. An initial
+warm-cache probe retained the edited hash after restoration; it did not establish restoration.
+The isolated cold-cache phases above supersede that partial result and assert both restoration
+and the expected sensitivity. The temporary script edits and project declaration were restored
+in the disposable worktree. No full gate, commit or public action was performed for this fix.
+
+The complete existing `workspace-targets.test.ts` suite passed (26 tests, 96 assertions).
+Prettier accepted the project declaration and formatted this receipt; strict validation of
+`exclusive-heavy-lock` passed. No TypeScript source changed, so no new compiler or TypeScript
+lint run was needed. Exact local logs: `/tmp/puni-gate-input-oracle-red.log`,
+`/tmp/puni-gate-input-oracle-green.log`, `/tmp/puni-gate-input-workspace-targets.log` and
+`/tmp/puni-gate-input-hash-receipt.json`. Hosted CI and the canonical full gate remain separate.
