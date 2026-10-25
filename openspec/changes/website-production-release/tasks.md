@@ -10,7 +10,7 @@ Finish public funnel/analytics and the bounded real-provider evaluation before c
 
 ## 1. Public platform and protocol contract
 
-- [ ] 1.1 Add `website-prod` restricted namespace and bidirectional default-deny in `infra/platform/policy/{namespaces,network-policy}.yaml`, extend `tenantNamespaces`/validation in `tools/tool-fleet/src/platform-manifests.ts`, and add the API build capability in `apps/website/be-01/build.ts`. Tests: `tools/tool-fleet/src/platform.test.ts` refuses missing production namespace, removed restricted admission and missing/one-way default-deny; `apps/website/be-01/build-smoke.ts` requires the actual built capability. Negatives: bypass each changed isolation/capability check while its corresponding rendered/built fixture is broken, observe failure, restore and add precise Proof comments. No live apply or unrelated platform refactor.
+- [x] 1.1 Add `website-prod` restricted namespace and bidirectional default-deny in `infra/platform/policy/{namespaces,network-policy}.yaml`, extend `tenantNamespaces`/validation in `tools/tool-fleet/src/platform-manifests.ts`, and add the API build capability in `apps/website/be-01/build.ts`. Tests: `tools/tool-fleet/src/platform.test.ts` refuses missing production namespace, removed restricted admission and missing/one-way default-deny; `apps/website/be-01/build-smoke.ts` requires the actual built capability. Negatives: bypass each changed isolation/capability check while its corresponding rendered/built fixture is broken, observe failure, restore and add precise Proof comments. No live apply or unrelated platform refactor.
 
 ## 2. Private snapshot, build and pin identity
 
