@@ -181,11 +181,14 @@ id (the question reads it again); the verdict is never touched. Review and resol
 are not journalled. A second review or resolve is refused `question_already_reviewed`.
 
 Ownership guards, on both the public command and the replay path: `setStepBlocked` with
-`isBlocked: false`, and a replayed `replace_blockage` whose `expectedBlockedAt` matches,
-refuse `question_blocking` when the node's blockage is one an unresolved blocked question
-holds; a replay whose expected timestamp does not match keeps its existing stale-history
-refusal, which proves nothing about ownership and is tested apart. `startAttempt` refuses
-`question_blocking` on such a node. Plan import creates fresh ids and cannot touch an owned
+`isBlocked: false` refuses `question_blocking` when the node's blockage is one an unresolved
+blocked question holds, and `startAttempt` refuses `question_blocking` on such a node. A
+replayed `replace_blockage` whose `expectedBlockedAt` matches checks the same ownership, but
+replay keeps its existing envelope: the application refusal becomes the journal's `409
+stale_undo` with the detail naming `question_blocking`, and `walkStack` discards the entry as
+it does today (`work-item.resource.ts` near lines 1318 and 7950). A replay whose expected
+timestamp does not match keeps its existing stale-history refusal, which proves nothing about
+ownership and is tested apart. Plan import creates fresh ids and cannot touch an owned
 blockage; the test asserts the source stays untouched.
 
 ### D5 — Priority and counts are read-side folds
@@ -219,8 +222,12 @@ neither changes review authority (D4).
 
 ### D7 — A question-holding leaf stays a leaf, and nothing of the new writer deletes a question
 
-No command deletes a question. The refusals, on the command and on its compensating replay
-alike, all typed:
+No command deletes a question. The refusals are typed on the public command; on a
+compensating replay the same check runs inside `applyRestore`, `applyMove` and `applyDelete`
+before their mutations, and surfaces through the existing replay envelope (`409 stale_undo`
+with the detail naming the code, entry discarded), because an operation can precede the
+question: create a first child, undo it, submit a question on the restored leaf, then redo
+the creation. The refusals:
 
 - work-item deletion when the item or any descendant holds a question:
   `work_item_holds_questions`; work package and space deletion check the same closure;
@@ -249,15 +256,22 @@ be-01 exposes, for a host operator credential:
   (schedule and the five-attempt cap apply), and clearing the token, so no lease is ever both
   expired and live.
 - `POST /api/notices/:id/reports { leaseToken, attemptNumber, outcome: 'ok' | 'error', error?
-}`, evaluated in this order against the recorded reports first and the live lease second:
-  1. a report identical to one already recorded (same number, token and outcome): answer the
-     recorded outcome, change nothing;
-  2. a report whose number and token were closed as `lost`, or whose token is not the live
-     one, or whose number is not the expected one: refuse `lease_lost`, change nothing;
-  3. same number and live token, different outcome from a recorded `ok` or `error`: refuse
-     `report_conflict`, change nothing;
-  4. otherwise record it; `ok` → `delivered`; `error` → `attempt_count + 1`, `due_at` from
-     the schedule 1, 5, 30, 120 minutes, `queued`, or `failed` when `attempt_count` reaches 5.
+}`, decided by looking up the recorded report for `(attemptNumber, leaseToken)` first and
+  consulting the live lease only when none exists:
+  1. recorded as `lost`: refuse `lease_lost`, change nothing;
+  2. recorded with the same outcome: answer the recorded outcome, change nothing;
+  3. recorded with a different outcome: refuse `report_conflict`, change nothing;
+  4. no recorded report, and the token is not the live one, or the number is not the expected
+     one, or `lease_until` has passed: refuse `lease_lost`, change nothing (an expired lease
+     that nobody has closed yet is refused the same way; the next lease pass records `lost`
+     for it);
+  5. otherwise record it and clear the lease (token and `lease_until` null): `ok` →
+     `delivered`; `error` → `attempt_count + 1`, `due_at` from the schedule 1, 5, 30, 120
+     minutes, `queued`, or `failed` when `attempt_count` reaches 5.
+     Every report keeps its token in the record, so a conflicting repeat of attempt 1 is found
+     by lookup even after the notice has moved on to attempt 2. Each attempt number is consumed
+     exactly once: by a report or by the lease pass's `lost`, never both, because the pass
+     closes only leases whose token is still set.
 - `POST /api/projects/:id/notices/sweep` writes `aged` and `digest` rows idempotently.
 
 The worker stops handling a notice on `lease_lost` and on `report_conflict` alike; both mean
@@ -343,13 +357,17 @@ an owned blockage, stranding a question, or creating blocked questions nobody ca
 ### D16 — Visibility follows the package
 
 A question is readable by a principal holding `package.read` at its leaf's work package.
-`GET /api/questions/:id` refuses `forbidden` otherwise; the project queue and counts cover
-only the readable questions; the digest for a reviewer covers only what that reviewer may
-read. An `opened` or `aged` notice is written `undeliverable` (`no_access`) for a reviewer who
-lacks `package.read` on the question's package at write time, so a listed account never
-learns the content of a package it cannot open; a reviewer whose access was revoked after a
-notice was queued still receives it, because the row already exists, which is why the notice
-text names the question id and the project, not the question text.
+`GET /api/questions/:id` answers the invisible-object refusal of `wbs-permissions` P10, a
+`404 not_found` indistinguishable from a missing id, otherwise; the project queue and counts
+cover only the readable questions; the digest for a reviewer is computed over what that
+reviewer may read. Access is checked twice: at write time, when an `opened` or `aged` notice
+for a reviewer without `package.read` is written `undeliverable` (`no_access`), and again by
+the lease pass, which before leasing re-evaluates the recipient's access and marks a notice
+`undeliverable` (`no_access`) when it was revoked meanwhile; a queued digest is recomputed at
+lease time over the recipient's current visibility and is marked `undeliverable` when
+nothing remains. A revoked reviewer therefore never receives even the ids, counts or ages of
+a package they can no longer open. The notice text still names only the question id, the
+project and the leaf's number, never the question text.
 
 ## Open points settled by assumption
 

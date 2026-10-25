@@ -139,8 +139,10 @@ node when one exists without journalling it, and SHALL write one `opened` notice
 reviewer. If the node already holds a step blockage, the submission SHALL be refused
 `node_already_blocked`; if the project's blockage writers are inactive, `step_blockage_inactive`;
 either way nothing is written. While a blocked question is unresolved, `setStepBlocked` with
-`isBlocked: false` and a replayed blockage replacement whose expected instant matches SHALL
-refuse `question_blocking`, and `startAttempt` SHALL refuse `question_blocking` on that node.
+`isBlocked: false` and `startAttempt` SHALL refuse `question_blocking` on that node, and a
+replayed blockage replacement whose expected instant matches SHALL fail the same check and
+surface it through the journal's existing envelope, `stale_undo` with a detail naming
+`question_blocking`, discarding the entry.
 The `resolveQuestion` command, carrying the answer and optionally wrong facts, SHALL store
 them and the reviewer, SHALL refuse `blockage_changed` when the node's blockage is no longer
 the one the question wrote, and otherwise SHALL remove the blockage in the same write. Resolve
@@ -164,10 +166,11 @@ without a verdict.
 
 #### Scenario: a matching replay cannot clear it either
 
-- **GIVEN** that blocked question and a replayed replacement whose expected instant equals the
-  blockage's
-- **WHEN** the replay runs
-- **THEN** it is refused with `question_blocking`
+- **GIVEN** that blocked question and a journal entry whose replay would replace the blockage
+  with an expected instant equal to the blockage's
+- **WHEN** the entry is undone
+- **THEN** the undo answers `stale_undo` with a detail naming `question_blocking`, the entry
+  is discarded, and the blockage stays
 
 #### Scenario: the node cannot be restarted around the question
 
@@ -325,15 +328,20 @@ priority). A reviewer without an address SHALL make the notice `undeliverable` w
 `no_address`; a reviewer without `package.read` at the question's package SHALL make it
 `undeliverable` with reason `no_access`; neither changes review authority. A notice's text
 SHALL carry the question id, the project and the leaf's number, never the question text. A
-lease pass SHALL first close every expired lease by recording `lost` for its attempt number
-as a failed attempt, then lease due notices, each lease naming the expected attempt number.
-A report SHALL be judged against recorded reports first: a report identical to one recorded
-SHALL answer the recorded outcome; a report whose number and token were closed as `lost`,
-whose token is not the live one, or whose number is not the expected one SHALL be refused
-`lease_lost`; the live token with the expected number but a different outcome from a recorded
-one SHALL be refused `report_conflict`; otherwise it SHALL be recorded. No refusal SHALL
-change the notice. A failed attempt SHALL reschedule on 1, 5, 30 and 120 minutes and the
-notice SHALL be `failed` after the fifth attempt. Delivery is at least once.
+lease pass SHALL first close every expired lease whose token is still set by recording `lost`
+for its attempt number as a failed attempt, SHALL then re-evaluate each due recipient's
+`package.read` and mark a notice whose recipient lost access `undeliverable` (`no_access`),
+recomputing a digest over the recipient's current visibility and marking it `undeliverable`
+when nothing remains, and SHALL then lease the due notices, each lease naming the expected
+attempt number. A report SHALL be decided by the recorded report for its attempt number and
+token first: recorded `lost` SHALL be refused `lease_lost`; the same recorded outcome SHALL
+answer that outcome; a different recorded outcome SHALL be refused `report_conflict`; with
+no record, a token that is not the live one, a number that is not the expected one, or an
+expired lease SHALL be refused `lease_lost`; otherwise the report SHALL be recorded and the
+lease cleared. No refusal SHALL change the notice. Each attempt number SHALL be consumed
+exactly once, by a report or by `lost`. A failed attempt SHALL reschedule on 1, 5, 30 and
+120 minutes and the notice SHALL be `failed` after the fifth attempt, whether reported or
+lost. Delivery is at least once.
 
 #### Scenario: a failed attempt reschedules with its error
 
@@ -355,9 +363,23 @@ notice SHALL be `failed` after the fifth attempt. Delivery is at least once.
 
 #### Scenario: a conflicting repeat is refused
 
-- **GIVEN** attempt 1 reported `error` with the live token
-- **WHEN** attempt 1 is reported `ok` with the same token
+- **GIVEN** attempt 1 reported `error` with token `T`, the notice now `queued` for attempt 2
+- **WHEN** attempt 1 is reported `ok` with `T`
 - **THEN** it is refused with `report_conflict` and the notice is unchanged
+
+#### Scenario: the fifth expiry ends retries
+
+- **GIVEN** a notice with four failed attempts, leased for attempt 5, whose lease expired
+  unreported
+- **WHEN** the next lease pass runs
+- **THEN** the notice holds `lost` for attempt 5, is `failed`, and is never leased again
+
+#### Scenario: an attempt is consumed once in an expiry race
+
+- **GIVEN** a notice leased for attempt 1 with token `T` whose lease has just expired
+- **WHEN** `T` reports attempt 1 `ok` and a lease pass runs, in either order
+- **THEN** the report is refused `lease_lost` and the notice holds exactly one report for
+  attempt 1, `lost`
 
 #### Scenario: a late report against a lost lease is refused
 
@@ -379,6 +401,13 @@ notice SHALL be `failed` after the fifth attempt. Delivery is at least once.
 - **WHEN** a question on `L` opens `notified`
 - **THEN** that reviewer's notice is `undeliverable` with reason `no_access`
 
+#### Scenario: access revoked after queueing stops delivery
+
+- **GIVEN** a `queued` opened notice for a reviewer, and a `queued` digest for the same
+  reviewer whose only questions sit in `L`'s package
+- **WHEN** that reviewer's `package.read` there is revoked and the lease pass runs
+- **THEN** both notices are `undeliverable` with reason `no_access` and neither is leased
+
 #### Scenario: aged fires once under concurrent sweeps
 
 - **GIVEN** a blocked question older than the unanswered age and no `aged` notice
@@ -394,7 +423,8 @@ notice SHALL be `failed` after the fifth attempt. Delivery is at least once.
 ### Requirement: Question priority, counts and visibility are derived on read
 
 A question SHALL be readable only by a principal holding `package.read` at its leaf's work
-package; reading one without it SHALL be refused `forbidden`. The review queue SHALL list the
+package; reading one without it SHALL answer the invisible-object refusal, `404 not_found`,
+indistinguishable from a missing id. The review queue SHALL list the
 readable unreviewed questions of a project by question priority: the leaf's priority
 ascending with absent last, then downstream reach descending, then submitted instant
 ascending, where downstream reach is the number of distinct step nodes reachable from the
@@ -443,7 +473,7 @@ minus submit instant).
 - **GIVEN** a second work package restricted to `R` alone holding a queued question, and a
   project viewer without `package.read` there
 - **WHEN** the viewer reads the queue and the counts
-- **THEN** neither includes that question, and reading it by id is refused `forbidden`
+- **THEN** neither includes that question, and reading it by id answers `404 not_found`
 
 ### Requirement: Nothing of the new writer deletes a question or hands one down
 
@@ -453,7 +483,10 @@ and space deletion SHALL check the same closure. `removeAttempt` and its replay 
 `attempt_holds_questions`. Confirmed step removal, with or without cascade, SHALL refuse
 `step_holds_questions` inside its transaction before any deletion when any attempt on the step
 holds a question. Creating a first child under a leaf that holds any question, or moving a
-row under it, and the replays of either, SHALL be refused `leaf_holds_questions`.
+row under it, SHALL be refused `leaf_holds_questions`. A compensating replay that would do
+any of the above, including one recorded before the question existed, SHALL run the same
+check before its mutation and surface it through the journal's existing envelope,
+`stale_undo` with a detail naming the code, discarding the entry.
 
 #### Scenario: a parent above a question cannot be deleted
 
@@ -478,6 +511,14 @@ row under it, and the replays of either, SHALL be refused `leaf_holds_questions`
 - **GIVEN** `L` holding a queued question, no claim and no typed dependency, and a sibling `S`
 - **WHEN** `S` is moved under `L`
 - **THEN** the command is refused with `leaf_holds_questions` and `S` stays where it was
+
+#### Scenario: a replay recorded before the question cannot make the leaf a parent
+
+- **GIVEN** a child created under `L`, that creation undone, and then a queued question
+  submitted on `L`
+- **WHEN** the creation is redone
+- **THEN** the redo answers `stale_undo` with a detail naming `leaf_holds_questions`, the
+  entry is discarded, `L` stays a leaf and the question stays on it
 
 #### Scenario: a mounted partial index refuses a second unresolved blocked question
 

@@ -59,9 +59,13 @@ resolve and deletion refusals. Test names in backticks are the spec's scenario t
     `the node cannot be restarted around the question`,
     `a parent above a question cannot be deleted`, `a step with questions cannot be removed`,
     `a question-holding leaf cannot gain a first child`,
-    `nothing can be moved under a question-holding leaf`; import leaves the source untouched;
-    the archived first-child and node-endpoint scenarios still pass for question-free leaves
-  - negative: the guard removed from `setStepBlocked`; watch the first fail
+    `nothing can be moved under a question-holding leaf`,
+    `a replay recorded before the question cannot make the leaf a parent` (the check sits in
+    `applyRestore`, `applyMove` and `applyDelete` before their mutations, surfacing as
+    `stale_undo`); import leaves the source untouched; the archived first-child and
+    node-endpoint scenarios still pass for question-free leaves
+  - negatives: the guard removed from `setStepBlocked`; the check removed from
+    `applyRestore`; watch each scenario fail
 - [ ] 3.3 `QuestionService.submit`: identity rule, executor and attempt checks, effective
       policy and phase inside the unit of work, basis, store, attribution, the notified path's
       notices with `no_address` and `no_access`.
@@ -89,8 +93,8 @@ resolve and deletion refusals. Test names in backticks are the spec's scenario t
     `a top-level leaf's follow-up is top-level`,
     `a wrong fact is counted apart from a wrong answer`
   - negative: the follow-up create skipped; watch the first fail
-- [ ] 3.7 Reads with visibility: `GET /api/questions/:id` under `package.read`; the queue and
-      counts over readable questions.
+- [ ] 3.7 Reads with visibility: `GET /api/questions/:id` under `package.read` answering the
+      invisible-object `404 not_found` otherwise; the queue and counts over readable questions.
   - tests: `a restricted package hides its questions`
 
 ## 4. Policy and reviewers (D3, D6)
@@ -110,14 +114,18 @@ resolve and deletion refusals. Test names in backticks are the spec's scenario t
 
 - [ ] 5.1 `NoticeStore` writes: opened, undeliverable with reason; `sweep` writing aged and
       digest under the unique indexes over the reviewer's readable questions; the lease pass
-      closing expired leases as `lost` before leasing.
+      closing expired leases as `lost`, re-checking each recipient's access and recomputing
+      digests before leasing.
   - tests: `aged fires once under concurrent sweeps`, `one digest per reviewer per day`,
-    `an expired lease counts as a failure`
+    `an expired lease counts as a failure`, `access revoked after queueing stops delivery`,
+    `the fifth expiry ends retries`
   - negative: the unique index dropped with two concurrent sweeps; watch the first fail
-- [ ] 5.2 Operator routes: lease, report (recorded reports first, then the live lease), sweep.
+- [ ] 5.2 Operator routes: lease, report (lookup by attempt number and token first, then
+      the live lease; the lease cleared on completion), sweep.
   - tests: `a failed attempt reschedules with its error`, `the fifth failure ends retries`,
     `a repeated report answers the recorded outcome`, `a conflicting repeat is refused`,
-    `a late report against a lost lease is refused`
+    `a late report against a lost lease is refused`,
+    `an attempt is consumed once in an expiry race`
   - negative: the attempt cap removed; watch the second fail
 - [ ] 5.3 Dash notice activity: lease, send through the OpenClaw gateway within the lease
       with the id-only text, report, stop on `lease_lost` and on `report_conflict`.
