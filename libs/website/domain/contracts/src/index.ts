@@ -111,6 +111,7 @@ export interface SubmissionView {
   updatedAt: string;
 }
 
+export * from './analytics';
 export * from './brief';
 export * from './browser-check';
 export * from './reply-stream';
