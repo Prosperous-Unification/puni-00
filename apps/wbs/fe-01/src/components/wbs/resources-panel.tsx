@@ -23,6 +23,7 @@ import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient, useResourceScope } from '@/runtime/organization-resources';
 
 import { type BatchRefusal, batchRefusalSentence } from './plan-refusal';
+import { ResourceUsesPanel } from './resource-uses-panel';
 import type { SettingsSectionReport } from './teams-panel';
 
 const RESOURCE_SHAPES = [
@@ -227,15 +228,17 @@ export function ResourcesPanel({
     setRemovedAt(null);
   }, [removedAt, view]);
   const [busy, setBusy] = useState(false);
+  const [usesDirty, setUsesDirty] = useState(false);
+  const [usesBusy, setUsesBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [fault, setFault] = useState<Error | null>(null);
   const isPending = useRef(false);
   const generation = useRef(0);
 
   useEffect(() => {
-    onDirtyChange(busy);
-    onBusyChange?.(busy);
-  }, [busy, onDirtyChange, onBusyChange]);
+    onDirtyChange(busy || usesDirty);
+    onBusyChange?.(busy || usesBusy);
+  }, [busy, usesDirty, usesBusy, onDirtyChange, onBusyChange]);
   useEffect(
     () => () => {
       onDirtyChange(false);
@@ -828,6 +831,12 @@ export function ResourcesPanel({
         </p>
       )}
       {mayWrite && <NewResourceForm busy={busy} onCreate={create} />}
+      <ResourceUsesPanel
+        projectId={projectId}
+        shown={shown}
+        onDirtyChange={setUsesDirty}
+        onBusyChange={setUsesBusy}
+      />
     </div>
   );
 }
