@@ -1086,7 +1086,7 @@ items)` and each other project by name, from the refusal's `usage`. It says live
   window between the re-check and the cascade remains.
 - Role gating is unchanged. **Open question for Dany:** any member of the organization may
   delete a directory resource with its demands, capacities and occupancies, from any project's
-  settings.
+  settings. **Answered 2026-10-25:** only admins may; see "Task 1.6" and design R8a.
 
 **S3:**
 
@@ -1283,3 +1283,62 @@ plan without demands shows no Resource group. Nothing changed after review.
 - **Known gap (S3 10), follow-up:** the Resources column is hidden by default. After narrowing
   by resource, the reader therefore cannot see on the row why it matched. Showing the column
   while the facet is ticked was not done.
+
+## Task 1.6: only organization admins delete a directory resource (2026-10-25)
+
+Dany's decision of 2026-10-25 answers the open question of #719's review (S2-3): a member may
+not delete a directory resource; an admin or a super-admin may (design R8a). Create and patch
+are unchanged.
+
+### What shipped
+
+- `@wbs/domain` `mayRemoveResourceInOrganization(role)`: admin or super_admin, beside
+  `mayDefineMeasuresInOrganization`.
+- `DirectoryService.removeResourceWithin` refuses a scoped caller without that role
+  `forbidden` before the resource is looked up. It is the one path every `deleteResource` takes:
+  the directory batch, a project batch carrying the directory command, and MCP, whose tools
+  call the same be-01 routes. Plan import and undo never remove a resource. A viewer's batch is
+  still refused whole, before any command runs. Legacy access carries no role and keeps its
+  whole-directory writes, as for measures. The `deleteResource` command description (MCP and
+  OpenAPI text) says who may; the MCP tool count is unchanged.
+- fe-01 `resources-panel.tsx`: Remove is offered only where the admin-only providers list was
+  read (`mayRemoveResources`), or without organizations. A member, a viewer, and a reader whose
+  providers read failed see Edit and no Remove. A `forbidden` removal that still arrives (an
+  admin demoted since the read) says `Only an organization admin can remove a resource. Nothing
+was changed.` and closes the confirm.
+
+### Commands and results (fresh, `env -u CLAUDECODE`)
+
+- be-01 `resource-organization.controller.db.test.ts`, `compute-provider.controller.db.test.ts`,
+  `measure-organization.controller.db.test.ts`: 50 pass, 0 fail.
+- core `bun test src`: 1337 pass, 0 fail. domain `bun test src`: 1313 pass, 0 fail.
+  contracts `src/commands`: 0 fail. mcp-01 `openapi-tools.test.ts`: 33 tests, 0 fail.
+  store-sqlite `resource-occupancy.db.test.ts`: 70 tests, 0 fail.
+- fe-01 `vitest run src/components/wbs/resources-panel.test.tsx` (TZ=UTC): 42 pass.
+- `nx run-many -t typecheck lint -p wbs-domain wbs-core wbs-contracts wbs-be-01 wbs-fe-01
+--parallel=1` (NODE_OPTIONS=--max-old-space-size=8192): exit 0, 13 tasks.
+- `prettier --check` on the changed files: clean. `openspec validate --all --json`: exit 0,
+  285/285. Burokrat `check-indexes working . HEAD`: exit 0.
+
+### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Fault injected (watched 2026-10-25)                  | Observed failing test                                                                                                                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the role refusal in `removeResourceWithin` skipped   | `refuses a member removing a resource on either route, an admin and a super-admin allowed`: the member's cascade answered 200 `results: [{ index: 0 }]` |
+| `mayRemoveResources` answering true                  | `offers a member Edit but no Remove`, `offers a viewer Edit but no Remove`, `offers no Remove while the providers read failed and the role is unknown`  |
+| the `forbidden` arm of the removal's refusal skipped | `says a refused removal in place and closes its confirm`: `Unable to find an element with the text: Only an organization admin can remove…`             |
+
+### Eye review (Playwright Chromium, local activated organization per docs/local-dev.md)
+
+`resources-member-1280-light` and `resources-admin-1280-light` in `resource-delete-shots/`
+(the seed and the stack of the 3.4 review). The member's four rows show Edit and no Remove (0
+Remove buttons, 4 Edit); the super-admin owner's show Edit and Remove beside the picker (4 and
+4). Page errors 0, overflow 0 px.
+
+### Not run, and why
+
+- The full be-01 and fe-01 suites, e2e and pixels: laptop RAM cap; CI runs them. No e2e spec
+  clicks a resource's Remove (`grep` of `apps/wbs/fe-01/e2e` for `Resources` and `Remove`: the
+  hits are the section list, a leaf's `Resources…` and step and team removals), so no e2e count
+  or pixel baseline moves.
+- The h2puni gate: the caller runs it on the merged head.

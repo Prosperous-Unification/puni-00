@@ -2,6 +2,7 @@ import {
   cleanName,
   type LimitCrossed,
   mayBindAccountInOrganization,
+  mayRemoveResourceInOrganization,
   type OrganizationScope,
   PERSON_KINDS,
   type PersonKind,
@@ -140,11 +141,12 @@ export type PersonPatchOutcome =
 
 /**
  * How a resource removal answered: `in_use` names the rows that lose a demand
- * and counts the demands, capacities and occupancies (`wbs-resources` R8).
+ * and counts the demands, capacities and occupancies (`wbs-resources` R8);
+ * `forbidden` is a scoped caller who is neither an admin nor a super-admin (R8a).
  */
 export type RemoveResourceOutcome =
   | { ok: true }
-  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'not_found' | 'forbidden' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage; counts: ResourceUsageCounts };
 
 /** What a resource create names; the kind is fixed here and never patched. */
@@ -532,8 +534,11 @@ export class DirectoryService {
    * Removes a resource through the caller's access, refusing an unconfirmed
    * removal while any demand, capacity or occupancy names it — `in_use` with
    * the rows and the counts. With `cascade` its demands and capacities go in the
-   * same transaction. Under scoped access a foreign resource is `not_found` and
-   * a foreign project naming it fails closed.
+   * same transaction. Under scoped access only an admin or a super-admin may
+   * remove one (`forbidden` otherwise, before the resource is looked up, so the
+   * refusal says nothing of what exists), a foreign resource is `not_found` and
+   * a foreign project naming it fails closed. Legacy access carries no role,
+   * and every legacy caller already writes the whole directory, so it may.
    *
    * The unconfirmed read is only a fast path; the store's own count inside its
    * transaction decides.
@@ -552,6 +557,12 @@ export class DirectoryService {
     this.refuseStandaloneResourceWrite();
     const scope = access.kind === 'scoped' ? access.scope : null;
     if (scope !== null) {
+      // Proof: with this refusal skipped, `refuses a member removing a resource
+      // on either route, an admin and a super-admin allowed`
+      // (resource-organization.controller.db.test.ts) answered the member's
+      // cascade 200 (`results: [{ index: 0 }]`), the demand removed with it;
+      // watched 2026-10-25.
+      if (!mayRemoveResourceInOrganization(scope.role)) return { ok: false, reason: 'forbidden' };
       if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
         return { ok: false, reason: 'not_found' };
       await this.refuseForeignReach('resources', resourceId, scope);

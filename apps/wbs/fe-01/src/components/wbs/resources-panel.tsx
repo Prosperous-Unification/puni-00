@@ -122,7 +122,8 @@ export interface ResourcesPanelProps extends SettingsSectionReport {
  * project's capacity by hand (`setResourceCapacity`, blank for unstated).
  * Every refusal is said in place, a role that may not change the directory
  * included; nothing is hidden by role but the provider picker, whose list
- * only an admin may read.
+ * only an admin may read, and Remove, which only an admin may send
+ * (`wbs-resources` R8a): see {@link mayRemoveResources}.
  */
 export function ResourcesPanel({
   projectId,
@@ -455,6 +456,15 @@ export function ResourcesPanel({
       { kind: 'deleteResource', resourceId: resource.id },
       resource.name,
       (refusal) => {
+        // Proof: 2026-10-25, with this arm skipped, `says a refused removal
+        // in place and closes its confirm` failed on `Unable to find an
+        // element with the text: Only an organization admin can remove…`:
+        // only the create/edit sentence for a role was said.
+        if (refusal.error === 'forbidden') {
+          setRemoval(null);
+          setMessage('Only an organization admin can remove a resource. Nothing was changed.');
+          return true;
+        }
         // Proof: 2026-10-25, with this arm answering false, `names what still
         // uses a resource and removes it with them on confirm` failed on
         // `Unable to find role="alert"` in the row: only the generic sentence
@@ -622,9 +632,13 @@ export function ResourcesPanel({
                 removal={removal?.resourceId === resource.id ? removal : null}
                 onRename={(name, unitLabel) => rename(resource, name, unitLabel)}
                 projectId={projectId}
-                onRemove={(step) => {
-                  observe(remove(resource, step), 'removal');
-                }}
+                onRemove={
+                  mayRemoveResources(view.providers, isOrganization)
+                    ? (step) => {
+                        observe(remove(resource, step), 'removal');
+                      }
+                    : undefined
+                }
                 onKeep={() => {
                   setRemoval(null);
                 }}
@@ -641,6 +655,21 @@ export function ResourcesPanel({
       {view.kind === 'ready' && <NewResourceForm busy={busy} onCreate={create} />}
     </div>
   );
+}
+
+/**
+ * Whether this viewer is offered Remove (`wbs-resources` R8a): only an
+ * organization admin may remove a resource, and admin rights are read off the
+ * providers list as for the picker. Without organizations every caller may.
+ * A failed providers read leaves the role unknown, so Remove stays hidden
+ * until a reread names it; be-01 still decides, and its `forbidden` is said
+ * in place.
+ *
+ * Proof: 2026-10-25, answering true here failed `offers a member Edit but no
+ * Remove`: the member's row carried `Remove h2puni ram`.
+ */
+function mayRemoveResources(providers: ProviderChoice, isOrganization: boolean): boolean {
+  return !isOrganization || providers.kind === 'named';
 }
 
 /** What the Add form holds: a new resource's name, kind and unit label. */

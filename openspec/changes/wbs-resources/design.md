@@ -89,6 +89,16 @@ flag, not a rule. Dany's 2026-08-06 rule still holds: labelling is not assigning
 capacities or occupancies is refused `in_use` with counts unless cascaded; directory usage
 lists them.
 
+**R8a. Only an admin deletes a resource (Dany, 2026-10-25).** A removal cascades into every
+project of the organization, dropping each demand, capacity and occupancy that names it, so
+it is an organization act, like defining a measure (`wbs-measure-budgets` D70): a scoped
+caller who is neither an admin nor a super-admin is refused `forbidden`. The check sits in
+`removeResourceWithin`, the one path every `deleteResource` takes (directory batch, project
+batch, MCP through the same routes); legacy access carries no role and keeps writing the whole
+directory. Create and patch were not part of the decision and stay open to every writing role.
+fe-01 offers Remove only where the admin-only providers list was read, as it does the picker.
+This settles the open question of #719's review (`verify.md` "Review fixes", S2-3).
+
 ## Risks / Trade-offs
 
 - **A stated capacity of zero (assumed, slice 3).** In the schedule a demand is clamped to the

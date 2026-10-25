@@ -16,14 +16,17 @@ let foreign: string;
 
 beforeEach(async () => {
   h = OrganizationHarness.openComposed();
-  for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
+  // Five registrations: a sixth in one window is refused rate_limited.
+  for (const username of ['ada', 'grace', 'vic', 'nell', 'sue']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
   h.member('org-a', 'ada', 'member');
   h.member('org-a', 'vic', 'viewer');
+  h.member('org-a', 'sue', 'admin');
   h.member('org-b', 'grace', 'member');
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
+  h.bind('sue', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
   own = await create('ada', 'A plan');
@@ -133,8 +136,9 @@ describe('resources in an organization', () => {
         { kind: 'patchResource', resourceId, patch: { unitLabel: 'TB' } },
         { kind: 'deleteResource', resourceId, cascade: true },
       ])
+        // An admin, who alone may remove a resource, so the refusal is about the id.
         expect(
-          await h.call('ada', 'POST', '/api/directory/commands', { commands: [command] }),
+          await h.call('sue', 'POST', '/api/directory/commands', { commands: [command] }),
         ).toEqual({ status: 404, body: { at: 0, kind: command.kind, error: 'not_found' } });
     }
     expect(h.sqlite.query('SELECT count(*) AS n FROM work_item_resource_demand').get()).toEqual({
@@ -177,7 +181,7 @@ describe('resources in an organization', () => {
     await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
       commands: [{ kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 }],
     });
-    const refused = await h.call('ada', 'POST', '/api/directory/commands', {
+    const refused = await h.call('sue', 'POST', '/api/directory/commands', {
       commands: [{ kind: 'deleteResource', resourceId: ram }],
     });
     expect(refused).toMatchObject({
@@ -197,7 +201,7 @@ describe('resources in an organization', () => {
       },
     });
     expect(
-      await h.call('ada', 'POST', '/api/directory/commands', {
+      await h.call('sue', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'deleteResource', resourceId: ram, cascade: true }],
       }),
     ).toMatchObject({ status: 200 });
@@ -205,6 +209,54 @@ describe('resources in an organization', () => {
       status: 200,
       body: { resources: [], capacities: [], demands: [] },
     });
+  });
+
+  it('refuses a member removing a resource on either route, an admin and a super-admin allowed', async () => {
+    const ram = await declare('ada', 'h2puni ram');
+    const staging = await declare('ada', 'staging');
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [{ kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 }],
+    });
+    const demands = () =>
+      h.sqlite.query('SELECT count(*) AS n FROM work_item_resource_demand').get();
+    for (const path of ['/api/directory/commands', `/api/projects/${own}/commands`])
+      for (const command of [
+        { kind: 'deleteResource', resourceId: ram, cascade: true },
+        { kind: 'deleteResource', resourceId: ram },
+      ]) {
+        expect(await h.call('ada', 'POST', path, { commands: [command] }), path).toEqual({
+          status: 403,
+          body: { at: 0, kind: 'deleteResource', error: 'forbidden' },
+        });
+        expect(await h.call('vic', 'POST', path, { commands: [command] }), path).toEqual({
+          status: 403,
+          body: { error: 'forbidden' },
+        });
+      }
+    expect(demands()).toEqual({ n: 1 });
+    expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 2 });
+    // Creating and editing stay open to a member.
+    expect(
+      await h.call('ada', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'patchResource', resourceId: ram, patch: { unitLabel: 'TB' } }],
+      }),
+    ).toMatchObject({ status: 200 });
+    expect(
+      await h.call('sue', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'deleteResource', resourceId: ram, cascade: true }],
+      }),
+    ).toMatchObject({ status: 200 });
+    expect(demands()).toEqual({ n: 0 });
+    h.sqlite.run(
+      "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
+      [h.userId('sue')],
+    );
+    expect(
+      await h.call('sue', 'POST', `/api/projects/${own}/commands`, {
+        commands: [{ kind: 'deleteResource', resourceId: staging }],
+      }),
+    ).toMatchObject({ status: 200 });
+    expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 0 });
   });
 
   /** Every top-level key of a version 11 document but `optimization`, the same in both modes. */

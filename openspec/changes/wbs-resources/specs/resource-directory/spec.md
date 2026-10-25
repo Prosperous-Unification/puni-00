@@ -8,6 +8,12 @@ The directory SHALL hold resources, each with a name unique in the directory, a 
 refusal shapes as teams. Deleting a resource that any demand, capacity or occupancy names
 SHALL be refused `in_use` with the counts unless `cascade` is given, in which case demands,
 capacities and occupancies of that resource are removed in the same transaction.
+Under organization access `deleteResource` SHALL be refused `forbidden` (403, naming the
+command's index and kind) for a caller who is neither an organization admin nor a
+super-admin, before the resource is looked up and on every route that carries directory
+commands (`POST /api/directory/commands` and a project's `POST /api/projects/:id/commands`);
+a viewer's batch stays refused whole. `createResource` and `patchResource` stay open to every
+role that may write.
 
 #### Scenario: A host's RAM is declared
 
@@ -19,6 +25,14 @@ capacities and occupancies of that resource are removed in the same transaction.
 
 - **WHEN** a resource is named by two demands and `deleteResource` is applied without cascade
 - **THEN** the command is refused `in_use` naming 2 demands, 0 capacities, 0 occupancies
+
+#### Scenario: Only an admin deletes a resource
+
+- **WHEN** a member of the organization applies `deleteResource { cascade: true }` to a
+  resource a demand names, through the directory commands or a project's commands
+- **THEN** the command is refused `forbidden` and the resource and its demand remain; an
+  admin's or a super-admin's same command removes both, and the member may still create and
+  patch resources
 
 ### Requirement: A project states how many units of a resource its plan may use
 
@@ -102,13 +116,22 @@ leaf's Resources cell (a column hidden by default) and the row menu's `Resources
 panel listing every resource with this work item's units, an exclusive one as needed or not,
 and saving SHALL send every changed demand as one batch, so the plan's Undo takes the edit back
 whole. A parent SHALL be offered no demand edit. Loading, an empty directory, a failed read
-and every refusal (a role that may not write included) SHALL be rendered in place.
+and every refusal (a role that may not write included) SHALL be rendered in place. Remove
+SHALL be offered only to an organization admin (read, as for the provider picker, off the
+admin-only providers list) and to every caller without organizations; a member, a viewer and a
+reader whose providers read failed get no Remove, and a `forbidden` removal still arriving SHALL
+be said in place and close its confirm.
 
 #### Scenario: A demand set from the table is undone in one step
 
 - **WHEN** a planner sets `RAM` to 8 and ticks `staging` on leaf `020` and saves
 - **THEN** one `setDemand` batch is sent, the cell reads `RAM 8 GiB · staging`, and one Undo
   restores the previous demands
+
+#### Scenario: A member is offered no Remove
+
+- **WHEN** a member opens the Resources section of a project
+- **THEN** each resource row offers Edit and no Remove, and the Add form is shown
 
 #### Scenario: A demanded resource is removed only on confirm
 

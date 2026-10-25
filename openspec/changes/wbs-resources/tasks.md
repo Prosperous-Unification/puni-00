@@ -26,6 +26,10 @@
       Resources cell (hidden by default) and `Resources…` open one panel saving one `setDemand`
       batch, and the settings section adds, renames, removes (`in_use` confirm) and states
       capacity, with what claims hold; `verify.md` "Task 1.5".
+- [x] 1.6 Only organization admins delete a directory resource (design R8a, Dany 2026-10-25)
+      — test: be-01 member and viewer refused `forbidden` on both command routes, admin and
+      super-admin allowed; fe-01 Remove per role and a refused removal said in place;
+      negative: skip the role check and the member's cascade lands. `verify.md` "Task 1.6".
 
 ## 2. Occupancy on claims (needs slice 1 and the claims change slice 1)
 

@@ -525,7 +525,7 @@ export const commandDefinitions = {
     schema: type({ kind: "'deleteResource'", ...resource, 'cascade?': 'boolean' }),
     scope: 'directory',
     description:
-      'Remove a resource from the directory. Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
+      'Remove a resource from the directory (organization admins and super-admins only; anyone else is refused forbidden, since a removal reaches every project). Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
   }),
   createMeasure: defineCommand('createMeasure', {
     schema: type({

@@ -77,9 +77,9 @@ const providersOf =
     answer(200, { computeProviders: providers });
 const applied = () => answer(200, { results: [{ index: 0 }], undoable: false, redoable: false });
 
-function mount(onChanged: () => Promise<void> = () => Promise.resolve()) {
+function mount(onChanged: () => Promise<void> = () => Promise.resolve(), resourceScope = scope) {
   return renderBare(
-    <OrganizationResourcesProvider scope={scope}>
+    <OrganizationResourcesProvider scope={resourceScope}>
       <ResourcesPanel projectId="p1" shown onChanged={onChanged} onDirtyChange={() => undefined} />
     </OrganizationResourcesProvider>,
   );
@@ -761,6 +761,63 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     expect(directories(sent)).toEqual([
       { commands: [{ kind: 'deleteResource', resourceId: 'r1' }] },
     ]);
+  });
+
+  // A member and a viewer read alike here: the providers list refuses both `forbidden`.
+  for (const role of ['member', 'viewer'])
+    it(`offers a ${role} Edit but no Remove`, async () => {
+      const sent = stubServer({
+        [READ]: [readOf([resourceOf()])],
+        [PROVIDERS]: [() => answer(403, { error: 'forbidden' })],
+      });
+      mount();
+      const ram = await row('h2puni ram');
+      expect(within(ram).getByRole('button', { name: 'Edit h2puni ram' })).toBeDefined();
+      expect(within(ram).queryByRole('button', { name: /Remove/ })).toBeNull();
+      expect(screen.getByRole('form', { name: 'Add a resource' })).toBeDefined();
+      expect(directories(sent)).toEqual([]);
+    });
+
+  it('offers an admin Remove, and every caller without organizations', async () => {
+    stubServer({ [READ]: [readOf([resourceOf()])], [PROVIDERS]: [providersOf(h2puni)] });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(within(ram).getByRole('button', { name: 'Remove h2puni ram' })).toBeDefined();
+    cleanup();
+    stubServer({ [READ]: [readOf([resourceOf({ providerId: null })])] });
+    mount(undefined, { ...scope, organization: { kind: 'legacy' } });
+    const legacy = await row('h2puni ram');
+    expect(within(legacy).getByRole('button', { name: 'Remove h2puni ram' })).toBeDefined();
+  });
+
+  it('offers no Remove while the providers read failed and the role is unknown', async () => {
+    stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [() => answer(500, { error: 'internal' })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(within(ram).getByRole('button', { name: 'Edit h2puni ram' })).toBeDefined();
+    expect(within(ram).queryByRole('button', { name: /Remove/ })).toBeNull();
+  });
+
+  it('says a refused removal in place and closes its confirm', async () => {
+    // An admin demoted since the read: be-01 decides, and its refusal is a state.
+    stubServer({
+      [READ]: [readOf([resourceOf()])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [DIRECTORY]: [() => answer(403, { error: 'forbidden', at: 0, kind: 'deleteResource' })],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+    fireEvent.click(await within(ram).findByRole('button', { name: 'Remove h2puni ram' }));
+    const said = await screen.findByText(
+      'Only an organization admin can remove a resource. Nothing was changed.',
+    );
+    expect(said.getAttribute('role')).toBe('alert');
+    expect(within(ram).queryByRole('button', { name: 'Keep h2puni ram' })).toBeNull();
+    expect(await row('h2puni ram')).toBeDefined();
   });
 
   it('lands on the next resource after a removal, and on Add after the last', async () => {
