@@ -65,9 +65,10 @@ through a reaching grant whose transformed set contains `package.read`.
 ### Requirement: Restricted packages in set terms
 
 On a restricted work package each organization-scope grant SHALL be transformed before
-the union: the built-in `org-admin` and `org-super-admin`, direct or through a group,
-intersected with `organization.navigate`, `project.read` and `package.read`; every other
-organization-scope grant skipped. Grants naming the package or its project SHALL apply
+the union: a grant of a role whose `reachesRestricted` is set (the built-in `org-admin`
+and `org-super-admin`, and a custom organization role that opted in), direct or through a
+group, intersected with `organization.navigate`, `project.read` and `package.read`; every
+other organization-scope grant skipped. Grants naming the package or its project SHALL apply
 unchanged (CP18).
 
 #### Scenario: A custom organization role equal to org-admin
@@ -76,6 +77,14 @@ unchanged (CP18).
   the built-in `org-admin`, both at organization scope, and W is restricted
 - **THEN** W is absent from U's list and U's detail answers `404 not_found`; V lists and
   reads W and V's `createWorkItem` on W is refused `403 forbidden` naming `package.write`
+
+#### Scenario: A custom organization role that opted in
+
+- **WHEN** U holds a custom organization role with `reachesRestricted: true` whose set
+  holds `package.read` and `package.write`, at organization scope, and W is restricted
+- **THEN** U lists and reads W and U's `createWorkItem` on W is refused `403 forbidden`
+  naming `package.write`; creating a project-kind role with `reachesRestricted: true` is
+  refused `422 reaches_restricted_kind`
 
 #### Scenario: A direct grant beside a skipped one
 
@@ -86,8 +95,9 @@ unchanged (CP18).
 ### Requirement: Custom access roles
 
 An organization SHALL define custom access roles through
-`POST /api/organization/access-roles { name, objectKind, permissions }` (`201`), edit
-them through `PATCH /api/organization/access-roles/:id { name?, permissions? }` (`200`)
+`POST /api/organization/access-roles { name, objectKind, permissions, reachesRestricted? }`
+(`201`), edit them through
+`PATCH /api/organization/access-roles/:id { name?, permissions?, reachesRestricted? }` (`200`)
 and delete them through `DELETE /api/organization/access-roles/:id` (`204`), refused in
 design.md CP10's precedence. Each write SHALL append one audit row (`access_role_created`,
 `access_role_updated` with permissions added and removed, `access_role_deleted`).
