@@ -8,12 +8,13 @@ CP10's precedence) and fails only there.
 ## 0. Decisions
 
 - [x] 0.1 Dany fixed CP1–CP6 (2026-10-25); CP7–CP20 assumed by the planner, overrulable by
-      id; CP13 and CP14 settled 2026-10-25 (implement); CP18's flag and CP20 await Dany. Nothing merges until Dany's
+      id; CP13 and CP14 settled 2026-10-25 (implement); CP18's flag and CP20 settled 2026-10-25 by the coordinator under Dany's principles. Nothing merges until Dany's
       in-progress changes land (goal of 2026-10-25), #723 first.
 
 ## 1. Inside `wbs-permissions` slice 1 (amended there)
 
-- [ ] 1.1 `access_role` with `name`, nullable `level` and the built-in/custom CHECK,
+- [ ] 1.1 `access_role` with `name`, nullable `level`, `reaches_restricted` (CP18: default 0,
+      seeded 1 for `org-admin` and `org-super-admin`, organization-kind CHECK) and the built-in/custom CHECK,
       `access_role_permission`, the reserved-name trigger, the nine built-in sets seeded
       from `permission-matrix.md`, and `down.sql` naming the five tables in dependency
       order and refusing while custom catalogue state exists (design.md "Tables") — test:
@@ -23,11 +24,12 @@ CP10's precedence) and fails only there.
       ungranted custom role, keeping it and its rows; negatives: flip one matrix cell and
       the seed test fails; drop the trigger and a custom role named `org-admin` is
       inserted; drop the custom-role guard and the rollback deletes the ungranted role;
-      watched.
+      drop the kind CHECK and a project-kind role stores
+      `reaches_restricted = 1`; watched.
 - [ ] 1.2 `@wbs/domain`: `PERMISSIONS` entries with `kind` metadata (CP16), `EffectiveRole`
       with `permissions` and `via`, `may` as set membership, `CONTRIBUTOR_CAP` from the
       seed, `roleMayHold(objectKind, permission)` read from the metadata, and the CP18
-      transformation `permissionsOnTarget(grant, target)` — test: `access-role.test.ts`
+      transformation `permissionsOnTarget(grant, target)` reading `reachesRestricted` — test: `access-role.test.ts`
       every matrix cell as a property, every seeded row satisfies `roleMayHold`, the cap
       excludes every grant and manage permission, navigation allowed in every kind, the
       transformation's three outcomes for built-in and custom organization roles;
