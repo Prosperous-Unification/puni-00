@@ -218,7 +218,8 @@ async function readStorage(directory: string): Promise<StoredCensus> {
     if (blob !== null) {
       const digest = `sha256:${blob[2]}`;
       const content = await readFileContent(join(base, path));
-      // Proof: removing the digest comparison admitted a same-size corrupted physical layer.
+      // Proof: removing this comparison made "refuses same-length physical layer corruption"
+      // return an inventory with altered 12-byte content.
       if (blob[1] !== blob[2].slice(0, 2) || content.digest !== digest)
         throw new Error(`Registry blob digest mismatch: ${path}`);
       blobs.set(digest, {
@@ -449,10 +450,11 @@ export async function collectRegistryInventory(input: {
         dependency.urls !== undefined ||
         dependency.artifactType !== undefined
       )
-        // Proof: ignoring descriptor size admitted the wrong-size layer; removed physical content also refuses.
+        // Proof: ignoring size made "refuses descriptor size disagreement in an owned manifest"
+        // return an inventory with declared 13-byte / actual 12-byte content.
         throw new Error('Missing or unsupported registry dependency');
       if (indexTypes.includes(manifest.mediaType)) {
-        // Proof: removing this guard changed omitted-child refusal to the later unknown-root boundary.
+        // Proof: removing this guard changed omitted-child refusal to Contradictory child descriptor media type; inventory still refused.
         if (!revisionKeys.has(`${revision.repository}@${dependency.digest}`))
           throw new Error('Missing child manifest revision');
       } else {
@@ -637,7 +639,8 @@ export function planRegistryRetirement(
 
 /** Compare persisted plan bytes with a newly verified census under Task8's exclusive fence; no destructive operation happens here. */
 export function assertRegistryPlan(plan: RegistryRetirementPlan, fresh: RegistryInventory): void {
-  // Proof: removing this refusal accepted changed protection/identity and an unverified replacement census.
+  // Proof: separate "stale plan cannot execute" tests each returned without throwing after removal:
+  // unverified census, changed node identity, and changed protection roots.
   if (
     !verifiedInventories.has(fresh) ||
     !same(plan.binding, fresh.binding) ||

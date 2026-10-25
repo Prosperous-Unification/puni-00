@@ -341,31 +341,44 @@ it('refuses unreadable revision tree independently of catalog', async () => {
   cleanups.push(() => chmod(path, 0o755));
   await requireRefusal(proof.collect());
 });
-it('refuses corrupt blob and missing required layer link', async () => {
+it('refuses same-length physical layer corruption', async () => {
   const proof = await fixture();
-  await writeFile(proof.blobPath(proof.layer.digest), 'changed layer');
+  await writeFile(proof.blobPath(proof.layer.digest), 'broken layer');
   await requireRefusal(proof.collect(), 'digest');
-  await writeFile(proof.blobPath(proof.layer.digest), 'shared layer');
-  await rm(dirname(proof.layerPath('old/image', proof.layer.digest)), { recursive: true });
-  await requireRefusal(proof.collect());
 });
-it('stale plan cannot execute after changed protection or identity', async () => {
+it('refuses a missing required layer link', async () => {
+  const proof = await fixture();
+  await rm(dirname(proof.layerPath('old/image', proof.layer.digest)), { recursive: true });
+  await requireRefusal(proof.collect(), 'Missing required repository layer link');
+});
+it('stale plan cannot execute with an unverified replacement census', async () => {
   const proof = await fixture();
   const plan = await proof.plan();
   assertRegistryPlan(plan, await proof.collect());
-  proof.identity.node = 'replacement';
   expect(() => {
     assertRegistryPlan(plan, {} as never);
-  }).toThrow();
+  }).toThrow('Stale');
+});
+it('stale plan cannot execute after changed node identity', async () => {
+  const proof = await fixture();
+  const plan = await proof.plan();
+  proof.identity.node = 'replacement';
   const changed = await proof.collect();
   expect(() => {
     assertRegistryPlan(plan, changed);
   }).toThrow('Stale');
-  proof.identity.node = 'fixture';
-  proof.journal.protections[0].reason = 'changed';
-  const awaitInventory = await proof.collect();
+});
+it('stale plan cannot execute after changed protection roots', async () => {
+  const proof = await fixture();
+  const plan = await proof.plan();
+  proof.journal.protections[0].roots.push(proof.old.digest);
+  proof.journal.protections[0].references.push({
+    repository: 'old/image',
+    digest: proof.old.digest,
+  });
+  const changed = await proof.collect();
   expect(() => {
-    assertRegistryPlan(plan, awaitInventory);
+    assertRegistryPlan(plan, changed);
   }).toThrow('Stale');
 });
 it('consumer roots protect exact repository revisions including history recovery references', async () => {
@@ -569,7 +582,7 @@ it('follows complete same-collection pagination and accepts capacity heartbeats 
   }).toThrow('Stale');
 });
 
-it('refuses descriptor size disagreement and unsupported index children', async () => {
+it('refuses descriptor size disagreement in an owned manifest', async () => {
   const proof = await fixture();
   const changed = await proof.manifest('old/image', {
     schemaVersion: 2,
@@ -577,9 +590,12 @@ it('refuses descriptor size disagreement and unsupported index children', async 
     config: proof.config,
     layers: [{ ...proof.layer, size: proof.layer.size + 1 }],
   });
+  proof.journal.bundles[0].roots.push(changed.digest);
+  proof.journal.bundles[0].references.push({ repository: 'old/image', digest: changed.digest });
   await requireRefusal(proof.collect(), 'dependency');
-  await rm(dirname(proof.revisionPath('old/image', changed.digest)), { recursive: true });
-  proof.revisions.get('old/image')!.delete(changed.digest);
+});
+it('refuses unsupported index children', async () => {
+  const proof = await fixture();
   await proof.manifest('old/image', {
     schemaVersion: 2,
     mediaType: indexType,
