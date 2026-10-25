@@ -139,6 +139,25 @@ export function ResourcesPanel({
   const [adoption, setAdoption] = useState<Adoption | null>(null);
   /** A removal be-01 refused `in_use`, held until it is confirmed with cascade or kept. */
   const [removal, setRemoval] = useState<Removal | null>(null);
+  /**
+   * Where a removed resource stood in the list, so the keyboard lands on the
+   * row that took its place (its Edit), or on the Add form's name when it was
+   * the last, rather than on the page once its row unmounts.
+   */
+  const [removedAt, setRemovedAt] = useState<number | null>(null);
+  const section = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (removedAt === null || view.kind !== 'ready') return;
+    const root = section.current;
+    if (root === null) return;
+    const edits = root.querySelectorAll<HTMLElement>('[data-resource-edit]');
+    const target =
+      removedAt < edits.length
+        ? edits.item(removedAt)
+        : root.querySelector<HTMLElement>('[data-new-resource-name]');
+    target?.focus();
+    setRemovedAt(null);
+  }, [removedAt, view]);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [fault, setFault] = useState<Error | null>(null);
@@ -403,6 +422,14 @@ export function ResourcesPanel({
     );
   }
 
+  /** Records where a removed resource stood, for the focus to land beside it. */
+  function landAfterRemoving(resource: ProjectResource) {
+    // Proof: 2026-10-25, without this, `lands on the next resource after a
+    // removal` found the focus on the page body.
+    if (view.kind === 'ready')
+      setRemovedAt(view.resources.findIndex(({ id }) => id === resource.id));
+  }
+
   /**
    * One step of removing a resource. `ask` only opens the confirm, which says
    * the removal cannot be undone. `confirm` sends the plain delete; be-01
@@ -439,6 +466,7 @@ export function ResourcesPanel({
     );
     if (removed) {
       setRemoval(null);
+      landAfterRemoving(resource);
       return;
     }
     const inUse = answered.inUse;
@@ -449,8 +477,10 @@ export function ResourcesPanel({
           { kind: 'deleteResource', resourceId: resource.id, cascade: true },
           resource.name,
         )
-      )
+      ) {
         setRemoval(null);
+        landAfterRemoving(resource);
+      }
       return;
     }
     // Proof: 2026-10-25, with the cascade sent without this re-check, `asks
@@ -471,7 +501,9 @@ export function ResourcesPanel({
     // as JSON `null`, which clears the statement to unstated. With
     // `Number.isFinite` in place of the digits test, the same case's `0x10`
     // went out as 16; watched 2026-10-25.
-    if (trimmed !== '' && !/^\d+$/.test(trimmed)) {
+    // Proof: 2026-10-25, without `isSafeInteger` the same case's 400 nines went
+    // out as `Infinity`, which JSON carries as `null`: unstated.
+    if (trimmed !== '' && (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(Number(trimmed)))) {
       setMessage(
         `The declared capacity of ${resource.name} is a whole number, or blank for unstated.`,
       );
@@ -483,7 +515,7 @@ export function ResourcesPanel({
 
   return (
     // No heading of its own: the tab names the section, as every other (F-122).
-    <div className="flex flex-col gap-3">
+    <div ref={section} className="flex flex-col gap-3">
       <p className="text-muted-foreground m-0 text-sm">
         What this project declares of each resource, beside what its compute provider last measured.
         The plan uses only the declared number; adopting a measurement states it.
@@ -723,6 +755,7 @@ function NewResourceForm({
             Name
           </label>
           <Input
+            data-new-resource-name=""
             id={`${ids}-name`}
             className={CONTROL_HEIGHT}
             value={draft.name}
@@ -1182,11 +1215,13 @@ export function ResourceRow({
                 </strong>
               )}
               <span>
-                {resource.name} is still used by {usageWords(removal.counts)}
+                {resource.name} is still used by {usageWords(removal.counts)}.
+                {/* `usage` places demands only; capacities and claims are counted, not placed. */}
                 {removal.usage.projects.length === 0
                   ? ''
-                  : ` — in ${usagePlaces(removal.usage, projectId)}`}
-                . Removing it with them takes those away in every project, and cannot be undone.
+                  : ` Its demands are in ${usagePlaces(removal.usage, projectId)}.`}{' '}
+                Capacities and claims are counted across every project. Removing it with them takes
+                all of these away, and cannot be undone.
               </span>
               {removal.counts.occupancies > 0 && (
                 <span>
@@ -1234,6 +1269,7 @@ export function ResourceRow({
               variant="ghost"
               disabled={busy}
               ref={editButton}
+              data-resource-edit=""
               aria-label={`Edit ${resource.name}`}
               onClick={() => {
                 setFocusAfter('name');

@@ -72,3 +72,25 @@ export async function namedDemandFields(
   if (again.length === 0) return {};
   return withDemands(again, await readCatalog());
 }
+
+/**
+ * A read that names resources, taken again **once** when the catalog read
+ * beside it lacks one of them: the two reads are not one observation, so a
+ * resource removed (`cascade`) between them leaves the first answer naming
+ * nothing. The second answer is returned as it is; whoever labels it throws if
+ * it still names a resource the catalog lacks (bounded convergence, then throw).
+ */
+export async function readUntilNamed<T>(
+  read: () => Promise<T>,
+  readCatalog: () => Promise<readonly Resource[]>,
+  namedIn: (answer: T) => readonly string[],
+): Promise<{ answer: T; catalog: readonly Resource[] }> {
+  const first = await read();
+  if (namedIn(first).length === 0) return { answer: first, catalog: [] };
+  const catalog = await readCatalog();
+  const held = new Set(catalog.map(({ id }) => id));
+  if (namedIn(first).every((id) => held.has(id))) return { answer: first, catalog };
+  const again = await read();
+  if (namedIn(again).length === 0) return { answer: again, catalog: [] };
+  return { answer: again, catalog: await readCatalog() };
+}

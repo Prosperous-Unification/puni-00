@@ -83,6 +83,10 @@ export function demandWriteOutcome(
   statements: readonly DemandStatement[],
 ): DemandWriteOutcome {
   const code = failureText(thrown, '');
+  // Proof: with `code === GONE` dropped, `hands a row a peer deleted to the
+  // writer: toasted, reread, and the panel goes` failed: the panel said
+  // `not_found` in place and nothing was toasted or read again; watched
+  // 2026-10-25.
   if (
     !(thrown instanceof WbsRequestError) ||
     thrown.problem.kind !== 'refusal' ||
@@ -141,6 +145,10 @@ export function demandStatements(
       // went out as 16; watched 2026-10-25.
       if (!WHOLE_UNITS.test(answer.trim())) return { kind: 'invalid', resourceName: resource.name };
       units = Number(answer.trim());
+      // Proof: without this check, `refuses hexadecimal and exponent units in
+      // place` failed on 400 nines: `Number` read them as `Infinity`, which
+      // JSON carries as `null`, a cleared demand; watched 2026-10-25.
+      if (!Number.isSafeInteger(units)) return { kind: 'invalid', resourceName: resource.name };
     }
     if ((held.get(resource.id) ?? null) !== units)
       statements.push({ workItemId, resourceId: resource.id, units });
@@ -196,6 +204,16 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
   } | null>(null);
   /** The demands the open panel was seeded with, what a save is diffed against. */
   const [baseline, setBaseline] = useState<readonly RowDemand[]>([]);
+  /**
+   * Whether this reader's own last save was handed to the writer with its
+   * outcome unknown (`reported`): the plan read that follows may hold that very
+   * save, so the baseline follows the row from then on rather than calling the
+   * difference somebody else's.
+   */
+  const [uncertain, setUncertain] = useState(false);
+  useEffect(() => {
+    if (uncertain) setBaseline(row.demands);
+  }, [uncertain, row.demands]);
   const [saving, setSaving] = useState(false);
   // The row's demands seed the draft once per read, through a ref: a peer's
   // edit landing while the panel is open must not take the reader's typing.
@@ -258,7 +276,11 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
     // Proof: with the refusal treated as landed, `says a refused save in
     // place and stays open` found no alert and a closed panel; watched 2026-10-25.
     if (outcome.kind === 'landed') onOpenChange(false);
-    else if (outcome.kind === 'refused') {
+    // Proof: without this, `says an unconfirmed save as the reader’s own, not
+    // somebody else’s` read "Changed elsewhere since this opened" after the
+    // reader's own save landed under an unknown outcome; watched 2026-10-25.
+    else if (outcome.kind === 'reported') setUncertain(true);
+    else {
       const named = resources.find((each) => each.id === outcome.resourceId);
       setProblem({
         sentence: named === undefined ? outcome.sentence : `${named.name}: ${outcome.sentence}`,
@@ -268,7 +290,9 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
   }
 
   const peerChanged =
-    catalog.kind === 'ready' && demandSummary(row.demands) !== demandSummary(baseline);
+    !uncertain &&
+    catalog.kind === 'ready' &&
+    demandSummary(row.demands) !== demandSummary(baseline);
 
   const title = `Resources for ${row.number}`;
   return (
@@ -311,6 +335,17 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
           >
             This directory holds no resources yet. Add a host’s RAM, a staging environment or agent
             slots in Project settings → Resources, then state here what this work needs.
+          </p>
+        )}
+        {uncertain && (
+          <p
+            role="status"
+            data-demands-uncertain
+            className="bg-muted/50 m-0 rounded-md p-3 text-sm"
+          >
+            Your last save was not confirmed, so the plan was read again: now{' '}
+            {row.demands.length === 0 ? 'none' : demandSummary(row.demands)}. Saving sends what
+            differs from that.
           </p>
         )}
         {peerChanged && (

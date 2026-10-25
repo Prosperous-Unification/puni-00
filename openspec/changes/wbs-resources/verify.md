@@ -1167,3 +1167,38 @@ Screenshots re-shot (same directory, one full run): changed `07-demand-panel-ref
 the box, no toast), `11-settings-remove-in-use` (where, live claims, cannot be undone), new
 `19-settings-remove-unused-confirm`, `20-demand-panel-not-digits`,
 `21-demand-panel-peer-change`; the rest re-shot unchanged.
+
+### Re-check fixes (Fable re-check of 7033441af, 2026-10-25)
+
+- **Long digit strings.** Both units boxes also require `Number.isSafeInteger`: 400 nines read
+  as `Infinity`, which JSON carries as `null` (a cleared demand, an unstated capacity); now
+  said in place, nothing sent.
+- **Writer handoff tested on the production path.** `hands a row a peer deleted to the writer`:
+  `setDemands` answers `not_found`, the writer toasts and rereads, the row leaves the table and
+  the panel with it. `says an unconfirmed save as the reader’s own`: a save that lands and then
+  loses its answer (transport failure) is toasted once by the writer; the panel does not say
+  "Changed elsewhere" but "Your last save was not confirmed, so the plan was read again: now …",
+  and from then on diffs against what was read.
+- **The cascade race for labels too.** The earlier claim that the race was handled was true for
+  demands only. Now: the isolated tree read takes the whole read again once when its own root
+  catalog lacks a resource a bar waited for (`treeIsolated`, tested with a cascade injected
+  between the reads in `legacy-demands-read.test.ts`), and the organization branch reads the
+  tree and its catalog through `readUntilNamed` (one re-read, tested in `tree-demands.test.ts`).
+  A second disagreement still throws. The organization branch's own wiring is not raced in a
+  test; it is the helper plus one call.
+- **Focus after a removal** lands on the next resource's Edit, or on the Add form's name when
+  the last one went.
+- **Usage wording (S3-3).** be-01's `usage` places demands only; capacities and claims in other
+  projects are counted, never placed. The confirm now says "Its demands are in …" and
+  "Capacities and claims are counted across every project", so the named list does not read as
+  complete.
+
+| Fault injected                                    | Observed                                                                                       |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| demand box without `isSafeInteger`                | `refuses hexadecimal and exponent units in place` failed on 400 nines                          |
+| capacity box without `isSafeInteger`              | `says a capacity that is not a number in place` failed                                         |
+| `code === GONE` dropped from `demandWriteOutcome` | `hands a row a peer deleted to the writer …` failed                                            |
+| `reported` not marking the save unconfirmed       | `says an unconfirmed save as the reader’s own …` failed                                        |
+| `readUntilNamed` answers its first pair           | `reads both again once when a removal landed between them` failed                              |
+| `treeIsolated` re-read skipped                    | `labels a bar of a resource removed between the two reads` threw `a bar waited for resource …` |
+| removal focus not recorded                        | `lands on the next resource after a removal, and on Add after the last` failed                 |

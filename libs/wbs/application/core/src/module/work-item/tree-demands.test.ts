@@ -1,7 +1,7 @@
 import type { Demand, Resource } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { namedDemandFields, withDemands } from './tree-demands';
+import { namedDemandFields, readUntilNamed, withDemands } from './tree-demands';
 
 const ram: Resource = { id: 'r-ram', name: 'ram', kind: 'divisible', unitLabel: 'GB' };
 const staging: Resource = { id: 'r-stg', name: 'staging', kind: 'exclusive', unitLabel: 'env' };
@@ -67,5 +67,40 @@ describe('the demand fields of the tree read', () => {
     );
     expect(failure).toBeInstanceOf(Error);
     expect(String(failure)).toMatch(/r-stg/);
+  });
+});
+
+describe('a read whose resources the catalog must name', () => {
+  const named = (ids: readonly string[]) => ids;
+
+  it('reads no catalog when the read names no resource', async () => {
+    const catalog = reads<Resource[]>([ram]);
+    expect(await readUntilNamed(reads<string[]>([]).read, catalog.read, named)).toEqual({
+      answer: [],
+      catalog: [],
+    });
+    expect(catalog.calls()).toBe(0);
+  });
+
+  it('reads both again once when a removal landed between them', async () => {
+    // Proof: with the second read dropped (the first answer returned with its
+    // catalog), this failed on `answer: [ 'r-stg' ]`; watched 2026-10-25.
+    const tree = reads<string[]>([staging.id], []);
+    const catalog = reads<Resource[]>([ram]);
+    expect(await readUntilNamed(tree.read, catalog.read, named)).toEqual({
+      answer: [],
+      catalog: [],
+    });
+    expect(tree.calls()).toBe(2);
+  });
+
+  it('answers the second pair as it is, for its labeller to refuse', async () => {
+    const tree = reads<string[]>([staging.id]);
+    const catalog = reads<Resource[]>([ram]);
+    expect(await readUntilNamed(tree.read, catalog.read, named)).toEqual({
+      answer: [staging.id],
+      catalog: [ram],
+    });
+    expect([tree.calls(), catalog.calls()]).toEqual([2, 2]);
   });
 });

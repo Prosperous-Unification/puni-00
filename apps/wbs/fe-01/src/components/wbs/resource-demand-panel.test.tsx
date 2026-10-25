@@ -1,6 +1,7 @@
 import { fireEvent, render as renderBare, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { WbsRequestError } from '@/lib/wbs-api';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
@@ -188,13 +189,69 @@ describe('the Resources cell (wbs-resources 1.5)', () => {
     ).toEqual([]);
   });
 
+  itDom(
+    'hands a row a peer deleted to the writer: toasted, reread, and the panel goes',
+    async () => {
+      const { api, leaf } = await planWithResources();
+      drawTable(api);
+      const panel = await openFromCell('020');
+      fireEvent.change(await within(panel).findByLabelText('RAM units for 020'), {
+        target: { value: '4' },
+      });
+      // A peer deletes 020 while its panel is open.
+      api.rows.splice(
+        api.rows.findIndex((row) => row.id === leaf),
+        1,
+      );
+      fireEvent.click(within(panel).getByRole('button', { name: 'Save resources' }));
+      await waitFor(() => {
+        expect(
+          [...document.querySelectorAll('[data-toast-text]')].map((node) => node.textContent),
+        ).toContain(refusalSentence(new Error('not_found')));
+      });
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog', { name: 'Resources for 020' })).toBeNull();
+      });
+      expect(screen.queryByLabelText('Resources for 020')).toBeNull();
+    },
+  );
+
+  itDom('says an unconfirmed save as the reader’s own, not somebody else’s', async () => {
+    const { api } = await planWithResources();
+    const real = api.setDemands.bind(api);
+    api.setDemands = async (projectId, statements) => {
+      // It lands, and then the answer is lost on the way back.
+      await real(projectId, statements);
+      throw new WbsRequestError({
+        kind: 'failure',
+        operation: 'postApiProjectsByIdCommands',
+        failure: { code: 'transport', cause: new Error('connection reset') },
+      });
+    };
+    drawTable(api);
+    const panel = await openFromCell('020');
+    fireEvent.change(await within(panel).findByLabelText('RAM units for 020'), {
+      target: { value: '4' },
+    });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Save resources' }));
+    expect(
+      await within(panel).findByText(
+        /Your last save was not confirmed, so the plan was read again: now RAM 4 GiB/,
+      ),
+    ).toBeDefined();
+    expect(within(panel).queryByText(/Changed elsewhere/)).toBeNull();
+    expect(within(panel).queryByRole('alert')).toBeNull();
+    // The writer said it, once.
+    expect(document.querySelectorAll('[data-toast-text]').length).toBe(1);
+  });
+
   itDom('refuses hexadecimal and exponent units in place', async () => {
     const { api } = await planWithResources();
     const sent = recordCalls(api, 'setDemands');
     drawTable(api);
     const panel = await openFromCell('020');
     const ram = await within(panel).findByLabelText('RAM units for 020');
-    for (const typed of ['0x10', '1e3', '1.5', '-2']) {
+    for (const typed of ['0x10', '1e3', '1.5', '-2', '9'.repeat(400)]) {
       fireEvent.change(ram, { target: { value: typed } });
       fireEvent.click(within(panel).getByRole('button', { name: 'Save resources' }));
       expect((await within(panel).findByRole('alert')).textContent, typed).toBe(

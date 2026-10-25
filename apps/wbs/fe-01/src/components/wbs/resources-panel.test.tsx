@@ -654,7 +654,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
     const alert = await within(ram).findByText(/is still used by/);
     expect(alert.closest('[role="alert"]')).toHaveTextContent(
-      'h2puni ram is still used by 2 demands, 1 capacity and 1 claim holding it — in this project (1 work item) and “Swarm B” (1 work item). Removing it with them takes those away in every project, and cannot be undone.' +
+      'h2puni ram is still used by 2 demands, 1 capacity and 1 claim holding it. Its demands are in this project (1 work item) and “Swarm B” (1 work item). Capacities and claims are counted across every project. Removing it with them takes all of these away, and cannot be undone.' +
         '1 live claim holds it: its agent keeps the claim but no longer holds these units.',
     );
     expect(onChanged).not.toHaveBeenCalled();
@@ -719,6 +719,29 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     ]);
   });
 
+  it('lands on the next resource after a removal, and on Add after the last', async () => {
+    const disk = resourceOf({ id: 'r2', name: 'h2puni disk', providerId: null });
+    stubServer({
+      [READ]: [readOf([resourceOf(), disk]), readOf([disk]), readOf([])],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [DIRECTORY]: [applied],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+    fireEvent.click(await within(ram).findByRole('button', { name: 'Remove h2puni ram' }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit h2puni disk' }));
+    });
+    const left = await row('h2puni disk');
+    fireEvent.click(within(left).getByRole('button', { name: 'Remove h2puni disk' }));
+    fireEvent.click(await within(left).findByRole('button', { name: 'Remove h2puni disk' }));
+    const form = await screen.findByRole('form', { name: 'Add a resource' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(within(form).getByLabelText('Name'));
+    });
+  });
+
   it('moves the keyboard into the edit form and back to Edit', async () => {
     stubServer({ [READ]: [readOf([resourceOf()])], [PROVIDERS]: [providersOf(h2puni)] });
     mount();
@@ -767,14 +790,16 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     });
     mount();
     const ram = await row('h2puni ram');
-    fireEvent.change(
-      within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' }),
-      { target: { value: '0x10' } },
-    );
-    fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'The declared capacity of h2puni ram is a whole number, or blank for unstated.',
-    );
+    for (const typed of ['0x10', '9'.repeat(400)]) {
+      fireEvent.change(
+        within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' }),
+        { target: { value: typed } },
+      );
+      fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
+      expect(await screen.findByRole('alert'), typed).toHaveTextContent(
+        'The declared capacity of h2puni ram is a whole number, or blank for unstated.',
+      );
+    }
     expect(plans(sent)).toEqual([]);
   });
 });

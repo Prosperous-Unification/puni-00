@@ -18,40 +18,52 @@ const F = 'account-f';
  * 1.5, legacy access): root names, and the panel's two-statement batch undone
  * by one Undo.
  */
-describe('demands on the tree read before activation', () => {
-  it('names root resources, and one Undo takes a two-statement batch back', async () => {
-    const { source } = openMemorySourceFixture();
-    const broadcast = recordingBroadcaster();
-    const options = {
-      admission: CREATOR_ADMISSION,
-      clock: testClock,
-      broadcast,
-      scheduler: fastScheduler,
-    };
-    const graph = servicesOver(source.stores, options);
-    await source.stores.users.create(
-      { id: F, username: F, passwordHash: 'x', createdAt: 1 },
+/** One project with leaf `090` and the plan-command runner over a fresh memory source. */
+async function planOfOneLeaf(extraLeaf = false) {
+  const { source } = openMemorySourceFixture();
+  const broadcast = recordingBroadcaster();
+  const options = {
+    admission: CREATOR_ADMISSION,
+    clock: testClock,
+    broadcast,
+    scheduler: fastScheduler,
+  };
+  const graph = servicesOver(source.stores, options);
+  await source.stores.users.create(
+    { id: F, username: F, passwordHash: 'x', createdAt: 1 },
+    { at: 1, by: F },
+  );
+  const created = await graph.projects.create('L', F);
+  const projectId = created.project.id;
+  for (const step of created.steps)
+    await source.stores.steps.add(
+      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
       { at: 1, by: F },
     );
-    const created = await graph.projects.create('L', F);
-    const projectId = created.project.id;
-    for (const step of created.steps)
-      await source.stores.steps.add(
-        { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
-        { at: 1, by: F },
-      );
+  await source.stores.workItems.insert(
+    workItemRow({ id: '090', projectId, parentId: null, position: 1 }),
+    [],
+    { at: 1, by: F },
+  );
+  if (extraLeaf)
     await source.stores.workItems.insert(
-      workItemRow({ id: '090', projectId, parentId: null, position: 1 }),
+      workItemRow({ id: '095', projectId, parentId: null, position: 2 }),
       [],
       { at: 1, by: F },
     );
-    const runner = createPlanCommandRunner({
-      uow: source.uow,
-      announcements: broadcast,
-      publicServices: graph,
-      batchServices: (scope: Scope, announcements) =>
-        servicesOver(scope.stores, { ...options, broadcast: announcements }),
-    });
+  const runner = createPlanCommandRunner({
+    uow: source.uow,
+    announcements: broadcast,
+    publicServices: graph,
+    batchServices: (scope: Scope, announcements) =>
+      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+  });
+  return { source, graph, runner, projectId, steps: created.steps };
+}
+
+describe('demands on the tree read before activation', () => {
+  it('names root resources, and one Undo takes a two-statement batch back', async () => {
+    const { source, graph, runner, projectId } = await planOfOneLeaf();
     const declared = await runner.runDirectory(F, [
       { kind: 'createResource', name: 'staging', resourceKind: 'exclusive', unitLabel: 'env' },
       { kind: 'createResource', name: 'ram', resourceKind: 'divisible', unitLabel: 'GB' },
@@ -86,6 +98,52 @@ describe('demands on the tree read before activation', () => {
     expect(undone).toMatchObject({ ok: true });
     const back = await graph.workItems.treeWithin(projectId, LEGACY_ACCESS);
     expect(back).not.toHaveProperty('demands');
+    await source.close();
+  });
+});
+
+describe('a resource removed between the tree read and its labels', () => {
+  it('labels a bar of a resource removed between the two reads', async () => {
+    const { source, graph, runner, projectId, steps } = await planOfOneLeaf(true);
+    const declared = await runner.runDirectory(F, [
+      { kind: 'createResource', name: 'staging', resourceKind: 'exclusive', unitLabel: 'env' },
+    ]);
+    if (!declared.ok) throw new Error('the resource was not declared');
+    const staging = declared.results[0]?.id;
+    if (staging === undefined) throw new Error('staging minted no id');
+    const applied = await runner.run(projectId, F, [
+      ...['090', '095'].flatMap((workItemId) => [
+        ...steps.map((step) => ({
+          kind: 'setEstimate' as const,
+          workItemId,
+          stepId: step.id,
+          days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+        })),
+        { kind: 'setDemand' as const, workItemId, resourceId: staging, units: 1 },
+      ]),
+      { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
+    ]);
+    expect(applied.ok).toBe(true);
+    const levelled = await graph.workItems.treeWithin(projectId, LEGACY_ACCESS);
+    expect(levelled).toHaveProperty('resourceLabels');
+    // The catalog read beside the labels answers after a cascade removed
+    // staging: the schedule just read still waits for it.
+    const directory = source.stores.directory;
+    const listResources = directory.listResources.bind(directory);
+    let removed = false;
+    directory.listResources = async () => {
+      if (!removed) {
+        removed = true;
+        const gone = await runner.runDirectory(F, [
+          { kind: 'deleteResource', resourceId: staging, cascade: true },
+        ]);
+        expect(gone.ok).toBe(true);
+      }
+      return listResources();
+    };
+    const after = await graph.workItems.treeWithin(projectId, LEGACY_ACCESS);
+    expect(after).not.toHaveProperty('resourceLabels');
+    expect(after).not.toHaveProperty('demands');
     await source.close();
   });
 });

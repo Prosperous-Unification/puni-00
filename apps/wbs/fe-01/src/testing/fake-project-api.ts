@@ -866,6 +866,15 @@ export function fakeProjectApi(): ProjectApi & {
             refusal: { error, at, kind: 'setDemand' },
           }),
         );
+      // A row a peer deleted: be-01's scoped 404, which names no command.
+      if (statements.some(({ workItemId }) => !rows.some((row) => row.id === workItemId)))
+        return Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'postApiProjectsByIdCommands',
+            refusal: { error: 'not_found' },
+          }),
+        );
       for (const [at, { resourceId, units }] of statements.entries()) {
         const resource = resources.find((each) => each.id === resourceId);
         if (resource === undefined) return refused('unknown_resource', at);
