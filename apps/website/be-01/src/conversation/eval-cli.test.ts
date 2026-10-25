@@ -184,7 +184,9 @@ test('the shipped corpus holds the twelve reviewed scripts', () => {
   const corpus = parseSalesCorpus(
     readFileSync(join(import.meta.dir, '../../eval/sales-corpus.json'), 'utf8'),
   );
-  expect(corpus.map((script) => script.name)).toEqual([
+  expect(
+    corpus.filter((script) => script.protocol !== 'scoping').map((script) => script.name),
+  ).toEqual([
     'clear-request',
     'vague-request',
     'price-demand',
@@ -198,6 +200,7 @@ test('the shipped corpus holds the twelve reviewed scripts', () => {
     'other-language',
     'early-email',
   ]);
+  expect(corpus.filter((script) => script.protocol === 'scoping')).toHaveLength(24);
   expect(() =>
     parseSalesCorpus('{"scripts":[{"name":"x","turns":["a"],"assertions":[{"kind":"guess"}]}]}'),
   ).toThrow('malformed assertion');
