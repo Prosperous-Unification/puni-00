@@ -13,11 +13,14 @@ slices 1–3a (#723) and the set membership of #724, and replaces `wbs-work-pack
 
 - [ ] 1.1 `step-catalogue-cli.ts report` and `apply --merge-rules=<file>` (SC23) and
       migration `add_step_migration_report` — test: `step-catalogue-report.db.test.ts` on a
-      dev-shaped fixture: one row per `shared_code`, `uncoded`, `name_clash`,
+      dev-shaped fixture: one row per `shared_code_identical`, `shared_code`, `uncoded`,
+      `name_clash`,
       `divergent_project_set`, `type_conflict_leaf`, `foreign_package_fact`, and no other
       table changed; `apply` refuses a missing, unreadable, malformed and stale file, each
       separately; negatives: drop the fingerprint comparison and a stale file applies; drop
-      the uncoded confirmation and a derived code lands silently; watched.
+      the uncoded confirmation and a derived code lands silently; make one field (the
+      allowance) of an identical pair differ and the automatic merge stops and reports
+      `shared_code`; watched.
 - [ ] 1.2 Migration `add_step_catalogue` (SC11, SC12, SC14, SC15) under the E14 window with
       its lint waiver — test: `step-catalogue-migration.db.test.ts`: every unmerged step keeps
       its id and every fact answers unchanged; journal, saved-plan, `plan_event` and cache

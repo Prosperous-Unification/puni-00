@@ -33,8 +33,8 @@ story and a spike then estimate different steps, and `Dev` is not redefined per 
 **Migration**
 
 - Every step keeps its id and is bound at its project for every type, so stored history is
-  never rewritten (SC11). Shared codes, divergent sets and type conflicts are reported and
-  refused until an operator's rules file decides (SC12, SC15, SC23); merged ids are
+  never rewritten (SC11). Identical shared codes merge automatically; divergent codes, divergent
+  sets and type conflicts are reported and refused until an operator's rules file decides (SC12, SC15, SC23); merged ids are
   translated on read (SC13).
 
 Depends on #723 (`wbs-work-packages` slices 1–3a) and #724; replaces slice 3b.

@@ -133,12 +133,16 @@ report row of design.md SC23 until the rules file rules it, SHALL record each me
 `step_identity_history`, and history readers SHALL translate merged ids on read only
 (SC11–SC13).
 
-#### Scenario: Shared codes refuse until a survivor is named
+#### Scenario: Equal codes merge, differing codes refuse
 
-- **WHEN** two packages of A in different projects define `dev`, and `report` runs
-- **THEN** one `shared_code` row names both step ids and nothing else is written; `apply`
-  without a rule for `dev` refuses; with `survivorStepId` it re-points every fact of the
-  loser, keeps each package's unit and allowance, and records the pair
+- **WHEN** two packages of A in different projects define `qa` with equal name, unit and
+  allowance, two others define `dev` as "Dev" (workdays) and "Development" (minutes), and
+  `report` runs
+- **THEN** one `shared_code_identical` row names the `qa` survivor (earliest `created_at`,
+  then lowest id) and one `shared_code` row lists both `dev` rows and their differing
+  fields, and nothing else is written; `apply` without a rule for `dev` refuses; with
+  `survivorStepId` for `dev` both codes merge, every loser's facts are re-pointed, each
+  package keeps its unit and allowance, and every losing id is in `step_identity_history`
 
 #### Scenario: One project with disjoint sets
 

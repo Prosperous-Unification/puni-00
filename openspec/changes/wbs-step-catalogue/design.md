@@ -95,11 +95,17 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   entry, saved-plan body, `plan_event` or cache row changes for a step that is not merged
   (SC12). This removes the saved-plan rewrite F1 objects to: `saved_plan_body.bytes` stay
   immutable and `saved_plan.input_sha256`/`schedule_sha256` stay valid.
-- **SC12. A shared code is a merge the migration refuses until ruled** (F2, F11; assumed,
-  overrulable). Two step rows of one organization sharing a code (equal rows included, since
-  every project starts with `Dev` and `QA`) are one `shared_code` report row each; the
-  migration refuses until the rules file (SC23) names the surviving step id per organization
-  and code. Merging, inside the migration, re-points the thirteen foreign-key columns of the
+- **SC12. Identical shared codes merge; divergent ones wait for a rule** (F2, F11; assumed,
+  overrulable; revised 2026-10-25 by the coordinator). Step rows of one organization sharing
+  a code whose name, estimate unit and allowance are **all** equal merge automatically: the
+  survivor is the row with the earliest `created_at` (NULL, from rows older than
+  `20260901120000_add_audit_columns`, sorts after every value), then the lowest id, a stated
+  total order rather than a default. Each such code is one `shared_code_identical` report
+  row naming survivor and losers. An identical merge loses nothing, and every work package
+  starts with `Dev` and `QA`, so ruling them would fill the dev rules file with no decision.
+  Rows sharing a code with any differing field are one `shared_code` row listing the fields
+  and refuse until the rules file (SC23) names the surviving step id. Merging, inside the
+  migration, re-points the thirteen foreign-key columns of the
   twelve tables (inventory below) from each losing id to the survivor, re-keys the loser's
   `work_package_step` row to the survivor keeping that package's unit, allowance and
   `allowance_revision`, drops the loser's binding and definition, and records
@@ -202,7 +208,8 @@ decision below is the planner's, **assumed, overrulable**; each names the findin
   `--steps` stays as the untyped shorthand.
 - **SC23. Rules file, report, then apply** (F11; assumed, overrulable).
   `step-catalogue-cli.ts report` writes only `step_migration_report` rows (kinds
-  `shared_code`, `uncoded`, `name_clash`, `divergent_project_set`, `type_conflict_leaf`,
+  `shared_code_identical` (informational, never refuses), `shared_code`, `uncoded`,
+  `name_clash`, `divergent_project_set`, `type_conflict_leaf`,
   `foreign_package_fact`) and a fingerprint of the step rows. `apply --merge-rules=<file>`
   takes the JSON file below and runs the folder under the window. A missing, unreadable, malformed (arktype at the
   boundary) or stale (fingerprint differs) file refuses with nothing written. An uncoded
@@ -277,7 +284,7 @@ foreign key. Lease state lives on `claim`; `claim_occupancy` keys on claim ids, 
 
 - A type change on a leaf becomes a potentially refused write (SC17); fe-01 shows the count
   and fetches the pairs to clear from `step-nodes-in-use`.
-- Every organization's `Dev`/`QA` rows need a survivor in the rules file on dev; the report
-  lists them before anything is written.
+- Divergent shared codes on dev need a survivor in the rules file; the report lists them,
+  and the automatic identical merges, before anything is written.
 - History readers depend on `step_identity_history` for merged ids for as long as old
   journals and saved plans are read (SC13, Q5).
