@@ -1078,7 +1078,7 @@ A work package's five bands, in rank order: a vocabulary and never a constraint
 _Avoid_: priority scheme, priority config, priority scale
 
 **Project settings**:
-The configuration a project defines for all its work packages: timezone, calendar ranges and
+The configuration a project defines for all its work packages: timezone, calendar periods and
 PERT weights, which a work package may override, and step codes, work item types and budget
 factor, which it may not. Also the surface where they are edited.
 _Avoid_: project config, shared settings, defaults
@@ -1180,32 +1180,28 @@ minutes per cell — offered only while the panel would draw at most 2,500 marks
 offered is a rendered state.
 _Avoid_: zoom level, slider position, minute view
 
-**Calendar range**:
+**Calendar period**:
 A named, coloured span of one or more absolute calendar days, end inclusive, defined at an
-organization, space, project or work package for every work package beneath it. Not a work
-item; whether the scheduler sees it is its range kind's decision.
-_Avoid_: calendar marker, marker, milestone, date tag, annotation, period
+organization, its optional space, a project or a work package for every work package beneath
+it. Not a work item; whether the scheduler sees it is its period kind's decision. The planning
+change is still named `wbs-calendar-ranges`.
+_Avoid_: range, marker, calendar marker, milestone, date tag
 
-**Range kind**:
-What a calendar range means to the schedule: `note`, which only labels the chart, or
-`non_working`, which takes its days out of every human-kind slice's calendar beneath its
-scope.
-_Avoid_: range type, marker type, category
+**Period kind**:
+What a calendar period means to the schedule: `note`, which only labels the chart, or
+`non_working`, which takes its days out of the work calendar of every work package beneath its
+scope. In release 1 that covers every slice; the agent-kind exemption of ADR 0043 is release 2.
+_Avoid_: period type, marker type, category
 
-**Non-working range**:
-A calendar range of kind `non_working`: an organization holiday, a department's off-days, a
-project freeze on human work. Agent-kind slices run through it.
-_Avoid_: holiday (one use of it), blackout, closure
+**Non-working period**:
+A calendar period of kind `non_working`: an organization holiday, a department's off-days, a
+project closure. In release 1 every slice beneath its scope skips it.
+_Avoid_: holiday (one use of it), blackout
 
 **Work calendar**:
-The days a work package's human-kind slices may occupy: every weekday not covered by an
-effective non-working range. Weekends and those ranges are its only exclusions.
+The set of dates a work package's slices may not occupy: weekends and the dates of its
+effective non-working periods. It is held as excluded dates, not as available days.
 _Avoid_: business calendar, holiday calendar, working-day set
-
-**Calendar overflow**:
-A workday offset whose calendar day lies outside the dates the runtime can represent; the
-offset is valid, its projection onto a calendar is not.
-_Avoid_: calendar range (that is the annotation), date overflow error
 
 **Workday axis**:
 The Gantt panel's horizontal scale on a plan with **no** start date: one unit per workday,
@@ -1810,7 +1806,7 @@ _Avoid_: triggering user, transitive recipient
 
 **Unavailable schedule input**:
 A target's canonical scheduling facts cannot currently be obtained because its required
-influencer has no available engine or the target has a cycle or calendar overflow.
+influencer has no available engine or the target has a cycle or calendar-range failure.
 _Avoid_: stale input, idle optimization, missing project
 
 ### Architecture
