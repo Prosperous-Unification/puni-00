@@ -32,7 +32,8 @@ second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and l
 - **Gate tree.** `~/puni-00-gate-tbf` is a full clone of the GitHub repository, with one frozen
   install. Ansible never moves its head; the gate does.
 - **Packages.** It installs `git`, `jq`, `perl`, `python3-packaging`, `python3-venv`,
-  `shellcheck` and `unzip`. Docker must already be running. The role does not change Docker,
+  `shellcheck`, `unzip`, `bubblewrap` and `busybox` from Ubuntu apt. The sandbox tools are
+  required by existing gate tests; installing them does not grant namespace capability. Docker must already be running. The role does not change Docker,
   k3s, the firewall or the network.
 
 The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
@@ -40,10 +41,15 @@ The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
 - `bun` and `bunx` resolve to the pinned Bun;
 - `node` resolves to the pinned Node and reports its version;
 - `gh` is `/usr/bin/gh` and reports the pinned version;
+- `bwrap` resolves to the system binary and runs its version command; BusyBox executes at
+  both system paths used by callers (`/bin/busybox` and `/usr/bin/busybox`);
 - the tree is a full, clean clone of the canonical URL;
 - `docker ps` works;
 - `python3` is the venv's and imports the locked OR-Tools;
 - the production lock resolver names `~/.cache/wbs-heavy-work.lock` in a writable directory.
+
+These binary checks establish tool availability only. The unchanged canonical gate owns the
+namespace probe; the role does not change AppArmor, sysctls or user-namespace permissions.
 
 To rerun only the probes, pass `--tags validate`.
 
