@@ -29,9 +29,23 @@ fresh trusted origin-process exclusion, and targeted deletion bound to the exact
 object identity/version. Live, foreign, unreadable, changed or unmatched locks
 refuse deletion. Local process absence cannot prove a different or unreachable
 origin has stopped. Boot changes and remote origins require independently verified
-exclusion; missing evidence is refusal. No age sweep, repository-wide unlock or
-lock bypass is permitted. Cancellation retains the authority descriptor through
-owned child termination and reaping.
+exclusion; missing evidence is refusal. No age sweep or repository-wide unlock is
+permitted. Cancellation retains the authority descriptor through owned child
+termination and reaping.
+
+A fixed read-only inspection may use `--no-lock cat lock` for an exact ID from the
+trusted raw-object census, and fixed `cat config` if needed. This exception keeps
+inspection from creating another lock: the pinned
+[cat command](https://raw.githubusercontent.com/restic/restic/v0.19.1/cmd/restic/cmd_cat.go)
+otherwise acquires a read lock. The
+[repository implementation](https://raw.githubusercontent.com/restic/restic/v0.19.1/internal/repository/repository.go)
+skips malformed names in its listing and addresses lock objects by ciphertext
+hash. Therefore restic listing alone is insufficient: the adapter must enumerate
+all raw visible keys, validate each name and ciphertext hash, and bind decrypted
+metadata to unchanged object identities/versions before and after inspection.
+Unknown or changed objects refuse recovery. The fixed inspection interface accepts
+no caller command or ID. Backup, verification, restore and prune cannot select
+`--no-lock`.
 
 This trades a fixed namespace worker and explicit recovery evidence for reliable
 lock lineage without extending the authority control protocol into a general
