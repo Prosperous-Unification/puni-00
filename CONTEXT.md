@@ -33,7 +33,7 @@ The one integration surface agents build on: mcp-01's `/mcp`, for consented and 
 _Avoid_: agent API, public API, REST for agents
 
 **Machine grant**:
-be-01's signed statement that one machine credential was verified, carried inside an mcp-01 machine access token and presented by mcp-01 on every be-01 call for that token's life.
+be-01's signed statement that one machine credential, acting in one run, was verified; mcp-01 presents it on every be-01 call it makes for that credential until it expires.
 _Avoid_: machine delegation, introspection token, service token
 
 **Agent pool**:

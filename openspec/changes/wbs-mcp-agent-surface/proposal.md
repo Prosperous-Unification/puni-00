@@ -11,14 +11,14 @@ Dany chose MCP as the one (2026-10-25).
 **How a headless agent connects**
 
 - From: HTTP with a `wbs_mk_` key or a trusted-issuer token.
-- To: MCP. A fixed-header client (claude.ai, Claude Code, the SDKs) sends its API key as an
-  opaque bearer. Any other client gets an mcp-01 token through the OAuth client credentials
-  grant, using its key or its workload's OIDC token.
+- To: MCP. A `headersHelper`, app or orchestrator gets a short-lived mcp-01 token with its
+  API key (OAuth client credentials) or its workload's OIDC token (JWT bearer). claude.ai Team
+  and Enterprise connectors stay consent-only.
 
 **Who it is on MCP**
 
 - From: a human, or an agent person a human consented to.
-- To: also the credential's agent person, with today's principal, leases, cap and tools.
+- To: also the credential's agent person, with today's principal, cap and tools, and run-scoped leases.
 
 **What be-01's HTTP API is**
 
@@ -39,7 +39,7 @@ compatibility window.
 ## Non-Goals
 
 - Changing consent or hosted-connector sign-in.
-- OIDC pools, wildcard subjects, machines minting credentials, per-organization limits.
+- Raw keys at `/mcp` (Dany's option), OIDC pools, machines minting credentials.
 - A REST deprecation period.
 
 ## Constraints

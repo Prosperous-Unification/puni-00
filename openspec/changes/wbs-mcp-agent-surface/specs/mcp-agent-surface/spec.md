@@ -3,7 +3,7 @@
 ### Requirement: A machine credential obtains an MCP access token through the client credentials grant
 
 mcp-01's token endpoint SHALL accept `grant_type=client_credentials` in standalone mode from a
-live `api_key` or `oidc` machine credential of an activated deployment. It SHALL verify the
+live `api_key` machine credential of an activated deployment. It SHALL verify the
 credential only through be-01's `POST /internal/mcp/machine-grants`. It SHALL answer an
 mcp-01-signed access token with `aud` equal to the canonical `MCP_PUBLIC_URL`, `token_use`
 `machine`, scope `wbs:read wbs:write`, the machine grant as a claim, `exp` 60 s before the
@@ -16,25 +16,43 @@ grant's, and no refresh token.
 - **THEN** the token request uses HTTP Basic, the answer is `200` with no `refresh_token`, and
   `tools/list` answers the same names and descriptions as a consented session's
 
-#### Scenario: A workload token gets a token without client_id
-
-- **WHEN** `StaticPrivateKeyJwtProvider` sends a GitHub Actions token carrying the
-  registration's audience and the credential's subject as `client_assertion`, with no
-  `client_id`
-- **THEN** the answer is `200` naming that credential; the same assertion with another
-  credential's id as `client_id` is `401 invalid_client`
-
 #### Scenario: Before activation nothing is issued
 
 - **WHEN** a token request arrives before organization activation
 - **THEN** be-01 answers `409 not_activated` and mcp-01 answers `401 invalid_client`
 
+### Requirement: A workload obtains an MCP access token through the JWT-bearer grant
+
+The token endpoint SHALL accept `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer` with
+an `assertion` from a trusted issuer, without client authentication. It SHALL identify the
+`oidc` credential by `(iss, aud, sub)` per A25, SHALL consume the assertion's `jti` once when
+present, and SHALL answer every assertion failure, a replayed `jti` included, with the same
+`400 invalid_grant`.
+
+#### Scenario: A GitHub Actions workload
+
+- **WHEN** `WorkloadJwtBearerProvider` sends a GitHub Actions token carrying a registered
+  audience and the credential's subject
+- **THEN** the answer is `200` with a token naming that credential, whose `exp` is at most the
+  assertion's `exp` minus 60 s
+
+#### Scenario: A run outlives its workload token
+
+- **WHEN** a run's access token expires after the first workload token has expired
+- **THEN** the provider reads a fresh workload token for the next token request, and the run's
+  next tool call succeeds
+
+#### Scenario: A replayed assertion
+
+- **WHEN** the same assertion, with the same `jti`, is presented twice
+- **THEN** the second request is `400 invalid_grant`
+
 ### Requirement: Token requests are parsed strictly
 
 `resource` SHALL appear exactly once and equal the canonical `MCP_PUBLIC_URL`, else
 `400 invalid_target`. An absent `scope` SHALL mean `wbs:read wbs:write`, and a broader one
-`400 invalid_scope`. A client secret sent both by Basic and in the body SHALL be
-`400 invalid_request`. A `client_id` that is sent SHALL equal the credential's id.
+`400 invalid_scope`. Two client authentication methods in one request (Basic and body, or either with a
+`client_assertion`) SHALL be `400 invalid_request`. A `client_id` that is sent SHALL equal the credential's id.
 
 #### Scenario: Resource and scope
 
@@ -43,16 +61,17 @@ grant's, and no refresh token.
 - **THEN** the first three answer `400 invalid_target`, the last `400 invalid_scope`, and be-01
   is asked none of them
 
-#### Scenario: Basic and body together
+#### Scenario: Two authentication methods
 
-- **WHEN** a request carries the key in HTTP Basic and again as `client_secret`
-- **THEN** the answer is `400 invalid_request`
+- **WHEN** a request carries the key in HTTP Basic and again as `client_secret`, or in HTTP
+  Basic together with a `client_assertion`
+- **THEN** both answer `400 invalid_request`
 
 ### Requirement: Token endpoint refusals reveal nothing and never fall through
 
-An unknown id, a wrong secret, a mismatched `client_id`, a revoked or expired credential, an
-unverifiable or self-signed assertion and a `mcp_consent` credential SHALL all answer the same
-`401 invalid_client` with `WWW-Authenticate: Basic`. A failed machine verification SHALL never
+An unknown id, a wrong secret, a mismatched `client_id`, a revoked or expired credential and a
+`mcp_consent` credential SHALL all answer the same `401 invalid_client` with
+`WWW-Authenticate: Basic`. A failed machine verification SHALL never
 be retried against the upstream issuer.
 
 #### Scenario: Failures are indistinguishable
@@ -64,10 +83,10 @@ be retried against the upstream issuer.
 
 ### Requirement: The authorization server advertises machine clients and refuses to register them
 
-The metadata SHALL list `client_credentials`; `none`, `client_secret_basic`,
-`client_secret_post` and `private_key_jwt`; and `token_endpoint_auth_signing_alg_values_supported`
-`["RS256", "ES256"]`. Dynamic client registration SHALL refuse a client asking for
-`client_credentials` (new behaviour).
+The metadata SHALL list the grants `client_credentials` and
+`urn:ietf:params:oauth:grant-type:jwt-bearer`, and the methods `none`, `client_secret_basic`
+and `client_secret_post`, but not `private_key_jwt`. Dynamic client registration SHALL refuse
+a client that asks for either machine grant (new behaviour).
 
 #### Scenario: Registration refuses a machine
 
@@ -79,24 +98,6 @@ The metadata SHALL list `client_credentials`; `none`, `client_secret_basic`,
 - **WHEN** a public client registers for `authorization_code` with auth method `none`
 - **THEN** it is registered as before
 
-### Requirement: A raw API key is an opaque bearer for the MCP resource
-
-`/mcp` SHALL accept `Authorization: Bearer wbs_mk_<id>.<secret>` in standalone mode by asking
-be-01 for a machine grant, which a replica MAY cache under the key's SHA-256 for at most 60 s.
-mcp-01 SHALL never send the key to any `/api` route.
-
-#### Scenario: A fixed-header client works
-
-- **WHEN** a client with only a static `Authorization: Bearer wbs_mk_…` header calls
-  `getApiProjects` through `/mcp`
-- **THEN** the call succeeds and be-01's `/api` request carries a machine grant, never the key
-
-#### Scenario: A revoked raw key fails the next call
-
-- **WHEN** a key is revoked while a replica holds its cached grant
-- **THEN** the next tool call is HTTP `401 invalid_token`, because the grant's credential
-  reread refuses
-
 ### Requirement: mcp-01 accepts no upstream token after activation
 
 After activation, `/mcp` SHALL refuse a token of the configured upstream issuer
@@ -105,8 +106,14 @@ given the caller's raw token as its be-01 bearer.
 
 #### Scenario: An Auth0 token on /mcp
 
-- **WHEN** a valid be-01-audience Auth0 access token is sent to `/mcp` after activation
+- **WHEN** a valid be-01-audience Auth0 access token is sent to `/mcp` in the shared activation
+  fixture, which sets be-01's marker and mcp-01's epoch
 - **THEN** the answer is `401 invalid_token` and be-01 receives no request
+
+#### Scenario: Markers disagree
+
+- **WHEN** be-01 answers `activated` while mcp-01's credential epoch is 0
+- **THEN** mcp-01 reports a configuration fault and refuses the request
 
 ### Requirement: be-01 admits a machine grant only from mcp-01 and rereads its credential at every use
 
@@ -181,7 +188,7 @@ answer HTTP `401 invalid_token` with `WWW-Authenticate`.
 
 ### Requirement: Machine admission reads no mcp-01 store
 
-Verifying a machine token or raw key SHALL read neither `familyForSession` nor
+Verifying a machine token SHALL read neither `familyForSession` nor
 `credentialEpoch` and SHALL write no row. A machine token SHALL be refused `400 invalid_grant`
 at the refresh endpoint and `400 unsupported_token_type` at `/revoke`.
 
@@ -194,7 +201,7 @@ at the refresh endpoint and `400 unsupported_token_type` at `/revoke`.
 ### Requirement: Every MCP principal sees one tool list without human-only tools
 
 `tools/list` SHALL answer the same names and descriptions for a consented human, a consented
-agent, a machine token and a raw key. A shape with the `humanOnly` policy SHALL never be a tool,
+agent and a machine token. A shape with the `humanOnly` policy SHALL never be a tool,
 and a `humanOnly` shape matching no operation SHALL fail startup.
 
 #### Scenario: Administration is absent
@@ -211,20 +218,24 @@ and a `humanOnly` shape matching no operation SHALL fail startup.
 
 ### Requirement: Tool path values cannot traverse
 
-mcp-01 SHALL refuse a path parameter equal to `.` or `..` as a tool input refusal before any
-be-01 request.
+mcp-01 SHALL refuse a path parameter that is empty, `.` or `..` as a tool input refusal before
+any be-01 request. It SHALL also refuse when the pathname it would send differs from the
+expanded template.
 
 #### Scenario: A dot-dot project id
 
 - **WHEN** `getApiProjectsByIdClaims` is called with `id: '..'`
-- **THEN** the tool answers `ToolInputRefused` and be-01 receives nothing
+- **THEN** the tool answers `ToolInputRefused` and be-01 receives nothing; `id: ''` is refused
+  the same way
 
 ### Requirement: mcp-01 bounds machine traffic from trusted source addresses
 
 The source address SHALL be the `X-Forwarded-For` entry `MCP_TRUSTED_PROXY_HOPS` from the right.
 Failed authentications SHALL be limited per `(client_id, address)` and per address, successful
 issuances per credential and per address, `tools/call` messages per credential, and in-flight
-tool calls per organization. Every refusal SHALL be HTTP `429` with `Retry-After`.
+tool calls per organization (128 per replica by default). A `/mcp` refusal SHALL be HTTP `429`
+with `Retry-After`. A token-endpoint refusal SHALL be HTTP `429` with error `invalid_request`
+and `Retry-After`.
 
 #### Scenario: A spoofed header
 
@@ -249,9 +260,10 @@ tool calls per organization. Every refusal SHALL be HTTP `429` with `Retry-After
 
 ### Requirement: Gateway mode offers no machine admission
 
-With `MCP_AUTH_MODE=gateway`, `client_credentials` SHALL be `400 unsupported_grant_type`, the
-metadata SHALL omit it, and a `token_use: machine` JWT or a raw `wbs_mk_` key on `/mcp` SHALL
-be `401 invalid_token`, never decoded.
+With `MCP_AUTH_MODE=gateway`, both machine grants SHALL be `400 unsupported_grant_type` and
+the metadata SHALL omit them. On `/mcp`, a bearer with the `wbs_mk_` prefix, detected before
+any JWT parse, and a JWT carrying `token_use: machine` SHALL be `401 invalid_token` and SHALL
+never be forwarded.
 
 #### Scenario: A raw key in gateway mode
 
@@ -260,10 +272,10 @@ be `401 invalid_token`, never decoded.
 
 ### Requirement: Secrets never reach logs or reports
 
-No raw key, base64 Basic form of it, client assertion, machine grant or access token SHALL
+No API key, base64 Basic form of it, workload assertion, machine grant or access token SHALL
 appear in route evidence, unexpected-failure reports, audit details, error bodies, or the
-`toString`/`toJSON` of their carriers. Every issuance SHALL write one `machine_token_issued`
-audit row without them.
+`toString`/`toJSON` of their carriers. Every grant issued through a token grant SHALL write one
+`machine_token_issued` audit row without them.
 
 #### Scenario: A failing token request
 
@@ -272,22 +284,26 @@ audit row without them.
   `base64(id:key)`, nor the assertion, checked with the `plaintext-secrets` pattern and by
   exact substring
 
-### Requirement: One running agent per credential
+### Requirement: Leases of a machine grant are scoped to its run
 
-Leases SHALL renew per person; documentation and the pool import SHALL state one credential per
-running agent.
+A grant SHALL carry a run: the token request's `wbs_run` (1 to 128 characters), or else the
+token's `jti`. A claim taken under a grant SHALL carry that run, and a command naming another
+`runId` SHALL be refused `run_mismatch`. Renewal by a grant principal, whether by
+`postApiClaimsRenew` or by a committed batch, SHALL renew only that person's leases of that
+run.
 
 #### Scenario: Two processes on one credential
 
-- **WHEN** two processes share one credential and only one heartbeats
-- **THEN** the other's leases are renewed too (the documented consequence)
+- **WHEN** processes A and B share one credential with runs `a` and `b`, and only A
+  heartbeats
+- **THEN** A's leases are renewed and B's lapse at their lease end with reason `lease expired`
 
-### Requirement: Undo is per acting person
+#### Scenario: A re-fetch keeps the run
 
-A pinned principal's journal entries SHALL record its person, and undo or redo SHALL pop only
-entries of the same account and person.
+- **WHEN** a process re-fetches its token with the same `wbs_run`
+- **THEN** its next heartbeat renews the leases it took under the previous token
 
-#### Scenario: Two pool agents in one project
+#### Scenario: A forged run id
 
-- **WHEN** agent A edits a row, agent B of the same pool edits another, and A undoes
-- **THEN** only A's edit is reverted
+- **WHEN** a grant principal sends `claimWorkItem` with a `runId` other than its grant's run
+- **THEN** the batch is refused `run_mismatch` and nothing is applied

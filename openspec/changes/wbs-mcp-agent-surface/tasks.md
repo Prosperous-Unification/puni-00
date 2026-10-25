@@ -1,183 +1,203 @@
 ## 0. Facts first, then Dany
 
-- [x] 0.1 Client capabilities, read 2026-10-25 before design approval. Sources: Claude Code
-      `headers`/`headersHelper`, the Agent SDK, the Messages API connector and claude.ai
-      Request headers (the coordinator), and the MCP SDK 1.31.0 providers (the reviewer and
-      `node_modules`). They are recorded in design.md "Context". Result: no Anthropic client
-      runs `client_credentials` natively, and fixed headers are first-class, so M1 (ii)
-      exists.
-- [ ] 0.2 Dany confirms or amends M1 to M16. M1 (ii)'s audience reading, M3, M4's 24 h cap,
-      M7 and M9 are the ones most likely to be overruled. Slices 1–4 wait for M1–M5 and
-      M13–M14. Slice 6 waits for M7 and M16. Slice 7 waits for M9.
-- [ ] 0.3 Precondition: #731 (retire operator credential links) is merged. M9's groups-less
-      refusal depends on it.
+- [x] 0.1 Client capabilities, read 2026-10-25 before design approval and corrected after the
+      second review. Sources: Claude Code `headers` and `headersHelper` (which also runs in
+      `-p`/SDK sessions, subject to folder trust), the Agent SDK, the Messages API connector
+      and claude.ai Request headers; the coordinator also read the MCP SDK 1.31.0 providers.
+      Result: every Anthropic client except claude.ai can fetch a token, so the token grants
+      cover them and the raw key (M1 (ii)) serves only claude.ai.
+- [ ] 0.2 Dany confirms or amends M1 to M16, with these explicit decisions:
+  - (a) **M1 (ii)**: no raw key at all (recommended), or a raw key for individual claude.ai
+    Pro/Max only, shipped after slice 7. Team and Enterprise connectors are consent-only
+    either way, because their Request header is a credential every member shares.
+  - (b) M2's JWT-bearer grant for OIDC, and the audience rule that amends A25.
+  - (c) M4's 24 h cap.
+  - (d) M7's pools.
+  - (e) M9's cut.
+
+  Slices 1–4 wait for M1–M5 and M13–M15. Slice 6 waits for M7. Slice 7 waits for M9.
+
+- [ ] 0.3 Preconditions:
+  - #731 (retire operator links) is merged;
+  - the separate undo-per-person bug-fix PR (M16) is merged before slice 6;
+  - `wbs-machine-credentials` is archived before this change, because the trusted-issuer
+    requirement here is a MODIFIED delta of its spec.
 
 ## 1. be-01: the machine grant
 
-- [ ] 1.1 Red: `machine-grant.test.ts` in `@wbs/core`.
-  - A new `PresentedMachineProof` variant (`grant`) of `admitMachineCredential` judges
-    revocation, binding, membership and pool `expiresAt` in one place.
-  - The grant claims' `exp` is `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion
-exp)`.
-  - Scopes come from the credential only.
-  - A property: a revoked, unbound or expired-pool credential is never admitted, whatever the
-    grant's `exp`.
-- [ ] 1.2 Green: the `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT/_PREVIOUS` keys, with `kid`, parsed
-      at boot (refused when missing after activation). The route
-      `POST /internal/mcp/machine-grants` (M14's secret) answers `409 not_activated` before
-      activation. It identifies an assertion by `(iss, aud, sub)`, with `client_id` optional
-      and matched when sent; optionally consumes the assertion's `jti` once; and writes one
-      `machine_token_issued` audit row. Test: `machine-grant.controller.db.test.ts`. Negatives,
-      each watched failing with a `Proof:` adjacent:
-  - drop the `client_id` match, and the mismatched-id case admits;
+- [ ] 1.1 Red: `machine-grant.test.ts` in `@wbs/core`. A `PresentedMachineProof` variant
+      (`grant`) of `admitMachineCredential` judges revocation, binding, membership and pool
+      `expiresAt` in one place. The test covers:
+  - `exp` = `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion exp)`;
+  - scopes from the credential only, and the run carried through;
+  - a property that a revoked, unbound or expired-pool credential is never admitted.
+- [ ] 1.2 Green: the grant keys (`kid`, current and previous). Boot refuses a missing key once
+      the activation marker is set, and the activation preflight lists a missing key. The
+      route `POST /internal/mcp/machine-grants` (M14's secret):
+  - answers `409 not_activated` before activation;
+  - verifies API keys, and assertions by `(iss, aud, sub)`;
+  - consumes an assertion's `jti` when present;
+  - writes one `machine_token_issued` row.
+
+  Test: `machine-grant.controller.db.test.ts`. Negatives, each watched failing with a `Proof:`
+  adjacent:
   - drop the activation check, and the pre-activation case issues;
-  - sign with the delegation key, and the "grant signed with the delegation key" scenario
-    admits.
-- [ ] 1.3 The grant verifier and exact audience dispatch in `identity.ts`. `directAudienceOf`
-      answers `direct`, `via-mcp-01`, `machine-grant` or refuses. Admission needs the secret,
-      compared constant-time. Tests: the spec scenarios "A grant without the secret",
-      "Revocation at the next call", "No write per call" and "A long delegation stays refused".
-      Negatives:
-  - remove the secret check (the no-secret case admits);
-  - remove the reread (the post-revoke case admits);
-  - route unknown audiences to via-mcp-01, as today (the dispatch test reddens);
-  - consume the jti per use (the no-write assertion reddens).
-- [ ] 1.4 Parity through a test-only composition seam in `src/testing`. The test
-      `production-entrypoint.test.ts` pins that `main.ts` cannot reach it. Grant and raw key
-      give equal principals, L1 leasing, renewal and the same `claim_limit` refusal. Negative:
-      omit `personId` from the grant principal and the lease assertion reddens.
+  - have the grant verifier also accept the delegation key, and the "grant signed with the
+    delegation key" scenario admits;
+  - skip the `jti` consume, and the replay scenario admits.
+
+- [ ] 1.3 The grant verifier and exact audience dispatch in `identity.ts`, with constant-time
+      secret admission. Tests: "A grant without the secret", "Revocation at the next call",
+      "No write per call" and "A long delegation stays refused". Negatives:
+  - remove the secret check;
+  - remove the reread;
+  - route unknown audiences to via-mcp-01;
+  - consume per use.
+- [ ] 1.4 Parity through a test-only composition seam in `src/testing`, which
+      `production-entrypoint.test.ts` keeps unreachable from `main.ts`. Negative: omit
+      `personId` from the grant principal, and the lease assertion reddens.
+- [ ] 1.5 The A25 audience rule (machine-credentials MODIFIED delta):
+  - add `WBS_MCP_RESOURCE_URL`, boot-checked to be canonical HTTPS;
+  - registration accepts only an audience equal to it or under it with a `/`, and the same
+    for credential narrowing;
+  - a non-conforming row is refused at use;
+  - `trusted-issuer-audience-check-cli.ts` runs as a dry run by default, and the deploy
+    preflight wires it in.
+
+  Tests: the look-alike and preflight scenarios. Negative: use a bare `startsWith`, and
+  `…/mcp.evil.example` is admitted.
 
 ## 2. mcp-01: the token endpoint
 
-- [ ] 2.1 Red: the form parser in `machine-token.test.ts`:
-  - Basic xor body;
-  - `client_id` optional and matched;
-  - exactly one canonical `resource` (`invalid_target`), compared against the value
-    `oauth.ts` 270 derives;
-  - a default scope;
-  - `client_assertion_type` exact;
-  - carriers that redact in `toString`/`toJSON`.
-- [ ] 2.2 Green: `client_credentials` dispatch, token signing (`token_use machine`, `exp` 60 s
-      before the grant, with 0–10% jitter applied to the requested TTL),
-      `MCP_MACHINE_TOKEN_TTL` (default 12 h, 60 s–24 h at boot), and the metadata (the grant,
-      `none` kept, the three methods, the signing algorithms). A 401 `invalid_client` carries
-      `WWW-Authenticate: Basic`, and a failed machine verification never reaches
-      `verifyUpstream`. DCR refuses `client_credentials`, which is new behaviour. Tests: the
-      SDK's `ClientCredentialsProvider` and `StaticPrivateKeyJwtProvider` against the booted
-      fixture, the indistinguishability case and the DCR refusal. Negatives:
-  - answer `invalid_grant` for a revoked credential (the indistinguishability test reddens);
-  - let DCR accept the grant;
-  - fall through to upstream (the zero-calls spy reddens).
-- [ ] 2.3 Secrets: inject a throw in be-01's route. The test asserts that the report, route
-      evidence and audit row hold no raw key, no `base64(id:key)` and no assertion, by exact
-      substring and by the `plaintext-secrets` pattern. Negative: put the form in the report
-      and the test reddens.
+- [ ] 2.1 Red: the form parser.
+  - `client_credentials`: Basic or body, never both, and never with a `client_assertion`;
+    `client_id` optional and matched.
+  - JWT-bearer: `assertion` required, no client authentication needed.
+  - Exactly one canonical `resource` (`invalid_target`) against `oauth.ts` 270.
+  - Default scope; optional `wbs_run`, 1 to 128 characters.
+  - Carriers that redact in `toString`/`toJSON`.
+- [ ] 2.2 Green: both grants, token signing (`token_use machine`, `exp` 60 s before the grant,
+      0–10% jitter on the requested TTL), `MCP_MACHINE_TOKEN_TTL` (12 h default, 60 s to 24 h
+      at boot), and the metadata (both grants, `none`, the two secret methods, no
+      `private_key_jwt`).
+  - `invalid_client` carries `WWW-Authenticate: Basic`; assertion failures are
+    `invalid_grant`.
+  - A failed machine verification never reaches `verifyUpstream`.
+  - Dynamic client registration refuses both grants (new behaviour).
+  - Rate-limit refusals are `429 invalid_request` with `Retry-After`.
+
+  Tests: `ClientCredentialsProvider` and `WorkloadJwtBearerProvider` against the booted
+  fixture, including the run-outlives-its-workload-token scenario. Negatives:
+  - answer `invalid_grant` for a revoked API key, and the indistinguishability test reddens;
+  - let dynamic registration accept a machine grant;
+  - fall through to upstream, and the zero-calls spy reddens;
+  - make the provider cache its first assertion, and the re-fetch scenario reddens.
+
+- [ ] 2.3 Secrets: inject a throw in be-01's route during a Basic request. The test asserts
+      that the report, route evidence and audit row hold no key, no `base64(id:key)` and no
+      assertion, by exact substring and by the `plaintext-secrets` pattern. Negative: put the
+      form in the report.
 
 ## 3. mcp-01: `/mcp` admission
 
-- [ ] 3.1 M13: after activation, remove the upstream fallback from `verify` and
-      `callerSessionFor`, and have `bearerFor(null, …)` throw. Test: an Auth0 be-01-audience
-      token on `/mcp` gets 401 and be-01's fake sees nothing. Negative: restore the fallback
-      and the test reddens. Pre-activation forwarding keeps its existing tests.
-- [ ] 3.2 Machine tokens: `verifyLocal` dispatches on `token_use`, with no `familyForSession`
-      and no `credentialEpoch`. `bearerFor` returns the grant, sent with
-      `MCP_BE_INTERNAL_SECRET`. A grant refusal becomes HTTP `401 invalid_token`. Tests: the
-      second-replica scenario with store spies, the "Re-fetch at expiry" scenario through the
-      SDK provider, and `/refresh` (`invalid_grant`) and `/revoke`
-      (`unsupported_token_type`). Negatives:
-  - forward the access token instead of the grant (be-01 answers 401 and the batch reddens);
-  - read the epoch for machine tokens (the spy reddens).
-- [ ] 3.3 Raw keys (M1 ii): a `wbs_mk_` bearer asks be-01 for a grant, with a per-replica cache
-      of at most 60 s keyed by SHA-256. Tests: the "fixed-header client works" scenario, and
-      the revoked-key-with-warm-cache scenario. Negatives:
-  - send the key to `/api` (the "never the key" assertion reddens);
-  - extend the cache beyond the grant reread (the revoke scenario still passes, proving the
-    reread, not the cache, enforces revocation).
-- [ ] 3.4 Path traversal (M14): refuse `.` and `..` path values. Test: the dot-dot scenario.
-      Negative: drop the check, and be-01's fake receives `/api/claims`.
-- [ ] 3.5 Gateway mode (M11): test both the raw key and the machine JWT. Negative: decode
-      first, and the forwarded-nothing assertion reddens.
+- [ ] 3.1 M13: after activation, remove the upstream fallback and make `bearerFor(null, …)`
+      throw. Tests: "An Auth0 token on /mcp" and "Markers disagree" in the shared activation
+      fixture. Negative: restore the fallback, and the first test reddens.
+- [ ] 3.2 Machine tokens: dispatch on `token_use` with no `familyForSession` and no
+      `credentialEpoch`. The grant is sent with `MCP_BE_INTERNAL_SECRET`, and a grant refusal
+      becomes HTTP `401 invalid_token`. Tests: the second-replica scenario with store spies,
+      re-fetch at expiry, and `/refresh` and `/revoke`. Negatives:
+  - forward the access token instead of the grant;
+  - read the epoch for machine tokens.
+- [ ] 3.3 Only if Dany chooses M1 (ii), and only after slice 7: raw keys at `/mcp` with
+      60-second grants and a per-replica cache. Their failures count in M10's buckets, and
+      they write no `machine_token_issued` rows. Negative: **inject "mcp-01 answers from the
+      cache without calling be-01 on the tool call"**, and watch the revoked-key scenario
+      redden.
+- [ ] 3.4 Paths (M14): refuse empty, `.` and `..` values, and assert that the sent pathname
+      equals the expanded template. Tests: the dot-dot and empty scenarios. Negatives: drop
+      the value check, and be-01's fake receives `/api/claims`; drop the pathname assertion
+      while injecting an encoded traversal, and the fake receives the wrong route.
+- [ ] 3.5 Gateway mode (M11): detect `wbs_mk_` by prefix before any JWT parse, and never
+      forward. Negative: delete the prefix branch, and the gateway decode path forwards the key
+      to be-01's fake. The forwarded-request assertion observes the key, so the test does not
+      depend on the code under test.
 - [ ] 3.6 Hosted connector check on dev: a claude.ai custom connector completes OAuth consent
-      with `none` unchanged, and another uses Request headers with a raw key. Record both in
-      verify.md.
+      with `none` unchanged. Record it in verify.md.
+- [ ] 3.7 Secret cutover (M14): release N's be-01 accepts both secrets on `/internal/mcp/*`,
+      and the swap runbook orders be-01 before mcp-01. Test: each secret is admitted on
+      `/internal/mcp/delegation`, and grant admission refuses `x-internal-auth`. Release N+1
+      removes the old secret there (a follow-up task).
 
 ## 4. Limits and the source address
 
-- [ ] 4.1 A pure token bucket and in-flight counter with fake-clock properties. A bucket never
-      admits more than burst + rate × elapsed. The in-flight count returns to zero after every
-      settled call.
-- [ ] 4.2 `sourceOf` uses `MCP_TRUSTED_PROXY_HOPS` from the right. Wire M10's six limits:
-      failures per `(client_id, address)` and per address, successes per credential and per
-      address, `tools/call` per credential, and in-flight per organization. Every refusal is
-      HTTP `429` with `Retry-After`. Tests: the spoofed-header, lockout, batch-per-call and
-      pool-of-100 scenarios. Negatives:
-  - leftmost XFF (the spoof test reddens);
-  - count successes and failures in one bucket (the lockout test reddens);
-  - count HTTP requests (the batch test reddens).
-- [ ] 4.3 Load evidence on h2puni under the heavy lock: 100 machine tokens at 2 calls/s for 5
-      minutes, beside the same load on consent sessions. Record p50/p99, be-01 writes per
-      second and write-coordinator wait.
+- [ ] 4.1 A pure token bucket and in-flight counter with fake-clock properties.
+- [ ] 4.2 `sourceOf` uses `MCP_TRUSTED_PROXY_HOPS`. M10's six limits, with in-flight at 128 per
+      replica. Tests: the spoofed-header, lockout, batch-per-call and pool-of-100 scenarios.
+      Negatives:
+  - leftmost XFF;
+  - one bucket for successes and failures;
+  - counting HTTP requests.
+- [ ] 4.3 Load evidence on h2puni under the heavy lock: 100 tokens at 2 calls/s for 5 minutes,
+      beside consent sessions. Record p50/p99, be-01 writes per second, coordinator wait, and
+      peak in-flight per organization against 128.
 
 ## 5. Human-only tools by policy
 
-- [ ] 5.1 Add the `humanOnly` policy and tag the routes, shrink `EXCLUDED_PATHS`, and make the
-      capacity report a tool. Negatives: untag one route and its absence assertion reddens;
-      leave a tagged shape with no operation and startup throws.
-- [ ] 5.2 One tool list for a consented human, a consented agent, a machine token and a raw
-      key.
+- [ ] 5.1 The `humanOnly` policy, `EXCLUDED_PATHS` shrunk, the capacity report as a tool.
+      Negatives: untag a route; leave a tagged shape with no operation.
+- [ ] 5.2 One tool list for a consented human, a consented agent and a machine token.
 
-## 6. Agent pools and account-keyed state
+## 6. Runs, pools and account-keyed state
 
-- [ ] 6.0 Grep every check keyed by `userId` or account in `@wbs/core` and `store-sqlite`, and
-      add each one missing from M16's list to design.md with its decision before 6.1.
-- [ ] 6.1 Migrations:
-  - `add_agent_pool` and `machine_credential.agent_pool_id`;
-  - `command_journal.person_id`, nullable, so the outgoing colour writes null;
-  - the audit actions `agent_pool_created`, `agent_pool_revoked`, `agent_pool_rekeyed` and
-    `machine_token_issued`, by compatible rebuild;
-  - guarded `down.sql` files.
-    Negatives: drop each guard and rollback deletes data.
-- [ ] 6.2 The pool routes: create (through `addPerson`'s cap check), re-key, revoke. They are
-      admin only, `humanOnly`, one transaction each. Pool `expiresAt` is judged in
-      `admitMachineCredential`. Tests: every agent-pools scenario. Negatives:
-  - a cap check outside the transaction (`fc.asyncModelRun` finds the crossing pair);
+- [ ] 6.0 Grep every check keyed by `userId` or account, and add any that M16's table is
+      missing.
+- [ ] 6.1 Run-scoped leases (M15): the grant's run becomes the claim's `runId`, with
+      `run_mismatch`. `renewLeases(personId, runId)` serves grant principals. API-key and
+      consent principals are unchanged. Tests: the three run scenarios. Negatives:
+  - renew by person only, and "two processes" reddens;
+  - accept a command's `runId` over the grant's, and "forged run id" reddens.
+- [ ] 6.2 Migrations: `add_agent_pool` and `machine_credential.agent_pool_id`, plus the audit
+      actions `agent_pool_created`, `agent_pool_revoked`, `agent_pool_rekeyed` and
+      `machine_token_issued`, by compatible rebuild, with guarded `down.sql` files. Negative:
+      drop each guard, and rollback deletes data.
+- [ ] 6.3 Pool routes: create (through `addPerson`'s cap check), re-key, and revoke with
+      `removePersons`. They are admin only, `humanOnly`, one transaction each. Tests: every
+      agent-pools scenario. Negatives:
+  - put the cap check outside the transaction (`fc.asyncModelRun`);
   - let a member create;
-  - skip one credential in revoke (the lease release reddens);
-  - re-key creating persons (the unchanged-count assertion reddens).
-- [ ] 6.3 Undo per person (M16). Test: the two-pool-agents scenario. Negative: pop by
-      `(project, user)` and A undoes B's edit.
-- [ ] 6.4 M15's invariant test, "two processes on one credential", plus docs.
-- [ ] 6.5 fe-01 pool panel on `@ui/core-01`/`@ui/saas-01`:
-  - keys appear once as one download, with the Dash import command beside it;
-  - re-key and revoke each list the counts they will end before confirming;
-  - loading, empty, failure and cap refusal are rendered states;
+  - skip one credential in revoke;
+  - re-key creating persons;
+  - `removePersons` leaving the count unchanged.
+- [ ] 6.4 The fe-01 pool panel:
+  - the keys appear once, as one download, with the Dash import command;
+  - re-key and revoke list what they end before confirming;
+  - every state renders;
   - reviewed by eye.
-- [ ] 6.6 `twilight-dash pool import <file>` puts the keys into the secret store and verifies
-      each by issuing one token. Test: a key that fails to issue aborts the import and stores
-      nothing.
+- [ ] 6.5 `twilight-dash pool import <file>` with a distinct `wbs_run` per agent process.
+      Test: a key that fails to issue aborts the import and stores nothing.
 
 ## 7. REST stops being an agent surface (gated: claire fleets on MCP, observed on dev)
 
-- [ ] 7.0 Migrate the suites that use raw keys on `/api` to the test-only seam or to MCP:
+- [ ] 7.0 Migrate the raw-key `/api` suites to the seam or to MCP:
       `swarm-end-to-end.db.test.ts`, `machine-credential.controller.db.test.ts`, the
-      compute-provider controller tests, and `dev/activated-organization-server.ts` with its
+      compute-provider tests, and `dev/activated-organization-server.ts` with its
       `local-dev.md` section.
-- [ ] 7.1 and 7.2 ship in one PR:
-  - M9's refusal before any read, for keys, trusted-issuer tokens and groups-less tokens, with
-    no environment switch;
-  - Dash's `report-capacity.ts` as an MCP client.
-    Negatives: move the refusal after the credential read (the "no row read" assertion
-    reddens); the old Dash HTTP path test now observes `machine_bearer_not_accepted`.
-- [ ] 7.3 Docs (M12): reverse PR #738's sections, publish the WBS federated assertion profile,
-      add the headless section with the dated client facts, and update mcp-01's README.
-      Burokrat `check-indexes` exits 0.
+- [ ] 7.1 and 7.2 ship in one PR: M9's refusal (keys, trusted-issuer and groups-less tokens,
+      before any read, with no environment switch), and Dash's `report-capacity.ts` as an MCP
+      client. Negatives: move the refusal after the read; the old Dash HTTP path test
+      observes `machine_bearer_not_accepted`.
+- [ ] 7.3 Docs (M12), with Burokrat `check-indexes` exiting 0.
 
 ## 8. Roll-out
 
-- [ ] 8.1 Dev, with the claire fleet straight from operator links to MCP and no HTTP-with-keys
-      step: a pool of 3, with Claude Code using one `headersHelper` and two static raw keys.
-      Each agent claims, heartbeats and releases. Re-key mid-run, then revoke, and observe the
-      leases end. Record this in verify.md. This observation gates slice 7.
-- [ ] 8.2 Prod runbook: HTTP fleets and Auth0 bearers on `/mcp` stop at the swap (M9, M13). The
-      new keys `WBS_MACHINE_GRANT_SIGNING_KEY_*` and `MCP_BE_INTERNAL_SECRET` are seeded
-      before merge.
+- [ ] 8.1 Dev: the claire fleet goes straight from operator links to MCP. A pool of 3 runs
+      under Claude Code `headersHelper`, each with its own `wbs_run`: they claim, heartbeat
+      and release. Re-key mid-run, then revoke, and observe the leases end. Record it in
+      verify.md. This gates slice 7.
+- [ ] 8.2 Prod runbook:
+  - HTTP fleets and Auth0 bearers on `/mcp` stop at the swap;
+  - seed `WBS_MACHINE_GRANT_SIGNING_KEY_*`, `MCP_BE_INTERNAL_SECRET` and
+    `WBS_MCP_RESOURCE_URL` before merging;
+  - run the audience preflight;
+  - order the secret cutover.

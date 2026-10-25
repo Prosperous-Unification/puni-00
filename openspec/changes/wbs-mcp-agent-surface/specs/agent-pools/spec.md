@@ -55,15 +55,26 @@ answer the new keys once.
 
 A pool SHALL never gain a person or a right. `DELETE /api/organization/agent-pools/:id` (admin
 only) SHALL revoke every live pool credential in one transaction, ending their leases (L8),
-with one `machine_credential_revoked` row each and one `agent_pool_revoked` row. At `expiresAt`
-`admitMachineCredential` SHALL refuse every pool credential, and leases held under them SHALL
-lapse at their own lease end with reason `lease expired`.
+with one `machine_credential_revoked` row each and one `agent_pool_revoked` row. With
+`removePersons: true` it SHALL then remove the pool's persons through the `deletePerson`
+cascade.
 
 #### Scenario: Revoking a pool
 
 - **WHEN** an admin deletes a pool whose agents hold leased claims
 - **THEN** every pool credential's next call and token request are refused and the claims are
   released with reason `credential revoked`
+
+#### Scenario: Releasing the cap
+
+- **WHEN** an admin revokes a pool of 8 with `removePersons: true`
+- **THEN** the eight persons are removed by the `deletePerson` cascade, and the agent-person
+  count drops by eight
+
+### Requirement: A pool's expiry is judged at admission
+
+At `expiresAt`, `admitMachineCredential` SHALL refuse every pool credential. Leases held
+under those credentials SHALL lapse at their own lease end with reason `lease expired`.
 
 #### Scenario: An expired pool
 
