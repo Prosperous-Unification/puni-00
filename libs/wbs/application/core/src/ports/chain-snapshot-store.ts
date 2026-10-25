@@ -65,6 +65,6 @@ export interface LivePlanStore {
   readExport(projectId: string, access: ResourceAccess): Promise<LivePlanExportRead>;
   /** Project-owned command/background authority, distinct from human observation. */
   readProject(projectId: string): Promise<Exclude<LivePlanRead, { kind: 'access_refused' }>>;
-  /** Captures all readable shared projects in one authorized observation. */
+  /** Captures readable shared or isolated connected aggregates in one authorized observation; ordinary isolated reads retain their uncaptured path. */
   readAggregate(actorId: string, access: ResourceAccess): Promise<LivePlanAggregate>;
 }

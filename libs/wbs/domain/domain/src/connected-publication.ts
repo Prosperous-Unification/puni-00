@@ -250,6 +250,9 @@ export function guardConnectedPublication(
     // Proof: removing start equality changed the sub-drift fixture's refusal
     // to the finish diagnostic. Removing both comparisons published a decision
     // after the foreign C start and finish moved under real pin reconciliation.
+    // Proof: the genuine mounted 8/48 fixture became READY for both objectives
+    // when only this check was omitted: C moved from 8/48 to 5/48 + 3/48. Its
+    // finish stayed equal; the neighboring 9/48 fixture remained accepted.
     if (placed.earliestStart !== stage.starts.get(key)) {
       throw new ScheduleInvalidOptimizedStartError(key, 'foreign start changed');
     }

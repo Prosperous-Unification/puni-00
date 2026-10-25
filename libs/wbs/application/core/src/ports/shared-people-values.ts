@@ -116,6 +116,11 @@ export type LivePlanRead =
       readonly seq: number;
     };
 
+/** Detached singleton scheduling in isolated mode, without shared people capacity. */
+export type CapturedLocalPlan = Omit<Extract<LivePlanRead, { kind: 'shared' }>, 'kind'> & {
+  readonly kind: 'local';
+};
+
 /** Private structured-export evidence: directory closure, markers and unsupported sparse facts. */
 export interface PlanDocumentReads {
   readonly stepParallels: readonly StoredStepParallel[];
@@ -172,6 +177,15 @@ export type LivePlanExportRead =
 export type LivePlanAggregate =
   | AccessRefused
   | { readonly kind: 'isolated' }
+  | {
+      readonly kind: 'isolated-connected';
+      readonly entries: readonly {
+        readonly projectId: string;
+        readonly rank: number;
+        readonly basis: null;
+        readonly plan: Extract<LivePlanRead, { kind: 'connected' }> | CapturedLocalPlan;
+      }[];
+    }
   | {
       readonly kind: 'shared';
       readonly entries: readonly {

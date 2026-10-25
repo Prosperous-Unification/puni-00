@@ -325,7 +325,7 @@ export class SpaceResource {
     const observation = await this.opts.trees.sharedTreesWithin(actorId, access);
     if (observation.kind === 'access_refused') return observation;
     const shared =
-      observation.kind === 'shared'
+      observation.kind === 'shared' || observation.kind === 'isolated-connected'
         ? new Map(observation.entries.map((entry) => [entry.projectId, entry] as const))
         : null;
     const rollUps: Record<string, ProjectRollUp | UnavailableRollUp> = {};
@@ -478,7 +478,7 @@ export class SpaceResource {
     const observation = await this.opts.trees.sharedTreesWithin(actorId, access);
     if (observation.kind === 'access_refused') return observation;
     const shared =
-      observation.kind === 'shared'
+      observation.kind === 'shared' || observation.kind === 'isolated-connected'
         ? new Map(observation.entries.map((entry) => [entry.projectId, entry] as const))
         : null;
     const items: InProgressItem[] = [];

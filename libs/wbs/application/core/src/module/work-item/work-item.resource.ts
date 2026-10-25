@@ -189,6 +189,7 @@ import type {
 } from '../../ports/scheduler';
 import type {
   AccessRefused,
+  CapturedLocalPlan,
   ElsewhereHolderLabel,
   LivePlanExportRead,
   LivePlanRead,
@@ -203,6 +204,7 @@ import type {
 import type { StepParallelStore } from '../../ports/step-parallel-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
+import type { TreeRead } from '../../ports/tree-read';
 import type {
   StoredTypedDependency,
   TypedDependencyStore,
@@ -1889,7 +1891,7 @@ export class WorkItemService {
       };
     }
     if (captured.kind !== 'shared') return captured;
-    const tree = projectSharedTree(captured);
+    const tree = projectCapturedTree(captured);
     if ('kind' in tree) return tree;
     return {
       kind: 'shared',
@@ -2213,7 +2215,7 @@ export class WorkItemService {
         return tree;
       }
       if (captured.kind !== 'isolated') {
-        const projected = await this.withMeasureEstimates(projectId, projectSharedTree(captured));
+        const projected = await this.withMeasureEstimates(projectId, projectCapturedTree(captured));
         // The snapshot's own demands and catalog, already under the
         // organization's names, so a row's demand and its bar are one observation.
         const tree =
@@ -2317,27 +2319,12 @@ export class WorkItemService {
   async sharedTreesWithin(
     actorId: string,
     access: ResourceAccess,
-  ): Promise<
-    | AccessRefused
-    | { readonly kind: 'isolated' }
-    | {
-        readonly kind: 'shared';
-        readonly entries: readonly {
-          readonly projectId: string;
-          readonly name: string;
-          readonly rank: number;
-          readonly revision: number;
-          readonly seq: number;
-          readonly basis: string | null;
-          readonly tree: PlanTree | EngineUnavailable;
-        }[];
-      }
-  > {
+  ): ReturnType<TreeRead['sharedTreesWithin']> {
     if (this.opts.livePlans === undefined) return { kind: 'isolated' };
     const captured = await this.opts.livePlans.readAggregate(actorId, access);
-    if (captured.kind !== 'shared') return captured;
+    if (captured.kind !== 'shared' && captured.kind !== 'isolated-connected') return captured;
     return {
-      kind: 'shared',
+      kind: captured.kind,
       entries: captured.entries.map(({ projectId, rank, basis, plan }) => {
         if (plan.kind === 'connected') {
           // Proof: selecting the component's first member failed mounted target identity and dates.
@@ -2359,7 +2346,7 @@ export class WorkItemService {
           revision: plan.project.revision,
           seq: plan.seq,
           basis,
-          tree: projectSharedTree(plan),
+          tree: projectCapturedTree(plan),
         };
       }),
     };
@@ -2565,7 +2552,7 @@ export class WorkItemService {
       if (captured.kind === 'connected')
         return presentConnectedTree(projectConnectedTree(captured, projectId));
       if (captured.kind !== 'isolated')
-        return this.withMeasureEstimates(projectId, projectSharedTree(captured));
+        return this.withMeasureEstimates(projectId, projectCapturedTree(captured));
     }
     return this.treeIsolated(projectId);
   }
@@ -10672,18 +10659,18 @@ interface TreeReads {
   elsewhereHolders: readonly ElsewhereHolderLabel[];
 }
 
-/** Projects detached shared rows and captured schedules without reading stores or admitting work. */
-function projectSharedTree(
-  captured: Extract<LivePlanRead, { readonly kind: 'shared' }>,
+/** Projects detached singleton or shared schedules without reading stores or admitting work. */
+function projectCapturedTree(
+  captured: Extract<LivePlanRead, { readonly kind: 'shared' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable;
-function projectSharedTree(
+function projectCapturedTree(
   captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'access_refused' | 'connected' }>,
 ): PlanTree | EngineUnavailable | null;
-function projectSharedTree(
-  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }>,
+function projectCapturedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable | AccessRefused | null;
-function projectSharedTree(
-  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }>,
+function projectCapturedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable | AccessRefused | null {
   if (captured.kind === 'access_refused') return captured;
   if (captured.kind === 'not_found') return null;

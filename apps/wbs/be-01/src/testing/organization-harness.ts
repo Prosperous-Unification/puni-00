@@ -79,6 +79,7 @@ import {
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
+import type { CaptureReadSeam } from '@wbs/store-sqlite/capture-read-seam';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import type { Connection } from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection as openAddressConnection } from '@wbs/store-sqlite/db';
@@ -87,6 +88,7 @@ import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { PlanEventRepository } from '@wbs/store-sqlite/plan-event';
 import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
+import { openSqliteSourceWithCaptureReadSeam } from '@wbs/store-sqlite/source';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -720,6 +722,7 @@ export class OrganizationHarness {
     spawn = () => new Promise<never>(() => undefined),
     solverVersion = '0.1.0',
     openReadOnlyConnection,
+    captureRead,
     pushFetch = () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
     internalAuthSecret,
     onFanoutCapture,
@@ -739,7 +742,12 @@ export class OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     migrate(path);
-    const source = openSqliteSource({
+    const source = (
+      captureRead === undefined
+        ? openSqliteSource
+        : (options: Parameters<typeof openSqliteSource>[0]) =>
+            openSqliteSourceWithCaptureReadSeam(options, captureRead)
+    )({
       dependencyCapability,
       dbPath: path,
       organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
@@ -1256,6 +1264,7 @@ export interface ComposedHarnessOptions {
   spawn?: ReservedSpawner;
   solverVersion?: string;
   openReadOnlyConnection?: (dbPath: string) => Connection;
+  captureRead?: CaptureReadSeam;
   pushFetch?: Parameters<typeof buildServices>[0]['pushFetch'];
   onFanoutCapture?: (organizationId: string) => unknown;
   onCapturedFanout?: (captured: CapturedFanout) => void;

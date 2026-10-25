@@ -1559,3 +1559,37 @@ connected response validators have only test consumers and are instantiated
 there; compiling them eagerly at application import pushed the existing shape
 load check above its unchanged500MB bound. Typed versioned declarations remain
 available. See [reconciliation verification](verify-main-measures.md).
+
+## Isolated aggregate observation correction
+
+Person-load and Space reads must remain non-admitting and use one coherent
+observation. The existing isolated fallback calls the public tree reader per
+member. Genuine composed-root regressions reproduce initial admission, duplicate
+component captures and mixed state across a rival commit; the shared branch is
+already detached and remains unchanged.
+
+For isolated organizations with an external component, use an explicit internal
+`isolated-connected` aggregate arm. Capture complete detached entries for every
+readable requested project inside the existing observation. Memoize each dependency
+component by all its members, with isolated topology and no person-only bridges.
+Ordinary unrelated members use an isolated singleton capture and a precise local
+record; required evidence inside the captured observation cannot trigger a later live
+fallback. Space may hold an older independent catalog: a project deleted before
+the aggregate observation returns modeled roll-up not-found or is omitted from
+in-progress, matching the shared path without public-tree fallback.
+Preserve the old lightweight isolated fallback only for nonconnected requests.
+
+The work-item projector reuses its detached presentation for connected entries and
+a narrowly factored local/shared presenter for singleton entries. Person-load and
+Space consume the captured arm directly. Keep isolated rank/creation ordering,
+project authorization, held behavior, current capacity identities, captured labels
+and borrowed lifetimes. A null aggregate basis prevents target-only memo reuse.
+No public DTO version, allocation algorithm, optimizer coordinator or activation
+authority changes. The public target tree retains its existing post-close admission.
+
+Prove four cold aggregate routes, disabled-optimizer capture counts, rival-write
+coherence, unrelated isolated/shared controls and required metadata refusal. Watch
+dispatch, memo and lifetime faults separately before recording adjacent proofs.
+The bounded repair, observed negatives, deletion-race correction and independent
+approval are recorded in [the isolated aggregate receipt](verify-isolated-aggregate.md).
+Parent task 8.4 and integrated release/activation acceptance remain open.

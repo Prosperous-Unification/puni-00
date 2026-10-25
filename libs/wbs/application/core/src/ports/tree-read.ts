@@ -18,13 +18,25 @@ export interface TreeRead {
     access: ResourceAccess,
   ): Promise<PlanTree | EngineUnavailable | null | AccessRefused>;
 
-  /** The shared aggregate projection captured for load and space cache admission. */
+  /** A shared or isolated connected aggregate, detached before load and space presentation. */
   sharedTreesWithin(
     actorId: string,
     access: ResourceAccess,
   ): Promise<
     | AccessRefused
     | { readonly kind: 'isolated' }
+    | {
+        readonly kind: 'isolated-connected';
+        readonly entries: readonly {
+          readonly projectId: string;
+          readonly name: string;
+          readonly rank: number;
+          readonly revision: number;
+          readonly seq: number;
+          readonly basis: string | null;
+          readonly tree: PlanTree | EngineUnavailable;
+        }[];
+      }
     | {
         readonly kind: 'shared';
         readonly entries: readonly {

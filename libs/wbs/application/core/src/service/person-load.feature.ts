@@ -266,7 +266,7 @@ export class PersonLoad {
   ): Promise<{ project: NamedProject; rank: number; reading: ProjectReading }[] | AccessRefused> {
     const observed = await this.opts.workItems.sharedTreesWithin(actorId, access);
     if (observed.kind === 'access_refused') return observed;
-    if (observed.kind === 'shared') {
+    if (observed.kind === 'shared' || observed.kind === 'isolated-connected') {
       const readings: { project: NamedProject; rank: number; reading: ProjectReading }[] = [];
       for (const entry of observed.entries) {
         const key = `${access.kind === 'scoped' ? `org:${access.scope.organizationId}` : 'legacy'}\u0000${entry.projectId}`;

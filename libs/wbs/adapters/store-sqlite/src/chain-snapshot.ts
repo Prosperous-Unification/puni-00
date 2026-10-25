@@ -366,6 +366,7 @@ export function createLivePlanStore(
       // Proof: no-op owned transaction methods made mounted execution observation
       // mix old FS completion with new claim/occupancy and admit later SS attempts;
       // both returned HTTP 200 before first-response equality failed (2026-10-23).
+      // Proof: no-op observation transaction mixed target dates and foreign facts through HTTP200 (puni-task84-fault-lifetime.log).
       transaction.begin();
       try {
         const captured = await read(connection.db, lifetime);
@@ -496,7 +497,9 @@ async function readLiveAggregateIn(
   // Proof: bypassing this check made revocation between route admission and the
   // aggregate snapshot answer 200 with held dates instead of 403/not_a_member.
   if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
-  if (readCapacityMode(db, access.scope.organizationId) === 'isolated') return { kind: 'isolated' };
+  // Proof: reverting this dispatch made cold person load admit solver work after HTTP200 (puni-task84-fault-dispatch.log).
+  if (readCapacityMode(db, access.scope.organizationId) === 'isolated')
+    return readIsolatedAggregateIn(db, actorId, access, options, lifetime);
 
   const projects = new ProjectRepository(db, OPEN);
   const readable = await projects.listForInOrganization(actorId, access.scope.organizationId);
@@ -581,6 +584,81 @@ async function readLiveAggregateIn(
     });
   }
   return { kind: 'shared', entries };
+}
+
+/** Keeps every isolated aggregate member in the observation that discovered its external topology. */
+async function readIsolatedAggregateIn(
+  db: Drizzle,
+  actorId: string,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  options: LiveCaptureOptions,
+  lifetime: ReadSnapshotLifetime,
+): Promise<Extract<LivePlanAggregate, { kind: 'isolated' | 'isolated-connected' }>> {
+  const projects = await new ProjectRepository(db, OPEN).listForInOrganization(
+    actorId,
+    access.scope.organizationId,
+  );
+  lifetime.assertOpen();
+  const externalByProject = new Map<string, boolean>();
+  for (const project of projects) {
+    if (externalByProject.has(project.id)) continue;
+    const topology = discoverConnectedTopologyIn(db, project.id, 'isolated', lifetime);
+    for (const memberId of topology.projects) externalByProject.set(memberId, topology.hasExternal);
+  }
+  if (![...externalByProject.values()].some((external) => external)) return { kind: 'isolated' };
+  const ranks = await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId);
+  lifetime.assertOpen();
+  const place = new Map(ranks.map(({ projectId, rank }) => [projectId, rank]));
+  const ordered = [...projects]
+    .sort(
+      (left, right) =>
+        left.createdAt - right.createdAt || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+    )
+    .map((project, index) => ({ project, rank: place.get(project.id) ?? place.size + index + 1 }))
+    .sort((left, right) => left.rank - right.rank);
+  const connectedByProject = new Map<string, Extract<LivePlanRead, { kind: 'connected' }>>();
+  const entries: Extract<LivePlanAggregate, { kind: 'isolated-connected' }>['entries'][number][] =
+    [];
+  for (const [index, { project }] of ordered.entries()) {
+    lifetime.assertOpen();
+    if (externalByProject.get(project.id)) {
+      // Proof: bypassing this memo captured each member twice and derived twice with optimization disabled (puni-task84-fault-memo.log).
+      let connected = connectedByProject.get(project.id);
+      if (connected === undefined) {
+        connected = await readConnectedLivePlanIn(db, access, project.id, options, lifetime);
+        for (const member of connected.projection.capture.projects)
+          connectedByProject.set(member.projectId, connected);
+      }
+      entries.push({ projectId: project.id, rank: index + 1, basis: null, plan: connected });
+      continue;
+    }
+    const snapshot = await readChainSnapshotIn(
+      db,
+      access,
+      [project],
+      project.id,
+      options,
+      lifetime,
+      options.captureRead,
+    );
+    const chain = await readChain(snapshot, project.id);
+    if (chain.kind === 'not_found')
+      throw new Error('isolated target disappeared inside aggregate snapshot');
+    const metadata = await readLiveMetadataIn(db, project.id, lifetime);
+    entries.push({
+      projectId: project.id,
+      rank: index + 1,
+      basis: null,
+      plan: {
+        kind: 'local',
+        organizationId: access.scope.organizationId,
+        chain,
+        project,
+        ...metadata,
+      },
+    });
+  }
+  return { kind: 'isolated-connected', entries };
 }
 
 async function readLivePlanIn(
