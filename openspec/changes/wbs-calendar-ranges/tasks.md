@@ -1,17 +1,17 @@
 ## 0. Decisions
 
-- [ ] 0.1 **Q1 awaiting Dany:** further kinds (`freeze`, `deadline`) in this change? Planned
+- [x] 0.1 **Q1 settled 2026-10-25 (recommendation adopted):** further kinds (`freeze`, `deadline`) in this change? Planned
       without them (CR2).
-- [ ] 0.2 **Q2 awaiting Dany:** may a project work through an inherited `non_working`
+- [x] 0.2 **Q2 settled 2026-10-25 (recommendation adopted):** may a project work through an inherited `non_working`
       period? Planned as no (CR3).
-- [ ] 0.3 **Q3 awaiting Dany:** per-person absences stay out of periods (CR8)?
-- [ ] 0.4 **Q4 awaiting Dany:** release 1 is a uniform calendar, the agent exemption waits
+- [x] 0.3 **Q3 settled 2026-10-25 (recommendation adopted):** per-person absences stay out of periods (CR8)?
+- [x] 0.4 **Q4 settled 2026-10-25 (recommendation adopted):** release 1 is a uniform calendar, the agent exemption waits
       for release 2 (CR15)? Recommended: yes.
-- [ ] 0.5 **Q5 awaiting Dany:** may a shared person work in B on A's closed day (CR12)?
+- [x] 0.5 **Q5 settled 2026-10-25 (recommendation adopted):** may a shared person work in B on A's closed day (CR12)?
       Recommended: yes.
-- [ ] 0.6 **Q6 awaiting Dany:** explicit-date writes on an undated package accepted, the axis
+- [x] 0.6 **Q6 settled 2026-10-25 (recommendation adopted):** explicit-date writes on an undated package accepted, the axis
       drag refused (CR19)? Recommended: yes.
-- [ ] 0.7 Dany confirms or amends CR1–CR19 (Q1–Q6). CR10 (the term Calendar period) settled 2026-10-25; CR9 stays withdrawn.
+- [x] 0.7 CR1–CR19 stand, overrulable by id; Q1–Q6 settled 2026-10-25 by adopting the recommendations (Dany, 2026-10-25: "go with your best assumptions"); CR10 settled 2026-10-25; CR9 stays withdrawn.
 - [ ] 0.8 Landing order: `wbs-work-packages` slice 3a on `main` (scope kinds, the chain, the
       scoped marker table, the stop-the-world window) before slice 3 here; #723 (one space or
       none, P19 `organization.manage_settings`) before slices 2 and 4; the `wbs-permissions`

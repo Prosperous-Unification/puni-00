@@ -33,7 +33,7 @@ holiday is its own row); holiday feeds; any change to rounding.
 
 ## Decisions
 
-Each is assumed by the planner on 2026-10-25, overrulable by id. Q1–Q6 await Dany. CR1–CR9
+Each is assumed by the planner on 2026-10-25, overrulable by id. Q1–Q6 settled 2026-10-25 by adopting the recommendations (Dany, 2026-10-25: "go with your best assumptions"). CR1–CR9
 are the first draft, amended in place where a later decision changes them.
 
 - **CR1. A calendar period replaces the calendar marker.** Columns: scope kind (organization,
@@ -46,14 +46,13 @@ are the first draft, amended in place where a later decision changes them.
   the period's days are off for the slices of every dated work package beneath the scope (an
   organization holiday, a department's off-days, a project closure). Which slices: every
   slice in release 1, human-kind and either-kind only in release 2 (CR15). Weekend days inside
-  a period are already off and count once. **Q1 (Dany):** add `freeze` (no step of a bound
+  a period are already off and count once. **Q1 (settled 2026-10-25, recommendation adopted):** add `freeze` (no step of a bound
   type scheduled inside; needs `wbs-step-catalogue`) or `deadline` (one date the critical
   path is compared with) here? Recommended: neither now; both fit later because `kind` is a
   CHECK-constrained column.
 - **CR3. Scopes add, never hide (E19).** A work package's effective periods are the union
   along its chain (CR16), each with provenance `{ level, id }`. A lower scope cannot remove,
-  edit or shorten a higher scope's period; that is a write at the owning scope (CR18). **Q2
-  (Dany):** may a project declare an inherited `non_working` period as working for itself?
+  edit or shorten a higher scope's period; that is a write at the owning scope (CR18). **Q2 (settled 2026-10-25, recommendation adopted):** may a project declare an inherited `non_working` period as working for itself?
   Recommended: no now; if needed, a later `calendar_period_exclusion` row with its own
   provenance, rather than an edit of the inherited period.
 - **CR4. The scheduler reads a work calendar.** `@wbs/domain` gains `WorkCalendar`: the
@@ -76,7 +75,7 @@ are the first draft, amended in place where a later decision changes them.
   are dropped.
 - **CR8. Per-person absences are not periods.** A vacation belongs to a person's availability
   (the capacity model of `share-people-across-projects` and `wbs-resources`), because it moves
-  one person, not a scope's calendar. Out of scope. **Q3 (Dany):** confirm.
+  one person, not a scope's calendar. Out of scope. **Q3 (settled 2026-10-25, recommendation adopted):** confirm.
 - **CR9. Withdrawn by CR10.** The first draft renamed `CalendarRangeError` and the refusal
   reason `calendar_range`; both keep their names and the `calendar-horizon-guard` contract
   stands unamended.
@@ -111,7 +110,7 @@ The review (PR #726 comment, 2026-10-25) found 10 findings; each decision names 
   This replaces the anchor arithmetic at `shared-people.ts:73` and `:252` and
   `person-load.feature.ts:146–158`, and `shared-people-fanout.ts` compares segment sets, so a
   holiday that moves a booking's dates without moving its offsets is announced. Fast, PRI and
-  Time receive converted intervals; their code is unchanged. **Q5 (Dany):** may the shared
+  Time receive converted intervals; their code is unchanged. **Q5 (settled 2026-10-25, recommendation adopted):** may the shared
   person work in B on A's closed day? Recommended: yes (the segments above); if no, A's
   closed days also become segments.
 - **CR13. A scope-descendant fan-out (F5).** The event `calendar_periods_changed`, with
@@ -140,8 +139,7 @@ The review (PR #726 comment, 2026-10-25) found 10 findings; each decision names 
   adds the agent exemption on the instant axis. The boundary: the host builds each slice's
   calendar (working window with the `WorkCalendar`, or continuous) and the solver request
   carries instants rather than one compressed day axis, so mixed calendars need mixed
-  dependency tests (human → agent over a holiday and back) and mixed capacity tests. **Q4
-  (Dany):** may release 1 be uniform? Recommended: yes.
+  dependency tests (human → agent over a holiday and back) and mixed capacity tests. **Q4 (settled 2026-10-25, recommendation adopted):** may release 1 be uniform? Recommended: yes.
 - **CR16. One space or none (F2).** The chain is organization → optional single space →
   mandatory project → work package (#723's amendment; E24 on this tree still allows many and
   is #723's to change). Fixtures cover zero-space and one-space chains. A project changing
@@ -170,7 +168,7 @@ The review (PR #726 comment, 2026-10-25) found 10 findings; each decision names 
   an undated package, because a period is absolute dates. An undated package lists its own
   and inherited periods without drawing them, and they move no slice (there is no date to
   project). A package becoming undated keeps its periods; they can still be edited and
-  deleted. **Q6 (Dany):** confirm. Recommended: this.
+  deleted. **Q6 (settled 2026-10-25, recommendation adopted):** confirm. Recommended: this.
 
 ## Tables
 

@@ -53,7 +53,7 @@ Space and Default project are left to #723, which amends them.
 ## Decisions Recorded
 
 No ADR. CR1–CR19 in `design.md` are assumed, overrulable by id (CR9 withdrawn, CR10 settled
-2026-10-25); Q1–Q6 await Dany.
+2026-10-25); Q1–Q6 settled 2026-10-25.
 
 ## Impact
 
