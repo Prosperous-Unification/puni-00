@@ -319,6 +319,44 @@ function encodeResources(manifests: object[], namespace: string): string {
   return source;
 }
 
+const SavedObject = type({
+  type: /\S/,
+  id: /\S/,
+  // Proof: removing this explicit array exclusion admitted array attributes through the composition entrypoint.
+  attributes: type('Record<string, unknown>').narrow((attributes) => !Array.isArray(attributes)),
+  references: type({ name: /\S/, type: /\S/, id: /\S/ }).array(),
+});
+
+/** Validate nonempty saved-object NDJSON envelopes while preserving original bytes, including trailing newlines.
+ * Missing/unreadable files retain their filesystem errors. Bad lines expose only their line number.
+ * Opaque attributes/metadata and plugin/import compatibility remain outside this source contract.
+ */
+async function readSavedObjects(path: string): Promise<string> {
+  // Proof: substituting cached valid bytes lost distinct missing/unreadable saved-object file refusals.
+  const source = await readFile(path, 'utf8');
+  const lines = source.split(/\r?\n/);
+  while (lines.at(-1) === '') lines.pop();
+  // Proof: removing this guard packaged both empty and newline-only saved-object streams.
+  if (lines.length === 0) throw new Error('Invalid Kibana saved-object input at line 1');
+  for (const [index, line] of lines.entries()) {
+    const diagnostic = `Invalid Kibana saved-object input at line ${String(index + 1)}`;
+    let record: unknown;
+    try {
+      // Proof: replacing JSON parsing with a valid record packaged malformed JSON instead of refusing it.
+      record = JSON.parse(line);
+    } catch (failure) {
+      if (!(failure instanceof SyntaxError)) throw failure;
+      // Proof: forwarding the parser error or attaching it as cause failed the fixed-message/no-cause controls.
+      // eslint-disable-next-line preserve-caught-error -- This external trusted-NDJSON boundary withholds parser causes that can quote private input.
+      throw new Error(diagnostic);
+    }
+    const envelope = SavedObject(record);
+    // Proof: removing envelope validation admitted non-records and malformed required fields; forwarding its summary exposed schema details.
+    if (envelope instanceof type.errors) throw new Error(diagnostic);
+  }
+  return source;
+}
+
 async function createInstance(
   root: string,
   placement: 'local' | 'production',
@@ -359,9 +397,8 @@ async function createInstance(
         assignment,
         `url=https://kibana-kb-http.${instance.namespace}.svc:5601\n`,
       ),
-      'objects.ndjson': await readFile(
+      'objects.ndjson': await readSavedObjects(
         join(root, directory, 'kibana/objects/objects.ndjson'),
-        'utf8',
       ),
     }),
   );

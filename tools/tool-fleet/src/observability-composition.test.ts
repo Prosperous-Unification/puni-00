@@ -660,3 +660,127 @@ test('changed source configuration updates Pod references while preserving each 
     }
   }
 });
+
+const savedObject = {
+  type: 'lens',
+  id: 'fixture-view',
+  attributes: { title: 'Fixture view' },
+  references: [{ name: 'source', type: 'index-pattern', id: 'fixture-source' }],
+};
+const invalidSavedObjects: [string, string][] = [
+  ['invalid JSON', '{ private-json-marker }\n'],
+  ['empty stream', ''],
+  ['newline-only stream', '\n\r\n'],
+  ['null record', 'null\n'],
+  ['array record', '[]\n'],
+  ['scalar record', '42\n'],
+  ['string record', '"private-record-marker"\n'],
+  ['missing type', JSON.stringify({ id: 'fixture', attributes: {}, references: [] })],
+  ['wrong type', JSON.stringify({ ...savedObject, type: 42 })],
+  ['blank type', JSON.stringify({ ...savedObject, type: ' ' })],
+  ['missing id', JSON.stringify({ type: 'lens', attributes: {}, references: [] })],
+  ['wrong id', JSON.stringify({ ...savedObject, id: null })],
+  ['empty id', JSON.stringify({ ...savedObject, id: '' })],
+  ['missing attributes', JSON.stringify({ type: 'lens', id: 'fixture', references: [] })],
+  ['null attributes', JSON.stringify({ ...savedObject, attributes: null })],
+  ['array attributes', JSON.stringify({ ...savedObject, attributes: [] })],
+  [
+    'primitive attributes',
+    JSON.stringify({ ...savedObject, attributes: 'private-envelope-marker' }),
+  ],
+  ['missing references', JSON.stringify({ type: 'lens', id: 'fixture', attributes: {} })],
+  ['wrong references', JSON.stringify({ ...savedObject, references: {} })],
+  ['null reference', JSON.stringify({ ...savedObject, references: [null] })],
+  [
+    'missing reference name',
+    JSON.stringify({ ...savedObject, references: [{ type: 'lens', id: 'fixture' }] }),
+  ],
+  [
+    'wrong reference name',
+    JSON.stringify({ ...savedObject, references: [{ ...savedObject.references[0], name: false }] }),
+  ],
+  [
+    'missing reference type',
+    JSON.stringify({ ...savedObject, references: [{ name: 'source', id: 'fixture' }] }),
+  ],
+  [
+    'wrong reference type',
+    JSON.stringify({ ...savedObject, references: [{ ...savedObject.references[0], type: null }] }),
+  ],
+  [
+    'missing reference id',
+    JSON.stringify({ ...savedObject, references: [{ name: 'source', type: 'lens' }] }),
+  ],
+  [
+    'blank reference id',
+    JSON.stringify({ ...savedObject, references: [{ ...savedObject.references[0], id: ' ' }] }),
+  ],
+];
+
+test.each(invalidSavedObjects)(
+  'saved-object input refuses %s before packaging with safe diagnostics',
+  async (_fault, source) => {
+    const directory = await copySource();
+    await writeFile(
+      join(directory, 'infra/platform/observability/kibana/objects/objects.ndjson'),
+      source,
+    );
+    try {
+      await createObservabilityComposition(directory, request);
+      throw new Error('Malformed saved objects were packaged');
+    } catch (failure) {
+      expect(failure).toBeInstanceOf(Error);
+      const refusal = type({ message: 'string', 'cause?': 'unknown' }).assert(failure);
+      expect(refusal.message).toBe('Invalid Kibana saved-object input at line 1');
+      expect(refusal.cause).toBeUndefined();
+    }
+  },
+);
+
+test('saved-object assertion refuses a bad second line at the input boundary', async () => {
+  const directory = await copySource();
+  const candidate = await createObservabilityComposition(directory, request);
+  await writeFile(
+    join(directory, 'infra/platform/observability/kibana/objects/objects.ndjson'),
+    `${JSON.stringify(savedObject)}\n{ private-second-line-marker }\n`,
+  );
+  expect(assertObservabilityComposition(directory, candidate)).rejects.toThrow(
+    'Invalid Kibana saved-object input at line 2',
+  );
+});
+
+test('saved-object input preserves current valid bytes and opaque metadata with trailing newlines', async () => {
+  const directory = await copySource();
+  const path = join(directory, 'infra/platform/observability/kibana/objects/objects.ndjson');
+  const current = await readFile(path, 'utf8');
+  for (const source of [
+    current,
+    `${JSON.stringify({ ...savedObject, type: 'opaque-plugin-type', unknownMetadata: { future: true }, attributes: { nested: [null, { untouched: true }] } })}\r\n\r\n`,
+  ]) {
+    await writeFile(path, source);
+    const candidate = await createObservabilityComposition(directory, request);
+    await assertObservabilityComposition(directory, candidate);
+    for (const instance of candidate.instances) {
+      const configuration = type({ data: { 'objects.ndjson': 'string' } }).assert(
+        nativeDocuments(instance.native).find(
+          (manifest) =>
+            manifest.kind === 'ConfigMap' && manifest.metadata.name.startsWith('kibana-objects-'),
+        ),
+      );
+      expect(configuration.data['objects.ndjson']).toBe(source);
+    }
+  }
+});
+
+test.each(['missing', 'unreadable'])(
+  'saved-object input preserves distinct %s file refusal',
+  async (fault) => {
+    const directory = await copySource();
+    const path = join(directory, 'infra/platform/observability/kibana/objects/objects.ndjson');
+    if (fault === 'missing') await rm(path);
+    else await chmod(path, 0);
+    expect(createObservabilityComposition(directory, request)).rejects.toThrow(
+      fault === 'missing' ? /ENOENT/ : /EACCES/,
+    );
+  },
+);
