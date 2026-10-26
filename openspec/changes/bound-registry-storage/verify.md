@@ -1315,3 +1315,48 @@ known-reason reporting, preserving the original failure and existing containment
 No retry or tag-cleanup run is approved by this record. Both native witnesses,
 partial-state census/recovery, full Task8 validation/review and Tasks9–11 remain
 incomplete. Production safeguards have not been activated by this work.
+
+## Unsafe GC is detected after a zero exit
+
+HOST52 completed the deliberately unsafe-GC witness in105.183 seconds, controller
+exit0 without timeout or stderr. The actual Distribution GC child returned0, but
+`--delete-untagged` removed a platform manifest's repository revision link despite
+its parent index being explicitly protected. The actual retirement owner returned1
+in retained-content verification. Its frame24661:26 mapped to the unchanged
+inventory throw, `Missing child manifest revision`, in the independently reproduced
+normal bundle. This was the production inventory check, not the fixture's error
+classifier.
+
+Acceptance combined the actual GC PID/zero exit, completed collection followed by
+readonly verification, the exact failure marker/frame, independent missing-child
+revision observation, matching verified backup and durable failed fence. The index
+root's API content hash still matched; that read alone does not prove its whole
+image closure remains usable. No service-restoration action followed the fault.
+Original managed-publication provenance survived. Kubernetes/readers/provider
+admission and the post-publication eight-day authority clock remain explicit
+substitutions; this case creates no deployed-environment, elapsed-grace, uncached
+Docker-pull or completed-recovery claim.
+
+All199 host root/cgroup comparisons and the final comparison passed. Teardown
+unmounted the private cgroup before proc, removed the root mount last, detached
+all four loops and released the canonical lock. Both independent audit duties
+confirmed the exact fixture, three namespaces, descriptor/backing references and
+outside lock identities absent, with more than20GiB reserve. The worker covered
+all process mount views and its queue label; the controller covered its observer
+mount view and namespace descriptors. The worker's remote audit child status0
+was durably recorded; its final wrapper-poll observation was lost and remains
+unknown. The controller observed its independent command return0. All100 normal
+source/nine payload/archive pins matched afterward.
+
+The added launcher diagnostics also passed11 local cases and nine exact removal
+witnesses. Actual local canonical-lock contention was tested with explicit
+identity/private-path substitutions; oversized already-drained output was a
+modeled dependency fault. The failed large-child-output intermediate is preserved
+as inconclusive. Neither those local results nor HOST52 identify HOST50's lost
+startup cause. Only fixed stage/status/reason reporting and reporter-error
+aggregation changed; lock timing, admission, ownership and the registry payload
+remained unchanged.
+
+This closes the unsafe-flag counterfactual only. The tag-cleanup case, partial-state
+census/recovery, remaining Task8 failures and validation/review, backup budgeting,
+monitoring and installed adoption remain incomplete.
