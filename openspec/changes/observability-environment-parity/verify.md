@@ -705,3 +705,196 @@ Saved pinned-render/source arithmetic, with one replica per service, both shared
 These are incomplete declared subtotals, not upper bounds or actual measured consumption: generated containers, transient work and placement-dependent platform/backup services remain unresolved. The pinned operator currently declares config-reloader memory bounds0 and admission Jobs with resources{}; these cannot be budgeted as zero. The existing workload/preflight models should consume actual effective bounded pods; no second capacity implementation is needed. Kubernetes [requests and limits](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) differ from observed usage.
 
 New observation claims are25GiB for dev and115GiB for retained production (including its100GiB ES policy),140GiB if both are placed there. Claims are capacity inputs, not used bytes; retained history/images/scratch/headroom require their own accounting. The earlier17670MiB/2068MiB-shortfall calculation uses a production/platform/backup profile and must not be relabelled dev-only. Source arithmetic/provenance is retained in the controller's h3-sizing.md and fresh safe sample in operator-inventory/h3-usage.json. Actual placement and a complete finite budget remain open; no resize or disk upgrade was recommended or performed from the rehearsal figures.
+
+## Actual authenticated artifact binding — 2026-10-26
+
+The unchanged production `observability-flux-cli.ts bind` at source/generator
+`1568080d0080645eca97c1864a6966e7100e4999` successfully fetched the actual SSH repository's
+artifact commit `2a63a99f2005eb9770695f11e5dbcba4f10ad703` using the existing managed-host
+repository identity and strict configured host trust. This supersedes the previous
+unverified **actual binding** item only; the full bootstrap handoff remains open.
+The packet uses synthetic explicit network inputs, so this is a transport/source component
+proof and cannot certify runtime endpoint bindings, Flux reconciliation or live deployment.
+
+Reproduction inputs and retained evidence:
+
+- Input source and generator: `1568080d0080645eca97c1864a6966e7100e4999`, generator dirty:false;
+  source/generator review status remains `unobserved`, as emitted by the implementation.
+- Packet: 75 source files plus `rehearsal.json`, SHA256
+  `cab20a253675a437e9f2e32b5be740233a757c0bcb5ac6f00a7246f0059c03ad`.
+  Preparation took 4.624s in a clean frozen auxiliary checkout. The existing plaintext-secrets
+  scanner passed all76 exported files before publication.
+- Artifact ref: `feat/observability-parity-source-1568080`, exact commit above, separately
+  published and freshly confirmed by `git ls-remote`. The implementation ref is distinct:
+  `feat/observability-parity-implementation`. Draft successor PR
+  [760](https://github.com/Prosperous-Unification/puni-00/pull/760) is open; planning PR747
+  remains merged. Neither feature ref has been merged to main by this work.
+- Existing h4 Docker daemon `29d09ed4-aac6-483f-94d8-8eb3ff56f3ec`; credential-free client image
+  `sha256:9e93caaaa37dbc3777219bc8314cdf5d050f1dc1d5b04109a1f279f37dea37f1` derives from the
+  already-cached Bun1.4.4 image. It contains Git/SSH installed only inside the temporary client.
+  Pinned kubectl's59572386 bytes matched
+  `8b8f088da2dab964f853b38464033b1be15ede2839eca751482357c45abdd05a` locally and remotely.
+- Exact binding command inside the isolated client:
+  `PUNI_PARITY_TOOLS=/tools bun tools/tool-fleet/src/observability-flux-cli.ts bind /request.json /proof/binding.json`.
+  Source/packet/request/tools and the existing managed identity/trust were read-only mounts;
+  private scratch/receipts were writable. Root filesystem was read-only; all capabilities
+  dropped; no-new-privileges,1GiB memory,1CPU,256PIDs and bounded private tmpfs were applied.
+  No Docker socket, kubeconfig, other host credentials or cluster operation was available.
+- Runtime client `ce2bdb25d2628ff46aece4005c880deb9c70a3f4743bb550e4b95417f0dca63f` started
+  at23:11:36UTC. Its receipt observedAt23:11:48.300Z; process exited0/noOOM. Every fetched file,
+  complete root closure and provenance matched. Parsed CLI stdout equals the exclusive receipt.
+  Receipt retains51 external prerequisites, `bootstrap.handoffExecuted:false`,
+  `runtimeAcceptance:false`, `liveBinding:false`, and `trustReview:external-prerequisite-unverified`.
+  A successful operation does not establish globally read-only credential privileges or human review.
+- Safe complete receipt is retained at the owner-only existing-host workspace
+  `/var/tmp/puni-parity-source-binding-i482sq0n/proof-binding/binding.json`; local safe summaries
+  and helper lineage are in this change's ignored controller workspace. No key value was copied
+  to the local machine or committed. The adapter's own scratch copy existed only in client tmpfs.
+
+The verification harness encountered and preserved intermediate failures. An initial Python
+file-open API error was corrected before packet creation. Docker omits optional image
+`Config.Volumes`; actual read-only evidence confirmed absence before the capability probe was
+corrected. The network-disabled/no-mount cached-image probe then proved Bun/tar/sh present and
+Git/SSH/keygen absent; its exact creator ID was removed. `/tmp` was RAM-backed with7699MiBfree,
+so the unchanged2GiBavailable/8GiBfree client guard refused staging there. Actual `/var/tmp`
+was ext4 with114411MiBfree and11188MiB available memory; staging there succeeded9.491s.
+Neither the platform16GiB floor nor the client guard was reduced.
+
+The first two credential-free preparers exited100 at apt cache/group-file permissions.
+Targeted logs identified the failures. Only the third credential-free preparer received
+DAC_OVERRIDE/CHOWN/FOWNER for these container-local filesystem operations, with all other
+capabilities dropped, and completed apt plus frozen Bun install with scripts ignored, exit0.
+The later credential client dropped ALL capabilities. No host package/permission change.
+The first image-commit wrapper exited without a receipt and its raw diagnostic was not retained;
+its outcome/cause remains unproved, with no guessed cleanup. A separate recorded PID/start-time
+worker durably captured the successful image commit's exact ID and exit0 in103.164s. These are
+harness failures and preparation evidence, not production-adapter failures or runtime acceptance.
+
+At23:13:11UTC, all four exact recorded stopped preparer/runtime container IDs were checked
+against original image/operation/daemon/exit identities and removed using `docker rm <ID>`
+without a volume flag. Their expected exits were100/100/0/0. No volume, retained history or
+unrelated workload was removed. Private source/receipt workspace and the credential-free client
+image remain for reuse. No persistent Secret, h3mon resize, production source/stage, dev route,
+production activation or final merge changed. All previous unproved full Kubernetes, CNI,
+resource budget, stored-signal, UI, isolation, history/recovery and actual dev criteria stay open.
+
+### Existing draft CI failure awaiting focused repair
+
+DraftPR760 infra run40415555161/job121896859657 failed122 Fleet tests. The fetched existing
+log, retained locally as `/tmp/puni-pr760-fleet-check.log`, proves cold CI lacks the hardcoded
+`/tmp/puni-parity-tools/kubectl` used by new packet/Flux beforeAll and related render tests.
+The existing `check` target provisions tools after its test dependencies. Other observed failures
+compare plain CLI prefix/equality with Nx/FORCE_COLOR-decorated child stderr. These require a
+focused portability fix reusing the locked installer and preserving actual refusal/privacy
+assertions. No check was skipped, no failing run rerun and no CI selection/permission/merge policy
+changed. Other CI jobs were partly in progress at the last observation; no all-green claim.
+
+## Task 19 / 6d — creation-accounting seam and actual app component
+
+The existing lab runner now has explicit `--resource-evidence creation-v1` creation and
+receipt-consuming teardown. `lab.json` v1 and dev-env decoding remain unchanged. Strict up
+reserves fresh `c` plus15 lowercase hexadecimal IDs; legacy commands refuse that namespace
+unconditionally, including after binding deletion. This prevents downgrade, not establishes
+ownership; the compatibility cost is reserving that rare legacy ID pattern. The consumer is
+`readLabCreationResources(directory, state, labId, profile)`. Closed version1 resources are
+owner-only, exclusive, fsynced, sealed by exact file set/hash and bound to a ready attempt,
+local Unix Docker endpoint and daemon. The full rehearsal must consume this contract later.
+
+Creation starts a bounded safe event witness before direct network creation and requires that
+returned ID's actual network-create event before proceeding. Pinned private k3d debug is parsed
+for actual full creator IDs; raw logs/configuration never enter receipts or diagnostics. Stream
+failure aborts the active creator. Permanent container/image/network/mount identity closes
+against exact inspection. Every serial tools creator remains recorded; tools already destroyed
+by normal pinned startup require matching create/mount/destroy events plus final exact-ID
+absence, explicitly without post-destruction inspection. Named cache remains enabled. Tools
+image anonymous volumes refuse because pinned tools cleanup removes them. All named/anonymous
+volume associations remain weaker locators and are retained, never deletion authority.
+
+Teardown revalidates complete attachments and exact resources before bounded owned-container
+signals/removal and exact network removal. It uses no k3d delete or volume-removal flags; all
+state/journals/volumes remain. This is cooperative noninterference for a fresh attempt on a
+trusted daemon; unrelated actors remain independent. There is no atomic inspect/delete or
+hostile privileged daemon-writer guarantee. Partial failures retain global uncertainty.
+
+Focused final covering command:
+
+```sh
+bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/creation-resources.test.ts tools/tool-fleet/src/k3d-creation.test.ts tools/tool-fleet/src/k3d-resource-runtime.test.ts tools/tool-fleet/src/k3d-resource-caller.test.ts tools/tool-fleet/src/k3d-lab.test.ts tools/tool-fleet/src/k3d-creation-journal.test.ts
+```
+
+102pass/0fail,295 assertions,34.52s. Six files cover new storage/parser/witness/consumer seams,
+existing runner callers and direct creation journal controls. R5 removed26 production guards,
+observing each focused negative fail, and separately injected file/directory fsync failures,
+observing the positive existing-runner control fail before direct creation (0.969s each).
+The actual caller cancellation RED additionally exposed omitted AbortSignal wiring before GREEN.
+Faults include full-ID/event parsing, image/network/volume closure, retention/seal/exclusivity,
+ready journal, daemon, reserved namespace, locked tool bytes, reuse, temporary volumes,
+handshake, private output bound, active cancellation, teardown attachments/identity and
+forbidden volume removal. Every mutation was restored before the covering run. The first
+network-attachment mutation survived a second volume guard; the fixture was isolated to a
+foreign endpoint without mounts and the targeted mutation then failed in2.568s. It was not
+counted as proof until isolated. Exact commands/timings and limitations are retained in the
+ignored task-6d report and four task6d-r5 summary files.
+
+Actual component used Docker29.7.2/API1.55, endpoint `unix:///run/docker.sock`, daemon
+`c53d8955-62b8-43fe-8277-2d63f606e418`. Initial preflight state `c02dc23cb6f79470` failed
+JSON decoding before any Docker resource creation; real safe Go-format projections exposed a
+missing closing brace. The subprocess fixture now renders the actual supplied format. The
+focused existing-runner control failed before correction, then passed in3.08s. Optional image
+Config.Volumes absence was modeled from actual read-only evidence.
+
+Fresh actual admission at2026-10-26T23:14:30.480Z observed14101MiB available memory/65539MiB
+Docker disk against unchanged app4096/12288MiB floors. Baseline10 containers/5 networks/44 volumes.
+Exact existing CLI commands, with private output:
+
+```sh
+env PATH="/tmp/puni-parity-tools:$PATH" K3D=/tmp/puni-parity-tools/k3d KUBECTL=/tmp/puni-parity-tools/kubectl DOCKER_CONFIG=/tmp/puni-parity-tools/docker-config bun tools/tool-fleet/src/k3d-lab.ts up --profile app --worktree-root /home/df/.codex/worktrees/aa39 --resource-evidence creation-v1
+env PATH="/tmp/puni-parity-tools:$PATH" K3D=/tmp/puni-parity-tools/k3d KUBECTL=/tmp/puni-parity-tools/kubectl DOCKER_CONFIG=/tmp/puni-parity-tools/docker-config bun tools/tool-fleet/src/k3d-lab.ts down --profile app --id cfc0820dab7a49fa --resource-evidence creation-v1
+```
+
+Up exit0 in89s, empty stderr; app node Ready/bundled Traefik Available. Lab
+`cfc0820dab7a49fa`, attempt `9a70200b-ec6c-4a86-ae20-6b20735573d6`,135 safe events and ready
+journal; consumer read succeeded. Full creator-returned IDs:
+
+| Resource                          | ID                                                                 |
+| --------------------------------- | ------------------------------------------------------------------ |
+| Network                           | `ba26708bf069935681514339318bfa844030422f65dab604af40c747fed5b961` |
+| Registry                          | `e916b0e15605c1a8282bb444b0018d64e59dc3b766c407e8aba7087e696bde1a` |
+| Server                            | `0ef5e57f55950f16543288c580f0144f53cff1df2d08074280b931a5c2df686b` |
+| Serverlb                          | `dddfd37f83cdb1930f74bde87062aa75ea7794aada4054773051ce7a93c13022` |
+| Tools, already normally destroyed | `8abd90f9666f7783dccdd474783bfee53311e033f14ea48dbc69f44910ae9e6c` |
+
+First down refused before any stop/removal or teardown marker. Read-only comparison proved only
+server mount ordering differed. Focused permutation RED/GREEN retained all fields/counts;
+four permutation/foreign-network/replaced-image/missing-volume controls passed in8.64s. Down
+retried the SAME owned receipt, no new lab: exit0/empty stderr. Teardown-to-removed marker
+interval5.904758269s (not full command wall time). All stops forced:false; registry exit2,
+server/serverlb exit143 after intentional SIGTERM, not claimed successful application exits.
+
+Final exact comparison at23:23:07.651Z: original container/network ID-name sets10/5 unchanged;
+all44 original volumes plus these6 retained with identical Name/Driver/Mountpoint/CreatedAt:
+
+- `6b1e1a80e67510dc2979daa6c3d5a4319159b4a691f2af5d2f8695d21e7ee052`
+- `f7062298ec4d988eba9e2a492bcd2ee15c50981764bfbf2b6a165ba35c4ba3db`
+- `4f119caa4a8ca506f8030b32abd656a5d31a2dd4fdb0ce26aab6c59865b920c3`
+- `00b3899a4262e7aa57572a15ed697919b0c36f3202707ddedb17a7ac9d917fc4`
+- `c684d0bd8345c051ccc072604ca9bb4b7efcbda066cd6d8f387f51deb0b446b8`
+- `k3d-puni-cfc0820dab7a49fa-platform-images`
+
+Private state, kubeconfigs, resources, journal, stop records and removed marker remain. Safe
+summaries/source hashes are retained in ignored `task-6d-evidence/`; the actual up preceded the
+mount comparison correction and final source commit, with per-file hashes recorded. No successful
+component rerun after comments/style changes. No unrelated workload, shared Docker configuration,
+h3mon sizing, live route/service or storage changed. No platform services ran under app.
+
+Affected Fleet typecheck `bunx tsc --build --force tools/tool-fleet/tsconfig.json` passed.
+Full host/Nx/app/browser gates and unchanged old45/51 suites/charts were intentionally not rerun.
+Existing draft CI failures above remain queued separately. This proves only the local creation
+accounting component: full bootstrap/authenticated Kubernetes handoff, complete capacity,
+source-to-runtime binding, shared signals/CNI/UI/isolation/history/recovery and actual dev
+migration remain OPEN. Checkboxes/publication remain parent-owned.
+
+Final changed-file ESLint passed; Prettier left all source files unchanged and formatted this
+verification append. `bunx openspec validate observability-environment-parity --json` passed
+with zero issues (20ms validator duration). `git diff --check` passed. Normal commit hooks
+provide the final staged-file format/lint/secrets/private-nesting/tool-wiki checks.

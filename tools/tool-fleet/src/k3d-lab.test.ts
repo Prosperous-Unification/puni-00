@@ -340,3 +340,25 @@ describe('requireLabTools', () => {
     ).rejects.toThrow(/^k3d v5\.9\.0 is required: set K3D to the locked binary/);
   });
 });
+
+it('generates a fresh strict namespace and refuses a caller-selected creation identity', () => {
+  const arguments_ = [
+    'up',
+    '--profile',
+    'app',
+    '--worktree-root',
+    '/tmp',
+    '--resource-evidence',
+    'creation-v1',
+  ];
+  const first = parseK3dLabRequest(arguments_);
+  const second = parseK3dLabRequest(arguments_);
+  expect(first.labId).toMatch(/^c[0-9a-f]{15}$/);
+  expect(first.labId).not.toBe(second.labId);
+  expect(() => parseK3dLabRequest([...arguments_, '--id', 'local'])).toThrow();
+});
+it('refuses legacy commands for the reserved strict namespace even without a marker', () => {
+  expect(() =>
+    parseK3dLabRequest(['down', '--profile', 'app', '--id', 'c123456789abcdef']),
+  ).toThrow('creation-v1');
+});

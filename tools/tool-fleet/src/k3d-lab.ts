@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   chmod,
   lstat,
@@ -19,7 +19,19 @@ import { createBackupIdentity, provisionBackupIdentity } from './backup-identity
 import { readToolchain } from './contracts';
 import { executeCreationAttempt } from './creation-journal';
 import { executeDirectCreation } from './creation-receipts';
+import { appendResource, hashResource } from './creation-resources';
+import type { CreationPlan } from './k3d-creation';
 import { labNamesOf } from './k3d-lab-names';
+import {
+  bindDockerEnvironment,
+  captureDockerEndpoint,
+  createResourceWitness,
+  dockerEnvironment,
+  inspectResourceTeardown,
+  readLabCreationResources,
+  requireCapturedDaemon,
+  stopRecordedContainer,
+} from './k3d-resource-runtime';
 import { buildObjectStore, importObjectStore, readObjectStoreLock } from './object-store-image';
 
 export { type K3dLabNames, labNamesOf } from './k3d-lab-names';
@@ -34,6 +46,7 @@ export interface K3dLabRequest {
   readonly profile: K3dProfile;
   readonly worktreeRoot?: string;
   readonly solverRuntime?: string;
+  readonly resourceEvidence?: 'creation-v1';
 }
 
 /**
@@ -182,14 +195,29 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
     const flag = arguments_.at(position);
     if (
       flag === undefined ||
-      !['--id', '--profile', '--worktree-root', '--solver-runtime'].includes(flag)
+      !['--id', '--profile', '--worktree-root', '--solver-runtime', '--resource-evidence'].includes(
+        flag,
+      )
     ) {
       throw new Error(`Unexpected k3d lab argument: ${flag ?? 'missing'}`);
     }
     if (flags.has(flag)) throw new Error(`Duplicate k3d lab flag: ${flag}`);
     flags.set(flag, takeFlag(arguments_, position));
   }
-  const labId = flags.get('--id') ?? 'local';
+  const resourceEvidence = flags.get('--resource-evidence');
+  if (resourceEvidence !== undefined && resourceEvidence !== 'creation-v1')
+    throw new Error('Unsupported resource evidence version');
+  if (resourceEvidence === 'creation-v1' && action === 'up' && flags.has('--id'))
+    throw new Error('Strict creation generates its fresh lab identity');
+  const labId =
+    resourceEvidence === 'creation-v1' && action === 'up'
+      ? `c${randomBytes(8).toString('hex').slice(0, 15)}`
+      : (flags.get('--id') ?? 'local');
+  if (/^c[0-9a-f]{15}$/.test(labId) && resourceEvidence !== 'creation-v1')
+    // Proof: Removing namespace refusal allowed legacy down with a missing marker; reserved-namespace negative failed.
+    throw new Error('Reserved lab namespace requires --resource-evidence creation-v1');
+  if (resourceEvidence === 'creation-v1' && !/^c[0-9a-f]{15}$/.test(labId))
+    throw new Error('Strict resource evidence requires a generated lab identity');
   if (!LAB_ID.test(labId)) {
     // Proof: replacing the pattern with a non-empty test failed `refuses a lab ID that is not a
     // short DNS label`; `../x` would have escaped `.puni/fleet-labs/k3d`.
@@ -215,6 +243,7 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
     profile,
     ...(worktreeRoot === undefined ? {} : { worktreeRoot: resolve(worktreeRoot) }),
     ...(solverRuntime === undefined ? {} : { solverRuntime: resolve(solverRuntime) }),
+    ...(resourceEvidence === undefined ? {} : { resourceEvidence }),
   };
 }
 
@@ -404,7 +433,7 @@ async function run(
   options: RunOptions = {},
 ): Promise<string> {
   const child = Bun.spawn([executable, ...arguments_], {
-    env: { ...process.env, ...options.environment },
+    env: { ...(dockerEnvironment.getStore() ?? process.env), ...options.environment },
     stdin: options.input === undefined ? 'ignore' : new TextEncoder().encode(options.input),
     stdout: 'pipe',
     stderr: 'pipe',
@@ -475,7 +504,11 @@ export async function requireLabTools(
  * The lab's owner-only state directory. It must be ignored by Git, because it holds kubeconfigs
  * with cluster-admin client keys.
  */
-export async function prepareStateDirectory(root: string, labId: string): Promise<string> {
+export async function prepareStateDirectory(
+  root: string,
+  labId: string,
+  mode: 'legacy' | 'exclusive' = 'legacy',
+): Promise<string> {
   const directory = join(root, STATE_PARENT, labId);
   const ignored = Bun.spawnSync(['git', '-C', root, 'check-ignore', '-q', directory]);
   if (ignored.exitCode !== 0) {
@@ -483,7 +516,8 @@ export async function prepareStateDirectory(root: string, labId: string): Promis
     // `git add -A` would then commit cluster-admin kubeconfigs.
     throw new Error(`${directory} is not ignored by Git; refusing to write kubeconfigs there`);
   }
-  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await mkdir(join(root, STATE_PARENT), { recursive: true, mode: 0o700 });
+  await mkdir(directory, { recursive: mode === 'legacy', mode: 0o700 });
   await chmod(join(root, STATE_PARENT), 0o700);
   await chmod(directory, 0o700);
   return directory;
@@ -636,10 +670,19 @@ async function preparePlatformObjectStore(
     join(root, 'infra/versions/object-store.json'),
     toolchain.runtimeImages.objectStore,
   );
-  const archive = await buildObjectStore(root, lock);
+  const bound = dockerEnvironment.getStore();
+  const execute =
+    bound === undefined
+      ? undefined
+      : (command: readonly string[]) => {
+          if (command[0] === 'docker' && command[1] === 'buildx' && command[2] === 'create')
+            throw new Error('Strict lab requires an existing locked image builder');
+          return Bun.spawnSync([...command], { env: bound });
+        };
+  const archive = await buildObjectStore(root, lock, execute);
   for (const cluster of clusters) {
     for (const node of objectStoreNodes(cluster)) {
-      importObjectStore(archive, lock, cluster.name, node, tools.k3d);
+      importObjectStore(archive, lock, cluster.name, node, tools.k3d, execute);
     }
     if (cluster.role === 'platform') {
       const identity = await createBackupIdentity(join(dirname(cluster.kubeconfig), 'backup-tls'));
@@ -719,7 +762,11 @@ async function upLab(
   }
   if (request.worktreeRoot === undefined) throw new Error('k3d lab up requires --worktree-root');
   const worktreeRoot = await requireOwnedDirectory(request.worktreeRoot, 'Worktree root');
-  const state = await prepareStateDirectory(root, request.labId);
+  const state = await prepareStateDirectory(
+    root,
+    request.labId,
+    request.resourceEvidence === 'creation-v1' ? 'exclusive' : 'legacy',
+  );
   const solverRuntime =
     request.solverRuntime === undefined
       ? join(state, 'solver-runtime')
@@ -760,6 +807,117 @@ async function upLab(
   // negative observe one journal instead of two. Keep history outside runtime state.
   const attempts = join(root, STATE_PARENT, '.attempts', request.labId);
   await mkdir(attempts, { recursive: true, mode: 0o700 });
+  const strict = request.resourceEvidence === 'creation-v1';
+  const environment = dockerEnvironment.getStore();
+  const endpoint = environment?.['DOCKER_HOST'];
+  const plan: CreationPlan | undefined = strict
+    ? {
+        endpoint: type('string').assert(endpoint),
+        daemonId: (await run('docker', ['info', '--format', '{{.ID}}'])).trim(),
+        profile: request.profile,
+        network: names.network,
+        expected: [
+          { name: names.registry, image: registryImage, role: 'registry', temporary: false },
+          ...planned.flatMap((cluster) => [
+            {
+              name: `k3d-${cluster.name}-server-0`,
+              image: nodeImage,
+              role: 'server' as const,
+              temporary: false,
+            },
+            {
+              name: `k3d-${cluster.name}-serverlb`,
+              image: 'ghcr.io/k3d-io/k3d-proxy:5.9.0',
+              role: 'serverlb' as const,
+              temporary: false,
+            },
+            {
+              name: `k3d-${cluster.name}-tools`,
+              image: 'ghcr.io/k3d-io/k3d-tools:5.9.0',
+              role: 'tools' as const,
+              temporary: true,
+            },
+            ...(cluster.role === 'workers'
+              ? [0, 1].map((index) => ({
+                  name: `k3d-${cluster.name}-agent-${String(index)}`,
+                  image: nodeImage,
+                  role: 'agent' as const,
+                  temporary: false,
+                }))
+              : []),
+          ]),
+        ],
+        binds: [
+          { source: worktreeRoot, destination: '/srv/puni/worktrees' },
+          { source: solverRuntime, destination: '/run/puni/solver' },
+          {
+            source: type('string').assert(endpoint).slice('unix://'.length),
+            destination: type('string').assert(endpoint).slice('unix://'.length),
+          },
+        ],
+      }
+    : undefined;
+  const images: { name: string; id: string; volumes: string[] }[] = [];
+  if (strict) {
+    if (Object.keys(process.env).some((name) => name.startsWith('K3D_')))
+      throw new Error('Strict creation refuses k3d environment overrides');
+    for (const name of ['k3d', 'kubectl'] as const) {
+      const executable = Bun.which(tools[name]);
+      if (
+        executable === null ||
+        hashResource(await readFile(executable)) !== toolchain.binaries[name].sha256
+      )
+        // Proof: Removing the checksum guard let altered creator bytes reach direct creation; wrong-tool caller failed.
+        throw new Error('Strict lab tool checksum differs');
+    }
+    const containerNames = (await run('docker', ['ps', '--all', '--format', '{{.Names}}']))
+      .trim()
+      .split('\n');
+    const networkNames = (await run('docker', ['network', 'ls', '--format', '{{.Name}}']))
+      .trim()
+      .split('\n');
+    const volumeNames = (await run('docker', ['volume', 'ls', '--format', '{{.Name}}']))
+      .trim()
+      .split('\n');
+    if (
+      plan?.expected.some((expected) => containerNames.includes(expected.name)) ||
+      networkNames.includes(names.network) ||
+      planned.some((cluster) => volumeNames.includes(`k3d-${cluster.name}-images`))
+    )
+      // Proof: Removing collision refusal failed the reused-tools and reused-cache caller negatives.
+      throw new Error('Strict creation refuses existing namespace resources');
+    for (const expected of plan?.expected ?? []) {
+      const image = type({
+        id: /^sha256:[a-f0-9]{64}$/,
+        volumes: 'Record<string,unknown>|null',
+      }).assert(
+        JSON.parse(
+          await run('docker', [
+            'image',
+            'inspect',
+            expected.image,
+            '--format',
+            '{"id":{{json .Id}},"volumes":{{json (index .Config "Volumes")}}}',
+          ]),
+        ),
+      );
+      images.push({
+        name: expected.image,
+        id: image.id,
+        volumes: image.volumes === null ? [] : Object.keys(image.volumes),
+      });
+      if (expected.temporary && image.volumes !== null && Object.keys(image.volumes).length > 0)
+        // Proof: Removing this refusal accepted an anonymous tools store that pinned startup removes; temporary-anonymous failed.
+        throw new Error('Temporary tools image declares anonymous volumes that k3d would remove');
+    }
+    for (const cluster of planned) {
+      const config = type({ options: { k3d: 'Record<string,unknown>' } }).assert(
+        Bun.YAML.parse(await readFile(cluster.configPath, 'utf8')),
+      );
+      if (Object.keys(config.options.k3d).some((name) => /memory|disableImageVolume/i.test(name)))
+        throw new Error('Unsupported strict k3d resource configuration');
+    }
+  }
   const identity = {
     labId: request.labId,
     attemptId: randomUUID(),
@@ -770,103 +928,157 @@ async function upLab(
   try {
     const announcement = await executeCreationAttempt(attempts, identity, async () => {
       const started = Date.now();
-      await executeDirectCreation(attempts, identity, 'network', () =>
-        run('docker', [
-          'network',
-          'create',
-          '--label',
-          `${LAB_LABEL}=${request.labId}`,
-          names.network,
-        ]),
-      );
-      await executeDirectCreation(attempts, identity, 'registry', () =>
-        run('docker', [
-          'run',
-          '--detach',
-          '--name',
-          names.registry,
-          '--label',
-          `${LAB_LABEL}=${request.labId}`,
-          '--network',
-          names.network,
-          '--publish',
-          '127.0.0.1::5000',
-          '--restart',
-          'unless-stopped',
-          registryImage,
-        ]),
-      );
-      const published = await run('docker', ['port', names.registry]);
-      requireLoopbackPublished(names.registry, published);
-      const registryPort = Number(published.trim().split('\n')[0]?.split(':').at(-1));
-      if (!Number.isInteger(registryPort)) {
-        throw new Error(`Lab registry port is unreadable: ${published}`);
-      }
+      const witness =
+        plan === undefined
+          ? undefined
+          : await createResourceWitness(attempts, state, identity, plan, (arguments_) =>
+              run('docker', arguments_),
+            );
+      try {
+        if (witness !== undefined) {
+          await requireCapturedDaemon(plan?.daemonId ?? identity.daemonId, (arguments_) =>
+            run('docker', arguments_),
+          );
+          await appendResource(witness.path, 'inputs', {
+            schemaVersion: 1,
+            images,
+            configs: await Promise.all(
+              planned.map(async (cluster) => ({
+                name: cluster.name,
+                sha256: hashResource(await readFile(cluster.configPath)),
+              })),
+            ),
+            tools: {
+              k3d: toolchain.binaries.k3d.sha256,
+              kubectl: toolchain.binaries.kubectl.sha256,
+            },
+          });
+        }
+        const networkId = await executeDirectCreation(attempts, identity, 'network', () =>
+          run('docker', [
+            'network',
+            'create',
+            '--label',
+            `${LAB_LABEL}=${request.labId}`,
+            names.network,
+          ]),
+        );
+        if (witness !== undefined) {
+          await witness.acceptNetwork(networkId);
+          await requireCapturedDaemon(identity.daemonId, (arguments_) => run('docker', arguments_));
+        }
+        const registryId = await executeDirectCreation(attempts, identity, 'registry', () =>
+          run('docker', [
+            'run',
+            '--detach',
+            '--name',
+            names.registry,
+            '--label',
+            `${LAB_LABEL}=${request.labId}`,
+            '--network',
+            names.network,
+            '--publish',
+            '127.0.0.1::5000',
+            '--restart',
+            'unless-stopped',
+            registryImage,
+          ]),
+        );
+        if (witness !== undefined) await witness.acceptRegistry(registryId);
+        const published = await run('docker', ['port', names.registry]);
+        requireLoopbackPublished(names.registry, published);
+        const registryPort = Number(published.trim().split('\n')[0]?.split(':').at(-1));
+        if (!Number.isInteger(registryPort)) {
+          throw new Error(`Lab registry port is unreadable: ${published}`);
+        }
 
-      const clusters: K3dLabRecord['clusters'][number][] = [];
-      for (const { role, name, apiPort, configPath } of planned) {
-        // `platform`/`fleet` hand ingress on both clusters to the Flux-owned Traefik DaemonSet
-        // (`infra/platform/networking`); the bundled one would hold the same host ports.
-        const replaced = profile.flux
-          ? ['--k3s-arg', '--disable=traefik@server:*', '--k3s-arg', '--disable=servicelb@server:*']
-          : [];
-        // k3d edits $KUBECONFIG on create and delete; pointing it into the state directory keeps the
-        // user's default kubeconfig and current context untouched.
-        // Proof: the k3d-stage failure fixture removes its partial cluster unless --no-rollback
-        // is present; removing this flag made the real-up caller negative fail with ENOENT.
-        // Pinned v5.9.0 otherwise invokes ClusterDelete internally on ClusterRun failure.
-        await run(
-          tools.k3d,
-          ['cluster', 'create', '--no-rollback', '--config', configPath, ...replaced],
-          {
-            environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
-          },
-        );
-        requireLoopbackPublished(
-          `k3d-${name}-serverlb`,
-          await run('docker', ['port', `k3d-${name}-serverlb`]),
-        );
-        const kubeconfig = join(state, `${name}.kubeconfig`);
-        await writeFile(kubeconfig, await run(tools.k3d, ['kubeconfig', 'get', name]), {
+        const clusters: K3dLabRecord['clusters'][number][] = [];
+        for (const { role, name, apiPort, configPath } of planned) {
+          // `platform`/`fleet` hand ingress on both clusters to the Flux-owned Traefik DaemonSet
+          // (`infra/platform/networking`); the bundled one would hold the same host ports.
+          const replaced = profile.flux
+            ? [
+                '--k3s-arg',
+                '--disable=traefik@server:*',
+                '--k3s-arg',
+                '--disable=servicelb@server:*',
+              ]
+            : [];
+          // k3d edits $KUBECONFIG on create and delete; pointing it into the state directory keeps the
+          // user's default kubeconfig and current context untouched.
+          // Proof: the k3d-stage failure fixture removes its partial cluster unless --no-rollback
+          // is present; removing this flag made the real-up caller negative fail with ENOENT.
+          // Pinned v5.9.0 otherwise invokes ClusterDelete internally on ClusterRun failure.
+          const arguments_ = [
+            'cluster',
+            'create',
+            '--no-rollback',
+            '--config',
+            configPath,
+            ...replaced,
+          ];
+          const creationEnvironment = { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') };
+          if (witness === undefined)
+            await run(tools.k3d, arguments_, { environment: creationEnvironment });
+          else
+            await witness.capture(
+              [tools.k3d, ...arguments_, '--verbose'],
+              plan?.expected
+                .filter((expected) => expected.name.startsWith(`k3d-${name}-`))
+                .map((expected) => expected.name) ?? [],
+              creationEnvironment,
+            );
+          requireLoopbackPublished(
+            `k3d-${name}-serverlb`,
+            await run('docker', ['port', `k3d-${name}-serverlb`]),
+          );
+          const kubeconfig = join(state, `${name}.kubeconfig`);
+          await writeFile(kubeconfig, await run(tools.k3d, ['kubeconfig', 'get', name]), {
+            mode: 0o600,
+          });
+          clusters.push({
+            name,
+            role,
+            clusterId: `${role}-local`,
+            context: `k3d-${name}`,
+            kubeconfig,
+            apiPort,
+          });
+        }
+        await bootstrapLab(root, tools, request.labId, clusters, profile.flux);
+        const record: K3dLabRecord = {
+          schemaVersion: 1,
+          labId: request.labId,
+          profile: request.profile,
+          network: names.network,
+          registry: { host: names.registry, hostPort: registryPort },
+          httpPort,
+          worktreeRoot,
+          worktreeRootIdentity: await directoryIdentity(worktreeRoot),
+          solverRuntime,
+          clusters,
+        };
+        if (witness !== undefined) await witness.close();
+        await writeFile(join(state, 'lab.json'), `${JSON.stringify(record, null, 2)}\n`, {
           mode: 0o600,
         });
-        clusters.push({
-          name,
-          role,
-          clusterId: `${role}-local`,
-          context: `k3d-${name}`,
-          kubeconfig,
-          apiPort,
-        });
+        return [
+          `k3d lab ${request.labId} (${request.profile}) up in ${String(Math.round((Date.now() - started) / 1000))}s`,
+          ...clusters.map(
+            (cluster) =>
+              `  ${cluster.role}: kubectl --kubeconfig ${cluster.kubeconfig} --context ${cluster.context} get nodes`,
+          ),
+          `  registry: 127.0.0.1:${String(registryPort)} (in cluster ${names.registry}:5000)`,
+          `  ingress: http://<slug>.localhost:${String(httpPort)}/ (loopback only)`,
+          ...(profile.flux
+            ? [
+                '  Flux is installed; reconcile the platform graph as docs/infra/local.md describes.',
+              ]
+            : []),
+        ].join('\n');
+      } finally {
+        if (witness !== undefined) await witness.stop();
       }
-      await bootstrapLab(root, tools, request.labId, clusters, profile.flux);
-      const record: K3dLabRecord = {
-        schemaVersion: 1,
-        labId: request.labId,
-        profile: request.profile,
-        network: names.network,
-        registry: { host: names.registry, hostPort: registryPort },
-        httpPort,
-        worktreeRoot,
-        worktreeRootIdentity: await directoryIdentity(worktreeRoot),
-        solverRuntime,
-        clusters,
-      };
-      await writeFile(join(state, 'lab.json'), `${JSON.stringify(record, null, 2)}\n`, {
-        mode: 0o600,
-      });
-      return [
-        `k3d lab ${request.labId} (${request.profile}) up in ${String(Math.round((Date.now() - started) / 1000))}s`,
-        ...clusters.map(
-          (cluster) =>
-            `  ${cluster.role}: kubectl --kubeconfig ${cluster.kubeconfig} --context ${cluster.context} get nodes`,
-        ),
-        `  registry: 127.0.0.1:${String(registryPort)} (in cluster ${names.registry}:5000)`,
-        `  ingress: http://<slug>.localhost:${String(httpPort)}/ (loopback only)`,
-        ...(profile.flux
-          ? ['  Flux is installed; reconcile the platform graph as docs/infra/local.md describes.']
-          : []),
-      ].join('\n');
     });
     console.log(announcement);
   } catch (cause) {
@@ -880,6 +1092,48 @@ async function upLab(
 }
 
 async function downLab(root: string, request: K3dLabRequest, tools: LabTools): Promise<void> {
+  if (request.resourceEvidence === 'creation-v1') {
+    const state = join(root, STATE_PARENT, request.labId);
+    const attempts = join(root, STATE_PARENT, '.attempts', request.labId);
+    const evidence = await readLabCreationResources(
+      attempts,
+      state,
+      request.labId,
+      request.profile,
+    );
+    const endpoint = dockerEnvironment.getStore()?.['DOCKER_HOST'];
+    if (endpoint === undefined) throw new Error('Captured Docker endpoint missing');
+    const docker = (arguments_: readonly string[]) => run('docker', arguments_);
+    await inspectResourceTeardown(evidence, endpoint, docker);
+    await appendResource(state, 'creation-teardown', {
+      schemaVersion: 1,
+      state: 'removing',
+      containerIds: evidence.containers.map((container) => container.id),
+      networkId: evidence.closure.network.id,
+    });
+    for (const container of evidence.containers) {
+      await requireCapturedDaemon(evidence.binding.daemonId, docker);
+      const stopped = await stopRecordedContainer(container.id, docker);
+      await appendResource(state, `stopped-${container.id}`, {
+        schemaVersion: 1,
+        id: container.id,
+        ...stopped,
+      });
+      // Proof: Injecting --volumes failed the successful existing-runner teardown control at the Docker boundary.
+      await run('docker', ['rm', container.id], { timeoutMs: 30_000 });
+    }
+    await requireCapturedDaemon(evidence.binding.daemonId, docker);
+    await docker(['network', 'rm', evidence.closure.network.id]);
+    await appendResource(state, 'creation-removed', {
+      schemaVersion: 1,
+      state: 'removed',
+      retainedVolumes: evidence.volumes.map((volume) => volume.name),
+    });
+    console.log(
+      `k3d lab ${request.labId}: removed recorded containers/network; retained ${String(evidence.volumes.length)} volumes and all private evidence`,
+    );
+    return;
+  }
   const resources = await listLabResources(request.labId);
   const teardown = planK3dLabDown(
     request.labId,
@@ -953,6 +1207,21 @@ export async function runLab(
     return;
   }
   const request = parseK3dLabRequest(arguments_);
+  if (request.resourceEvidence === 'creation-v1' && dockerEnvironment.getStore() === undefined) {
+    const endpoint = await captureDockerEndpoint((arguments_) => run('docker', arguments_));
+    await dockerEnvironment.run(bindDockerEnvironment(endpoint, process.env), () =>
+      executeLabRequest(request, root, readCapacity),
+    );
+    return;
+  }
+  await executeLabRequest(request, root, readCapacity);
+}
+
+async function executeLabRequest(
+  request: K3dLabRequest,
+  root: string,
+  readCapacity: () => Promise<HostCapacity>,
+): Promise<void> {
   const tools = await requireLabTools(root);
   switch (request.action) {
     case 'up':
