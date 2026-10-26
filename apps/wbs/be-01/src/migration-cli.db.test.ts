@@ -1237,6 +1237,7 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022211000_add_external_dependencies' &&
           name !== '20261022212000_add_cross_project_dependency_activation' &&
           name !== '20261022213000_add_optimization_boundary_certificates' &&
+          name !== '20261022121000_add_runtime_commands' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
           name !== '20261022140000_add_resource_provider' &&
@@ -1312,6 +1313,7 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022211000_add_external_dependencies' &&
           name !== '20261022212000_add_cross_project_dependency_activation' &&
           name !== '20261022213000_add_optimization_boundary_certificates' &&
+          name !== '20261022121000_add_runtime_commands' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
           name !== '20261022140000_add_resource_provider' &&

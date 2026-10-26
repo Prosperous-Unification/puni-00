@@ -259,6 +259,7 @@ describe('20260905090000_add_calendar_marker', () => {
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
+      '20261022121000_add_runtime_commands',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -335,6 +336,10 @@ describe('20260905090000_add_calendar_marker', () => {
           n !== 'organization_trusted_issuer' &&
           n !== 'machine_credential' &&
           n !== 'machine_credential_secret' &&
+          n !== 'runtime_ledger' &&
+          n !== 'runtime_authority' &&
+          n !== 'runtime_claim_binding' &&
+          n !== 'runtime_command_receipt' &&
           n !== 'organization_limits' &&
           n !== 'measure' &&
           n !== 'measure_estimate' &&

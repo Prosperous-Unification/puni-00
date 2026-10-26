@@ -16,7 +16,7 @@ import { DiBagDisposalError } from 'di-bag';
 import { errors, exportPKCS8, exportSPKI, generateKeyPair, SignJWT } from 'jose';
 
 import { buildApp } from './app';
-import { bootBe01, type RunningBe } from './boot';
+import { bootBe01 as bootBackend, type RunningBe } from './boot';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { openDatabase, openDrizzle } from './repository/db';
 import type { WriteCoordinator } from './repository/gate';
@@ -37,6 +37,19 @@ interface HealthAnswer {
   status: string;
   commit: string | null;
 }
+
+/** Binds this fixture's owned loopback socket while preserving in-process listener injection. */
+const bootBe01: typeof bootBackend = (options, dependencies) => {
+  const supplied = dependencies ?? { openSource: openSqliteSource };
+  return bootBackend(options, {
+    ...supplied,
+    startListener:
+      supplied.startListener ??
+      ((app, port, ready) => {
+        app.listen({ hostname: '127.0.0.1', port }, ready);
+      }),
+  });
+};
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 
@@ -265,7 +278,12 @@ function reasons(failure: unknown): string {
 
 /** A port held by an exclusive listener, which is what makes a bind failure reachable. */
 function heldPort(): { port: number; release: () => Promise<void> } {
-  const held = Bun.serve({ port: 0, reusePort: false, fetch: () => new Response('held') });
+  const held = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    reusePort: false,
+    fetch: () => new Response('held'),
+  });
   const port = held.port;
   if (port === undefined) throw new Error('Bun.serve reported no port to hold');
   return { port, release: () => held.stop(true) };
@@ -286,7 +304,7 @@ async function freePort(): Promise<number> {
  */
 async function refuses(port: number): Promise<boolean> {
   try {
-    await fetch(`http://localhost:${String(port)}/health`, { signal: AbortSignal.timeout(2_000) });
+    await fetch(`http://127.0.0.1:${String(port)}/health`, { signal: AbortSignal.timeout(2_000) });
     return false;
   } catch (failure) {
     // Bun 1.4.4 renamed fetch's refusal code from `ConnectionRefused` to Node's
@@ -468,7 +486,7 @@ describe('bootBe01', () => {
     });
     let health: Response | undefined;
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      health = await fetch(`http://localhost:${String(running.port)}/health`);
+      health = await fetch(`http://127.0.0.1:${String(running.port)}/health`);
       if (health.status === 200) break;
       await Bun.sleep(10);
     }
@@ -508,7 +526,7 @@ describe('bootBe01', () => {
     });
     let health: Response | undefined;
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      health = await fetch(`http://localhost:${String(running.port)}/health`);
+      health = await fetch(`http://127.0.0.1:${String(running.port)}/health`);
       if (health.status === 200) break;
       await Bun.sleep(10);
     }
@@ -540,7 +558,7 @@ describe('bootBe01', () => {
     });
     let health: Response | undefined;
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      health = await fetch(`http://localhost:${String(running.port)}/health`);
+      health = await fetch(`http://127.0.0.1:${String(running.port)}/health`);
       if (health.status === 200) break;
       await Bun.sleep(10);
     }
@@ -582,7 +600,7 @@ describe('bootBe01', () => {
         },
       },
     );
-    const projects = `http://localhost:${String(running.port)}/api/projects`;
+    const projects = `http://127.0.0.1:${String(running.port)}/api/projects`;
     let listed: Response | undefined;
     for (let attempt = 0; attempt < 50; attempt += 1) {
       listed = await fetch(projects);
@@ -619,7 +637,7 @@ describe('bootBe01', () => {
     ).toEqual({ ok: false, refusal: 'no_active_organization' });
 
     for (const path of ['/api/projects', '/api/tags', '/api/people']) {
-      const refused = await fetch(`http://localhost:${String(running.port)}${path}`);
+      const refused = await fetch(`http://127.0.0.1:${String(running.port)}${path}`);
 
       expect({ path, status: refused.status, body: (await refused.json()) as unknown }).toEqual({
         path,
@@ -1036,7 +1054,7 @@ describe('bootBe01', () => {
     );
     expect(releases.every((release) => release !== null)).toBe(true);
 
-    const response = await fetch(`http://localhost:${String(be.port)}/api/auth/login`, {
+    const response = await fetch(`http://127.0.0.1:${String(be.port)}/api/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
       body: JSON.stringify({ username: 'somebody', password: 'password' }),
@@ -1120,7 +1138,7 @@ describe('bootBe01', () => {
     } finally {
       // Boot does not own this listener and must not have stopped it. Read
       // before the release, so the answer is about a port that is still taken.
-      heldStatus = (await fetch(`http://localhost:${String(held.port)}/health`)).status;
+      heldStatus = (await fetch(`http://127.0.0.1:${String(held.port)}/health`)).status;
       await held.release();
     }
 
@@ -1306,6 +1324,7 @@ describe('bootBe01', () => {
 
   it('does not mistake a stalled listener for a closed one', async () => {
     const stalled = Bun.serve({
+      hostname: '127.0.0.1',
       port: 0,
       reusePort: false,
       fetch: () => new Promise<Response>(() => undefined),
@@ -1362,7 +1381,7 @@ describe('bootBe01', () => {
       },
     });
     running = be;
-    expect((await fetch(`http://localhost:${String(port)}/health`)).status).toBe(200);
+    expect((await fetch(`http://127.0.0.1:${String(port)}/health`)).status).toBe(200);
 
     await be.stop();
     running = null;
@@ -1405,7 +1424,7 @@ describe('bootBe01', () => {
   it('serves health on the port it bound', async () => {
     const be = await boot();
 
-    const res = await fetch(`http://localhost:${String(be.port)}/health`);
+    const res = await fetch(`http://127.0.0.1:${String(be.port)}/health`);
 
     expect(res.status).toBe(200);
     expect((await res.json()) as HealthAnswer).toEqual({ status: 'ok', commit: null });
@@ -1425,14 +1444,14 @@ describe('bootBe01', () => {
     writeFileSync(join(repo, '.git', 'refs', 'heads', 'main'), sha + '\n');
     const be = await boot(repo);
 
-    const first = await fetch(`http://localhost:${String(be.port)}/health`);
+    const first = await fetch(`http://127.0.0.1:${String(be.port)}/health`);
     expect((await first.json()) as HealthAnswer).toEqual({ status: 'ok', commit: sha });
 
     // The deploy this exists for moves the checkout under a process that is
     // never restarted, so the second read has to see the move.
     const moved = 'd'.repeat(39) + '4';
     writeFileSync(join(repo, '.git', 'refs', 'heads', 'main'), moved + '\n');
-    const second = await fetch(`http://localhost:${String(be.port)}/health`);
+    const second = await fetch(`http://127.0.0.1:${String(be.port)}/health`);
     expect((await second.json()) as HealthAnswer).toEqual({ status: 'ok', commit: moved });
   });
 
@@ -1514,7 +1533,7 @@ describe('bootBe01', () => {
 
     // An empty batch: `execute` takes the lock before it looks at the commands
     // at all, so nothing else needs to exist for this route to queue on it.
-    const batch = fetch(`http://localhost:${String(be.port)}/api/directory/commands`, {
+    const batch = fetch(`http://127.0.0.1:${String(be.port)}/api/directory/commands`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ commands: [] }),
@@ -1546,14 +1565,14 @@ describe('bootBe01', () => {
       username: 'local-dev',
       scopes: ['read', 'write'],
     });
-    const created = await fetch(`http://localhost:${String(be.port)}/api/projects`, {
+    const created = await fetch(`http://127.0.0.1:${String(be.port)}/api/projects`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
       body: JSON.stringify({ name: 'Resumed' }),
     });
     const projectId = ((await created.json()) as { project: { id: string } }).project.id;
 
-    const res = await fetch(`http://localhost:${String(be.port)}/internal/resume`, {
+    const res = await fetch(`http://127.0.0.1:${String(be.port)}/internal/resume`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-internal-auth': 's'.repeat(32) },
       body: JSON.stringify({
@@ -1574,7 +1593,7 @@ describe('bootBe01', () => {
 describe('OIDC boot wiring', () => {
   it('mounts the configured browser login route', async () => {
     const be = await boot(undefined, oidcOptions(true));
-    const res = await fetch(`http://localhost:${String(be.port)}/api/auth/login`, {
+    const res = await fetch(`http://127.0.0.1:${String(be.port)}/api/auth/login`, {
       redirect: 'manual',
     });
     expect(res.status).toBe(302);
@@ -1585,7 +1604,7 @@ describe('OIDC boot wiring', () => {
     const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
     if (!registered.ok) throw new Error('password fixture was not registered');
 
-    const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
+    const me = await fetch(`http://127.0.0.1:${String(be.port)}/api/auth/me`, {
       headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
     });
 
@@ -1597,7 +1616,7 @@ describe('OIDC boot wiring', () => {
     const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
     if (!registered.ok) throw new Error('password fixture was not registered');
 
-    const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
+    const me = await fetch(`http://127.0.0.1:${String(be.port)}/api/auth/me`, {
       headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
     });
 
@@ -1626,10 +1645,10 @@ describe('a native session under a verifier outage', () => {
     // answered 500 for both carriers; watched 2026-10-24.
     it(`answers ${route} 200 by cookie and by Bearer with password login on`, async () => {
       const { port, token } = await bootWithOutage(true);
-      const byCookie = await fetch(`http://localhost:${String(port)}${route}`, {
+      const byCookie = await fetch(`http://127.0.0.1:${String(port)}${route}`, {
         headers: { cookie: `__Host-wbs_access=${token}` },
       });
-      const byBearer = await fetch(`http://localhost:${String(port)}${route}`, {
+      const byBearer = await fetch(`http://127.0.0.1:${String(port)}${route}`, {
         headers: { authorization: `Bearer ${token}` },
       });
       expect([byCookie.status, byBearer.status]).toEqual([200, 200]);
@@ -1638,7 +1657,7 @@ describe('a native session under a verifier outage', () => {
 
   it('answers 500 with password login off', async () => {
     const { port, token } = await bootWithOutage(false);
-    const me = await fetch(`http://localhost:${String(port)}/api/people`, {
+    const me = await fetch(`http://127.0.0.1:${String(port)}/api/people`, {
       headers: { cookie: `__Host-wbs_access=${token}` },
     });
     expect(me.status).toBe(500);
@@ -1655,7 +1674,7 @@ describe('a native session under a verifier outage', () => {
       .sign(privateKey);
     const statuses = [];
     for (const route of ['/api/auth/me', '/api/people']) {
-      const answer = await fetch(`http://localhost:${String(port)}${route}`, {
+      const answer = await fetch(`http://127.0.0.1:${String(port)}${route}`, {
         headers: { authorization: `Bearer ${upstream}` },
       });
       statuses.push(answer.status);

@@ -69,65 +69,43 @@ recovery and delivery order; other product assumptions remain proposed.
 Everything new is Twilight Dash's: it takes time, holds credentials and changes the world.
 The one static piece, the binding's schema and validator, is Burokrat's.
 
-| Unit                                                      | Responsibility                                                                                                                          |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `twilight-burokrat/cli/src/contracts/workflow-binding.ts` | ArkType schema of the binding; `twib validate workflow-binding <file> --steps <codes>`                                                  |
-| `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port, the five adapters, the provider registry, the fakes                                                            |
-| `twilight-dash/cli/src/bridge/`                           | WBS HTTP client over `@wbs/contracts` shapes under a machine credential (pinned to the coordinator's agent person); every refusal typed |
-| `twilight-dash/cli/src/runs/`                             | the reconcile loop over the bridge, attempt states read from WBS, the interpreter, `run-coordinator` and `inspect-runs` commands        |
-| `.twilight/workflows.yaml`                                | puni-00's own binding                                                                                                                   |
+| Unit                                                      | Responsibility                                                                                                                        |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `twilight-burokrat/cli/src/contracts/workflow-binding.ts` | ArkType schema of the binding; `twib validate workflow-binding <file> --steps <codes>`                                                |
+| `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port and adapters consuming injected model/tool capabilities                                                       |
+| `twilight-dash/cli/src/bridge/`                           | WBS HTTP client over `@wbs/contracts` shapes under a machine credential pinned to the coordinator's agent person; every refusal typed |
+| `twilight-dash/cli/src/runs/`                             | RunStore/ArtifactStore ports and adapters, attempt states, the interpreter, `run-coordinator` and `inspect-runs` commands             |
+| `.twilight/workflows.yaml`                                | puni-00's own binding                                                                                                                 |
 
 Dash does not import WBS app internals; the shared contracts package is the boundary, as
 `twin` already does with the export.
 
 ## The port
 
-```ts
-type ExecutorKind = 'api-model' | 'cli-harness' | 'acp' | 'tool' | 'human';
+[Executor design](executor-design.md) is the authoritative ActivityExecutor contract;
+[executor tasks](executor-tasks.md) deliver the shared port and first API-model adapter.
+The port distinguishes preparation, real adapter sessions, immutable turn identities,
+completed and uncertain outcomes, and honest recovery capabilities. Its stream is the
+installed AI SDK UIMessageChunk. Unknown usage causes the later coordinator to omit
+measurement: an absent measure stays absent and an earlier measured value remains intact.
 
-interface ActivityExecutor {
-  readonly kind: ExecutorKind;
-  /** Opens the adapter's session for one attempt; the returned id is the attempt's agent run. */
-  open(attempt: AttemptContext): Promise<ActivitySession>;
-  /** One prompt in, AI SDK UI message parts out as they arrive, then the turn's outcome. */
-  turn(
-    session: ActivitySession,
-    prompt: string,
-    onPart: (part: UIMessageChunk) => void,
-  ): Promise<TurnOutcome>;
-  close(session: ActivitySession): Promise<void>;
-}
+The API-model adapter uses a caller-injected SDK model registry and selected tool
+capabilities, retained prompt text and the real ToolLoopAgent. Provider construction,
+credentials, execution/spending authority and durable host integration are separate.
+Its process-local conversations and exact-retry cache do not advertise backend recovery.
+The other adapters remain planned:
 
-type Usage =
-  | { kind: 'measured'; inputTokens: number; outputTokens: number }
-  | { kind: 'unknown'; reason: 'acp-v1-no-usage' | 'tool' | 'human' };
-
-interface TurnOutcome {
-  text: string;
-  usage: Usage;
-  finish: 'end_turn' | 'max_steps' | 'refused' | 'cancelled';
-}
-```
-
-The stream shape is the AI SDK's `UIMessageChunk`, which the website front end already
-consumes. `Usage.unknown` is the one modelled degradation: ACP v1 exposes no per-step usage,
-so `token_actual` for such an attempt is written as absent, never as zero, and the Board
-shows it as unknown.
-
-Adapters:
-
-- **api-model**: `createProviderRegistry` over `@ai-sdk/anthropic`, `@ai-sdk/openai` and
-  `@openrouter/ai-sdk-provider` with model ids of the form `provider:model`; `Agent` with
-  `stopWhen`; optional `@ai-sdk/code-mode` routing per activity class after spike 0.2.
-- **cli-harness**: `HarnessAgent` with `@ai-sdk/harness-claude-code` or
-  `@ai-sdk/harness-codex`, permission mode from the binding, sandbox from A7.
-- **acp**: the prototype's client, kept for its permission seam and `session/load` replay;
-  `@ai-sdk/harness-acp` is not used until it exposes both.
-- **tool**: a registered command (`twin`, `twib`, `bin/h2puni-gate.sh`, the merge) with
-  argv built from the attempt, exit code and captured output as the outcome.
-- **human**: writes `waiting_for_person`, holds the claim, and resumes on an operator command.
+- **cli-harness**: HarnessAgent with Claude Code or Codex, permission mode from binding
+  and sandbox from A7.
+- **acp**: the existing client permission seam and session/load replay; harness-acp
+  remains deferred until it exposes both.
+- **tool**: a registered command with attempt-derived argv and recorded exit/output.
+- **human**: a durable waiting_for_person state and an operator continuation.
 
 ## Workflow binding
+
+The following complete mapping is illustrative, not a repository default or a claim that
+its model names are available. Validation requires the referenced prompt files.
 
 ```yaml
 version: 1
@@ -150,15 +128,32 @@ classes:
     harness: claude-code
     permissionMode: allow-edits
     prompt: .twilight/prompts/impl.md
+  review:
+    executor: api-model
+    model: anthropic:claude-opus-5-5
+    prompt: .twilight/prompts/review.md
+    tools: [wbs-read]
+    limits: { maxSteps: 20, maxOutputTokens: 16000 }
   verify:
     executor: tool
     command: bin/h2puni-gate.sh
+  integrate:
+    executor: human
+    prompt: .twilight/prompts/integrate.md
 ```
 
-Burokrat validates shape, pinned model ids (a bare `claude-...` is refused), known executor
-kinds, prompt files present, and step codes against the list the caller passes from the WBS
-export. A work item type with no entry falls back to `default`; a step code with no entry is
-refused at validation, not at run time.
+Every declared type mapping must cover exactly the supplied project-step set. A requested
+type with no entry selects the complete `default` mapping if present; an explicit type
+never inherits missing steps from `default`. Unknown or missing mapped steps refuse
+validation. Without an explicit type or default, selection refuses `unmapped_type`.
+
+The `integrate` class here models only a human decision wait. It does not implement A6's
+subsequent guarded merge; that composition remains unresolved before repository defaults
+and runtime integration. Binding acceptance establishes static settings and referenced-byte
+consistency, not approval or budget authority. Parent 1.1–1.2 does not complete WBS I1's
+governance remainder. See [binding design](binding-design.md) and
+[binding tasks](binding-tasks.md) for this validator packet. The five activity classes here
+need not map one-to-one onto all five executor kinds; contract fixtures cover every kind.
 
 ## WBS run bridge
 
@@ -171,33 +166,50 @@ pinned revision (today including `not_startable`, `item_done`, `step_done`, `cla
 `resources_exhausted`; `budget_exhausted` once `wbs-measure-budgets` lands) is a typed outcome
 the interpreter decides on; an unlisted code throws.
 
+Each Dash attempt corresponds one-to-one with a WBS step-node Attempt; this remains a deferred host integration requirement. Runtime attempt IDs and WBS numeric business attempt numbers are distinct; the receiver packet adds no business start/end commands. The retry claim protocol remains [ADR0058](../../../docs/adr/0058-wbs-owns-runtime-fences.md): continuation keeps the exact claim, while a genuinely new execution attempt requires predecessor reconciliation and a new exact claim.
+
 ## Run coordination
 
-### WBS is the ledger (G2, settled 2026-10-25)
+The project owner selected durable execution records with receipt-based reconciliation on 2026-10-25 after comparing both recovery models. [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) records G2 and its limits. The owner's subsequent 2026-10-25 instruction authorizes commit, push and merge after required evidence, review and release checks, superseding the earlier architectural publication hold. Implementation, recovery proofs and release gates remain separate acceptance work.
 
-_Dany, 2026-10-25: "answer A, all info in WBS"._ The coordinator is a reconcile loop, level
-triggered like a Kubernetes controller: every tick, and every restart, rebuilds the walk from
-WBS (step graph, progress, claims, attempts) and admits up to the cap. Nothing about the walk
-is persisted outside WBS; the coordinator holds no journal. The 2026-10-21 "Accepted
-boundaries" text (semantic `RunStore` and `ArtifactStore` ports, an outbox between WBS and a
-run store, receipt replay) is withdrawn: it treated WBS as a foreign system to reconcile
-against, and WBS is ours. Each job it gave the run store maps onto WBS:
+### Accepted boundaries
 
-| Run-store job                        | WBS                                                                                                                             |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| admission intent before launch       | `claimWorkItem` and `startAttempt` in one command batch under the machine credential, with the claim lease of `wbs-team-claims` |
-| receipts of what happened            | `endAttempt` (outcome, note, reference), `setProgress`, `setMeasure`, the event log                                             |
-| capacity reservation                 | the claim limit, `wbs-resources` leases and `wbs-measure-budgets` holds, each refused inside the write                          |
-| run history                          | project history and the attempt list                                                                                            |
-| worker or session locators           | the attempt's `reference` (URL or label) and `note`                                                                             |
-| artifacts (logs, diffs, transcripts) | a later WBS attachment table or a plain file store keyed by attempt, not a database of its own                                  |
-| human waits and decisions            | a later WBS inbox on the attempt; until then the prompt and correlation key sit on the running attempt                          |
+The earlier WBS-only G2 direction restored by PR 749 is superseded by ADR 0061's later
+selection. WBS remains the scheduling and business ledger; retaining execution evidence
+does not create a second authoritative plan. The coordinator reconciles current WBS facts
+with accepted execution facts on each tick and restart, without persisting a CTT walk.
 
-What survives of the withdrawn text, restated against WBS: guarded idempotent writes (every
-command names the exact claim and attempt it acts on and WBS refuses a stale one), recovery
-by inspecting surviving workers before replacing them, `unresolved` as an explicit operator
-outcome, and fencing by WBS claim ownership rather than a local owner generation. #660's
-receipt-replay runtime is not the foundation; its resume task (eeb8e50a 010.11) carries this.
+| Facts                                                                                                                                                                 | Authority or retention                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Step topology, eligibility, claims, business attempts, progress and measures                                                                                          | WBS business APIs                                            |
+| Runtime generations, immutable execution/claim bindings and accepted command receipts                                                                                 | Conditional WBS receiver                                     |
+| Immutable binding manifests, admission/preparation and turn intents, session/worker locators, outcomes, outgoing WBS intents and retained receipt/artifact references | RunStore semantic port                                       |
+| Immutable prompt/tool-policy bytes, logs, diffs, transcripts and evidence bytes                                                                                       | ArtifactStore semantic port, referenced by execution records |
+
+WBS project history and business attempt notes/references remain business records; they do
+not replace complete executor locators or exact command acceptance evidence. Runtime
+attempt/session identity remains distinct from WBS numeric business attempt ordinals, and
+the receiver adds no `startAttempt` or `endAttempt` command.
+
+The coordinator depends on semantic `RunStore` and `ArtifactStore` ports, and on the WBS
+HTTP bridge. WBS's WorkflowRepository remains behind WBS's own API. SQLite is the current
+adapter choice, not part of the core contract: any store satisfying atomicity, revision,
+uniqueness, fencing, consistent-read and recovery requirements can implement the ports.
+SQL, SQLite `user_version`, connection handles and provider migration details stay inside
+adapters. Memory is a test provider, not proof of durability. A second durable adapter runs
+the same conformance suite before interchangeability is claimed.
+
+RunStore operations atomically admit an attempt with capacity/identity/owner checks, store
+immutable binding manifests, commit outcomes with outgoing WBS intents, and deduplicate
+incoming decisions and command receipts. ArtifactStore stores immutable content with
+integrity and retention metadata; verify uploads before committing an outcome reference.
+Version portable records independently of each adapter's physical schema. WBS and RunStore
+are separate commits: use an outbox and guarded idempotent writes/read-back reconciliation,
+not a distributed exactly-once promise. Store names or filesystem paths in CLI configuration
+select adapters; the core does not require a database file.
+
+The first persistence packet is specified in [S0 storage foundation](storage-design.md),
+with its ordered implementation slices in [storage tasks](storage-tasks.md).
 
 ### One hints API
 
@@ -218,32 +230,34 @@ turn completion alone never advances business progress.
 
 ### Admission and recovery
 
-Admission is one WBS command batch: claim the step and start the attempt (the lease and the
-budget hold are refused inside that write) before any external call; the attempt's
-`reference` carries the session or worker locator as soon as it is known. An outcome is one
-WBS command batch too: `endAttempt`, `setProgress`, `setMeasure`. If the agent finished but
-that batch has not landed, the attempt is still running in WBS and the next tick retries the
-write from the executor's answer; it must not run the activity again.
+Persist admission/launch intent before external calls. Reserve capacity atomically, acquire
+the exact WBS claim, persist session/worker locators, validate outputs, then atomically save
+the outcome and outgoing progress intent. Deliver that intent idempotently and confirm its
+WBS receipt before releasing successors. `outcome_pending_progress` preserves the
+result while the WBS update is retried; it must not cause the activity to run again.
 
-On startup there is nothing to replay. The first tick reads the running attempts from WBS,
-locates surviving workers or sessions by the attempt's reference and reattaches when safe;
-otherwise it cancels or quiesces and confirms termination before replacement. A coordinator
-dying is not proof that an agent died. Unknown worker or effect state is an explicit
-`unresolved` outcome for operator reconciliation, never automatic retry. The claim stays held
-while physical work may survive. Completion and release name the exact claim and attempt, and
-WBS enforces that (`wbs-team-claims`); there is no local fencing to keep in step.
+On startup, obtain/fence valid ownership before changing attempt state. Inventory running
+attempts and locate surviving workers/sessions and their effects by operation identity.
+Reattach when safe; otherwise cancel/quiesce and confirm termination before replacement.
+A coordinator dying is not proof that an agent died. Unknown worker/effect state is an
+explicit `unresolved` outcome for operator reconciliation, never automatic retry. Keep
+capacity reserved while physical work may survive. Completion/release checks exact
+claim/run/attempt authority; local fencing cannot promise protection against an external
+system that does not enforce it.
 
-Attempt state is WBS's attempt (running, then succeeded, failed or cancelled). Waiting for a
-person, unresolved and finished-pending-write are derived each tick from the attempt's note
-and the executor's answer, never stored as a second state machine. An attempt is ended
-`cancelled` only after recovery establishes that the worker is gone. A retry is the next
-attempt number on the same step node within the budget hold. A human wait keeps its prompt
-and correlation key on the attempt; a decision delivered twice is consumed once by that key;
-capacity is released only when the attempt ends. WBS business progress stays authoritative.
+Attempt state distinguishes queued, running, waiting-for-person, reconciling, interrupted,
+outcome-pending-progress, unresolved and terminal outcomes. An attempt becomes
+interrupted only after recovery establishes that safe interpretation. A retry creates a new
+attempt ordinal within the persisted budget while retaining the logical operation key.
+Human waits persist prompts/correlation keys and use an authorized deduplicated inbox;
+release running capacity only after work settles. WBS business progress stays authoritative.
 
 Budget admission is WBS's (`wbs-measure-budgets` D68): the claim or attempt start takes the
 spend hold inside the write and refuses `budget_exhausted`; the coordinator never admits from
-a headroom read.
+a headroom read. Local execution capacity is separately reserved in RunStore across its
+runs; WBS claim limits, resource leases and budget holds do not replace that reservation.
+Local ownership epochs and receiver-minted generations remain independent fences, and
+neither proves worker quiescence or releases an immutable claim on takeover.
 
 ### Binding pinning and repair
 
@@ -267,7 +281,10 @@ follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already
 
 The shared planning project is
 [Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
-CTT 0.11.0 is published (2026-10-23): completed-work seeds, `DEFER_READY`, `settle` and the id-keyed `summary()` landed in 0.9, `resolvePrerequisite`, `dependsOnComplete` and native ESM in 0.10; verified under Bun 1.4.2/1.4.4 and Node 24. Pin it exactly. CTT owns no durable journal, storage provider or agent SDK.
+Current main targets CTT0.11.0: unified completed-work seeds, DEFER_READY, settle and ID-keyed summary, with prerequisite resolution and native ESM. Exact dependency acquisition and compatibility conformance remain required before coordinator admission in this candidate. CTT owns no durable journal, storage provider or agent SDK.
+
+The internal [runtime authority history](runtime-authority-design.md) retains sender intent
+and acceptance before run creation, keeping local epochs separate from receiver grants.
 
 ## Governance cutover
 
@@ -281,7 +298,7 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 - `twilight-control-plane` proposal, constraints: "LangGraph/LangChain and ACP-first agent
   access" becomes "the AI SDK executor port with ACP as one adapter"; Task 1's LangGraph
-  checkpointer proof becomes the reconcile-loop restart proof; Task 6 runs its first real ACP
+  checkpointer proof becomes the durable execution reconciliation/restart proof; Task 6 runs its first real ACP
   activity through this port.
 - `docs/twilight-structure/research/runtime-patterns.md` recommendation: superseded by
   ADR 0057; the note stays as dated evidence.
@@ -290,14 +307,31 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike                                   | Fallback                                                                            |
-| -------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                                     | Claude Agent SDK direct behind the same port                                        |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                                     | plain tool calling for `plan`                                                       |
-| Harness packages break between 1.0.x releases            | 0.3                                     | exact pins, one renovate lane, the port absorbs                                     |
-| ACP attempts report no usage                             | modelled                                | `Usage.unknown`, shown, never defaulted                                             |
-| Surviving workers after a coordinator crash              | S7a recovery proof                      | the claim stays held; inspect workers by attempt reference; unresolved blocks retry |
-| CTT minor releases change the hints API                  | exact pin 0.11.0 and a conformance test | the compatibility adapter absorbs                                                   |
+| Risk                                                     | Spike                           | Fallback                                                                                                                                                        |
+| -------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                             | Claude Agent SDK direct behind the same port                                                                                                                    |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                             | plain tool calling for `plan`                                                                                                                                   |
+| Harness packages break between 1.0.x releases            | 0.3                             | exact pins, one renovate lane, the port absorbs                                                                                                                 |
+| ACP attempts report no usage                             | modelled                        | `Usage.unknown`, shown, never defaulted                                                                                                                         |
+| Concurrent owners or workers surviving coordinator death | S7a recovery proof              | fence local and receiver authority, retain the claim and capacity while work may survive, inspect workers/effects by retained identity; unresolved blocks retry |
+| CTT minor releases change the hints API                  | exact pin0.11.0 and conformance | the compatibility adapter absorbs                                                                                                                               |
+
+## Conditional WBS runtime receiver
+
+[Receiver design](receiver-design.md) specifies S0.05–S0.07 coherent reads, receiver-owned
+generations, exact claim bindings and permanent accepted-command receipts.
+[Receiver tasks](receiver-tasks.md) sequence implementation and R5 proofs. Dash durable
+pins/grant mappings and executor/coordinator integration remain separate prerequisites.
+
+## Portable runtime request identity
+
+The bounded [runtime request design](runtime-request-design.md) publishes the existing receiver codec for a durable bridge while preserving bytes, limits and admission. Sender retention, acceptance authentication and host orchestration remain later work.
+
+## Portable runtime receipt correspondence
+
+The bounded [receipt design](runtime-receipt-design.md) shares complete content matching and existing identity predicates for the receiver and future durable sender. Authenticated transport, trusted artifact decoding and sender persistence remain separate.
+
+[Runtime limits integration](limits-integration-design.md) reconciles the existing receiver with current main's separately owned organization limits; no new limit policy or coordinator behavior is proposed.
 
 ### Pending renames
 

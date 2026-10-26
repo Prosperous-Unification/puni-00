@@ -3,6 +3,29 @@ import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 const ROUTE_ID = '00000000-0000-4000-8000-000000000001';
 const ROUTE_MARKER_ID = '00000000-0000-4000-8000-000000000002';
 export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
+  acquireRuntimeAuthority: {
+    schemaVersion: 1,
+    commandId: 'command',
+    personId: ROUTE_ID,
+    expectedLedgerId: ROUTE_ID,
+    ownerId: ROUTE_ID,
+    expectedGeneration: null,
+  },
+  applyRuntimeCommands: {
+    schemaVersion: 1,
+    commandId: 'command',
+    personId: ROUTE_ID,
+    expectedLedgerId: ROUTE_ID,
+    authority: { ownerId: ROUTE_ID, generation: 1 },
+    expectedBasis: `rb1:${'a'.repeat(64)}`,
+    action: {
+      kind: 'claim',
+      workItemId: ROUTE_ID,
+      stepId: ROUTE_ID,
+      parentClaimId: null,
+      execution: { storeId: ROUTE_ID, runId: ROUTE_ID, attemptId: ROUTE_ID, sessionId: ROUTE_ID },
+    },
+  },
   putApiOrganizationResourceAuthoritiesByAuthorityId: {
     providerId: 'p',
     credentialId: 'c',
@@ -183,6 +206,8 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
 };
 export const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> =
   {
+    readRuntimeState: { personId: ROUTE_ID },
+    lookupRuntimeReceipt: { personId: ROUTE_ID, expectedLedgerId: ROUTE_ID },
     'getApiSpacesByIdRoll-ups': { projectIds: 'route-probe' },
     getApiAuthOktaCallback: { state: 'route-probe', error: 'access_denied' },
     getApiPeopleByPersonIdLoad: { from: '2026-10-05', to: '2026-10-09' },

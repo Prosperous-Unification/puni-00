@@ -574,6 +574,60 @@ who does the work. Refused where the step is blocked, held, done or already clai
 back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
 
+**Workflow binding**:
+The repository's mapping from work-item types and project step codes to named
+activity classes and their settings.
+_Avoid_: Workflow configuration, executor configuration
+
+**Workflow acceptance**:
+Burokrat's immutable static binding snapshot, complete project-step set and original
+prompt-byte identities; it grants no execution authority.
+_Avoid_: Approved binding, execution authorization
+
+**Run manifest**:
+The immutable execution configuration retained for a run, identified independently
+from its workflow acceptance.
+_Avoid_: Binding digest, workflow acceptance
+
+**Manifest binding**:
+A retained run manifest associated with workflow acceptance reconstructed from its
+original prompt artifacts.
+_Avoid_: Authorized manifest, execution grant
+
+**Runtime authority**:
+The receiver-owned owner label and generation for conditional writes in one organization,
+project and person's scope, separate from a coordinator's local owner epoch.
+_Avoid_: Credential, local lease
+
+**Runtime pin**:
+The retained complete organization/project/person address and receiver installation identity
+for runtime coordination.
+_Avoid_: Credential, current authority
+
+**Runtime intent**:
+The retained exact canonical identity and local ownership provenance of a receiver command,
+separate from its acceptance.
+_Avoid_: Dispatch acknowledgement, observed progress
+
+**Runtime basis**:
+The versioned digest of one coherent local project's ledger identity, project revision and
+complete work-item revision set, used as a conditional write precondition.
+_Avoid_: Global snapshot, authorization snapshot
+
+**Canonical runtime request**:
+The complete, ordered identity of one runtime operation, including its installation, scope,
+caller command and preconditions. Payload identity is separate from current permission and acceptance.
+_Avoid_: Artifact digest, binding digest, receipt
+
+**Runtime receipt**:
+The permanent, payload-bound acceptance of one runtime command, separate from undo history.
+_Avoid_: Journal entry, current grant
+
+**Receiver ledger**:
+The WBS installation's retained identity and counts of runtime authorities, execution
+bindings and accepted commands, distinct from Twilight's consumption ledger.
+_Avoid_: Run ledger, run store
+
 **Claim lease**:
 The instant by which a claim an agent took for itself must be renewed, or the coordinator
 releases it: every committed write of that agent, or its heartbeat, renews it; revoking the

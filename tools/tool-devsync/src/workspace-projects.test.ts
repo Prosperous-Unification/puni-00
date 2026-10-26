@@ -84,11 +84,14 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
 // Source-bundled SQLite activation has exact importer/leaf ESLint exceptions.
 // This project-pair oracle retains the actual static product edges; the effective lint tests
 // refuse every sibling importer, barrel, relative path and extra leaf.
+// Proof: removing either activation pair independently exposed its actual graph edge (R10, 2026-10-26).
 const ALLOWED_ACTIVATION_EDGES = [
   ['tool-remote-scripts', 'wbs-store-sqlite'],
   ['tool-remote-scripts', 'wbs-contracts'],
 ] as const;
 
+// Proof: omitting the WBS pair reported `twilight-dash -> wbs-contracts` in the real graph oracle.
+// Effective ESLint tests separately pin its public alias to the four runtime history consumers.
 const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-fleet'],
   ['twilight-dash', 'tool-test-clock-reads'],
@@ -96,6 +99,7 @@ const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'twilight-burokrat'],
   // The resources-only exact-alias ESLint regression pins this transport boundary.
   // Proof: omitting this pair reported twilight-dash -> wbs-contracts (2026-10-25).
+  // Proof: removing this pair exposed the actual Dash-to-contracts graph edge after the runtime merge (R10, 2026-10-26).
   ['twilight-dash', 'wbs-contracts'],
 ] as const;
 

@@ -51,6 +51,7 @@ test('composition keeps source capabilities outside feature callbacks', async ()
     localCommandAccess,
   ).run((resources) => {
     expect(Object.keys(resources).sort()).toEqual([
+      'authorizeRuntime',
       'listCrossReferenceKinds',
       'openCommandGraph',
       'refuseOutsideScope',

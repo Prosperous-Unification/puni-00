@@ -10,7 +10,7 @@ import { runMigrations } from './migrate';
 import { readMigrationFolders } from './migrate-down';
 import { parseMigrationSetCapture } from './migration-set';
 
-const MAIN = 'e49500b1467e31104695584a3c9e0b4e64e32c93';
+const MAIN = '1049aef49d63cdc8134a1d23ee06dbfc9c6dbb11';
 const REPOSITORY = new URL('../../../../../', import.meta.url).pathname;
 const APP = join(REPOSITORY, 'apps/wbs/be-01');
 const ADDED = [
@@ -181,6 +181,7 @@ test('upgrades the exact main measure database with four older dependency identi
     const baseline = ledgerAt(dbPath);
     const values = mainValuesAt(dbPath);
     const schema = schemaAt(dbPath);
+    expect(baseline.some(({ name }) => name === '20261022121000_add_runtime_commands')).toBe(true);
     expect(baseline.at(-1)?.name).toBe('20261025130000_add_resource_runtime');
     expect(baseline.filter(({ name }) => name.startsWith('20261023'))).toHaveLength(5);
     expect(values.project).toMatchObject([{ budget_factor: 2.75 }]);

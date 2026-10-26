@@ -433,3 +433,98 @@ test('scope construction failure expires acquired readers and rolls back its BEG
     connection.close();
   }
 });
+
+test.each(['success', 'refusal', 'throw'] as const)(
+  'runtime scope resolver expires after %s without querying in a later writer',
+  async (outcome) => {
+    const queries: string[] = [];
+    const sqlite = openSqliteSource({
+      dbPath: path,
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      logger: { logQuery: (query) => queries.push(query) },
+    });
+    const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
+    let retained: NonNullable<Scope['fanoutCapture']>['resolveProjectWriteScope'];
+    try {
+      const first = source.uow.run(async (scope) => {
+        const resolver = scope.fanoutCapture?.resolveProjectWriteScope;
+        if (resolver === undefined) throw new Error('missing runtime resolver');
+        retained = resolver;
+        expect(await resolver('a1', 'org-a', 'ada', undefined)).toMatchObject({ ok: true });
+        if (outcome === 'throw') throw new Error('injected runtime resolver owner failure');
+        return { commit: outcome === 'success', value: undefined };
+      });
+      if (outcome === 'throw')
+        expect((await failureOf(first)).message).toBe('injected runtime resolver owner failure');
+      else await first;
+      if (retained === undefined) throw new Error('missing retained runtime resolver');
+      const resolver = retained;
+      const refuses = async () => {
+        const before = queries.length;
+        expect((await failureOf(resolver('a1', 'org-a', 'ada', undefined))).message).toContain(
+          'closed',
+        );
+        expect(queries.length).toBe(before);
+      };
+      await refuses();
+      await source.uow.run(async (scope) => {
+        await refuses();
+        const fresh = scope.fanoutCapture?.resolveProjectWriteScope;
+        if (fresh === undefined) throw new Error('missing fresh runtime resolver');
+        expect(await fresh('a1', 'org-a', 'ada', undefined)).toMatchObject({ ok: true });
+        return { commit: true, value: undefined };
+      });
+    } finally {
+      await source.close();
+    }
+  },
+);
+
+test('suspended runtime project resolution expires before membership SQL in a later writer', async () => {
+  const queries: string[] = [];
+  const reached = hold();
+  const released = hold();
+  const sqlite = openSqliteSource({
+    dbPath: path,
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    logger: { logQuery: (query) => queries.push(query) },
+  });
+  const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
+  const projects = new ProjectRepository(sqlite.db, OPEN);
+  const find = projects.findInOrganization.bind(projects);
+  let pause = true;
+  const lookup = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
+    async (projectId, organizationId) => {
+      const project = await find(projectId, organizationId);
+      if (pause) {
+        pause = false;
+        reached.release();
+        await released.promise;
+      }
+      return project;
+    },
+  );
+  let pending: Promise<Error> | undefined;
+  try {
+    await source.uow.run(async (scope) => {
+      const resolver = scope.fanoutCapture?.resolveProjectWriteScope;
+      if (resolver === undefined) throw new Error('missing runtime resolver');
+      pending = failureOf(resolver('a1', 'org-a', 'ada', undefined));
+      await reached.promise;
+      return { commit: true, value: undefined };
+    });
+    await source.uow.run(async () => {
+      const before = queries.length;
+      released.release();
+      if (pending === undefined) throw new Error('missing suspended runtime resolution');
+      expect((await pending).message).toContain('closed');
+      expect(queries.slice(before)).toEqual([]);
+      return { commit: true, value: undefined };
+    });
+  } finally {
+    released.release();
+    if (pending !== undefined) await pending;
+    lookup.mockRestore();
+    await source.close();
+  }
+});

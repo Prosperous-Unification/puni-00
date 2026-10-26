@@ -11,11 +11,24 @@ import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
-import { bootBe01, type BootOptions, type RunningBe } from './boot';
+import { bootBe01 as bootBackend, type BootOptions, type RunningBe } from './boot';
 import { openDatabase } from './repository/db';
 import { runMigrations } from './repository/migrate';
 import { startDomainProofWorker } from './runtime/domain-proof-worker';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
+
+/** Binds this fixture's owned loopback socket while preserving in-process listener injection. */
+const bootBe01: typeof bootBackend = (options, dependencies) => {
+  const supplied = dependencies ?? { openSource: openSqliteSource };
+  return bootBackend(options, {
+    ...supplied,
+    startListener:
+      supplied.startListener ??
+      ((app, port, ready) => {
+        app.listen({ hostname: '127.0.0.1', port }, ready);
+      }),
+  });
+};
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 const directories: string[] = [];
@@ -117,7 +130,7 @@ async function refuse(
         },
         startListener: (app, port, ready) => {
           starts.push('listener');
-          app.listen(port, ready);
+          app.listen({ hostname: '127.0.0.1', port }, ready);
         },
         startProofWorker: (schedule) => {
           starts.push('dns');
@@ -193,7 +206,7 @@ it('admits dormant authority and serves health after dev migrations', async () =
     migrateOnStartup: true,
     migrationsFolder: FOLDER,
   });
-  expect((await fetch(`http://localhost:${String(running.port)}/health`)).status).toBe(200);
+  expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
 });
 
 it('refuses disabled authority retaining an external relationship before service factories', async () => {
@@ -354,7 +367,7 @@ it('rechecks authority after a pending migration corrupts dormant state', async 
         },
         startListener: (app, port, ready) => {
           starts.push('listener');
-          app.listen(port, ready);
+          app.listen({ hostname: '127.0.0.1', port }, ready);
         },
       },
     );
@@ -391,7 +404,7 @@ it('admits dormant authority with a pending migration', async () => {
     migrateOnStartup: true,
     migrationsFolder: migrations('CREATE TABLE startup_probe (id INTEGER);'),
   });
-  expect((await fetch(`http://localhost:${String(running.port)}/health`)).status).toBe(200);
+  expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
   const sqlite = openDatabase(path);
   try {
     expect(
@@ -420,7 +433,7 @@ it('admits a certified pre-authority historical schema and ledger', async () => 
     migrateOnStartup: true,
     migrationsFolder: FOLDER,
   });
-  expect((await fetch(`http://localhost:${String(running.port)}/health`)).status).toBe(200);
+  expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
 });
 for (const fault of [
   "UPDATE __drizzle_migrations SET hash='altered' WHERE name='20261022211000_add_external_dependencies'",

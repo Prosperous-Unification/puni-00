@@ -119,7 +119,11 @@ describe(MIGRATION, () => {
   });
 
   it('rolls back when empty and comes forward again', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([...NEWER, MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      ...NEWER,
+      MIGRATION,
+      '20261022121000_add_runtime_commands',
+    ]);
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name = 'organization_limits'").all(),
     ).toEqual([]);

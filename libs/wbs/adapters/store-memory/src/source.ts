@@ -74,6 +74,11 @@ function coordinatedStores(
 ): TransactionalStores {
   return {
     externalDependencyAuthoring: stores.externalDependencyAuthoring,
+    runtimeCommands: coordinatedStore(
+      stores.runtimeCommands,
+      ['compareAuthority', 'insertBinding', 'insertAcceptance'],
+      coordinator,
+    ),
     users: coordinatedStore(stores.users, ['create', 'resolveOidcIdentity'], coordinator),
     projects: coordinatedStore(
       stores.projects,

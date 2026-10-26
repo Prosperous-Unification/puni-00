@@ -180,6 +180,7 @@ export * from './occupancy';
 export * from './connected-step-node';
 export * from './execution-eligibility';
 export * from './resource';
+export * from './runtime-basis';
 // Measure definitions, one scheduling measure per organization (wbs-measure-budgets D1, D2).
 export * from './budget';
 export * from './budget-admission';

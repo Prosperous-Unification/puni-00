@@ -93,42 +93,33 @@ describe(MIGRATION, () => {
   });
 
   it('refuses rollback while a claim holds units, keeping the table and the ledger', () => {
-    rollbackTo(path, FOLDER, MIGRATION);
+    expect(rollbackTo(path, FOLDER, MIGRATION)).toEqual([
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
+      '20261023170000_add_work_item_budget',
+      '20261023160000_add_measure_estimate',
+      '20261023150000_key_step_measure',
+      '20261023140000_add_measure',
+      '20261023100000_add_claim_lease',
+      '20261022213000_add_optimization_boundary_certificates',
+      '20261022212000_add_cross_project_dependency_activation',
+      '20261022211000_add_external_dependencies',
+      '20261022210000_add_project_abbreviations',
+      '20261022140100_widen_organization_audit_compute_providers',
+      '20261022140000_add_resource_provider',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
+      '20261022121000_add_runtime_commands',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
+    ]);
     occupy('c1', 'ram', 4);
-    const before = db
-      .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id')
-      .all();
+    const before = db.query('SELECT * FROM __drizzle_migrations').all();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
-    // The newer, empty machine credential and organization limits migrations reverse first.
-    expect(
-      db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
-    ).toEqual(
-      before.filter(
-        ({ name }) =>
-          ![
-            '20261022213000_add_optimization_boundary_certificates',
-            '20261022212000_add_cross_project_dependency_activation',
-            '20261022211000_add_external_dependencies',
-            '20261022210000_add_project_abbreviations',
-            '20261022100000_add_machine_credential',
-            '20261022110000_widen_organization_audit_machine_credentials',
-            '20261022110100_check_machine_credential_id',
-            '20261022120000_scope_trusted_issuer_audience',
-            '20261022130000_add_organization_limits',
-            '20261022130100_widen_organization_audit_organization_limits',
-            '20261022140000_add_resource_provider',
-            '20261022140100_widen_organization_audit_compute_providers',
-            '20261023100000_add_claim_lease',
-            '20261023140000_add_measure',
-            '20261023150000_key_step_measure',
-            '20261023160000_add_measure_estimate',
-            '20261023170000_add_work_item_budget',
-            '20261025120000_add_resource_use',
-            '20261025130000_add_resource_runtime',
-          ].includes(name),
-      ),
-    );
+    expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(before);
   });
 
   it('rolls back when empty and comes forward again', () => {
@@ -148,6 +139,7 @@ describe(MIGRATION, () => {
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
+      '20261022121000_add_runtime_commands',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',

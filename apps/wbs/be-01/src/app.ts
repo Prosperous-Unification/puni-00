@@ -65,6 +65,7 @@ import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
 import { resourceRuntimeRoutes } from '@wbs/core/http/resource-runtime.routes';
 import { resourceUseRoutes } from '@wbs/core/http/resource-use.routes';
+import { runtimeCommandRoutes } from '@wbs/core/http/runtime-command.routes';
 import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
 import { sharedPeopleRestoreRoutes } from '@wbs/core/http/shared-people-restore.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
@@ -76,6 +77,7 @@ import type { CapacityService } from '@wbs/core/module/capacity/capacity.resourc
 import type { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import type { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
+import { createRuntimeReceiver } from '@wbs/core/module/plan-commands/composition';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import type { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
 import type { ProjectService } from '@wbs/core/module/project/project.resource';
@@ -521,22 +523,27 @@ export function mountedEndpoints(
   )
     throw new Error('browser lifecycle composition disagrees with OIDC routes');
   const passwordThrottle = opts.loginThrottle;
-  const commands = createPlanCommandRunner({
-    commandAccess: opts.writes.commandAccess,
-    batchServices: opts.writes.batch,
-    publicServices: {
-      workItems: opts.workItems,
-      steps: opts.steps,
-      directory: opts.directory,
-      capacity: opts.capacity,
-      priorityBands: opts.priorityBands,
+  // Proof: P6-16 omitted nodeDigest; mounted claim in the recovery test
+  // threw the missing-runtime-digest diagnostic and answered 500.
+  const commands = createPlanCommandRunner(
+    {
+      commandAccess: opts.writes.commandAccess,
+      batchServices: opts.writes.batch,
+      publicServices: {
+        workItems: opts.workItems,
+        steps: opts.steps,
+        directory: opts.directory,
+        capacity: opts.capacity,
+        priorityBands: opts.priorityBands,
+      },
+      uow: opts.writes.uow,
+      announcements: opts.writes.announcements,
+      // Proof: omitting mounted delivery made a cold shared command answer 500
+      // instead of 200, with no downstream row.
+      committedFanout: opts.writes.committedFanout,
     },
-    uow: opts.writes.uow,
-    announcements: opts.writes.announcements,
-    // Proof: omitting mounted delivery made a cold shared command answer 500
-    // instead of 200, with no downstream row.
-    committedFanout: opts.writes.committedFanout,
-  });
+    nodeDigest,
+  );
   // A project reach change and a step removal read the combined dependency
   // graph before they write, so each runs as one unit of work: a write landing
   // between the check and the write could otherwise leave a cycle.
@@ -727,6 +734,11 @@ export function mountedEndpoints(
         (ms, fire) => systemTimers.schedule(ms, fire),
         opts.deliveryLimits ?? DELIVERY_GATE_LIMITS,
       ),
+    ),
+    ...runtimeCommandRoutes(
+      createRuntimeReceiver(opts.writes.uow, nodeDigest),
+      commands,
+      opts.organizations,
     ),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(

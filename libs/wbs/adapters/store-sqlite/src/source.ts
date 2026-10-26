@@ -26,6 +26,7 @@ import {
   readFanoutObservationIn,
   resolveDirectoryWriteIn,
   resolveLifecycleOwnerIn,
+  resolveProjectWriteScopeIn,
 } from './fanout-capture';
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
@@ -207,6 +208,12 @@ function openSqliteSourceWithSeams(
                       options.onCapturedFanout?.(captured);
                       return captured;
                     },
+                    // Proof: F15 omitted this binding; the real scoped runtime read failed before local facts.
+                    // Proof: removing this entry guard issued a project query after closure in the runtime resolver matrix (R10, 2026-10-26).
+                    resolveProjectWriteScope: guardRead(
+                      lifetime,
+                      resolveProjectWriteScopeIn(process.db, lifetime),
+                    ),
                     authorizeProjectUpdate: guardRead(
                       lifetime,
                       authorizeProjectFanoutIn(process.db, lifetime),

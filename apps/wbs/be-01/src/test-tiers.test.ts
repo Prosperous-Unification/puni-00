@@ -39,14 +39,17 @@ const SRC = new URL('.', import.meta.url).pathname;
  * SCIM suites.
  * `openFixture` and `seedIncidents` open the composed organization harness
  * from controller/cross-project-dependency-fixture.ts.
+ * `openSpaceDatabase` migrates and opens SQLite for the space and runtime controller suites.
  */
 // Proof: 2026-10-13, omitting openComposedWith failed `names a suite
 // `.db.test.ts` when it opens a database, and only then` for the mounted
 // organization-context suite, despite its real migrated SQLite harness.
 // Proof: omitting openFixture and seedIncidents classified five migrated SQLite
 // controller suites as opening no database (2026-10-23, 1 pass / 1 fail).
+// Proof: removing openSpaceDatabase reported the actual runtime-state/write/claim database suites as misfiled.
+// Proof: removing openFixture, seedIncidents or openSpaceDatabase independently misclassified real migrated suites (R10, 2026-10-26).
 const OPENS_A_DATABASE =
-  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld|openFixture|seedIncidents)\b/;
+  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld|openFixture|seedIncidents|openSpaceDatabase)\b/;
 
 /** Every `*.test.ts` under `src`, as a path relative to it. */
 function suites(dir = SRC, prefix = ''): string[] {

@@ -1,4 +1,4 @@
-import { type DirectoryStore, type PlanInputReads, readChain } from '@wbs/core';
+import { type DirectoryStore, organizationRoleOf, type PlanInputReads, readChain } from '@wbs/core';
 import type {
   BeforeImport,
   BeforeModeSwitch,
@@ -9,6 +9,7 @@ import type {
   DirectoryWriteAddress,
   DirectoryWriteResolution,
   LifecycleOwnership,
+  ResolveProjectWriteScope,
 } from '@wbs/core/ports/fanout-capture-store';
 import { roleMaySwitchCapacityMode } from '@wbs/core/service/capacity-mode.resource';
 import { scheduleInputOfCaptured } from '@wbs/core/service/saved-plan-schedule';
@@ -135,6 +136,54 @@ export function authorizeProjectFanoutIn(
       role: capStoredRole(validateStoredRole(membership.role, organizationId), access.scope.role),
     });
     return edit === 'refused' ? { ok: false, reason: 'forbidden' } : { ok: true };
+  };
+}
+
+/**
+ * Resolves current scope on the borrowed writer, applying detached verifier metadata
+ * through the credential role policy before project classification. Explicit undefined
+ * preserves direct-context callers; resolution creates neither audit nor grant.
+ * The borrowed lifetime must remain open through project and membership reads.
+ *
+ * @throws when the lifetime expires or a trusted membership role is malformed.
+ */
+export function resolveProjectWriteScopeIn(
+  db: Drizzle,
+  lifetime: ReadSnapshotLifetime,
+): ResolveProjectWriteScope {
+  return async (projectId, organizationId, actorId, authentication) => {
+    const project = await new ProjectRepository(db, OPEN).findInOrganization(
+      projectId,
+      organizationId,
+    );
+    // Proof: removing this post-await check made suspended runtime project resolution issue membership SQL during a later writer (R10, 2026-10-26).
+    lifetime.assertOpen();
+    // Proof: F11 removed this check; the foreign-project runtime read threw instead of returning not_found.
+    if (project === null) return { ok: false, reason: 'not_found' };
+    const membership = db
+      .select({ role: organizationMembership.role })
+      .from(organizationMembership)
+      .where(
+        and(
+          eq(organizationMembership.organizationId, organizationId),
+          eq(organizationMembership.userId, actorId),
+        ),
+      )
+      .get();
+    // Proof: F12 removed this check; the removed-member runtime read threw instead of returning forbidden.
+    if (membership === undefined) return { ok: false, reason: 'forbidden' };
+    const scope = {
+      organizationId,
+      userId: actorId,
+      // Proof: F14 substituted member; the malformed trusted-role runtime read succeeded.
+      // Proof: RCAP-01 passed undefined here; real-key restricted-project read and acquisition
+      // in runtime-principal-cap.db.test.ts returned 200 success instead of 403 forbidden.
+      role: organizationRoleOf(validateStoredRole(membership.role, organizationId), authentication),
+    };
+    // Proof: F13 bypassed this decision; a current viewer received runtime facts.
+    return classifyProjectEdit(project, scope) === 'refused'
+      ? { ok: false, reason: 'forbidden' }
+      : { ok: true, scope };
   };
 }
 

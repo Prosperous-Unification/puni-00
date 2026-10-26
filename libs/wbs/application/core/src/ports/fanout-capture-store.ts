@@ -1,9 +1,27 @@
+import type { CredentialAuthentication } from '@wbs/contracts';
+import type { OrganizationScope } from '@wbs/domain';
+
 import type { DependencyFanout, FanoutObservation } from '../service/shared-people-fanout';
 import type { NamedCatalog } from './directory-store';
 import type { ResourceAccess } from './organization-access';
 
 export type FanoutWriteAuthority =
   { readonly ok: true } | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' };
+
+/**
+ * Fresh read-only admission applies detached verifier metadata to the current role
+ * before project classification, without recovery audit. Explicit undefined preserves
+ * existing direct-context callers without credential metadata.
+ */
+export type ResolveProjectWriteScope = (
+  projectId: string,
+  organizationId: string,
+  actorId: string,
+  authentication: CredentialAuthentication | undefined,
+) => Promise<
+  | { readonly ok: true; readonly scope: OrganizationScope }
+  | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' }
+>;
 
 /** Read-only fresh project-write authority on the borrowed writer, before observation. */
 export type BeforeProjectUpdate = (
@@ -101,6 +119,8 @@ export interface CapturedFanout {
 
 /** Borrowed writer capture; project order is already the rank repository's authoritative order. */
 export interface FanoutCaptureStore {
+  /** Optional for legacy fixtures; runtime observation requires this fresh authority capability. */
+  resolveProjectWriteScope?: ResolveProjectWriteScope;
   capture(organizationId: string): Promise<CapturedFanout>;
   resolveLifecycleOwner?: (projectId: string) => Promise<LifecycleOwnership>;
   authorizeProjectUpdate: BeforeProjectUpdate;

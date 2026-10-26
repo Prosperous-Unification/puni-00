@@ -358,13 +358,13 @@ type BuiltApp = ReturnType<typeof buildApp>;
  * reach — the same shape of gap as the `runRetention` that had no caller at all.
  *
  * **It owns what it acquires.** The bag opens the source, admits the schema and
- * runtime, composes services, starts retention, mounts the listener and starts
+ * dependency runtime, composes services, inspects the runtime ledger, starts retention, mounts the listener and starts
  * configured proof scheduling, in that order,
  * and releases them in the reverse of it. A step that fails takes the whole
  * startup down with it and gives back every resource the earlier steps took;
  * that is why this is `async` — `source.close()` and `retention.stop()` are
  * promises, and a synchronous boot could not wait for them before rethrowing.
- * It rejects with `DiBagStartupError`, whose `cause` is the original failure.
+ * It rejects with `DiBagServiceReadinessError`, whose `cause` is the original failure.
  */
 export async function bootBe01(
   opts: BootOptions,
@@ -505,16 +505,48 @@ export async function bootBe01(
           }),
         { factoryReturnKind: 'sync-value' },
       ),
+      readiness: DiBag.createProvider(
+        async ({
+          admittedSource: source,
+          services: _services,
+        }: {
+          admittedSource: OwnedSource;
+          services: BeServices;
+        }): Promise<void> => {
+          // Proof: reintroducing migration here made the once-preparation test observe a second actual migration call (R10, 2026-10-26).
+          opts.logger.info('be-01 inspecting runtime ledger (schema admitted)');
+          // Proof: P-final-02 omitted inspection; the held-inspection boot test
+          // observed listening first. Missing/corrupt ledger tests also reject here.
+          // Proof: P-final-01 replaced the UoW with standalone inspection; the
+          // second-connection boot regression falsely refused a healthy ledger's counts.
+          await source.uow.run(async (scope) => {
+            await scope.stores.runtimeCommands.inspectLedger();
+            return { commit: false, value: undefined };
+          });
+          state.migrationsApplied = true;
+          if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
+        },
+        { factoryReturnKind: 'native-promise' },
+      ),
       // Registered rather than started beside `listen`: a timer nobody stops
       // outlives the file it sweeps, so what starts it is now what the bag can
       // stop, and it stops before the source closes because it depends on it.
       retention: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          ({ services }: { services: BeServices }): BeServices['retention'] => {
+          async ({
+            services,
+            readiness,
+          }: {
+            services: BeServices;
+            readiness: Promise<void>;
+          }): Promise<BeServices['retention']> => {
+            // Proof: P6-02 removed this await; the held-inspection test
+            // observed retention.start once while inspection remained held.
+            await readiness;
             services.retention.start();
             return services.retention;
           },
-          { factoryReturnKind: 'sync-value' },
+          { factoryReturnKind: 'native-promise' },
         ),
         // Proof: on 2026-09-20, dropping this disposal made the refused-release
         // test report `Expected: false`, `Received: true` for timer activity.
@@ -524,14 +556,25 @@ export async function bootBe01(
       // is so it stops before the source it releases through closes.
       claimLeases: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          ({ services }: { services: BeServices }): BeServices['claimLeases'] => {
+          async ({
+            services,
+            readiness,
+          }: {
+            services: BeServices;
+            readiness: Promise<void>;
+          }): Promise<BeServices['claimLeases']> => {
+            // The sweep reads and writes claims; it starts only after the ledger is ready.
+            // Proof: F1 omitted this await; `holds listener, retention, claim sweep and proof
+            // workers until actual ledger inspection settles` (runtime-command.boot.db.test.ts)
+            // saw one sweep start while inspection was held (0 pass, 1 fail), 2026-10-25.
+            await readiness;
             // Proof: with this start removed, `starts the claim lease sweep with
             // the process` (boot.db.test.ts) read it stopped (36 pass, 1 fail);
             // watched 2026-10-23.
             services.claimLeases.start();
             return services.claimLeases;
           },
-          { factoryReturnKind: 'sync-value' },
+          { factoryReturnKind: 'native-promise' },
         ),
         disposeService: (sweep) => sweep.stop(),
       }),
@@ -544,12 +587,12 @@ export async function bootBe01(
       // has always shut down in.
       server: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          (
+          async (
             {
               admittedSource: source,
               services,
               browser,
-              retention: _retention,
+              retention,
               claimLeases,
             }: {
               admittedSource: OwnedSource;
@@ -557,16 +600,19 @@ export async function bootBe01(
               browser: ReturnType<typeof browserComposition>;
               // Read for its edge as `retention` is (its disposer runs after the
               // listener's), and handed to the app so a revoke asks it for a tick.
-              claimLeases: BeServices['claimLeases'];
-              // Read for its edge, not its value: it is what puts the timer's
-              // disposer after the listener's. Drop it and the timer is never
-              // started at all.
+              claimLeases: Promise<BeServices['claimLeases']>;
+              // Await startup and keep the timer's disposer after the listener's.
+              // Dropping this edge also prevents timer acquisition.
               // Proof: on 2026-09-20, dropping this edge made the timer test
               // report `Expected: true`, `Received: false` (0 pass, 1 fail).
-              retention: BeServices['retention'];
+              retention: Promise<BeServices['retention']>;
             },
             factoryCtx,
-          ): BuiltApp => {
+          ): Promise<BuiltApp> => {
+            // Proof: P6-03 removed this await; the held-inspection test
+            // observed one listener before inspection settled.
+            await retention;
+            const claimLeaseSweep = await claimLeases;
             const db = source.db;
             // Proof: removing this resolver binding made the activated
             // `immediate configured sweep` fail instead of recording DNS absence.
@@ -635,7 +681,7 @@ export async function bootBe01(
               // credentials`: the fallback answers every route
               // no_active_organization; watched 2026-10-22.
               machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
-              claimLeases,
+              claimLeases: claimLeaseSweep,
               // Proof: omitting this binding made `serves trusted issuer
               // administration from the shared database once activated`
               // (boot.db.test.ts) throw `boot did not wire trusted issuers`:
@@ -708,11 +754,15 @@ export async function bootBe01(
             factoryCtx.pushDisposer(async (disposerCtx) => {
               if (disposerCtx.reason !== 'service-disposed') await app.stop();
             });
+            // Readiness and retention have settled before acquiring a socket.
             const startListener =
               dependencies.startListener ??
               ((server: BuiltApp, port: number, ready: () => void) => server.listen(port, ready));
             startListener(app, opts.port, () => {
-              opts.logger.info({ port: opts.port }, 'be-01 listening (schema admitted)');
+              opts.logger.info(
+                { port: opts.port },
+                'be-01 listening (schema and runtime ledger admitted)',
+              );
             });
             services.optimizer?.start();
             factoryCtx.pushDisposer(async () => {
@@ -759,11 +809,9 @@ export async function bootBe01(
                 },
               );
             }
-            state.migrationsApplied = true;
-            if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
             return app;
           },
-          { factoryReturnKind: 'sync-value', factoryReceivesContext: true },
+          { factoryReturnKind: 'native-promise', factoryReceivesContext: true },
         ),
         // A block body, not `(app) => app.stop()`: Elysia's `stop()` resolves to
         // the application, and a disposer must resolve to nothing.
@@ -781,7 +829,7 @@ export async function bootBe01(
     .ensureServicesReady(['server']);
 
   const services = bag.resolve('services');
-  const app = bag.resolve('server');
+  const app = await bag.resolve('server');
 
   return {
     backgroundFailure: backgroundFailure.source,

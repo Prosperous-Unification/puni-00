@@ -899,6 +899,8 @@ describe('every cached target declares what it reads', () => {
     const dependencies = projectGraph.dependencies['twilight-dash'];
     expect(dependencies.some(({ target }) => target === 'twilight-burokrat')).toBe(true);
     expect(dependencies.some(({ target }) => target === 'twilight-navigator')).toBe(false);
+    // The retained-binding final policy run exposed this stale false expectation (76 pass/1 fail).
+    // Runtime history already consumes the adopted WBS contracts edge.
     // Resource cleanup now imports WBS transport contracts directly.
     expect(dependencies.some(({ target }) => target === 'wbs-contracts')).toBe(true);
     expect(dependencies.some(({ target }) => target === 'wbs-validation')).toBe(false);
