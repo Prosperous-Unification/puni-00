@@ -7701,3 +7701,7 @@ Actual external approval/controller custody, retained registry custody, standard
 The original 67 fault proofs, 16 fix-wave proofs and final single descriptor-continuation omission retain their own frozen-source attribution. The final omission leaves later guards intact yet closes the actual distinct-inode replacement sentinel; restoration preserves it. This establishes a finite observed lifecycle boundary, not exhaustive guard coverage, indistinguishable ABA, hostile syscall atomicity, forced-GC or full-volume/performance guarantees.
 
 The additive journal inspection field supplies negative-only backing-directory identity for alias exclusion, never native ownership or effect authority. Complete G1 destination/build provenance, B2/K/P/O, A2 preflight/final sealing and R integration remain required. No DB opening/SQL, supplied payload execution, full host gate, physical/provider acceptance, architectural main merge or deployment is established by this checkpoint. Parent tasks remain open.
+
+## Private R5 main, source and browser composition
+
+[Exact committed preservation, finite checks and retained failures](verify-main-r5-20261026.md) records main-preservation9e9 and reviewed source/browser mergee2b33 with separate evidence attribution. The protected-operation matrix correction changes only the expected test list; runtime classification remains unchanged. Full feature/provider/native/host acceptance, archive preflight/final sealing and architectural main merge remain open.

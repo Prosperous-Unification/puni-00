@@ -982,3 +982,10 @@ This is source evidence under synthetic trusted-bootstrap fixtures. The fixed fr
 - [x] Correct independent leaf-settlement, journal-alias, pending-verification and published-removal findings, including post-chmod descriptor recycling; retain watched consumer faults and obtain focused independent source approval.
 
 This private B1 checkpoint does not complete B2 installation/provenance or the provider. Actual G1 custody and five destination/build-history claims, K/P/O, standard-tool preflight and final sealing, R integration, native measurement/cleanup and exact-SHA host gates remain required. Parent 10.2 and architectural main merge remain open.
+
+### Normal-root browser composition source checkpoint
+
+- [x] Add normal application-root browser journeys with genuine session/organization composition, durable dependency commands, reload, delivered refresh, address rename, navigation and controlled scope transition. [Bounded browser evidence](verify-root-browser.md).
+- [x] Correct selection-response guard proofs, owned delayed-response cleanup/error attribution and exact command/history attribution; obtain independent source approval and preserve actual loopback observations.
+
+These are bounded fixture/source checks. Full11.1/11.2, live-old-consumer delivery, provider/native/host acceptance and architectural main merge remain open. [Private R5 composition](verify-main-r5-20261026.md) records the unchanged source pins and fresh finite union checks.
