@@ -1197,3 +1197,36 @@ Its120-second native-fixture deadline tests the actual root-control mechanism;
 the installed production CLI's one-hour setting remains unchanged. Source review
 confirmed the census readonly helper closes before the held snapshot begins, so
 its earlier timer does not overlap this deadline test.
+
+## Root deadline before owner cancellation
+
+HOST48 passed in **151.380 seconds**, exit0 without timeout and empty stderr,
+using the same build and97 source pins as the owner/guardian-loss cases. It
+performed no baseline backup or retry: lastVerifiedBackup began and remained null.
+The actual snapshot failure recorded ownSignalAborted:true, rootDeadline:true,
+ownerCancellation:false and other:false. Pending SIGINT, the held canonical
+descriptor and exact process-group absence were observed within **122.220 seconds**
+of the held effect. T1 contention and subsequent offline T2 acquisition passed;
+the exact backend lock and fenced active maintenance evidence remained.
+
+The final receipt explicitly records deadline-before-owner cancellation and no
+reconciliation/retry. This case does not assert an exact restic137 terminal
+receipt and does not establish elapsed enforcement of the production CLI's
+one-hour setting. Kubernetes/readers/local provider admission and the offline T2
+ordinary-supervisor omission remain declared substitutions.
+
+Normal teardown, all291 host root/cgroup comparisons and the final comparison
+passed. Both independent audits found the exact fixture, all three namespaces,
+process/descriptor references, backing associations and outside lock processes
+absent, with more than20GiB root reserve. All97 source/nine payload pins matched;
+worker mount census covered all process views and its queue label, and controller
+mount census covered its observer view and namespace descriptors.
+
+The three scoped interruption cases now pass. A separate R5 negative is being
+prepared to remove only the compiled root timer's abort/cancel statements from an
+immutable test payload while leaving production source intact. It must observe a
+specific missing-deadline predicate, execute a fresh-identity-bounded owned rescue
+and verify actual cleanup before its expected failure. Generic nonzero exit or
+outer timeout will not count as a proof. The remaining Task8 failure matrix,
+ordinary CLI/permission/image continuation, full validation/reviews and Tasks9–11
+remain incomplete.
