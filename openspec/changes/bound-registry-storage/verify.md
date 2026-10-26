@@ -714,3 +714,38 @@ The actual guard or lease decision causing that refusal remains unknown. Both
 resource-cleanup audits passed and all90 source/nine payload pins matched after
 termination. This does not identify HOST29's earlier failure or establish a
 successful Docker pull. Bounded guard-decision correlation is the next diagnostic.
+
+## Guard-decision diagnostic and Docker unpacking boundary
+
+A separate fixture copy instruments the pinned startup script with 25 marked
+assignment/output lines. Removing those lines reconstructs the production script
+exactly; its original SHA remains unchanged. Both artifacts are independently
+verified before the UID 59001 guard starts. The transformed copy has SHA256
+`f763d7de403239c8c3231be1a52e7b6d35605c9f95eae8cb012442ee0bbf4760`.
+Sixteen local tests with 70 assertions compare actual shell outcomes for valid, malformed,
+hash, expiry, final-open, final-read and revoked-file cases; UID/GID metadata are
+modeled. Twelve separate guard removals produced behavioral assertion failures.
+The strict parser bounds bytes/count, rejects malformed or inconsistent records
+and reports unrelated stderr as a boolean without reflecting its contents.
+
+HOST32 failed after 118.511 seconds at the first amd64 Docker pull. All four managed
+publications, three promotions, retirement, actual matching backup/deletion/GC and
+retained-content assertions passed first. Eleven valid decision records included
+an initial missing-permit refusal followed by allowed decisions, including
+successful second/third samples. There was no sample exhaustion or HTTP 405. These
+records describe desired state after sampling, not a server acknowledgement or
+continuous admission guarantee. HOST31's refusal remains unexplained; no guard
+behavior was changed or claimed fixed.
+
+Docker started, but layer registration returned
+`remount /, flags: 0x84000: invalid argument`. No successful pull or arm64 attempt
+is claimed. The [pinned upstream unpacking path](https://raw.githubusercontent.com/moby/moby/docker-v29.1.3/vendor/github.com/moby/go-archive/chrootarchive/chroot_linux.go) changes root mount propagation
+before switching roots, while the frozen fixture created its chroot root only as
+a directory. This is a concrete source-level incompatibility and a matching native
+error, without exact Ubuntu binary/kernel-source provenance. A correction that
+mounts only the owned empty test root onto itself is being prepared for review.
+
+Both Docker processes exited cleanly during requested teardown. Normal cgroup/proc
+unmounts, 227 periodic host-state comparisons, both exact resource-cleanup audits
+and post-terminal checks of 91 source and nine payload pins passed. The full lifecycle,
+uncached platform pulls, remaining failure proofs and installed adoption stay open.
