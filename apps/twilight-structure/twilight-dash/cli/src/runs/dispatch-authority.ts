@@ -1,6 +1,7 @@
 import type { RuntimeClient } from '../bridge/runtime-client';
 import type { ArtifactStore } from './artifact-store';
 import { equalRecords } from './record-codecs';
+import { retainRuntimeReceipt } from './retain-runtime-receipt';
 import type { RunStore, StoreRefusal } from './run-store';
 import { decodeRuntimeGuard, decodeRuntimeIntent, readRuntimeRequest } from './runtime-codecs';
 import { RuntimeDispatchError } from './runtime-dispatch-error';
@@ -131,20 +132,15 @@ export async function dispatchAuthority(
         };
       throw new Error('runtime client rejected exchange', { cause: reply.failure });
     }
-    // Proof: A18 ignored capture status and 'success with status actual capture' accepted. A19 omitted absence diagnostics and saw a later null fault; diagnostic only for absence. Restorations passed.
-    if (response?.status !== reply.status) throw new Error('runtime receipt capture differs');
-    // Proof: A09r aliased captured bytes through retention; 'capture bytes detach' failed JSON parsing after injected mutation. Inherited integrity checks remained; restoration passed.
-    const bytes = new Uint8Array(response.bytes);
-    const retained = await artifacts.retainArtifact(bytes, 'application/json');
-    // Proof: A20 dropped metadata diagnostics; 'artifact metadata fault' saw the later reference-codec rejection. Diagnostic only; exact restoration passed.
-    if (retained.kind === 'refused') throw new Error('runtime receipt artifact metadata differs');
+    // Proof: D39 omitted this new shared-consumption await; 'shared receipt reference detachment through authority' failed when inherited receipt decoding received a promise. Exact restoration passed.
+    const evidence = await retainRuntimeReceipt(artifacts, response, reply.status);
     // Proof: A12 bypassed verified receipt consumption and 'wrong correspondence' accepted. A13 submitted the old revision; 'unrelated revision conflict' failed. A24 omitted the await; 'artifact and local acceptance barriers' acknowledged before commit. Restorations passed.
     const accepted = await acceptRuntimeReceipt(
       runs,
       artifacts,
       { ...snapshotGuard, expectedRevision: intent.stagedRevision },
       intent,
-      retained.reference,
+      evidence,
     );
     if (accepted.kind !== 'refused')
       return { kind: 'accepted', intent, acceptance: accepted.value };

@@ -2938,3 +2938,47 @@ expiry greater than server readAt. Historical turn replay precedes fresh-ready p
 fresh turn staging leaves scope revision unchanged. These are forward requirements, not
 implemented turn/lease/boot acceptance. Heartbeat, long-turn lifecycle, business attempt
 mapping and complete S0/S7a remain open.
+
+## Preparation integration and claim delivery — 2026-10-27
+
+Preparation PR759 merged normally as67773f97ac5c608bd785f5ff5619cc0f053779e2.
+Actual ordered parents3cd6/f8f9 and treeb3cb67b90b1b77fb4761dde1790cd4f3dcf8a2bc
+match the independently audited prospective composition (all12,298 blobs/modes, no
+overlapping edits). This supersedes the earlier pending-gate/unmerged status. The exact
+f8f9 canonical h4 gate passed with actual SSH exit0; PR CI40396802989 passed with10 raw
+job logs,8 checkout identities,608 browser passes and40 existing skips audited. The h2
+queue refusal ran no checks. New main's ordinary-claim person default was inspected;
+combined68 preparation/310assert,26 claim-core/99assert and4 real HTTP/18assert cases,
+uncached Dash typecheck and299 OpenSpec validations passed. Actual merge
+CI40419076145 is running; its full terminal outcome is not yet accepted. No feature-gate
+result is relabeled as a combined-tree host gate.
+
+The client260eb28e8, authority8119ea9fa and builder28e518103 checkpoints were normally
+committed/pushed after their independent task approvals. Claim Task2 now has196 passing
+tests,0 failures and1075 assertions across the final new105 and affected authority91
+cases (10.32s). The authority suite was run once on the final extraction. Fresh graph-backed
+uncached Dash lint/typecheck passed; touched format/diff and scoped OpenSpec passed with
+13 inherited warnings. Final lint stdout also retains the inherited NO_COLOR/FORCE_COLOR
+environment warning, corrected here after independent review; target checks still passed.
+Optional Nx Cloud was disabled; targets used the freshly generated ignored graph and skipped task cache.
+Earlier sandbox output/DNS failures and test/static/setup corrections remain retained.
+
+All40 Bun-only finite owned sender/shared-consumption trials have actual named failures
+and identical-selector restored passes. Root independently checked every mutant's source
+hash, all13 protected identities/modes, exact frozen tests/inherited sources, current final
+identities, executable equivalence of the three production files after comments, and seven
+final check receipts. D06/D18/D30/D33 retain diagnostic/observation bounds; D25/D35 are
+separate trials of the acceptance-await edge. D31's initial harness false rejection is
+preserved separately; its corrected counted replay is not retroactive success for that
+harness attempt. No inherited guard was removed to improve proof strength. Evidence is
+retained under .superpowers/sdd/claim-dispatch-tasks, including root-task2-proof-audit.json.
+
+The sender uses unchanged duplicate guards and the same acceptance ID plus complete intent
+to recover the original paired ack. Shared receipt retention preserves actual bytes and
+detaches the returned reference across its additional await. No POST replay, revision
+refresh, turn, release or current execution permission is inferred. Independent Task2
+review approves spec and task quality with no Critical/Important finding and separately audits
+all40 trial pairs. Normal checkpoint follows this entry. WBS030.08/150.3/010.01 notes
+were updated/read back with the actual preparation merge; all remain in_progress. The
+new turn-dispatch plan is spec-valid and not yet implemented. Full packet gates, real boot,
+heartbeat/lifecycle, business-attempt mapping and complete S0/S7a remain open.

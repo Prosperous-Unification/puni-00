@@ -28,6 +28,53 @@ establishing turn authority or quiescence.
 - **WHEN** the old guard or a new current-owner guard retries the retained preparation command after takeover
 - **THEN** the old guard refuses owner_stale and the new guard refuses identity_conflict, with no extra open or capacity release
 
+### Requirement: Fresh turn dispatch observes exact claim and lease correspondence
+
+The host SHALL require direct ready, current attachment, current-epoch grant and submitted revisions before fresh staging. It SHALL match the pinned receiver grant and exact runtime claim with a lease-bearing project read. Revoked/expired claims SHALL refuse; null expiry SHALL mean unleased. Separate reads SHALL NOT imply an atomic fence, continued lease validity or physical stop.
+
+#### Scenario: An expired claim remains in runtime inventory
+
+- **WHEN** runtime inventory still contains the exact claim but the project read reports expiry at or before its server readAt, or revocation
+- **THEN** the host refuses before staging or calling turn, with no claim or capacity release
+- **AND** valid unleased claims remain distinguishable from observed live leases
+- **AND** timing is finite and full claim correspondence includes holder, work, step, parent and session run identity
+
+#### Scenario: Live executor identity changes during an awaited observation
+
+- **WHEN** the original opaque session's full locator or actual executor pin changes before dispatch
+- **THEN** the host does not invoke turn and preserves any already staged pending identity
+
+### Requirement: Turn replay never redispatches physical work
+
+The host SHALL delegate retained stage replay before fresh-ready predicates and return its original acknowledgement without receiver reads or turn. Only fresh applied staging MAY dispatch. It SHALL commit the full reply before reporting stored completion, without refreshing revisions. Stage SHALL NOT advance scope revision. Completed SHALL mean turn_returned, not business success or release. Uncertainty SHALL retain correlation and held capacity.
+
+#### Scenario: A duplicate arrives after turn completion or later execution facts
+
+- **WHEN** the same complete local stage command is submitted under valid current ownership
+- **THEN** the host returns its original historical pending acknowledgement without another turn
+- **AND** changed content or command family retains the store's identity refusal
+
+#### Scenario: Ownership expires during a held turn
+
+- **WHEN** the exact reply returns after local ownership expires or intervening facts invalidate its captured save revisions
+- **THEN** observation persistence refuses without refreshing authority or dispatching again, and the correlated failure preserves pending work
+- **AND** the captured save uses the submitted run revision advanced once and the stage attempt revision
+
+### Requirement: Receiver boot integration follows actual test dependencies
+
+Integration SHALL use a booted be-01 listener and separate Dash worker over authenticated loopback transport, bounded process phases and awaited cleanup, observing actual histories. Nx test inputs SHALL declare consumed Dash sources; CI selection SHALL include be-01 when they change. A controlled unleased test principal SHALL NOT certify machine heartbeat, business-attempt mapping, paid-provider execution or production readiness.
+
+#### Scenario: A Dash worker source changes
+
+- **WHEN** dispatch-turn, runtime-client or the boot worker changes
+- **THEN** actual Nx-backed CI selection includes the be-01 integration test target
+- **AND** removing its explicit Dash source inputs makes the selection regression fail
+
+#### Scenario: A controlled turn returns after an ordinary claim
+
+- **WHEN** the real boot flow retains a complete turn reply
+- **THEN** business state compared with the post-claim pre-turn baseline has no extra start/end, progress write, release or successor settlement
+
 ### Requirement: Persistence is abstract and providers satisfy semantic contracts
 
 Twilight Dash SHALL depend on RunStore and ArtifactStore ports independent of storage
