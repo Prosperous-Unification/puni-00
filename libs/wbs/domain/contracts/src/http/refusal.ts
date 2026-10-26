@@ -235,6 +235,11 @@ export type CommandRefusalCode =
   | 'taken'
   | 'in_use'
   // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`), in the spec's order.
+  /**
+   * Naming no person from a request that acts as its account, which has no
+   * agent person to stand for (`wbs-claim-own-person`).
+   */
+  | 'person_required'
   | 'person_not_bound'
   | 'credential_not_for_person'
   | 'parent_claim_unknown'

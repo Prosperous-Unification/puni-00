@@ -1821,7 +1821,9 @@ _Avoid_: history, audit log, activity, event log
 **Acting person**:
 Whom a request's undo stack belongs to besides its account: the agent person a machine or
 consent credential is pinned to, or none when the account acts as itself (a browser session, an
-upstream token). Two credentials pinned to one agent person share its stack.
+upstream token). Two credentials pinned to one agent person share its stack. It is also the
+person a claim or release naming no person is for
+([wbs-claim-own-person](openspec/changes/wbs-claim-own-person/proposal.md)).
 _Avoid_: actor, principal, pin
 
 **Plan history**:
