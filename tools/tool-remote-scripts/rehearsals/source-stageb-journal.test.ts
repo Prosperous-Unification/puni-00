@@ -1445,3 +1445,47 @@ test('joined lifetime final fulfillment refuses dispatch after caller close in f
     await dispose(owned);
   }
 });
+
+test('inspection exposes only frozen verified backing identity for negative alias exclusion', async () => {
+  const owned = await journalFixture();
+  try {
+    const backing = await owned.directory.stat({ bigint: true });
+    const parent = await owned.parent.stat({ bigint: true });
+    const snapshot = await inspectSourceJournal(owned.journal);
+    expect(snapshot.journalDirectoryIdentity).toEqual({
+      device: String(backing.dev),
+      inode: String(backing.ino),
+    });
+    expect(snapshot.journalDirectoryIdentity).not.toEqual({
+      device: String(parent.dev),
+      inode: String(parent.ino),
+    });
+    expect(Reflect.ownKeys(snapshot.journalDirectoryIdentity)).toEqual(['device', 'inode']);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot.journalDirectoryIdentity)).toBe(true);
+    expect(Reflect.set(snapshot.journalDirectoryIdentity, 'inode', '0')).toBe(false);
+    expect((await inspectSourceJournal(owned.journal)).journalDirectoryIdentity).toEqual({
+      device: String(backing.dev),
+      inode: String(backing.ino),
+    });
+    expect(snapshot.records.length).toBe(1);
+    expect(snapshot.resources).toEqual([]);
+    expect((await sealSourceJournal(owned.journal)).count).toBe(2);
+  } finally {
+    await closeSourceJournal(owned.journal);
+    await rm(owned.parentPath, { recursive: true });
+  }
+});
+
+for (const replacement of [false, true])
+  test(`inspection refuses ${replacement ? 'replaced' : 'missing'} original backing before projecting identity`, async () => {
+    const owned = await journalFixture();
+    try {
+      await rename(owned.directoryPath, owned.directoryPath + '-detached');
+      if (replacement) await mkdir(owned.directoryPath, { mode: 0o700 });
+      await rejects(inspectSourceJournal(owned.journal));
+      expect(await readdir(owned.directoryPath + '-detached')).toEqual(['00000000.claim.json']);
+    } finally {
+      await dispose(owned);
+    }
+  });
