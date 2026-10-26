@@ -179,6 +179,13 @@
       "options": {
         "command": "bun tools/tool-fleet/src/observability-preflight-cli.ts"
       }
+    },
+    "validate-observability-projection": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/observability-projection-cli.ts . \"$PUNI_PARITY_TOOLS\" \"$PUNI_PROJECTION_REQUESTS\""
+      }
     }
   }
 }

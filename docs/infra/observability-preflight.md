@@ -5,6 +5,9 @@ Both the environment-parity and production-observability packets use
 `ObservabilityPreflightRequest` is the closed request contract; the
 `ObservabilityPreflightReceipt` is the safe evidence contract.
 
+[Chart-role projections](observability-projections.md) provide independently validated
+source ownership candidates; their declared placement names do not replace this inventory.
+
 Run the uncached entrypoint with an operator-reviewed JSON request and the existing
 owner-only pinned SSH transport:
 

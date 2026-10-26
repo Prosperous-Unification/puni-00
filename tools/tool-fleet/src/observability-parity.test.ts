@@ -6,7 +6,7 @@ import { type } from 'arktype';
 import { expect, it } from 'bun:test';
 import { parse, parseDocument } from 'yaml';
 
-import { renderObservability } from './observability';
+import { observabilityInputs, renderObservability } from './observability';
 import { validatePlatform } from './platform';
 
 const root = join(import.meta.dir, '../../..');
@@ -433,4 +433,19 @@ it('one retention executable consumes each candidate policy identity', async () 
       ]),
     );
   }
+});
+
+it('dev source identity remains dev when placed on the production platform', () => {
+  const inputs = observabilityInputs('production', {
+    environment: 'dev',
+    namespace: 'observability-dev',
+  });
+  expect(inputs.deployment).toEqual({
+    cluster: 'platform-production',
+    namespace: 'observability-dev',
+  });
+  expect(inputs.source.environment).toBe('dev');
+  expect(inputs.source.admittedEnvironments).toEqual(['dev']);
+  expect(inputs.endpoints.gatewayUpstream).toBe('signal-gateway.observability-dev.svc:4317');
+  expect(inputs.trust.upstream.serverName).toBe('signal-gateway.observability-dev.svc');
 });

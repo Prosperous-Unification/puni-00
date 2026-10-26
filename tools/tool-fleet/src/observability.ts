@@ -14,25 +14,28 @@ import { readToolchain } from './contracts';
 import { applicationMiB, assessObservabilityBudget } from './observability-budget';
 
 /** The platform DaemonSet alone owns filelog/host collection; application instances receive OTLP. */
-export function observabilityInputs(environment: 'local' | 'production'): SignalInputs {
+export function observabilityInputs(
+  placement: 'local' | 'production',
+  instance: { environment: 'dev' | 'prod'; namespace: string },
+): SignalInputs {
   return {
-    deployment: { cluster: `platform-${environment}`, namespace: 'observability' },
+    deployment: { cluster: `platform-${placement}`, namespace: instance.namespace },
     source: {
       collection: 'external',
-      environment: environment === 'production' ? 'prod' : 'dev',
-      admittedEnvironments: [environment === 'production' ? 'prod' : 'dev'],
-      infrastructureClusters: [`platform-${environment}`, `workers-${environment}`],
-      filelogExcludes: ['/var/log/pods/observability_signal-*/*/*.log'],
+      environment: instance.environment,
+      admittedEnvironments: [instance.environment],
+      infrastructureClusters: [`platform-${placement}`, `workers-${placement}`],
+      filelogExcludes: [`/var/log/pods/${instance.namespace}_signal-*/*/*.log`],
     },
     endpoints: {
       collectorHttp: '0.0.0.0:4318',
       collectorPlatformGrpc: '0.0.0.0:14317',
       gatewayGrpc: '0.0.0.0:4317',
-      gatewayUpstream: 'signal-gateway.observability.svc:4317',
+      gatewayUpstream: `signal-gateway.${instance.namespace}.svc:4317`,
       platformGrpc: '0.0.0.0:14317',
-      platformUpstream: 'signal-gateway.observability.svc:14317',
-      elasticsearch: 'https://elasticsearch-es-http.observability.svc:9200',
-      metricsRemoteWrite: 'https://signal-metrics.observability.svc:8443/api/v1/write',
+      platformUpstream: `signal-gateway.${instance.namespace}.svc:14317`,
+      elasticsearch: `https://elasticsearch-es-http.${instance.namespace}.svc:9200`,
+      metricsRemoteWrite: `https://signal-metrics.${instance.namespace}.svc:8443/api/v1/write`,
     },
     trust: {
       collector: {
@@ -49,7 +52,7 @@ export function observabilityInputs(environment: 'local' | 'production'): Signal
         caFile: '/trust/upstream/ca.crt',
         certFile: '/trust/client/tls.crt',
         keyFile: '/trust/client/tls.key',
-        serverName: 'signal-gateway.observability.svc',
+        serverName: `signal-gateway.${instance.namespace}.svc`,
       },
       elasticsearch: {
         caFile: '/trust/elastic/ca.crt',
@@ -528,7 +531,10 @@ export async function renderObservability(root: string): Promise<Record<string, 
     ]),
   };
   for (const environment of ['local', 'production'] as const) {
-    const inputs = observabilityInputs(environment);
+    const inputs = observabilityInputs(environment, {
+      environment: environment === 'production' ? 'prod' : 'dev',
+      namespace: 'observability',
+    });
     const paths = {
       collector: join(root, 'infra/platform/observability/otel/collector.yaml'),
       agent: join(root, 'infra/platform/telemetry/agent/agent.yaml'),
@@ -608,7 +614,10 @@ export async function assertObservability(root: string): Promise<void> {
       ),
     ),
   ).spec.values.prometheus.prometheusSpec;
-  const retention = observabilityInputs('production').retention;
+  const retention = observabilityInputs('production', {
+    environment: 'prod',
+    namespace: 'observability',
+  }).retention;
   // Proof: removing this guard accepts changed TSDB duration or size in production-path retention negatives.
   if (
     prometheus.retention !== retention.metricsTime ||
