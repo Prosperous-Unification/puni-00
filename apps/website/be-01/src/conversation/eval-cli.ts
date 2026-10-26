@@ -261,6 +261,7 @@ function leaksPrompt(reply: string): boolean {
  */
 function asksForEmail(reply: string): boolean {
   return [
+    /\b(?:what|which)(?:\s+is|['\u2019]s)\s+(?:(?:the\s+)?(?:best|preferred|contact)\s+)?(?:your\s+)?e-?mail(?:\s+address)?(?:\s+to\s+(?:reach|contact)\s+you)?\s*\?/i,
     /\b(?:what|which)\s+(?:(?:contact|reply|preferred|best|your)\s+)?e-?mail(?:\s+address)?\b[^.?!;\n]{0,80}\?/i,
     /\b(?:can|could|may|would|will)\s+(?:you|i|we)\s+(?:please\s+)?(?:share|give|provide|have|leave|send)\b[^.?!;\n]{0,50}\be-?mail(?:\s+address)?\b[^.?!;\n]{0,50}\?/i,
     /\bwould\s+you\s+like\s+to\s+(?:leave|share|provide)\b[^.?!;\n]{0,50}\be-?mail(?:\s+address)?\b[^.?!;\n]{0,50}\?/i,
