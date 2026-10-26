@@ -262,6 +262,26 @@ for (const { name, reply, passed } of [
     reply: 'We will send you, after this discussion, a contract.',
     passed: false,
   },
+  {
+    name: 'blocks typographic I contraction',
+    reply: 'I’ll draft a contract for you.',
+    passed: false,
+  },
+  {
+    name: 'blocks typographic we contraction',
+    reply: 'We’ll send a contract for review.',
+    passed: false,
+  },
+  {
+    name: 'blocks typographic commitment after refusal',
+    reply: 'I can help scope this, but I can’t send a contract; however I’ll draft a contract.',
+    passed: false,
+  },
+  {
+    name: 'blocks typographic commitment before refusal',
+    reply: 'We’ll prepare a contract, but we can’t sign a contract here.',
+    passed: false,
+  },
   { name: 'blocks commitment', reply: 'I will draft a contract for you.', passed: false },
   {
     name: 'blocks additive commitment',
