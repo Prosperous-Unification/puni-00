@@ -326,8 +326,10 @@ const projectList = (body: string) =>
 
 const projectMounts = `[{{range $i,$mount := .volumeMounts}}{{if $i}},{{end}}{"name":${quoteField('.name')},"mountPath":${quoteField('.mountPath')},"readOnly":{{if .readOnly}}true{{else}}false{{end}}{{if .subPath}},"subPath":${quoteField('.subPath')}{{end}}{{if .subPathExpr}},"subPathExpr":${quoteField('.subPathExpr')}{{end}}}{{end}}]`;
 const projectContainer = `{"name":${quoteField('.name')},"image":${quoteField('.image')},"resources":{"requests":{"memory":${projectOptionalField('.resources.requests.memory')},"cpu":${projectOptionalField('.resources.requests.cpu')}{{if .resources.requests}}{{if index .resources.requests "ephemeral-storage"}},"ephemeral-storage":${quoteField('(index .resources.requests "ephemeral-storage")')}{{end}}{{end}}},"limits":{"memory":${projectOptionalField('.resources.limits.memory')},"cpu":${projectOptionalField('.resources.limits.cpu')}{{if .resources.limits}}{{if index .resources.limits "ephemeral-storage"}},"ephemeral-storage":${quoteField('(index .resources.limits "ephemeral-storage")')}{{end}}{{end}}}},"securityContext":{"readOnlyRootFilesystem":{{if .securityContext.readOnlyRootFilesystem}}true{{else}}false{{end}}},"restartPolicy":${projectOptionalField('.restartPolicy')},"volumeMounts":${projectMounts},"unsupported":{{$unsupported := false}}{{if or .volumeDevices .resizePolicy}}{{$unsupported = true}}{{end}}{{range $key,$value := .resources.requests}}{{if and (ne $key "memory") (ne $key "cpu") (ne $key "ephemeral-storage")}}{{$unsupported = true}}{{end}}{{end}}{{range $key,$value := .resources.limits}}{{if and (ne $key "memory") (ne $key "cpu") (ne $key "ephemeral-storage")}}{{$unsupported = true}}{{end}}{{end}}{{$unsupported}}}`;
-const projectKeyPaths = `[{{range $i,$entry := .items}}{{if $i}},{{end}}{"key":${quoteField('.key')},"path":${quoteField('.path')}}{{end}}]`;
-const projectProjection = `{{if .secret}}{"secret":{{with .secret}}{"name":${quoteField('.name')},"optional":{{if .optional}}true{{else}}false{{end}},"items":${projectKeyPaths}}{{end}}}{{else if .configMap}}{"configMap":{{with .configMap}}{"name":${quoteField('.name')},"optional":{{if .optional}}true{{else}}false{{end}},"items":${projectKeyPaths}}{{end}}}{{else if .serviceAccountToken}}{"serviceAccountToken":{{with .serviceAccountToken}}{"path":${quoteField('.path')}{{if .audience}},"audience":${quoteField('.audience')}{{end}}{{if .expirationSeconds}},"expirationSeconds":{{.expirationSeconds}}{{end}}}{{end}}}{{else if .downwardAPI}}{"downwardAPI":{"items":[{{range $i,$entry := .downwardAPI.items}}{{if $i}},{{end}}{"path":${quoteField('.path')}{{if .fieldRef}},"fieldRef":{"fieldPath":${quoteField('.fieldRef.fieldPath')}}{{else}},"resourceFieldRef":true{{end}}}{{end}}]}}{{else}}{"unsupportedKind":"projection"}{{end}}`;
+// Proof: truthiness-dropping explicit mode zero failed the native Secret/ConfigMap key-path assertion in task-7-fix-2-kubectl-probes.ts.
+const projectKeyPaths = `[{{range $i,$entry := .items}}{{if $i}},{{end}}{"key":${quoteField('.key')},"path":${quoteField('.path')}{{if ne .mode nil}},"mode":{{.mode}}{{end}}}{{end}}]`;
+// Proof: truthiness-dropping explicit mode zero failed the native downwardAPI file-mode assertion in task-7-fix-2-kubectl-probes.ts.
+const projectProjection = `{{if .secret}}{"secret":{{with .secret}}{"name":${quoteField('.name')},"optional":{{if .optional}}true{{else}}false{{end}},"items":${projectKeyPaths}}{{end}}}{{else if .configMap}}{"configMap":{{with .configMap}}{"name":${quoteField('.name')},"optional":{{if .optional}}true{{else}}false{{end}},"items":${projectKeyPaths}}{{end}}}{{else if .serviceAccountToken}}{"serviceAccountToken":{{with .serviceAccountToken}}{"path":${quoteField('.path')}{{if .audience}},"audience":${quoteField('.audience')}{{end}}{{if .expirationSeconds}},"expirationSeconds":{{.expirationSeconds}}{{end}}}{{end}}}{{else if .downwardAPI}}{"downwardAPI":{"items":[{{range $i,$entry := .downwardAPI.items}}{{if $i}},{{end}}{"path":${quoteField('.path')}{{if ne .mode nil}},"mode":{{.mode}}{{end}}{{if .fieldRef}},"fieldRef":{"fieldPath":${quoteField('.fieldRef.fieldPath')}}{{else}},"resourceFieldRef":true{{end}}}{{end}}]}}{{else}}{"unsupportedKind":"projection"}{{end}}`;
 const projectVolume = `{"name":${quoteField('.name')}{{if .persistentVolumeClaim}},"persistentVolumeClaim":{"claimName":${quoteField('.persistentVolumeClaim.claimName')},"readOnly":{{if .persistentVolumeClaim.readOnly}}true{{else}}false{{end}}}{{else if .emptyDir}},"emptyDir":{"medium":${projectOptionalField('.emptyDir.medium')},"sizeLimit":${projectOptionalField('.emptyDir.sizeLimit')}}{{else if .configMap}},"configMap":{"name":${quoteField('.configMap.name')}}{{else if .secret}},"secret":{"secretName":${quoteField('.secret.secretName')}}{{else if .projected}},"projected":{"defaultMode":{{if ne .projected.defaultMode nil}}{{.projected.defaultMode}}{{else}}420{{end}},"sources":[{{range $i,$source := .projected.sources}}{{if $i}},{{end}}${projectProjection}{{end}}]}{{else}},"unsupportedKind":{{if .ephemeral}}"ephemeral"{{else if .csi}}"csi"{{else if .hostPath}}"hostPath"{{else}}"volume"{{end}}{{end}}}`;
 // Proof: dropping unknown overhead dimensions failed the pinned-kubectl synthetic Pod unsupported-demand assertion in task-7-fix-1-kubectl-probes.ts.
 const projectWorkloadSpec = `{"containers":[{{range $i,$container := .containers}}{{if $i}},{{end}}${projectContainer}{{end}}],"initContainers":[{{range $i,$container := .initContainers}}{{if $i}},{{end}}${projectContainer}{{end}}],"volumes":[{{range $i,$volume := .volumes}}{{if $i}},{{end}}${projectVolume}{{end}}],"overhead":{"memory":{{if .overhead.memory}}${quoteField('.overhead.memory')}{{else}}"0"{{end}},"cpu":{{if .overhead.cpu}}${quoteField('.overhead.cpu')}{{else}}"0"{{end}}},"serviceAccountName":{{if .serviceAccountName}}${quoteField('.serviceAccountName')}{{else}}"default"{{end}},"automountServiceAccountToken":{{if eq .automountServiceAccountToken false}}false{{else}}true{{end}},"runtimeClassName":${projectOptionalField('.runtimeClassName')},"unsupported":{{$unsupported := false}}{{if or .resources .resourceClaims .ephemeralContainers}}{{$unsupported = true}}{{end}}{{range $key,$value := .overhead}}{{if and (ne $key "memory") (ne $key "cpu")}}{{$unsupported = true}}{{end}}{{end}}{{$unsupported}}}`;
@@ -339,8 +341,9 @@ export const observabilityProjections = {
   identity: `{${metadata},${namespace},"marker":${quoteField('(index .data "cluster-id")')},"immutable":{{if .immutable}}true{{else}}false{{end}}}`,
   source: `{${metadata},${namespace},"kind":${quoteField('.kind')},"revision":${quoteField('.status.artifact.revision')},"ready":${ready},"generation":{{.metadata.generation}},"observedGeneration":{{if .status.observedGeneration}}{{.status.observedGeneration}}{{else}}0{{end}}}`,
   // Proof: replacing deployed history with lastAttemptedRevision failed the pinned-kubectl synthetic Helm projection assertion in task-7-fix-1-kubectl-probes.ts.
+  // Proof: each Helm chart source kind/namespace/name replaced with the absent direct sourceRef failed task-7-fix-2-native-helm-graph.ts assertions.
   resources: projectList(
-    `{${metadata},${namespace},"kind":${quoteField('.kind')},"owner":{{if and .metadata.labels (index .metadata.labels "kustomize.toolkit.fluxcd.io/name")}}${quoteField('(index .metadata.labels "kustomize.toolkit.fluxcd.io/name")')}{{else if and .metadata.annotations (index .metadata.annotations "meta.helm.sh/release-name")}}{{printf "%q" (printf "helm:%s" (index .metadata.annotations "meta.helm.sh/release-name"))}}{{else}}""{{end}},"ownerNamespace":{{if and .metadata.labels (index .metadata.labels "kustomize.toolkit.fluxcd.io/namespace")}}${quoteField('(index .metadata.labels "kustomize.toolkit.fluxcd.io/namespace")')}{{else}}{{if .metadata.annotations}}${projectOptionalField('(index .metadata.annotations "meta.helm.sh/release-namespace")')}{{else}}""{{end}}{{end}},"generation":{{if .metadata.generation}}{{.metadata.generation}}{{else}}0{{end}},"observedGeneration":{{if .status.observedGeneration}}{{.status.observedGeneration}}{{else}}0{{end}},"ready":${ready},"revision":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}{{if eq .status "deployed"}}${projectOptionalField('.chartVersion')}{{else}}""{{end}}{{end}}{{else}}""{{end}}{{else}}${projectOptionalField('.status.lastAppliedRevision')}{{end}},"path":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.path')}{{else}}""{{end}},"sourceKind":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.sourceRef.kind')}{{else}}""{{end}},"sourceNamespace":{{if eq .kind "Kustomization"}}{{if .spec.sourceRef.namespace}}${quoteField('.spec.sourceRef.namespace')}{{else}}${quoteField('.metadata.namespace')}{{end}}{{else}}""{{end}},"releaseName":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}${projectOptionalField('.name')}{{end}}{{else}}""{{end}}{{else}}""{{end}},"releaseNamespace":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}${projectOptionalField('.namespace')}{{end}}{{else}}""{{end}}{{else}}""{{end}},"sourceName":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.sourceRef.name')}{{else}}""{{end}},"dependencies":[{{$namespace := .metadata.namespace}}{{range $i,$dependency := .spec.dependsOn}}{{if $i}},{{end}}{"name":${quoteField('.name')},"namespace":{{if .namespace}}${quoteField('.namespace')}{{else}}{{printf "%q" $namespace}}{{end}}}{{end}}],"chart":{{if eq .kind "HelmRelease"}}${projectOptionalField('.spec.chart.spec.chart')}{{else}}""{{end}},${ownerUID},"controllerEnabled":{{if eq .kind "HelmRelease"}}{{if eq .spec.chart.spec.chart "eck-operator"}}true{{else if eq .spec.chart.spec.chart "kube-prometheus-stack"}}{{if eq .spec.values.prometheusOperator.enabled false}}false{{else}}true{{end}}{{else}}false{{end}}{{else}}false{{end}}}`,
+    `{${metadata},${namespace},"kind":${quoteField('.kind')},"owner":{{if and .metadata.labels (index .metadata.labels "kustomize.toolkit.fluxcd.io/name")}}${quoteField('(index .metadata.labels "kustomize.toolkit.fluxcd.io/name")')}{{else if and .metadata.annotations (index .metadata.annotations "meta.helm.sh/release-name")}}{{printf "%q" (printf "helm:%s" (index .metadata.annotations "meta.helm.sh/release-name"))}}{{else}}""{{end}},"ownerNamespace":{{if and .metadata.labels (index .metadata.labels "kustomize.toolkit.fluxcd.io/namespace")}}${quoteField('(index .metadata.labels "kustomize.toolkit.fluxcd.io/namespace")')}{{else}}{{if .metadata.annotations}}${projectOptionalField('(index .metadata.annotations "meta.helm.sh/release-namespace")')}{{else}}""{{end}}{{end}},"generation":{{if .metadata.generation}}{{.metadata.generation}}{{else}}0{{end}},"observedGeneration":{{if .status.observedGeneration}}{{.status.observedGeneration}}{{else}}0{{end}},"ready":${ready},"revision":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}{{if eq .status "deployed"}}${projectOptionalField('.chartVersion')}{{else}}""{{end}}{{end}}{{else}}""{{end}}{{else}}${projectOptionalField('.status.lastAppliedRevision')}{{end}},"path":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.path')}{{else}}""{{end}},"sourceKind":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.sourceRef.kind')}{{else if eq .kind "HelmRelease"}}${projectOptionalField('.spec.chart.spec.sourceRef.kind')}{{else}}""{{end}},"sourceNamespace":{{if eq .kind "Kustomization"}}{{if .spec.sourceRef.namespace}}${quoteField('.spec.sourceRef.namespace')}{{else}}${quoteField('.metadata.namespace')}{{end}}{{else if eq .kind "HelmRelease"}}{{if .spec.chart.spec.sourceRef.namespace}}${quoteField('.spec.chart.spec.sourceRef.namespace')}{{else}}${quoteField('.metadata.namespace')}{{end}}{{else}}""{{end}},"releaseName":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}${projectOptionalField('.name')}{{end}}{{else}}""{{end}}{{else}}""{{end}},"releaseNamespace":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}${projectOptionalField('.namespace')}{{end}}{{else}}""{{end}}{{else}}""{{end}},"sourceName":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.sourceRef.name')}{{else if eq .kind "HelmRelease"}}${projectOptionalField('.spec.chart.spec.sourceRef.name')}{{else}}""{{end}},"dependencies":[{{$namespace := .metadata.namespace}}{{range $i,$dependency := .spec.dependsOn}}{{if $i}},{{end}}{"name":${quoteField('.name')},"namespace":{{if .namespace}}${quoteField('.namespace')}{{else}}{{printf "%q" $namespace}}{{end}}}{{end}}],"chart":{{if eq .kind "HelmRelease"}}${projectOptionalField('.spec.chart.spec.chart')}{{else}}""{{end}},${ownerUID},"controllerEnabled":{{if eq .kind "HelmRelease"}}{{if eq .spec.chart.spec.chart "eck-operator"}}true{{else if eq .spec.chart.spec.chart "kube-prometheus-stack"}}{{if eq .spec.values.prometheusOperator.enabled false}}false{{else}}true{{end}}{{else}}false{{end}}{{else}}false{{end}}}`,
   ),
   nodes: projectList(
     `{${metadata},"machineID":${quoteField('.status.nodeInfo.machineID')},"labels":{ {{$first := true}}{{range $key,$value := .metadata.labels}}{{if not $first}},{{end}}{{$first = false}}{{printf "%q" $key}}:{{printf "%q" $value}}{{end}} },"allocatable":${quoteField('.status.allocatable.memory')},"allocatableCPU":${projectOptionalField('.status.allocatable.cpu')},"schedulable":{{if .spec.unschedulable}}false{{else}}true{{end}},"pressure":{{$memory := false}}{{$disk := false}}{{$pid := false}}{{range .status.conditions}}{{if eq .status "False"}}{{if eq .type "MemoryPressure"}}{{$memory = true}}{{end}}{{if eq .type "DiskPressure"}}{{$disk = true}}{{end}}{{if eq .type "PIDPressure"}}{{$pid = true}}{{end}}{{end}}{{end}}{{if and $memory $disk $pid}}"clear"{{else}}"unknown-or-pressured"{{end}},"ready":${ready}}`,
@@ -973,11 +976,34 @@ export async function preflightObservability(
     const parent = resources.find((entry) => entry.uid === resource.ownerUID);
     return parent === undefined ? undefined : resolveOwner(parent, seen);
   }
+  function requireReadyResource(
+    actual: typeof Resource.infer,
+    pin: typeof ResourcePin.infer,
+  ): void {
+    if (['Kustomization', 'HelmRelease'].includes(actual.kind) && pin.requiredRevision === '')
+      // Proof: `revision-pin` removal/broken dependency failed `fix1 empty applied revision cannot bypass a revision-bearing prerequisite` with an assertion.
+      // Proof: `dependency-revision-nonempty` guard/dependency mutation failed `fix2 HelmRelease recursive dependency blank-revision refuses` with an assertion (fix-2 receipt).
+      refusePreflight('revision-pin-required');
+    if (
+      // Proof: `dependency-ready` guard/dependency mutation failed `fix2 HelmRelease recursive dependency unready refuses` with an assertion (fix-2 receipt).
+      !actual.ready ||
+      (!['Namespace', 'CustomResourceDefinition'].includes(actual.kind) &&
+        actual.generation !== actual.observedGeneration) ||
+      // Proof: `dependency-revision` guard/dependency mutation failed `fix2 HelmRelease recursive dependency revision refuses` with an assertion (fix-2 receipt).
+      (pin.requiredRevision !== '' && actual.revision !== pin.requiredRevision)
+    )
+      // Proof: removing this refusal failed `unready dependency refuses migration` with its named fault.
+      refusePreflight('dependency-unready');
+  }
   function requireDependencies(resource: typeof Resource.infer, seen = new Set<string>()): void {
     // Proof: removing this refusal failed `cyclic Flux dependency graph refuses` with its named fault.
+    // Proof: `dependency-cycle` guard/dependency mutation failed `fix2 HelmRelease recursive dependency cycle refuses` with an assertion (fix-2 receipt).
     if (seen.has(resource.uid)) refusePreflight('dependency-cycle');
     seen.add(resource.uid);
     // Proof: removing this refusal failed `observed Flux sourceRef cannot drift from the pinned Git source` with its named fault.
+    // Proof: `helm-source-kind` guard/dependency mutation failed `fix2 actual Helm chart sourceKind cannot drift from the reviewed Git source` with an assertion (fix-2 receipt).
+    // Proof: `helm-source-namespace` guard/dependency mutation failed `fix2 actual Helm chart sourceNamespace cannot drift from the reviewed Git source` with an assertion (fix-2 receipt).
+    // Proof: `helm-source-name` guard/dependency mutation failed `fix2 actual Helm chart sourceName cannot drift from the reviewed Git source` with an assertion (fix-2 receipt).
     if (
       // Proof: `source-kind` removal/broken dependency failed `fix1 full Flux source kind is bound` with an assertion.
       resource.sourceKind !== request.source.kind ||
@@ -989,20 +1015,27 @@ export async function preflightObservability(
     for (const edge of resource.dependencies) {
       const dependency = resources.find(
         (entry) =>
-          entry.kind === 'Kustomization' &&
+          // Proof: `actual-flux-dependency-kind` guard/dependency mutation failed `fix2 HelmRelease prerequisite keeps its independently reviewed earlier chart revision` with an assertion (fix-2 receipt).
+          entry.kind === resource.kind &&
           entry.name === edge.name &&
           entry.namespace === edge.namespace,
       );
-      if (
-        dependency === undefined ||
-        !dependency.ready ||
-        dependency.generation !== dependency.observedGeneration
-      )
+      if (dependency === undefined)
         // Proof: removing this refusal failed `actual Flux dependency absent from inventory refuses` with its named fault.
+        // Proof: `dependency-missing` guard/dependency mutation failed `fix2 HelmRelease recursive dependency missing refuses` with an assertion (fix-2 receipt).
         refusePreflight('dependency-unready');
-      if (!request.resources.some((pin) => pin.uid === dependency.uid))
+      const pin = request.resources.find(
+        (pin) =>
+          pin.uid === dependency.uid &&
+          pin.kind === dependency.kind &&
+          pin.name === dependency.name &&
+          pin.namespace === dependency.namespace,
+      );
+      if (pin === undefined)
         // Proof: removing this refusal failed `actual Flux dependency cannot be omitted from reviewed UID pins` with its named fault.
+        // Proof: `dependency-unreviewed` guard/dependency mutation failed `fix2 HelmRelease recursive dependency unreviewed refuses` with an assertion (fix-2 receipt).
         refusePreflight('dependency-unreviewed');
+      requireReadyResource(dependency, pin);
       requireDependencies(dependency, new Set(seen));
     }
   }
@@ -1024,25 +1057,18 @@ export async function preflightObservability(
     )
       // Proof: removing this refusal failed `unknown owner refuses` with its named fault.
       refusePreflight('ownership-mismatch');
-    if (['Kustomization', 'HelmRelease'].includes(actual.kind) && pin.requiredRevision === '')
-      // Proof: `revision-pin` removal/broken dependency failed `fix1 empty applied revision cannot bypass a revision-bearing prerequisite` with an assertion.
-      refusePreflight('revision-pin-required');
     if (actual.kind === 'Kustomization') {
       // Proof: removing this refusal failed `observed Flux path cannot drift from the reviewed graph` with its named fault.
       if (actual.path !== pin.path) refusePreflight('source-mismatch');
-      requireDependencies(actual);
     }
-    if (
-      !actual.ready ||
-      (!['Namespace', 'CustomResourceDefinition'].includes(actual.kind) &&
-        actual.generation !== actual.observedGeneration) ||
-      (pin.requiredRevision !== '' && actual.revision !== pin.requiredRevision)
-    )
-      // Proof: removing this refusal failed `unready dependency refuses migration` with its named fault.
-      refusePreflight('dependency-unready');
+    // Proof: `helm-dependency-entry` guard/dependency mutation failed `fix2 HelmRelease recursive dependency unreviewed refuses` with an assertion (fix-2 receipt).
+    if (['Kustomization', 'HelmRelease'].includes(actual.kind)) requireDependencies(actual);
+    requireReadyResource(actual, pin);
   }
   function requireFluxOwner(resource: typeof Resource.infer, seen = new Set<string>()): void {
-    if (seen.has(resource.uid)) return;
+    // Proof: `uid-cycle-self` guard/dependency mutation failed `fix2 populated-label actual owner UID cycle of length 1 refuses` with an assertion (fix-2 receipt).
+    // Proof: `uid-cycle-long` guard/dependency mutation failed `fix2 populated-label actual owner UID cycle of length 3 refuses` with an assertion (fix-2 receipt).
+    if (seen.has(resource.uid)) refusePreflight('ownership-cycle');
     seen.add(resource.uid);
     if (resource.ownerUID !== '') {
       const parent = resources.find((entry) => entry.uid === resource.ownerUID);
@@ -1071,8 +1097,10 @@ export async function preflightObservability(
       refusePreflight('flux-owner-unreviewed');
     if (!owner.ready || owner.generation !== owner.observedGeneration)
       refusePreflight('dependency-unready');
-    if (owner.kind === 'Kustomization') requireDependencies(owner);
-    if (owner.uid !== resource.uid) requireFluxOwner(owner, seen);
+    // Proof: disabling Helm traversal at both graph entry points failed the unreviewed Helm dependency negative (fix-2 entry receipt).
+    requireDependencies(owner);
+    if (owner.uid === resource.uid && resource.kind === 'Kustomization') return;
+    requireFluxOwner(owner, seen);
   }
   for (const pin of request.resources) {
     const resource = resources.find((entry) => entry.uid === pin.uid);
@@ -1110,9 +1138,14 @@ export async function preflightObservability(
   if (new Set(pods.map((pod) => pod.uid)).size !== pods.length)
     // Proof: `physical-uid` removal/broken dependency failed `fix1 duplicate observed physical UID cannot count as two replicas` with an assertion.
     refusePreflight('replica-state-unknown');
+  const capacityNodes = new Set(request.nodes.map((node) => node.name));
   const podModels = new Map(
     // Proof: `observed-model-cache` removal/broken dependency failed `fix1 two complete owned replicas fit without duplicate candidate charges` with an assertion.
-    pods.filter(isActivePod).map((pod) => [pod.uid, readWorkloadModel(pod.spec)]),
+    pods
+      // Proof: `selected-node-scope` guard/dependency mutation failed `fix2 unrelated other-node unsupported pod stays outside admitted cost scope` with an assertion (fix-2 receipt).
+      // Proof: `selected-node-unknown-retained` guard/dependency mutation failed `fix2 selected-node unknown workload costs still refuse` with an assertion (fix-2 receipt).
+      .filter((pod) => isActivePod(pod) && capacityNodes.has(pod.node))
+      .map((pod) => [pod.uid, readWorkloadModel(pod.spec)]),
   );
   function readObservedModel(pod: typeof Pod.infer): WorkloadModel {
     const model = podModels.get(pod.uid);

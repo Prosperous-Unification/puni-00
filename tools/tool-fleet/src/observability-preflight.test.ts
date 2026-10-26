@@ -2168,16 +2168,19 @@ function setupResourceSources(
     releaseNamespace: string;
   }[],
 ): void {
-  for (const resource of resources)
-    if (resource.kind === 'Kustomization') {
-      resource.path = './infra/platform/observability/production';
+  for (const resource of resources) {
+    if (['Kustomization', 'HelmRelease'].includes(resource.kind)) {
+      if (resource.kind === 'Kustomization')
+        resource.path = './infra/platform/observability/production';
       resource.sourceName = 'puni-platform';
       resource.sourceKind = 'GitRepository';
       resource.sourceNamespace = 'flux-system';
-    } else if (resource.kind === 'HelmRelease') {
+    }
+    if (resource.kind === 'HelmRelease') {
       resource.releaseName = resource.name;
       resource.releaseNamespace = resource.namespace;
     }
+  }
 }
 
 for (const [name, fault, diagnostic] of [
@@ -2925,3 +2928,307 @@ it('fix1 zero emptyDir size cannot become bounded zero-cost demand', async () =>
   expect(response.exitCode).toBe(1);
   expect(response.stderr).toContain('candidate-emptydir-unbounded');
 });
+
+for (const length of [1, 3]) {
+  it(`fix2 populated-label actual owner UID cycle of length ${String(length)} refuses`, async () => {
+    const setup = await fixture();
+    const first = setup.snapshot.resources.find((entry) => entry.uid === 'new-deployment-uid');
+    const pin = setup.request.resources.find((entry) => entry.uid === first?.uid);
+    if (first === undefined || pin === undefined) throw new Error('fixture workload missing');
+    let parent = first;
+    for (let index = 1; index < length; index += 1) {
+      const next = {
+        ...first,
+        name: `cycle-${String(index)}`,
+        uid: `cycle-${String(index)}`,
+        ownerUID: '',
+      };
+      setup.snapshot.resources.push(next);
+      parent.ownerUID = next.uid;
+      parent = next;
+    }
+    parent.ownerUID = first.uid;
+    pin.ownerUID = first.ownerUID;
+    const response = await setup.run();
+    expect(response.exitCode).toBe(1);
+    expect(response.stderr).toContain('ownership-cycle');
+  });
+}
+
+function prepareFixHelmDependency(setup: Awaited<ReturnType<typeof fixture>>) {
+  const release = setup.snapshot.resources.find((entry) => entry.kind === 'HelmRelease');
+  if (release === undefined) throw new Error('fixture Helm release missing');
+  const dependency = {
+    ...release,
+    name: 'shared-helm-prerequisite',
+    uid: 'shared-helm-uid',
+    chart: 'shared-chart',
+    controllerEnabled: false,
+    releaseName: 'shared-helm',
+    dependencies: [] as { name: string; namespace: string }[],
+    revision: '1.2.3',
+  };
+  setup.snapshot.resources.push(dependency);
+  release.dependencies = [{ name: dependency.name, namespace: dependency.namespace }];
+  const {
+    kind,
+    name,
+    namespace,
+    uid,
+    owner,
+    ownerNamespace,
+    ownerUID,
+    path,
+    revision: requiredRevision,
+  } = dependency;
+  setup.request.resources.push({
+    kind,
+    name,
+    namespace,
+    uid,
+    owner,
+    ownerNamespace,
+    ownerUID,
+    path,
+    requiredRevision,
+  });
+  return { release, dependency };
+}
+
+for (const fault of [
+  'missing',
+  'unreviewed',
+  'unready',
+  'cycle',
+  'revision',
+  'blank-revision',
+  'identity',
+] as const) {
+  it(`fix2 HelmRelease recursive dependency ${fault} refuses`, async () => {
+    const setup = await fixture();
+    const { release, dependency } = prepareFixHelmDependency(setup);
+    if (fault === 'missing') {
+      setup.snapshot.resources = setup.snapshot.resources.filter(
+        (entry) => entry.uid !== dependency.uid,
+      );
+      setup.request.resources = setup.request.resources.filter(
+        (entry) => entry.uid !== dependency.uid,
+      );
+    }
+    if (fault === 'unreviewed')
+      setup.request.resources = setup.request.resources.filter(
+        (entry) => entry.uid !== dependency.uid,
+      );
+    if (fault === 'unready') dependency.ready = false;
+    if (fault === 'cycle')
+      dependency.dependencies = [{ name: release.name, namespace: release.namespace }];
+    if (fault === 'revision') dependency.revision = '1.2.4';
+    if (fault === 'blank-revision') {
+      const pin = setup.request.resources.find((entry) => entry.uid === dependency.uid);
+      if (pin === undefined) throw new Error('fixture pin missing');
+      pin.requiredRevision = '';
+    }
+    if (fault === 'identity') release.dependencies[0].namespace = 'other-namespace';
+    const response = await setup.run();
+    expect(response.exitCode).toBe(1);
+    expect(response.stderr).toContain(
+      fault === 'cycle'
+        ? 'dependency-cycle'
+        : fault === 'unreviewed'
+          ? 'dependency-unreviewed'
+          : fault === 'blank-revision'
+            ? 'revision-pin-required'
+            : 'dependency-unready',
+    );
+  });
+}
+
+it('fix2 HelmRelease prerequisite keeps its independently reviewed earlier chart revision', async () => {
+  const setup = await fixture();
+  prepareFixHelmDependency(setup);
+  const response = await setup.run();
+  expect(response.stderr).toBe('');
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(true);
+});
+
+for (const selected of [false, true]) {
+  it(`fix2 ${selected ? 'selected' : 'unrelated'} other-node unsupported pod stays outside admitted cost scope`, async () => {
+    const setup = await fixture();
+    const pod = structuredClone(setup.snapshot.pods[0]);
+    pod.node = 'unselected-node';
+    pod.limits = ['0'];
+    pod.specOverride = { ...projectFixturePod(pod).spec, unsupported: true };
+    if (selected) setup.snapshot.pods[0] = pod;
+    else {
+      pod.uid = 'unrelated-pod';
+      pod.ownerUID = 'unrelated-controller';
+      setup.snapshot.pods.push(pod);
+    }
+    const response = await setup.run();
+    expect(response.stderr).toBe('');
+    expect(response.exitCode).toBe(0);
+    const receipt = JSON.parse(
+      await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+    ) as ReceiptView & { observed: { pods: { uid: string }[] } };
+    expect(receipt.observed.pods).toHaveLength(selected ? 1 : 2);
+    expect(receipt.migrationReady).toBe(!selected);
+    if (selected) expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
+  });
+}
+
+it('fix2 selected-node unknown workload costs still refuse', async () => {
+  const setup = await fixture();
+  setup.snapshot.pods[0].limits = ['0'];
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('memory-unknown');
+});
+
+async function writeFixSpec(
+  setup: Awaited<ReturnType<typeof fixture>>,
+  spec: typeof WorkloadSpec.infer,
+) {
+  await rewriteCandidate(setup, () =>
+    JSON.stringify({
+      apiVersion: 'apps/v1',
+      kind: 'Deployment',
+      metadata: { name: 'new', namespace: 'observability' },
+      spec: {
+        replicas: 1,
+        template: {
+          spec: { ...spec, nodeSelector: { 'puni.dev/capability-observability': 'true' } },
+        },
+      },
+    }),
+  );
+}
+for (const side of ['source', 'observed'] as const)
+  for (const file of ['ca', 'namespace'] as const) {
+    it(`fix2 ${side} service-account ${file} file mode zero is not normalized away`, async () => {
+      const setup = await fixture();
+      const observed = await prepareFixServiceAccount(setup);
+      const source = structuredClone(observed);
+      const selected = side === 'source' ? source : observed;
+      const projection = selected.volumes?.[0].projected;
+      const entry =
+        file === 'ca'
+          ? projection?.sources[1].configMap?.items?.[0]
+          : projection?.sources[2].downwardAPI?.items[0];
+      if (entry === undefined) throw new Error('fixture projection file missing');
+      Object.assign(entry, { mode: 0 });
+      await writeFixSpec(setup, source);
+      const response = await setup.run();
+      expect(response.stderr).toBe('');
+      expect(response.exitCode).toBe(0);
+      const receipt = JSON.parse(
+        await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+      ) as ReceiptView;
+      expect(receipt.migrationReady).toBe(false);
+      expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
+    });
+  }
+
+for (const field of ['sourceKind', 'sourceNamespace', 'sourceName'] as const) {
+  it(`fix2 actual Helm chart ${field} cannot drift from the reviewed Git source`, async () => {
+    const setup = await fixture();
+    const { dependency } = prepareFixHelmDependency(setup);
+    dependency[field] = 'foreign-source';
+    const response = await setup.run();
+    expect(response.exitCode).toBe(1);
+    expect(response.stderr).toContain('source-mismatch');
+  });
+}
+
+it('fix2 explicit standard file modes remain eligible for the admission exception', async () => {
+  const setup = await fixture();
+  const observed = await prepareFixServiceAccount(setup);
+  const source = structuredClone(observed);
+  const projection = source.volumes?.[0].projected;
+  const ca = projection?.sources[1].configMap?.items?.[0];
+  const namespace = projection?.sources[2].downwardAPI?.items[0];
+  if (ca === undefined || namespace === undefined) throw new Error('fixture files missing');
+  ca.mode = 420;
+  namespace.mode = 420;
+  await writeFixSpec(setup, source);
+  const response = await setup.run();
+  expect(response.stderr).toBe('');
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(true);
+});
+
+for (const kind of ['secret', 'configMap', 'downwardAPI'] as const) {
+  it(`fix2 explicit projected ${kind} file modes remain part of workload identity`, async () => {
+    const setup = await fixture();
+    const observed = await prepareFixServiceAccount(setup);
+    const source = structuredClone(observed);
+    const mode = 0;
+    const items = [{ key: 'reference-key', path: 'reference-path', mode }];
+    const sourceEntry =
+      kind === 'downwardAPI'
+        ? {
+            downwardAPI: {
+              items: [{ path: 'namespace', fieldRef: { fieldPath: 'metadata.namespace' }, mode }],
+            },
+          }
+        : { [kind]: { name: 'reference-only', items } };
+    source.volumes = [{ name: 'explicit-projection', projected: { sources: [sourceEntry] } }];
+    observed.volumes = structuredClone(source.volumes);
+    const entry = observed.volumes[0].projected?.sources[0];
+    const file =
+      kind === 'downwardAPI'
+        ? entry?.downwardAPI?.items[0]
+        : kind === 'secret'
+          ? entry?.secret?.items?.[0]
+          : entry?.configMap?.items?.[0];
+    if (file === undefined) throw new Error('fixture projected file missing');
+    file.mode = 420;
+    source.containers[0].volumeMounts = [
+      { name: 'explicit-projection', mountPath: '/references', readOnly: true },
+    ];
+    observed.containers[0].volumeMounts = structuredClone(source.containers[0].volumeMounts);
+    await writeFixSpec(setup, source);
+    const response = await setup.run();
+    expect(response.stderr).toBe('');
+    expect(response.exitCode).toBe(0);
+    const receipt = JSON.parse(
+      await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+    ) as ReceiptView;
+    expect(receipt.migrationReady).toBe(false);
+    expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
+  });
+}
+
+it('fix2 selected-node unsupported workload costs still refuse', async () => {
+  const setup = await fixture();
+  setup.snapshot.pods[0].specOverride = {
+    ...projectFixturePod(setup.snapshot.pods[0]).spec,
+    unsupported: true,
+  };
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('workload-shape-unsupported');
+});
+
+for (const side of ['source', 'observed'] as const)
+  for (const mode of [-1, 512]) {
+    it(`fix2 ${side} projected file mode ${String(mode)} is malformed`, async () => {
+      const setup = await fixture();
+      const observed = await prepareFixServiceAccount(setup);
+      const source = structuredClone(observed);
+      const entry = (side === 'source' ? source : observed).volumes?.[0].projected?.sources[1]
+        .configMap?.items?.[0];
+      if (entry === undefined) throw new Error('fixture CA file missing');
+      entry.mode = mode;
+      await writeFixSpec(setup, source);
+      const response = await setup.run();
+      expect(response.exitCode).toBe(1);
+      expect(response.stderr).toContain('projection-malformed');
+    });
+  }

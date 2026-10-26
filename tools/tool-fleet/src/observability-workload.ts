@@ -14,20 +14,24 @@ const Mount = type({
   'subPathExpr?': 'string',
   '+': 'reject',
 });
+// Proof: `mode-lower-bound` guard/dependency mutation failed `fix2 source projected file mode -1 is malformed` with an assertion (fix-2 receipt).
+// Proof: `mode-upper-bound` guard/dependency mutation failed `fix2 observed projected file mode 512 is malformed` with an assertion (fix-2 receipt).
+const FileMode = type('number.integer').atLeast(0).atMost(511);
 const Projection = type({
   'secret?': {
     name: 'string>0',
-    'items?': type({ key: 'string>0', path: 'string>0' }).array(),
+    'items?': type({ key: 'string>0', path: 'string>0', 'mode?': FileMode }).array(),
     'optional?': 'boolean',
   },
   'configMap?': {
     name: 'string>0',
-    'items?': type({ key: 'string>0', path: 'string>0' }).array(),
+    'items?': type({ key: 'string>0', path: 'string>0', 'mode?': FileMode }).array(),
     'optional?': 'boolean',
   },
   'downwardAPI?': {
     items: type({
       path: 'string>0',
+      'mode?': FileMode,
       'fieldRef?': { fieldPath: 'string>0', 'apiVersion?': 'string' },
       'resourceFieldRef?': 'unknown',
     }).array(),
@@ -126,7 +130,7 @@ export const WorkloadSpec = type(specFields);
 const SafeReference = type({
   name: 'string>0',
   'optional?': 'boolean',
-  'items?': type({ key: 'string>0', path: 'string>0', '+': 'reject' }).array(),
+  'items?': type({ key: 'string>0', path: 'string>0', 'mode?': FileMode, '+': 'reject' }).array(),
   '+': 'reject',
 });
 const SafeProjection = type({
@@ -135,6 +139,7 @@ const SafeProjection = type({
   'downwardAPI?': {
     items: type({
       path: 'string>0',
+      'mode?': FileMode,
       'fieldRef?': { fieldPath: 'string>0', '+': 'reject' },
       'resourceFieldRef?': 'boolean',
       '+': 'reject',
@@ -296,7 +301,12 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
             : {
                 name: entry.name,
                 optional: entry.optional ?? false,
-                items: (entry.items ?? []).map((key) => ({ key: key.key, path: key.path })),
+                items: (entry.items ?? []).map((key) => ({
+                  key: key.key,
+                  path: key.path,
+                  // Proof: `reference-mode-identity` guard/dependency mutation failed `fix2 explicit projected secret file modes remain part of workload identity` with an assertion (fix-2 receipt).
+                  mode: key.mode ?? projected.defaultMode ?? 420,
+                })),
               };
         return {
           secret: reference(source.secret),
@@ -304,6 +314,8 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
           downwardAPI: source.downwardAPI?.items.map((entry) => ({
             path: entry.path,
             fieldPath: entry.fieldRef?.fieldPath,
+            // Proof: `downward-mode-identity` guard/dependency mutation failed `fix2 explicit projected downwardAPI file modes remain part of workload identity` with an assertion (fix-2 receipt).
+            mode: entry.mode ?? projected.defaultMode ?? 420,
           })),
           serviceAccountToken:
             source.serviceAccountToken === undefined
@@ -354,8 +366,12 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
         ca.items?.length === 1 &&
         ca.items[0].key === 'ca.crt' &&
         ca.items[0].path === 'ca.crt' &&
+        // Proof: `ca-effective-mode` guard/dependency mutation failed `fix2 source service-account ca file mode zero is not normalized away` with an assertion (fix-2 receipt).
+        (ca.items[0].mode ?? volume.projected.defaultMode ?? 420) === 420 &&
         namespace?.items.length === 1 &&
         namespace.items[0].path === 'namespace' &&
+        // Proof: `namespace-effective-mode` guard/dependency mutation failed `fix2 source service-account namespace file mode zero is not normalized away` with an assertion (fix-2 receipt).
+        (namespace.items[0].mode ?? volume.projected.defaultMode ?? 420) === 420 &&
         namespace.items[0].fieldRef?.fieldPath === 'metadata.namespace' &&
         containers.every(
           (container) =>

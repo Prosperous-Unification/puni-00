@@ -31,9 +31,14 @@ projections refuse rather than becoming empty successful inventories.
 
 Use `phase: cutover` to assess reviewed resource/immediate-controller UID pins, source paths,
 the complete actual owning Kustomization/HelmRelease graph, recursive
-`dependsOn` edges and Ready prerequisites at independently reviewed nonempty applied
+`dependsOn` edges of the actual Flux kind (Kustomization or HelmRelease), and Ready
+prerequisites at independently reviewed nonempty applied
 revisions. Git source references bind kind, namespace and name; a shared prerequisite may
-remain at its reviewed earlier revision. Helm applied chart evidence comes from the latest
+remain at its reviewed earlier revision. Helm chart sources bind
+`spec.chart.spec.sourceRef`; Kustomizations bind `spec.sourceRef`. This adapter supports the
+reviewed GitRepository identity used by native Fleet charts; absent/foreign chart sources
+refuse. Actual controller UID cycles and recursive dependency cycles refuse; the root
+Kustomization's label self-reference is the sole ownership self-reference exception. Helm applied chart evidence comes from the latest
 successfully deployed history entry, never an attempted revision. The assessment also requires retained PV/PVC and Docker volume identities, required Secret keys and a fresh
 owner-only rollback receipt pinned by operation id and SHA256. The safe Docker projection
 also records image IDs, Compose project ownership and provisioning mount paths.
@@ -51,7 +56,10 @@ Bounded disk scratch and container ephemeral-storage limits are assessed without
 the same shared scratch bytes twice. A writable root without a finite ephemeral limit and
 an emptyDir without a size limit are concrete source blockers. Existing pods are deduplicated only through
 exact reviewed controller UIDs, including ReplicaSet and ECK owner chains. Each candidate's
-`replicaUIDs` must pin the complete active owned pod set. Source and current pods share one
+`replicaUIDs` must pin the complete active owned pod set. Cost normalization covers active pods on the explicitly
+admitted nodes; unrelated other-node unbounded/unsupported pods remain safe inventory facts.
+Candidate-owned off-node replicas remain placement/template blockers. Unknown demand on
+an admitted node still refuses. Source and current pods share one
 normalized named container/init/resource/overhead/volume-mount model. Application container
 order is irrelevant; init order and StatefulSet ordinal/claim identity are preserved. Matching
 existing replicas contribute current cost once. Missing, old-template, wrongly placed or
@@ -87,7 +95,10 @@ The sole admission-added normalization is a `kube-api-access-[a-z0-9]+` projecte
 mode 0644, exactly the standard token (path `token`, no audience, explicit expiration at most
 86400 seconds), `kube-root-ca.crt`/`ca.crt` and `metadata.namespace`/`namespace` sources. Every
 app/init container must have exactly one read-only mount at
-`/var/run/secrets/kubernetes.io/serviceaccount`, with no subpath. Only that constrained
+`/var/run/secrets/kubernetes.io/serviceaccount`, with no subpath. Each CA/namespace file must also have effective mode 0644: its explicit per-item mode
+overrides the volume default. Projected Secret/ConfigMap key paths and downwardAPI metadata
+preserve per-item modes, including explicit zero; normalization compares effective modes
+using absence checks. Only that constrained
 volume and mount are removed before comparison. Service account name and automount policy
 remain part of the source/observed identity. Altered sources, extra/different mounts and a
 different account stay mismatches. Other admitted mutations must fit the explicit model or
