@@ -502,7 +502,7 @@ workflow and consumer-completion contracts added during deployment integration.
 | Requirement                                             | Current evidence and remaining work                                                                                                                                                             |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Enforced registry storage boundary                      | Physical fixtures and scoped review passed; production provisioning/startup pending.                                                                                                            |
-| Publication admission and pressure response             | Authority/supervisor and publication/copy proofs reviewed; coherent permission sampling correction and live activation pending.                                                                 |
+| Publication admission and pressure response             | Authority/supervisor and publication/copy proofs reviewed; corrected permission sampling tested locally and natively; live activation pending.                                                  |
 | Protect images before referring to them                 | Publication and deployment code reviewed; native and installed proofs pending.                                                                                                                  |
 | Complete trusted consumer inventory                     | Adapter code reviewed; installed readers and complete native registry census pending.                                                                                                           |
 | Release-aware retirement eligibility                    | Policy and bound census/plans reviewed; serialized execution and live retirement pending.                                                                                                       |
@@ -823,7 +823,45 @@ and repeated retirement; unsafe-GC and partial post-unlink failure witnesses;
 owner/root interruption and backend-lock recovery; killed GC/restore; physical
 registry ENOSPC with independently healthy journal; verified recovery rebind and
 ordinary CLI continuation; remaining R5 proofs, affected checks and independent
-review. The native expiry fault marker must be adapted to the corrected predicate
-before its next replay. Backup budgeting, delivered monitoring, installed scenario
+review. Corrected-source guard negatives are recorded below. Backup budgeting, delivered monitoring, installed scenario
 audit and the final exact-revision host gate are also incomplete. No new production
 storage safeguards have been activated.
+
+## Corrected-source grammar, expiry and teardown regression
+
+HOST35 passed **18 actual HTTP guard cases/135 upload probes** in55.451 seconds
+using UID/GID59001 and pinned Distribution. Cases include failed final permission
+open, malformed record bytes, both permitted hash positions, wrong owner/mode,
+restart and parser-removal witnesses. The synthetic journal/permit was never
+initialized as an actual authority. All owned guards terminated and the normal
+startup bytes were restored.
+
+The worker found a fixture teardown omission before claiming normal cleanup:
+its optional cgroup-unmount flag covered index mode but omitted the two guard
+modes. Namespace destruction removed the private cgroup view; both independent
+resource audits found no remaining references. HOST35 therefore proves its guard
+behavior and final resource absence, without claiming explicit cgroup-before-proc
+unmount. Its96 periodic host root/cgroup snapshots and final comparison matched.
+
+The fixture caller was corrected to include exactly the two mounted guard modes.
+Tests execute the actual caller expression with only the privileged reaper
+substituted: **3 pass/2 fail** before correction, **5 pass/10 assertions** afterward.
+Removing either inclusion separately produced **4 pass/1 behavioral failure**;
+restoration returned5 pass. Production guard bytes and all execution bounds stayed
+unchanged. HOST35 was not repeated to obtain a different cleanup receipt.
+
+HOST36 then passed **4 actual guard cases/18 upload probes** in46.914 seconds.
+An actual30-second unrenewed permission expired to HTTP405 and restart preserved
+that refusal; removing expiry admitted HTTP202. A stable checksum mismatch returned
+HTTP405; removing the corrected final-checksum predicate admitted HTTP202. Source
+restoration and owned-guard termination passed. This is synthetic permit
+nonrenewal, not actual checker-process death or installed control-plane proof.
+
+HOST36 explicitly unmounted the cgroup view before proc, then unmounted its owned
+root last. All85 periodic host root/cgroup snapshots and final comparison matched.
+Both independent audits found its exact fixture, three namespaces, descriptor and
+mount references, loop backing and outside lock processes absent, with host state
+unchanged and more than20GiB root reserve. All91 source/nine payload pins matched
+after termination. These corrected-source regressions complete the scoped guard
+checks; the remaining Task4.2 lifecycle and installed acceptance work above remains
+open.
