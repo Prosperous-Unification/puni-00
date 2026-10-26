@@ -688,6 +688,9 @@ export class AuthService {
       throw new Error(
         `machine credential ${admission.actor.credentialId} acts as a missing account`,
       );
+    // Proof: with this refusal removed, `refuses a non-member's assertion
+    // unknown_identity, recording no use` (be-01 machine-grant.controller.db.test.ts)
+    // saw the last use recorded; watched 2026-10-26.
     if (membership === 'members_only' && admission.actor.accountRole === null)
       return 'unknown_identity';
     // As on the API-key path: a removal committed since admission.

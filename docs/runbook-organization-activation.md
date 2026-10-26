@@ -161,10 +161,13 @@ missing one:
   `https://dev.wbs.bulletpoints.club/mcp/oauth`.
 
 Each secret is at least 32 characters with at least 10 distinct ones, and no two of them,
-`INTERNAL_AUTH_SECRET` included, may be equal. Generate them, for example with
-`openssl rand -base64 48`, put them in be-01's env (dev: `apps/wbs/be-01/.env` in the dev
-checkout; prod: the shared `/srv/wbs/.env`, which the swap filters into be-01's secrets
-file), and never into a tracked file.
+`INTERNAL_AUTH_SECRET` included, may be equal. Generate the secrets, for example with `openssl rand -base64 48`, and never put them in a
+tracked file. On dev all three go in `apps/wbs/be-01/.env` in the dev checkout. On prod the
+two secrets (`MCP_BE_INTERNAL_SECRET`, `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT`, and
+`_PREVIOUS` during a rotation) go in the shared `/srv/wbs/.env`, which the swap filters by
+be-01's `SECRET_KEYS` into its derived secrets file; `WBS_MCP_AUTHORIZATION_SERVER` is not a
+secret and goes in `/srv/wbs/be-01.env`, whose keys `APP_ENV_ALLOWED_KEYS` allows
+(`tools/tool-remote-scripts/src/lib/docker.ts`).
 
 The activation CLI reads the same three from **its own** environment and refuses `--apply`
 with `machine_grant_settings_missing` (exit 8, `missing` naming them) before opening the

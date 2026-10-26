@@ -248,6 +248,12 @@ const APP_ENV_ALLOWED_KEYS: Record<Tier, readonly string[]> = {
     'SOLVER_BUDGET_MS',
     'SOLVER_SEARCH_WORKERS',
     'SOLVER_MEMORY_LIMIT_MB',
+    // mcp-01's authorization server (`wbs-mcp-agent-surface` M2): not a
+    // secret, so it travels in be-01.env; an activated store needs it to boot.
+    // Proof: deleting this entry made `passes be-01.env carrying the machine
+    // grant authorization server` (docker.test.ts) throw outside-tier-allowlist;
+    // watched 2026-10-26.
+    'WBS_MCP_AUTHORIZATION_SERVER',
   ],
   gw: ['PORT', 'LOG_LEVEL', 'BE_URL', 'AUTH_MODE'],
   fe: [],

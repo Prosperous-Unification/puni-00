@@ -413,8 +413,8 @@ written to the issuance audit row, and mcp-01 SHALL answer that token request
 
 ### Requirement: Run scoping is opt-in through wbs_run
 
-A token request MAY carry `wbs_run` (1 to 256 characters), which be-01 SHALL sign into the
-grant. Without it, a grant SHALL carry no run, and renewal and `runId` SHALL behave as for an
+A token request MAY carry `wbs_run` (1 to 256 characters, not shaped like a secret: see
+"A run shaped like a secret is refused"), which be-01 SHALL sign into the grant. Without it, a grant SHALL carry no run, and renewal and `runId` SHALL behave as for an
 API key today. A run SHALL never be defaulted from the token's `jti`.
 
 #### Scenario: Re-fetching without wbs_run orphans nothing

@@ -7,7 +7,7 @@ import { loadMcpServiceSettings, type McpServiceSettings } from '../config';
  * Fixed placeholder values, never a deployment's.
  */
 export const TEST_MACHINE_GRANT_ENV: Readonly<Record<string, string>> = {
-  MCP_BE_INTERNAL_SECRET: 'm'.repeat(32),
+  MCP_BE_INTERNAL_SECRET: 'mcp-secret-0123456789abcdefghijklmn',
   WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT: 'grant-key-g-0123456789abcdefghijklmn',
   WBS_MCP_AUTHORIZATION_SERVER: 'https://wbs.example/mcp/oauth',
 };

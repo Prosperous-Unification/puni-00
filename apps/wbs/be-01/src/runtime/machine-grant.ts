@@ -68,16 +68,51 @@ export async function importMachineGrantKeys(secrets: {
   return { current, previous };
 }
 
-async function importKey(secret: string, setting: string): Promise<MachineGrantKey> {
+/**
+ * Refuses a service secret shorter than 32 characters or holding fewer than 10
+ * distinct ones: the floor every grant key and `MCP_BE_INTERNAL_SECRET` meet.
+ *
+ * Proof: with the distinct-character check removed, `refuses a secret of too
+ * few distinct characters` (machine-grant.test.ts) imported 'g' repeated 32
+ * times; watched 2026-10-26.
+ *
+ * @throws naming `setting`, never the value.
+ */
+export function assertServiceSecretStrength(secret: string, setting: string): void {
   if (secret.length < LEAST_SECRET_CHARACTERS)
     throw new Error(`${setting} must be at least ${String(LEAST_SECRET_CHARACTERS)} characters`);
-  // Proof: with this check removed, `refuses a secret of too few distinct
-  // characters` (machine-grant.test.ts) imported 'g' repeated 32 times;
-  // watched 2026-10-26.
   if (new Set(secret).size < LEAST_DISTINCT_CHARACTERS)
     throw new Error(
       `${setting} must hold at least ${String(LEAST_DISTINCT_CHARACTERS)} distinct characters`,
     );
+}
+
+/**
+ * Every reason `settings` would fail be-01's boot of an activated store, by
+ * the same checks boot runs: the dedicated secret's strength and the grant
+ * keys' import. Empty when they would pass. The activation CLI's preflight.
+ */
+export async function machineGrantSettingsFaultsOf(settings: {
+  readonly internalSecret: string | null;
+  readonly grantSigningKeys: { readonly current: string; readonly previous: string | null } | null;
+}): Promise<string[]> {
+  const faults: string[] = [];
+  try {
+    if (settings.internalSecret !== null)
+      assertServiceSecretStrength(settings.internalSecret, 'MCP_BE_INTERNAL_SECRET');
+  } catch (cause) {
+    faults.push(cause instanceof Error ? cause.message : 'MCP_BE_INTERNAL_SECRET is unusable');
+  }
+  try {
+    if (settings.grantSigningKeys !== null) await importMachineGrantKeys(settings.grantSigningKeys);
+  } catch (cause) {
+    faults.push(cause instanceof Error ? cause.message : 'the machine grant keys are unusable');
+  }
+  return faults;
+}
+
+async function importKey(secret: string, setting: string): Promise<MachineGrantKey> {
+  assertServiceSecretStrength(secret, setting);
   const bytes = new TextEncoder().encode(secret);
   const key = await crypto.subtle.importKey(
     'raw',

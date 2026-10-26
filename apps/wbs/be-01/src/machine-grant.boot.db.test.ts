@@ -17,7 +17,7 @@ import { addAgentPerson, issueApiKey } from './testing/machine-credential-fixtur
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
-const SECRET = 'm'.repeat(32);
+const SECRET = 'mcp-secret-0123456789abcdefghijklmn';
 const AUTHORIZATION_SERVER = 'https://wbs.example/mcp/oauth';
 const SETTINGS: McpServiceSettings = {
   internalSecret: SECRET,
@@ -131,6 +131,16 @@ describe('machine grants at boot', () => {
     ])
       expect(message).toContain(name);
     expect(listened).toBe(false);
+  });
+
+  it('refuses a weak MCP_BE_INTERNAL_SECRET before opening storage', async () => {
+    let failure: unknown;
+    try {
+      await boot(store(false), { ...SETTINGS, internalSecret: 'm'.repeat(32) });
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(String(failure)).toContain('MCP_BE_INTERNAL_SECRET must hold at least 10 distinct');
   });
 
   it('boots a store before activation without them', async () => {

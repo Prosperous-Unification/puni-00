@@ -326,6 +326,21 @@ tool-remote-scripts exit 0; `wbs-be-01:test` 3749 pass, 0 fail (3752 tests, 256 
 `check-indexes` exit 0; Prettier clean. Not run: the h2puni gate, fe-01 and its e2e, gw-01,
 tool-devsync; nothing was done on the dev host.
 
+### Re-review leftovers (2026-10-26)
+
+| Item | Fix                                                                                                                                                                                                                                                        | Fault injected                                                | Test that failed                                                                                                                                  |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1   | workload-assertion variant of the non-member test                                                                                                                                                                                                          | `members_only` refusal removed from `admitTrustedIssuerToken` | `refuses a non-member's assertion unknown_identity, recording no use` (last use recorded)                                                         |
+| R2   | `WBS_MCP_AUTHORIZATION_SERVER` in be's `APP_ENV_ALLOWED_KEYS`; runbook's prod sentence corrected (secrets via `/srv/wbs/.env` and `SECRET_KEYS`, the server via `/srv/wbs/be-01.env`)                                                                      | entry deleted                                                 | `docker.test.ts` `passes be-01.env carrying the machine grant authorization server` (threw)                                                       |
+| N1   | control character inside the first 64                                                                                                                                                                                                                      | replacement removed                                           | `admits a lowercase jwt typ, and echoes…` (raw BEL echoed)                                                                                        |
+| N2   | the "Run scoping" requirement names the secret-shaped refusal                                                                                                                                                                                              | —                                                             | `openspec validate --strict`                                                                                                                      |
+| N3   | `assertServiceSecretStrength` applies the floor to `MCP_BE_INTERNAL_SECRET` at boot; the activation CLI runs boot's checks (`machineGrantSettingsFaultsOf`: the secret's strength, the keys' import) and refuses `machine_grant_settings_invalid` (exit 8) | boot check removed; faults left out of `unready`              | `refuses a weak MCP_BE_INTERNAL_SECRET before opening storage` (booted); `refuses activation with a weak grant key or secret, naming it` (exit 0) |
+
+**Open, pre-existing, not fixed here:** `WBS_DELEGATION_SIGNING_KEY` and
+`WBS_DELEGATION_VERIFY_KEY` have the same gap in `tools/tool-remote-scripts/src/lib/docker.ts`:
+neither is in be's `SECRET_KEYS` nor `APP_ENV_ALLOWED_KEYS`, so the prod swap cannot pass
+them to be-01.
+
 ## Failure-proof table
 
 Slice 1 rows. Each check was watched failing with the fault injected, then restored; the

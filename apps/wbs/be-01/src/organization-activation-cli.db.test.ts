@@ -466,6 +466,21 @@ describe('organization-activation-cli', () => {
     expect(rows('SELECT * FROM organization_activation')).toEqual(PRE_ACTIVATION);
   });
 
+  it('refuses activation with a weak grant key or secret, naming it', () => {
+    for (const [name, message] of [
+      ['WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT', 'WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT must hold'],
+      ['MCP_BE_INTERNAL_SECRET', 'MCP_BE_INTERNAL_SECRET must hold'],
+    ] as const) {
+      const refused = run(APPLY, path, false, { ...GRANT_SETTINGS, [name]: 'g'.repeat(32) });
+      expect(refused.exitCode).toBe(8);
+      expect(refusalOf(refused.stderr)).toEqual({
+        refusal: 'machine_grant_settings_invalid',
+        invalid: [expect.stringContaining(message)],
+      });
+    }
+    expect(rows('SELECT * FROM organization_activation')).toEqual(PRE_ACTIVATION);
+  });
+
   it('rehearses without the machine grant settings, then reports the refusal', () => {
     const rehearsed = run(['--name', 'default', '--super-admin', 'dany'], path, false, {});
     expect(rehearsed.exitCode).toBe(8);

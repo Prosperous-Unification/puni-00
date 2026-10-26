@@ -446,6 +446,32 @@ describe('issuing a machine grant for a workload assertion', () => {
     });
     expect(refused.status).toBe(401);
     expect((refused.body as { typ: string }).typ).toBe(long.slice(0, 64));
+    // Proof: with the control-character replacement removed from
+    // `printableTypOf`, this echoed the raw BEL; watched 2026-10-26.
+    const controlled = await requestGrant({
+      credential: {
+        kind: 'oidc',
+        assertion: await ci.signTyped({ sub: SUBJECT, aud: 'wbs' }, 'at\u0007jwt'),
+      },
+    });
+    expect((controlled.body as { typ: string }).typ).toBe('at?jwt');
+  });
+
+  // Proof: with the `members_only` refusal of `admitTrustedIssuerToken`
+  // removed, this saw the non-member's last use recorded (machineGrantTermsOf
+  // still refused the grant); watched 2026-10-26.
+  it('refuses a non-member’s assertion unknown_identity, recording no use', async () => {
+    const id = await claireWorkload();
+    h.sqlite.run(
+      "DELETE FROM organization_membership WHERE organization_id = 'org-a' AND user_id = ?",
+      [h.userId('dany')],
+    );
+    expect(
+      await requestGrant({
+        credential: { kind: 'oidc', assertion: await ci.sign({ sub: SUBJECT, aud: 'wbs' }) },
+      }),
+    ).toEqual(UNKNOWN);
+    expect(lastUsedAt(id)).toBeNull();
   });
 
   it('refuses an unknown subject unknown_identity and a stranger issuer invalid_token', async () => {

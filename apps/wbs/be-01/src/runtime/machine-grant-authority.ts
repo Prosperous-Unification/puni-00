@@ -174,7 +174,13 @@ export const NO_MACHINE_GRANTS: MachineGrantAuthority = {
   issue: () => Promise.reject(new Error('machine grants are not composed')),
 };
 
-/** At most 64 characters of a declared `typ`, each outside printable ASCII shown as `?`. */
+/**
+ * At most 64 characters of a declared `typ`, each outside printable ASCII shown as `?`.
+ *
+ * Proof: with the replacement removed, `admits a lowercase jwt typ, and echoes at
+ * most 64 printable characters of a typ` (machine-grant.controller.db.test.ts)
+ * echoed the raw BEL; watched 2026-10-26.
+ */
 function printableTypOf(typ: string): string {
   return typ.replace(/[^\x20-\x7e]/g, '?').slice(0, 64);
 }

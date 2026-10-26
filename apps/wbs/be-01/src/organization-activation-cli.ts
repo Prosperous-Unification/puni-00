@@ -43,6 +43,7 @@ import {
 
 import { loadMcpServiceSettings, missingMcpServiceSettings } from './config';
 import { type McpEpochNotAdvanced, readMcpEpochReadiness } from './mcp-credential-epoch';
+import { machineGrantSettingsFaultsOf } from './runtime/machine-grant';
 
 const REFUSAL_EXIT_CODES: Record<LegacyActivationRefusal['refusal'], number> = {
   already_activated: 3,
@@ -91,24 +92,35 @@ if (
 /** What stops an activation before it writes: the MCP epoch, then the machine grant settings. */
 type Unready =
   | McpEpochNotAdvanced
-  | { readonly refusal: 'machine_grant_settings_missing'; readonly missing: readonly string[] };
+  | { readonly refusal: 'machine_grant_settings_missing'; readonly missing: readonly string[] }
+  | { readonly refusal: 'machine_grant_settings_invalid'; readonly invalid: readonly string[] };
 
 /** Raw bytes, one line: see the refusal branch below for why not console.error. */
 function refuseUnready(refusal: Unready): void {
   process.stderr.write(`${JSON.stringify(refusal)}\n`);
   process.exitCode =
-    refusal.refusal === 'machine_grant_settings_missing'
+    refusal.refusal === 'machine_grant_settings_missing' ||
+    refusal.refusal === 'machine_grant_settings_invalid'
       ? MACHINE_GRANT_SETTINGS_MISSING_EXIT
       : MCP_EPOCH_NOT_ADVANCED_EXIT;
 }
 
 const mcpEpoch = readMcpEpochReadiness(mcpStore);
-const missingGrantSettings = missingMcpServiceSettings(loadMcpServiceSettings(process.env));
+const grantSettings = loadMcpServiceSettings(process.env);
+const missingGrantSettings = missingMcpServiceSettings(grantSettings);
+// The same checks be-01's boot runs on these settings, so a weak key refuses
+// here (exit 8) instead of at the first boot after activation.
+// Proof: with these faults left out of `unready`, `refuses activation with a
+// weak grant key or secret, naming it` (organization-activation-cli.db.test.ts)
+// exited 0; watched 2026-10-26.
+const invalidGrantSettings = await machineGrantSettingsFaultsOf(grantSettings);
 const unready: Unready | null =
   mcpEpoch ??
-  (missingGrantSettings.length === 0
-    ? null
-    : { refusal: 'machine_grant_settings_missing', missing: missingGrantSettings });
+  (missingGrantSettings.length > 0
+    ? { refusal: 'machine_grant_settings_missing', missing: missingGrantSettings }
+    : invalidGrantSettings.length > 0
+      ? { refusal: 'machine_grant_settings_invalid', invalid: invalidGrantSettings }
+      : null);
 // Proof: 2026-10-22, applying regardless here made `refuses activation while the MCP epoch is 0,
 // writing nothing` (organization-activation-cli.db.test.ts) print `mode: applied`.
 // Proof: with the grant settings left out of `unready`, `refuses activation without the machine

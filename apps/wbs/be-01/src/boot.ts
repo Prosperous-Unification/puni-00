@@ -66,6 +66,7 @@ import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-p
 import { createEmailDelivery } from './runtime/email-delivery';
 import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
 import {
+  assertServiceSecretStrength,
   importMachineGrantKeys,
   type MachineGrantKeys,
   machineGrantVerifier,
@@ -401,6 +402,11 @@ export async function bootBe01(
     mcpService.grantSigningKeys === null
       ? null
       : await importMachineGrantKeys(mcpService.grantSigningKeys);
+  // Proof: with this check removed, `refuses a weak MCP_BE_INTERNAL_SECRET
+  // before opening storage` (machine-grant.boot.db.test.ts) booted; watched
+  // 2026-10-26.
+  if (mcpService.internalSecret !== null)
+    assertServiceSecretStrength(mcpService.internalSecret, 'MCP_BE_INTERNAL_SECRET');
   // Proof: dropping scheduling in the combined SMTP/DNS boot test observed0 workers instead of1.
   const schedulesProofs =
     opts.organizationDomainProofScheduling === undefined
