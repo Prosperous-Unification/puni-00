@@ -150,10 +150,11 @@ Grafana container, and never prints environment values. No Bun installation on h
 ```sh
 operate_grafana() {
 ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 h3mon python3 - "$1" "$2" <<'PYGRAFANA'
-import base64,hashlib,json,os,pathlib,subprocess,sys
+import base64,hashlib,json,os,pathlib,re,subprocess,sys
 operation,receipt=sys.argv[1:]
 assert operation in ['capture','apply','rollback']
-assert receipt in ['grafana-integration.json','grafana-integration-restored.json']
+# Proof: grafana-receipt.test.ts rejects traversal/absolute/unknown/oversized names; disabling this assertion admits them.
+assert receipt in ['grafana-integration.json','grafana-integration-restored.json'] or re.fullmatch(r'grafana-operation-[a-z0-9][a-z0-9-]{0,63}\.json',receipt)
 root=pathlib.Path('/home/monitor/puni-dev-observability/evidence')
 binary=root/'grafana-cli-c811f34bf'
 assert hashlib.sha256(binary.read_bytes()).hexdigest()=='25c895a70a933ff3003b1fd6fa835241798fab5a538de903fda4c8302425d470'
@@ -257,3 +258,16 @@ stored observations and UI queries again. No checkpoint initialization on restor
 Actual rollout/drill evidence belongs in OpenSpec `verify.md`. This package alone proves no live
 installation, cgroup enforcement, autonomous recovery, UI rendering, history preservation drill
 or retention deletion. Retention deletion is asynchronous and cannot be proved by a short drill.
+
+Each subsequent Grafana operation chooses a fresh basename matching
+`grafana-operation-[a-z0-9][a-z0-9-]{0,63}.json`, for example
+`grafana-operation-20261026-restore-2.json`. Capture, apply and rollback reuse that
+operation's path beneath the fixed evidence root. Capture exclusively creates the
+receipt; a removed receipt remains immutable historical evidence. Both
+`grafana-integration.json` and `grafana-integration-restored.json` remain valid and
+must be retained. No absolute path, directory separator or traversal is accepted.
+
+The source adapter additionally checks the initial Victoria datasource type and URL.
+The pinned compiled helper above remains unchanged; using that new source validation
+on a host requires a separately reviewed compiled helper and hash update. This
+runbook edit does not activate that source or modify either existing receipt.

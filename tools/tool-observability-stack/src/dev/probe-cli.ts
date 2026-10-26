@@ -17,6 +17,7 @@ import type { ObservationHealth } from './observation';
 import { createOtlpPublisher, createOtlpSender } from './otlp';
 import { collectProbe, runProbe } from './probe';
 import { createHttpHealthReader, createSshHealthReader } from './source';
+import { readTransportFile } from './transport';
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
@@ -26,6 +27,9 @@ const { values } = parseArgs({
     prometheus: { type: 'string' },
     'health-checkpoint': { type: 'string' },
     otlp: { type: 'string' },
+    'otlp-binding': { type: 'string' },
+    'elastic-binding': { type: 'string' },
+    'prometheus-binding': { type: 'string' },
     version: { type: 'string' },
     checkpoint: { type: 'string' },
     initialize: { type: 'boolean' },
@@ -35,10 +39,32 @@ const { values } = parseArgs({
   strict: true,
   allowPositionals: false,
 });
-if (values.otlp === undefined || values.version === undefined || values.checkpoint === undefined)
+if (
+  (values.otlp === undefined && values['otlp-binding'] === undefined) ||
+  values.version === undefined ||
+  values.checkpoint === undefined
+)
   throw new Error(
-    'Required: --otlp http://127.0.0.1:<tunnel-port> --version <producer-version> --checkpoint <path>; first start also --initialize',
+    'Required: --otlp <loopback-url> or --otlp-binding <private-json>, --version <producer-version>, --checkpoint <path>; first start also --initialize',
   );
+// Proof: runtime-binding-conflict removal loses the ambiguity diagnostic; publisher-binding/batch-sender-binding faults independently fail the four-publication TLS subprocess.
+if (
+  (values.otlp !== undefined && values['otlp-binding'] !== undefined) ||
+  (values.elastic !== undefined && values['elastic-binding'] !== undefined) ||
+  (values.prometheus !== undefined && values['prometheus-binding'] !== undefined)
+)
+  throw new Error('Use one endpoint or binding per route');
+const otlp =
+  values['otlp-binding'] === undefined ? values.otlp : readTransportFile(values['otlp-binding']);
+if (otlp === undefined) throw new Error('OTLP binding is required');
+const elastic =
+  values['elastic-binding'] === undefined
+    ? (values.elastic ?? 'http://127.0.0.1:19200')
+    : readTransportFile(values['elastic-binding']);
+const prometheus =
+  values['prometheus-binding'] === undefined
+    ? (values.prometheus ?? 'http://127.0.0.1:19090')
+    : readTransportFile(values['prometheus-binding']);
 const checkpointPath = values.checkpoint;
 const previous = readCheckpoint(checkpointPath, values.initialize === true);
 const controller = new AbortController();
@@ -51,7 +77,7 @@ const options = {
   readHealth:
     values.local === undefined ? createSshHealthReader() : createHttpHealthReader(values.local),
   publication: createOtlpPublisher(
-    values.otlp,
+    otlp,
     previous?.publication.state === 'acknowledged' ? previous.revision : null,
   ),
   producerVersion: values.version,
@@ -59,11 +85,11 @@ const options = {
   signal: controller.signal,
 };
 const backend = createBackendAcceptance({
-  elastic: values.elastic ?? 'http://127.0.0.1:19200',
-  prometheus: values.prometheus ?? 'http://127.0.0.1:19090',
+  elastic,
+  prometheus,
   freshnessMs: 120000,
 });
-const send = createOtlpSender(values.otlp);
+const send = createOtlpSender(otlp);
 const applicationLogs = createApplicationLogCollector({
   publish: (records, containerId, signal) =>
     send('logs', encodeApplicationLogs(records, containerId), signal),

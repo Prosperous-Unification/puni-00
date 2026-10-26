@@ -1,6 +1,11 @@
 import { afterEach, expect, test } from 'bun:test';
 
-import { createBackendAcceptance } from './acceptance';
+import {
+  type AcceptanceScope,
+  assertElasticQueryAuthority,
+  createBackendAcceptance,
+  createScopedBackendAcceptance,
+} from './acceptance';
 import type { ProbeObservation } from './probe';
 
 const revision = 'a'.repeat(40);
@@ -147,7 +152,10 @@ test('stored mapping correlates metric scrape and unique stored revision indepen
   expect(queries.length).toBe(3);
   const metricQuery = queries.find((request) => request.url.includes('/api/v1/query'));
   expect(metricQuery?.url).toContain('%5B180s%5D');
-  const query = queries[0].body as { size: number; track_total_hits: boolean };
+  const query = queries.find((request) => request.url.includes('_search'))?.body as {
+    size: number;
+    track_total_hits: boolean;
+  };
   expect(query.size).toBe(16);
   expect(query.track_total_hits).toBe(true);
 });
@@ -454,4 +462,226 @@ test.each([
       )
     ).state,
   ).toBe('incomplete');
+});
+
+const scope = {
+  environment: 'prod',
+  service: 'example-service',
+  producer: 'component-probe',
+  namespace: 'prod',
+  sourceIdentity: 'disposable-component-5',
+  provenance: 'component' as const,
+  metricNames: ['example_observed_seconds', 'example_revision', 'example_success'] as const,
+  logName: 'component observation',
+  childName: 'GET example /health',
+};
+function scopedDocument(kind: 'log' | 'root' | 'child') {
+  const stored = document(kind);
+  stored.resource.attributes = {
+    'deployment.environment.name': 'prod',
+    'service.name': 'component-probe',
+  };
+  return {
+    ...stored,
+    attributes: {
+      ...stored.attributes,
+      'puni.target.environment': 'prod',
+      'puni.target.service': 'example-service',
+      'puni.source.kind': 'component',
+      'puni.source.identity': scope.sourceIdentity,
+    },
+    ...(kind === 'log'
+      ? { body: { text: scope.logName } }
+      : { name: kind === 'root' ? scope.logName : scope.childName }),
+  };
+}
+function scopedHarness(change: Record<string, unknown> = {}, expected: AcceptanceScope = scope) {
+  const queries: string[] = [];
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch(request) {
+      queries.push(request.url);
+      const path = new URL(request.url).pathname;
+      const documents = path.includes('logs-')
+        ? [scopedDocument('log')]
+        : [scopedDocument('root'), scopedDocument('child')];
+      return Response.json(
+        path.includes('_search')
+          ? elastic(
+              documents.map((stored) => ({
+                ...stored,
+                attributes: { ...stored.attributes, ...change },
+              })),
+            )
+          : {
+              status: 'success',
+              data: {
+                resultType: 'matrix',
+                result: [
+                  [scope.metricNames[0], String(observedAt / 1000), {}],
+                  [scope.metricNames[1], '1', { revision }],
+                  [scope.metricNames[2], '1', {}],
+                ].map(([name, value, labels]) => ({
+                  metric: {
+                    __name__: name,
+                    environment: 'prod',
+                    service: 'example-service',
+                    ...(labels as object),
+                  },
+                  values: [[scrape, value]],
+                })),
+              },
+            },
+      );
+    },
+  });
+  servers.push(server);
+  const endpoint = `http://127.0.0.1:${String(server.port)}`;
+  const configuration = { elastic: endpoint, prometheus: endpoint, freshnessMs: 180000 };
+  return {
+    queries,
+    configuration,
+    adapter: createScopedBackendAcceptance(configuration, expected),
+  };
+}
+const scopedObservation = {
+  ...observation,
+  environment: 'prod',
+  service: 'example-service',
+  source: {
+    kind: 'scoped' as const,
+    identity: scope.sourceIdentity,
+    provenance: 'component' as const,
+  },
+};
+test('scoped component evidence is complete with its own explicit source and query scope', async () => {
+  const { adapter, queries } = scopedHarness();
+  const report = await adapter.inspect(scopedObservation, AbortSignal.timeout(1000));
+  expect(report.health.state).toBe('complete');
+  expect(report.provenance.source).toEqual({
+    kind: 'scoped',
+    identity: scope.sourceIdentity,
+    provenance: 'component',
+  });
+  expect(queries.filter((url) => url.includes('.otel-prod/'))).toHaveLength(2);
+});
+test('scoped stored source cannot impersonate actual WBS source', async () => {
+  const { adapter } = scopedHarness({ 'puni.source.kind': 'ssh-dev-container' });
+  expect((await adapter.inspect(scopedObservation, AbortSignal.timeout(1000))).health.state).toBe(
+    'incomplete',
+  );
+});
+test('wrong scoped expected identity refuses before backend query', async () => {
+  const { adapter, queries } = scopedHarness();
+  expect(
+    (
+      await adapter.inspect(
+        { ...scopedObservation, source: { ...scopedObservation.source, identity: 'foreign' } },
+        AbortSignal.timeout(1000),
+      )
+    ).health.state,
+  ).toBe('incomplete');
+  expect(queries).toEqual([]);
+});
+test('scoped configuration rejects absent and malformed source scope', () => {
+  const endpoints = {
+    elastic: 'http://127.0.0.1:1',
+    prometheus: 'http://127.0.0.1:2',
+    freshnessMs: 1000,
+  };
+  for (const changed of [
+    { ...scope, sourceIdentity: '' },
+    { ...scope, namespace: 'prod/*' },
+    { ...scope, metricNames: ['bad{', 'b', 'c'] },
+    { ...scope, provenance: 'ssh-dev-container' },
+  ])
+    expect(() => createScopedBackendAcceptance(endpoints, changed as typeof scope)).toThrow();
+});
+
+const effective = {
+  cluster: [],
+  global: [],
+  indices: [
+    {
+      names: ['logs-*.otel-prod', 'traces-*.otel-prod'],
+      privileges: ['read'],
+      allow_restricted_indices: false,
+    },
+  ],
+  applications: [],
+  run_as: [],
+};
+test('effective query authority requires exact scope and read only grants', () => {
+  expect(() => {
+    assertElasticQueryAuthority(effective, 'prod');
+  }).not.toThrow();
+  for (const changed of [
+    { ...effective, cluster: ['monitor'] },
+    { ...effective, run_as: ['elastic'] },
+    { ...effective, applications: [{ application: '*' }] },
+    { ...effective, remote_indices: [{}] },
+    { ...effective, global: [{}] },
+    { ...effective, unknown: true },
+    { ...effective, indices: [{ ...effective.indices[0], names: ['*'] }] },
+    { ...effective, indices: [{ ...effective.indices[0], privileges: ['read', 'write'] }] },
+    { ...effective, indices: [{ ...effective.indices[0], names: ['logs-*.otel-prod'] }] },
+    { ...effective, indices: [{ ...effective.indices[0], allow_restricted_indices: true }] },
+  ])
+    expect(() => {
+      assertElasticQueryAuthority(changed, 'prod');
+    }).toThrow(/query-authority/);
+});
+
+test.each([
+  ['stored source identity', { 'puni.source.identity': 'foreign' }],
+  ['stored source provenance', { 'puni.source.kind': 'measured' }],
+])('scoped %s refuses independently', async (_label, change) => {
+  const { adapter } = scopedHarness(change);
+  expect((await adapter.inspect(scopedObservation, AbortSignal.timeout(1000))).health.state).toBe(
+    'incomplete',
+  );
+});
+test.each([
+  ['environment', { ...scopedObservation, environment: 'dev' }],
+  ['service', { ...scopedObservation, service: 'other' }],
+  [
+    'provenance',
+    {
+      ...scopedObservation,
+      source: { ...scopedObservation.source, provenance: 'measured' as const },
+    },
+  ],
+])('scoped expected %s refuses before any network', async (_label, previous) => {
+  const { adapter, queries } = scopedHarness();
+  expect((await adapter.inspect(previous, AbortSignal.timeout(1000))).health.state).toBe(
+    'incomplete',
+  );
+  expect(queries).toEqual([]);
+});
+test('scoped metric names must be distinct', () => {
+  expect(() =>
+    createScopedBackendAcceptance(
+      { elastic: 'http://127.0.0.1:1', prometheus: 'http://127.0.0.1:1', freshnessMs: 1000 },
+      { ...scope, metricNames: ['same', 'same', 'same'] },
+    ),
+  ).toThrow(/scope/);
+});
+
+test('scoped construction snapshots the validated expected source', async () => {
+  const expected = { ...scope, metricNames: [...scope.metricNames] as [string, string, string] };
+  const { adapter } = scopedHarness({}, expected);
+  expected.environment = 'foreign';
+  expected.sourceIdentity = 'foreign';
+  expected.metricNames[0] = 'foreign_observed_seconds';
+  const report = await adapter.inspect(scopedObservation, AbortSignal.timeout(1000));
+  expect(report.health.state).toBe('complete');
+});
+
+test('scoped construction snapshots validated freshness bounds', async () => {
+  const { adapter, configuration } = scopedHarness();
+  configuration.freshnessMs = 1;
+  expect((await adapter.inspect(scopedObservation, AbortSignal.timeout(1000))).health.state).toBe(
+    'complete',
+  );
 });

@@ -509,3 +509,24 @@ it('refuses invalid rollback phase despite a matching datasource receipt', async
   );
   expect(host.writes.filter((call) => call.startsWith('DELETE'))).toEqual([]);
 });
+
+it.each([
+  ['type', 'loki'],
+  ['url', 'http://foreign:8428'],
+])('refuses wrong initial Victoria %s', async (field, value) => {
+  const host = createGrafanaFixture();
+  host.datasources['sdlc-metrics'][field] = value;
+  await expectRefusal(captureGrafana(host.api), /Victoria/);
+  expect(host.writes).toEqual([]);
+});
+it('a second restore uses a new receipt and preserves prior removed operation', async () => {
+  const host = await createCliFixture();
+  for (const operation of ['capture', 'apply', 'rollback'])
+    await runGrafanaCli([operation, host.path], host.environment);
+  const historical = await readFile(host.path, 'utf8');
+  const next = join(host.path, '..', 'grafana-operation-20261026-second.json');
+  for (const operation of ['capture', 'apply', 'rollback'])
+    await runGrafanaCli([operation, next], host.environment);
+  expect(parseGrafanaJournal(JSON.parse(await readFile(next, 'utf8'))).phase).toBe('removed');
+  expect(await readFile(host.path, 'utf8')).toBe(historical);
+});

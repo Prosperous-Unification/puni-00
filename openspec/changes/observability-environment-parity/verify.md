@@ -194,3 +194,53 @@ All temporary source mutations were restored in finally. The first row is the pr
 Full-source validation certifies declared source policy and exact comparison only. Effective authority, target observations, live reader behavior, admission, claims, CNI, stored signals/UI/recovery and activation remain false/unverified. External patches remain unapplied and client migrations remain prerequisites. Source no-escalation policy is not runtime admission evidence; chart Service target names are not proof of generated container ports or effective network routing.
 
 Self-review was restricted to these two findings and directly related endpoint/selector/schema and common-policy controls. Both concrete reproductions now have independent source rejection paths and fresh proof receipts. No further broad review sweep was started. Final normal-hook commit SHA, hook outcomes and clean-status receipt follow after commit; parent independent review is next.
+
+## Task 5 / canonical 2.3 — authenticated adapter source and disposable component evidence (2026-10-26)
+
+This appends Task 5 evidence only. Earlier history and unverified runtime/live criteria remain
+unchanged; canonical task checkboxes remain parent-owned. Exact commands, logs, proof lineage,
+ownership and final commit are recorded in the ignored controller packet
+`.superpowers/sdd/observability-environment-parity/task-5-report.md` and `task-5-evidence/`.
+
+- Generic verified TLS/basic or mTLS bindings now serve backend queries and both producer send
+  paths. Private JSON binding flags resolve trusted material before network catches; Fleet
+  translates its actual declared authority/routes one way into lower transport inputs.
+  Authenticated Elastic acceptance inspects complete effective rights through the same dial
+  address, CA, service identity and credential as search. Only the exact two scoped health read
+  patterns and no other authority are accepted. Legacy HTTP/validated SSH remains explicit
+  compatibility without verified read-only authority. The evaluator/checkpoint model is
+  unchanged; component provenance never claims actual WBS source observation.
+- Actual Bun1.4.4 verified TLS, hostname, mTLS and credentials with real refusals. A real OpenSSL
+  subprocess selected the service certificate by SNI over loopback. TLS publication retained
+  acknowledgement, partial-success, redirect, body and deadline bounds; the CLI subprocess
+  exercised publisher plus second sender. Missing/unreadable/malformed material refused.
+- The exact owned disposable Elasticsearch9.3.8 image
+  `sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540`
+  produced complete component-source health and actual self-privilege/scoped-read positives.
+  Document and security-role mutations returned403 for the reader and201/200 for the same-route
+  disposable admin. Granting write or manage_security made those real denial tests fail with
+  201/200; exact read-only grants were restored. Removing the production authority check let
+  the actual admin produce complete health and failed its negative. Persistent targets received
+  no mutation, material access or credential change.
+- Grafana HTTP tests refuse wrong initial Victoria type/URL, preserve sole default and owned
+  inventory, and complete a second cycle with a new receipt while retaining history. The reviewed
+  helper accepts bounded unique operation basenames and both current dev receipt names. The
+  compiled helper/hash remain pinned; no host activation or current receipt change occurred.
+- The covering run had195passed/2failed across197tests. Both failures were harness assumptions:
+  first parallel query arrival order and poisoning the unrelated HTTP source. The amended ten
+  tests then passed. The HTTPS-only proxy removal proof supersedes the earlier ambiguous proxy
+  injection. Captured binding/source/freshness had two observed RED regressions, GREEN actual/
+  legacy/runtime controls, and three focused guard-removal failures; restored snapshot tests
+  passed3/3. No unchanged broad suite was repeated after fixes.
+- R5 evidence separates actual fail-open failures from fixed-category refusal proofs. A raw JSON
+  parser-cause injection stayed green for the selected input and is not a privacy proof. Removing
+  URL redaction exposed the test credential marker; JSON contextualization has its own observed
+  fixed-category proof. All source mutations restored in finally. Final checks/cleanup are in
+  the Task5 report; the complete evidence does not imply a single all-green rerun of197tests.
+
+These are adapter and disposable-component proofs. Prometheus/Grafana HTTP fixtures do not
+establish deployed service parity, CNI, persistent grants/material, actual dev-source migration,
+end-to-end Kubernetes stored signals/UI/recovery/snapshot restore or live activation. Those
+criteria remain pending in Task6/later authorized work. No running dev unit, release pin,
+persistent Secret, production resource, current receipt, shared controller or selected platform
+graph changed. Full host gates were not run for this scoped source task.
