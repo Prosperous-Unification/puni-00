@@ -354,6 +354,7 @@ describe('carriers that redact', () => {
       expect(text).not.toContain(KEY);
       expect(text).not.toContain(KEY.slice(-43));
     }
+    expect(JSON.stringify({ key: new Concealed(KEY) })).toBe('{"key":"[redacted]"}');
     expect(new Concealed(KEY).reveal()).toBe(KEY);
   });
 });

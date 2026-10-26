@@ -24,8 +24,15 @@ import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts
 import { credentialRuleRefusal } from '@wbs/core';
 import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
-import type { McpConfig } from './config';
+import { type McpConfig, offersMachineGrants } from './config';
 import type { McpOAuthHandler } from './http';
+import {
+  type IssuedMachineGrant,
+  type MachineGrantAnswer,
+  type MachineGrantClient,
+  machineGrantClient,
+  MachineGrantDefect,
+} from './machine-grant-client';
 import {
   type ConsentOrganizations,
   type OrganizationAuthority,
@@ -45,6 +52,15 @@ import {
   type RegisteredClient,
 } from './session-store';
 import { ACTIVATED_CREDENTIAL_EPOCH, SUPPORTED_CREDENTIAL_EPOCH } from './store-migrations';
+import {
+  CLIENT_CREDENTIALS_GRANT,
+  isMachineGrantType,
+  JWT_BEARER_GRANT,
+  type MachineScope,
+  type MachineTokenRequest,
+  parseMachineTokenRequest,
+  type TokenRequestRefusal,
+} from './token-request';
 import {
   DelegationRefused,
   EdgeGate,
@@ -163,6 +179,43 @@ interface PendingSelection {
   readonly expiresAt: number;
 }
 
+/** `MCP_MACHINE_TOKEN_TTL`'s default and bounds, in seconds (`wbs-mcp-agent-surface` M4). */
+const DEFAULT_MACHINE_TOKEN_TTL_SECONDS = 12 * 60 * 60;
+const LEAST_MACHINE_TOKEN_TTL_SECONDS = 60;
+const MOST_MACHINE_TOKEN_TTL_SECONDS = 24 * 60 * 60;
+/**
+ * How long before its grant a machine token expires (M3), absorbing clock skew
+ * between mcp-01 and be-01. mcp-01 asks be-01 for this much more than the
+ * token's own lifetime, so a 24 h token fits be-01's 24 h + 60 s grant cap.
+ */
+const MACHINE_TOKEN_EARLY_SECONDS = 60;
+/** The largest share of the TTL the uniform jitter takes off (M4). */
+const MACHINE_TOKEN_JITTER = 0.1;
+
+/**
+ * The per-replica fence a token request passes before be-01 is asked: null to
+ * admit it, or how many seconds the client should wait. M10's limits arrive
+ * with task 4.2 (`wbs-mcp-agent-surface` tasks.md); until then production
+ * composes {@link NO_TOKEN_ENDPOINT_LIMITS}.
+ */
+export type TokenEndpointLimit = (attempt: {
+  readonly source: string;
+}) => { readonly retryAfterSeconds: number } | null;
+
+/** Admits every token request: the composition until M10's limits land (task 4.2). */
+export const NO_TOKEN_ENDPOINT_LIMITS: TokenEndpointLimit = () => null;
+
+/** What the token endpoint needs to answer the machine grants (`wbs-mcp-agent-surface` M2–M4). */
+export interface MachineGrantSettings {
+  /** be-01's grant route, the only verifier of a key or an assertion. */
+  readonly client: MachineGrantClient;
+  /** `MCP_MACHINE_TOKEN_TTL`, in seconds, before jitter. */
+  readonly tokenTtlSeconds: number;
+  /** A uniform draw from [0, 1) for the jitter; `Math.random` when absent. */
+  readonly jitter?: () => number;
+  readonly limit: TokenEndpointLimit;
+}
+
 /** At most this many consent ends are reported to be-01 per sweep. */
 const CONSENT_END_REPORT_BATCH = 100;
 
@@ -194,6 +247,8 @@ interface Options {
   routeEvidence?: (evidence: OAuthRouteEvidence) => void;
   reauthKey?: Buffer;
   revocationFailure?: () => void;
+  /** Present, the token endpoint answers the machine grants; absent, `unsupported_grant_type`. */
+  machineGrants?: MachineGrantSettings;
 }
 
 type UpstreamClient = Pick<
@@ -255,6 +310,7 @@ export class McpOAuthServer implements McpOAuthHandler {
   private readonly verifyUpstream: TokenVerifier['verify'];
   private readonly reauthKey: Buffer;
   private readonly revocationFailure: () => void;
+  private readonly machineGrants: MachineGrantSettings | undefined;
 
   private readonly clientLimit: number;
   private readonly clientSourceLimit: number;
@@ -303,6 +359,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
     this.routeEvidence = options.routeEvidence;
     this.organizations = options.organizations;
+    this.machineGrants = options.machineGrants;
     // Proof: 2026-10-21, without this refusal `refuses to start at the activated epoch without
     // organization authority` (credential-epoch.test.ts) constructed the server.
     if (
@@ -536,6 +593,14 @@ export class McpOAuthServer implements McpOAuthHandler {
       return protocolError('invalid_client_metadata');
     }
     if (!isObject(body) || body['token_endpoint_auth_method'] !== 'none') {
+      return protocolError('invalid_client_metadata');
+    }
+    // A machine grant is a credential's, never a registered client's
+    // (`wbs-mcp-agent-surface` M2): registration refuses to promise one.
+    const requestedGrants: unknown = body['grant_types'];
+    // Proof: with this removed, `refuses a client that asks for a machine grant`
+    // (machine-token.test.ts) registered it (201); watched 2026-10-27.
+    if (Array.isArray(requestedGrants) && requestedGrants.some(isMachineGrantType)) {
       return protocolError('invalid_client_metadata');
     }
     const requestedRedirects: unknown = body['redirect_uris'];
@@ -1137,6 +1202,9 @@ export class McpOAuthServer implements McpOAuthHandler {
   private async token(request: Request): Promise<Response> {
     const form = await request.formData();
     if (form.get('grant_type') === 'refresh_token') return await this.refreshGrant(form);
+    // Proof: without this dispatch every grant test in (machine-token.boot.test.ts) failed
+    // (invalid_grant); watched 2026-10-27.
+    if (isMachineGrantType(form.get('grant_type'))) return await this.machineToken(request, form);
 
     const code = stringField(form, 'code');
     this.cleanup();
@@ -1322,6 +1390,133 @@ export class McpOAuthServer implements McpOAuthHandler {
       // on the token-endpoint path, 2026-10-13; unexpected trusted state must propagate.
       throw cause;
     }
+  }
+
+  /**
+   * Answers a machine grant (`wbs-mcp-agent-surface` M2–M4) with an
+   * mcp-01-signed access token for the MCP resource and no refresh token,
+   * reading and writing no mcp-01 store (M5). be-01's grant route alone
+   * verifies the key or the assertion; nothing here falls through to the
+   * upstream verifier, and no `client_id` is looked up among registered
+   * clients.
+   *
+   * Every API-key failure is the one `401 invalid_client` with
+   * `WWW-Authenticate: Basic`, and every assertion failure the one
+   * `400 invalid_grant`, before activation too. The token's `exp` is 60 s
+   * before the grant's, whose lifetime is `MCP_MACHINE_TOKEN_TTL` lowered by a
+   * uniform 0–10 % jitter, then capped by be-01.
+   *
+   * @throws {MachineGrantDefect} when be-01 answers what this release does not
+   *   model, its `internal_unauthorized` included: a server fault, not a refusal.
+   */
+  private async machineToken(request: Request, form: FormData): Promise<Response> {
+    const settings = this.machineGrants;
+    // Proof: answering invalid_grant failed `answers unsupported_grant_type without the machine
+    // grant settings` (machine-token.test.ts); watched 2026-10-27.
+    if (settings === undefined) return machineRefusal('unsupported_grant_type');
+    const limited = settings.limit({ source: sourceOf(request) });
+    // RFC 6749 §5.2 has no rate-limit error, so none is invented (M10).
+    // Proof: with this removed, `answers 429 invalid_request with Retry-After when the limit
+    // refuses, asking nobody` (machine-token.test.ts) answered 200; watched 2026-10-27.
+    if (limited !== null)
+      return machineRefusal('invalid_request', 'rate_limited', limited.retryAfterSeconds);
+    const parsed = parseMachineTokenRequest(
+      form,
+      request.headers.get('authorization'),
+      this.audience,
+    );
+    if (parsed.kind === 'refused') return machineRefusal(parsed.error, parsed.description);
+    // The one answer for every refusal of this request's credential.
+    // Proof: answering invalid_grant for a key failed `an unknown id, a revoked key and a wrong
+    // secret answer one invalid_client` and the pre-activation test (machine-token.boot.test.ts);
+    // watched 2026-10-27.
+    const credentialRefused =
+      parsed.grant === 'client_credentials' ? 'invalid_client' : 'invalid_grant';
+    const nowSeconds = Math.floor(this.now() / 1_000);
+    const ttl = settings.tokenTtlSeconds;
+    // Proof: no jitter failed `lowers the lifetime by at most 10 %, uniformly`
+    // (machine-token.test.ts); asking without the 60 s failed it and `sends the key with the
+    // dedicated secret…`; watched 2026-10-27.
+    const lifetime =
+      ttl - Math.floor(ttl * MACHINE_TOKEN_JITTER * (settings.jitter ?? Math.random)());
+    const answer = await settings.client.issue({
+      issuer: this.issuer,
+      credential:
+        parsed.grant === 'client_credentials'
+          ? { kind: 'api_key', key: parsed.key }
+          : { kind: 'oidc', assertion: parsed.assertion },
+      expiresAt: nowSeconds + lifetime + MACHINE_TOKEN_EARLY_SECONDS,
+      run: parsed.run,
+    });
+    const issued = issuedGrantOf(answer, parsed);
+    if (issued.kind !== 'issued')
+      return issued.kind === 'refused'
+        ? machineRefusal(credentialRefused)
+        : machineRefusal(issued.error, issued.description, issued.retryAfterSeconds);
+    // A client_id names the credential and is never looked up (M2).
+    // Proof: with this removed, `a client_id the registered-client store has never seen is carried,
+    // not looked up` (machine-token.boot.test.ts) admitted another credential's id; looking the id
+    // up in the registered-client store instead failed it and four more there (401); watched
+    // 2026-10-27.
+    if (parsed.clientId !== null && parsed.clientId !== issued.credentialId)
+      return machineRefusal(credentialRefused);
+    const granted = new Set(issued.scopes.map((scope) => `wbs:${scope}`));
+    // Proof: keeping the requested scopes failed `a key bound to a viewer gets wbs:read only`
+    // (machine-token.boot.test.ts); watched 2026-10-27.
+    const scopes = parsed.scopes.filter((scope) => granted.has(scope));
+    // Proof: with this removed, `narrows to the grant’s scopes, and refuses a request beyond them
+    // invalid_scope` (machine-token.test.ts) signed an empty scope; watched 2026-10-27.
+    if (scopes.length === 0) return machineRefusal('invalid_scope');
+    // Proof: the grant's own exp here failed the SDK, GitHub Actions and run-outlives tests
+    // (machine-token.boot.test.ts); watched 2026-10-27.
+    const expiresAt = issued.expiresAt - MACHINE_TOKEN_EARLY_SECONDS;
+    // An assertion or a rotated secret about to expire leaves no lifetime to sign.
+    // Proof: with this removed, `refuses a grant that leaves no lifetime after the 60 s margin`
+    // (machine-token.test.ts) signed it; watched 2026-10-27.
+    if (expiresAt <= nowSeconds) return machineRefusal(credentialRefused);
+    const token = await this.issueMachineToken(issued, scopes, nowSeconds, expiresAt);
+    return Response.json(
+      {
+        access_token: token,
+        token_type: 'Bearer',
+        expires_in: expiresAt - nowSeconds,
+        scope: scopes.join(' '),
+      },
+      // Proof: without these headers `expires 60 s before the grant…` (machine-token.test.ts) saw
+      // no no-store; watched 2026-10-27.
+      { headers: { 'cache-control': 'no-store', pragma: 'no-cache' } },
+    );
+  }
+
+  /**
+   * A machine access token (M3, M6): `token_use: machine`, the credential as
+   * `sub`, the narrowed scopes (also as groups, which `/mcp` admission reads),
+   * and be-01's grant, which every be-01 call presents beside the secret.
+   */
+  private async issueMachineToken(
+    issued: IssuedMachineGrant,
+    scopes: readonly MachineScope[],
+    issuedAt: number,
+    expiresAt: number,
+  ): Promise<string> {
+    const scope = scopes.join(' ');
+    return await new SignJWT({
+      token_use: 'machine',
+      scope,
+      [this.groupsClaim]: scopes.map((value) => `${this.groupPrefix}:${value}`),
+      wbs_machine_grant: issued.grant,
+      wbs_person: issued.personId,
+      wbs_organization: issued.organizationId,
+      ...(issued.runId === null ? {} : { wbs_run: issued.runId }),
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: this.keyId, typ: 'JWT' })
+      .setIssuer(this.issuer)
+      .setAudience(this.audience)
+      .setSubject(issued.credentialId)
+      .setJti(this.random())
+      .setIssuedAt(issuedAt)
+      .setExpirationTime(expiresAt)
+      .sign(this.privateKey);
   }
 
   private async issueAccessToken(
@@ -1709,6 +1904,8 @@ export function mcpOAuthFromEnv(
   let upstreamVerifier: TokenVerifier | undefined;
   const verifyUpstream = (token: string) =>
     (upstreamVerifier ??= oidcTokenVerifierFromEnv(env)).verify(token);
+  const tokenTtlSeconds = machineTokenTtlOf(env);
+  const machineSecret = config.MCP_BE_INTERNAL_SECRET;
   return new McpOAuthServer(
     config,
     {
@@ -1730,9 +1927,43 @@ export function mcpOAuthFromEnv(
               fetchImpl,
             ),
           }),
+      ...(machineSecret === undefined || !offersMachineGrants(config)
+        ? {}
+        : {
+            machineGrants: {
+              client: machineGrantClient(
+                { ...config, MCP_BE_INTERNAL_SECRET: machineSecret },
+                fetchImpl,
+              ),
+              tokenTtlSeconds,
+              limit: NO_TOKEN_ENDPOINT_LIMITS,
+            },
+          }),
       ...oauthPersistenceFromEnv(env),
     },
   );
+}
+
+/**
+ * `MCP_MACHINE_TOKEN_TTL` in whole seconds, 12 h when unset (M4). Read at
+ * boot whether or not machine grants are offered, so a bad value never waits
+ * for the secret to surface.
+ *
+ * @throws when it is not a whole number of seconds from 60 s to 24 h.
+ */
+export function machineTokenTtlOf(env: Readonly<Record<string, string | undefined>>): number {
+  const value = env['MCP_MACHINE_TOKEN_TTL'];
+  if (value === undefined || value === '') return DEFAULT_MACHINE_TOKEN_TTL_SECONDS;
+  // Proof: without the bounds, `reads MCP_MACHINE_TOKEN_TTL as 60 s to 24 h, 12 h when unset`
+  // (machine-token.test.ts) read 59; watched 2026-10-27.
+  const seconds = Number(value);
+  if (
+    !/^[0-9]+$/.test(value) ||
+    seconds < LEAST_MACHINE_TOKEN_TTL_SECONDS ||
+    seconds > MOST_MACHINE_TOKEN_TTL_SECONDS
+  )
+    throw new Error('MCP_MACHINE_TOKEN_TTL must be a whole number of seconds from 60 to 86400');
+  return seconds;
 }
 
 function oauthPersistenceFromEnv(
@@ -1849,7 +2080,88 @@ async function routeEvidenceOf(
 }
 
 function evidenceGrantType(value: unknown): string {
-  return value === 'authorization_code' || value === 'refresh_token' ? value : 'other';
+  return value === 'authorization_code' ||
+    value === 'refresh_token' ||
+    // Proof: recording `other` failed `records the grant type, and nothing else of the request, as
+    // route evidence` (machine-token.test.ts); watched 2026-10-27.
+    value === CLIENT_CREDENTIALS_GRANT ||
+    value === JWT_BEARER_GRANT
+    ? value
+    : 'other';
+}
+
+/**
+ * be-01's answer, checked against the request: the grant, `refused`, or the
+ * other refusal it maps to. A grant naming another credential than the key's
+ * own id is be-01's defect, never the client's.
+ */
+function issuedGrantOf(
+  answer: MachineGrantAnswer,
+  parsed: MachineTokenRequest,
+):
+  | IssuedMachineGrant
+  | { readonly kind: 'refused' }
+  | {
+      readonly kind: 'other';
+      readonly error: MachineTokenError;
+      readonly description?: string;
+      readonly retryAfterSeconds?: number;
+    } {
+  switch (answer.kind) {
+    case 'issued':
+      // Proof: with this removed, `throws a defect, never a refusal…` (machine-token.test.ts)
+      // signed a token for another credential; watched 2026-10-27.
+      if (parsed.grant === 'client_credentials' && answer.credentialId !== parsed.keyCredentialId)
+        throw new MachineGrantDefect('be-01 issued a grant for another credential than the key');
+      return answer;
+    case 'refused':
+      return answer;
+    case 'unsupported_assertion_type':
+      return {
+        kind: 'other',
+        error: 'invalid_grant',
+        description: `assertion typ "${answer.typ}" is not supported: only a workload JWT is, not an ID-JAG or an access token`,
+      };
+    case 'run_refused':
+      return {
+        kind: 'other',
+        error: 'invalid_request',
+        description: 'wbs_run must not look like a secret',
+      };
+    case 'unavailable':
+      return { kind: 'other', error: 'temporarily_unavailable', retryAfterSeconds: 5 };
+  }
+}
+
+/** The token endpoint's errors for the machine grants. */
+type MachineTokenError =
+  TokenRequestRefusal['error'] | 'unsupported_grant_type' | 'temporarily_unavailable';
+
+/**
+ * A machine grant refusal (RFC 6749 §5.2), never cached: `invalid_client` is
+ * 401 with a Basic challenge (RFC 6749 §5.2, RFC 7617), an `invalid_request`
+ * with a wait is the rate limit's 429, be-01 unavailable is 503, and
+ * everything else 400. A wait is sent as `Retry-After`.
+ */
+function machineRefusal(
+  error: MachineTokenError,
+  description?: string,
+  retryAfterSeconds?: number,
+): Response {
+  const headers = new Headers({ 'cache-control': 'no-store', pragma: 'no-cache' });
+  let status = 400;
+  if (error === 'invalid_client') {
+    status = 401;
+    // Proof: without the challenge `maps unknown_identity and not_activated to invalid_client…`
+    // (machine-token.test.ts) failed; watched 2026-10-27.
+    headers.set('www-authenticate', 'Basic realm="wbs-mcp"');
+  } else if (error === 'temporarily_unavailable') status = 503;
+  else if (error === 'invalid_request' && retryAfterSeconds !== undefined) status = 429;
+  if (retryAfterSeconds !== undefined) headers.set('retry-after', String(retryAfterSeconds));
+  return Response.json(
+    description === undefined ? { error } : { error, error_description: description },
+    { status, headers },
+  );
 }
 
 /**

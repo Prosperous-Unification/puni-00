@@ -27,13 +27,17 @@ const MOST_ECHOED_TYP_CHARACTERS = 64;
 const REDACTED = '[redacted]';
 
 /**
- * A key or a workload assertion as one token request presented it. Every
- * printing path (`String`, template literals, `JSON.stringify`, Node's and
- * Bun's `inspect`) shows `[redacted]`; only {@link reveal} answers the value,
+ * A key or a workload assertion as one token request presented it. The value
+ * lives in a private field, which no enumerating printer (`JSON.stringify`,
+ * Node's and Bun's `inspect`, a structured logger) can reach; `String` and
+ * `JSON.stringify` show `[redacted]`. Only {@link reveal} answers the value,
  * and its one caller sends it to be-01 (spec "Secrets never reach logs or
  * reports").
  */
 export class Concealed {
+  // Proof: with this a public field, `never prints the key or the assertion`
+  // (token-request.test.ts) found the key in `inspect` and `Bun.inspect`;
+  // watched 2026-10-27.
   readonly #value: string;
 
   constructor(value: string) {
@@ -49,10 +53,6 @@ export class Concealed {
   }
 
   toJSON(): string {
-    return REDACTED;
-  }
-
-  [Symbol.for('nodejs.util.inspect.custom')](): string {
     return REDACTED;
   }
 }
@@ -125,9 +125,14 @@ export function parseMachineTokenRequest(
   const fields = new Map<string, string>();
   for (const name of new Set(form.keys())) {
     const values = form.getAll(name);
+    // Proof: refusing only a second `resource` failed `refuses any repeated parameter or a file
+    // value invalid_request` (token-request.test.ts); answering it invalid_request failed `refuses
+    // a missing, foreign, non-canonical or repeated resource invalid_target`; watched 2026-10-27.
     if (values.length > 1)
       return refused(name === 'resource' ? 'invalid_target' : 'invalid_request');
     const [value] = values;
+    // Proof: reading a file value as text failed `refuses any repeated parameter or a file value
+    // invalid_request` (token-request.test.ts); watched 2026-10-27.
     if (typeof value !== 'string') return refused('invalid_request');
     fields.set(name, value);
   }
@@ -136,37 +141,59 @@ export function parseMachineTokenRequest(
     throw new Error('parseMachineTokenRequest needs a machine grant_type');
 
   const basic = authorization === null ? null : basicCredentialsOf(authorization);
+  // Proof: ignoring a malformed header failed `refuses no secret, an empty Basic secret, a non-key
+  // secret or a malformed Basic header invalid_client` (token-request.test.ts) (a body secret
+  // beside it was admitted); watched 2026-10-27.
   if (basic === 'malformed') return refused('invalid_client');
   const bodySecret = fields.get('client_secret');
   const clientAssertion = fields.get('client_assertion') ?? fields.get('client_assertion_type');
   const methods = [basic, bodySecret, clientAssertion].filter(
     (method) => method !== undefined && method !== null,
   );
+  // Proof: with this removed, `refuses two client authentication methods invalid_request`
+  // (token-request.test.ts) admitted all three; watched 2026-10-27.
   if (methods.length > 1) return refused('invalid_request');
+  // Proof: answering invalid_request here failed `refuses a lone client_assertion invalid_client…`
+  // and `refuses a client_assertion invalid_client` (token-request.test.ts); watched 2026-10-27.
   if (clientAssertion !== undefined) return refused('invalid_client');
   const bodyClientId = fields.get('client_id');
   const basicClientId = basic === null || basic.user === '' ? undefined : basic.user;
+  // Proof: with this removed, `refuses a client_id sent both by Basic and in the body
+  // invalid_request` and the JWT-bearer twin (token-request.test.ts) admitted the request; watched
+  // 2026-10-27.
   if (bodyClientId !== undefined && basicClientId !== undefined) return refused('invalid_request');
   const clientId = basicClientId ?? bodyClientId ?? null;
 
   let secret: string | undefined;
   if (grantType === CLIENT_CREDENTIALS_GRANT) {
     secret = basic === null ? bodySecret : basic.password;
+    // Proof: with this removed, `refuses no secret, an empty Basic secret…` (token-request.test.ts)
+    // answered invalid_request; watched 2026-10-27.
     if (secret === undefined || secret === '') return refused('invalid_client');
+    // Proof: with this branch removed, `refuses a Basic secret, a body secret and a client_id sent
+    // twice invalid_request` (token-request.test.ts) admitted the Basic secret; watched 2026-10-27.
   } else if (bodySecret !== undefined || (basic !== null && basic.password !== '')) {
     return refused('invalid_request');
   }
 
+  // Proof: with this removed, `refuses a missing, foreign, non-canonical or repeated resource
+  // invalid_target` (token-request.test.ts) admitted the foreign resource; watched 2026-10-27.
   if (fields.get('resource') !== resource) return refused('invalid_target');
   const scopes = scopesOf(fields.get('scope'));
   if (scopes === null) return refused('invalid_scope');
   const run = fields.get('wbs_run') ?? null;
+  // Proof: without the upper bound, `refuses an empty or over-long run invalid_request`
+  // (token-request.test.ts) admitted 257 characters; watched 2026-10-27.
   if (run !== null && (run.length === 0 || run.length > MOST_CHARACTERS_IN_A_RUN))
     return refused('invalid_request', 'wbs_run must have 1 to 256 characters');
 
   if (secret !== undefined) {
     const key = parseMachineKey(secret);
+    // Proof: admitting any secret failed `refuses no secret, an empty Basic secret, a non-key
+    // secret…` (token-request.test.ts); watched 2026-10-27.
     if (key === null || key === 'malformed') return refused('invalid_client');
+    // Proof: with this removed, `refuses a client_id other than the key’s id invalid_client`
+    // (token-request.test.ts) admitted it; watched 2026-10-27.
     if (clientId !== null && clientId !== key.credentialId) return refused('invalid_client');
     return {
       kind: 'request',
@@ -179,6 +206,8 @@ export function parseMachineTokenRequest(
     };
   }
   const assertion = fields.get('assertion');
+  // Proof: judging a missing assertion by its header failed `refuses a missing assertion
+  // invalid_request` (token-request.test.ts) (invalid_grant); watched 2026-10-27.
   if (assertion === undefined || assertion === '') return refused('invalid_request');
   const typRefusal = assertionTypeRefusalOf(assertion);
   if (typRefusal !== null) return typRefusal;
@@ -219,6 +248,9 @@ function basicCredentialsOf(authorization: string): BasicCredentials | 'malforme
 
 /** The requested scopes in canonical order, the default when absent, or null when refused. */
 function scopesOf(scope: string | undefined): readonly MachineScope[] | null {
+  // Proof: answering the default for every non-empty scope failed `refuses wbs:editor, an unknown
+  // or empty scope invalid_scope` and `narrows to a requested subset…` (token-request.test.ts);
+  // watched 2026-10-27.
   if (scope === undefined) return MACHINE_SCOPES;
   const requested = scope.split(' ');
   if (requested.some((value) => !(MACHINE_SCOPES as readonly string[]).includes(value)))
@@ -234,9 +266,13 @@ function assertionTypeRefusalOf(assertion: string): TokenRequestRefusal | null {
   } catch {
     return refused('invalid_grant', 'the assertion is not a JWT');
   }
+  // Proof: admitting every typ failed `refuses an ID-JAG, an access token or any other typ
+  // invalid_grant, naming it` (token-request.test.ts); watched 2026-10-27.
   if (typ === undefined || (typeof typ === 'string' && typ.toUpperCase() === 'JWT')) return null;
   const named = (typeof typ === 'string' ? typ : JSON.stringify(typ))
     .replace(/[^\x20-\x7e]/g, '?')
+    // Proof: without the cap, `echoes at most 64 printable characters of a typ`
+    // (token-request.test.ts) echoed all 101; watched 2026-10-27.
     .slice(0, MOST_ECHOED_TYP_CHARACTERS);
   return refused(
     'invalid_grant',

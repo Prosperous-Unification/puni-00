@@ -227,6 +227,23 @@ test('starts without a Basic secret and writes OAuth and startup facts through t
   }
 });
 
+test('redacts the machine grant secret with the other boundary secrets', () => {
+  const machineSecret = crypto.randomUUID().repeat(2);
+  const loggerOptions: CreateLoggerOptions[] = [];
+  startMcpApplication({
+    loadConfig: () => ({ ...CONFIG, MCP_BE_INTERNAL_SECRET: machineSecret }),
+    readDocument: () => ({ paths: {} }),
+    toolsFromDocument: () => [READ],
+    mcpOAuthFromEnv: () => oauthFixture(),
+    startHttpServer: () => ({ port: 3313 }),
+    createLogger: (options) => {
+      loggerOptions.push(options);
+      return createLogger({ ...options, destination: { write: () => undefined } });
+    },
+  });
+  expect(loggerOptions[0]?.secrets).toEqual(['mcp-user:boundary-secret', machineSecret]);
+});
+
 /** Starts the production composition around `oauth` and connects a client whose MCP session is live. */
 async function connectSessionClient(oauth: ReturnType<typeof oauthFixture>): Promise<{
   readonly client: Client;

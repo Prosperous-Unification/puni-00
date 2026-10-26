@@ -24,6 +24,12 @@ export const McpConfig = type({
   // absent, it keeps forwarding the upstream token, which be-01 refuses for
   // organization resources once activated.
   'INTERNAL_AUTH_SECRET?': 'string>=32',
+  // be-01's MCP_BE_INTERNAL_SECRET, sent as `x-mcp-internal-auth` with every
+  // machine grant request (`wbs-mcp-agent-surface` M14). Present in standalone
+  // mode, the token endpoint offers the machine grants ({@link offersMachineGrants}).
+  // Proof: with 'string' here, `refuses a short MCP_BE_INTERNAL_SECRET, naming it and not its
+  // value` (machine-token.test.ts) loaded it; watched 2026-10-27.
+  'MCP_BE_INTERNAL_SECRET?': 'string>=32',
 });
 export type McpConfig = typeof McpConfig.infer;
 
@@ -34,6 +40,7 @@ const NAMES = [
   'MCP_TRUSTED_GATEWAY',
   'WBS_BASIC_AUTH',
   'INTERNAL_AUTH_SECRET',
+  'MCP_BE_INTERNAL_SECRET',
 ] as const;
 
 const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
@@ -44,7 +51,24 @@ const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
   MCP_TRUSTED_GATEWAY: 'the exact value true when gateway mode terminates token verification',
   WBS_BASIC_AUTH: 'user:pass for the deployment’s basic auth, or unset',
   INTERNAL_AUTH_SECRET: "be-01's INTERNAL_AUTH_SECRET, at least 32 characters, or unset",
+  MCP_BE_INTERNAL_SECRET: "be-01's MCP_BE_INTERNAL_SECRET, at least 32 characters, or unset",
 };
+
+/**
+ * Whether the token endpoint offers the machine grants, `client_credentials`
+ * and the JWT-bearer grant (`wbs-mcp-agent-surface` M1, M2): only in
+ * standalone mode, and only with `MCP_BE_INTERNAL_SECRET`, without which no
+ * grant can be asked of be-01. Otherwise both grants answer
+ * `unsupported_grant_type` and the metadata omits them; gateway mode never
+ * admits a machine (M11).
+ */
+export function offersMachineGrants(
+  config: Pick<McpConfig, 'MCP_AUTH_MODE' | 'MCP_BE_INTERNAL_SECRET'>,
+): boolean {
+  // Proof: without the mode test, `omits them without the secret and in gateway mode`
+  // (machine-token.test.ts) listed the grants; watched 2026-10-27.
+  return config.MCP_AUTH_MODE === 'standalone' && config.MCP_BE_INTERNAL_SECRET !== undefined;
+}
 
 /**
  * Reads the MCP variables and nothing else.

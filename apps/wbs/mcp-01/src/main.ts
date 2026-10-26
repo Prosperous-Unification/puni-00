@@ -76,9 +76,13 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
 } {
   const config = deps.loadConfig();
   const tools = deps.toolsFromDocument(deps.readDocument());
-  const secrets = [config.WBS_BASIC_AUTH, config.INTERNAL_AUTH_SECRET].filter(
-    (secret): secret is string => secret !== undefined && secret.length > 0,
-  );
+  const secrets = [
+    config.WBS_BASIC_AUTH,
+    config.INTERNAL_AUTH_SECRET,
+    // Proof: leaving it out failed `redacts the machine grant secret with the other boundary
+    // secrets` (main.test.ts); watched 2026-10-27.
+    config.MCP_BE_INTERNAL_SECRET,
+  ].filter((secret): secret is string => secret !== undefined && secret.length > 0);
   const logger = deps.createLogger({ service: 'mcp-01', secrets });
   // Proof: on 2026-09-21, passing `[]` here exposed the owned Basic credential in the production
   // diagnostic line while the public MCP envelope remained generic.
