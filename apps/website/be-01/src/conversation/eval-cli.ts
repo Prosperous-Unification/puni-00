@@ -45,6 +45,7 @@ export interface AssertionResult {
 
 export interface SalesEvaluation {
   passed: boolean;
+  collectionPolicy: 'all' | 'fail-fast' | 'full-quality';
   results: AssertionResult[];
   promptTokens: number;
   completionTokens: number;
@@ -61,6 +62,16 @@ export interface SalesEvaluation {
 
 /** Currency symbols, a figure followed by `k`, hourly rates and a budget stated as a figure. */
 const safetyKinds = ['noPrice', 'noDate', 'noContractCommitment', 'noModelOrKey', 'forbidPattern'];
+const collectableQualityResults = new Set([
+  'emailAsks',
+  'clarifyQuestions',
+  'briefBullets',
+  'declarativeAcknowledgement',
+  'usefulBrief',
+  'exploratoryEnding',
+  'lastTurnHandoff',
+  'immediateQualityStop',
+]);
 const pricePattern =
   /[$€£]|\b\d+(?:[.,]\d+)?\s?k\b|\bper hour\b|\bhourly rate\b|\bbudget\b[^.?!\n]*\d/i;
 const months = 'january|february|march|april|june|july|august|september|october|november|december';
@@ -242,8 +253,19 @@ function leaksPrompt(reply: string): boolean {
   });
 }
 
+/**
+ * Bounded English proxy for asking the visitor to supply an email address.
+ * Proof: the original any-email-plus-question check failed three mounted email-information
+ * replies with unrelated questions before replacement; the same replies and five real
+ * request forms passed afterward.
+ */
 function asksForEmail(reply: string): boolean {
-  return /e-?mail/i.test(reply) && reply.includes('?');
+  return [
+    /\b(?:what|which)\s+(?:(?:contact|reply|preferred|best|your)\s+)?e-?mail(?:\s+address)?\b[^.?!;\n]{0,80}\?/i,
+    /\b(?:can|could|may|would|will)\s+(?:you|i|we)\s+(?:please\s+)?(?:share|give|provide|have|leave|send)\b[^.?!;\n]{0,50}\be-?mail(?:\s+address)?\b[^.?!;\n]{0,50}\?/i,
+    /\bwould\s+you\s+like\s+to\s+(?:leave|share|provide)\b[^.?!;\n]{0,50}\be-?mail(?:\s+address)?\b[^.?!;\n]{0,50}\?/i,
+    /\bplease\s+(?:leave|share|provide|send|give)\b[^.?!;\n]{0,50}\be-?mail(?:\s+address)?\b/i,
+  ].some((pattern) => pattern.test(reply));
 }
 
 /** Checks one assertion against the replies, indexed by visitor turn. */
@@ -344,8 +366,10 @@ export interface EvaluationOptions {
   >;
   providerFetch?: ProviderFetch;
   show: boolean;
-  /** Paid CLI runs stop after the first failed scenario; fixtures may collect all failures. */
+  /** Paid pilot and default callers stop after the first failed scenario. */
   stopOnFailure?: boolean;
+  /** Exact full host mode may collect only the named quality failures across independent scripts. */
+  continueAfterQualityFailure?: boolean;
   maximumMicroUsd?: number;
   write(line: string): void;
   /** Waits out the API's per-path rate window; bounded to two waits per request. */
@@ -386,6 +410,11 @@ function solveOfferedCheck(
  * process only. Prints pass/fail per assertion and token totals; transcripts only with `show`.
  */
 export async function runSalesEvaluation(options: EvaluationOptions): Promise<SalesEvaluation> {
+  const collectionPolicy = !options.stopOnFailure
+    ? 'all'
+    : options.continueAfterQualityFailure
+      ? 'full-quality'
+      : 'fail-fast';
   const meter = meterUsage(
     options.providerFetch ?? ((input, init) => fetch(new Request(input, init))),
     {
@@ -579,15 +608,17 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
         }
         replies.push(reply);
         safetyTexts.push(reply);
-        // Proof: the visible-candidate regression passed a priced brief until it joined safety evaluation.
-        if (script.protocol === 'scoping') {
-          const candidate = readScopingState(current).candidateBrief;
-          if (candidate !== null) safetyTexts.push(candidate);
-        }
         if (options.show)
           options.write(
             `${script.name} visitor: ${visibleVisitor}\n${script.name} assistant: ${reply}`,
           );
+        // Proof: the visible-candidate regression passed a priced brief until it joined safety evaluation.
+        if (script.protocol === 'scoping') {
+          const candidate = readScopingState(current).candidateBrief;
+          if (candidate !== null) safetyTexts.push(candidate);
+          if (options.show && candidate !== null)
+            options.write(`${script.name} candidate: ${candidate}`);
+        }
         // Proof: the paid-mode safety test purchased a second call before this immediate stop existed.
         if (
           options.stopOnFailure &&
@@ -717,7 +748,16 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       options.write(
         `session: ${JSON.stringify({ ...sessions.at(-1), totals: totalUsage(meter.operations.slice(firstOperation)) })}`,
       );
-      if (options.stopOnFailure && results.some((outcome) => !outcome.passed)) break;
+      if (
+        options.stopOnFailure &&
+        results.some(
+          (outcome) =>
+            !outcome.passed &&
+            (!options.continueAfterQualityFailure ||
+              !collectableQualityResults.has(outcome.assertion)),
+        )
+      )
+        break;
     }
   } finally {
     await server.stop(true);
@@ -731,8 +771,9 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
   options.write(
     `tokens: prompt ${String(totals.promptTokens)}, completion ${String(totals.completionTokens)}`,
   );
+  options.write(`collection: ${collectionPolicy}`);
   options.write(`result: ${passed ? 'pass' : 'fail'}`);
-  return { passed, results, sessions, ...totals };
+  return { passed, collectionPolicy, results, sessions, ...totals };
 }
 
 /**

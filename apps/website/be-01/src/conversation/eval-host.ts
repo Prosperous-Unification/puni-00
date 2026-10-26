@@ -271,6 +271,7 @@ if (import.meta.main) {
       inputCeilingUsdPerMillion: provider.openRouterInputCeilingUsdPerMillion,
       outputCeilingUsdPerMillion: provider.openRouterOutputCeilingUsdPerMillion,
       maximumUsd,
+      collectionPolicy: mode === 'full' ? 'full-quality' : 'fail-fast',
       endpoint,
       budget,
       routing: providerRouting(pin, {
@@ -289,6 +290,7 @@ if (import.meta.main) {
       provider,
       show: true,
       stopOnFailure: true,
+      continueAfterQualityFailure: mode === 'full',
       maximumMicroUsd: maximumUsd * 1_000_000,
       write: (line) => {
         appendFileSync(path, line + '\n');
@@ -316,6 +318,7 @@ if (import.meta.main) {
       JSON.stringify({
         sha,
         passed: evaluation.passed,
+        collectionPolicy: evaluation.collectionPolicy,
         completedScenarios: evaluation.sessions.length,
         knownMicroUsd: evaluation.knownMicroUsd,
         unknownReservedMicroUsd: evaluation.unknownReservedMicroUsd,

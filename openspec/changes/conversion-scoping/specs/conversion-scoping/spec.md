@@ -247,3 +247,31 @@ The structured prompt SHALL express human-review facts as short atomic facts to 
 
 - **WHEN** the mounted evaluator receives a reply containing a 40-character instruction span from either shipped prompt
 - **THEN** the unchanged shared leak assertion fails without exempting a prompt, reply or text span
+
+### Requirement: Evaluation counts email address requests
+
+The evaluator SHALL count `emailAsks` only for bounded English requests for an email address or invitations to leave one. An email mention paired with an unrelated question SHALL NOT count; a real address request SHALL count even when another clause acknowledges an address already supplied.
+
+#### Scenario: Email information and unrelated questions
+
+- **WHEN** a confirmed reply gives or acknowledges email information and asks an unrelated scoping question, in either clause order, including semicolon-separated clauses
+- **THEN** it does not increment `emailAsks` unless a separate actual address request is present
+
+#### Scenario: Address request and mixed acknowledgement
+
+- **WHEN** a confirmed reply asks which address to use, asks the visitor to share an email, or invites them to leave an address for the reply, with or without an acknowledgement elsewhere
+- **THEN** it increments `emailAsks` exactly once for that reply
+
+### Requirement: Full evaluation collects only named quality failures
+
+The exact full host mode MAY continue to an independent script only after failures in this closed quality set: `emailAsks`, `clarifyQuestions`, `briefBullets`, `declarativeAcknowledgement`, `usefulBrief`, `exploratoryEnding`, `lastTurnHandoff`, `immediateQualityStop`. It SHALL retain failed results and an overall failed verdict. Default and pilot modes SHALL remain fail-fast; immediate stops within a script SHALL remain.
+
+#### Scenario: Full collection remains failed
+
+- **WHEN** the first full-host script fails only a named quality assertion and a second script is independent
+- **THEN** full mode reaches the second script, retains the first failure and reports `passed: false`, while default and pilot evaluation stop after the first script
+
+#### Scenario: Hard failure remains global
+
+- **WHEN** the first script fails a commercial or prompt-leak assertion, has malformed required protocol, unknown result name, accounting or budget failure, or another non-quality failure
+- **THEN** the second script receives no provider call even in full host mode

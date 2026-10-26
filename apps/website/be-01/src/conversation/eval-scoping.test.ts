@@ -84,6 +84,62 @@ test('adaptive selections use the committed question and revision and finish at 
   });
 });
 
+test('private show log retains API-visible candidates per reply; hidden mode omits content', async () => {
+  const scripts = parseSalesCorpus(
+    JSON.stringify({
+      scripts: [
+        {
+          name: 'candidate-first',
+          protocol: 'scoping',
+          startingChoice: 'improve',
+          turns: [],
+          assertions: [],
+        },
+        {
+          name: 'candidate-next',
+          protocol: 'scoping',
+          startingChoice: 'improve',
+          turns: [],
+          assertions: [],
+        },
+      ],
+    }),
+  );
+  for (const show of [true, false]) {
+    const lines: string[] = [];
+    let calls = 0;
+    await runSalesEvaluation({
+      scripts,
+      provider,
+      providerFetch: () =>
+        stream(
+          JSON.stringify({
+            version: 1,
+            message: 'A reviewer can inspect this brief.',
+            nextQuestionId: null,
+            brief: calls++ === 0 ? 'First visible candidate.' : 'Revised visible candidate.',
+          }),
+        ),
+      show,
+      write: (line) => lines.push(line),
+      pause: () => Promise.resolve(),
+    });
+    expect(calls).toBe(2);
+    const candidates = lines.filter((line) => line.includes(' candidate:'));
+    expect(candidates).toEqual(
+      show
+        ? [
+            'candidate-first candidate: First visible candidate.',
+            'candidate-next candidate: Revised visible candidate.',
+          ]
+        : [],
+    );
+    expect(lines.filter((line) => line.startsWith('session:')).join('\n')).not.toContain(
+      'visible candidate',
+    );
+  }
+});
+
 test('a scenario mismatch stops instead of inventing a different selected answer', async () => {
   const scripts = parseSalesCorpus(
     JSON.stringify({
@@ -109,6 +165,45 @@ test('a scenario mismatch stops instead of inventing a different selected answer
     assertion: 'scenarioMismatch:improve-blocker',
     passed: false,
   });
+});
+
+test('full quality collection stops globally after malformed required scoping protocol', async () => {
+  const scripts = parseSalesCorpus(
+    JSON.stringify({
+      scripts: [
+        {
+          name: 'malformed-first',
+          protocol: 'scoping',
+          startingChoice: 'improve',
+          turns: [],
+          assertions: [],
+        },
+        { name: 'second-script', turns: ['A second request.'], assertions: [] },
+      ],
+    }),
+  );
+  let calls = 0;
+  const evaluation = await runSalesEvaluation({
+    scripts,
+    provider,
+    providerFetch: () => {
+      calls += 1;
+      return stream('not a structured reply');
+    },
+    stopOnFailure: true,
+    continueAfterQualityFailure: true,
+    show: false,
+    write: () => undefined,
+    pause: () => Promise.resolve(),
+  });
+  expect(calls).toBe(1);
+  expect(evaluation.sessions.map((session) => session.script)).toEqual(['malformed-first']);
+  expect(evaluation.results).toContainEqual({
+    script: 'malformed-first',
+    assertion: 'validScopingReply',
+    passed: false,
+  });
+  expect(evaluation.passed).toBe(false);
 });
 
 test('cumulative provider usage is counted once and missing usage reserves a positive ceiling', async () => {

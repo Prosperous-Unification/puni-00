@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 import { readEvaluationEnvironment, readKeyBudget, validateEndpoint } from './eval-host';
+import { salesSystemPrompt } from './system-prompt';
 
 test('host env is parsed as allowlisted assignments, never executed, with missing and duplicate values refused', () => {
   const source =
@@ -228,6 +229,124 @@ globalThis.fetch = Object.assign(async (input, init) => {
     }
   });
 }
+
+for (const variant of ['quality', 'commercial', 'prompt-leak', 'protocol', 'pilot'] as const)
+  test(`host entry keeps ${variant} collection boundary on its real mode path`, () => {
+    const directory = mkdtempSync(join(tmpdir(), 'puni-eval-collection-'));
+    try {
+      const git = (args: string[]) => {
+        const execution = Bun.spawnSync(['git', ...args], { cwd: directory });
+        if (execution.exitCode !== 0) throw new Error(execution.stderr.toString());
+        return execution.stdout.toString().trim();
+      };
+      git(['init', '--quiet']);
+      git([
+        '-c',
+        'user.name=Evaluation fixture',
+        '-c',
+        'user.email=fixture@example.test',
+        'commit',
+        '--quiet',
+        '--allow-empty',
+        '-m',
+        'Fixture identity',
+      ]);
+      const sha = git(['rev-parse', 'HEAD']);
+      const receipts = join(directory, '.superpowers/evaluation-private');
+      mkdirSync(receipts, { recursive: true });
+      writeFileSync(join(receipts, 'pilot.json'), JSON.stringify({ sha, passed: true }));
+      const environmentPath = join(directory, 'runtime.env');
+      writeFileSync(
+        environmentPath,
+        'OPENROUTER_API_KEY=fixture\nOPENROUTER_MODEL=openai/gpt-6-luna\nOPENROUTER_PROVIDER=azure/eu\nOPENROUTER_INPUT_USD_PER_MILLION=0.11\nOPENROUTER_OUTPUT_USD_PER_MILLION=0.55\nOPENROUTER_REASONING_EFFORT=low\nOPENROUTER_MAX_COMPLETION_TOKENS=700',
+      );
+      const callsPath = join(directory, 'inference-calls');
+      const preloadPath = join(directory, 'preload.ts');
+      const replies =
+        variant === 'quality'
+          ? [
+              'What should it show? Who uses it?',
+              'Who uses it?',
+              'A reviewer can examine this.',
+              'A reviewer can examine this.',
+              'It costs $5.',
+            ]
+          : variant === 'commercial'
+            ? ['It costs $5.']
+            : variant === 'prompt-leak'
+              ? [salesSystemPrompt.slice(200, 260)]
+              : variant === 'pilot'
+                ? ['not a structured reply']
+                : [];
+      writeFileSync(
+        preloadPath,
+        `
+import { appendFileSync } from 'node:fs';
+const network = globalThis.fetch;
+const replies = ${JSON.stringify(replies)};
+let calls = 0;
+globalThis.fetch = Object.assign(async (input, init) => {
+  const url = new URL(input instanceof Request ? input.url : String(input));
+  if (url.hostname === '127.0.0.1') return network(input, init);
+  if (url.origin !== 'https://openrouter.ai') throw new Error('Unexpected external transport');
+  if (url.pathname === '/api/v1/key') return Response.json({ data: { limit: 50, limit_reset: 'monthly', limit_remaining: 49, usage: 1 } });
+  if (url.pathname === '/api/v1/models/openai/gpt-6-luna/endpoints') return Response.json({ data: { endpoints: [{ tag: 'azure/eu', provider_name: 'Azure', pricing: { prompt: '0.00000011', completion: '0.00000055', input_cache_read: '0.000000011', input_cache_write: '0.0000001375', overrides: [] }, supported_parameters: ['response_format', 'structured_outputs', 'reasoning', 'max_completion_tokens'] }] } });
+  if (url.pathname !== '/api/v1/chat/completions') throw new Error('Unexpected provider path');
+  appendFileSync(${JSON.stringify(callsPath)}, 'attempted\\n');
+  if (${JSON.stringify(variant === 'protocol')}) return Response.json({ error: { message: 'Fixture protocol failure', code: 503 } }, { status: 503 });
+  const reply = replies[calls++] ?? 'A reviewer can examine this.';
+  const chunks = [
+    { id: 'fixture', model: 'fixture', choices: [{ index: 0, delta: { role: 'assistant', content: reply }, finish_reason: null }] },
+    { id: 'fixture', model: 'fixture', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { cost: 0, prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } },
+  ];
+  return new Response(chunks.map((chunk) => 'data: ' + JSON.stringify(chunk) + '\\n\\n').join('') + 'data: [DONE]\\n\\n', { headers: { 'content-type': 'text/event-stream' } });
+}, { preconnect: network.preconnect });
+`,
+      );
+      const mode = variant === 'pilot' ? 'pilot' : 'full';
+      const execution = Bun.spawnSync(
+        [
+          process.execPath,
+          '--preload',
+          preloadPath,
+          join(import.meta.dir, 'eval-host.ts'),
+          mode,
+          environmentPath,
+        ],
+        {
+          cwd: directory,
+          env: { PATH: process.env['PATH'] ?? '' },
+          timeout: 15000,
+        },
+      );
+      expect(execution.exitCode).toBe(1);
+      const calls = readFileSync(callsPath, 'utf8').trim().split('\n');
+      expect(calls).toHaveLength(variant === 'quality' ? 5 : 1);
+      const summary = JSON.parse(readFileSync(join(receipts, `${mode}.json`), 'utf8')) as {
+        passed: boolean;
+        collectionPolicy: string;
+        sessions: unknown[];
+        results: { script: string; assertion: string; passed: boolean }[];
+      };
+      expect(summary.passed).toBe(false);
+      expect(summary.collectionPolicy).toBe(variant === 'pilot' ? 'fail-fast' : 'full-quality');
+      expect(summary.sessions).toHaveLength(variant === 'quality' ? 2 : 1);
+      if (variant === 'quality') {
+        expect(summary.results).toContainEqual({
+          script: 'clear-request',
+          assertion: 'clarifyQuestions',
+          passed: false,
+        });
+        expect(summary.results).toContainEqual({
+          script: 'vague-request',
+          assertion: 'immediateSafetyStop',
+          passed: false,
+        });
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
 test('cache-aware endpoint preflight covers every cache rate and tier without guessing missing prices', () => {
   const pricing = {

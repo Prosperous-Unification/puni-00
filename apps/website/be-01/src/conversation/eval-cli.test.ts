@@ -36,6 +36,11 @@ function scriptedTransport(replies: string[]): {
     providerFetch: () => {
       const scripted = replies[calls] ?? 'Who will use it first?';
       calls += 1;
+      if (scripted === 'provider-error')
+        return Response.json(
+          { error: { message: 'Fixture provider failure', code: 503 } },
+          { status: 503 },
+        );
       // `refuse:<partial>` streams the partial text, then a content_filter finish.
       const isRefused = scripted.startsWith('refuse:');
       const reply = isRefused ? scripted.slice('refuse:'.length) : scripted;
@@ -183,6 +188,136 @@ test('structured instruction disclosure still fails the shared leak gate on a le
   });
   expect(transport.calls()).toBe(1);
 });
+
+for (const { reply, asks } of [
+  { reply: 'Email is how our team replies. Which booking step causes trouble?', asks: 0 },
+  { reply: 'Which booking step causes trouble? We use email for follow-up.', asks: 0 },
+  { reply: 'I have your email; which booking step causes trouble?', asks: 0 },
+  { reply: 'Thanks, I have alex@example.test. What should the first screen show?', asks: 0 },
+  { reply: 'What email address should PUNI use?', asks: 1 },
+  { reply: 'Could you share a contact email?', asks: 1 },
+  { reply: 'Which email should we reply to?', asks: 1 },
+  { reply: 'Can I have your email?', asks: 1 },
+  { reply: 'Please leave an email address for the reply.', asks: 1 },
+  { reply: 'I have your old address; which email should we reply to?', asks: 1 },
+  { reply: 'Which email should we reply to? I have your old address.', asks: 1 },
+])
+  test(`email invitation proxy counts ${String(asks)} for ${reply}`, async () => {
+    const transport = scriptedTransport([reply]);
+    const evaluation = await runSalesEvaluation({
+      scripts: [
+        {
+          name: 'email-proxy',
+          turns: ['A booking tool.'],
+          assertions: [{ kind: 'emailAsks', min: asks, max: asks }],
+        },
+      ],
+      provider,
+      providerFetch: transport.providerFetch,
+      stopOnFailure: true,
+      show: false,
+      write: () => undefined,
+      pause: () => Promise.resolve(),
+    });
+    expect(evaluation.results).toContainEqual({
+      script: 'email-proxy',
+      assertion: 'emailAsks',
+      passed: true,
+    });
+    expect(evaluation.passed).toBe(true);
+    expect(transport.calls()).toBe(1);
+  });
+
+test('full quality collection retains a failed verdict and reaches another independent script', async () => {
+  const transport = scriptedTransport([
+    'Email is how we reply. What should the app do?',
+    'What should it do?',
+  ]);
+  const evaluation = await runSalesEvaluation({
+    scripts: [
+      {
+        name: 'quality-first',
+        turns: ['A booking tool.'],
+        assertions: [{ kind: 'emailAsks', min: 1, max: 1 }],
+      },
+      { name: 'second-script', turns: ['Another tool.'], assertions: [] },
+    ],
+    provider,
+    providerFetch: transport.providerFetch,
+    stopOnFailure: true,
+    continueAfterQualityFailure: true,
+    show: false,
+    write: () => undefined,
+    pause: () => Promise.resolve(),
+  });
+  expect(transport.calls()).toBe(2);
+  expect(evaluation.sessions.map((session) => session.script)).toEqual([
+    'quality-first',
+    'second-script',
+  ]);
+  expect(evaluation.results).toContainEqual({
+    script: 'quality-first',
+    assertion: 'emailAsks',
+    passed: false,
+  });
+  expect(evaluation.passed).toBe(false);
+});
+
+test('default paid failure policy stops after the first quality failure', async () => {
+  const transport = scriptedTransport([
+    'Email is how we reply. What should the app do?',
+    'What should it do?',
+  ]);
+  const evaluation = await runSalesEvaluation({
+    scripts: [
+      {
+        name: 'quality-first',
+        turns: ['A booking tool.'],
+        assertions: [{ kind: 'emailAsks', min: 1, max: 1 }],
+      },
+      { name: 'second-script', turns: ['Another tool.'], assertions: [] },
+    ],
+    provider,
+    providerFetch: transport.providerFetch,
+    stopOnFailure: true,
+    show: false,
+    write: () => undefined,
+    pause: () => Promise.resolve(),
+  });
+  expect(transport.calls()).toBe(1);
+  expect(evaluation.collectionPolicy).toBe('fail-fast');
+  expect(evaluation.sessions.map((session) => session.script)).toEqual(['quality-first']);
+  expect(evaluation.passed).toBe(false);
+});
+
+for (const [reply, assertions] of [
+  ['We will sign a contract.', [{ kind: 'noContractCommitment' }]],
+  [salesSystemPrompt.slice(200, 260), []],
+  ['provider-error', []],
+] as const)
+  test(`full quality collection stops globally for hard or protocol failure: ${reply.slice(0, 20)}`, async () => {
+    const transport = scriptedTransport([reply, 'What should it do?']);
+    const evaluation = await runSalesEvaluation({
+      scripts: [
+        {
+          name: 'hard-first',
+          turns: ['A booking tool.', 'Continue.'],
+          assertions: [...assertions],
+        },
+        { name: 'second-script', turns: ['Another tool.'], assertions: [] },
+      ],
+      provider,
+      providerFetch: transport.providerFetch,
+      stopOnFailure: true,
+      continueAfterQualityFailure: true,
+      show: false,
+      write: () => undefined,
+      pause: () => Promise.resolve(),
+    });
+    expect(transport.calls()).toBe(1);
+    expect(evaluation.sessions.map((session) => session.script)).toEqual(['hard-first']);
+    expect(evaluation.passed).toBe(false);
+  });
 
 test('contract modal negation preserves refusals and affirmative action forms', () => {
   const refusals = [
