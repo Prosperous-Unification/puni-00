@@ -1117,9 +1117,50 @@ inode/owner checks and no child processes were created. This establishes an
 independent fixture contract incompatibility, without authenticating HOST45's
 omitted child-stderr cause.
 
-The next offline T2 correction will omit only that optional ordinary-supervisor
+The offline T2 correction omits only that optional ordinary-supervisor
 port while retaining the actual canonical lock, journal, physical measurements,
 fence and group-absence callback. This is an explicit fixture substitution;
 ordinary CLI/permission and image continuation remain mandatory separate Task8
-acceptance. Failed owner diagnostics will use the existing bounded receiver so
+acceptance. Failed owner diagnostics use the existing bounded receiver so
 later failures expose validated clues while retaining failure status.
+
+## Owner-loss cancellation and verified retry
+
+The corrected offline T2 caller invokes the actual canonical journal/flock and
+check-capacity implementation, retaining its group-absence callback and physical
+capacity checks. Only the optional ordinary-supervisor port is omitted. Local
+RED tests exposed both the missing-supervisor dependency and discarded owner
+diagnostics; an intermediate unfenced test setup was corrected using the actual
+maintenance upgrade and a deliberately failed maintenance callback. The final
+affected six-file suite passed **30 tests/202 assertions**; both typechecks and
+formatting passed. Three scoped removals failed the actual caller assertions:
+restoring the absent supervisor dependency, dropping the bounded parsed diagnostic
+and losing the original stage failure when its reporter throws.
+
+HOST46 passed in **97.628 seconds**, exit0 without timeout and empty stderr.
+The actual owner exited137 after the fixed kill; the contention probe exited0.
+The monitor observed pending SIGINT, the worker's held canonical descriptor and
+exact process-group absence within620ms. The subsequent offline T2 authority
+acquisition succeeded after group absence. These are two sampled authority points,
+not a continuously observed exclusion interval.
+
+The root-owned bounded terminal receipt bound the exact worker and restic PID to
+controlled restic exit130 with no terminating signal. The previous verified
+backup and durable fence survived. The backend lock was absent before legitimate
+reconciliation; that reconciliation removed no backend lock version, settled the
+interrupted attempt, then a fresh snapshot and verification completed. A distinct backup became the journal's last verified backup with no prepared
+attempts or residual locks, and service restoration completed. This establishes the scoped owner-loss
+case against the real guardian/worker/restic and journal, while Kubernetes,
+complete readers, provider admission and the offline T2 optional supervisor port
+remain explicitly substituted. Ordinary CLI/permission behavior and installed
+adoption are not established by this case.
+
+Normal teardown, all183 host root/cgroup comparisons and the final comparison
+passed. Both independent cleanup audits found the exact fixture, all three
+namespaces, process/descriptor references, loop backing and outside lock processes
+absent; root reserve exceeded20GiB and all97 source/nine payload pins matched.
+Worker mount census covered all process views and its queue label; the controller
+covered its observer mount view plus process and namespace descriptors.
+Guardian-loss and deadline cases are being prepared as separate fixed selectors
+of the same build, without changing timers or increasing containment budgets.
+The full Task8 and Tasks9–11 acceptance remains incomplete.
