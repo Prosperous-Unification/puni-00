@@ -72,7 +72,9 @@ Malformed arguments and invalid bindings exit 1 with a named diagnostic on stder
 stdout. `validate-record` remains the JSON-only alias. Acceptance establishes static consistency
 and referenced-byte integrity; it grants no execution authority and does not establish backend
 availability, tool registration, approvals or spending authority. The strict version-1 contract
-and limits are in the [binding design](../../../../openspec/changes/burokrat-workflow-binding-validation/design.md).
+and limits are in the [validator design](../../../../openspec/changes/burokrat-workflow-binding-validation/design.md);
+[durable acceptance and retention](../../../../openspec/changes/twilight-agentic-workflows/binding-design.md)
+are specified separately.
 
 ## Diagnostic test reports
 

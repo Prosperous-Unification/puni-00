@@ -85,6 +85,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'attempts.moveAll:issued',
   'blockages.set:read-remove',
   'stepParallels.set:sparse-replace-remove',
+  'runtimeCommands.write:permanent-history',
   'claims.add:taken-stated-remove',
   'claims.listStampedByProject:write-instant',
   'claims.remove:delegated-cascade',

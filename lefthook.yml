@@ -27,6 +27,10 @@ pre-commit:
     website-migration-lint:
       run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
       glob: 'libs/website/adapters/store-sqlite/src/**'
+    run-store-migration-lint:
+      run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
+      # Proof: removing this route dropped the real forward/down paths; widening it to runs/**/*.sql admitted sibling fixtures in the parsed production routing test.
+      glob: 'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/**/*.sql'
 
     doc-caps:
       run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
