@@ -120,3 +120,25 @@ The generated deployment graph SHALL await the existing Prometheus controller He
 - **WHEN** the common graph reconciles on a target without the ServiceMonitor CRD
 - **THEN** its controller stage becomes Ready and the API is Established before the application stage applies native ServiceMonitors
 - **AND** removing that barrier or combining provider and consumers makes source validation refuse rather than treating Kustomize build success as runtime readiness
+
+### Requirement: Disposable resource evidence precedes ownership use
+
+The strict rehearsal path SHALL retain actual creator-returned container/network identities, same-daemon creation/mount corroboration and a complete expected resource set before consuming ownership evidence. It MUST NOT infer ownership from names or labels. Raw private debug configuration and arbitrary event labels MUST NOT be persisted or exposed.
+
+#### Scenario: A successful creation has accountable resources
+
+- **WHEN** the existing runner creates a fresh strict rehearsal attempt
+- **THEN** its exact returned identities, required creation/mount observations and resource inspections agree in exclusive durable attempt-bound evidence
+- **AND** missing or conflicting creator evidence, a missed handshake, reuse, foreign attachment or persistence failure refuses complete accounting
+
+#### Scenario: Partial creation retains uncertainty
+
+- **WHEN** creation fails after some identities were recorded
+- **THEN** individual evidence and the attempt remain retained while global completeness stays unknown
+- **AND** no name/label-based automatic cleanup or failure rollback is authorized
+
+#### Scenario: Recorded teardown retains storage
+
+- **WHEN** a recorded attempt is torn down within its cooperative ownership boundary
+- **THEN** the existing runner verifies daemon, exact container/network identities and attachments, removes only those recorded targets and retains volumes and private evidence
+- **AND** missing/edited evidence, replacement or foreign attachments refuses the strict path without falling back to legacy teardown
