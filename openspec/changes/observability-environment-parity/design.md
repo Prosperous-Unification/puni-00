@@ -97,9 +97,13 @@ The Kubernetes path currently lacks proven trace behavior, and completing it req
 ## Open Questions
 
 - Separate service/store instances are approved. Physical placement and shared-controller ownership still require the authorized inventory below.
-- Read-only cluster inventory is blocked by h4claw sudo authorization. Required observations are cluster identity, nodes/capacity, Flux/controller ownership and readiness, namespace/storage bindings and credential key metadata without values.
+- Read-only basic inventory now succeeds through the existing configured enrollment operator; the initial non-admin sudo denials remain historical evidence. Exact observations are in `verify.md`. A complete source-bound migration preflight still requires current ownership, node/coexistence capacity, retained storage and credential-key metadata; basic access is not readiness.
 - Persistent dev placement and the exact namespace/controller plan depend on that inventory. No new cluster, credentials, production mutation or capacity purchase is authorized implicitly.
 
 ## Disposable graph packaging prerequisite
 
 The full candidate generator is not yet a deployable Flux entry. Prepare a closed disposable graph from an exact Git-exported source revision outside the selected input tree, preserving its required dependency stages, pinned sources and marker checks while substituting the common instances and same-owner diagnostic/backup handoffs. Replace legacy broad ingress rather than combining it with the new policy. Exclude Secret material and unrelated workloads; declare external inputs. Validate actual stage builds, independent closure/policy invariants and deterministic file hashes. Bind source and generator provenance separately, including unreviewed generator state. Fresh resource admission remains mandatory. This source prerequisite does not implement source transport or certify reconciliation/runtime/live readiness; those remain later acceptance work.
+
+### Authenticated source and reconciliation adapter
+
+Consume the validated packet through the existing authenticated Flux bootstrap contract, preserving its source references and dependency stages. Bind the exact published artifact commit/path separately from original source revision and generator provenance, and verify fetched content against the packet. Observe source artifact identity, applied stage revisions, deployed Helm history and actual controller/workload readiness within a bounded deadline. Credential/trust input handling, owned target identity, capacity and prerequisites must refuse before mutation when unresolved. Fixtures and the existing production source can exercise adapter observations but cannot certify a disposable candidate. Do not repoint the production source or unsuspend its withheld stages to make dev readiness pass.
