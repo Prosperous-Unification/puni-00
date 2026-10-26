@@ -656,3 +656,46 @@ These runs use tiny enforced storage, minimal OCI content, synthetic Kubernetes,
 consumer and local-provider ports, and explicit accelerated retirement/discard
 clocks. They do not complete Task4.2, real Docker/index coverage, process-kill
 recovery, physical ENOSPC/rebind proofs, real-provider budgeting or installed adoption.
+
+## Retained multi-platform index rehearsal
+
+HOST30 reached all four managed OCI index publications, each with a complete
+bounded18-event HTTP receipt, three actual authority promotions and retirement.
+The actual matching registry/journal backup, API unlink, staging discard, native
+offline GC and retained-content checks passed before Docker startup. The checks
+preserved three indexes, their six untagged child manifests and shared layer
+content, and confirmed absence of the eligible unpromoted release. This uses
+synthetic consumer/controller/provider ports and a trusted accelerated fixture
+clock. It does not independently isolate current-plus-two rollback from the newest
+ten promotions or prove shared-root repeated retirement.
+
+The full run FAILED at the first amd64 Docker daemon startup, before any pull.
+Its pinned Docker29.1.3 stack maps to an initialization refusal about missing
+devices cgroups followed by a nil events-service shutdown panic in the upstream
+source. The chroot had no cgroup filesystem. This is primary-source line
+correlation, without independently identical Ubuntu package-source provenance.
+The earlier HOST29 HTTP failure did not reproduce; its status and cause remain
+unknown. Both HOST30 resource audits passed, and all90 source/nine payload pins
+matched after termination. No Docker pull or complete Task4.2 success is claimed.
+
+## Read-only cgroup-view prerequisite
+
+The first separate mount-only proof FAILED in2.715seconds at its superblock
+check. A fresh private cgroup namespace and cgroup2 mount exposed actual
+per-mount `ro,nosuid,nodev,noexec`, a read-only statvfs view and namespace root `/`,
+while the shared superblock retained its host read-write flags. The check refused
+before the no-body write-open probe or the held-view host comparison. The receipt's
+false held-view flag means that stage was not reached. Both normal unmounts
+succeeded. Worker and independent parent audits confirmed exact tree, namespace,
+process, descriptor, mount, backing-reference and lock cleanup, unchanged host
+namespace/mount flags, and more than20GiB free root space. All14 frozen artifact
+pins matched afterward.
+
+The prerequisite requirement was corrected: enforce per-mount read-only access,
+actual `EROFS` on `O_WRONLY` without writing, and unchanged shared-superblock
+flags and host state before/during/after. The [Linux mount contract](https://man7.org/linux/man-pages/man2/mount.2.html)
+permits per-mount read-only access over a read-write superblock and warns that
+shared-superblock remount changes affect other mounts. No superblock remount,
+controller write, process migration or delegation is allowed. The corrected
+mount-only run and subsequent Docker proof remain pending. This is a fixture
+prerequisite; no new production safeguards have been activated.
