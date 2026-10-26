@@ -7,6 +7,7 @@ const secret = 'browser-reconciliation-secret-'.repeat(2);
 const harness = OrganizationHarness.openComposedWith({
   // Test-only writer seam: durable authority alone does not activate production authoring.
   syntheticExternalCommands: true,
+  sessionBinding: true,
   internalAuthSecret: secret,
   appOrigin: 'http://localhost:7600',
   pushFetch: (url, init) => fetch(url.replace('http://gw.invalid', 'http://localhost:7501'), init),
@@ -16,9 +17,131 @@ for (const username of ['ada', 'grace']) await harness.register(username);
 for (const organizationId of ['org-a', 'org-b']) harness.organization(organizationId);
 harness.member('org-a', 'ada', 'member');
 harness.member('org-b', 'grace', 'member');
-harness.bind('ada', 'org-a');
-harness.bind('grace', 'org-b');
+harness.member('org-b', 'ada', 'member');
 harness.activate();
+interface FixturePrincipal {
+  readonly token: string;
+  readonly cookie: string;
+  readonly organizationId: string;
+}
+/** Only these original registration credentials retain compatibility with lower-boundary tests. */
+const seedTokens = Object.freeze({ ada: harness.token('ada'), grace: harness.token('grace') });
+const principals: Readonly<{ ada: FixturePrincipal; grace: FixturePrincipal }> = Object.freeze({
+  ada: await selectFixturePrincipal(seedTokens.ada, 'org-a'),
+  grace: await selectFixturePrincipal(seedTokens.grace, 'org-b'),
+});
+async function selectFixturePrincipal(
+  token: string,
+  organizationId: string,
+): Promise<FixturePrincipal> {
+  const selected = await harness.request('/api/organization/active', {
+    method: 'POST',
+    headers: {
+      origin: 'http://localhost:7600',
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ organizationId }),
+  });
+  // Proof: r1 rejected-response fault refuses here; omitting only this check reaches the acceptance sentinel.
+  if (selected.status !== 200) throw new Error('Fixture organization selection refused');
+  const selection: unknown = await selected.json();
+  // Proof: r1 wrong/missing organization faults refuse here; each matching omission reaches the sentinel.
+  if (
+    typeof selection !== 'object' ||
+    selection === null ||
+    !('organizationId' in selection) ||
+    selection.organizationId !== organizationId
+  )
+    throw new Error('Fixture selected another organization');
+  const cookies = selected.headers.getSetCookie();
+  // Proof: r1 absent/ambiguous Set-Cookie faults refuse here; each matching omission reaches the sentinel.
+  if (cookies.length !== 1) throw new Error('Fixture selection cookie is ambiguous or absent');
+  const cookie = cookies[0]?.split(';').at(0);
+  // Proof: r1 wrong-name/empty cookie faults refuse here; each matching omission reaches the sentinel.
+  if (cookie === undefined || !/^__Host-wbs_organization=[^;\s=]+$/.test(cookie))
+    throw new Error('Fixture selection cookie is malformed');
+  return Object.freeze({ token, cookie, organizationId });
+}
+/** Parses names even when spacing/value is malformed, so existing carriers are never repaired. */
+function readCookies(headers: Headers): { name: string; value: string | null }[] {
+  return (headers.get('cookie') ?? '').split(';').map((part) => {
+    const separator = part.indexOf('=');
+    return separator < 0
+      ? { name: part.trim(), value: null }
+      : { name: part.slice(0, separator).trim(), value: part.slice(separator + 1) };
+  });
+}
+/** Appends an actual issued cookie only to one exact, unambiguous original seed credential. */
+function bindFixtureToken(headers: Headers): Headers {
+  const forwarded = new Headers(headers);
+  const entries = readCookies(headers);
+  const organizations = entries.filter((entry) => entry.name === '__Host-wbs_organization');
+  const accesses = entries.filter((entry) => entry.name === '__Host-wbs_access');
+  // Proof: removing these guards independently made existing-org and duplicate-access presentations receive invariant500 (2026-10-26).
+  if (organizations.length !== 0 || accesses.length > 1) return forwarded;
+  const authorization = headers.get('authorization');
+  const bearer = authorization === null ? null : /^Bearer ([^\s]+)$/.exec(authorization)?.[1];
+  // Proof: accepting Basic syntax made the real non-Bearer presentation receive invariant500 (2026-10-26).
+  if (authorization !== null && bearer === undefined) return forwarded;
+  const access = accesses.at(0)?.value;
+  // Proof: accepting a spaced access-cookie name made the real malformed presentation receive invariant500 (2026-10-26).
+  if (
+    accesses.length === 1 &&
+    (access === null ||
+      access === undefined ||
+      access.length === 0 ||
+      !(headers.get('cookie') ?? '')
+        .split(';')
+        .some((part) => part.trim() === `__Host-wbs_access=${access}`))
+  )
+    return forwarded;
+  // Proof: removing this equality guard made conflicting seed credentials receive invariant500 (2026-10-26).
+  if (bearer !== null && bearer !== undefined && access !== undefined && bearer !== access)
+    return forwarded;
+  const token = bearer ?? access;
+  // Proof: admitting a fresh ordinary token made unselected discovery receive invariant500 instead of403 (2026-10-26).
+  const principal = Object.values(principals).find((candidate) => candidate.token === token);
+  if (principal === undefined) return forwarded;
+  forwarded.set(
+    'cookie',
+    [headers.get('cookie'), principal.cookie].filter((part) => part !== null).join('; '),
+  );
+  return forwarded;
+}
+/** Independently verifies noneligible requests at the actual forwarding boundary; errors never expose credentials. */
+function assertForwarding(incoming: Headers, forwarded: Headers): void {
+  const cookies = (incoming.get('cookie') ?? '').split(';');
+  const accessCookies = cookies.filter(
+    (cookie) => cookie.trim().split('=')[0]?.trim() === '__Host-wbs_access',
+  );
+  const organizationCookies = cookies.filter(
+    (cookie) => cookie.trim().split('=')[0]?.trim() === '__Host-wbs_organization',
+  );
+  const authorization = incoming.get('authorization');
+  const eligible = [principals.ada, principals.grace].some(
+    (principal) =>
+      organizationCookies.length === 0 &&
+      accessCookies.length <= 1 &&
+      (authorization === null || authorization === `Bearer ${principal.token}`) &&
+      (accessCookies.length === 0 ||
+        accessCookies[0]?.trim() === `__Host-wbs_access=${principal.token}`) &&
+      (authorization === `Bearer ${principal.token}` ||
+        accessCookies[0]?.trim() === `__Host-wbs_access=${principal.token}`),
+  );
+  if (
+    !eligible &&
+    JSON.stringify([...incoming.entries()]) !== JSON.stringify([...forwarded.entries()])
+  )
+    throw new Error('Fixture forwarding invariant violated');
+}
+async function callFixture(username: 'ada' | 'grace', method: string, path: string, body: unknown) {
+  const principal = principals[username];
+  return harness.callWith(principal.token, method, path, body, {
+    cookie: principal.cookie,
+    'X-WBS-Expected-Organization': principal.organizationId,
+  });
+}
 const projects: Record<string, { id: string; row: string; step: string } | undefined> = {};
 let ready = false;
 const server = Bun.serve({
@@ -38,8 +161,8 @@ const server = Bun.serve({
     if (path === '/__fixture/identities')
       return Response.json({
         projects,
-        token: harness.token('ada'),
-        foreignToken: harness.token('grace'),
+        token: seedTokens.ada,
+        foreignToken: seedTokens.grace,
       });
     if (
       (path === '/__fixture/complete' || path === '/__fixture/reset') &&
@@ -47,7 +170,7 @@ const server = Bun.serve({
     ) {
       const project = projects['A'];
       if (project === undefined) throw new Error('missing upstream');
-      const answer = await harness.call('ada', 'POST', `/api/projects/${project.id}/commands`, {
+      const answer = await callFixture('ada', 'POST', `/api/projects/${project.id}/commands`, {
         commands: [
           {
             kind: path === '/__fixture/complete' ? 'setProgress' : 'clearProgress',
@@ -59,9 +182,12 @@ const server = Bun.serve({
       });
       return Response.json(answer.body, { status: answer.status });
     }
+    const forwarded = bindFixtureToken(request.headers);
+    // Proof: with the same broadened adapter, omitting this call changed the diagnostic expected500 to the backend's masked403 (2026-10-26).
+    assertForwarding(request.headers, forwarded);
     return harness.request(path + new URL(request.url).search, {
       method: request.method,
-      headers: request.headers,
+      headers: forwarded,
       ...(request.method === 'GET' || request.method === 'HEAD'
         ? {}
         : { body: await request.text() }),
@@ -98,6 +224,8 @@ for (const name of [
   'SuccessorDesktop',
   'SuccessorPhone',
   'Author',
+  'RootAuthor',
+  'RootStale',
   'AuthorPhone',
   'AuthorFF',
   'RenameSource',
@@ -106,7 +234,7 @@ for (const name of [
   'DatedB',
   'DatedC',
 ]) {
-  const answer = await harness.call(name === 'Foreign' ? 'grace' : 'ada', 'POST', '/api/projects', {
+  const answer = await callFixture(name === 'Foreign' ? 'grace' : 'ada', 'POST', '/api/projects', {
     name,
   });
   if (answer.status !== 200) throw new Error(`fixture project refused: ${JSON.stringify(answer)}`);

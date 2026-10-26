@@ -17,7 +17,11 @@
     "source-stageb-inputs.ts",
     "source-stageb-inputs.test.ts",
     "source-stageb-bootstrap.ts",
-    "source-stageb-bootstrap.test.ts"
+    "source-stageb-bootstrap.test.ts",
+    "source-stageb-artifacts.ts",
+    "source-stageb-artifacts.test.ts",
+    "source-stageb-builder.ts",
+    "source-stageb-builder.test.ts"
   ],
   "references": []
 }

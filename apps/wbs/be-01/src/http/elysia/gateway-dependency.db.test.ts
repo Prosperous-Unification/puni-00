@@ -47,7 +47,8 @@ test('internal gateway admission authenticates first and freshly refuses incompa
         },
       }),
     );
-  app.listen(0);
+  // Proof: omitting this host reached the protected native boundary as missing with zero delegation; restored caller/kernel127 passed (2026-10-26).
+  app.listen({ port: 0, hostname: '127.0.0.1' });
   const backendPort = app.server?.port;
   if (backendPort === undefined) throw new Error('backend did not listen');
   const gateway = Bun.spawn(

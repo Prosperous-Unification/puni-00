@@ -47,6 +47,8 @@ test('mounted SQLite authority ENABLED with zero external rows fences retained p
     releaseRecheck = resolve;
   });
   const backend = Bun.serve({
+    // Proof: omitting this host reached the protected native boundary as missing with zero delegation; restored caller/kernel127 passed (2026-10-26).
+    hostname: '127.0.0.1',
     port: 0,
     fetch: async (request) => {
       const response = await harness.app.handle(request);

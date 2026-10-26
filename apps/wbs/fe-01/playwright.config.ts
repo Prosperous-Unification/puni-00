@@ -213,7 +213,8 @@ export default defineConfig({
       testIgnore: [
         /lifetime-bfcache\.spec\.ts/,
         /organization-context\.real\.spec\.ts/,
-        /cross-project-refresh\.real\.spec\.ts/,
+        // Proof: omitting root failed the dedicated-routing case and ordinary --list collected all three localhost-only root cases (2026-10-26).
+        /(?:^|\/)cross-project-(?:refresh|root)\.real\.spec\.ts$/,
       ],
       use: {
         ...devices['Desktop Chrome'],

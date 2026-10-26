@@ -872,6 +872,8 @@ export async function recordSourceUncertainty(
   });
 }
 export interface SourceJournalSnapshot {
+  /** Independently checked original J backing identity solely for negative alias exclusion; difference establishes no native ownership, creation, removal, dispatch or admission authority. */
+  readonly journalDirectoryIdentity: Readonly<{ device: string; inode: string }>;
   readonly evidence: 'private-control';
   readonly phase: Phase;
   readonly records: readonly Json[];
@@ -894,7 +896,13 @@ export async function inspectSourceJournal(token: SourceJournal): Promise<Source
   const journal = getJournal(token);
   return run(journal, async () => {
     await verifyJournal(journal);
+    if (journal.directoryIdentity === undefined) reject('directory snapshot absent');
     return Object.freeze({
+      // Proof: projection-inner-freeze omission broke frozen inspection; projection-backing-target/exact-observation parent-tuple faults broke actual B alias and backing-stat consumers.
+      journalDirectoryIdentity: Object.freeze({
+        device: String(journal.directoryIdentity.dev),
+        inode: String(journal.directoryIdentity.ino),
+      }),
       evidence: 'private-control',
       phase: journal.phase,
       records: Object.freeze(
