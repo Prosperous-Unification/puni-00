@@ -554,3 +554,38 @@ The linked specification remains the behavior contract.
 | [Promotion succeeds but owner persistence is lost](specs/registry-storage-lifecycle/spec.md#scenario-promotion-succeeds-but-owner-persistence-is-lost)                       | Authenticated installed resume returns the original promoted receipt, repairs source history and leaves deployment effects and authority unchanged.                                                                   |
 | [One of two environments sharing an image retires](specs/registry-storage-lifecycle/spec.md#scenario-one-of-two-environments-sharing-an-image-retires)                       | Actual complete Docker census including stopped containers and exact environment ownership; retirement of A preserves B and its global roots.                                                                         |
 | [Managed Compose smoke fails after all tiers commit](specs/registry-storage-lifecycle/spec.md#scenario-managed-compose-smoke-fails-after-all-tiers-commit)                   | Exact installed artifact, real whole-environment lock, failed smoke and full-candidate retry without repeated committed swaps or migrations.                                                                          |
+
+## Permission sampling development proof
+
+The old production guard failed a controlled actual-authority interleaving:
+`executeRegistryCommand` advanced the journal with the real flock, fsync and
+permit publication while the guard paused before hashing. It returned readonly
+although the current permit was fresh; an immediate new sample succeeded. This
+proves a read-pair defect independently of the earlier native HTTP failure, whose
+cause remains unknown.
+
+`bun test tools/tool-fleet/src/registry-permit-coherence.test.ts` produced a legal
+old-source RED (6 passing, 6 failing), then corrected-source GREEN and restored
+GREEN (15 passing, 41 assertions). Actual shell, files, boot/uptime, schema-3
+commands and authority persistence are exercised. Capacity and metadata UID/GID
+are modeled. Near-expiry fields are injected, with actual uptime advancing about
+three seconds; this is not the thirty-second checker-death or native HTTP proof.
+
+Eleven isolated guard mutations produced the expected behavioral failures:
+fourth-attempt acceptance, missing changed-pair retry, absent final revalidation,
+swallowed final-read failure, boot, expiry, permission mode, complete record,
+canonical spacing, checksum exit status and checksum mismatch. The checksum
+status fault prints the actual matching digest before exiting nonzero. The mode
+fault remains readable, and the stat shim preserves real mode/type/link count.
+Restored source SHA-256 is
+`959a46958726b18d510a5b46907a85e912f5aa303fe7543810f9eaf1307ee326`;
+only adjacent proof comments differ from the mutation receipt's original source.
+The parent read all raw witnesses and verified their hashes in
+`/tmp/task8-parent-coherence-removal-audit.json`; source/test hashes were checked
+independently after the worker's terminal restoration checkpoint.
+
+Initial fixture-permission and shell-syntax failures are retained as setup
+failures. Exactly twelve owned fixtures from the syntax failure were removed
+with inode/owner/path checks; an independent census confirmed their absence.
+Corrected-source native guard regression, installed adoption and the complete
+scenario audit remain pending. These local results do not close Task 4.2.
