@@ -817,8 +817,7 @@ absent. The worker scanned all process mount views; the controller scanned its
 observer mount view and namespace descriptors. Both verified host state and more
 than20GiB root reserve. All91 source and nine payload pins matched after termination.
 
-The complete Task4.2 remains open: shared independent roots and repeated
-retirement; unsafe-GC and partial post-unlink failure witnesses;
+The complete Task4.2 remains open: unsafe-GC and partial post-unlink failure witnesses;
 owner/root interruption and backend-lock recovery; killed GC/restore; physical
 registry ENOSPC with independently healthy journal; verified recovery rebind and
 ordinary CLI continuation; remaining R5 proofs, affected checks and independent
@@ -914,7 +913,74 @@ scanned all process mount views; the controller scanned its observer mount view
 and namespace descriptors. Host state matched and root reserve exceeded20GiB.
 All93 source/nine payload pins matched after termination.
 
-Shared independent roots and repeated retirement, interruption and recovery,
-physical exhaustion, remaining R5/check/review work, backup budgeting, delivered
+Interruption and recovery, physical exhaustion, remaining R5/check/review work,
+backup budgeting, delivered
 monitoring and installed adoption remain incomplete. Task4.2 and the overall goal
 remain open.
+
+## Shared independent roots and fresh repeated retirement
+
+The local byte fixture establishes two complete older publications sharing exact
+repository/rootA with distinct unique rootsB1 andB2, plus a different currentC.
+The local two-retirement authority test passed **1 test/16 assertions**: actual
+initialize/enroll/reserve/finish/promote/protect/upgrade, journal/flock/fsync,
+physical census, coordinator sessions and durable retirement receipts. HTTP,
+barriers, capacity/image/reader observations, backup verification and GC effects
+are modeled; filesystem unlink is real. It uses the original protection token,
+distinct operation/snapshot identities, fresh census hashes and unchanged original
+bundles/history. Replacing the production residual-root filter with blanket
+exclusion of prior retired operations strandsA: the second plan incorrectly
+becomes empty. Restoration returns1 pass/16 assertions. This negative proves
+residual-reclamation liveness, without claiming unsafe current-image deletion.
+
+Scoped route/teardown/operation-identity removals each failed actual caller tests.
+The affected suite passed **60 tests/199 assertions** before the fixture tag
+boundary adjustment below; the amended focused suite passed **12 tests/53 assertions**.
+Library/spec typechecks and formatting passed. Initial callback type failures
+were retained and corrected by preserving the uploader ownership callback while
+awaiting its return. Production inventory/policy and normal startup bytes remained
+identical to the prior native packet.
+
+A small independent probe of the pinned Distribution binary confirmed HTTP200
+with explicit tags:null for an owned empty tag directory. The new fixture now
+models that known empty response while still requiring exact tags for retained
+images. Missing/malformed fields, wrong name/status and retained-null refuse;
+four separate predicate removals fail those assertions. The probe stopped its
+exact process and removed its owned directory. This component probe is not an
+actual deletion or GC result.
+
+HOST38 passed in **172.781 seconds**, exit0 without timeout. Three actual managed
+publications produced complete36/36/18-event HTTP observations. An actual current
+promotion and independent protection retainedA. The first fresh maintenance
+backed up and verified the matching registry/journal pair, unlinkedB1/B2 and ran
+offline GC: six unique manifest revisions retired whileA andC survived.
+
+After a legitimate canonical protection-token release, a distinct second
+maintenance used a fresh backup identity, census and plan. It retiredA and its
+two platform manifests from the same two original partially retired operations.
+Both original publication bundles and environment history stayed unchanged.
+Repository tags, retained configuration/layer hashes and exact removed-content
+absence passed after each epoch; currentC and the shared layer survived.
+
+Only post-publication authority time advances synthetically by eight days for
+both retirements and the intervening release. The root refreshes its fixed
+timestamp before each sequential owner process; original uploads, promotion and
+protection acquisition use real time. Kubernetes, complete readers and local
+provider admission are synthetic. This does not prove elapsed grace, installed
+control-plane behavior or the complete Task4.2.
+
+Normal teardown unmounted cgroup before proc and the owned root last. All332
+periodic host root/cgroup comparisons and the final comparison matched; all four
+loops detached and the canonical lock released. Both independent audits found the
+exact fixture, three namespaces, process/descriptor references, loop backing and
+outside lock processes absent, with matching host state and more than20GiB root
+reserve. Worker mount census covers all process views; the controller covers its
+observer view and namespace descriptors. All95 source/nine payload pins matched
+after termination. The172.781-second result remains within the existing180-second
+inner bound and does not authorize extending it or adding more work to this case.
+
+Unsafe-GC and partial post-unlink tag-cleanup witnesses, actual interruption and
+backend-lock recovery, killed GC/restore, physical registry ENOSPC with independent
+journal, verified rebind/offline journal/current obligations and ordinary CLI
+continuation remain pending, along with the full checks, independent reviews,
+backup budgeting, delivered monitoring and installed adoption.
