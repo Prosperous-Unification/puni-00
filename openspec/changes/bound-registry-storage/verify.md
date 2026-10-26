@@ -1013,3 +1013,21 @@ process views; controller mount checks cover its observer view. Host namespace
 and cgroup flags matched the prior baseline, root reserve exceeded20GiB and all97
 source/nine payload pins matched after termination. These cleanup results do not
 convert the failed interruption rehearsal into a behavioral pass.
+
+The diagnostic-only HOST42 run also failed, in **63.143 seconds**, exit1 without
+timeout. It identified the rejected outcome as the interruption monitor and mapped
+the exact bundle frame to the production process reader's combined root-UID,
+root-GID and live-state requirement. This identifies the rejecting predicate,
+without identifying the candidate or failed field. No selected fault or controlled
+backup termination is established. The fixture now needs an exact-input role and
+state diagnostic before a functional correction can be justified.
+
+HOST42 normal teardown, all114 host comparisons and the final comparison passed.
+Both independent audits found the exact fixture, three namespaces, process and
+descriptor references, loop backing and outside lock processes absent; host state
+and the20GiB reserve matched their required checks. The worker additionally checked
+all process mount views and its queue label. All97 source/nine payload pins matched.
+The diagnostic boundary's local extracted-body test passed18 assertions; removing
+either original-error or reporter-error preservation failed its exact assertion.
+These modeled tests and cleanup results do not establish native interruption
+success.
