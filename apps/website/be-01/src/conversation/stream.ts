@@ -71,6 +71,13 @@ export interface ChatMessage {
 export const replyDeadlineMilliseconds = 30_000;
 
 /**
+ * Bun HTTP idle seconds: the reply deadline plus five seconds for settlement/flush. Shared by
+ * production and evaluation; ordinary inactive connections also retain this finite budget.
+ * Proof: reducing this to ten seconds reset both delayed real-HTTP entrypoint/evaluator tests.
+ */
+export const replyHttpIdleSeconds = replyDeadlineMilliseconds / 1_000 + 5;
+
+/**
  * Reads the provider's raw final usage. Normalized SDK usage reports zeros for an absent value,
  * so only integral, nonnegative raw token counts are trusted; anything else returns null and
  * the operation is settled at its full reservation. `completion_tokens` already includes any

@@ -1,5 +1,6 @@
 import { S3JournalRemote } from '@website/store-sqlite';
 
+import { replyHttpIdleSeconds } from './conversation/stream';
 import { describeAlertWebhook } from './guardrail-alerts';
 import { readRetentionJournalSetting, readWebsiteApiConfig } from './runtime-config';
 import { createWebsiteApi } from './server';
@@ -35,6 +36,8 @@ Bun.serve({
   hostname: config.apiBindHost,
   port,
   maxRequestBodySize: 12_000,
+  // Proof: omitting this setting reset the delayed source-main HTTP test before provider completion.
+  idleTimeout: replyHttpIdleSeconds,
   fetch: (request, server) => api.fetch(request, server.requestIP(request)?.address),
 });
 console.info(`Website API listening on port ${String(port)}`);

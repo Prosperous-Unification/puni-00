@@ -209,3 +209,17 @@ The structured prompt SHALL connect supplied facts concisely when they support u
 
 - **WHEN** deterministic prompt identity, replay and envelope checks pass
 - **THEN** useful judgment and non-repetition remain unverified until complete actual synthetic conversations pass all five qualitative dimensions; the failed v2 pilot remains historical failure evidence
+
+### Requirement: HTTP idle time permits the bounded reply
+
+The production API and evaluation HTTP server SHALL share a finite idle timeout covering the existing 30-second provider deadline plus a five-second settlement/flush margin. A structured reply received after ten quiet seconds but before that deadline SHALL remain deliverable. The provider deadline, cancellation, unknown settlement, retry policy, body bounds and spending controls SHALL remain unchanged.
+
+#### Scenario: A valid buffered reply takes longer than ten seconds
+
+- **WHEN** a synthetic provider completes a valid structured reply after more than ten seconds and within the 30-second deadline
+- **THEN** the actual production source entrypoint and evaluation loopback server deliver the committed reply over HTTP, preserve known accounting and make one provider call for that operation
+
+#### Scenario: A provider remains silent through its deadline
+
+- **WHEN** a provider does not finish within 30 seconds
+- **THEN** the service aborts it and delivers the existing interrupted/manual path over HTTP, retaining the full reservation as unknown without another provider call

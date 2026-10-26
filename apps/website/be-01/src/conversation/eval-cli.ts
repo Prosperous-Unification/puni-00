@@ -10,7 +10,7 @@ import {
   type ScopingScenario,
 } from './eval-scoping';
 import { meterUsage, type OperationMeasure, totalUsage } from './eval-usage';
-import type { ProviderFetch } from './stream';
+import { type ProviderFetch, replyHttpIdleSeconds } from './stream';
 import {
   salesPromptVersion,
   salesSystemPrompt,
@@ -393,6 +393,8 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
+    // Proof: omitting this setting reset the delayed evaluation HTTP test before provider completion.
+    idleTimeout: replyHttpIdleSeconds,
     fetch: (request, served) => api.fetch(request, served.requestIP(request)?.address),
   });
   const base = `http://127.0.0.1:${String(server.port)}`;
