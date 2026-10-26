@@ -147,6 +147,53 @@ export function preparationDispatchContract(
         await pendingCheckpoint(context, 'prepared');
       }));
 
+    test('takeover refuses stale-owner and current-owner retries without reopening or changing retained state', () =>
+      scenario(create, async (context) => {
+        expect((await context.dispatch()).kind).toBe('prepared');
+        expect(context.opens()).toBe(1);
+        context.stores.clock.advance(101);
+        const ownership = unwrapReply(
+          await context.stores.runs.acquireOwnership(
+            ownerId('replacement'),
+            context.setup.ownership.epoch,
+          ),
+        );
+        const before = await pendingCheckpoint(context, 'prepared');
+        const history = await context.stores.runs.readExecutionHistory(
+          context.setup.run.runId,
+          context.setup.attempt.attemptId,
+        );
+        const stale = await context.dispatch();
+        expect(stale).toEqual({ kind: 'refused', reason: 'owner_stale' });
+        expect('session' in stale).toBe(false);
+        expect(context.opens()).toBe(1);
+        expect(await context.stores.runs.readRun(context.setup.run.runId)).toEqual(before);
+        expect(
+          await context.stores.runs.readExecutionHistory(
+            context.setup.run.runId,
+            context.setup.attempt.attemptId,
+          ),
+        ).toEqual(history);
+        const current = await prepareActivity(
+          context.stores.runs,
+          context.stores.artifacts,
+          context.executor,
+          { ...(await context.setup.currentGuard()), ownership },
+          context.input,
+          context.controller.signal,
+        );
+        expect(current).toEqual({ kind: 'refused', reason: 'identity_conflict' });
+        expect('session' in current).toBe(false);
+        expect(context.opens()).toBe(1);
+        expect(await context.stores.runs.readRun(context.setup.run.runId)).toEqual(before);
+        expect(
+          await context.stores.runs.readExecutionHistory(
+            context.setup.run.runId,
+            context.setup.attempt.attemptId,
+          ),
+        ).toEqual(history);
+      }));
+
     test('different preparation commands cannot elect a second opener', () =>
       scenario(create, async (context) => {
         const second = {

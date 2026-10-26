@@ -36,6 +36,11 @@ or quiescence. Pre-dispatch trusted-state failures propagate unchanged.
 
 The pending Attempt is the original preparation acknowledgement, not a promise that its
 checkpoint is current after later transitions. Current inspection uses verified history.
+That duplicate path requires the original still-live local ownership: `recordPreparation`
+derives the intent owner from the submitted guard. After takeover, the old guard refuses
+`owner_stale`; retrying with the current new owner changes that command's payload and
+refuses `identity_conflict`. Neither case reopens. Supported takeover recovery is a later
+host operation, not an implied capability of this preparation helper.
 
 1. Detach guard and all serializable input before the first await. Validate command identity
    before opening and require openedCommandId to differ from preparation.commandId: both
@@ -76,7 +81,8 @@ binding/state fixtures. Deferred adapter calls make intent-before-open and
 locator-before-return observable. Prove concurrent same/different commands, changed input,
 missing/corrupt evidence, mismatched adapter/locator, cancellation, owner takeover before
 and during open, persistence refusal/throw, and unsupported restart recovery. A SQLite
-close/reopen proves committed intent survives host replacement; do not call that a
-power-loss or physical-worker proof. New checks require isolated production-path removal
+close/reopen under original live ownership proves retained history and exact replay;
+takeover retries separately prove safe refusal. Neither is a SIGKILL, power-loss or
+physical-worker proof. New checks require isolated production-path removal
 or dependency-fault negatives and adjacent truthful Proof comments. Existing guards and
 migration bytes remain intact. No live model calls or credential reads.

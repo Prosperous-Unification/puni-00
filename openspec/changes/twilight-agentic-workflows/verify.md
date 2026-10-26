@@ -2770,3 +2770,21 @@ while separately retaining its detached locator is within this preparation-only 
 the future guarded-turn host must establish live/retained locator correspondence before
 effects. Whole-branch review and new exact-SHA host/CI/integration acceptance remain pending.
 No parent S0/S7a completion, WBS status mutation or production action is asserted.
+
+### Takeover replay precision correction
+
+The whole-branch reviewer found that reopen evidence reused original live ownership.
+The design/spec/JSDoc now state that boundary explicitly: old ownership after takeover
+refuses owner_stale; retrying the same preparation command with a new owner changes the
+intent payload and refuses identity_conflict. This preparation helper supplies no takeover
+recovery operation. One added shared regression traverses actual expiry/acquisition and
+both refusals in memory and SQLite, proving no additional open/session or change to retained
+run/history/checkpoint/capacity. Executable helper code and all27 proof records are unchanged.
+
+Final focused tests pass68cases310expect calls in5.86s. Fresh graph-backed uncached Dash
+lint/typecheck pass (33.8s/5.2s), owned-path format/diff checks pass, and the existing color
+warning remains. Helper SHA256 is now
+9159169b25695dd0b3214437446184046c4d662a87ef82e37817a14102415503;
+the delta from the preceding implementation is JSDoc only. Normal scoped OpenSpec remains
+valid. Revised commit scoped re-review and exact-SHA canonical gate/CI/integration remain
+required before publication acceptance. No parent S0/S7a gate closes from these results.

@@ -39,7 +39,9 @@ function isCancelled(signal: AbortSignal): boolean {
 /**
  * Opens only for a newly committed preparation, then retains its locator before publishing
  * the original live session. Replays and uncertain dispatch retain capacity without reopening.
- * Pending attempts are historical preparation acknowledgements, not refreshed current state.
+ * Exact retries under the original live ownership return historical preparation acknowledgements,
+ * not refreshed current state. After takeover, old ownership refuses owner_stale and retrying
+ * the same command under current ownership refuses identity_conflict; recovery is a later phase.
  * Renewal checks local ownership immediately before dispatch; later takeover is not fenced.
  * Trusted-state failures before dispatch propagate; dispatch failures retain safe correlation.
  */

@@ -2,11 +2,11 @@
 
 ### Requirement: Preparation dispatch elects only a fresh committed intent
 
-The host SHALL commit verified preparation before invoking open and the complete locator
-before returning a live session. Only newly applied intent MAY open; replay SHALL report
-pending. Live ownership SHALL be checked before open. Uncertain creation or persistence
-SHALL retain the checkpoint and capacity. Preparation SHALL establish neither turn
-authority nor quiescence.
+The host SHALL commit verified preparation before open and its locator before publishing
+a live session. Only newly applied intent MAY open. Exact retries under original live
+ownership SHALL report historical pending; takeover retries SHALL refuse. Live ownership
+SHALL be checked before open. Uncertainty SHALL retain checkpoint and capacity without
+establishing turn authority or quiescence.
 
 #### Scenario: Concurrent preparation retries
 
@@ -18,10 +18,15 @@ authority nor quiescence.
 - **WHEN** open returned a locator but retaining it throws or refuses
 - **THEN** no usable live session is returned, the error retains preparation and known locator correlation, and a subsequent duplicate does not open again
 
-#### Scenario: Restart with unsupported preparation recovery
+#### Scenario: Reopen with unsupported preparation recovery
 
-- **WHEN** a replacement host replays the retained preparation command and the adapter has no durable recovery
+- **WHEN** a store is reopened and the retained preparation command is replayed under its original still-live ownership while the adapter has no durable recovery
 - **THEN** it returns pending without reconstructing a live attachment, releasing capacity or blindly creating a replacement
+
+#### Scenario: Preparation replay follows ownership takeover
+
+- **WHEN** the old guard or a new current-owner guard retries the retained preparation command after takeover
+- **THEN** the old guard refuses owner_stale and the new guard refuses identity_conflict, with no extra open or capacity release
 
 ### Requirement: Persistence is abstract and providers satisfy semantic contracts
 
