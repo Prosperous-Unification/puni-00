@@ -273,6 +273,34 @@ describe('issuing a machine grant', () => {
     );
   });
 
+  it('refuses a key in the last part-second of its rotation window unknown_identity', async () => {
+    const { id, key } = await claireKey();
+    // The window ends inside the current second, so the grant's floored exp equals now.
+    let windowEnd = Math.floor(Date.now() / 1000) * 1000 + 999;
+    while (windowEnd - Date.now() < 200) {
+      await Bun.sleep(windowEnd - Date.now() + 5);
+      windowEnd = Math.floor(Date.now() / 1000) * 1000 + 999;
+    }
+    h.sqlite.run('UPDATE machine_credential_secret SET expires_at = ? WHERE credential_id = ?', [
+      windowEnd,
+      id,
+    ]);
+    expect(await requestGrant({ credential: { kind: 'api_key', key }, run: 'run-1' })).toEqual(
+      UNKNOWN,
+    );
+  });
+
+  it('refuses an assertion naming mcp-01’s own issuer invalid_token', async () => {
+    h.close();
+    h = openHarness({ authorizationServer: ci.url });
+    await populate();
+    await claireWorkload();
+    const assertion = await ci.sign({ sub: SUBJECT, aud: 'wbs' });
+    expect(await requestGrant({ issuer: ci.url, credential: { kind: 'oidc', assertion } })).toEqual(
+      { status: 401, body: { error: 'invalid_token' } },
+    );
+  });
+
   it('grants only read to a credential whose person is bound to a viewer', async () => {
     const { key } = await issueApiKey(h.sqlite, {
       organizationId: 'org-a',

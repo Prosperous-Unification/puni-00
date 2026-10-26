@@ -269,18 +269,21 @@ function isFilled(value: unknown): value is string {
 }
 
 /**
- * The `typ` a presented workload assertion declares: null for none. Read only
- * to refuse what is not a plain JWT (ID-JAG, RFC 9068 access tokens) before any
- * verification; nothing is admitted on it.
+ * The `typ` a presented workload assertion declares (null for none) and the
+ * `iss` it claims (null for none or not text), both unverified. Read only to
+ * refuse before any verification what is not a plain JWT (ID-JAG, RFC 9068
+ * access tokens) or names mcp-01's own issuer; nothing is admitted on them.
  */
 export function assertionTypeOf(
   assertion: string,
-): { readonly kind: 'jwt'; readonly typ: string | null } | { readonly kind: 'malformed' } {
+):
+  | { readonly kind: 'jwt'; readonly typ: string | null; readonly issuer: string | null }
+  | { readonly kind: 'malformed' } {
   try {
     const { typ } = decodeProtectedHeader(assertion);
     // A JWT whose payload does not decode is no assertion at all.
-    decodeJwt(assertion);
-    return { kind: 'jwt', typ: typ ?? null };
+    const { iss } = decodeJwt(assertion);
+    return { kind: 'jwt', typ: typ ?? null, issuer: typeof iss === 'string' ? iss : null };
   } catch (cause) {
     if (cause instanceof errors.JOSEError || cause instanceof TypeError)
       return { kind: 'malformed' };

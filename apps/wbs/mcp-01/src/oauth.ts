@@ -22,7 +22,14 @@ import {
 } from '@wbs/auth';
 import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts';
 import { credentialRuleRefusal } from '@wbs/core';
-import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose';
+import {
+  compactVerify,
+  decodeJwt,
+  decodeProtectedHeader,
+  type JWTPayload,
+  jwtVerify,
+  SignJWT,
+} from 'jose';
 
 import { type McpConfig, offersMachineGrants } from './config';
 import type { McpOAuthHandler } from './http';
@@ -214,6 +221,12 @@ export interface MachineGrantSettings {
   /** A uniform draw from [0, 1) for the jitter; `Math.random` when absent. */
   readonly jitter?: () => number;
   readonly limit: TokenEndpointLimit;
+  /**
+   * Reports a fault be-01's answer revealed ({@link MachineGrantDefect}),
+   * redacting the deployment's secrets, as `main.ts` composes it; the client
+   * is then answered `502 server_error` (M3).
+   */
+  readonly reportFault: (fault: MachineGrantDefect) => void;
 }
 
 /** At most this many consent ends are reported to be-01 per sweep. */
@@ -311,6 +324,8 @@ export class McpOAuthServer implements McpOAuthHandler {
   private readonly reauthKey: Buffer;
   private readonly revocationFailure: () => void;
   private readonly machineGrants: MachineGrantSettings | undefined;
+  /** Absent, as for a server built without it, machine grants are refused like gateway mode. */
+  private readonly authMode: McpConfig['MCP_AUTH_MODE'] | undefined;
 
   private readonly clientLimit: number;
   private readonly clientSourceLimit: number;
@@ -322,7 +337,7 @@ export class McpOAuthServer implements McpOAuthHandler {
   private readonly routeEvidence: Options['routeEvidence'];
   private readonly readRefreshAuthority: McpRefreshAuthorityReader | undefined;
   constructor(
-    config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
+    config: Pick<McpConfig, 'MCP_PUBLIC_URL'> & Partial<Pick<McpConfig, 'MCP_AUTH_MODE'>>,
     private readonly upstream: UpstreamClient,
     options: Options = {},
   ) {
@@ -360,6 +375,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.routeEvidence = options.routeEvidence;
     this.organizations = options.organizations;
     this.machineGrants = options.machineGrants;
+    this.authMode = config.MCP_AUTH_MODE;
     // Proof: 2026-10-21, without this refusal `refuses to start at the activated epoch without
     // organization authority` (credential-epoch.test.ts) constructed the server.
     if (
@@ -422,9 +438,29 @@ export class McpOAuthServer implements McpOAuthHandler {
   async verify(token: string): Promise<JwtClaims> {
     try {
       return await this.verifyLocal(token);
-    } catch {
+    } catch (cause) {
+      this.refuseOwnToken(token, cause);
       return await this.verifyUpstream(token);
     }
+  }
+
+  /**
+   * Rethrows `cause` for a token that names mcp-01's own issuer, so an
+   * mcp-01 token that failed local verification (a machine token, which
+   * `/mcp` admits only with the change's section 3, or an ended session's) is
+   * never handed to the upstream verifier.
+   */
+  private refuseOwnToken(token: string, cause: unknown): void {
+    let issuer: unknown;
+    try {
+      issuer = decodeJwt(token).iss;
+    } catch {
+      // Not a JWT at all: the upstream verifier refuses it on its own terms.
+      return;
+    }
+    // Proof: with this rethrow removed, `never hands a machine token to the upstream verifier`
+    // (machine-token.test.ts) saw one upstream verification; watched 2026-10-27.
+    if (issuer === this.issuer) throw cause;
   }
 
   async callerSessionFor(
@@ -433,7 +469,8 @@ export class McpOAuthServer implements McpOAuthHandler {
     let payload: JwtClaims;
     try {
       payload = await this.verifyLocal(token);
-    } catch {
+    } catch (cause) {
+      this.refuseOwnToken(token, cause);
       await this.verifyUpstream(token);
       return { upstreamToken: token, mcpSessionId: null };
     }
@@ -1202,7 +1239,7 @@ export class McpOAuthServer implements McpOAuthHandler {
   private async token(request: Request): Promise<Response> {
     const form = await request.formData();
     if (form.get('grant_type') === 'refresh_token') return await this.refreshGrant(form);
-    // Proof: without this dispatch every grant test in (machine-token.boot.test.ts) failed
+    // Proof: without this dispatch every grant test in machine-token.boot.test.ts failed
     // (invalid_grant); watched 2026-10-27.
     if (isMachineGrantType(form.get('grant_type'))) return await this.machineToken(request, form);
 
@@ -1411,9 +1448,27 @@ export class McpOAuthServer implements McpOAuthHandler {
    */
   private async machineToken(request: Request, form: FormData): Promise<Response> {
     const settings = this.machineGrants;
-    // Proof: answering invalid_grant failed `answers unsupported_grant_type without the machine
-    // grant settings` (machine-token.test.ts); watched 2026-10-27.
-    if (settings === undefined) return machineRefusal('unsupported_grant_type');
+    // Gateway mode admits no machine (M11), whatever was composed.
+    // Proof: without the mode test, `answers unsupported_grant_type in gateway mode, even with
+    // the settings` (machine-token.test.ts) reached be-01; watched 2026-10-27.
+    if (settings === undefined || this.authMode !== 'standalone')
+      return machineRefusal('unsupported_grant_type');
+    try {
+      return await this.answerMachineGrant(request, form, settings);
+    } catch (cause) {
+      if (!(cause instanceof MachineGrantDefect)) throw cause;
+      // Proof: rethrowing here made `answers a be-01 fault 502 server_error and reports it`
+      // (machine-token.test.ts) reject with the defect; watched 2026-10-27.
+      settings.reportFault(cause);
+      return machineRefusal('server_error');
+    }
+  }
+
+  private async answerMachineGrant(
+    request: Request,
+    form: FormData,
+    settings: MachineGrantSettings,
+  ): Promise<Response> {
     const limited = settings.limit({ source: sourceOf(request) });
     // RFC 6749 §5.2 has no rate-limit error, so none is invented (M10).
     // Proof: with this removed, `answers 429 invalid_request with Retry-After when the limit
@@ -1439,16 +1494,17 @@ export class McpOAuthServer implements McpOAuthHandler {
     // dedicated secret…`; watched 2026-10-27.
     const lifetime =
       ttl - Math.floor(ttl * MACHINE_TOKEN_JITTER * (settings.jitter ?? Math.random)());
+    const requestedExpiresAt = nowSeconds + lifetime + MACHINE_TOKEN_EARLY_SECONDS;
     const answer = await settings.client.issue({
       issuer: this.issuer,
       credential:
         parsed.grant === 'client_credentials'
           ? { kind: 'api_key', key: parsed.key }
           : { kind: 'oidc', assertion: parsed.assertion },
-      expiresAt: nowSeconds + lifetime + MACHINE_TOKEN_EARLY_SECONDS,
+      expiresAt: requestedExpiresAt,
       run: parsed.run,
     });
-    const issued = issuedGrantOf(answer, parsed);
+    const issued = issuedGrantOf(answer, parsed, requestedExpiresAt);
     if (issued.kind !== 'issued')
       return issued.kind === 'refused'
         ? machineRefusal(credentialRefused)
@@ -1527,6 +1583,9 @@ export class McpOAuthServer implements McpOAuthHandler {
     expiresAt: number,
   ): Promise<string> {
     return await new SignJWT({
+      // Tells a consent token from a machine one (`token_use: machine`); `/mcp` admission
+      // (the change's section 3) routes on it.
+      token_use: 'consent',
       mcp_family_id: familyId,
       [this.groupsClaim]: scope.split(' ').map((value) => `${this.groupPrefix}:${value}`),
       scope,
@@ -1897,6 +1956,7 @@ export function mcpOAuthFromEnv(
   env: Readonly<Record<string, string | undefined>>,
   routeEvidence?: (evidence: OAuthRouteEvidence) => void,
   fetchImpl?: FetchLike,
+  reportMachineGrantFault?: (fault: MachineGrantDefect) => void,
 ): McpOAuthServer {
   const secret = config.INTERNAL_AUTH_SECRET;
   let client: BrowserOidcClient | undefined;
@@ -1927,6 +1987,9 @@ export function mcpOAuthFromEnv(
               fetchImpl,
             ),
           }),
+      // Proof: with this condition `machineSecret === undefined` alone, `composes machine
+      // grants from the environment in standalone mode only` (machine-token.test.ts) composed
+      // them in gateway mode, demanding a fault reporter there; watched 2026-10-27.
       ...(machineSecret === undefined || !offersMachineGrants(config)
         ? {}
         : {
@@ -1937,11 +2000,21 @@ export function mcpOAuthFromEnv(
               ),
               tokenTtlSeconds,
               limit: NO_TOKEN_ENDPOINT_LIMITS,
+              reportFault: requiredFaultReporter(reportMachineGrantFault),
             },
           }),
       ...oauthPersistenceFromEnv(env),
     },
   );
+}
+
+/** The machine grant fault reporter `main.ts` composes; offering the grants without one is a defect. */
+function requiredFaultReporter(
+  report: ((fault: MachineGrantDefect) => void) | undefined,
+): (fault: MachineGrantDefect) => void {
+  if (report === undefined)
+    throw new Error('machine grants are offered but no fault reporter was composed');
+  return report;
 }
 
 /**
@@ -1953,6 +2026,8 @@ export function mcpOAuthFromEnv(
  */
 export function machineTokenTtlOf(env: Readonly<Record<string, string | undefined>>): number {
   const value = env['MCP_MACHINE_TOKEN_TTL'];
+  // An empty variable is an unset one that went through a shell, as `loadConfig` reads every
+  // mcp-01 variable (`config.ts`), so it takes the documented default.
   if (value === undefined || value === '') return DEFAULT_MACHINE_TOKEN_TTL_SECONDS;
   // Proof: without the bounds, `reads MCP_MACHINE_TOKEN_TTL as 60 s to 24 h, 12 h when unset`
   // (machine-token.test.ts) read 59; watched 2026-10-27.
@@ -2098,6 +2173,7 @@ function evidenceGrantType(value: unknown): string {
 function issuedGrantOf(
   answer: MachineGrantAnswer,
   parsed: MachineTokenRequest,
+  requestedExpiresAt: number,
 ):
   | IssuedMachineGrant
   | { readonly kind: 'refused' }
@@ -2113,6 +2189,14 @@ function issuedGrantOf(
       // signed a token for another credential; watched 2026-10-27.
       if (parsed.grant === 'client_credentials' && answer.credentialId !== parsed.keyCredentialId)
         throw new MachineGrantDefect('be-01 issued a grant for another credential than the key');
+      // be-01 only ever lowers the lifetime asked for, and signs the run it was sent (M3, M15).
+      // Proof: with either comparison removed, `throws a defect, never a refusal…`
+      // (machine-token.test.ts) signed a token past the request or for another run; watched
+      // 2026-10-27.
+      if (answer.expiresAt > requestedExpiresAt)
+        throw new MachineGrantDefect('be-01 issued a grant outliving the lifetime asked for');
+      if (answer.runId !== parsed.run)
+        throw new MachineGrantDefect('be-01 issued a grant for another run than asked');
       return answer;
     case 'refused':
       return answer;
@@ -2135,7 +2219,10 @@ function issuedGrantOf(
 
 /** The token endpoint's errors for the machine grants. */
 type MachineTokenError =
-  TokenRequestRefusal['error'] | 'unsupported_grant_type' | 'temporarily_unavailable';
+  | TokenRequestRefusal['error']
+  | 'unsupported_grant_type'
+  | 'temporarily_unavailable'
+  | 'server_error';
 
 /**
  * A machine grant refusal (RFC 6749 §5.2), never cached: `invalid_client` is
@@ -2156,6 +2243,7 @@ function machineRefusal(
     // (machine-token.test.ts) failed; watched 2026-10-27.
     headers.set('www-authenticate', 'Basic realm="wbs-mcp"');
   } else if (error === 'temporarily_unavailable') status = 503;
+  else if (error === 'server_error') status = 502;
   else if (error === 'invalid_request' && retryAfterSeconds !== undefined) status = 429;
   if (retryAfterSeconds !== undefined) headers.set('retry-after', String(retryAfterSeconds));
   return Response.json(

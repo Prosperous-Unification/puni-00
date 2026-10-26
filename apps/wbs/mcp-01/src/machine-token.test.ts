@@ -1,4 +1,7 @@
-import { randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { newMachineKey } from '@wbs/core';
@@ -10,6 +13,7 @@ import { oauthMetadataResponse } from './http';
 import { machineGrantClient, MachineGrantDefect } from './machine-grant-client';
 import {
   machineTokenTtlOf,
+  mcpOAuthFromEnv,
   McpOAuthServer,
   NO_TOKEN_ENDPOINT_LIMITS,
   type OAuthRouteEvidence,
@@ -68,13 +72,19 @@ function issued(overrides: Record<string, unknown> = {}): Response {
 
 function server(
   answer: () => Response | Promise<Response>,
-  options: { jitter?: () => number; limit?: TokenEndpointLimit } = {},
+  options: {
+    jitter?: () => number;
+    limit?: TokenEndpointLimit;
+    config?: McpConfig;
+    secret?: string;
+  } = {},
 ) {
   const be = fakeBe(answer);
   const evidence: OAuthRouteEvidence[] = [];
+  const faults: MachineGrantDefect[] = [];
   let upstream = 0;
   const oauth = new McpOAuthServer(
-    CONFIG,
+    options.config ?? CONFIG,
     {
       authorizationUrl: () => Promise.reject(new Error('unused')),
       exchange: () => Promise.reject(new Error('unused')),
@@ -89,14 +99,18 @@ function server(
       },
       routeEvidence: (seen) => evidence.push(seen),
       machineGrants: {
-        client: machineGrantClient(CONFIG, be.fetchImpl),
+        client: machineGrantClient(
+          { ...CONFIG, MCP_BE_INTERNAL_SECRET: options.secret ?? SECRET },
+          be.fetchImpl,
+        ),
         tokenTtlSeconds: TTL,
         jitter: options.jitter ?? (() => 0),
         limit: options.limit ?? NO_TOKEN_ENDPOINT_LIMITS,
+        reportFault: (fault) => faults.push(fault),
       },
     },
   );
-  return { oauth, be, evidence, upstreamCalls: () => upstream };
+  return { oauth, be, evidence, faults, upstreamCalls: () => upstream };
 }
 
 async function assertion(): Promise<string> {
@@ -132,7 +146,14 @@ const bearerRequest = async (oauth: McpOAuthServer, fields: Record<string, strin
 
 describe('asking be-01', () => {
   it('sends the key with the dedicated secret, mcp-01’s issuer and the jittered lifetime plus 60 s', async () => {
-    const { oauth, be } = server(() => issued(), { jitter: () => 0.5 });
+    const { oauth, be } = server(
+      () =>
+        issued({
+          runId: 'run-1',
+          expiresAt: Math.floor(NOW / 1000) + TTL - Math.floor(TTL * 0.05) + 60,
+        }),
+      { jitter: () => 0.5 },
+    );
     expect((await keyRequest(oauth, { wbs_run: 'run-1' })).status).toBe(200);
     expect(be.sent).toHaveLength(1);
     const [sent] = be.sent;
@@ -249,7 +270,7 @@ describe('be-01’s answers', () => {
   it('answers 503 temporarily_unavailable when be-01 fails or cannot be reached', async () => {
     for (const answer of [
       refusal(500, { error: 'internal' }),
-      () => Promise.reject(new TypeError('fetch failed')),
+      () => Promise.reject(Object.assign(new TypeError('fetch failed'), { code: 'ECONNREFUSED' })),
     ]) {
       const response = await keyRequest(server(answer).oauth);
       expect(response.status).toBe(503);
@@ -258,29 +279,82 @@ describe('be-01’s answers', () => {
     }
   });
 
-  it('throws a defect, never a refusal, for internal_unauthorized and every unmodeled answer', async () => {
-    const cases: [() => Response, (oauth: McpOAuthServer) => Promise<Response>][] = [
+  it('answers a be-01 fault 502 server_error and reports it, never a refusal', async () => {
+    const requested = Math.floor(NOW / 1000) + TTL + 60;
+    const cases: [
+      () => Response | Promise<Response>,
+      (oauth: McpOAuthServer) => Promise<Response>,
+    ][] = [
       [refusal(401, { error: 'internal_unauthorized' }), (oauth) => keyRequest(oauth)],
       [refusal(401, { error: 'invalid_token' }), (oauth) => keyRequest(oauth)],
       [
         refusal(401, { error: 'unsupported_assertion_type', typ: 'x' }),
         (oauth) => keyRequest(oauth),
       ],
+      // An assertion's typ refusal is a 401 with the typ, nothing else.
+      [
+        refusal(403, { error: 'unsupported_assertion_type', typ: 'x' }),
+        (oauth) => bearerRequest(oauth),
+      ],
+      [refusal(401, { error: 'unsupported_assertion_type' }), (oauth) => bearerRequest(oauth)],
       [refusal(400, { error: 'invalid_body' }), (oauth) => keyRequest(oauth)],
       [refusal(403, { error: 'forbidden' }), (oauth) => bearerRequest(oauth)],
       [() => issued({ credentialId: crypto.randomUUID() }), (oauth) => keyRequest(oauth)],
       [() => issued({ scopes: ['admin'] }), (oauth) => keyRequest(oauth)],
       [() => issued({ scopes: ['admin'] }), (oauth) => bearerRequest(oauth)],
       [() => new Response('not json', { status: 200 }), (oauth) => keyRequest(oauth)],
+      // be-01 only lowers the lifetime asked for, and signs the run it was sent.
+      [() => issued({ expiresAt: requested + 1 }), (oauth) => keyRequest(oauth)],
+      [() => issued({ runId: 'other-run' }), (oauth) => keyRequest(oauth, { wbs_run: 'run-1' })],
+      [() => issued({ runId: 'other-run' }), (oauth) => keyRequest(oauth)],
+      // A TypeError without a system error code is no network failure.
+      [() => Promise.reject(new TypeError('cannot build')), (oauth) => keyRequest(oauth)],
     ];
     for (const [answer, ask] of cases) {
-      const { oauth } = server(answer);
-      const failure = await ask(oauth).then(
-        () => undefined,
-        (cause: unknown) => cause,
-      );
-      expect(failure).toBeInstanceOf(MachineGrantDefect);
+      const { oauth, faults } = server(answer);
+      const response = await ask(oauth);
+      expect(response.status).toBe(502);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toEqual({ error: 'server_error' });
+      expect(faults).toHaveLength(1);
+      expect(faults[0]).toBeInstanceOf(MachineGrantDefect);
     }
+  });
+
+  it('answers 502 for a secret fetch cannot carry in a header, reporting no value of it', async () => {
+    const secret = `${SECRET}\nnext`;
+    const faults: MachineGrantDefect[] = [];
+    const sent: unknown[] = [];
+    const real = new McpOAuthServer(
+      CONFIG,
+      {
+        authorizationUrl: () => Promise.reject(new Error('unused')),
+        exchange: () => Promise.reject(new Error('unused')),
+        refresh: () => Promise.reject(new Error('unused')),
+        revoke: () => Promise.resolve(),
+      },
+      {
+        now: () => NOW,
+        machineGrants: {
+          client: machineGrantClient(
+            { ...CONFIG, MCP_BE_INTERNAL_SECRET: secret },
+            (input, init) => {
+              sent.push(input);
+              return fetch(input, init);
+            },
+          ),
+          tokenTtlSeconds: TTL,
+          limit: NO_TOKEN_ENDPOINT_LIMITS,
+          reportFault: (fault) => faults.push(fault),
+        },
+      },
+    );
+    const response = await keyRequest(real);
+    // fetch was asked, and refused to build the request.
+    expect(sent).toHaveLength(1);
+    expect(response.status).toBe(502);
+    expect(faults).toHaveLength(1);
+    expect(faults[0]?.message ?? '').not.toContain(SECRET);
   });
 
   it('refuses an assertion grant naming another credential than the client_id', async () => {
@@ -304,6 +378,77 @@ describe('the endpoint around the grants', () => {
       error_description: 'rate_limited',
     });
     expect(be.sent).toHaveLength(0);
+  });
+
+  it('answers unsupported_grant_type in gateway mode, even with the settings', async () => {
+    const { oauth, be } = server(() => issued(), {
+      config: { ...CONFIG, MCP_AUTH_MODE: 'gateway' },
+    });
+    const answer = await keyRequest(oauth);
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toEqual({ error: 'unsupported_grant_type' });
+    expect(be.sent).toHaveLength(0);
+  });
+
+  it('composes machine grants from the environment in standalone mode only', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mcp-machine-env-'));
+    try {
+      const env = {
+        MCP_SIGNING_KEY_CURRENT: generateKeyPairSync('rsa', { modulusLength: 2048 })
+          .privateKey.export({ format: 'der', type: 'pkcs8' })
+          .toString('base64'),
+        MCP_STORE_KEY_CURRENT: randomBytes(32).toString('base64'),
+      };
+      const reached: string[] = [];
+      const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+        const request = new Request(input, init);
+        reached.push(request.url);
+        // The real clock runs here: grant exactly the lifetime asked for.
+        const { expiresAt } = (await request.json()) as { expiresAt: number };
+        return issued({ expiresAt });
+      };
+      const ask = async (config: McpConfig, store: string) => {
+        const oauth = mcpOAuthFromEnv(
+          config,
+          { ...env, MCP_STORE_PATH: join(dir, store) },
+          undefined,
+          fetchImpl,
+          () => undefined,
+        );
+        return await keyRequest(oauth);
+      };
+      const gateway = await ask({ ...CONFIG, MCP_AUTH_MODE: 'gateway' }, 'gateway.sqlite');
+      expect(await gateway.json()).toEqual({ error: 'unsupported_grant_type' });
+      expect(reached).toHaveLength(0);
+      const standalone = await ask(CONFIG, 'standalone.sqlite');
+      expect(standalone.status).toBe(200);
+      expect(reached).toEqual([`${BE}/internal/mcp/machine-grants`]);
+      expect(() =>
+        mcpOAuthFromEnv(CONFIG, { ...env, MCP_STORE_PATH: join(dir, 'none.sqlite') }),
+      ).toThrow('no fault reporter');
+      // Gateway mode composes no machine grants at all, so it needs no reporter.
+      expect(() =>
+        mcpOAuthFromEnv(
+          { ...CONFIG, MCP_AUTH_MODE: 'gateway' },
+          { ...env, MCP_STORE_PATH: join(dir, 'gateway-none.sqlite') },
+        ),
+      ).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('never hands a machine token to the upstream verifier', async () => {
+    const { oauth, upstreamCalls } = server(() => issued());
+    const body = (await (await keyRequest(oauth)).json()) as { access_token: string };
+    const refused = (attempt: Promise<unknown>) =>
+      attempt.then(
+        () => 'admitted',
+        () => 'refused',
+      );
+    expect(await refused(oauth.verify(body.access_token))).toBe('refused');
+    expect(await refused(oauth.callerSessionFor(body.access_token))).toBe('refused');
+    expect(upstreamCalls()).toBe(0);
   });
 
   it('answers unsupported_grant_type without the machine grant settings', async () => {
@@ -404,6 +549,7 @@ describe('metadata and configuration', () => {
 
   it('reads MCP_MACHINE_TOKEN_TTL as 60 s to 24 h, 12 h when unset', () => {
     expect(machineTokenTtlOf({})).toBe(TTL);
+    expect(machineTokenTtlOf({ MCP_MACHINE_TOKEN_TTL: '' })).toBe(TTL);
     expect(machineTokenTtlOf({ MCP_MACHINE_TOKEN_TTL: '60' })).toBe(60);
     expect(machineTokenTtlOf({ MCP_MACHINE_TOKEN_TTL: '86400' })).toBe(86_400);
     for (const value of ['59', '86401', '3600.5', '1e4', '-60', 'twelve hours'])

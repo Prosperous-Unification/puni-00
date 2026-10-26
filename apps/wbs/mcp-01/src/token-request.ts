@@ -157,6 +157,8 @@ export function parseMachineTokenRequest(
   // and `refuses a client_assertion invalid_client` (token-request.test.ts); watched 2026-10-27.
   if (clientAssertion !== undefined) return refused('invalid_client');
   const bodyClientId = fields.get('client_id');
+  // Proof: reading an empty Basic user as a client_id made `reads a Basic header with an empty user
+  // as sending no client_id` (token-request.test.ts) answer invalid_request; watched 2026-10-27.
   const basicClientId = basic === null || basic.user === '' ? undefined : basic.user;
   // Proof: with this removed, `refuses a client_id sent both by Basic and in the body
   // invalid_request` and the JWT-bearer twin (token-request.test.ts) admitted the request; watched
@@ -206,8 +208,8 @@ export function parseMachineTokenRequest(
     };
   }
   const assertion = fields.get('assertion');
-  // Proof: judging a missing assertion by its header failed `refuses a missing assertion
-  // invalid_request` (token-request.test.ts) (invalid_grant); watched 2026-10-27.
+  // Proof: judging a missing or empty assertion by its header failed `refuses a missing or
+  // empty assertion invalid_request` (token-request.test.ts) (invalid_grant); watched 2026-10-27.
   if (assertion === undefined || assertion === '') return refused('invalid_request');
   const typRefusal = assertionTypeRefusalOf(assertion);
   if (typRefusal !== null) return typRefusal;
@@ -242,6 +244,8 @@ function basicCredentialsOf(authorization: string): BasicCredentials | 'malforme
   if (match?.[1] === undefined) return 'malformed';
   const decoded = Buffer.from(match[1], 'base64').toString('utf8');
   const colon = decoded.indexOf(':');
+  // Proof: with this removed, `refuses a Basic header without a colon invalid_client`
+  // (token-request.test.ts) answered invalid_request; watched 2026-10-27.
   if (colon < 0) return 'malformed';
   return { user: decoded.slice(0, colon), password: decoded.slice(colon + 1) };
 }
@@ -269,6 +273,8 @@ function assertionTypeRefusalOf(assertion: string): TokenRequestRefusal | null {
   // Proof: admitting every typ failed `refuses an ID-JAG, an access token or any other typ
   // invalid_grant, naming it` (token-request.test.ts); watched 2026-10-27.
   if (typ === undefined || (typeof typ === 'string' && typ.toUpperCase() === 'JWT')) return null;
+  // Proof: String(typ) here made `refuses a typ that is not text, naming it as JSON`
+  // (token-request.test.ts) name [object Object]; watched 2026-10-27.
   const named = (typeof typ === 'string' ? typ : JSON.stringify(typ))
     .replace(/[^\x20-\x7e]/g, '?')
     // Proof: without the cap, `echoes at most 64 printable characters of a typ`

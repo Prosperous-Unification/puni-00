@@ -125,6 +125,9 @@ beforeAll(async () => {
         }),
         tokenTtlSeconds: 12 * 60 * 60,
         limit: NO_TOKEN_ENDPOINT_LIMITS,
+        reportFault: (fault) => {
+          throw fault;
+        },
       },
     },
   );

@@ -115,11 +115,15 @@ export function machineGrantClient(
           }),
         });
       } catch (cause) {
-        // An unreachable be-01 is fetch's TypeError; anything else is a local defect.
         // Proof: rethrowing failed `answers 503 temporarily_unavailable when be-01 fails or cannot
-        // be reached` (machine-token.test.ts); watched 2026-10-27.
-        if (cause instanceof TypeError) return { kind: 'unavailable' };
-        throw cause;
+        // be reached` (machine-token.test.ts); admitting every TypeError made `throws a defect…
+        // for a request fetch refused to send` answer 503; watched 2026-10-27.
+        if (isNetworkFailure(cause)) return { kind: 'unavailable' };
+        // A request fetch refused to send (a header it cannot carry) is this deployment's fault.
+        // The cause stays out: its message may quote the header, which holds the secret.
+        throw new MachineGrantDefect(
+          `could not send the request to be-01 ${ROUTE}: ${cause instanceof Error ? cause.name : typeof cause}`,
+        );
       }
       const text = await response.text();
       if (response.status === 200) return { kind: 'issued', ...parsedIssued(text) };
@@ -146,6 +150,9 @@ export function machineGrantClient(
         oidc &&
         response.status === 401 &&
         refusal?.error === 'unsupported_assertion_type' &&
+        // Proof: without the 401 or the typ condition, `answers a be-01 fault 502 server_error…`
+        // (machine-token.test.ts) mapped a 403, or a refusal naming no typ, to invalid_grant;
+        // watched 2026-10-27.
         refusal.typ !== undefined
       )
         return { kind: 'unsupported_assertion_type', typ: refusal.typ };
@@ -159,6 +166,20 @@ export function machineGrantClient(
       );
     },
   };
+}
+
+/**
+ * An unreachable be-01: Bun's fetch rejects with a `TypeError` carrying a
+ * system error `code` (`ECONNREFUSED`, `ConnectionRefused`, ...); a request
+ * fetch refuses to build rejects with a `TypeError` that has none.
+ */
+function isNetworkFailure(cause: unknown): boolean {
+  return (
+    cause instanceof TypeError &&
+    'code' in cause &&
+    typeof cause.code === 'string' &&
+    cause.code !== ''
+  );
 }
 
 function parsedIssued(text: string): Omit<IssuedMachineGrant, 'kind'> {

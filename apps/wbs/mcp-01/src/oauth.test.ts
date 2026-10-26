@@ -663,7 +663,9 @@ describe('McpOAuthServer', () => {
         method: 'POST',
       }),
     );
-    expect(oauth.verify(firstToken)).rejects.toThrow(/not an upstream token/);
+    expect(oauth.verify(firstToken)).rejects.toThrow(
+      /MCP OAuth session is missing, expired, or revoked/,
+    );
     const store = oauth as unknown as { store: { sessionCount(now: number): number } };
     expect(store.store.sessionCount(1_700_000_000_000)).toBe(0);
     expect((await tokenResponse(oauth, 'random-7', secondCode, verifier)).status).toBe(200);
@@ -962,6 +964,7 @@ describe('McpOAuthServer', () => {
       iss: 'https://dev.wbs.bulletpoints.club/mcp/oauth',
       jti: 'random-8',
       sub: 'person-1',
+      token_use: 'consent',
     });
     expect(oauth.upstreamTokenFor(body.access_token)).resolves.toBe('upstream-okta-token');
     expect((await exchange())?.status).toBe(400);
@@ -1199,7 +1202,9 @@ describe('McpOAuthServer', () => {
       }),
     );
     expect(replay?.status).toBe(400);
-    expect(oauth.verify(refreshedBody.access_token)).rejects.toThrow(/not an upstream token/);
+    expect(oauth.verify(refreshedBody.access_token)).rejects.toThrow(
+      /MCP OAuth session is missing, expired, or revoked/,
+    );
   });
 
   for (const path of ['automatic', 'forced', 'grant'] as const) {

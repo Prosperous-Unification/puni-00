@@ -137,6 +137,16 @@ describe('client_credentials', () => {
     ).toEqual({ kind: 'refused', error: 'invalid_client' });
   });
 
+  it('reads a Basic header with an empty user as sending no client_id', () => {
+    expect(
+      parseMachineTokenRequest(
+        form([...credentialsBase, ['client_id', CREDENTIAL]]),
+        basic('', KEY),
+        RESOURCE,
+      ),
+    ).toMatchObject({ kind: 'request', clientId: CREDENTIAL });
+  });
+
   it('refuses a client_id sent both by Basic and in the body invalid_request', () => {
     expect(
       parseMachineTokenRequest(
@@ -221,11 +231,39 @@ describe('JWT bearer', () => {
     ).toMatchObject({ kind: 'refused', error: 'invalid_grant' });
   });
 
-  it('refuses a missing assertion invalid_request', () => {
+  it('refuses a missing or empty assertion invalid_request', () => {
     expect(parseMachineTokenRequest(form(bearerBase), null, RESOURCE)).toEqual({
       kind: 'refused',
       error: 'invalid_request',
     });
+    expect(
+      parseMachineTokenRequest(form([...bearerBase, ['assertion', '']]), null, RESOURCE),
+    ).toEqual({ kind: 'refused', error: 'invalid_request' });
+  });
+
+  it('refuses a Basic header without a colon invalid_client', async () => {
+    expect(
+      parseMachineTokenRequest(
+        form([...bearerBase, ['assertion', await assertionTyped(undefined)]]),
+        `Basic ${btoa('no-colon-here')}`,
+        RESOURCE,
+      ),
+    ).toEqual({ kind: 'refused', error: 'invalid_client' });
+  });
+
+  it('refuses a typ that is not text, naming it as JSON', async () => {
+    const key = new TextEncoder().encode('k'.repeat(32));
+    const odd = await new SignJWT({ sub: 'workload' })
+      .setProtectedHeader({ alg: 'HS256', typ: { kind: 'jwt' } as unknown as string })
+      .sign(key);
+    const parsed = parseMachineTokenRequest(
+      form([...bearerBase, ['assertion', odd]]),
+      null,
+      RESOURCE,
+    );
+    expect(parsed).toMatchObject({ kind: 'refused', error: 'invalid_grant' });
+    if (parsed.kind !== 'refused') throw new Error('admitted');
+    expect(parsed.description).toContain('{"kind":"jwt"}');
   });
 
   it('refuses a Basic secret, a body secret and a client_id sent twice invalid_request', async () => {

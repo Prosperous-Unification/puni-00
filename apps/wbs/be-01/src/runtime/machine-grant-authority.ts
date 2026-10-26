@@ -73,7 +73,7 @@ export interface MachineGrantAuthorityDependencies {
  *    MachineGrantAuthorityDependencies.admitProof}); no `jti` is consumed, so
  *    one workload token serves many processes until its `exp`.
  * 6. The terms ({@link machineGrantTermsOf}): `unknown_identity` for a
- *    non-member account, `invalid_body` for an `exp` not after now.
+ *    non-member account and for an `exp` not after now.
  * 7. The bounded audit row (M3), then the grant, signed with the current
  *    grant key.
  *
@@ -122,6 +122,13 @@ export function machineGrantAuthority(
         // answered the whole header value; watched 2026-10-26.
         if (declared.typ !== null && declared.typ.toUpperCase() !== 'JWT')
           return { kind: 'unsupported_assertion_type', typ: printableTypOf(declared.typ) };
+        // mcp-01's own issuer is reserved, as the sign-in issuer is at
+        // registration: an mcp-01 token is never a workload's assertion.
+        // Proof: with this refusal removed, `refuses an assertion naming
+        // mcp-01's own issuer invalid_token` (machine-grant.controller.db.test.ts)
+        // issued a grant; watched 2026-10-27.
+        if (declared.issuer === deps.authorizationServer)
+          return { kind: 'refused', refusal: 'invalid_token' };
       }
       const admitted = await deps.admitProof(request.credential);
       if (typeof admitted === 'string') return { kind: 'refused', refusal: admitted };
@@ -138,7 +145,13 @@ export function machineGrantAuthority(
         now,
       );
       if (terms === 'unknown_identity') return { kind: 'refused', refusal: terms };
-      if (terms === 'no_lifetime') return { kind: 'invalid_body' };
+      // A secret or assertion ending within the second leaves nothing to
+      // grant: the credential's one refusal (A5), never `invalid_body`, which
+      // mcp-01 reads as a run shaped like a secret.
+      // Proof: answering `invalid_body` here failed `refuses a key in the last
+      // part-second of its rotation window unknown_identity`
+      // (machine-grant.controller.db.test.ts); watched 2026-10-27.
+      if (terms === 'no_lifetime') return { kind: 'refused', refusal: 'unknown_identity' };
       await deps.audit.record(
         {
           credentialId: terms.credentialId,
