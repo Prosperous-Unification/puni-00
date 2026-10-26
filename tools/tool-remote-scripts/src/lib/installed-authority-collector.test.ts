@@ -578,8 +578,12 @@ with tempfile.TemporaryDirectory(prefix='authority-exe-fd-') as directory:
         child=subprocess.Popen([executable_a,'20'],pass_fds=(selected.fileno(),),stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         try:
             base='/proc/'+str(child.pid);exe=base+'/exe'
+            expected_command=os.fsencode(executable_a)+b'\x0020\x00'
+            # Proof: exe-only readiness admitted empty-to-full cmdline drift in 6/300 real startups;
+            # waiting for the exact argv yielded 900 unchanged production captures (2026-10-26).
             for attempt in range(100):
-                if os.readlink(exe)==executable_a:break
+                with open(base+'/cmdline','rb') as stream:command=stream.read()
+                if os.readlink(exe)==executable_a and command==expected_command:break
                 time.sleep(0.005)
             else:raise AssertionError('owned child did not start')
             assert identity(os.stat(exe))==identity(os.stat(executable_a))
