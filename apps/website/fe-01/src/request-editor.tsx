@@ -504,7 +504,7 @@ export function RequestEditor({
 
   if (receipt !== null)
     return (
-      <section className="proposal-card" role="status">
+      <section className="proposal-card proposal-receipt" role="status">
         <h2>Request saved.</h2>
         <p>
           Your reference <strong className="reference">{receipt}</strong>
