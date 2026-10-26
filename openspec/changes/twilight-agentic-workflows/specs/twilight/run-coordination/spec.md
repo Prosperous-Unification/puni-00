@@ -9,7 +9,9 @@ RunStore SHALL support atomic admission with identity/capacity/owner checks, imm
 binding manifests, atomic outcome-plus-outbox writes, deduplicated signals/receipts, and
 consistent or revision-validated snapshots. ArtifactStore SHALL verify durable content
 before a successful outcome references it. Portable record versions SHALL be distinct from
-adapter schema versions. Memory SHALL NOT establish durability.
+adapter schema versions. Memory SHALL NOT establish durability. WBS SHALL remain the
+authority for scheduling, claims, business attempts, progress and measures; retained
+execution records SHALL NOT replace those business facts (ADR 0061).
 
 #### Scenario: Providers preserve semantics
 
@@ -21,6 +23,11 @@ adapter schema versions. Memory SHALL NOT establish durability.
 
 - **WHEN** an adapter cannot atomically reserve capacity and persist admission intent
 - **THEN** it is refused as nonconformant rather than weakening the coordinator's guarantee
+
+#### Scenario: A restart has no prior scheduling cache
+
+- **WHEN** the coordinator restarts on another host with access to its durable execution/artifact providers and the pinned WBS ledger
+- **THEN** it rebuilds the frontier from WBS and accepted execution facts without replaying a persisted walk or duplicating a running attempt
 
 ### Requirement: Execution observations carry retry identities
 
@@ -84,6 +91,11 @@ new attempt ID/ordinal within a durable budget and keep the logical operation id
 - **WHEN** WBS applied a success update but the coordinator died before saving the receipt
 - **THEN** recovery reconciles the command receipt and never reruns the recorded successful effect
 
+#### Scenario: Claim acceptance is unknown
+
+- **WHEN** the exact conditional claim command is refused or its acceptance is unconfirmed
+- **THEN** no activity turn is dispatched; preparation alone does not authorize execution and ambiguous acceptance remains pending for exact reconciliation
+
 #### Scenario: A stale worker releases a claim
 
 - **WHEN** a replacement attempt now owns the claim
@@ -108,10 +120,17 @@ be automatically retried. Capacity SHALL remain reserved while physical work may
 - **WHEN** launch or effect completion is ambiguous and the executor cannot inspect or deduplicate it
 - **THEN** the attempt becomes unresolved, preserves its evidence and awaits an operator
 
-#### Scenario: The owner is stale
+#### Scenario: The local owner is stale
 
-- **WHEN** another coordinator holds a newer ownership generation
-- **THEN** the old owner cannot admit work or commit/release protected state
+- **WHEN** another coordinator holds a newer local ownership epoch
+- **THEN** the old owner cannot admit work or commit/release protected local state
+
+#### Scenario: The receiver grant or exact claim is stale
+
+- **WHEN** a new, unaccepted conditional WBS mutation carries a superseded receiver generation or a claim different from the current exact immutable binding
+- **THEN** WBS refuses its protected write or release, even if local ownership is current
+- **AND** historical exact replay of an already accepted command, after current authorization checks, returns its retained receipt without new effects or granting current authority
+- **AND** takeover or claim absence establishes neither worker quiescence nor permission to replace it
 
 ### Requirement: Human waits and execution outcomes remain distinct
 
@@ -139,7 +158,7 @@ the current wait, state or capacity.
 ### Requirement: Safe compatibility execution precedes deployment and dogfood
 
 S7a SHALL implement the abstract-port coordinator over a linear compatibility workflow,
-including surviving-worker, uncertain-effect, stale-owner and lost-receipt tests, before
+including surviving-worker, uncertain-effect, stale-owner, stale-claim and lost-receipt/reply tests, before
 I5.02 deployment or I5.04 real dogfood. S7b SHALL reuse it for pinned type-specific instances,
 parallel joins and repair. W0–W12 SHALL remain the acceptance scope for type-specific DAGs.
 A linear dogfood SHALL NOT be presented as completion of that product scope.

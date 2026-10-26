@@ -56,7 +56,16 @@
             "value": "tests"
           }
         ],
-        "exclude": []
+        "exclude": [
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          },
+          {
+            "kind": "segment",
+            "value": "__fixtures__"
+          }
+        ]
       },
       {
         "contentClass": "generated",

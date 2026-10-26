@@ -174,6 +174,23 @@ The project owner selected durable execution records with receipt-based reconcil
 
 ### Accepted boundaries
 
+The earlier WBS-only G2 direction restored by PR 749 is superseded by ADR 0061's later
+selection. WBS remains the scheduling and business ledger; retaining execution evidence
+does not create a second authoritative plan. The coordinator reconciles current WBS facts
+with accepted execution facts on each tick and restart, without persisting a CTT walk.
+
+| Facts                                                                                                                                                                 | Authority or retention                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Step topology, eligibility, claims, business attempts, progress and measures                                                                                          | WBS business APIs                                            |
+| Runtime generations, immutable execution/claim bindings and accepted command receipts                                                                                 | Conditional WBS receiver                                     |
+| Immutable binding manifests, admission/preparation and turn intents, session/worker locators, outcomes, outgoing WBS intents and retained receipt/artifact references | RunStore semantic port                                       |
+| Immutable prompt/tool-policy bytes, logs, diffs, transcripts and evidence bytes                                                                                       | ArtifactStore semantic port, referenced by execution records |
+
+WBS project history and business attempt notes/references remain business records; they do
+not replace complete executor locators or exact command acceptance evidence. Runtime
+attempt/session identity remains distinct from WBS numeric business attempt ordinals, and
+the receiver adds no `startAttempt` or `endAttempt` command.
+
 The coordinator depends on semantic `RunStore` and `ArtifactStore` ports, and on the WBS
 HTTP bridge. WBS's WorkflowRepository remains behind WBS's own API. SQLite is the current
 adapter choice, not part of the core contract: any store satisfying atomicity, revision,
@@ -237,7 +254,10 @@ release running capacity only after work settles. WBS business progress stays au
 
 Budget admission is WBS's (`wbs-measure-budgets` D68): the claim or attempt start takes the
 spend hold inside the write and refuses `budget_exhausted`; the coordinator never admits from
-a headroom read.
+a headroom read. Local execution capacity is separately reserved in RunStore across its
+runs; WBS claim limits, resource leases and budget holds do not replace that reservation.
+Local ownership epochs and receiver-minted generations remain independent fences, and
+neither proves worker quiescence or releases an immutable claim on takeover.
 
 ### Binding pinning and repair
 
@@ -278,7 +298,7 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 - `twilight-control-plane` proposal, constraints: "LangGraph/LangChain and ACP-first agent
   access" becomes "the AI SDK executor port with ACP as one adapter"; Task 1's LangGraph
-  checkpointer proof becomes the run-store restart proof; Task 6 runs its first real ACP
+  checkpointer proof becomes the durable execution reconciliation/restart proof; Task 6 runs its first real ACP
   activity through this port.
 - `docs/twilight-structure/research/runtime-patterns.md` recommendation: superseded by
   ADR 0057; the note stays as dated evidence.
@@ -287,14 +307,14 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike                           | Fallback                                                          |
-| -------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                             | Claude Agent SDK direct behind the same port                      |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                             | plain tool calling for `plan`                                     |
-| Harness packages break between 1.0.x releases            | 0.3                             | exact pins, one renovate lane, the port absorbs                   |
-| ACP attempts report no usage                             | modelled                        | `Usage.unknown`, shown, never defaulted                           |
-| Concurrent or surviving owners                           | S7a recovery proof              | fence ownership, inspect workers/effects; unresolved blocks retry |
-| CTT minor releases change the hints API                  | exact pin0.11.0 and conformance | the compatibility adapter absorbs                                 |
+| Risk                                                     | Spike                           | Fallback                                                                                                                                                        |
+| -------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                             | Claude Agent SDK direct behind the same port                                                                                                                    |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                             | plain tool calling for `plan`                                                                                                                                   |
+| Harness packages break between 1.0.x releases            | 0.3                             | exact pins, one renovate lane, the port absorbs                                                                                                                 |
+| ACP attempts report no usage                             | modelled                        | `Usage.unknown`, shown, never defaulted                                                                                                                         |
+| Concurrent owners or workers surviving coordinator death | S7a recovery proof              | fence local and receiver authority, retain the claim and capacity while work may survive, inspect workers/effects by retained identity; unresolved blocks retry |
+| CTT minor releases change the hints API                  | exact pin0.11.0 and conformance | the compatibility adapter absorbs                                                                                                                               |
 
 ## Conditional WBS runtime receiver
 

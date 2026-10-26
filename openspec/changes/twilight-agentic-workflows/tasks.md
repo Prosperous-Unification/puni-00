@@ -90,7 +90,7 @@ adapters, durable coordinator dispatch, S0.08 recovery or S7a.
 
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
-G2 is decided: [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) selects durable execution records and reconciliation while rebuilding scheduling from WBS. This direction approval closes no implementation checkbox and authorizes no architectural merge.
+G2 is decided: [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) selects durable execution records and reconciliation while rebuilding scheduling from WBS. The earlier WBS-only G2 direction restored by PR 749 is superseded. Direction approval closes no implementation checkbox; the owner's subsequent commit/push/merge authorization remains subject to required evidence, review and release gates.
 
 Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the
 [storage design](storage-design.md). Their checkboxes remain the parent acceptance gate.
@@ -107,6 +107,8 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
 - [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
       DEFER_READY, generation-checked settlement and callback-free summary. Require complete
       discovery/validation and filter durable waits/running/retry state before admission.
+      Rebuild the frontier from WBS business facts and accepted execution facts after restart;
+      a running attempt is never admitted twice.
       The [execution-history tasks](execution-history-tasks.md) implement the bounded persistence
       foundation for6a.5. External dispatch ordering and exact outcome/write/release remain later
       phases and the parent checkbox stays open.
@@ -114,13 +116,15 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
 - [ ] 6a.5 Red/green: persist admission/launch intent, exact claim receipts and operation-key
       locators; commit outcomes and outbox atomically, reconcile WBS acceptance before successors.
 - [ ] 6a.6 Red: coordinator-only crash with worker surviving, effect-before-result-save,
-      progress-before-ack, duplicate signals, stale owner and unresolved worker/effect state.
-      Fault injection must catch bypassed fencing, duplicate replacement and premature capacity release.
+      progress-before-ack/outcome-before-reply, duplicate signals, stale local owner, stale WBS
+      claim and unresolved worker/effect state. Fault injection must catch bypassed local
+      fencing or receiver claim checks, duplicate replacement and premature capacity release.
 - [ ] 6a.7 Green: ownership acquisition/fencing, worker lookup/reattach or verified quiescence,
       receipt/effect reconciliation and explicit unresolved operator path. Never mass-mark running
-      attempts interrupted merely because the coordinator restarted.
+      attempts interrupted or cancelled merely because the coordinator restarted.
 - [ ] 6a.8 Provide run-coordinator, inspect-runs, resume-attempt, cancel-attempt and
-      reconcile-attempt operations over adapter configuration. Demonstrate safe compatibility
+      reconcile-attempt operations over adapter configuration and the guarded WBS bridge.
+      Demonstrate safe compatibility
       execution with fake adapters before I5.02 deployment or I5.04 real dogfood.
 
 ## 6b. Type-specific workflows and provider proof (S7b)
@@ -131,6 +135,7 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
       retained artifacts and stale-result refusal across restart.
 - [ ] 6b.3 Run identical storage contracts against a second durable adapter chosen for deployment;
       any conformant store is eligible. Prove versioned transfer with paused writers before claiming portability.
+      A second WBS deployment or WBS export alone does not prove execution-store portability.
 - [ ] 6b.4 Finish W0–W12 product acceptance: distinct type DAGs in one project, migrated facts,
       schedules, editor/boards, imports/exports and full recovery. Compatibility dogfood is not this gate.
 

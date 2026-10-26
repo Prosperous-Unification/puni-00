@@ -39,7 +39,7 @@ Twilight Dash SHALL expose one ActivityExecutor port for api-model, cli-harness,
 
 ### Requirement: Executors declare recovery capabilities and uncertain outcomes
 
-Each executor SHALL declare durable lookup, reattachment, preparation/turn deduplication, effect inspection, cancellation and quiescence capabilities. It SHALL return serializable locators and explicit uncertainty without mutating RunStore or WBS. Positive recovery assertions SHALL require backend evidence; completed output alone does not establish business completion.
+Each executor SHALL declare durable lookup, reattachment, preparation/turn deduplication, effect inspection, cancellation and quiescence capabilities. It SHALL return serializable locators and explicit uncertainty without mutating RunStore or WBS. Positive recovery assertions SHALL require backend evidence; recovery SHALL NOT infer process identity from a reusable PID alone. Completed output alone does not establish business completion.
 
 #### Scenario: Session creation succeeds before its locator is saved
 
