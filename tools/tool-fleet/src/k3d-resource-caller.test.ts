@@ -31,7 +31,10 @@ let state = existsSync(directory+'/docker.json') ? JSON.parse(readFileSync(direc
 const save = () => writeFileSync(directory+'/docker.json', JSON.stringify(state));
 const project = fields => console.log(argv.at(-1).replace(/{{json ([^}]+)}}/g, (_,field) => JSON.stringify(fields[field])));
 const id = letter => letter.repeat(64);
+const containerFault = (kind,action,attributes) => fault==='temporary-missing-mount'&&kind==='volume'&&action==='mount'&&attributes.container===id('d');
 const event = (kind, action, identity, attributes = {}) => {
+ if(identity===id('d')&&kind==='container'&&fault==='temporary-missing-'+action)return;
+ if(containerFault(kind,action,attributes))return;
  const entry = { kind, action, id: identity, time: String(BigInt(Date.now()) * 1000000n), name: '', container: '', destination: '', driver: '', image: '', ...attributes };
  appendFileSync(directory+'/events', JSON.stringify(entry)+'\\n');
 };
@@ -65,7 +68,7 @@ if (tool === 'k3d') {
  }
  throw Error('unexpected k3d command');
 }
-if (process.env.DOCKER_CONTEXT || process.env.DOCKER_HOST!=='unix:///run/docker.sock') throw Error('unbound Docker endpoint');
+if (process.env.DOCKER_CONTEXT || !['unix:///run/docker.sock','unix://'+directory+'/alternate.sock'].includes(process.env.DOCKER_HOST)) throw Error('unbound Docker endpoint');
 if(argv[0]==='info') {console.log('daemon-1');process.exit(0);}
 if(argv[0]==='events') {
  let offset=0;
@@ -79,7 +82,7 @@ if(argv[0]==='events') {
    }
    console.log(state.containers.map(entry=>entry.name.slice(1)).join('\\n'));
   }
- } else {const filter=argv[argv.indexOf('--filter')+1];console.log(state.containers.filter(entry=>!argv.includes('--filter')||entry.mounts.some(mount=>filter==='volume='+mount.Name)).map(entry=>entry.id).join('\\n'));}
+ } else {const filter=argv[argv.indexOf('--filter')+1];console.log(state.containers.filter(entry=>!argv.includes('--filter')||entry.mounts.some(mount=>filter==='volume='+mount.Name)).map(entry=>entry.id).join('\\n'));if(!argv.includes('--filter')&&(fault==='temporary-present'||existsSync(directory+'/temporary-reappeared')))console.log(id('d'));if(argv.includes('--filter')&&existsSync(directory+'/volume-consumer'))console.log(id('9'));}
 } else if(argv[0]==='network'&&argv[1]==='ls') {
  console.log(state.network);
 } else if(argv[0]==='volume'&&argv[1]==='ls') {
@@ -95,7 +98,7 @@ if(argv[0]==='events') {
 } else if(argv[0]==='network'&&argv[1]==='inspect') {
  project({'.Id':id('a'),'.Name':state.network,'.Containers':Object.fromEntries(state.containers.map(entry=>[entry.id,{}]))});
 } else if(argv[0]==='volume'&&argv[1]==='inspect') {
- project({'.Name':argv[2],'.Driver':'local','.Mountpoint':'/volumes/'+argv[2],'.CreatedAt':'2026-10-27T00:00:00Z'});
+ project({'.Name':argv[2],'.Driver':'local','.Mountpoint':(existsSync(directory+'/volume-locator')?'/replaced/':'/volumes/')+argv[2],'.CreatedAt':'2026-10-27T00:00:00Z'});
 } else if(argv[0]==='stop') {
 } else if(argv[0]==='rm') {
  if(argv.some(arg=>arg==='--volumes'||arg==='-v'))throw Error('FORBIDDEN_VOLUME_REMOVAL');
@@ -115,7 +118,7 @@ if(argv[0]==='events') {
   lock.binaries.kubectl.sha256 = sha256;
   await writeFile(join(directory, 'infra/versions/toolchain.json'), JSON.stringify(lock));
   if (fault === 'wrong-tool') await writeFile(join(directory, 'bin', 'k3d'), `${program}\n`);
-  const invoke = async (arguments_: string[]) => {
+  const invoke = async (arguments_: string[], endpoint = 'unix:///run/docker.sock') => {
     const child = Bun.spawn(
       [
         process.execPath,
@@ -127,7 +130,7 @@ if(argv[0]==='events') {
           ...process.env,
           PATH: `${join(directory, 'bin')}:${process.env['PATH'] ?? ''}`,
           DOCKER_CONTEXT: '',
-          DOCKER_HOST: 'unix:///run/docker.sock',
+          DOCKER_HOST: endpoint,
           K3D: join(directory, 'bin/k3d'),
           KUBECTL: join(directory, 'bin/kubectl'),
         },
@@ -197,6 +200,7 @@ for (const fault of ['missing-handshake', 'missing-creator', 'cluster-failure'])
     expect(up.stderr).toContain('resource state is unknown');
     expect(up.stderr).not.toContain('PRIVATE_TOKEN_SENTINEL');
     const calls = await readFile(join(fixture_.directory, 'calls'), 'utf8');
+    expect(calls).not.toContain('"kill"');
     expect(calls).not.toContain('"rm"');
     expect(calls).not.toContain('"delete"');
     if (fault === 'missing-handshake') expect(calls).not.toContain('"run"');
@@ -209,6 +213,7 @@ for (const fault of ['reused-tools', 'reused-cache'])
     expect(up.exit).not.toBe(0);
     expect(up.stderr).toContain('existing namespace resources');
     const calls = await readFile(join(fixture_.directory, 'calls'), 'utf8');
+    expect(calls).not.toContain('"kill"');
     expect(calls).not.toContain('"create"');
     expect(calls).not.toContain('"run"');
   });
@@ -248,6 +253,7 @@ for (const fault of [
     expect(down.exit).not.toBe(0);
     const calls = await readFile(join(fixture_.directory, 'calls'), 'utf8');
     expect(calls).not.toContain('"stop"');
+    expect(calls).not.toContain('"kill"');
     expect(calls).not.toContain('"rm"');
     expect(calls).not.toContain('"delete"');
   });
@@ -259,6 +265,7 @@ for (const fault of ['wrong-tool', 'temporary-anonymous'])
     expect(up.exit).not.toBe(0);
     expect(up.stderr).toContain(fault === 'wrong-tool' ? 'checksum differs' : 'anonymous volumes');
     const calls = await readFile(join(fixture_.directory, 'calls'), 'utf8');
+    expect(calls).not.toContain('"kill"');
     expect(calls).not.toContain('"create"');
     expect(calls).not.toContain('"run"');
   });
@@ -269,6 +276,7 @@ it('aborts existing k3d creation immediately when the event witness disconnects'
   expect(up.exit).not.toBe(0);
   expect(up.stderr).toContain('resource state is unknown');
   expect(await Bun.file(join(fixture_.directory, 'late-created')).exists()).toBe(false);
+  expect(await readFile(join(fixture_.directory, 'calls'), 'utf8')).not.toContain('"kill"');
 });
 
 it('accepts only a permutation of the same complete mount set during receipt teardown', async () => {
@@ -292,3 +300,63 @@ it('accepts only a permutation of the same complete mount set during receipt tea
   ]);
   expect(down).toMatchObject({ exit: 0, stderr: '' });
 });
+
+for (const fault of ['endpoint-drift', 'volume-locator', 'volume-consumer', 'temporary-reappeared'])
+  it(`isolates ${fault} at strict teardown without signals or removal`, async () => {
+    const fixture_ = await fixture();
+    expect((await fixture_.up()).exit).toBe(0);
+    const labId = await fixture_.labId();
+    const inventory = await readFile(join(fixture_.directory, 'docker.json'), 'utf8');
+    // External consumer is detached from the owned network; all owned observations stay exact.
+    await writeFile(join(fixture_.directory, fault), 'injected');
+    await writeFile(join(fixture_.directory, 'alternate.sock'), 'fixture endpoint');
+    const down = await fixture_.invoke(
+      ['down', '--profile', 'app', '--id', labId, '--resource-evidence', 'creation-v1'],
+      fault === 'endpoint-drift' ? `unix://${fixture_.directory}/alternate.sock` : undefined,
+    );
+    expect(down.exit).not.toBe(0);
+    expect(down.stderr).toContain(
+      fault === 'endpoint-drift'
+        ? 'Docker endpoint changed'
+        : fault === 'temporary-reappeared'
+          ? 'Temporary creator identity reappeared'
+          : 'Volume identity or attachments changed',
+    );
+    expect(await readFile(join(fixture_.directory, 'docker.json'), 'utf8')).toBe(inventory);
+    expect(
+      await Bun.file(
+        join(fixture_.directory, '.puni/fleet-labs/k3d', labId, 'creation-teardown.json'),
+      ).exists(),
+    ).toBe(false);
+    const calls = await readFile(join(fixture_.directory, 'calls'), 'utf8');
+    for (const mutation of ['kill', 'stop', 'rm', 'delete'])
+      expect(calls).not.toContain(JSON.stringify(mutation));
+  });
+
+for (const fault of [
+  'temporary-present',
+  'temporary-missing-create',
+  'temporary-missing-mount',
+  'temporary-missing-destroy',
+])
+  it(`isolates ${fault} at creation closure without cleanup`, async () => {
+    const fixture_ = await fixture(fault);
+    const up = await fixture_.up();
+    expect(up.exit).not.toBe(0);
+    expect(up.stderr).toContain('resource state is unknown');
+    expect(up.stderr).toContain(
+      fault === 'temporary-present'
+        ? 'Temporary tools lifecycle did not finish'
+        : 'Temporary creator lifecycle remains unknown',
+    );
+    expect(up.stderr).not.toContain('PRIVATE_TOKEN_SENTINEL');
+    const labId = await fixture_.labId();
+    expect(
+      await Bun.file(
+        join(fixture_.directory, '.puni/fleet-labs/k3d', labId, 'creation-complete.json'),
+      ).exists(),
+    ).toBe(false);
+    const calls = await readFile(join(fixture_.directory, 'calls'), 'utf8');
+    for (const mutation of ['kill', 'stop', 'rm', 'delete'])
+      expect(calls).not.toContain(JSON.stringify(mutation));
+  });

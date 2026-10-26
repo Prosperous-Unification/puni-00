@@ -291,6 +291,7 @@ export async function createResourceWitness(
       const currentIds = (await docker(['ps', '--all', '--quiet', '--no-trunc']))
         .trim()
         .split('\n');
+      // Proof: Removing final-absence refusal let temporary-present complete up; isolated existing-CLI negative failed.
       if (temporaryIds.some((id) => currentIds.includes(id)))
         throw new Error('Temporary tools lifecycle did not finish');
       const volumeNames = [
@@ -386,6 +387,7 @@ export async function inspectResourceTeardown(
   endpoint: string,
   docker: Docker,
 ): Promise<void> {
+  // Proof: Removing endpoint refusal let endpoint-drift down succeed on the same daemon; isolated CLI negative failed.
   if (endpoint !== evidence.binding.endpoint) throw new Error('Docker endpoint changed');
   await requireCapturedDaemon(evidence.binding.daemonId, docker);
   const network = await inspectNetwork(evidence.closure.network.id, docker);
@@ -400,6 +402,7 @@ export async function inspectResourceTeardown(
   }
   for (const volume of evidence.volumes) {
     const observed = await inspectVolume(volume.name, docker);
+    // Proof: Removing this refusal separately let volume-locator and off-network volume-consumer drift pass down; both isolated CLI negatives failed.
     if (JSON.stringify(observed) !== JSON.stringify(volume))
       throw new Error('Volume identity or attachments changed');
   }
@@ -410,6 +413,7 @@ export async function inspectResourceTeardown(
       (creator) => !active.has(creator.id) && currentIds.includes(creator.id),
     )
   )
+    // Proof: Removing this refusal let detached temporary-reappeared down succeed; isolated CLI negative failed.
     throw new Error('Temporary creator identity reappeared');
 }
 

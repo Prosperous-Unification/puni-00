@@ -898,3 +898,56 @@ Final changed-file ESLint passed; Prettier left all source files unchanged and f
 verification append. `bunx openspec validate observability-environment-parity --json` passed
 with zero issues (20ms validator duration). `git diff --check` passed. Normal commit hooks
 provide the final staged-file format/lint/secrets/private-nesting/tool-wiki checks.
+
+## Task 19 / 6d review fix 1 — isolated refusal proofs
+
+Review base `cc4e8db2b615cb1e3c6d5cc746284c64b5460fbc`. Eight new existing-CLI negatives
+isolate endpoint drift on the same daemon; volume locator drift and an external volume consumer
+on another network with permanent container/network observations unchanged; temporary final
+presence/reappearance without conflicting attachments; and each missing temporary create,
+mount or destroy event with creator ID and other lineage intact. They assert exact refusal
+reason/nonzero exit, absent completion/teardown marker, unchanged teardown fixture inventory,
+and no Docker kill/stop/rm/delete. Existing refusal cases now also reject the actual `kill`
+signal command. The earlier missing-volume mount deletion proves only container comparison;
+it is not credited as the new volume teardown proof.
+
+Initial focused command:
+
+```sh
+bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/k3d-resource-caller.test.ts --test-name-pattern 'isolates|without legacy fallback|without any cleanup'
+```
+
+16pass/0fail/137assertions,31.30s. Then each matching production refusal was separately replaced
+with `void 0;`, restoring source in finally. Each fixture operation incorrectly exited0 and its
+negative test failed; no earlier guard masked the intended boundary. Eight R5 commands share:
+
+```sh
+bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/k3d-resource-caller.test.ts --test-name-pattern '<pattern>'
+```
+
+| Removed refusal          | Pattern                              | Observed test exit | Seconds |
+| ------------------------ | ------------------------------------ | ------------------ | ------- |
+| endpoint-equality        | `isolates endpoint-drift`            | 1                  | 2.739   |
+| volume-locator-equality  | `isolates volume-locator`            | 1                  | 2.722   |
+| volume-consumer-equality | `isolates volume-consumer`           | 1                  | 2.766   |
+| temporary-final-absence  | `isolates temporary-present`         | 1                  | 1.686   |
+| temporary-reappearance   | `isolates temporary-reappeared`      | 1                  | 2.696   |
+| temporary-create         | `isolates temporary-missing-create`  | 1                  | 1.609   |
+| temporary-mount          | `isolates temporary-missing-mount`   | 1                  | 1.583   |
+| temporary-destroy        | `isolates temporary-missing-destroy` | 1                  | 1.55    |
+
+The temporary lifecycle guard was independently removed for each create/mount/destroy case;
+volume equality independently for locator/consumer. Adjacent production Proof comments record
+these observations. Exact commands/logs retained in ignored task-6d-evidence/fix1 and the appended
+fix1 report. This round changes tests/comments only. No real app rerun, prior102-test suite or
+prior26-fault batch; six retained volumes/private evidence remain untouched. Non-app builder
+and direct-import lifecycle accounting remains a later concrete obligation, with no platform
+acceptance granted. Full bootstrap/runtime/capacity/shared-stack/CNI/signals/UI/history/recovery
+and live migration remain open.
+
+Restored final focused caller command:
+`bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/k3d-resource-caller.test.ts`
+passed23tests/178assertions/0fail in39.79s, including success controls for the modified subprocess
+fixture and all strengthened refusal cases. `bunx tsc --build --force tools/tool-fleet/tsconfig.json`
+and `bunx eslint tools/tool-fleet/src/k3d-resource-caller.test.ts tools/tool-fleet/src/k3d-resource-runtime.ts tools/tool-fleet/src/k3d-creation.ts`
+passed. Production changes are adjacent comments only; behavioral guards remain intact.

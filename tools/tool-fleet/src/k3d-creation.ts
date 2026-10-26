@@ -196,6 +196,7 @@ export function closeCreation(input: unknown): {
               BigInt(mount.time) > BigInt(death.time),
           )
         )
+          // Proof: Removing this refusal separately completed up without tools create, mount or destroy; all three isolated CLI negatives failed.
           throw new Error('Temporary creator lifecycle remains unknown');
         temporaryIds.push(creator.id);
         continue;
