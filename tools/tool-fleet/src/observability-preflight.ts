@@ -153,6 +153,9 @@ const Resource = type({
   dependencies: type({ name, namespace: 'string', '+': 'reject' }).array(),
   '+': 'reject',
 });
+/** Closed safe resource envelope shared by read-only observability prerequisite adapters. */
+export const ObservabilityResourceProjection = Resource;
+
 const Source = type({
   kind: "'GitRepository'",
   namespace: name,

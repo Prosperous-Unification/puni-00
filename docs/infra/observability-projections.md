@@ -105,7 +105,7 @@ The reduced unit-test fixture records resource identities and checked operative 
 from the pinned Helm render. It omits CRD schemas and generated Secret contents. The
 source validation command checks full actual Helm output, including those fields.
 
-## Completion boundary
+## Original projection completion boundary
 
 These projections intentionally omit the complete ES/Kibana/signal-service composition,
 namespaced discovery RBAC, final default-deny policies and effective instance trust.
@@ -210,6 +210,111 @@ Their external dial binding for the observer and retained Docker Grafana is expl
 verify same-route TLS and complete read-only grants, and demonstrate query mutation denial
 and cross-instance rejection in the disposable lab. CNI, stored three-signal acceptance,
 operator-generated pod support, claims, current-node hostPath costs and live readiness remain
-unverified. The next source slice must finish namespaced discovery, all selectors/target
-bounds, default-deny flows, retained-reader prerequisite validation and exact full-render
-closure/comparison. These assembly results do not complete canonical task 2.2.
+unverified. The full source interface below supplies namespaced discovery, selectors/target bounds,
+default-deny flows, retained-reader prerequisite validation and full-render comparison.
+These assembly results do not complete canonical task 2.2.
+
+## Full service source validation
+
+`createObservabilitySource(root, input)` in
+[`observability-source.ts`](../../tools/tool-fleet/src/observability-source.ts) adds the
+remaining desired security policy to the immutable assembly above. It returns nine
+release owners, fifteen native resources per instance, namespaced discovery and
+network policies, separate material/role requirements, retained platform listener
+migration prerequisites and unapplied same-owner external patches. It does not change
+the assembly's completion flags or the currently selected Flux graph.
+
+`validateObservabilitySources(root, tools, {local, production})` and the uncached target
+below render all nine pinned releases plus native/security resources. The successful
+receipt reports `scope: full-service-source-validation`, `sourceSecurityPolicy: true`
+and `wholeRenderParity: true`, with source/policy/render SHA-256 hashes. It independently
+keeps effective authority, observed retained-reader source, operator admission, claims,
+capacity, handover, external bindings and activation false. Source and component
+validation do not certify a running service or complete canonical task 2.2.
+
+```sh
+PUNI_PARITY_TOOLS=/operator/locked-tools \
+PUNI_SOURCE_REQUESTS=/operator/full-source-requests.json \
+bunx nx run tool-fleet:validate-observability-source
+```
+
+Each request extends the assembly policy request above with a required `network` object:
+`api`, `observer`, `grafana`, `s3`, `alertDelivery` and `publicProbes` are arrays of one to
+sixteen distinct IPv4 `/32` hosts. Missing, broad, malformed and unknown bindings refuse.
+There is no DNS resolution or implicit broad fallback. Tests supply explicitly synthetic
+host declarations; those are not production addresses. The desired enrolled peers and
+API intent come from `infra/ansible/inventory/production-existing-hosts.yml`, cross-checked
+with `infra/fleet/desired.yaml`. Actual Docker Grafana/observer origins and S3 dial peers
+must still be supplied and observed by the next adapter.
+
+Namespace-wide ingress/egress deny is accompanied by explicit DNS, API, discovery,
+controller/webhook, scrape, signal, store, UI, alert and backup flows. Discovery Roles
+scope Prometheus to its instance; production retains explicit platform discovery and
+minimal node/metrics cluster access. All five monitor/resource and namespace selectors
+are explicit. The restored operator monitor, KSM, node exporter and platform coverage
+retain their existing owners. Real CNI behavior, host-network/NAT addresses, admission
+and target reachability require runtime evidence before applying these policies.
+
+External rules, Probes, blackbox exporter and snapshot Job/CronJob remain owned by
+`flux-system/alerts`, `flux-system/observability` and `flux-system/backup`. The packet
+includes their exact desired per-profile resources and additive label patches, each
+`applied: false`. Those owners must apply the patches before selector/deny activation.
+Production-only public Probes are a single reviewed context difference tied to
+`alerts/production/public-probes.yaml`; arbitrary membership is not ignored.
+
+App ingestion uses `signal-elastic-ingest`, `signal-ingest-users` and
+`signal-ingest-roles`; setup retains ECK admin and health queries retain read-only
+credentials. The ingest role declares no cluster grants and `auto_configure` plus
+`create_doc` on `logs-*.otel-{environment}`, `traces-*.otel-{environment}` and
+`metrics-*.otel-{environment}`, including APM aggregate metric streams. Node discovery
+is explicitly disabled (`discover.on_start: false`, `interval: 0s`) and app gateway
+mapping permits only `otel`. These fields were accepted by the exact pinned Elastic
+Agent 9.3.8 binary's offline `otel validate`; a non-boolean `on_start` was rejected.
+The policy follows the [pinned exporter configuration](https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.160.0/exporter/elasticsearchexporter/config.go),
+[Elastic exporter privileges](https://www.elastic.co/docs/reference/edot-collector/components/elasticsearchexporter)
+and [OpenTelemetry data stream naming](https://www.elastic.co/docs/reference/opentelemetry/data-streams).
+Actual effective grants and stored APM aggregates still require positive and negative
+runtime witnesses. The retained platform reader uses its own `platform-ingest` identity
+and exact `logs-puni.otel-{local|production}` scope, preserving platform semantics.
+
+`assertRetainedReaderConfiguration` checks both path exclusion and the attached
+namespace predicate, including forwarded dev records with no application environment.
+`validateRetainedReaderPrerequisite(input, {run?, now?})` in
+[`observability-reader-observation.ts`](../../tools/tool-fleet/src/observability-reader-observation.ts)
+uses bounded read-only discovery against explicit `context` and `controllerContext`.
+Its closed schema requires target marker/UID, owner/source UIDs and source revision,
+configuration UID/SHA-256, workload UID/template checksum, timeout (at most 30 seconds)
+and maximum evidence age (at most 60 seconds). It checks fresh identity, ownership,
+ready revisions, installed configuration, rollout metadata and config references.
+The receipt certifies **observed installed source only**; `effectiveReaderVerified`
+and `activationReady` remain false. Metadata cannot prove loaded configuration or
+record rejection. Actual context was unavailable during this source work; native
+kubectl projection tests used synthetic GET-only discovery and client-side dry run.
+
+The desired reader binds all OTLP listeners (4317, 4318 and 14317) to the declared
+platform mTLS trust domain, excluding app identities. Existing selected plaintext
+listeners remain unchanged. Their enrolled-client transitions are unexecuted migration
+prerequisites until authenticated canary and runtime proofs permit the change.
+
+[`observability-source-render.ts`](../../tools/tool-fleet/src/observability-source-render.ts)
+validates 191 namespace-qualified resource identities, API versions, references,
+security policy, retention, independent claims and bounded ES/S3 settings. It reuses
+the original projection's reference boundary and the assembly's native content-hash
+and refresh checks. `observability-render.ts` shares only pinned tool/chart rendering;
+the original projection still validates its own unchanged contract first.
+
+[`observability-source-parity.ts`](../../tools/tool-fleet/src/observability-source-parity.ts)
+expands YAML/JSON/NDJSON payloads and compares every remaining scalar after validating
+only the four content-addressed ConfigMap names and their known volume references.
+The independent reviewed table permits exactly 23 local/production scalar differences,
+including exact S3 endpoint/trust mode, platform markers, external rule expressions,
+public Probe context and platform stream name. Explicit local disposable production-role
+sizing adds eight precise capacity scalars, for 31 total. Unknown, duplicate, unused,
+subtree, stale or self-authorizing exception records refuse; namespaces, identities,
+code lines and unrelated siblings are not normalized.
+
+Fleet adapters consume these concrete material, route, patch and policy descriptors
+and translate them into the existing provider-neutral observation inputs. No Fleet
+contract is added to the shared evaluator. Runtime TLS/hostname/client identity,
+query mutation denial, CNI, operator pods/claims, stored three-signal routes, UI and
+recovery remain Task 5/6/8/9 evidence.

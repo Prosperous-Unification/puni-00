@@ -1,26 +1,19 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
 import { type } from 'arktype';
 import { parse, parseAllDocuments } from 'yaml';
 
-import { readToolchain } from './contracts';
 import {
   assertObservabilityProjection,
   createObservabilityProjection,
   type ObservabilityProjection,
 } from './observability-projection';
 import resourceInventory from './observability-projection-resources.json';
+import { renderObservabilityReleases } from './observability-render';
 
-const Release = type({
-  metadata: { name: 'string>0', namespace: 'string>0' },
-  spec: { chart: { spec: { chart: 'string>0', version: 'string>0' } }, values: 'object' },
-});
 /** Reviewed API identities for every allowed inventory kind, independent of the candidate render. */
-const ResourceAPI = type({
+export const ObservabilityResourceAPI = type({
   apiVersion: "'v1'",
   kind: "'ConfigMap' | 'Secret' | 'Service' | 'ServiceAccount'",
 })
@@ -45,11 +38,11 @@ const ResourceAPI = type({
 const Manifest = type({
   kind: 'string>0',
   metadata: { name: 'string>0', 'namespace?': 'string>0' },
-}).and(ResourceAPI);
+}).and(ObservabilityResourceAPI);
 const List = type({ apiVersion: "'v1'", kind: "'List'", items: 'unknown[]', '+': 'reject' });
 const Spec = type({ spec: 'Record<string, unknown>' });
 const inventory: Record<string, string[]> = resourceInventory;
-const clusterKinds = new Set([
+export const observabilityClusterKinds = new Set([
   'CustomResourceDefinition',
   'ClusterRole',
   'ClusterRoleBinding',
@@ -61,66 +54,14 @@ const clusterKinds = new Set([
 export type ObservabilityProjectionRendering = Record<string, string>;
 type ResourceIndex = Record<string, Record<string, unknown>>;
 
-function execute(helm: string, arguments_: string[]): string {
-  const child = Bun.spawnSync([helm, ...arguments_], {
-    timeout: 120_000,
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  // Proof: failed-render dependency refusal becomes a test assertion failure when this guard is removed.
-  if (child.exitCode !== 0)
-    throw new Error(`Projection Helm failed: ${arguments_.join(' ')}: ${child.stderr.toString()}`);
-  return child.stdout.toString();
-}
-
-/** Pinned chart rendering only; the fixed Kubernetes capability version is a source fixture, never an observed server version. */
+/** Render the exact approved chart-role projection through the shared pinned renderer. */
 export async function renderObservabilityProjection(
   root: string,
   tools: string,
   projection: ObservabilityProjection,
 ): Promise<ObservabilityProjectionRendering> {
   await assertObservabilityProjection(root, projection);
-  const lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
-  const helm = join(resolve(tools), 'helm');
-  // Proof: removing this comparison admits a wrong-version Helm dependency in the production renderer test.
-  if (
-    execute(helm, ['version', '--template', '{{.Version}}']).trim() !== lock.binaries.helm.version
-  )
-    throw new Error('Projection Helm version differs from lock');
-  const directory = await mkdtemp(join(tmpdir(), 'observability-projection-'));
-  try {
-    const rendered: ObservabilityProjectionRendering = {};
-    for (const release of projection.releases) {
-      const manifest = Release.assert(parse(release.manifest));
-      const chart = resolve(root, manifest.spec.chart.spec.chart);
-      const pin = lock.charts[release.chart];
-      // Proof: replacing the pinned ECK archive bytes fails the renderer test; removing this guard admits that dependency.
-      if (
-        chart !== join(resolve(root), 'infra/platform/charts', basename(pin.url)) ||
-        manifest.spec.chart.spec.version !== pin.version ||
-        createHash('sha256')
-          .update(await readFile(chart))
-          .digest('hex') !== pin.sha256
-      )
-        throw new Error(`Projection chart differs from lock: ${release.owner}`);
-      const values = join(directory, 'values.json');
-      await writeFile(values, JSON.stringify(manifest.spec.values));
-      rendered[release.owner] = execute(helm, [
-        'template',
-        manifest.metadata.name,
-        chart,
-        '--namespace',
-        manifest.metadata.namespace,
-        '--include-crds',
-        '--kube-version',
-        '1.35.0',
-        '--values',
-        values,
-      ]);
-    }
-    return rendered;
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+  return renderObservabilityReleases(root, tools, projection.releases);
 }
 
 function flattenResource(manifest: unknown): unknown[] {
@@ -150,7 +91,7 @@ function indexResources(
       const identity = Manifest.assert(manifest);
       const namespace =
         identity.metadata.namespace ??
-        (clusterKinds.has(identity.kind) ? '_' : owner.split('/')[0]);
+        (observabilityClusterKinds.has(identity.kind) ? '_' : owner.split('/')[0]);
       return [`${identity.kind}:${namespace}:${identity.metadata.name}`, manifest] as const;
     });
     // Proof: missing/duplicate/foreign/extra resources (including List members) pass the negative tests if this closed inventory comparison is removed.
@@ -161,7 +102,11 @@ function indexResources(
   return indexed;
 }
 
-function requireReferences(projection: ObservabilityProjection, indexed: ResourceIndex): void {
+/** Shared controller/source-reference constraints, independent of the surrounding full-service inventory. */
+export function requireObservabilityProjectionReferences(
+  projection: ObservabilityProjection,
+  indexed: ResourceIndex,
+): void {
   const dev = indexed['observability-dev/kube-prometheus-stack'];
   const prometheus = Spec.assert(dev['Prometheus:observability-dev:kps-prometheus']).spec;
   const discoveries = ['serviceMonitor', 'podMonitor', 'probe', 'rule', 'scrapeConfig'];
@@ -288,7 +233,7 @@ export function assertRenderedObservabilityProjection(
   rendered: ObservabilityProjectionRendering,
 ) {
   const indexed = indexResources(projection, rendered);
-  requireReferences(projection, indexed);
+  requireObservabilityProjectionReferences(projection, indexed);
   const identities = Object.values(indexed).flatMap((resources) => Object.keys(resources));
   return {
     scope: 'chart-role-projection' as const,
