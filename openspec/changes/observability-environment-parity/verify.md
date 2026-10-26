@@ -268,3 +268,56 @@ Only these two review findings and directly related encoding branches were chang
 195-test suite, old proof batch, render, backend recreation, persistent material, dev unit/pin,
 Grafana receipt, production/live operation or host gate ran. Earlier evidence remains historical;
 all original Task6/deployment/runtime/live limitations and parent-owned canonical checkboxes remain.
+
+## Task 6a / canonical 3.1 prerequisite — disposable source packet (2026-10-26)
+
+This is a source stop, not completion of canonical 3.1 or 2.2. Runtime, transport and live
+flags remain false. The full Task 6 reconciliation, stored-signal, CNI, recovery, history,
+identity and UI obligations remain open. Parent owns the task checkboxes.
+
+- `prepareObservabilityRehearsal` exports an exact Git input revision into temporary source,
+  generates the common two-instance local candidate, preserves the ten normal Flux stages,
+  replaces the legacy observability root/broad ingress, and applies diagnostics/alerts/backup
+  handoffs under their original owners. The 72-file packet includes pinned charts and no
+  Secret objects. Selected-tree bytes remain unchanged; no cluster or lifecycle action ran.
+- `validateObservabilityRehearsal` checks exact source/generator provenance and per-file hashes,
+  actual pinned kubectl Kustomize stage builds, graph dependencies/source/marker requirements,
+  Helm owner/API/chart-source closure, duplicate resource identities, chart lock hashes and
+  independent broad-ingress/Secret refusals. Source and generator review remain `unobserved`;
+  an uncommitted generator is explicitly dirty. This receipt does not attest review authority.
+- The CLI supports `prepare|validate|admit request.json packet-directory`, requires
+  `PUNI_PARITY_TOOLS`, bounds request reads to 64 KiB plus an overflow byte before parsing,
+  and emits fixed refusal categories. The consumed direct-download kubectl is SHA-256 checked
+  against the exported toolchain lock before execution. No new tool-verification framework.
+- The authored-capacity descriptor lists 13 templates totaling 130 GiB, explicitly including
+  disabled values: the controller-only release retains a disabled 10 GiB Prometheus template.
+  The historical selected-template lower bound is 120 GiB. Neither sum is allocated usage,
+  effective operator demand, or proof that storage fits. Operator replica/init/sidecar,
+  current-node writable hostPath, system/image/build scratch, backup/recovery/transient and
+  coexistence demand remain unknown. Admission reuses the existing platform guard and the
+  mechanically exported `readLabCapacity` reader; no floor or existing lab behavior changed.
+- Fresh actual admission exits 1 in 2.36s: 15,823 MiB MemAvailable versus 16,384 MiB required,
+  with 72,573 MiB free on the actual Docker-root filesystem. Prepare and validate exit 0
+  in 2.82s and 2.20s. Artifact SHA-256:
+  `c7d0ac32214596e78adaf1459c3a95cea5e987b17c3e509f0c5c8e00d18654a5`.
+  The successful source fixture uses explicit synthetic /32 network bindings, not observed
+  reachable endpoints. No unrelated workload was stopped or adopted.
+- The covering rehearsal file passes 28/28 tests, 65 assertions, 33.43s. Changed-file lint and
+  Fleet typecheck exit 0. Original resumed REDs and static failures remain recorded: the
+  first capacity attempt exceeded Bun's default 5s timeout; the 30s retry exposed the missing
+  descriptor. Initial 120 GiB/12-template assertion was corrected only after identifying
+  the disabled authored template. No old render/proof/fullhost/application suite was repeated.
+- Focused R5 removals: graph checks caused five fixed-category negative failures; protected
+  policy/Secret/Helm checks caused five fixed-category failures while byte closure still
+  refused. Removing file closure, byte hashes, provenance equality, the shared memory floor,
+  and extra-argument closure each caused one observed fail-open negative. A same-version
+  kubectl wrapper and oversized valid JSON were accepted before their new guards; both REDs
+  and the restored positives are recorded. The initial raw-error privacy injection stayed
+  green for malformed input and proves nothing; the corrected unreadable-packet injection
+  exposed PRIVATE-MARKER and failed its negative. All mutations restored in finally.
+
+Exact commands, times, logs, source/generator/per-file hashes, local commit and remaining
+runtime inputs are in `.superpowers/sdd/observability-environment-parity/task-6a-report.md`
+and its ignored `task-6a-evidence/` directory. Full host gates, remote publication, authenticated
+source transport, actual Flux/Helm/ECK reconciliation, runtime acceptance and live binding were
+not run under this source-only stop.

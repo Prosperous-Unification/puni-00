@@ -501,7 +501,8 @@ async function requireOwnedDirectory(path: string, purpose: string): Promise<str
   return real;
 }
 
-async function hostCapacity(): Promise<HostCapacity> {
+/** Read fresh host MemAvailable and free blocks on the actual Docker-root filesystem; missing observations throw. */
+export async function readLabCapacity(): Promise<HostCapacity> {
   const dockerRoot = (await run('docker', ['info', '--format', '{{.DockerRootDir}}'])).trim();
   const filesystem = await statfs(dockerRoot);
   return {
@@ -945,7 +946,7 @@ async function statusLab(root: string, request: K3dLabRequest, tools: LabTools):
 export async function runLab(
   arguments_: readonly string[],
   root: string,
-  readCapacity: () => Promise<HostCapacity> = hostCapacity,
+  readCapacity: () => Promise<HostCapacity> = readLabCapacity,
 ): Promise<void> {
   if (isVmLabRequest(arguments_)) {
     await (await import('./lab')).runVmLab(arguments_, root);
