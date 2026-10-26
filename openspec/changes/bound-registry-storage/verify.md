@@ -984,3 +984,32 @@ backend-lock recovery, killed GC/restore, physical registry ENOSPC with independ
 journal, verified rebind/offline journal/current obligations and ordinary CLI
 continuation remain pending, along with the full checks, independent reviews,
 backup budgeting, delivered monitoring and installed adoption.
+
+## Backup interruption rehearsal: failed before fault receipt
+
+The new fixture's local suite passed **25 tests/120 assertions**, including exact
+process identities, orphan-parent handling, bounded terminal receipts and specific
+waitpid error handling. Twenty-eight independent predicate removals failed the
+corresponding assertions; these are modeled component proofs. An initial duplicate
+record mutation was masked by another check. Its corrected extra-empty-record
+witness failed independently. The initial raw log was overwritten; its original
+tool transcript remains, and no separate preserved raw file is claimed.
+
+HOST39 owner-loss rehearsal failed in **63.560 seconds**, exit1 without timeout.
+Initialization and the baseline backup completed; a fresh backup snapshot began.
+The fixture emitted an unknown failure at the aggregate wrapper around owner exit,
+stdout, stderr and interruption monitor outcomes. That location does not identify
+the nested cause. No selected owner-kill receipt, pending interrupt, controlled
+restic exit, backend-lock reconciliation or retry was established. Guardian-loss
+and deadline packets remain held. Diagnostic preparation will expose only fixed
+outcome slots and sanitized numeric locations before preserving the same failure.
+
+Normal outer teardown unmounted cgroup before proc and the owned root last,
+detached all four loops and released the canonical lock. All115 host root/cgroup
+periodic comparisons and the final comparison matched. Both independent cleanup
+audits found the exact fixture, three namespaces, process/descriptor references,
+loop backing and outside lock processes absent. Worker mount checks cover all
+process views; controller mount checks cover its observer view. Host namespace
+and cgroup flags matched the prior baseline, root reserve exceeded20GiB and all97
+source/nine payload pins matched after termination. These cleanup results do not
+convert the failed interruption rehearsal into a behavioral pass.
