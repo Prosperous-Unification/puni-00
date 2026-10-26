@@ -421,6 +421,7 @@ test('unused rollback and valid reinstall change the pin before replay or absenc
   const old = await readState();
   const folder = new URL('../../drizzle', import.meta.url).pathname;
   expect(rollbackTo(h.databasePath(), folder, '20261020130000_add_claim_occupancy')).toEqual([
+    '20261026130000_widen_organization_audit_machine_tokens',
     '20261026120000_add_command_journal_person',
     '20261025130000_add_resource_runtime',
     '20261025120000_add_resource_use',

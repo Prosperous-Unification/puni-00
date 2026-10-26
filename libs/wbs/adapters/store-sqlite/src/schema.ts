@@ -3507,7 +3507,9 @@ export const savedPlanOrganization = sqliteTable(
  * `20261022130100_widen_organization_audit_organization_limits` the
  * operator's limits changes; and
  * `20261022140100_widen_organization_audit_compute_providers` the compute
- * provider acts.
+ * provider acts; and `20261026130000_widen_organization_audit_machine_tokens`
+ * machine grant issuance, with the two partial unique indexes its targeted
+ * insert names (`MachineTokenAuditRepository`).
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3526,13 +3528,23 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow')`,
     ),
     check(
       'organization_audit_subject_kind',
       sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
+    uniqueIndex('organization_audit_machine_token_issued_run')
+      .on(
+        sql`json_extract(${t.detail}, '$.credentialId')`,
+        sql`${t.createdAt} / 86400000`,
+        sql`coalesce(json_extract(${t.detail}, '$.runId'), '')`,
+      )
+      .where(sql`${t.action} = 'machine_token_issued'`),
+    uniqueIndex('organization_audit_machine_token_issued_overflow_day')
+      .on(sql`json_extract(${t.detail}, '$.credentialId')`, sql`${t.createdAt} / 86400000`)
+      .where(sql`${t.action} = 'machine_token_issued_overflow'`),
   ],
 );
 

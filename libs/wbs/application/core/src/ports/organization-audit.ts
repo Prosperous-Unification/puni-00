@@ -28,6 +28,8 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'compute_provider_registered',
   'compute_provider_updated',
   'compute_provider_removed',
+  'machine_token_issued',
+  'machine_token_issued_overflow',
 ] as const;
 
 export type OrganizationAuditAction = (typeof ORGANIZATION_AUDIT_ACTIONS)[number];
