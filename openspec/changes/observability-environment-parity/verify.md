@@ -244,3 +244,27 @@ end-to-end Kubernetes stored signals/UI/recovery/snapshot restore or live activa
 criteria remain pending in Task6/later authorized work. No running dev unit, release pin,
 persistent Secret, production resource, current receipt, shared controller or selected platform
 graph changed. Full host gates were not run for this scoped source task.
+
+### Task 5 review fix1 — complete client material (2026-10-26)
+
+I1 now validates the entire client certificate chain and exactly one complete supported private-key
+PEM object, with no unconsumed non-whitespace material. Every certificate is parsed. Directly
+related REDs also reproduced extra DER objects hidden inside one PEM block; a small base64 and
+top-level DER-envelope consumption check now precedes standard crypto parsing. Existing leaf/key
+matching and algorithm/trust/usage policy remain unchanged. M1's publisher JSDoc now distinguishes
+legacy loopback HTTP from explicitly authenticated HTTPS and retains acknowledgement versus storage.
+
+Focused RED:3pass/9fail across12tests,1.219s. Complete-input GREEN:14pass/30assertions,1.248s.
+Valid-chain and envelope controls:5pass/12assertions,1.663s. The single covering transport-file run
+passes40/40,94assertions,2.851s under Bun1.4.4, including real mTLS publication using PKCS8,
+PKCS1 and SEC1 client keys, leaf-plus-CA chains, whitespace and CRLF; existing TLS/hostname/SNI/
+credential/deadline/acknowledgement controls remain covered. Eight new guard-removal experiments
+produce ten fail-open and four fixed-category assertion failures; every source mutation restores
+in finally. Two lint-only corrections are followed by four amended key-boundary passes, final
+lower-project typecheck and changed-file lint. Exact commands/logs/timings and normal-hook commit
+are in `.superpowers/sdd/observability-environment-parity/task-5-fix-1-report.md` and its evidence.
+
+Only these two review findings and directly related encoding branches were changed. No unchanged
+195-test suite, old proof batch, render, backend recreation, persistent material, dev unit/pin,
+Grafana receipt, production/live operation or host gate ran. Earlier evidence remains historical;
+all original Task6/deployment/runtime/live limitations and parent-owned canonical checkboxes remain.

@@ -160,7 +160,7 @@ export function encodeOtlp(observation: ProbeObservation, previousRevision: stri
   };
 }
 
-/** Loopback tunnel destination only. An OTLP acknowledgement never claims backend storage. */
+/** Legacy loopback HTTP or explicitly authenticated HTTPS. An OTLP acknowledgement never claims backend storage. */
 export function createOtlpPublisher(
   endpoint: TransportEndpoint,
   previousRevision: string | null = null,

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createPrivateKey } from 'node:crypto';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -69,6 +70,32 @@ openssl(
   'foreign-ca.crt',
   '-subj',
   '/CN=Foreign CA',
+  '-days',
+  '1',
+);
+openssl('ecparam', '-genkey', '-name', 'prime256v1', '-noout', '-out', 'ec-client.key');
+openssl(
+  'req',
+  '-new',
+  '-key',
+  'ec-client.key',
+  '-out',
+  'ec-client.csr',
+  '-subj',
+  '/CN=Task5 EC Client',
+);
+openssl(
+  'x509',
+  '-req',
+  '-in',
+  'ec-client.csr',
+  '-CA',
+  'ca.crt',
+  '-CAkey',
+  'ca.key',
+  '-CAcreateserial',
+  '-out',
+  'ec-client.crt',
   '-days',
   '1',
 );
@@ -482,4 +509,110 @@ test('untrusted CA independently refuses verified TLS', async () => {
       )
     ).state,
   ).toBe('failed');
+});
+
+const invalidCertificate =
+  '-----BEGIN CERTIFICATE-----\nnot-valid-base64\n-----END CERTIFICATE-----\n';
+function appendPemBytes(text: string) {
+  const match = /^(-----BEGIN [A-Z ]+-----)\s+([\s\S]*?)\s+(-----END [A-Z ]+-----)\s*$/.exec(text);
+  if (match === null) throw new Error('Invalid test PEM fixture');
+  const encoded = Buffer.concat([
+    Buffer.from(match[2].replace(/\s/g, ''), 'base64'),
+    Buffer.from([0x30, 0x00]),
+  ]).toString('base64');
+  return `${match[1]}\n${encoded}\n${match[3]}\n`;
+}
+test('complete client PEM preserves chains PKCS8 PKCS1 SEC1 whitespace and CRLF', async () => {
+  const cert = ` \n${pem('client.crt')}\n${pem('ca.crt')} \n`;
+  const pkcs1 = createPrivateKey(pem('client.key')).export({ format: 'pem', type: 'pkcs1' });
+  for (const [chain, key] of [
+    [cert, pem('client.key')],
+    [cert, pkcs1],
+    [cert.replace(/\n/g, '\r\n'), pem('client.key').replace(/\n/g, '\r\n')],
+    [pem('ec-client.crt') + pem('ca.crt'), pem('ec-client.key')],
+  ]) {
+    const endpoint = {
+      ...binding(),
+      authentication: { kind: 'mtls' as const, cert: chain, key: ` \n${key} \n` },
+    };
+    expect(() => bindTransport(endpoint)).not.toThrow();
+    expect(await createOtlpSender(endpoint)('logs', {}, AbortSignal.timeout(1000))).toEqual({
+      state: 'acknowledged',
+    });
+  }
+});
+test.each([
+  [
+    'malformed second certificate',
+    () => ({ cert: pem('client.crt') + invalidCertificate, key: pem('client.key') }),
+  ],
+  [
+    'certificate trailing garbage',
+    () => ({ cert: pem('client.crt') + 'TRAILING-CERT-GARBAGE', key: pem('client.key') }),
+  ],
+  [
+    'certificate leading garbage',
+    () => ({ cert: 'LEADING-CERT-GARBAGE' + pem('client.crt'), key: pem('client.key') }),
+  ],
+  [
+    'certificate interstitial garbage',
+    () => ({ cert: pem('client.crt') + 'CHAIN-GARBAGE' + pem('ca.crt'), key: pem('client.key') }),
+  ],
+  [
+    'two distinct private keys',
+    () => ({ cert: pem('client.crt'), key: pem('client.key') + pem('foreign.key') }),
+  ],
+  [
+    'private key trailing garbage',
+    () => ({ cert: pem('client.crt'), key: pem('client.key') + 'TRAILING-KEY-GARBAGE' }),
+  ],
+  [
+    'private key leading garbage',
+    () => ({ cert: pem('client.crt'), key: 'LEADING-KEY-GARBAGE' + pem('client.key') }),
+  ],
+  [
+    'private key followed by certificate',
+    () => ({ cert: pem('client.crt'), key: pem('client.key') + pem('ca.crt') }),
+  ],
+  [
+    'certificate followed by private key',
+    () => ({ cert: pem('client.crt') + pem('client.key'), key: pem('client.key') }),
+  ],
+  [
+    'certificate invalid base64 character',
+    () => ({ cert: pem('client.crt').replace('\nM', '\n#M'), key: pem('client.key') }),
+  ],
+  [
+    'private key invalid base64 character',
+    () => ({ cert: pem('client.crt'), key: pem('client.key').replace('\nM', '\n#M') }),
+  ],
+  [
+    'certificate object trailing bytes',
+    () => ({ cert: appendPemBytes(pem('client.crt')), key: pem('client.key') }),
+  ],
+  [
+    'private key object trailing bytes',
+    () => ({ cert: pem('client.crt'), key: appendPemBytes(pem('client.key')) }),
+  ],
+])('complete client PEM refuses %s before network', (_label, material) => {
+  const before = requests.length;
+  expect(() => {
+    bindTransport({ ...binding(), authentication: { kind: 'mtls', ...material() } });
+  }).toThrow();
+  expect(requests.length).toBe(before);
+});
+
+test.each([
+  ['empty DER', [], 'DER object'],
+  ['wrong DER tag', [0x31, 0x00], 'DER object'],
+  ['indefinite DER length', [0x30, 0x80, 0x00, 0x00], 'DER length'],
+  ['truncated DER length', [0x30, 0x82, 0x01], 'DER length'],
+])('complete client PEM reports %s before crypto parsing', (_label, bytes, diagnostic) => {
+  const invalid = `-----BEGIN CERTIFICATE-----\n${Buffer.from(bytes).toString('base64')}\n-----END CERTIFICATE-----`;
+  expect(() => {
+    bindTransport({
+      ...binding(),
+      authentication: { kind: 'mtls', cert: pem('client.crt') + invalid, key: pem('client.key') },
+    });
+  }).toThrow(new RegExp(diagnostic));
 });

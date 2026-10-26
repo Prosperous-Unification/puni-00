@@ -49,6 +49,31 @@ function checkEndpoint(wire: unknown): VerifiedEndpoint {
   if (checked instanceof type.errors) throw new Error('Invalid transport binding shape');
   return checked;
 }
+/** Rejects unconsumed PEM/DER material before standard crypto parsing. */
+function decodePem(frame: string): Buffer {
+  const encoded = frame
+    .replace(/^-----BEGIN [A-Z0-9 ]+-----/, '')
+    .replace(/-----END [A-Z0-9 ]+-----$/, '')
+    .replace(/\s/g, '');
+  // Proof: client-base64 removal drops the invalid character during Buffer decoding and accepts the certificate negative.
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded))
+    throw new Error('Malformed transport client PEM encoding');
+  const decoded = Buffer.from(encoded, 'base64');
+  // Proof: client-der-object removal changes empty/wrong-tag negatives to later errors instead of this fixed category.
+  if (decoded.length < 2 || decoded[0] !== 0x30)
+    throw new Error('Malformed transport client DER object');
+  const width = decoded[1] < 0x80 ? 0 : decoded[1] & 0x7f;
+  // Proof: client-der-length removal changes indefinite/truncated length negatives to later errors instead of this fixed category.
+  if (decoded[1] === 0x80 || width > decoded.length - 2)
+    throw new Error('Malformed transport client DER length');
+  let length = width === 0 ? BigInt(decoded[1]) : 0n;
+  for (let offset = 0; offset < width; offset++)
+    length = length * 256n + BigInt(decoded[offset + 2]);
+  // Proof: client-der-consumption removal accepts both certificate and private-key hidden trailing-object negatives.
+  if (length !== BigInt(decoded.length - 2 - width))
+    throw new Error('Unconsumed transport client DER material');
+  return decoded;
+}
 /** Keeps legacy loopback HTTP explicit; every other route requires authenticated, verified TLS. */
 export function bindTransport(endpoint: TransportEndpoint): BoundTransport {
   let url: URL;
@@ -109,8 +134,20 @@ export function bindTransport(endpoint: TransportEndpoint): BoundTransport {
   const client = checked.authentication.kind === 'mtls' ? checked.authentication : undefined;
   if (client !== undefined) {
     // Proof: client-key-pair removal accepts the mismatched-key negative; missing client identity is also refused by the real mTLS receiver.
-    const certificate = new X509Certificate(client.cert);
-    if (!certificate.checkPrivateKey(createPrivateKey(client.key)))
+    const certificatePattern = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
+    const certificates = client.cert.match(certificatePattern);
+    // Proof: client-chain-frame removal accepts trailing/interstitial/mixed PEM negatives before network work.
+    if (certificates === null || client.cert.replace(certificatePattern, '').trim() !== '')
+      throw new Error('Malformed transport client certificate chain');
+    // Proof: client-chain-each parses only the first certificate and accepts the malformed second-certificate negative.
+    const chain = certificates.map((frame) => new X509Certificate(decodePem(frame)));
+    const keyPattern = /-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----[\s\S]*?-----END \1-----/g;
+    const keys = client.key.match(keyPattern);
+    // Proof: client-key-count and client-key-frame removals independently accept two-key and trailing/mixed-material negatives.
+    if (keys?.length !== 1 || client.key.replace(keyPattern, '').trim() !== '')
+      throw new Error('Malformed transport client private key');
+    decodePem(keys[0]);
+    if (!chain[0].checkPrivateKey(createPrivateKey(keys[0])))
       throw new Error('Transport client key mismatch');
   }
   return {
