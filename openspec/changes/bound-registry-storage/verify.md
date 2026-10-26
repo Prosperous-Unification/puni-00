@@ -512,7 +512,7 @@ workflow and consumer-completion contracts added during deployment integration.
 | Proven monitoring and adoption                          | Real alert destination/delivery, missed-check proof and staged adoption pending.                                                                                                                |
 | Physical backup accounting                              | Provider version/multipart census and budget admission pending.                                                                                                                                 |
 | Early pressure response                                 | Threshold policy reviewed; periodic service/retirement/notification integration pending.                                                                                                        |
-| Per-environment rollback coverage                       | History/protection code reviewed; native and installed proof pending.                                                                                                                           |
+| Per-environment rollback coverage                       | History/protection code reviewed; native fourteen-promotion/two-environment fixture passed; installed proof pending.                                                                            |
 | Independent journal capacity and durable fences         | Independent journal/HTTP fence proofs and parser review passed; live activation pending.                                                                                                        |
 | Mandatory installed selection and compatible artifacts  | Catalog and artifact boundaries reviewed in deployment slice; actual installed catalogs, all entrypoints and private Bun compatibility still require exact-revision proof.                      |
 | Source-proved owning history and authenticated repair   | Owning-history and authenticated resume code reviewed; live initialization/transfer and lost-owner-persistence repair remain unverified.                                                        |
@@ -817,9 +817,8 @@ absent. The worker scanned all process mount views; the controller scanned its
 observer mount view and namespace descriptors. Both verified host state and more
 than20GiB root reserve. All91 source and nine payload pins matched after termination.
 
-The complete Task4.2 remains open: at least14 ordered promotions to isolate older
-environment current-plus-two from newest-ten retention; shared independent roots
-and repeated retirement; unsafe-GC and partial post-unlink failure witnesses;
+The complete Task4.2 remains open: shared independent roots and repeated
+retirement; unsafe-GC and partial post-unlink failure witnesses;
 owner/root interruption and backend-lock recovery; killed GC/restore; physical
 registry ENOSPC with independently healthy journal; verified recovery rebind and
 ordinary CLI continuation; remaining R5 proofs, affected checks and independent
@@ -865,3 +864,57 @@ unchanged and more than20GiB root reserve. All91 source/nine payload pins matche
 after termination. These corrected-source regressions complete the scoped guard
 checks; the remaining Task4.2 lifecycle and installed acceptance work above remains
 open.
+
+## Fourteen-release retention across two environments
+
+The local authority fixture passed **11 tests/51 assertions**, using actual
+journal/flock/fsync/publication/enrollment/deployment transitions with modeled
+capacity, image verification, consumer observations and clock. Fourteen original
+promotion receipts establish old environment history3,2,1 and new history14 through4.
+The pure production planner selects only release4 when current-consumer roots are
+explicitly modeled as3 and14. Reducing its rollback-history cutoff from three to
+one wrongly adds releases1 and2 to retirement; the exact policy was restored.
+Native deployment protections remain intact, so this isolated negative does not
+claim a one-line bypass of the complete native system.
+
+Fifteen additional scoped fixture-predicate removals failed their covering
+assertions: ordered/complete/count history evidence; promoted/count and unfinished
+publication/reservation/deployment/staging/orphan census checks; history-mode
+teardown/direct dispatch; and required census receipt. Their inputs or privileged
+reaper are substituted locally. An initial count-removal run passed because an
+inconsistent history masked its fault; it is preserved as inconclusive. The
+corrected consistent thirteen-release case fails when the count check is removed.
+Library/spec typechecks and scoped formatting passed. Removing the sole added
+policy Proof comment reconstructs the exact tested normal policy bytes.
+
+HOST37 passed in **169.687 seconds**, exit0 without timeout. All fourteen managed
+OCI index publications had complete18-event HTTP observations and all fourteen
+actual promotions completed. Promotion and retirement used real authority clocks
+and untouched original receipts. The complete pre-effect physical/API census
+confirmed promoted bundles, settled deployments and no unfinished or staged work.
+
+The older environment retained current release3 and priors2 and1 outside the
+newest-ten window5–14. Only release4 retired, removing its three manifests after
+verified matching backup, API unlink and offline GC. All thirteen retained indexes,
+twenty-six untagged platform children, configurations and layer contents remained
+readable with matching hashes. Original bundle/environment provenance remained
+unchanged, and the terminal journal retained its fence and verified backup.
+
+Kubernetes, complete consumer/history observations and local provider admission are
+synthetic. The inherited outer introductory label still mentions the older Docker
+and accelerated-clock fixture; the actual fixed selector, source and history
+receipt establish that this mode used real clocks and did not repeat Docker pulls.
+The original receipt is preserved; the label will be corrected for later packets.
+
+Normal teardown unmounted cgroup before proc and the owned root last. All326
+periodic host root/cgroup comparisons and the final comparison matched. Both
+independent audits found the exact fixture, its three namespaces, process and
+descriptor references, loop backing and outside lock processes absent. The worker
+scanned all process mount views; the controller scanned its observer mount view
+and namespace descriptors. Host state matched and root reserve exceeded20GiB.
+All93 source/nine payload pins matched after termination.
+
+Shared independent roots and repeated retirement, interruption and recovery,
+physical exhaustion, remaining R5/check/review work, backup budgeting, delivered
+monitoring and installed adoption remain incomplete. Task4.2 and the overall goal
+remain open.
