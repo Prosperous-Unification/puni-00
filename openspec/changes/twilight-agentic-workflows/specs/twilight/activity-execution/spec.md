@@ -40,7 +40,7 @@ without a provider prefix.
 Each executor SHALL declare whether it can locate an operation's session, inspect effects,
 reattach, deduplicate launch and cancel/quiesce physical work. It SHALL return serializable
 locators and explicit uncertain outcomes to the coordinator; it SHALL NOT directly mutate
-RunStore or WBS. Recovery SHALL not infer process identity from a reusable PID alone.
+WBS. Recovery SHALL not infer process identity from a reusable PID alone.
 
 #### Scenario: Session creation succeeds before its locator is saved
 
