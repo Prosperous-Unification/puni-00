@@ -28,6 +28,12 @@ Prepare a compatibility baseline first: the prior landing/site behavior with the
 
 Rehearse actual retained legacy/versioned requests on disposable storage with the built baseline and candidate. Include raw followup retry, structured replay, failed reply accounting, exact final references, pending proposal recovery and manual submission while inference is disabled. Existing migration rollback tests still prove SQL shape; they do not substitute for this runtime exercise. Never run `down.sql` or restore an older database as part of ordinary code rollback.
 
+### Explicit pin order
+
+The accepted baseline source starts with e969 and the candidate with a23. Their same-date IDs therefore sort in the opposite order to the intended rollout. Existing private rollback and fleet newest-receipt selection sort those identifiers. Keep the existing build IDs/tags; new committed receipts gain environment-scoped positive safe-integer `pinOrder` assigned at pin time. The next value is one above the greatest retained ordered pin; it is not an append-only audit sequence across deleted Git history. Reject duplicate/invalid modern order before writes. Historical recognized four-tree development records retain their old identifier order and sort before ordered modern records; absence on a modern record is an error. Published build inputs acquire order when pinned, not during artifact construction.
+
+Private pin/rollback and fleet selection must agree. Preserve source/environment/capability validation and ordinary code rollback's no-database-restore rule. The private release ADR records the trade-off against changing identifier format or inferring order from Git timestamps. No fabricated dates, source-hash mining or protocol-floor waiver belongs to preparation.
+
 ### Evidence and activation boundary
 
 Public code must stabilize before the exact-SHA host gate; platform namespace/capability changes therefore precede the final gate and private snapshot. Private build and fleet checks use their own Bun/Nx targets. Build receipts name public/private revisions, all canonical tree identities, environment and artifact/configuration hashes. Fleet receipts additionally pin image digests.

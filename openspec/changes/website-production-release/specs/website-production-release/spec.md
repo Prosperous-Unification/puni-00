@@ -73,3 +73,26 @@ The release record SHALL name exact revisions/artifacts, the host gate, disposab
 
 - **WHEN** preparation is complete but public cutover has not been authorized
 - **THEN** the concrete candidate and exact operator actions are presented for approval without changing DNS, live pins or production activation
+
+### Requirement: Committed pin order is independent of release identifiers
+
+New committed release receipts SHALL carry a positive safe-integer pin order scoped to their environment. Selection and rollback SHALL use that order rather than lexical release IDs. New pins SHALL allocate above every retained ordered receipt. Duplicate, malformed or missing modern committed order SHALL refuse before mutation.
+
+#### Scenario: Same-day source hashes reverse lexical order
+
+- **WHEN** a compatible baseline and launch candidate are pinned in that order on one date while the baseline source hash sorts after the candidate hash
+- **THEN** policy identifies the candidate as current and code rollback selects the compatible baseline without changing release IDs or inventing build dates
+
+#### Scenario: Ordered receipt state is invalid
+
+- **WHEN** modern retained receipts have duplicate, missing, non-integer, non-positive or unsafe pin order
+- **THEN** pinning, selection and rollback refuse the inconsistent state before writes and identify the invalid ordering
+
+### Requirement: Historical pin receipts remain readable
+
+Recognized historical four-tree development receipts SHALL remain readable without fabricated pin order. Their existing legacy ordering SHALL precede ordered modern receipts. Missing order on a modern receipt SHALL NOT be interpreted as historical compatibility. Protocol capability floors SHALL remain independent of this ordering compatibility.
+
+#### Scenario: Legacy and modern receipts coexist
+
+- **WHEN** a retained set contains recognized historical development receipts and new ordered receipts
+- **THEN** selection uses explicit modern order, legacy inspection preserves the original fields, and an incompatible rollback target still refuses

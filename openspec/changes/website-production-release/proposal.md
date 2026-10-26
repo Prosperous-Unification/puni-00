@@ -8,6 +8,7 @@ The launch goal requires a production candidate for puni.dev and app.puni.dev, b
 - Build and validate site/app/API releases for an explicit development or production environment, including correct origins and isolated analytics configuration.
 - Require a backend supporting versioned scoping for new pins and rollbacks, and prepare a compatible baseline before the new landing flow is activated.
 - Provide exact-revision build, gate, backup/restore, request-handoff and rollback evidence, separating local rehearsal from live operator checks.
+- Order committed pins explicitly; date-plus-source-hash identifiers do not establish rollout chronology.
 
 ## Non-Goals
 
@@ -33,7 +34,7 @@ None; existing website, platform, release and draft terminology is sufficient.
 
 ## Decisions Recorded
 
-None; this extends existing environment and capability patterns without a new architectural mechanism.
+[Explicit pin order](design.md#explicit-pin-order) separates rollout chronology from opaque release identifiers; the private release ADR accompanies implementation.
 
 ## Impact
 
