@@ -589,3 +589,70 @@ failures. Exactly twelve owned fixtures from the syntax failure were removed
 with inode/owner/path checks; an independent census confirmed their absence.
 Corrected-source native guard regression, installed adoption and the complete
 scenario audit remain pending. These local results do not close Task 4.2.
+
+## Guard native development regression
+
+The corrected startup guard was exercised as UID/GID59001 with pinned Distribution
+inside disposable private mount/PID/UTS/network namespaces. Grammar run HOST19
+terminated successfully in54.302seconds:18 named cases covered nine malformed
+records, restart, both accepted journal hashes, mode/owner refusals and real HTTP202
+witnesses after removing the failed-open, record-length and spacing checks.
+The failed-open barrier pauses after checksum/final-B metadata, then holds the
+next poll while observing the resulting HTTP405; removing propagation observes202.
+
+Expiry run HOST21 terminated successfully in47.413seconds. Actual boot/uptime
+permission expiration and restart returned405; removing expiry returned202.
+Stable journal-hash mismatch returned405; removing its comparison returned202.
+Both runs restored the copied startup source and reaped their guard groups.
+Worker and independent parent audits confirmed the exact fixture paths, owned
+processes/descriptors, loop backing associations and mounts were gone, with host
+identity unchanged and more than20GiB root space available. The parent's mount
+census covers its observer namespace; the worker separately checked process views.
+
+The journal and permissions in these two runs are synthetic. Each entire namespace
+and filesystem set is disposed; no authority is initialized. These are not actual
+checker-process-death, authority interleaving, Docker-engine or installed-controller
+proofs. The earlier HOST20 expiry run remains a failure after its checksum case
+hit an unidentified transport error. An independent byte-identical Bun1.4.4 local
+server-close probe demonstrated ECONNRESET; a fixture-only bounded handling change
+passed six extracted-helper tests and five removal witnesses, with fetch/clock/sleep
+modeled. HOST21 success does not establish HOST20's cause. Full matching-backup,
+retirement/recovery integration and final deployed scenario audit remain pending.
+
+## Native collection-dispatch evidence proof
+
+Normal HOST25 completed17 grouped populated-registry checks: managed partial
+publication, a verified matching registry/journal backup, exact deletion/staging
+discard, offline GC and retained-content API reads. Missing retirement receipts
+and mismatched snapshot lineage refused before a native GC child was created;
+the valid case launched exactly one pinned Distribution GC child.
+
+HOST26 removed only the actual collect-dispatch call to
+`requireRegistryCollectionEvidence(journal)`. Its otherwise identical isolated
+workflow recorded `{ "fault": "absent", "refused": false, "gcStarted": true }`
+before failing the assertion. The observer increments only after the native spawn
+returns a valid child PID, preserves that child and every argument, and emits its
+fixed observation before assertion or error propagation. This proves the caller
+invokes the admission check on the real root GC path. A nonzero exit alone was
+not counted: the earlier HOST24 attempt never reached GC and remains inconclusive.
+
+The injected fault cleared `journal.retirements`; a physical verified backup still
+existed. This proves durable retirement-receipt admission, not absence of all backup
+content. The mutation failed as expected after101.343seconds, and its synthetic
+controller state remained suspended with the writer replicas stopped and service
+withdrawn. Both worker and parent cleanup audits found the exact owned fixtures
+gone. After both audits, the original source was restored byte-for-byte to SHA256
+`7a5d6c4689f2c9ba5789f26192c58d96faf5418c5ff37ed54afe1814045791ea`,
+with the actual admission call present once; the parent independently checked it.
+
+HOST24 also exposed ESRCH while the guard observer read a child's proc environment.
+The fixture now models that specific disappearing-process outcome as transition
+or exited, alongside ENOENT; ten exact-closure tests and three removals preserve
+access/unknown/invalid-identity refusals. Proc reads/lifetime are modeled in those
+unit tests; the native run supplied the observed ESRCH boundary. This does not
+identify HOST22's earlier monitor failure or alter production writer admission.
+
+These runs use tiny enforced storage, minimal OCI content, synthetic Kubernetes,
+consumer and local-provider ports, and explicit accelerated retirement/discard
+clocks. They do not complete Task4.2, real Docker/index coverage, process-kill
+recovery, physical ENOSPC/rebind proofs, real-provider budgeting or installed adoption.
