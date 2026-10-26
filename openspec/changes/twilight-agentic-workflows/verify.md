@@ -2788,3 +2788,73 @@ warning remains. Helper SHA256 is now
 the delta from the preceding implementation is JSDoc only. Normal scoped OpenSpec remains
 valid. Revised commit scoped re-review and exact-SHA canonical gate/CI/integration remain
 required before publication acceptance. No parent S0/S7a gate closes from these results.
+
+## Correlated runtime client — 2026-10-26
+
+Work continues from reviewed preparation commitf8f9a269d in isolated
+/tmp/puni-agentic-runtime-dispatch-20261026. The [runtime dispatch intent](runtime-dispatch-intent.md),
+[design](runtime-dispatch-design.md), [packet tasks](runtime-dispatch-tasks.md) and
+[client task](runtime-client-tasks.md) preserve the full authority/claim/turn/boot scope and
+leave exact outcome/release, supported recovery, other adapters and S7a open.
+
+The first unit captures the actual Response body independently per shared-client call.
+It consumes only injected transport and existing public schemas, with no credential,
+URL/default-fetch, storage or executor implementation. Root caught a cancellation-order
+regression: a late Response could wait on body capture before shared cancellation.
+A finite real-stream clone-versus-cancel test now proves the corrected order and its
+removed-branch negative; no timeout is counted as a proof.
+
+Submitted final checks:18wrapper tests61expect calls, named effective-policy case35expect
+calls, fresh cached graph and all4uncached Dash/tool-devsync lint/typecheck targets pass.
+Touched-file formatting/diff and normal scoped OpenSpec pass with13 inherited warnings.
+Initial import, policy-order and static failures remain retained without proof credit.
+Nx socket fallback is disclosed; final lint did not skip module checking.
+
+The15 retained finite mutation/restoration trials distinguish direct byte/isolation/order
+and forbidden-edge observations from configuration/diagnostic/structural evidence.
+W2 remains diagnostic-only; W5 is byte-loss rather than sole timing evidence; P5 structural
+path widening is superseded by actual forbidden-peer admission in P6. Multiple actual
+baseline/mutant hashes and original logs remain in this task-specific ignored
+.superpowers/sdd/runtime-client-tasks workspace. Current helper SHA256:
+cd2d63d6ea412d68074f67d4e4e1192d6e1706f99f1e7c71ff03e50ebb5711e9.
+
+Process violation: the implementer used a Python proof driver despite the Bun/Nx-only
+instruction. Its actual child tests used Bun; the original Python code/commands/evidence
+are preserved. Root disclosed the violation and required Bun reproducibility/audit tooling.
+That correction cannot retroactively establish process compliance. No existing planner,
+auth, SQL, shared client or old guard was disabled.
+
+Independent review/commit of this first unit remains pending at this entry. No actual
+receiver/host boot integration, complete sender, live-provider behavior, full new-packet gate,
+CI or S0/S7a acceptance is claimed from these scoped outputs. The immutable preparation
+candidate in PR759 is gated separately; no production action or remote WBS update occurred.
+
+### Bun-only forward verification
+
+The historical violation also includes Python report generation and source-edit/archival
+heredocs. Exact commands and the original artifacts remain in the task report; successful
+Bun children never make that orchestration compliant. Root required fresh forward
+verification rather than treating a later evidence audit as the required proof execution.
+
+`bun .superpowers/sdd/runtime-client-tasks/proof-runner.ts attempt-04` now executes14 new
+finite negatives against the current final wrapper and policy, with both final tests frozen.
+All14 fail for their named assertion and pass after exact byte/mode restoration. Actual
+argv, execution exits/timestamps, original snapshots, mutants, raw outputs and hashes are
+retained under logs/bun-replay/attempt-04. The redundant historical P5 structural case is
+not repeated; P6 exercises the actual forbidden peer. W2 remains diagnostic-only. Initial
+Bun helper setup failures happened before source mutation and receive no proof credit.
+
+After restoration the complete wrapper again passes18tests61expect calls in1.94s; the
+named effective-policy case passes1test35expect calls in8.07s. All4 source/test hashes and
+modes match the prior reviewed final versions, so the accepted4-target uncached static
+checks were not repeated. Independent root Bun audit validates all14 current-source
+baselines, archived mutants, four-file restoration, actual Bun argv/exits and raw log hashes,
+plus both final checks. Its root-evidence-audit.json is retained beside those receipts.
+Historical Python noncompliance remains disclosed; no retroactive compliance follows.
+Scoped remediation review and normal checkpoint commit remain required at this entry.
+
+Scoped independent remediation review now marks forward Task1 verification ADDRESSED,
+with no remaining Important verification blocker. It inspected all14 actual changed regions,
+28 trial executions/raw hashes, final checks and exact restoration. Source spec/quality
+approval stands; historical Python noncompliance remains an established separate finding.
+This accepts the client unit for a normal internal checkpoint, not the full runtime packet.

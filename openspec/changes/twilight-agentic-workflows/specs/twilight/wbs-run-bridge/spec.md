@@ -1,5 +1,33 @@
 ## ADDED Requirements
 
+### Requirement: Receiver response evidence is correlated with its original call
+
+The bridge SHALL pair each shared-client reply with that call's original Response body
+bytes. Concurrent calls SHALL keep independent captures. Parsed replies SHALL NOT be
+reserialized as original evidence. Injected transport configuration SHALL remain external
+to credential and deployment ownership. Capture alone SHALL establish neither receipt
+correspondence, authenticated acceptance nor current authority.
+
+#### Scenario: Receiver calls complete in reverse order
+
+- **WHEN** two actual shared-client calls return distinct complete receipts in reverse order
+- **THEN** each reply carries only its own original bytes and status, including compatible additive body fields
+
+#### Scenario: Original response bytes are unavailable
+
+- **WHEN** the transport returns a parsed-only reply or reading the original body fails
+- **THEN** configuration error or the shared client's modeled transport failure is preserved without reserialization or automatic retry
+
+#### Scenario: Request fails preflight
+
+- **WHEN** shared request validation or pre-dispatch cancellation rejects the request
+- **THEN** transport is not invoked and the failed exchange carries no response evidence
+
+#### Scenario: Transport returns after cancellation
+
+- **WHEN** transport returns an actual Response after the request signal is already aborted
+- **THEN** the original Response reaches shared cancellation/discard without cloning or waiting for capture, and the exchange carries no captured bytes
+
 ### Requirement: Dash claims, reports and releases through WBS as one agent person
 
 Twilight Dash SHALL read startable work and write claims, progress, measures, releases and

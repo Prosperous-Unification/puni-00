@@ -213,5 +213,14 @@ export default ({
       // transport contract at their scoped paths`; sibling/relative imports remain denied.
       rules: boundary(['^@wbs/contracts$']),
     },
+    {
+      files: [
+        // Proof: P1/P2 removed each exact consumer; Dash runtime client functional admissions failed with no fatal lint errors.
+        'apps/twilight-structure/twilight-dash/cli/src/bridge/runtime-client.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/bridge/runtime-client.test.ts',
+      ],
+      // Proof: P3/P4 widened alias/relative imports and their real denials failed; P6 admitted prepare-activity.ts and its real peer denial failed.
+      rules: boundary(['^@wbs/contracts$']),
+    },
   ];
 };
