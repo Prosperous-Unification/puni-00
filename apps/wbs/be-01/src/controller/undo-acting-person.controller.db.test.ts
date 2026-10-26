@@ -10,6 +10,7 @@ let codexLeaf: string;
 let claudeLeaf: string;
 let codexKey: string;
 let claudeKey: string;
+let qa: string;
 
 /**
  * One undo stack per (project, account, acting person), over HTTP through
@@ -27,7 +28,11 @@ beforeEach(async () => {
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
+  const opened = created.body as { project: { id: string }; steps: { id: string; name: string }[] };
+  projectId = opened.project.id;
+  const qaStep = opened.steps.find(({ name }) => name === 'QA');
+  if (qaStep === undefined) throw new Error('a project without its seed step QA');
+  qa = qaStep.id;
   const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
     commands: ['Human', 'Codex', 'Claude'].map((name) => ({
       kind: 'createWorkItem',
@@ -97,6 +102,15 @@ async function undoState(actor: Actor): Promise<{ undoable: boolean; redoable: b
   if (tree.status !== 200) throw new Error(`tree refused: ${JSON.stringify(tree)}`);
   const { undoable, redoable } = tree.body as { undoable: boolean; redoable: boolean };
   return { undoable, redoable };
+}
+
+/** QA's allowance as the plan read shows it. */
+async function qaAllowance(): Promise<number> {
+  const read = await h.call('dany', 'GET', `/api/projects/${projectId}`);
+  const steps = (read.body as { steps: { id: string; allowancePercent: number }[] }).steps;
+  const held = steps.find(({ id }) => id === qa);
+  if (held === undefined) throw new Error('QA is gone');
+  return held.allowancePercent;
 }
 
 describe('undo per acting person over HTTP', () => {
@@ -169,4 +183,27 @@ describe('undo per acting person over HTTP', () => {
     expect(names()[humanLeaf]).toBe('Human');
     expect(names()[codexLeaf]).toBe('Codex 50');
   }, 30_000);
+
+  // The step PATCH journals through `runCommandBatchAfter`, whose acting
+  // person is its own derivation.
+  // Proof: with `actingPersonOf(...)` in `runCommandBatchAfter` replaced by
+  // null, the agent's undo answered 409 nothing_to_undo instead of 200 here
+  // (5 pass, 1 fail; watched 2026-10-26).
+  it("an agent's step allowance edit is undone on its own stack, never the human's", async () => {
+    await rename('dany', humanLeaf, 'Human, renamed');
+    const before = await qaAllowance();
+    expect(
+      await as('codex', 'PATCH', `/api/projects/${projectId}/steps/${qa}`, {
+        allowancePercent: 25,
+      }),
+    ).toMatchObject({ status: 200 });
+    expect(await qaAllowance()).toBe(25);
+
+    expect(await press('codex', 'undo')).toMatchObject({ status: 200 });
+    expect(await qaAllowance()).toBe(before);
+    expect(names()[humanLeaf]).toBe('Human, renamed');
+    expect(await press('dany', 'undo')).toMatchObject({ status: 200 });
+    expect(names()[humanLeaf]).toBe('Human');
+    expect(await qaAllowance()).toBe(before);
+  });
 });

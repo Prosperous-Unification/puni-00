@@ -67,6 +67,9 @@ export function runCommandBatchAfter<R>(
     input.commands,
     input.access,
     credentialPinOf(input.actor.authentication),
+    // Proof: with `null` here, `an agent's step allowance edit is undone on its
+    // own stack` (undo-acting-person.controller.db.test.ts) answered the
+    // agent's undo 409 nothing_to_undo (5 pass, 1 fail); watched 2026-10-26.
     actingPersonOf(input.actor.authentication),
   );
 }

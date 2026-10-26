@@ -988,8 +988,8 @@ describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
  */
 describe('undo through an MCP consent session', () => {
   // Proof: with `actingPersonOf` answering null for `consent`, the agent's
-  // undo reverted ada's rename and the first `names()` check failed (0 pass,
-  // 1 fail; watched 2026-10-26).
+  // second undo expected 409 nothing_to_undo and got 200 done (it reverted
+  // ada's rename from her stack); 0 pass, 1 fail, watched 2026-10-26.
   test("an agent's undo reverts its own edit, and its human's undo reverts the human's", async () => {
     const booted = await boot();
     be = booted;

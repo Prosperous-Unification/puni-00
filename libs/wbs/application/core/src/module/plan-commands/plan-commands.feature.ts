@@ -341,7 +341,8 @@ export class PlanCommandRunner {
   /**
    * {@link run} through the caller's access. Under scoped access the project
    * and the role are checked inside the batch's own unit of work, and every
-   * command is held to the organization: see {@link applyAll}.   *
+   * command is held to the organization: see {@link applyAll}.
+   *
    * `actingPersonId` is the agent person the request acts as on the undo
    * journal (`actingPersonOf`), null for the account itself: the batch's entry
    * and its undoable/redoable answer are that {@link UndoStack}'s.

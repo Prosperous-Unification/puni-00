@@ -10,7 +10,8 @@
       removed (EXPLAIN QUERY PLAN); watched.
 - [x] 1.3 Core: `actingPersonOf`, exhaustive over the credential kind; the batch records onto, and
       reports, the acting person's stack; the undo, redo and tree routes read the principal's
-      stack. R5 faults: `null` in each of the four places, and the consent arm answering null;
-      watched over HTTP and through the MCP delegation verifier.
+      stack. R5 faults: `null` in each of the five places (`runCommandBatch`,
+      `runCommandBatchAfter`, the runner's record and its undo-state answer, the routes), and the
+      consent arm answering null; watched over HTTP and through the MCP delegation verifier.
 - [x] 1.4 Mid-swap: an outgoing-colour insert lands on the account's own stack; its pair-wide
       clear and prune are pinned.

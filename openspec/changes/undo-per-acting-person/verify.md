@@ -18,20 +18,21 @@ after review. Every command ran with `env -u CLAUDECODE`.
 
 ### R5 proofs
 
-| Check                                | Injected fault                                      | Observed                                                                          |
-| ------------------------------------ | --------------------------------------------------- | --------------------------------------------------------------------------------- |
-| SQLite ranked prune                  | pair-wide `max(seq) - 49`                           | certification `journal.append:acting-person-stacks` 74/1; HTTP fifty-one case 4/1 |
-| SQLite stack predicate               | person predicate dropped                            | certification 74/1                                                                |
-| SQLite `IS`                          | `=` for `IS`                                        | `command-journal.db.test.ts` 2/7                                                  |
-| SQLite keyed flip                    | stack dropped from the WHERE; changes check removed | certification 74/1 each                                                           |
-| Memory prune, `mine`, flip           | `seq - 49`; person dropped; flip over every entry   | memory certification 74/1 each                                                    |
-| Batch person from the request        | `null` in `runCommandBatch`                         | `undo-acting-person.controller.db.test.ts` 0/5                                    |
-| Batch records onto the actor's stack | `personId: null`                                    | same file 0/5                                                                     |
-| Batch reports the actor's stack      | `personId: null`                                    | same file 4/1                                                                     |
-| Routes read the principal's stack    | `personId: null`                                    | same file 1/4; `work-item.routes.test.ts` 1/1                                     |
-| `actingPersonOf` consent arm         | consent answers null                                | `mcp-delegation.boot.db.test.ts` consent undo 0/1; `principal.test.ts` 1/1        |
-| `down.sql` deletes agents' entries   | DELETE removed                                      | migration test 2/1: `agent` on the human's stack                                  |
-| Person index for the cascade         | `command_journal_person` removed                    | migration test 2/1: `SCAN … command_journal_person_stack`                         |
+| Check                                | Injected fault                                      | Observed                                                                                                             |
+| ------------------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| SQLite ranked prune                  | pair-wide `max(seq) - 49`                           | certification `journal.append:acting-person-stacks` 74/1; HTTP fifty-one case 4/1                                    |
+| SQLite stack predicate               | person predicate dropped                            | certification 74/1                                                                                                   |
+| SQLite `IS`                          | `=` for `IS`                                        | `command-journal.db.test.ts` 2/7                                                                                     |
+| SQLite keyed flip                    | stack dropped from the WHERE; changes check removed | certification 74/1 each                                                                                              |
+| Memory prune, `mine`, flip           | `seq - 49`; person dropped; flip over every entry   | memory certification 74/1 each                                                                                       |
+| Batch person from the request        | `null` in `runCommandBatch`                         | `undo-acting-person.controller.db.test.ts` 0/5                                                                       |
+| Step PATCH batch person              | `null` in `runCommandBatchAfter`                    | same file 5/1: agent undo 409 `nothing_to_undo`                                                                      |
+| Batch records onto the actor's stack | `personId: null`                                    | same file 0/5                                                                                                        |
+| Batch reports the actor's stack      | `personId: null`                                    | same file 4/1                                                                                                        |
+| Routes read the principal's stack    | `personId: null`                                    | same file 1/4; `work-item.routes.test.ts` 1/1                                                                        |
+| `actingPersonOf` consent arm         | consent answers null                                | `mcp-delegation.boot.db.test.ts` consent undo 0/1 (second agent undo got 200 done, not 409); `principal.test.ts` 1/1 |
+| `down.sql` deletes agents' entries   | DELETE removed                                      | migration test 2/1: `agent` on the human's stack                                                                     |
+| Person index for the cascade         | `command_journal_person` removed                    | migration test 2/1: `SCAN … command_journal_person_stack`                                                            |
 
 The mid-swap tests (`puts an entry the outgoing colour wrote…`, `lets the outgoing colour clear
 and prune by the pair…`) pin behaviour of an older release and have no check of their own to
