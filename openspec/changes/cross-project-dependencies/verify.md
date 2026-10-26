@@ -7733,3 +7733,7 @@ passes main at 411 MB and fails R13 at 511 MB against the unchanged strict <500 
 bound. Repair is required before full-gate/delivery acceptance. R13 CI/host gates,
 native/provider/full-goal acceptance and architectural MAIN/PR #630 merge remain
 unverified or held; parent task checkboxes are unchanged.
+
+## Private latest-main documentation reconciliation — 2026-10-27
+
+[The bounded reconciliation record](verify-main-docs-20261027.md) identifies actual main parent `2e3c035ad5bee90ed9329bd476bc299e2357a618`, preserved source/migration pins and the proposed root-authority ADR move from 0062 to 0065. Documentation checks passed; full feature/native/gate and architectural main acceptance remain open.
