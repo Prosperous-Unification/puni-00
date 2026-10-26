@@ -178,7 +178,7 @@ a claim they can all finish within one week:
       Done 2026-10-23: [W02 resolution](../../findings/puni-assessment-2026-10-21/live-evidence.md#w02-resolution--2026-10-23).
 - [ ] W03: collect the exact routed runtime/image/state/build/gate chain for every tier;
       identify which claims can be proved. Do not repair metadata by guessing a SHA.
-- [ ] W04: determine required checks and bypass rules; apply and verify the chosen
+- [x] W04: determine required checks and bypass rules; apply and verify the chosen
       repository policy using an intentionally failing disposable PR.
 - [ ] W05: acquire authorized read access for current cluster/provider evidence and
       classify existing change slices as implemented, activation owed, proof owed or superseded.

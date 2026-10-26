@@ -632,6 +632,10 @@ export function isFilterCriteriaShape(value: unknown): value is FilterCriteria {
     isStringArray(claimed['teamIds']) &&
     isAbsentOrStringArray(claimed['tagIds']) &&
     isAbsentOrStringArray(claimed['serviceIds']) &&
+    // Absent in every view saved before `wbs-resources` task 3.4.
+    // Proof: this line removed, `drops a saved view whose resources are not a
+    // list, keeping the rest` failed (both views offered); watched 2026-10-25.
+    isAbsentOrStringArray(claimed['resourceIds']) &&
     isAbsentOrBoolean(claimed['builtByNonOwner']) &&
     isAbsentOrBoolean(claimed['assignedOutsideTeam']) &&
     isStringArray(claimed['assigneeIds']) &&

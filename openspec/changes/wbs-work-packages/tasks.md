@@ -18,7 +18,7 @@
 
 ## 1. The rename (slice 1, `feat/wbs-work-packages-1`)
 
-- [ ] 1.1 Red: `tools/tool-rename-work-package/src/rename-map.test.ts` (every key has its five
+- [x] 1.1 Red: `tools/tool-rename-work-package/src/rename-map.test.ts` (every key has its five
       spellings, no target collides with an identifier already in the tree; `check` exits 1
       on an injected residual outside the allow-list and 0 inside it; `apply` is idempotent;
       every per-line new-sense pattern in `allow-list.ts` still matches at least one line of

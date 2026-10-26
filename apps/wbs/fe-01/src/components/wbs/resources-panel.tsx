@@ -4,23 +4,33 @@ import {
   applyProjectCommands,
   type ClientReply,
   listComputeProviders,
+  readActiveOrganization,
   readProjectResources,
   readStartableWork,
 } from '@wbs/contracts';
 import { type SyntheticEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { type ComputeProvider } from '@/components/organization/compute-providers-panel';
+import { type AccessLoss } from '@/components/organization/organization-access';
+import {
+  readRoleReply,
+  type ResourceStanding,
+  resourceStanding,
+  type RoleReading,
+} from '@/components/organization/organization-role';
 import { providerKindName, readReport, unitsWords } from '@/lib/compute-provider-words';
 import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient, useResourceScope } from '@/runtime/organization-resources';
 
 import { type BatchRefusal, batchRefusalSentence } from './plan-refusal';
+import { ResourceUsesPanel } from './resource-uses-panel';
 import type { SettingsSectionReport } from './teams-panel';
 
 const RESOURCE_SHAPES = [
   readProjectResources,
   readStartableWork,
   listComputeProviders,
+  readActiveOrganization,
   applyProjectCommands,
   applyDirectoryCommands,
 ] as const;
@@ -59,6 +69,56 @@ type Occupancy =
   | { readonly kind: 'unreported' }
   | { readonly kind: 'unavailable' };
 
+/**
+ * What this viewer's role lets the section offer, read off
+ * `GET /api/organization/active` on every read of the section through the
+ * shared {@link readRoleReply}:
+ *
+ * - a {@link ResourceStanding}: `admin` (admin, super-admin, and every caller
+ *   without organizations, which sends no role read) gets every write, the
+ *   provider picker (whose list only an admin may read) and Remove
+ *   (`wbs-resources` R8a); `writer` (member) states capacity, adopts, adds and
+ *   edits but neither removes nor reads the provider list, which is therefore
+ *   never requested; `reader` (viewer) nothing to change.
+ * - `lost`: the organization's access ended or the active organization is no
+ *   longer the one this runtime captured; nothing to change, and the section
+ *   says why (reload, sign in again) rather than blaming the role.
+ * - `unknown`: the role read failed; nothing to change, and `isTransport`
+ *   says whether reading it again can help.
+ *
+ * A drawing hint only: be-01 decides. On a restricted project be-01 refuses
+ * capacity to every non-creator but a super-admin, an admin included; the
+ * section does not read the restriction, so that refusal is said beside the
+ * row. Any `forbidden` write rereads the role.
+ */
+type Standing =
+  | { readonly kind: ResourceStanding }
+  | { readonly kind: 'lost'; readonly loss: AccessLoss }
+  | { readonly kind: 'unknown'; readonly message: string; readonly isTransport: boolean };
+
+/**
+ * What one write came to: `landed`, `refused` or failed (`unsent` too when
+ * be-01 never answered), or `skipped` without sending because another write
+ * of this section was still in flight.
+ */
+type WriteAnswer = 'landed' | 'refused' | 'skipped';
+
+/**
+ * Something the section says: a refusal or failure beside the resource whose
+ * write caused it, or, with no resource (an Add), below the list above Add.
+ */
+interface Notice {
+  readonly text: string;
+  readonly resourceId: string | null;
+}
+
+/**
+ * What a typed capacity came to: `sent` to be-01, whatever it answered, after
+ * which the box shows the declared number again; `kept` unsent, because it is
+ * not a whole number or another write was in flight, so the box keeps it.
+ */
+type CapacityAnswer = 'sent' | 'kept';
+
 type View =
   | { kind: 'idle' }
   | { kind: 'loading' }
@@ -69,6 +129,7 @@ type View =
       declared: ReadonlyMap<string, number>;
       providers: ProviderChoice;
       occupancy: Occupancy;
+      standing: Standing;
     };
 
 /**
@@ -106,9 +167,10 @@ export interface ResourcesPanelProps extends SettingsSectionReport {
  * not journalled, so the plan's Undo cannot take it back: this section's own
  * Undo writes the previous statement back, or clears it to unstated.
  *
- * Admin rights are read off the providers list, which be-01 answers only to
- * an admin: a `forbidden` there is a member or viewer, who sees each reference
- * unnamed and is offered neither the picker nor Adopt.
+ * Rights are read off the viewer's role ({@link Standing}): the providers list
+ * is requested only for an admin, and a `forbidden` there (an admin demoted
+ * since) reads as a member's, who sees each reference unnamed and is offered
+ * neither the picker nor Adopt.
  *
  * Read only while shown, and again each time its tab comes to the front: the
  * section stays mounted and `hidden` like every other, and a plan nobody
@@ -120,9 +182,10 @@ export interface ResourcesPanelProps extends SettingsSectionReport {
  * when demands, capacities or claims still name it, says so with the counts
  * and offers to remove it with them (`cascade`). The declared box states this
  * project's capacity by hand (`setResourceCapacity`, blank for unstated).
- * Every refusal is said in place, a role that may not change the directory
- * included; nothing is hidden by role but the provider picker, whose list
- * only an admin may read.
+ * What the role cannot send is not offered ({@link Standing}); every refusal
+ * be-01 still answers is said beside the row whose write caused it, and a
+ * refused capacity leaves the box showing the declared number, not the
+ * unsaved one.
  */
 export function ResourcesPanel({
   projectId,
@@ -133,9 +196,15 @@ export function ResourcesPanel({
 }: ResourcesPanelProps): React.JSX.Element {
   const client = useResourceClient(RESOURCE_SHAPES);
   const scope = useResourceScope();
-  const isOrganization = scope.organization.kind === 'active';
+  const captured = scope.organization.kind === 'active' ? scope.organization.organizationId : null;
   const [view, setView] = useState<View>({ kind: 'idle' });
-  const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState<Notice | null>(null);
+  /**
+   * Feedback on `Read your role again`: reading, or the reread failed again.
+   * Proof: 2026-10-25, resetting it to idle on a failed reread failed `says so
+   * when reading the role again fails again`.
+   */
+  const [roleRetry, setRoleRetry] = useState<'idle' | 'reading' | 'failed'>('idle');
   const [adoption, setAdoption] = useState<Adoption | null>(null);
   /** A removal be-01 refused `in_use`, held until it is confirmed with cascade or kept. */
   const [removal, setRemoval] = useState<Removal | null>(null);
@@ -159,15 +228,17 @@ export function ResourcesPanel({
     setRemovedAt(null);
   }, [removedAt, view]);
   const [busy, setBusy] = useState(false);
+  const [usesDirty, setUsesDirty] = useState(false);
+  const [usesBusy, setUsesBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [fault, setFault] = useState<Error | null>(null);
   const isPending = useRef(false);
   const generation = useRef(0);
 
   useEffect(() => {
-    onDirtyChange(busy);
-    onBusyChange?.(busy);
-  }, [busy, onDirtyChange, onBusyChange]);
+    onDirtyChange(busy || usesDirty);
+    onBusyChange?.(busy || usesBusy);
+  }, [busy, usesDirty, usesBusy, onDirtyChange, onBusyChange]);
   useEffect(
     () => () => {
       onDirtyChange(false);
@@ -178,12 +249,39 @@ export function ResourcesPanel({
 
   const read = useCallback(
     async (version: number) => {
-      const [listed, instances, startable] = await Promise.all([
+      /** The role first, then the providers list only for a role that may read it. */
+      const readRights = async () => {
+        if (captured === null) return { standing: { kind: 'admin' } as const, instances: null };
+        const standing = standingOf(
+          readRoleReply(await client.getApiOrganizationActive({}), captured),
+        );
+        if (standing === null) return null;
+        // Proof: 2026-10-25, requesting the list whatever the role failed
+        // `never asks a member for the providers list` and its viewer twin:
+        // each read sent the request be-01 always refuses them.
+        return {
+          standing,
+          instances:
+            standing.kind === 'admin'
+              ? await client['getApiOrganizationCompute-providers']({})
+              : null,
+        };
+      };
+      const [listed, rights, startable] = await Promise.all([
         client.getApiProjectsByIdResources({ params: { id: projectId } }),
-        isOrganization ? client['getApiOrganizationCompute-providers']({}) : null,
+        readRights(),
         client.getApiProjectsByIdStartable({ params: { id: projectId }, query: {} }),
       ]);
       if (version !== generation.current) return;
+      if (rights === null) return;
+      const { standing, instances } = rights;
+      setRoleRetry((current) =>
+        current === 'reading' && standing.kind === 'unknown'
+          ? 'failed'
+          : standing.kind === 'unknown'
+            ? current
+            : 'idle',
+      );
       switch (listed.kind) {
         case 'success':
           break;
@@ -258,9 +356,10 @@ export function ResourcesPanel({
         declared,
         providers,
         occupancy,
+        standing,
       });
     },
-    [client, projectId, isOrganization],
+    [client, projectId, captured],
   );
 
   const refresh = useCallback(async () => {
@@ -277,7 +376,7 @@ export function ResourcesPanel({
 
   useEffect(() => {
     if (!shown) return;
-    setMessage('');
+    setNotice(null);
     observe(refresh(), 'read');
     // Proof: 2026-10-23, without this interval `goes stale on its own clock
     // without a reread` kept reading `measured` 30 s past the boundary.
@@ -292,7 +391,11 @@ export function ResourcesPanel({
   }, [shown, refresh, observe]);
   if (fault !== null) throw fault;
 
-  /** Sends one batch, rereads on success, and says a refusal in place. */
+  /**
+   * Sends one batch, rereads on success, and says a refusal in place. A
+   * `forbidden` refusal also rereads, so a role changed since the section read
+   * it takes back (or offers) what it now may send.
+   */
   async function write(
     send: () => Promise<
       ClientReply<typeof applyProjectCommands> | ClientReply<typeof applyDirectoryCommands>
@@ -300,16 +403,18 @@ export function ResourcesPanel({
     after: {
       replans: boolean;
       resourceName: string;
+      /** The resource whose row says a refusal, null for an Add. */
+      resourceId: string | null;
       /** Says a refusal this caller models itself; false leaves it to the generic sentence. */
       onRefusal?: (refusal: BatchRefusal) => boolean;
     },
-  ): Promise<boolean> {
+  ): Promise<WriteAnswer> {
     // Proof: 2026-10-23, removing this admission sent two `setResourceCapacity`
     // in `adopts once however often it is clicked`.
-    if (isPending.current) return false;
+    if (isPending.current) return 'skipped';
     isPending.current = true;
     setBusy(true);
-    setMessage('');
+    setNotice(null);
     const version = ++generation.current;
     try {
       const reply = await send();
@@ -317,17 +422,25 @@ export function ResourcesPanel({
         case 'success':
           if (after.replans) await onChanged();
           if (version === generation.current) await read(version);
-          return true;
+          return 'landed';
         case 'failure':
           if (version === generation.current && reply.failure.code !== 'cancelled')
-            setMessage(failureMessage(reply.failure));
-          return false;
+            setNotice({ text: failureMessage(reply.failure), resourceId: after.resourceId });
+          return 'refused';
         case 'refusal':
           // Proof: 2026-10-23, treating a refused adopt as landed failed `says a
           // refused adopt in place and offers no undo`: the undo line appeared.
           if (version === generation.current && after.onRefusal?.(reply.body) !== true)
-            setMessage(batchRefusalSentence(reply.body, after.resourceName));
-          return false;
+            setNotice({
+              text: batchRefusalSentence(reply.body, after.resourceName),
+              resourceId: after.resourceId,
+            });
+          // Proof: 2026-10-25, without this reread `rereads the role after a
+          // forbidden capacity and takes the box away` kept the box, and `says
+          // a refused removal in place…` kept `Remove h2puni ram`.
+          if (version === generation.current && reply.body.error === 'forbidden')
+            observe(refresh(), 'read');
+          return 'refused';
         default:
           return unreachable(reply);
       }
@@ -344,13 +457,13 @@ export function ResourcesPanel({
           params: { id: projectId },
           body: { commands: [{ kind: 'setResourceCapacity', resourceId: resource.id, units }] },
         }),
-      { replans: true, resourceName: resource.name },
+      { replans: true, resourceName: resource.name, resourceId: resource.id },
     );
   }
 
   async function adopt(resource: ProjectResource, units: number, previous: number | null) {
     setAdoption(null);
-    if (await setCapacity(resource, units))
+    if ((await setCapacity(resource, units)) === 'landed')
       setAdoption({
         resourceId: resource.id,
         name: resource.name,
@@ -361,7 +474,7 @@ export function ResourcesPanel({
   }
 
   async function undo(adopted: Adoption, resource: ProjectResource) {
-    if (await setCapacity(resource, adopted.previous)) setAdoption(null);
+    if ((await setCapacity(resource, adopted.previous)) === 'landed') setAdoption(null);
   }
 
   function setProvider(resource: ProjectResource, providerId: string | null) {
@@ -374,29 +487,35 @@ export function ResourcesPanel({
               commands: [{ kind: 'patchResource', resourceId: resource.id, patch: { providerId } }],
             },
           }),
-        { replans: false, resourceName: resource.name },
+        { replans: false, resourceName: resource.name, resourceId: resource.id },
       ).then(() => undefined),
       'provider change',
     );
   }
 
-  function directory(
+  async function directory(
     command: Parameters<typeof client.postApiDirectoryCommands>[0]['body']['commands'][number],
     resourceName: string,
+    resourceId: string | null,
     onRefusal?: (refusal: BatchRefusal) => boolean,
   ): Promise<boolean> {
     setAdoption(null);
-    return write(() => client.postApiDirectoryCommands({ body: { commands: [command] } }), {
-      replans: command.kind === 'deleteResource',
-      resourceName,
-      onRefusal: (refusal) => {
-        if (onRefusal?.(refusal) === true) return true;
-        const sentence = directoryRefusalSentence(refusal);
-        if (sentence === null) return false;
-        setMessage(sentence);
-        return true;
+    const answer = await write(
+      () => client.postApiDirectoryCommands({ body: { commands: [command] } }),
+      {
+        replans: command.kind === 'deleteResource',
+        resourceName,
+        resourceId,
+        onRefusal: (refusal) => {
+          if (onRefusal?.(refusal) === true) return true;
+          const sentence = directoryRefusalSentence(refusal);
+          if (sentence === null) return false;
+          setNotice({ text: sentence, resourceId });
+          return true;
+        },
       },
-    });
+    );
+    return answer === 'landed';
   }
 
   async function create(draft: ResourceDraft): Promise<boolean> {
@@ -408,6 +527,7 @@ export function ResourcesPanel({
         unitLabel: draft.unitLabel.trim(),
       },
       draft.name.trim(),
+      null,
     );
   }
 
@@ -419,6 +539,7 @@ export function ResourcesPanel({
         patch: { name: name.trim(), unitLabel: unitLabel.trim() },
       },
       resource.name,
+      resource.id,
     );
   }
 
@@ -440,6 +561,21 @@ export function ResourcesPanel({
    * unseen. be-01 has no conditional cascade, so a use landing between the two
    * requests is the one window left.
    */
+  /**
+   * Says a removal be-01 refused `forbidden` (a role demoted since the section
+   * read it) and closes the confirm; {@link write}'s reread takes Remove away.
+   * False for every other refusal.
+   */
+  function sayForbiddenRemoval(resource: ProjectResource, refusal: BatchRefusal): boolean {
+    if (refusal.error !== 'forbidden') return false;
+    setRemoval(null);
+    setNotice({
+      text: 'Your role no longer allows removing a resource. Nothing was changed.',
+      resourceId: resource.id,
+    });
+    return true;
+  }
+
   async function remove(resource: ProjectResource, step: 'ask' | 'confirm' | 'cascade') {
     // Proof: 2026-10-25, with `ask` sending the delete at once, `removes an
     // unused resource only after a confirm naming its provider link` failed:
@@ -454,7 +590,13 @@ export function ResourcesPanel({
     const removed = await directory(
       { kind: 'deleteResource', resourceId: resource.id },
       resource.name,
+      resource.id,
       (refusal) => {
+        // Proof: 2026-10-25, with this arm skipped, `says a refused removal
+        // in place, closes its confirm and takes Remove away` failed on `Unable to find an
+        // element with the text: Your role no longer allows removing…`:
+        // only the create/edit sentence for a role was said.
+        if (sayForbiddenRemoval(resource, refusal)) return true;
         // Proof: 2026-10-25, with this arm answering false, `names what still
         // uses a resource and removes it with them on confirm` failed on
         // `Unable to find role="alert"` in the row: only the generic sentence
@@ -476,6 +618,10 @@ export function ResourcesPanel({
         await directory(
           { kind: 'deleteResource', resourceId: resource.id, cascade: true },
           resource.name,
+          resource.id,
+          // Proof: 2026-10-25, without this `says a refused cascade in place
+          // and closes its confirm` found the `in_use` confirm still open.
+          (refusal) => sayForbiddenRemoval(resource, refusal),
         )
       ) {
         setRemoval(null);
@@ -494,7 +640,7 @@ export function ResourcesPanel({
     });
   }
 
-  function stateCapacity(resource: ProjectResource, typed: string): Promise<boolean> {
+  async function stateCapacity(resource: ProjectResource, typed: string): Promise<CapacityAnswer> {
     const trimmed = typed.trim();
     // Proof: 2026-10-25, without this check `says a capacity that is not a
     // number in place` failed on `Unable to find role="alert"`: `NaN` went out
@@ -504,21 +650,31 @@ export function ResourcesPanel({
     // Proof: 2026-10-25, without `isSafeInteger` the same case's 400 nines went
     // out as `Infinity`, which JSON carries as `null`: unstated.
     if (trimmed !== '' && (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(Number(trimmed)))) {
-      setMessage(
-        `The declared capacity of ${resource.name} is a whole number, or blank for unstated.`,
-      );
-      return Promise.resolve(false);
+      setNotice({
+        text: `The declared capacity of ${resource.name} is a whole number, or blank for unstated.`,
+        resourceId: resource.id,
+      });
+      return 'kept';
     }
     setAdoption(null);
-    return setCapacity(resource, trimmed === '' ? null : Number(trimmed));
+    // Proof: 2026-10-25, answering `sent` for a skipped write failed `keeps a
+    // typed capacity that another write kept from being sent`: the box was
+    // wiped with nothing sent and nothing said.
+    return (await setCapacity(resource, trimmed === '' ? null : Number(trimmed))) === 'skipped'
+      ? 'kept'
+      : 'sent';
   }
+
+  const mayWrite =
+    view.kind === 'ready' && (view.standing.kind === 'admin' || view.standing.kind === 'writer');
 
   return (
     // No heading of its own: the tab names the section, as every other (F-122).
     <div ref={section} className="flex flex-col gap-3">
       <p className="text-muted-foreground m-0 text-sm">
         What this project declares of each resource, beside what its compute provider last measured.
-        The plan uses only the declared number; adopting a measurement states it.
+        The plan uses only the declared number
+        {mayWrite ? '; adopting a measurement states it.' : '.'}
         {view.kind === 'ready' && view.providers.kind === 'named' && (
           <>
             {' '}
@@ -577,11 +733,24 @@ export function ResourcesPanel({
           This server does not report what claims hold; the declared numbers below are current.
         </p>
       )}
+      {view.kind === 'ready' && (
+        <StandingHint
+          standing={view.standing}
+          hasResources={view.resources.length > 0}
+          retry={roleRetry}
+          busy={busy}
+          onRetry={() => {
+            setRoleRetry('reading');
+            observe(refresh(), 'retry');
+          }}
+        />
+      )}
       {view.kind === 'ready' &&
         (view.resources.length === 0 ? (
           <p className="m-0 text-sm">
-            This directory holds no resources yet. Add a host’s RAM, a staging environment or agent
-            slots below, then state on each row what its work needs.
+            This directory holds no resources yet.
+            {mayWrite &&
+              ' Add a host’s RAM, a staging environment or agent slots below, then state on each row what its work needs.'}
           </p>
         ) : (
           <ul
@@ -610,35 +779,71 @@ export function ResourcesPanel({
                     ? adoption
                     : null
                 }
-                onAdopt={(units) => {
-                  observe(adopt(resource, units, view.declared.get(resource.id) ?? null), 'adopt');
-                }}
-                onUndo={(adopted) => {
-                  observe(undo(adopted, resource), 'undo');
-                }}
+                // Proof: 2026-10-25, keyed on the providers list again, Adopt
+                // failed `offers a member Adopt…` and `renders a failed
+                // instances read with retry…`.
+                onAdopt={
+                  mayWrite
+                    ? (units) => {
+                        observe(
+                          adopt(resource, units, view.declared.get(resource.id) ?? null),
+                          'adopt',
+                        );
+                      }
+                    : undefined
+                }
+                // Proof: 2026-10-25, passing Undo regardless of mayWrite failed
+                // `withdraws Undo after the post-adoption read observes viewer`:
+                // the viewer still found the Undo button.
+                onUndo={
+                  mayWrite
+                    ? (adopted) => {
+                        observe(undo(adopted, resource), 'undo');
+                      }
+                    : undefined
+                }
                 onProvider={(providerId) => {
                   setProvider(resource, providerId);
                 }}
                 removal={removal?.resourceId === resource.id ? removal : null}
-                onRename={(name, unitLabel) => rename(resource, name, unitLabel)}
+                // Proof: 2026-10-25, offering the writes whatever the role
+                // failed `offers a viewer nothing to change`: the viewer found
+                // the capacity box, Edit and the Add form.
+                onRename={
+                  mayWrite ? (name, unitLabel) => rename(resource, name, unitLabel) : undefined
+                }
                 projectId={projectId}
-                onRemove={(step) => {
-                  observe(remove(resource, step), 'removal');
-                }}
+                // Proof: 2026-10-25, with no notice passed to the row, `shows
+                // the declared number again after a refused capacity, and says
+                // why beside its row` found no alert in the row.
+                notice={notice?.resourceId === resource.id ? notice.text : null}
+                onRemove={
+                  view.standing.kind === 'admin'
+                    ? (step) => {
+                        observe(remove(resource, step), 'removal');
+                      }
+                    : undefined
+                }
                 onKeep={() => {
                   setRemoval(null);
                 }}
-                onCapacity={(typed) => stateCapacity(resource, typed)}
+                onCapacity={mayWrite ? (typed) => stateCapacity(resource, typed) : undefined}
               />
             ))}
           </ul>
         ))}
-      {message !== '' && (
+      {notice !== null && notice.resourceId === null && (
         <p role="alert" className="text-destructive m-0 text-sm">
-          {message}
+          {notice.text}
         </p>
       )}
-      {view.kind === 'ready' && <NewResourceForm busy={busy} onCreate={create} />}
+      {mayWrite && <NewResourceForm busy={busy} onCreate={create} />}
+      <ResourceUsesPanel
+        projectId={projectId}
+        shown={shown}
+        onDirtyChange={setUsesDirty}
+        onBusyChange={setUsesBusy}
+      />
     </div>
   );
 }
@@ -818,6 +1023,120 @@ function NewResourceForm({
   );
 }
 
+/**
+ * The {@link Standing} one role reading draws; null for a cancelled read,
+ * which draws nothing.
+ *
+ * Proof: 2026-10-25, a lost access drawn as `reader` failed `says the
+ * organization changed when the role read names another one` and both `says
+ * why nothing can change…` cases; a failed read drawn as `writer` failed
+ * `offers nothing to change while the role read failed…`, `says so when
+ * reading the role again fails again` and `offers no reread when the role
+ * read is refused…`.
+ */
+function standingOf(reading: RoleReading): Standing | null {
+  switch (reading.kind) {
+    case 'role':
+      return { kind: resourceStanding(reading.role) };
+    case 'lost':
+      return { kind: 'lost', loss: reading.loss };
+    case 'failure':
+      return { kind: 'unknown', message: reading.message, isTransport: reading.isTransport };
+    case 'cancelled':
+      return null;
+    default:
+      return unreachable(reading);
+  }
+}
+
+/** Why a lost organization access offers nothing to change, in words. */
+function lossSentence(loss: AccessLoss): string {
+  if (typeof loss !== 'string')
+    return 'Your organization asks you to sign in again before changing resources.';
+  switch (loss) {
+    case 'no_organization':
+      return 'Your organization changed. Reload before changing resources.';
+    case 'signed_out':
+      return 'Your session ended. Sign in again to change resources.';
+    case 'removed':
+      return 'You are no longer a member of this organization, so its resources cannot be changed.';
+    case 'inactive':
+      return 'Organizations are no longer active here. Reload before changing resources.';
+    default:
+      return unreachable(loss);
+  }
+}
+
+/**
+ * What the viewer's standing means for the section, said above the list so a
+ * phone reader sees it before the rows: nothing for an admin; for a member that
+ * only an admin removes; for the rest why nothing can be changed, with a
+ * reread offered only when reading the role again can help.
+ *
+ * Proof: 2026-10-25, drawn below the list, `offers a viewer nothing to change,
+ * and says so` failed on the order; the reread offered whatever the failure,
+ * `offers no reread when the role read is refused…` failed.
+ */
+function StandingHint({
+  standing,
+  hasResources,
+  retry,
+  busy,
+  onRetry,
+}: {
+  standing: Standing;
+  hasResources: boolean;
+  retry: 'idle' | 'reading' | 'failed';
+  busy: boolean;
+  onRetry: () => void;
+}): React.JSX.Element | null {
+  switch (standing.kind) {
+    case 'admin':
+      return null;
+    case 'writer':
+      return hasResources ? (
+        <p data-standing="writer" className="text-muted-foreground m-0 text-sm">
+          Only an organization admin can remove a resource.
+        </p>
+      ) : null;
+    case 'reader':
+      return (
+        <p data-standing="reader" className="text-muted-foreground m-0 text-sm">
+          Your role can read these resources but not change them.
+        </p>
+      );
+    case 'lost':
+      return (
+        <p data-standing="lost" className="text-muted-foreground m-0 text-sm">
+          {lossSentence(standing.loss)}
+        </p>
+      );
+    case 'unknown':
+      return (
+        <div data-standing="unknown" className="flex flex-col gap-2">
+          <p className="text-muted-foreground m-0 text-sm">
+            {standing.isTransport
+              ? `Your role ${retry === 'failed' ? 'still could not be read' : 'could not be read'}, so changing resources is not offered. ${standing.message}`
+              : `${standing.message} Changing resources is not offered.`}
+          </p>
+          {standing.isTransport && (
+            <Button
+              type="button"
+              variant="outline"
+              className="self-start"
+              disabled={busy || retry === 'reading'}
+              onClick={onRetry}
+            >
+              {retry === 'reading' ? 'Reading your role…' : 'Read your role again'}
+            </Button>
+          )}
+        </div>
+      );
+    default:
+      return unreachable(standing);
+  }
+}
+
 /** A refused resources read in words; every arm is a page fault or a lost organization. */
 function resourcesReadSentence(
   refusal: Extract<ClientReply<typeof readProjectResources>, { kind: 'refusal' }>['body'],
@@ -845,6 +1164,31 @@ function resourcesReadSentence(
 }
 
 /**
+ * The instance that fulfils a directory resource, by kind and name
+ * (`compute-providers` task 5.3): `SSH host · h4claw`. Every reader sees it,
+ * since the resources read names the instance for all of them; its locator
+ * stays on the admin-only instances list.
+ */
+function ProviderChip({ kind, name }: { kind: ComputeProvider['kind']; name: string }) {
+  const kindName = providerKindName(kind);
+  return (
+    <span
+      data-provider-chip=""
+      title={`Fulfilled by the compute provider ${name} (${kindName})`}
+      className="border-border bg-muted/40 inline-flex max-w-full min-w-0 items-baseline gap-1 rounded-full border px-2 py-0.5 text-xs"
+    >
+      {/* Named in text, not `aria-label`: a generic span may not carry a name (ARIA 1.2). */}
+      <span className="sr-only">Compute provider: </span>
+      <span className="text-muted-foreground shrink-0">{kindName}</span>
+      <span aria-hidden="true" className="text-muted-foreground">
+        ·
+      </span>
+      <span className="truncate font-medium">{name}</span>
+    </span>
+  );
+}
+
+/**
  * One resource: its declared number, the instance that fulfils it, and that
  * instance's latest report as {@link readReport} reads it at `now`.
  *
@@ -868,6 +1212,7 @@ export function ResourceRow({
   onRemove,
   onKeep,
   onCapacity,
+  notice = null,
 }: {
   resource: ProjectResource;
   declared: number | null;
@@ -880,23 +1225,35 @@ export function ResourceRow({
   now: number;
   busy: boolean;
   adoption: Adoption | null;
-  onAdopt: (units: number) => void;
-  onUndo: (adoption: Adoption) => void;
+  /** Adopts a measurement as the declared capacity; absent offers no Adopt. */
+  onAdopt?: (units: number) => void;
+  /** Restores the previous capacity; absent offers no Undo. */
+  onUndo?: (adoption: Adoption) => void;
   onProvider: (providerId: string | null) => void;
   /** A removal under way on this row, or null. */
   removal?: Removal | null;
   /** The project whose settings show the row, named `this project` in the usage. */
   projectId?: string;
-  /** Renames the resource or changes its unit label; answers whether it landed. */
+  /**
+   * Renames the resource or changes its unit label; answers whether it landed.
+   * Losing this capability discards an open edit, including on later recovery.
+   */
   onRename?: (name: string, unitLabel: string) => Promise<boolean>;
   /** Removes the resource; `cascade` takes what still uses it with it. */
   onRemove?: (step: 'ask' | 'confirm' | 'cascade') => void;
   onKeep?: () => void;
-  /** States this project's capacity from the typed box, blank for unstated. */
-  onCapacity?: (typed: string) => Promise<boolean>;
+  /** States this project's capacity from the typed box, blank for unstated; absent offers no box. */
+  onCapacity?: (typed: string) => Promise<CapacityAnswer>;
+  /** What the section says about this row's last write: a refusal or a failure. */
+  notice?: string | null;
 }): React.JSX.Element {
   const isAdmin = providers.kind === 'named';
   const [editing, setEditing] = useState<{ name: string; unitLabel: string } | null>(null);
+  // Proof: 2026-10-25, omitting this reset failed `withdraws the edit form
+  // after forbidden rename observes viewer`: the viewer retained the edit form.
+  if (onRename === undefined && editing !== null) {
+    setEditing(null);
+  }
   const editIds = useId();
   const editButton = useRef<HTMLButtonElement>(null);
   const removeButton = useRef<HTMLButtonElement>(null);
@@ -948,6 +1305,9 @@ export function ResourceRow({
               {resource.kind === 'exclusive' ? 'Exclusive — one at a time' : 'Divisible'}
               {resource.unitLabel === '' ? '' : ` · ${resource.unitLabel}`}
             </span>
+            {resource.provider !== undefined && (
+              <ProviderChip kind={resource.provider.kind} name={resource.provider.name} />
+            )}
           </span>
           <span className="text-sm tabular-nums">
             {declared === null ? (
@@ -1059,8 +1419,12 @@ export function ResourceRow({
             onSubmit={(event) => {
               event.preventDefault();
               if (capacity === null) return;
-              void onCapacity(capacity).then((stated) => {
-                if (stated) setCapacity(null);
+              // Proof: 2026-10-25, clearing the box only on `stated`, as it
+              // was, failed `shows the declared number again after a refused
+              // capacity, and says why beside its row`: the box kept 3 under
+              // `Declared 4`.
+              void onCapacity(capacity).then((answer) => {
+                if (answer === 'sent') setCapacity(null);
               });
             }}
           >
@@ -1119,9 +1483,9 @@ export function ResourceRow({
             </>
           ) : resource.providerId === null ? (
             <span className="text-muted-foreground">No compute provider</span>
-          ) : (
-            // Unnamed: only an admin reads the instances, and the resources read
-            // carries the id alone.
+          ) : resource.provider !== undefined ? null : (
+            // Unnamed: a read without `provider` (an outgoing be-01 mid-swap)
+            // carries the id alone, which only an admin's instances list names.
             <span
               className="text-muted-foreground"
               title={`Compute provider ${resource.providerId}`}
@@ -1131,6 +1495,11 @@ export function ResourceRow({
           )}
         </div>
       </div>
+      {notice !== null && (
+        <p role="alert" className="text-destructive m-0 text-sm">
+          {notice}
+        </p>
+      )}
       {reading !== null && (
         <div
           data-report-box=""
@@ -1152,7 +1521,7 @@ export function ResourceRow({
           <span className="text-muted-foreground text-xs [overflow-wrap:anywhere]">
             {reading.detail}
           </span>
-          {isAdmin &&
+          {onAdopt !== undefined &&
             reading.state === 'measured' &&
             reading.capacityUnits !== declared &&
             adoption === null && (
@@ -1181,18 +1550,23 @@ export function ResourceRow({
               : unitsWords(adoption.previous, adoption.unitLabel)}
             ).
           </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            aria-label={`Undo adopting the measurement of ${adoption.name}`}
-            onClick={() => {
-              onUndo(adoption);
-            }}
-          >
-            Undo
-          </Button>
+          {/* Proof: 2026-10-25, rendering Undo without its callback failed
+              `withdraws Undo after the post-adoption read observes viewer`:
+              the viewer still found the Undo button. */}
+          {onUndo !== undefined && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              aria-label={`Undo adopting the measurement of ${adoption.name}`}
+              onClick={() => {
+                onUndo(adoption);
+              }}
+            >
+              Undo
+            </Button>
+          )}
         </div>
       )}
       {removal !== null && (

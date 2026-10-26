@@ -99,6 +99,8 @@ beforeEach(() => {
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    '20261025130000_add_resource_runtime',
+    '20261025120000_add_resource_use',
     WORK_ITEM_BUDGETS,
     MEASURE_ESTIMATES,
     MIGRATION,
@@ -247,6 +249,8 @@ describe(MIGRATION, () => {
     comeForward();
     db.close();
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MIGRATION,

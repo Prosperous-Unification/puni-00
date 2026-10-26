@@ -1080,3 +1080,81 @@ postApiClaimsRenew has no declared validation refusal` (`apps/wbs/be-01/src/http
 - Seen and left: a released claim's `assign: true` assignees stay (claire on Sand, codex on Paint
   Dev). The `claimWorkItem` description says assignments are "undone with the claim", which this
   run reads as undo of the claim command, not release.
+
+### Swarm rehearsal polish (fe-01), 2026-10-25
+
+The live swarm rehearsal on main 93b6f3555 found three S3 items here, fixed on
+`fix/wbs-swarm-live-polish`:
+
+- The history read a sweep's reap as `w2 released 2 items`, with `lease expired` in small print
+  below. A reap is now worded by its reason: `w2’s lease expired, releasing 2 items`,
+  `finn’s credential was revoked`, `The leases of w2, a deleted person expired, …` for several
+  holders. The `claim-display` requirement and its "A reaped claim says why" scenario stated the
+  old sentence and are amended.
+- On a phone the Claims sheet cut the step (`Unit test shards · D…`), so a leaf's Dev and QA
+  rows read the same. The item name now truncates first; the step stays whole up to 60% of the
+  line.
+- A phone card's `LE 14m` subtree chip broke `16 d` over two lines. The total no longer shrinks
+  or wraps, and the chip takes its own header line: kept beside the number it clipped itself
+  to `LE 13r` (seen in `card-build-farm-375-light-pre`).
+- Initials take letters and digits only (`Mira (human)` was `M(`, now `MH`).
+
+#### Proofs (each fault injected alone, the named test watched failing, restored; 2026-10-25)
+
+| Fault injected                                                  | Observed failing test                                                                                     |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| a lease expiry worded `codex released`                          | `words a swept release by its reason…`, `lists the recent claims and releases…`, `stays, with no number…` |
+| `shrink-0` dropped from the held claim's step                   | `truncates a held claim’s item name before its step`                                                      |
+| total without `shrink-0 whitespace-nowrap`, chip on number line | `keeps the card’s total on one line, the subtree chip on its own`                                         |
+| initials word pattern `/\S+/gu`                                 | `takes letters and digits only, in any script`: `expected 'M(' to be 'MH'`                                |
+| no NFC composition                                              | same case: `expected 'ZA' to be 'ZÅ'`                                                                     |
+| `String#slice` for `Array.from`                                 | same case: two half surrogates for `𝔄𝔅`                                                                   |
+| `.trim()` dropped from the no-letter fallback                   | `answers a name without letters or digits with its first character`: `' '` for `🤖`                       |
+
+jsdom lays nothing out, so the two layout cases pin which element gives way; the 375 px shots
+show it holds.
+
+#### Eye review (activated-organization stack, ports 7330/7331/7430, the rehearsal's seed)
+
+Shots in the session scratchpad `swarm-polish-shots/` at 1280 light and 375 light and dark,
+before (`-pre2`) and after (`-post`) w2's lease expired (its claim went at 08:43:26 UTC, the
+sweep's history event `release/lease_expired`); overflow 0 px, no page error, no response of
+400 or more on any:
+
+- `claims-sheet-375-*-post`: held rows read `Integration s… · Dev` over `Integration suite · QA`;
+  the history's newest-but-one row reads `w2’s lease expired, releasing 2 items`.
+- `card-build-farm-375-*-pre2`: `▾ 020 Medium 50 … 16 d ⋯` on one line, the `LE 14m` chip on the
+  line under it; every card total measured 20 px high (one line).
+- `plan-1280-light-pre2`: Mira's assignee and chip read `MH`.
+
+#### Review follow-up (Fable on #732), 2026-10-25
+
+- **S2-1:** the possessive history line (`lead’s lease expired, releasing 5 items`) blamed
+  healthy agents. be-01's sweep puts one account's reaped claims in one event, together with
+  every claim delegated under an expired subtree claim, each with its own holder, and the read
+  does not say whose lease went. The line is now neutral, fe-only:
+  `A lease expired: released 5 items of w3, w2 and lead` (names joined by `Intl.ListFormat`,
+  `en-GB`), `A credential was revoked: released …`. The delta's requirement and scenario are
+  amended, with a new "A reaped subtree claim blames no delegated holder" scenario.
+- Initials count `Intl.Segmenter` graphemes, letters and digits only, and keep an apostrophe
+  inside a word: `D’Arcy Smith` is `DS`, `O'Neil` `ON`, `क्षत्रिय` `क्षत्रि`, `👩‍💻` stays whole.
+- The card's subtree chip is the header's last child in the DOM, not moved by `order-last`, so a
+  screen reader reads it after the total; the 375 layout is unchanged.
+- **S3-8, not changed:** the two layout cases assert classes and DOM order in jsdom, which lays
+  nothing out, and `max-w-[60%]` is not pinned. Layout is evidenced by the 375 px shots only.
+
+| Fault injected (watched 2026-10-25)                  | Observed failing test                                                                                     |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| possessive `lead’s lease expired, releasing 3 items` | `words a swept release by its reason…`, `lists the recent claims and releases…`, `stays, with no number…` |
+| apostrophe dropped from the word pattern             | `keeps an apostrophe inside a word…`: `expected 'DA' to be 'DS'`                                          |
+| code points for graphemes                            | same case: `expected 'कष' to be 'क्षत्रि'`; `answers an emoji name with its whole first grapheme`: `'👩'` |
+| no letter filter on graphemes                        | same case: `expected "O'" to be 'ON'`                                                                     |
+| `String#slice` for the grapheme letters              | `takes letters and digits only…`: two half surrogates for `𝔄𝔅`                                            |
+| chip before the total in the DOM (`order-last`)      | `keeps the card’s total on one line, the subtree chip on its own`                                         |
+
+Eye review, round 2 (`swarm-polish-shots/r2/`, overflow 0 px, no page error, no response of 400
+or more): `lead` stopped heartbeating while `w1`, `w3` and `w4` kept renewing. At 09:29 the sweep
+released lead's `020 Build farm` subtree with w3's and w2's delegated claims, and the sheet reads
+`A lease expired: released 5 items of w3, w2 and lead` (`claims-sheet-*-post`), which names no
+one as the lease's owner; under the possessive form it would have said w3's lease expired while
+w3 was renewing. `card-build-farm-375-*-pre`: the chip on its own line, every card total 20 px.

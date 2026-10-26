@@ -16,7 +16,8 @@ import { writeMcpStoreFixture } from './mcp-store-fixture';
  * `/__fixture/activate` runs the organization activation CLI and then adds a
  * second organization holding a new account, `/__fixture/remove-member`
  * removes one account's membership, `/__fixture/agent` adds an agent person
- * to dany's organization bound to an account or to nobody,
+ * to dany's organization bound to an account or to nobody, its root name its
+ * id as scoped access creates it and its local name `name`,
  * `/__fixture/revoke-consent` revokes a person's live consent credentials as
  * the revoke route does, and `/__fixture/consents` lists the consent
  * credentials (`wbs-machine-credentials` A20).
@@ -109,7 +110,11 @@ const server = Bun.serve({
       return Response.json({ removed: username });
     }
     if (request.method === 'POST' && path === '/__fixture/agent') {
-      const { id, account } = (await request.json()) as { id: string; account: string | null };
+      const { id, account, name } = (await request.json()) as {
+        id: string;
+        account: string | null;
+        name: string;
+      };
       const organization = backend.sqlite
         .query<{ organization_id: string }, []>(
           "SELECT organization_id FROM organization_membership WHERE user_id = 'u-dany'",
@@ -122,7 +127,7 @@ const server = Bun.serve({
       );
       backend.sqlite.run(
         'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
-        [id, organization.organization_id, id],
+        [id, organization.organization_id, name],
       );
       return Response.json({ organizationId: organization.organization_id });
     }
