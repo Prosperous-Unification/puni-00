@@ -385,15 +385,18 @@ it('runs activated organization acceptance only under its dedicated browser conf
   }
 });
 
-it('runs cross-project refresh acceptance only under its dedicated browser config', async () => {
+it('runs cross-project refresh and normal-root acceptance only under their dedicated browser config', async () => {
   vi.spyOn(process, 'cwd').mockReturnValue(repoRoot);
   try {
     const ordinary = await loadConfig();
     const { default: connected } = await import('./playwright.cross-project.config');
-    const spec = 'e2e/cross-project-refresh.real.spec.ts';
     const [defaultProject] = projectsOf(ordinary);
-    expect(matches(defaultProject.testIgnore, spec)).toBe(true);
-    expect(connected.testMatch).toBe('cross-project-refresh.real.spec.ts');
+    for (const spec of ['cross-project-refresh.real.spec.ts', 'cross-project-root.real.spec.ts'])
+      expect(matches(defaultProject.testIgnore, `e2e/${spec}`)).toBe(true);
+    expect(connected.testMatch).toEqual([
+      'cross-project-refresh.real.spec.ts',
+      'cross-project-root.real.spec.ts',
+    ]);
   } finally {
     vi.restoreAllMocks();
   }

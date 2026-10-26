@@ -521,6 +521,7 @@ test('successor-only dated trees install the upstream estimate revision', async 
       `http://localhost:7500/api/projects/${upstream.id}/commands`,
       {
         headers: {
+          Origin: 'http://localhost:7600',
           Authorization: `Bearer ${fixture.token}`,
           'X-WBS-Expected-Organization': 'org-a',
         },

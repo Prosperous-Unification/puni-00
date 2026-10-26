@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 /** A fresh composed SQLite backend and production gateway; no ordinary dev server reuse. */
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'cross-project-refresh.real.spec.ts',
+  testMatch: ['cross-project-refresh.real.spec.ts', 'cross-project-root.real.spec.ts'],
   workers: 1,
   retries: 0,
   timeout: 60_000,
