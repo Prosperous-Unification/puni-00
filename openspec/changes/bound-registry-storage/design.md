@@ -55,6 +55,28 @@ not an exact physical 90% cap: existing in-flight or out-of-workflow pushes can
 overshoot until fenced. They still cannot escape the filesystem boundary. Current
 htpasswd authentication has no per-account push restriction; do not claim otherwise.
 
+The startup guard samples the derived write permission before and after hashing
+canonical journal bytes. Each sample validates file identity metadata, complete
+bounded record syntax, current boot and the thirty-second interval. The final
+sample reads uptime after hashing and must authorize the observed checksum. A
+matching final sample permits writes even if the initial record changed. The
+initial permission never substitutes for a missing or invalid final sample.
+
+Retry a complete sample only when both permissions are valid, their records differ
+and the final permission does not authorize the measured checksum. A stable
+mismatch refuses immediately; three such unproved attempts select read-only mode.
+Missing, unreadable, malformed, revoked, expired or wrong-boot permission and a
+failed checksum command refuse immediately. The retry cap remains three.
+
+Normal authority preparation authorizes the current and next journal hashes after
+capacity measurement under the canonical lock. Explicit reopening authorizes only
+the next hash; a fenced replacement revokes permission before replacing the journal.
+The final validated grant therefore determines whether the sampled checksum is
+allowed. Requiring byte-identical records also rejected compatible updates during
+ordinary publication, as the HOST33 exhaustion trace demonstrated. This correction
+does not renew permission or change explicit reopening and readonly
+request/instance/nonce acknowledgement obligations.
+
 Initially admit one publisher/import at a time. Before transfer, obtain a conservative
 upper bound for all exported OCI content plus upload staging and metadata, without
 assuming deduplication savings. Bound export scratch storage separately on the

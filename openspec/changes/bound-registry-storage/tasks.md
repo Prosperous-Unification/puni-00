@@ -96,9 +96,13 @@ layer across repositories`, `unknown stored revision blocks retirement`,
       negatives: stale Flux acknowledgement, surviving writer, killed GC, corrupted
       backup, missing lock acquisition and unconditional finally-reopen mutation.
       Preserve the last verified store and never test destruction against live images.
-      Before finalizing, fix permission sampling with a failing actual-authority
-      interleaving before changing the guard. Verify three-attempt convergence,
-      revocation and expiry after checksum before the native regression.
+      Before changing the guard, write a failing actual-authority interleaving
+      where a commit before checksum leaves a matching final permission. Prove that
+      compatible updates need one sample, while commits after checksum with
+      nonmatching final permission retry at most three times. Preserve stable-mismatch,
+      checksum-status, final-read, metadata, boot, revocation and expiry refusals;
+      observe stale-initial-permission and fourth-attempt mutations fail before the
+      native regression. Keep the full remaining lifecycle scope above.
 - [ ] 4.3 Implement separate backup budgeting and retention in
       `backup-registry.ts` with paired tests, using verified restic snapshot identities
       and actual object-store accounting. Apply seven daily/four weekly coverage,

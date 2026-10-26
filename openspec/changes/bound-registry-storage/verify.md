@@ -749,3 +749,22 @@ Both Docker processes exited cleanly during requested teardown. Normal cgroup/pr
 unmounts, 227 periodic host-state comparisons, both exact resource-cleanup audits
 and post-terminal checks of 91 source and nine payload pins passed. The full lifecycle,
 uncached platform pulls, remaining failure proofs and installed adoption stay open.
+
+HOST33 passed the owned-root mount and actual `0x84000` propagation preflight,
+preserved the read-only cgroup view, and normally unmounted the owned root last.
+The run failed before promotions, retirement or Docker. Three publications passed;
+the fourth reset during a blob-start POST from uptime 3176307.070 to 3176307.090,
+overlapping a validated `sample-limit`, final-sample, attempt-three read-only
+decision at uptime 3176307.08. This establishes an actual exhaustion decision and
+transport correlation, without treating desired mode as acknowledgement or
+attributing HOST31's earlier refusal. Both cleanup audits and all 91 source/nine
+payload pin checks passed afterward.
+
+The permission-overlap contract was refined before implementation: a fully
+validated final permission that authorizes the sampled checksum can succeed despite
+a changed initial record. Only changed valid samples without that authorization
+can retry, still capped at three; stable mismatch and all final validation failures
+refuse. Current/next hash preparation, next-only reopening and revocation before a
+fenced replacement remain unchanged. A focused actual-authority counterexample
+against the existing guard is required before changing it; implementation and
+regression evidence for this refined rule are pending.

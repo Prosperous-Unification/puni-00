@@ -11,8 +11,9 @@ Define storage admission and retirement as obligations of publication, promotion
 deployment, rollback, backup and registry maintenance. Implementation must enforce
 a physical storage boundary, warn before exhaustion, retire eligible older images
 and refuse new publication when protected images leave insufficient capacity.
-Fresh write permission must support admitted uploads across normal authority updates;
-transient file replacement must never bypass a fence.
+Fresh write permission must support admitted uploads across normal authority updates.
+The final validated permission must authorize the sampled journal checksum even when
+its record changed during the sample; transient file replacement must never bypass a fence.
 
 Default policy: 50 GiB maximum registry storage; warning at 70%, cleanup at 80%,
 publication cutoff at 90%; newest ten successful release bundles per product and

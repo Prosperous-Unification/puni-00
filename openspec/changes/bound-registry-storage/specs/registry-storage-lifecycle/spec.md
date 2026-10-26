@@ -38,10 +38,12 @@ usage below 70%, sufficient host reserve and verified maintenance.
 
 #### Scenario: Permission checking overlaps an authority update
 
-- **WHEN** one valid authority update completes between the initial permission read and the journal checksum
-- **THEN** the guard makes at most three complete attempts, each reading permission before and after hashing the journal, and keeps admitted writes enabled only for stable permission matching that checksum
-- **AND** the final permission sample passes ownership, file metadata, bounded byte-format, current-boot and expiry checks
-- **AND** revocation, missing or malformed permission, expiry, stable checksum mismatch or permission changing through all three attempts selects read-only mode
+- **WHEN** valid authority updates overlap the initial permission read, journal checksum and final permission read
+- **THEN** the guard makes at most three complete attempts, each validating permission before and after hashing the journal
+- **AND** a final permission sample that authorizes the observed checksum keeps admitted writes enabled without another attempt solely because the permission record changed
+- **AND** the final sample passes ownership, file metadata, bounded byte-format, current-boot and post-checksum expiry checks
+- **AND** only a changed valid final permission that does not authorize the checksum can restart the complete attempt; stable mismatch, invalid permission or three such unproved attempts selects read-only mode
+- **AND** revoked, missing, unreadable, malformed, expired or wrong-boot permission and a failed checksum command refuse without falling back to the initial permission
 
 #### Scenario: Pressure cannot be resolved safely
 
