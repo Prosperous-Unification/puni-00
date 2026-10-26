@@ -464,6 +464,8 @@ export class PlanCommandRunner {
       commands,
       context.access,
       credential,
+      // Proof: with `null` here, `journals a machine credential's runtime write on its agent
+      // person's stack` (runtime-write.db.test.ts) read `[null, null]`; watched 2026-10-26.
       actingPersonOf(authentication),
       undefined,
       async (scope) => {

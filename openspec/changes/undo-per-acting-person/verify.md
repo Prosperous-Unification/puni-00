@@ -33,6 +33,7 @@ after review. Every command ran with `env -u CLAUDECODE`.
 | `actingPersonOf` consent arm         | consent answers null                                | `mcp-delegation.boot.db.test.ts` consent undo 0/1 (second agent undo got 200 done, not 409); `principal.test.ts` 1/1 |
 | `down.sql` deletes agents' entries   | DELETE removed                                      | migration test 2/1: `agent` on the human's stack                                                                     |
 | Person index for the cascade         | `command_journal_person` removed                    | migration test 2/1: `SCAN … command_journal_person_stack`                                                            |
+| Runtime path reads the acting person | `null` in `runRuntimeCommands`                      | `runtime-write.db.test.ts` machine 0/1 (`[null, null]`); first_party and upstream still 2/2                          |
 
 The mid-swap tests (`puts an entry the outgoing colour wrote…`, `lets the outgoing colour clear
 and prune by the pair…`) pin behaviour of an older release and have no check of their own to
