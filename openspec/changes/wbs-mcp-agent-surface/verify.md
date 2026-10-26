@@ -220,12 +220,14 @@ What landed:
 
 ### Slice 1 notes (assumptions taken, and gaps in the design)
 
-1. **The secret's header** is not named by the design. Slice 1 uses
-   `x-mcp-internal-auth` (`MCP_INTERNAL_SECRET_HEADER` in `@wbs/contracts`).
-2. **The grant keys' form** is not specified. Slice 1 uses HS256 over a secret of at least 32
-   characters (be-01 alone signs and verifies), with the `kid` derived from the secret (the
-   first 16 base64url characters of its SHA-256), so a configured `kid` can never disagree
-   with its key. Current and previous must differ.
+1. **The secret's header** was not named by the design. Slice 1 uses
+   `x-mcp-internal-auth` (`MCP_INTERNAL_SECRET_HEADER` in `@wbs/contracts`), now recorded in
+   M14.
+2. **The grant keys' form** was not specified; now recorded in M3. HS256 over a secret of at
+   least 32 characters holding at least 10 distinct ones (be-01 alone signs and verifies),
+   with the `kid` the first 16 base64url characters of HMAC-SHA256(key,
+   `wbs-machine-grant-kid`). Current and previous must differ, and config refuses any two
+   equal values among `INTERNAL_AUTH_SECRET`, `MCP_BE_INTERNAL_SECRET` and both keys.
 3. **Pool expiry** (M7) has no column before task 6.1. The record carries `expiresAt`, judged
    for every source, and the SQLite read answers the constant `NO_CREDENTIAL_EXPIRY` (null)
    until 6.1 adds the column.
@@ -237,7 +239,8 @@ What landed:
    audit refuses a detail value shaped like a secret (`isSecretShaped`: a `wbs_mk_` or
    `wbs_scim_` prefix, 64 hex characters, or a pipe-separated pair). The most restrictive
    reading: the grant route answers such a run `400 invalid_body`, so a key never reaches an
-   audit row and issuance is never a 500 for it.
+   audit row and issuance is never a 500 for it. The spec now states it (requirement "A run
+   shaped like a secret is refused", mcp-01 mapping it to `400 invalid_request`).
 6. **Boot and activation require all three settings**, not only the grant key the design
    names: an activated store can serve no grant without the secret or the authorization
    server either. **Every activated deployment, dev included, refuses to boot this be-01
@@ -260,7 +263,7 @@ What landed:
 12. **The `unknown_grant_key` negative of 1.2** is observed at be-01 only (the test sees that
     code instead of `internal_unauthorized`); mcp-01's fault test, which would see a re-fetch,
     arrives with task 3.2.
-13. **Secrets in reports**: a 500 on the grant route reports the error alone, never the body
+13. **Secrets in reports (open, task 2.3)**: a 500 on the grant route reports the error alone, never the body
     (`createUnexpectedFailureReporter`), and no query binds the key or the assertion (read in
     the code, not tested). The task 2.3 test (an injected throw during a Basic request) is not
     written yet.
@@ -286,6 +289,33 @@ All on 2026-10-26 at d0d21035d (the docs commit after it changes no code), with
 Not run: the h2puni gate, fe-01 and its browser e2e (`organization-context.real.spec.ts`
 boots be-01 and activates afterwards, so the boot refusal does not reach it; not observed),
 gw-01's suite, and the tool-devsync workspace tests. CI carries them.
+
+### Review of PR #756 (Fable, high), how each item is addressed
+
+Fixed on the same branch, 2026-10-26. Each new or changed check was watched failing with the
+fault injected, then restored; the `Proof:` comment sits beside it.
+
+| Item                                | Fix                                                                                                                                                                                                                 | Fault injected                            | Test that failed                                                                                                                                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 equal secrets                     | `loadMcpServiceSettings` refuses any two equal among `INTERNAL_AUTH_SECRET`, `MCP_BE_INTERNAL_SECRET`, both grant keys                                                                                              | refusal disabled                          | `config.test.ts` `refuses any two equal secrets…` (did not throw)                                                                                                                                                |
+| 2 grant outlives the rotated secret | the matched secret's expiry (`proofExpiresAt`) is a fourth term of the `exp` min                                                                                                                                    | term dropped; domain expiry answered null | `never outlives the rotated secret that minted it` (exp 1793077607 > 1793035007); domain `answers the matched secret's expiry…`                                                                                  |
+| 3 `iat` in the future               | kept, now with 60 s tolerance                                                                                                                                                                                       | check removed                             | `machine-grant.test.ts` `refuses a grant issued more than 60 s in the future…` (verified)                                                                                                                        |
+| 3 scalar `aud`                      | kept                                                                                                                                                                                                                | check removed                             | `refuses a grant whose audience is an array…` (verified)                                                                                                                                                         |
+| 3 previous ≠ current                | kept                                                                                                                                                                                                                | guard disabled                            | `refuses a previous key equal to the current one` (imported)                                                                                                                                                     |
+| 3 Proofs added                      | `typ` refusal, issuer mismatch, secret-shaped run, grant beside a cookie, `mcp-dedicated` excluding `x-internal-auth`, the `mcp-*` admission                                                                        | each check removed                        | `refuses an ID-JAG…` (200); `reports a different authorization server…` (200); `refuses a run…` (no 400); `refuses a grant beside a session cookie` (200); `answers a missing, wrong or gateway secret…` (twice) |
+| 4 replica skew                      | `clockTolerance: 60`, `iat * 1000 > now + 60 000`; M3 gains the per-call `invalid_token`                                                                                                                            | as item 3                                 | `…admits one 30 s ahead`                                                                                                                                                                                         |
+| 5 docs and plumbing                 | be-01 and mcp-01 `.env.example`; `deploy/k8s/wbs/overlays/local/kustomization.yaml` (lab-only placeholders); `tools/tool-remote-scripts/src/lib/docker.ts` be secrets and value rules; runbook step 2c and exit 8   | —                                         | `docker.test.ts` 128 pass                                                                                                                                                                                        |
+| 6 `typ`                             | case-insensitive; echo capped at 64 printable characters                                                                                                                                                            | exact compare; no cap                     | `admits a lowercase jwt typ…` (401; full 102-character echo)                                                                                                                                                     |
+| 6b key entropy                      | at least 10 distinct characters                                                                                                                                                                                     | check removed                             | `refuses a secret of too few distinct characters` (imported)                                                                                                                                                     |
+| 7 fractional `exp`                  | floored                                                                                                                                                                                                             | floor removed                             | core `floors a fractional request…` (1793005800.7)                                                                                                                                                               |
+| 8 touch on refusal                  | a grant request refuses a non-member before recording the use                                                                                                                                                       | refusal removed                           | `refuses an unknown, revoked, wrong or non-member key alike, recording no use` (last use recorded)                                                                                                               |
+| 9 mcp-01 canonicalisation           | `http.ts` uses the contracts functions; `loadConfig` refuses an `MCP_PUBLIC_URL` whose derived issuer is not canonical                                                                                              | check removed                             | mcp-01 `config.test.ts` `refuses a public URL whose derived issuer is not canonical` (`…/mcp//` loaded)                                                                                                          |
+| 10 JSDoc                            | `checkedRole` and `checkedTime` each under their own                                                                                                                                                                | —                                         | —                                                                                                                                                                                                                |
+| 11 names                            | core `MachineGrantBounds`, be-01 `MachineGrantIssueRequest`; `GrantableMachineSource` in `@wbs/domain` reused                                                                                                       | —                                         | —                                                                                                                                                                                                                |
+| 12 redaction                        | the grant keys join the logger's secrets; `NO_MACHINE_GRANTS` JSDoc corrected                                                                                                                                       | keys left out                             | `app.test.ts` `redacts the mcp-01 secret and the grant keys`                                                                                                                                                     |
+| 13 forgery                          | the composed harness now verifies delegations with a real pair (a direct context it signs is admitted, 200); the forgery is signed with that pair's private key                                                     | — (the prior RS256-retry negative stands) | `refuses a grant signed with the delegation key…`                                                                                                                                                                |
+| 14 mcp-01 stubs                     | `organization-authority.test.ts` stubs and comment use `internal_unauthorized`                                                                                                                                      | —                                         | —                                                                                                                                                                                                                |
+| spec, design                        | spec requirement "A run shaped like a secret is refused"; M2 issuance codes; M3 HS256 and HMAC `kid`, 60 s skew, per-call `invalid_token`, the secret-expiry term, all three settings at activation; M14 the header | —                                         | `openspec validate wbs-mcp-agent-surface --strict` valid                                                                                                                                                         |
 
 ## Failure-proof table
 

@@ -26,10 +26,16 @@ export interface McpServiceIdentity {
   readonly secret: string | null;
   /** Null when no grant key is configured: every grant is then `unknown_grant_key`. */
   readonly verifyGrant: MachineGrantVerifier | null;
+  /** The grant keys' secrets, which the app's logger redacts with the service secrets. */
+  readonly grantKeySecrets: readonly string[];
 }
 
 /** A composition without mcp-01's dedicated secret or grant keys. */
-export const NO_MCP_SERVICE: McpServiceIdentity = { secret: null, verifyGrant: null };
+export const NO_MCP_SERVICE: McpServiceIdentity = {
+  secret: null,
+  verifyGrant: null,
+  grantKeySecrets: [],
+};
 
 /**
  * Whether `presented` equals `expected`, comparing SHA-256 digests with
@@ -81,14 +87,18 @@ export function identityResolver(
         ? { ok: true, principal: { kind: 'internal' } }
         : { ok: false, status: 401, body: { error: 'unauthorized' } };
     }
-    // Proof: with the refusal below answering `unknown_grant_key` instead,
-    // `answers a missing, wrong or gateway secret internal_unauthorized`
-    // (machine-grant.controller.db.test.ts) saw that code, which mcp-01 would
-    // answer with a re-fetch rather than a reported fault; watched 2026-10-26.
-    // The mcp-01 half of that negative waits for task 3.2.
     if (requirement === 'mcp-internal' || requirement === 'mcp-dedicated') {
+      // Proof: with this admission answering true whatever the headers, and
+      // separately with the `mcp-internal` condition dropped (gw-01's
+      // x-internal-auth admitted where grants are issued), `answers a missing,
+      // wrong or gateway secret internal_unauthorized`
+      // (machine-grant.controller.db.test.ts) failed; watched 2026-10-26.
       const admitted =
         mcpSecretOf(request) || (requirement === 'mcp-internal' && internalSecretOf(request));
+      // Proof: with the refusal code below set to `unknown_grant_key`, the same
+      // test saw that code, which mcp-01 would answer with a re-fetch rather
+      // than a reported fault; watched 2026-10-26. The mcp-01 half of that
+      // negative waits for task 3.2.
       return admitted
         ? { ok: true, principal: { kind: 'internal' } }
         : { ok: false, status: 401, body: { error: 'internal_unauthorized' } };
@@ -210,6 +220,9 @@ async function delegatedOrSession(
     if (!secretMatches(headers.get(MCP_INTERNAL_SECRET_HEADER), mcp.secret))
       return 'internal_unauthorized';
     // A grant is the request's only credential, as a delegation is.
+    // Proof: with this check removed, `refuses a grant beside a session
+    // cookie` (machine-grant.controller.db.test.ts) answered 200; watched
+    // 2026-10-26.
     if (bearerContextCredential(headers) === null) return null;
     if (mcp.verifyGrant === null) return 'unknown_grant_key';
     const verdict = await mcp.verifyGrant(presented);

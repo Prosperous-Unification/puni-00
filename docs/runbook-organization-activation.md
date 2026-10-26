@@ -72,6 +72,7 @@ docker exec -e DB_PATH=/data/pre-org-activation.db wbs-dev-src \
 docker exec -e DB_PATH=/data/pre-org-activation.db wbs-dev-src \
   bun apps/wbs/be-01/src/organization-selection-preview-cli.ts
 # 2b. MCP credential epoch: drain mcp-01, advance the epoch, restart. See the next section.
+# 2c. Machine grant settings: seed them in be-01's env, then run 3 and 4 with them. See below.
 # 3. Dry run: rehearses the whole transaction on the live file, prints the plan, rolls back.
 docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
   bun apps/wbs/be-01/src/organization-activation-cli.ts --mcp-store /data/mcp-session.sqlite \
@@ -147,6 +148,44 @@ activation CLI checked the MCP epoch, while its MCP store stayed at epoch 0. On 
 also revokes the families bound after activation (still epoch 0), so every dev MCP client
 reauthorizes once more. Nothing else depends on the order there.
 
+## Step 2c: seed the machine grant settings
+
+An activated store serves machine grants to mcp-01 (`wbs-mcp-agent-surface` M3, M14), so
+be-01 **refuses to boot an activated store** while any of these is unset, naming each
+missing one:
+
+- `MCP_BE_INTERNAL_SECRET`: mcp-01's dedicated secret (header `x-mcp-internal-auth`);
+- `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT`: the HS256 grant key (and
+  `WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS` only during a rotation, kept at least 24 h 60 s);
+- `WBS_MCP_AUTHORIZATION_SERVER`: mcp-01's canonical `<MCP_PUBLIC_URL>/oauth`, for example
+  `https://dev.wbs.bulletpoints.club/mcp/oauth`.
+
+Each secret is at least 32 characters with at least 10 distinct ones, and no two of them,
+`INTERNAL_AUTH_SECRET` included, may be equal. Generate them, for example with
+`openssl rand -base64 48`, put them in be-01's env (dev: `apps/wbs/be-01/.env` in the dev
+checkout; prod: the shared `/srv/wbs/.env`, which the swap filters into be-01's secrets
+file), and never into a tracked file.
+
+The activation CLI reads the same three from **its own** environment and refuses `--apply`
+with `machine_grant_settings_missing` (exit 8, `missing` naming them) before opening the
+database; a rehearsal prints its plan and then the same refusal. So run steps 3 and 4 with
+be-01's env file. With `docker run`, as the epoch CLI below is run:
+
+```sh
+activate() {
+  docker run --rm --user 1000:1000 --env-file /home/puni1/wbs-dev/src/apps/wbs/be-01/.env \
+    -e DB_PATH=/data/wbs.db -v /home/puni1/wbs-dev/src:/src -v /home/puni1/wbs-dev/data:/data \
+    -w /src <the wbs-dev-src image> \
+    bun apps/wbs/be-01/src/organization-activation-cli.ts --mcp-store /data/mcp-session.sqlite \
+    --name default --super-admin <dany user id> "$@"
+}
+activate            # dry run
+activate --apply    # apply
+```
+
+Not run on any host (written 2026-10-26, slice 1 of `wbs-mcp-agent-surface`); the CLI
+behaviour is tested in `organization-activation-cli.db.test.ts`.
+
 ## Activation CLI notes
 
 Before activation, step 2's preflight reports every root in `unmappedRoots` and every event
@@ -168,6 +207,9 @@ Exit codes:
   stderr.
 - 7: the MCP credential epoch has not advanced (`mcp_epoch_not_advanced`, with `reason`
   `absent`, `unmigrated` or `epoch_0`); run step 2b first.
+- 8: be-01's machine grant settings are missing from the CLI's environment
+  (`machine_grant_settings_missing`, `missing` naming them); see step 2c. The epoch refusal
+  (7) is reported first when both apply.
 - 1: a broken marker, a malformed legacy pair, a malformed MCP epoch, an unreadable MCP store
   or bad arguments threw.
 

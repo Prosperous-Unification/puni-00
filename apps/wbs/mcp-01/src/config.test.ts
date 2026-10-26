@@ -16,6 +16,16 @@ describe('loadConfig', () => {
     expect(cfg.MCP_PUBLIC_URL).toBe('https://dev.wbs.bulletpoints.club/mcp');
   });
 
+  it('refuses a public URL whose derived issuer is not canonical', () => {
+    expect(() =>
+      loadConfig({ ...FULL, MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp//' }),
+    ).toThrow('MCP_PUBLIC_URL');
+    expect(
+      loadConfig({ ...FULL, MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp/' })
+        .MCP_PUBLIC_URL,
+    ).toBe('https://dev.wbs.bulletpoints.club/mcp/');
+  });
+
   it('leaves WBS_BASIC_AUTH undefined when unset', () => {
     expect(loadConfig({ ...FULL, WBS_BASIC_AUTH: undefined }).WBS_BASIC_AUTH).toBeUndefined();
   });

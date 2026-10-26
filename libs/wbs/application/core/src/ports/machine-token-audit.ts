@@ -1,3 +1,5 @@
+import type { GrantableMachineSource } from '@wbs/domain';
+
 /**
  * How many distinct runs of one credential get their own `machine_token_issued`
  * row in one UTC day (`wbs-mcp-agent-surface` M3). `wbs_run` is the client's
@@ -13,7 +15,7 @@ export interface MachineTokenIssuance {
   /** The bound account the credential acts as: the audit row's actor. */
   readonly accountId: string;
   readonly personId: string;
-  readonly source: 'api_key' | 'oidc';
+  readonly source: GrantableMachineSource;
   /** The opted-in `wbs_run`; null when the client sent none, which is one run. */
   readonly runId: string | null;
 }

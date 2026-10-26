@@ -262,7 +262,7 @@ function checkedSource(row: MachineCredentialRow): MachineCredentialSource {
   return row.source;
 }
 
-/** @throws on a time that is not a safe integer. */
+/** @throws on a role outside `ORGANIZATION_ROLES`. */
 function checkedRole(value: string | null, id: string): OrganizationRole | null {
   const roles: readonly string[] = ORGANIZATION_ROLES;
   if (value !== null && !roles.includes(value))
@@ -271,6 +271,7 @@ function checkedRole(value: string | null, id: string): OrganizationRole | null 
   return value as OrganizationRole | null;
 }
 
+/** @throws on a time that is not a safe integer. */
 function checkedTime(value: number | null, id: string): number | null {
   if (value !== null && !Number.isSafeInteger(value))
     throw new Error(`machine credential ${id} has a malformed time`);

@@ -62,6 +62,7 @@ describe('the grant variant of admitMachineCredential', () => {
         accountRole: 'super_admin',
         scopes: ['read', 'write'],
       },
+      proofExpiresAt: null,
     });
     const oidc = credential({ source: 'oidc', secrets: [], trustedIssuerId: 'issuer-a' });
     expect(admitMachineCredential(grant, oidc, NOW).kind).toBe('admitted');
@@ -135,23 +136,49 @@ describe('the grant variant of admitMachineCredential', () => {
 });
 
 describe('machineGrantTermsOf', () => {
-  it('caps exp at the request, the grant cap and the assertion, whichever is first', () => {
+  it('floors a fractional request to a whole second', () => {
+    const terms = machineGrantTermsOf(
+      actor(),
+      {
+        requestedExpiresAt: NOW_SECONDS + 600.7,
+        assertionExpiresAt: null,
+        secretExpiresAt: null,
+        runId: null,
+      },
+      NOW,
+    );
+    expect(typeof terms === 'string' ? terms : terms.expiresAt).toBe(NOW_SECONDS + 600);
+  });
+
+  it('caps exp at the request, the cap, the assertion and the secret, whichever is first', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 3 * 24 * 60 * 60 }),
         fc.option(fc.integer({ min: 1, max: 3 * 24 * 60 * 60 }), { nil: null }),
-        (requestedIn, assertionIn) => {
+        fc.option(fc.integer({ min: 1, max: 3 * 24 * 60 * 60 }), { nil: null }),
+        (requestedIn, assertionIn, secretIn) => {
           const requested = NOW_SECONDS + requestedIn;
           const assertion = assertionIn === null ? null : NOW_SECONDS + assertionIn;
+          const secret = secretIn === null ? null : NOW_SECONDS + secretIn;
           const terms = machineGrantTermsOf(
             actor(),
-            { requestedExpiresAt: requested, assertionExpiresAt: assertion, runId: null },
+            {
+              requestedExpiresAt: requested,
+              assertionExpiresAt: assertion,
+              secretExpiresAt: secret,
+              runId: null,
+            },
             NOW,
           );
           if (typeof terms === 'string') throw new Error(`refused: ${terms}`);
           expect(terms.issuedAt).toBe(NOW_SECONDS);
           expect(terms.expiresAt).toBe(
-            Math.min(requested, NOW_SECONDS + MOST_MACHINE_GRANT_SECONDS, assertion ?? Infinity),
+            Math.min(
+              requested,
+              NOW_SECONDS + MOST_MACHINE_GRANT_SECONDS,
+              assertion ?? Infinity,
+              secret ?? Infinity,
+            ),
           );
         },
       ),
@@ -162,7 +189,12 @@ describe('machineGrantTermsOf', () => {
     expect(MOST_MACHINE_GRANT_SECONDS).toBe(24 * 60 * 60 + 60);
     const terms = machineGrantTermsOf(
       actor(),
-      { requestedExpiresAt: NOW_SECONDS + 7 * 24 * 60 * 60, assertionExpiresAt: null, runId: null },
+      {
+        requestedExpiresAt: NOW_SECONDS + 7 * 24 * 60 * 60,
+        assertionExpiresAt: null,
+        secretExpiresAt: null,
+        runId: null,
+      },
       NOW,
     );
     expect(typeof terms === 'string' ? terms : terms.expiresAt).toBe(NOW_SECONDS + 86_460);
@@ -172,14 +204,24 @@ describe('machineGrantTermsOf', () => {
     expect(
       machineGrantTermsOf(
         actor(),
-        { requestedExpiresAt: NOW_SECONDS, assertionExpiresAt: null, runId: null },
+        {
+          requestedExpiresAt: NOW_SECONDS,
+          assertionExpiresAt: null,
+          secretExpiresAt: null,
+          runId: null,
+        },
         NOW,
       ),
     ).toBe('no_lifetime');
     expect(
       machineGrantTermsOf(
         actor(),
-        { requestedExpiresAt: NOW_SECONDS + 600, assertionExpiresAt: NOW_SECONDS, runId: null },
+        {
+          requestedExpiresAt: NOW_SECONDS + 600,
+          assertionExpiresAt: NOW_SECONDS,
+          secretExpiresAt: null,
+          runId: null,
+        },
         NOW,
       ),
     ).toBe('no_lifetime');
@@ -189,7 +231,12 @@ describe('machineGrantTermsOf', () => {
     const scopesOf = (role: OrganizationRole | null) => {
       const terms = machineGrantTermsOf(
         actor(role),
-        { requestedExpiresAt: NOW_SECONDS + 600, assertionExpiresAt: null, runId: null },
+        {
+          requestedExpiresAt: NOW_SECONDS + 600,
+          assertionExpiresAt: null,
+          secretExpiresAt: null,
+          runId: null,
+        },
         NOW,
       );
       return typeof terms === 'string' ? terms : terms.scopes;
@@ -204,12 +251,22 @@ describe('machineGrantTermsOf', () => {
   it('carries an opted-in run through, and none when none was asked', () => {
     const withRun = machineGrantTermsOf(
       actor(),
-      { requestedExpiresAt: NOW_SECONDS + 600, assertionExpiresAt: null, runId: 'run-a' },
+      {
+        requestedExpiresAt: NOW_SECONDS + 600,
+        assertionExpiresAt: null,
+        secretExpiresAt: null,
+        runId: 'run-a',
+      },
       NOW,
     );
     const without = machineGrantTermsOf(
       actor(),
-      { requestedExpiresAt: NOW_SECONDS + 600, assertionExpiresAt: null, runId: null },
+      {
+        requestedExpiresAt: NOW_SECONDS + 600,
+        assertionExpiresAt: null,
+        secretExpiresAt: null,
+        runId: null,
+      },
       NOW,
     );
     expect(typeof withRun === 'string' ? withRun : withRun.runId).toBe('run-a');
@@ -219,7 +276,12 @@ describe('machineGrantTermsOf', () => {
   it('names the credential, person, organization and acting account', () => {
     const terms = machineGrantTermsOf(
       actor(),
-      { requestedExpiresAt: NOW_SECONDS + 600, assertionExpiresAt: null, runId: null },
+      {
+        requestedExpiresAt: NOW_SECONDS + 600,
+        assertionExpiresAt: null,
+        secretExpiresAt: null,
+        runId: null,
+      },
       NOW,
     );
     expect(terms).toEqual({

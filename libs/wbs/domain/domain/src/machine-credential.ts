@@ -3,6 +3,12 @@ import type { OrganizationRole } from './stored-vocabularies';
 /** Where a machine credential's proof comes from (`wbs-machine-credentials` A3, A8, A21). */
 export type MachineCredentialSource = 'api_key' | 'oidc' | 'mcp_consent';
 
+/**
+ * The sources a machine grant can be issued for (`wbs-mcp-agent-surface` M3):
+ * a consent session takes delegations instead.
+ */
+export type GrantableMachineSource = Exclude<MachineCredentialSource, 'mcp_consent'>;
+
 /** One stored API-key secret of a credential: its SHA-256 hex digest and expiry. */
 export interface MachineSecretRecord {
   readonly digest: string;
@@ -78,7 +84,16 @@ export interface MachineActor {
  * or the one refusal every failure shares.
  */
 export type MachineAdmission =
-  | { readonly kind: 'admitted'; readonly actor: MachineActor }
+  | {
+      readonly kind: 'admitted';
+      readonly actor: MachineActor;
+      /**
+       * When the matched API-key secret stops admitting (a rotated secret's
+       * window end); null for an unexpiring secret and every other source. A
+       * grant issued for the key never outlives it.
+       */
+      readonly proofExpiresAt: number | null;
+    }
   | { readonly kind: 'refused'; readonly refusal: 'unknown_identity' };
 
 const UNKNOWN: MachineAdmission = { kind: 'refused', refusal: 'unknown_identity' };
@@ -155,7 +170,8 @@ export function admitMachineCredential(
       : credential.source !== presented.kind
   )
     return UNKNOWN;
-  if (!matchesProof(presented, credential, now)) return UNKNOWN;
+  const proof = matchesProof(presented, credential, now);
+  if (proof === null) return UNKNOWN;
   // Proof: admitting an unbound person (an empty account) made `refuses a
   // credential whose person is no longer bound to an account` fail; watched
   // 2026-10-22.
@@ -170,17 +186,20 @@ export function admitMachineCredential(
       accountRole: credential.boundAccountRole,
       scopes: MACHINE_SCOPES,
     },
+    proofExpiresAt: proof.expiresAt,
   };
 }
 
+/** The proof matched, with the matched secret's expiry; null when it did not match. */
 function matchesProof(
   presented: PresentedMachineProof,
   credential: MachineCredentialRecord,
   now: number,
-): boolean {
+): { readonly expiresAt: number | null } | null {
+  const matched = (isMatch: boolean) => (isMatch ? { expiresAt: null } : null);
   switch (presented.kind) {
     case 'api_key': {
-      let live = false;
+      let live: { readonly expiresAt: number | null } | null = null;
       for (const secret of credential.secrets) {
         // Proof: with `secret.expiresAt > now` replaced by `true`, `refuses a
         // secret at and after its expiry` (machine-credential.test.ts)
@@ -190,7 +209,11 @@ function matchesProof(
         // (machine-credential-admin.controller.db.test.ts) admitted the rotated
         // key at T0 + 25 h; watched 2026-10-22.
         const unexpired = secret.expiresAt === null || secret.expiresAt > now;
-        if (digestsEqual(secret.digest, presented.digest) && unexpired) live = true;
+        // Proof: with the matched expiry answered null, `answers the matched
+        // secret's expiry…` (machine-credential.test.ts) and be-01's `never
+        // outlives the rotated secret that minted it` failed; watched 2026-10-26.
+        if (digestsEqual(secret.digest, presented.digest) && unexpired)
+          live = { expiresAt: secret.expiresAt };
       }
       return live;
     }
@@ -199,11 +222,11 @@ function matchesProof(
       // trusted issuer's credential for the same subject`
       // (machine-credential.test.ts) admitted B's token as A's; watched
       // 2026-10-22.
-      return credential.trustedIssuerId === presented.trustedIssuerId;
+      return matched(credential.trustedIssuerId === presented.trustedIssuerId);
     case 'mcp_consent':
       // Proof: answering true here made `admits a consent credential only for
       // its own family` admit family-2; watched 2026-10-22.
-      return credential.mcpFamilyId === presented.familyId;
+      return matched(credential.mcpFamilyId === presented.familyId);
     case 'grant':
       // Proof: removing each of the three identity comparisons in turn made
       // `refuses a grant naming another person, organization or credential`
@@ -211,11 +234,11 @@ function matchesProof(
       // whose account is no longer a member of its organization` and the
       // never-admits property fail (core machine-grant.test.ts); watched
       // 2026-10-26.
-      return (
+      return matched(
         credential.id === presented.credentialId &&
-        credential.personId === presented.personId &&
-        credential.organizationId === presented.organizationId &&
-        credential.boundAccountRole !== null
+          credential.personId === presented.personId &&
+          credential.organizationId === presented.organizationId &&
+          credential.boundAccountRole !== null,
       );
   }
 }

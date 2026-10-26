@@ -258,6 +258,22 @@ describe('mcp-01 service settings (`wbs-mcp-agent-surface` M3, M14)', () => {
         expect(() => loadMcpServiceSettings({ ...COMPLETE, [name]: value })).toThrow(name);
   });
 
+  it('refuses any two equal secrets among the internal secrets and grant keys', () => {
+    const values = {
+      INTERNAL_AUTH_SECRET: 'internal-0123456789abcdefghijklmnopq',
+      MCP_BE_INTERNAL_SECRET: 'mcp-0123456789abcdefghijklmnopqrstu',
+      WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT: 'current-0123456789abcdefghijklmnop',
+      WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS: 'previous-0123456789abcdefghijklmno',
+    };
+    expect(() => loadMcpServiceSettings({ ...COMPLETE, ...values })).not.toThrow();
+    const names = Object.keys(values) as (keyof typeof values)[];
+    for (const [at, name] of names.entries())
+      for (const other of names.slice(at + 1))
+        expect(() =>
+          loadMcpServiceSettings({ ...COMPLETE, ...values, [other]: values[name] }),
+        ).toThrow(`${name} and ${other} must differ`);
+  });
+
   it('refuses a previous grant key without a current one', () => {
     expect(() =>
       loadMcpServiceSettings({ WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS: 'p'.repeat(32) }),

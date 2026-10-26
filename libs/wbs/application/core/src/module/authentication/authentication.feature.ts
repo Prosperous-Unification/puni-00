@@ -7,7 +7,12 @@ import {
   type OidcIdentity,
   type WbsScope,
 } from '@wbs/contracts';
-import { admitMachineCredential, type MachineActor, type OrganizationRole } from '@wbs/domain';
+import {
+  admitMachineCredential,
+  type GrantableMachineSource,
+  type MachineActor,
+  type OrganizationRole,
+} from '@wbs/domain';
 
 import type { User } from '../../ports/account-values';
 import type { MachineCredentials } from '../../ports/machine-credentials';
@@ -117,10 +122,19 @@ export type PresentedMachineCredential =
 /** A proof {@link AuthService.admitMachineProof} admitted, its last use recorded. */
 export interface AdmittedMachineProof {
   readonly actor: MachineActor;
-  readonly source: 'api_key' | 'oidc';
+  readonly source: GrantableMachineSource;
   /** The verified assertion's `exp` in seconds; null for an API key. */
   readonly assertionExpiresAt: number | null;
+  /** The matched API-key secret's expiry in milliseconds; null when it has none. */
+  readonly secretExpiresAt: number | null;
 }
+
+/**
+ * Whether a machine admission refuses a non-member account before recording
+ * the use (`members_only`, grant issuance), or leaves membership to
+ * organization access (`any_member_state`, `/api`).
+ */
+type MembershipRule = 'members_only' | 'any_member_state';
 
 /** What a machine grant names, as its verifier read it (M3). */
 export interface PresentedMachineGrant {
@@ -395,20 +409,32 @@ export class AuthService {
   private async authenticateMachineKey(
     key: MachineKey,
   ): Promise<AuthenticatedUser | 'unknown_identity'> {
-    const admitted = await this.admitMachineKey(key);
+    const admitted = await this.admitMachineKey(key, 'any_member_state');
     if (admitted === 'unknown_identity') return admitted;
     return machinePrincipalOf(admitted.actor, admitted.username);
   }
 
   /**
-   * {@link authenticateMachineKey}'s admission: the actor and its account's
-   * username, the use recorded.
+   * {@link authenticateMachineKey}'s admission: the actor, its account's
+   * username and the matched secret's expiry, the use recorded. With
+   * `members_only` (a grant request) a non-member account is refused
+   * `unknown_identity` before the use is recorded: issuance refuses it, so
+   * nothing was used. `/api` keeps answering it `403 not_a_member` from
+   * organization access, after the use.
    *
    * @throws as {@link authenticateMachineKey} does.
    */
   private async admitMachineKey(
     key: MachineKey,
-  ): Promise<{ readonly actor: MachineActor; readonly username: string } | 'unknown_identity'> {
+    membership: MembershipRule,
+  ): Promise<
+    | {
+        readonly actor: MachineActor;
+        readonly username: string;
+        readonly secretExpiresAt: number | null;
+      }
+    | 'unknown_identity'
+  > {
     const machines = this.opts.machineKeys;
     // Proof: answering unknown_identity here made `throws on a well-formed key
     // when machine credentials are not wired` (machine-key.test.ts) resolve;
@@ -431,6 +457,12 @@ export class AuthService {
       throw new Error(
         `machine credential ${admission.actor.credentialId} acts as a missing account`,
       );
+    // Proof: with this refusal removed, `refuses an unknown, revoked, wrong or
+    // non-member key alike, recording no use` (be-01
+    // machine-grant.controller.db.test.ts) saw the non-member's last use
+    // recorded; watched 2026-10-26.
+    if (membership === 'members_only' && admission.actor.accountRole === null)
+      return 'unknown_identity';
     // Proof: with this rejection caught and dropped, `fails as a server error
     // when its last use cannot be recorded` in
     // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22.
@@ -440,7 +472,11 @@ export class AuthService {
     // recorded` (machine-key.test.ts) admitted; watched 2026-10-23.
     if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
-    return { actor: admission.actor, username: account.username };
+    return {
+      actor: admission.actor,
+      username: account.username,
+      secretExpiresAt: admission.proofExpiresAt,
+    };
   }
 
   /**
@@ -471,20 +507,30 @@ export class AuthService {
     if (presented.kind === 'api_key') {
       const key = parseMachineKey(presented.key);
       if (key === null || key === 'malformed') return 'unknown_identity';
-      const admitted = await this.admitMachineKey(key);
+      const admitted = await this.admitMachineKey(key, 'members_only');
       if (admitted === 'unknown_identity') return admitted;
-      return { actor: admitted.actor, source: 'api_key', assertionExpiresAt: null };
+      return {
+        actor: admitted.actor,
+        source: 'api_key',
+        assertionExpiresAt: null,
+        secretExpiresAt: admitted.secretExpiresAt,
+      };
     }
     const trusted = this.opts.trustedIssuers;
     if (trusted === undefined)
       throw new Error('a workload assertion was presented but trusted issuers are not wired');
-    const admitted = await this.admitTrustedIssuerToken(presented.assertion, trusted);
+    const admitted = await this.admitTrustedIssuerToken(
+      presented.assertion,
+      trusted,
+      'members_only',
+    );
     if (admitted === 'configured_path') return 'unknown_identity';
     if (typeof admitted === 'string') return admitted;
     return {
       actor: admitted.actor,
       source: 'oidc',
       assertionExpiresAt: admitted.assertionExpiresAt,
+      secretExpiresAt: null,
     };
   }
 
@@ -561,7 +607,7 @@ export class AuthService {
     token: string,
     trusted: TrustedIssuerVerification,
   ): Promise<AuthenticatedUser | AuthenticationRefusal | 'configured_path'> {
-    const admitted = await this.admitTrustedIssuerToken(token, trusted);
+    const admitted = await this.admitTrustedIssuerToken(token, trusted, 'any_member_state');
     if (typeof admitted === 'string') return admitted;
     return machinePrincipalOf(admitted.actor, admitted.username);
   }
@@ -575,6 +621,7 @@ export class AuthService {
   private async admitTrustedIssuerToken(
     token: string,
     trusted: TrustedIssuerVerification,
+    membership: MembershipRule,
   ): Promise<
     | {
         readonly actor: MachineActor;
@@ -641,6 +688,8 @@ export class AuthService {
       throw new Error(
         `machine credential ${admission.actor.credentialId} acts as a missing account`,
       );
+    if (membership === 'members_only' && admission.actor.accountRole === null)
+      return 'unknown_identity';
     // As on the API-key path: a removal committed since admission.
     if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
       return 'unknown_identity';

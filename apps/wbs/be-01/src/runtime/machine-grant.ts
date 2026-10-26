@@ -1,4 +1,5 @@
 import { type MachineGrantTerms, MOST_MACHINE_GRANT_SECONDS } from '@wbs/core';
+import type { GrantableMachineSource } from '@wbs/domain';
 import { decodeJwt, decodeProtectedHeader, errors, jwtVerify, SignJWT } from 'jose';
 
 /** The `typ` a machine grant declares; nothing else is one (`wbs-mcp-agent-surface` M3). */
@@ -12,6 +13,19 @@ const MACHINE_GRANT_ISSUER = 'wbs';
 
 /** The shortest signing secret accepted, the bound every other WBS HMAC key has. */
 const LEAST_SECRET_CHARACTERS = 32;
+
+/**
+ * The fewest distinct characters a signing secret may hold: a cheap floor that
+ * refuses a repeated character or a short cycle, which a length check alone
+ * admits. A random hex secret holds 16, a base64 one far more.
+ */
+const LEAST_DISTINCT_CHARACTERS = 10;
+
+/** How far a grant's `iat` may run ahead of this replica's clock (replica skew). */
+export const GRANT_CLOCK_TOLERANCE_SECONDS = 60;
+
+/** The message a `kid` is the HMAC of, so the `kid` reveals nothing of the key. */
+const KID_LABEL = new TextEncoder().encode('wbs-machine-grant-kid');
 
 /** One HMAC grant key and the `kid` that selects it. */
 export interface MachineGrantKey {
@@ -31,10 +45,12 @@ export interface MachineGrantKeys {
 
 /**
  * Imports `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` and `_PREVIOUS`. Each `kid`
- * is derived from its secret (the first 16 base64url characters of its
- * SHA-256), so a configured `kid` can never disagree with its key.
+ * is derived from its key (the first 16 base64url characters of
+ * HMAC-SHA256(key, "wbs-machine-grant-kid")), so a configured `kid` can never
+ * disagree with its key and a published `kid` says nothing about it.
  *
- * @throws when a secret is shorter than 32 characters, or both are one secret.
+ * @throws when a secret is shorter than 32 characters or holds fewer than 10
+ * distinct characters, or when both are one secret.
  */
 export async function importMachineGrantKeys(secrets: {
   readonly current: string;
@@ -45,6 +61,8 @@ export async function importMachineGrantKeys(secrets: {
     secrets.previous === null
       ? null
       : await importKey(secrets.previous, 'WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS');
+  // Proof: with this guard removed, `refuses a previous key equal to the
+  // current one` (machine-grant.test.ts) imported the pair; watched 2026-10-26.
   if (previous !== null && previous.kid === current.kid)
     throw new Error('the previous machine grant key must differ from the current one');
   return { current, previous };
@@ -53,9 +71,14 @@ export async function importMachineGrantKeys(secrets: {
 async function importKey(secret: string, setting: string): Promise<MachineGrantKey> {
   if (secret.length < LEAST_SECRET_CHARACTERS)
     throw new Error(`${setting} must be at least ${String(LEAST_SECRET_CHARACTERS)} characters`);
+  // Proof: with this check removed, `refuses a secret of too few distinct
+  // characters` (machine-grant.test.ts) imported 'g' repeated 32 times;
+  // watched 2026-10-26.
+  if (new Set(secret).size < LEAST_DISTINCT_CHARACTERS)
+    throw new Error(
+      `${setting} must hold at least ${String(LEAST_DISTINCT_CHARACTERS)} distinct characters`,
+    );
   const bytes = new TextEncoder().encode(secret);
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  const kid = Buffer.from(digest).toString('base64url').slice(0, 16);
   const key = await crypto.subtle.importKey(
     'raw',
     bytes,
@@ -63,7 +86,8 @@ async function importKey(secret: string, setting: string): Promise<MachineGrantK
     false,
     ['sign', 'verify'],
   );
-  return { kid, key };
+  const tag = new Uint8Array(await crypto.subtle.sign('HMAC', key, KID_LABEL));
+  return { kid: Buffer.from(tag).toString('base64url').slice(0, 16), key };
 }
 
 /** Whether `token` declares itself a machine grant, without believing anything else it says. */
@@ -76,9 +100,6 @@ export function declaresMachineGrant(token: string): boolean {
   }
 }
 
-/** Where the granted credential's proof came from, which the audit row names. */
-export type MachineGrantSource = 'api_key' | 'oidc';
-
 /**
  * Signs one grant under the current key: `sub` the credential, with its
  * person, organization, scopes, source and opted-in run, `iat` and `exp`
@@ -87,7 +108,7 @@ export type MachineGrantSource = 'api_key' | 'oidc';
 export function signMachineGrant(
   keys: MachineGrantKeys,
   terms: MachineGrantTerms,
-  source: MachineGrantSource,
+  source: GrantableMachineSource,
 ): Promise<string> {
   return new SignJWT({
     person_id: terms.personId,
@@ -169,6 +190,7 @@ export function machineGrantVerifier(
         issuer: MACHINE_GRANT_ISSUER,
         audience: MACHINE_GRANT_AUDIENCE,
         currentDate: new Date(now()),
+        clockTolerance: GRANT_CLOCK_TOLERANCE_SECONDS,
         requiredClaims: ['sub', 'iat', 'exp', 'jti'],
       }));
     } catch (cause) {
@@ -183,11 +205,20 @@ export function machineGrantVerifier(
 function parseClaims(payload: Record<string, unknown>, now: number): MachineGrantClaims | null {
   const { sub, person_id, org, run_id, iat, exp, aud } = payload;
   // jose admits an array naming the audience; a grant names exactly one.
+  // Proof: with this check removed, `refuses a grant whose audience is an
+  // array naming the grant audience` (machine-grant.test.ts) verified it;
+  // watched 2026-10-26.
   if (aud !== MACHINE_GRANT_AUDIENCE) return null;
   if (!isFilled(sub) || !isFilled(person_id) || !isFilled(org)) return null;
   if (run_id !== undefined && !isFilled(run_id)) return null;
   if (typeof iat !== 'number' || typeof exp !== 'number') return null;
-  if (!Number.isInteger(iat) || !Number.isInteger(exp) || iat * 1000 > now) return null;
+  if (!Number.isInteger(iat) || !Number.isInteger(exp)) return null;
+  // An `iat` ahead of this replica by more than the skew tolerance was never
+  // issued by a replica that shares the clock.
+  // Proof: with this check removed, `refuses a grant issued more than 60 s in
+  // the future, and admits one 30 s ahead` (machine-grant.test.ts) verified the
+  // far-future grant; watched 2026-10-26.
+  if (iat * 1000 > now + GRANT_CLOCK_TOLERANCE_SECONDS * 1000) return null;
   if (exp - iat > MOST_MACHINE_GRANT_SECONDS) return null;
   return {
     credentialId: sub,

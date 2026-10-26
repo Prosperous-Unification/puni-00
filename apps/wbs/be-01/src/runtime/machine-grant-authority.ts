@@ -11,7 +11,7 @@ import { MOST_CHARACTERS_IN_A_RUN_ID } from '@wbs/core/service/command-fields';
 import { assertionTypeOf, type MachineGrantKeys, signMachineGrant } from './machine-grant';
 
 /** What mcp-01's token endpoint asks be-01 for one grant (`wbs-mcp-agent-surface` M2, M3). */
-export interface MachineGrantRequest {
+export interface MachineGrantIssueRequest {
   /** mcp-01's canonical authorization server, compared with be-01's own setting. */
   readonly issuer: string;
   readonly credential: PresentedMachineCredential;
@@ -39,7 +39,7 @@ export type MachineGrantOutcome =
 
 /** Issues machine grants; see {@link machineGrantAuthority}. */
 export interface MachineGrantAuthority {
-  issue(request: MachineGrantRequest): Promise<MachineGrantOutcome>;
+  issue(request: MachineGrantIssueRequest): Promise<MachineGrantOutcome>;
 }
 
 /** What {@link machineGrantAuthority} reads. */
@@ -93,11 +93,18 @@ export function machineGrantAuthority(
         throw new Error(
           'machine grants are requested after activation, but WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT or WBS_MCP_AUTHORIZATION_SERVER is not configured',
         );
+      // Proof: with this comparison removed, `reports a different authorization
+      // server as a fault, issuing nothing` (machine-grant.controller.db.test.ts)
+      // answered 200; watched 2026-10-26.
       if (request.issuer !== deps.authorizationServer)
         throw new Error(
           `mcp-01 names authorization server ${request.issuer}, but WBS_MCP_AUTHORIZATION_SERVER is ${deps.authorizationServer}`,
         );
       const runId = request.run ?? null;
+      // Proof: with the secret-shape half removed, `refuses a run that is
+      // empty, longer than 256 characters or shaped like a secret`
+      // (machine-grant.controller.db.test.ts) stopped answering 400 for the
+      // secret-shaped runs; watched 2026-10-26.
       if (
         runId !== null &&
         (runId.length === 0 || runId.length > MOST_CHARACTERS_IN_A_RUN_ID || isSecretShaped(runId))
@@ -106,8 +113,15 @@ export function machineGrantAuthority(
       if (request.credential.kind === 'oidc') {
         const declared = assertionTypeOf(request.credential.assertion);
         if (declared.kind === 'malformed') return { kind: 'refused', refusal: 'invalid_token' };
-        if (declared.typ !== null && declared.typ !== 'JWT')
-          return { kind: 'unsupported_assertion_type', typ: declared.typ };
+        // `typ` is compared case-insensitively (RFC 7515 §4.1.9), and the one
+        // echoed back is capped at 64 printable characters.
+        // Proof: with this refusal removed, `refuses an ID-JAG or an access
+        // token assertion, naming its typ` (machine-grant.controller.db.test.ts)
+        // admitted both; with an exact `'JWT'` comparison, it refused `jwt`;
+        // without the cap, `echoes at most 64 printable characters of a typ`
+        // answered the whole header value; watched 2026-10-26.
+        if (declared.typ !== null && declared.typ.toUpperCase() !== 'JWT')
+          return { kind: 'unsupported_assertion_type', typ: printableTypOf(declared.typ) };
       }
       const admitted = await deps.admitProof(request.credential);
       if (typeof admitted === 'string') return { kind: 'refused', refusal: admitted };
@@ -117,6 +131,8 @@ export function machineGrantAuthority(
         {
           requestedExpiresAt: request.expiresAt,
           assertionExpiresAt: admitted.assertionExpiresAt,
+          secretExpiresAt:
+            admitted.secretExpiresAt === null ? null : Math.floor(admitted.secretExpiresAt / 1000),
           runId,
         },
         now,
@@ -150,10 +166,15 @@ export function machineGrantAuthority(
 }
 
 /**
- * The authority of a composition without machine grants: nothing is issued
- * before activation, and after it a request is the same server fault a
- * missing key is. Production boot refuses to start activated without them.
+ * The authority of a composition without machine grants: every request past
+ * the secret is a server fault (500), before activation as after it. Boot
+ * always composes the real authority, so only a test composition meets this.
  */
 export const NO_MACHINE_GRANTS: MachineGrantAuthority = {
   issue: () => Promise.reject(new Error('machine grants are not composed')),
 };
+
+/** At most 64 characters of a declared `typ`, each outside printable ASCII shown as `?`. */
+function printableTypOf(typ: string): string {
+  return typ.replace(/[^\x20-\x7e]/g, '?').slice(0, 64);
+}

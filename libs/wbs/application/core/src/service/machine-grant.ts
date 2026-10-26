@@ -7,12 +7,14 @@ import type { MachineActor, OrganizationRole } from '@wbs/domain';
  */
 export const MOST_MACHINE_GRANT_SECONDS = 24 * 60 * 60 + 60;
 
-/** What mcp-01 asks of one grant, in seconds since the epoch. */
-export interface MachineGrantRequest {
+/** The bounds one grant's terms are decided within, in seconds since the epoch. */
+export interface MachineGrantBounds {
   /** The `exp` mcp-01 wants: its token's lifetime plus 60 s, jitter applied. */
   readonly requestedExpiresAt: number;
   /** The verified workload assertion's `exp`; null for an API key. */
   readonly assertionExpiresAt: number | null;
+  /** The matched API-key secret's expiry (a rotation window's end); null when none. */
+  readonly secretExpiresAt: number | null;
   /** The opted-in `wbs_run` (M15); null when the client sent none. */
   readonly runId: string | null;
 }
@@ -36,9 +38,10 @@ export interface MachineGrantTerms {
  * The terms of the grant an admitted machine credential receives
  * (`wbs-mcp-agent-surface` M3, M4, M15).
  *
- * - `exp` is `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion exp)`:
- *   be-01 is the one owner of the lifetime, and an OIDC grant never outlives
- *   its assertion.
+ * - `exp` is `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion exp,
+ *   secret expiry)`, floored to a whole second: be-01 is the one owner of the
+ *   lifetime, an OIDC grant never outlives its assertion, and a key's grant
+ *   never outlives the rotated secret that minted it.
  * - Scopes come from the credential's account role, never from the request:
  *   `read` for a `viewer`, `read write` otherwise.
  * - The run is carried through as asked; none is never defaulted.
@@ -49,15 +52,22 @@ export interface MachineGrantTerms {
  */
 export function machineGrantTermsOf(
   actor: MachineActor,
-  request: MachineGrantRequest,
+  request: MachineGrantBounds,
   now: number,
 ): MachineGrantTerms | 'unknown_identity' | 'no_lifetime' {
   if (actor.accountRole === null) return 'unknown_identity';
   const issuedAt = Math.floor(now / 1000);
-  const expiresAt = Math.min(
-    request.requestedExpiresAt,
-    issuedAt + MOST_MACHINE_GRANT_SECONDS,
-    request.assertionExpiresAt ?? Number.POSITIVE_INFINITY,
+  // Proof: with the secret term dropped, `never outlives the rotated secret
+  // that minted it` (be-01 machine-grant.controller.db.test.ts) issued the
+  // requested 12 hours; without the floor, `floors a fractional request`
+  // (machine-grant.test.ts) answered a fractional exp; watched 2026-10-26.
+  const expiresAt = Math.floor(
+    Math.min(
+      request.requestedExpiresAt,
+      issuedAt + MOST_MACHINE_GRANT_SECONDS,
+      request.assertionExpiresAt ?? Number.POSITIVE_INFINITY,
+      request.secretExpiresAt ?? Number.POSITIVE_INFINITY,
+    ),
   );
   if (expiresAt <= issuedAt) return 'no_lifetime';
   return {

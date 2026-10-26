@@ -1,4 +1,5 @@
 import { mcpAuthModeOf } from '@wbs/auth';
+import { canonicalMcpAuthorizationServer, mcpAuthorizationServerOf } from '@wbs/contracts';
 import { type } from '@wbs/validation';
 
 /**
@@ -75,7 +76,19 @@ export const loadConfig = (env: Record<string, string | undefined> = process.env
   }
 
   const result = McpConfig(picked);
-  if (!(result instanceof type.errors)) return result;
+  if (!(result instanceof type.errors)) {
+    // The issuer be-01's WBS_MCP_AUTHORIZATION_SERVER must equal is derived
+    // from this URL by the shared function; one it cannot reproduce (such as
+    // `…/mcp//`) would never match, so it refuses here, at boot.
+    // Proof: with this check removed, `refuses a public URL whose derived
+    // issuer is not canonical` (config.test.ts) loaded `…/mcp//`; watched
+    // 2026-10-26.
+    canonicalMcpAuthorizationServer(
+      mcpAuthorizationServerOf(result.MCP_PUBLIC_URL),
+      'the authorization server derived from MCP_PUBLIC_URL',
+    );
+    return result;
+  }
 
   const faults = [...new Set(result.map((error) => String(error.path[0])))]
     .filter((name): name is (typeof NAMES)[number] => name in EXPECTATIONS)

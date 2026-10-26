@@ -322,6 +322,15 @@ function machineGrantComposition(
     mcpService: {
       secret: settings.internalSecret,
       verifyGrant: keys === null ? null : machineGrantVerifier(keys, now),
+      grantKeySecrets:
+        settings.grantSigningKeys === null
+          ? []
+          : [
+              settings.grantSigningKeys.current,
+              ...(settings.grantSigningKeys.previous === null
+                ? []
+                : [settings.grantSigningKeys.previous]),
+            ],
     },
     machineGrants: machineGrantAuthority({
       activationState: () => readOrganizationActivation(db),

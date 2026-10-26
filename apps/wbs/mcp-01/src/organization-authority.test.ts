@@ -98,7 +98,7 @@ describe('organization authority client', () => {
       expect((await authority.delegationFor('upstream', REQUEST)).kind).toBe(kind);
     }
     for (const [status, body] of [
-      [401, { error: 'unauthorized' }],
+      [401, { error: 'internal_unauthorized' }],
       [401, 'Unauthorized'],
       [403, { error: 'delegation_inactive' }],
       [403, { error: 'no_active_organization' }],
@@ -148,7 +148,9 @@ describe('organization authority client', () => {
     expect(await before.authority.organizationsFor('upstream')).toEqual({ kind: 'pre_activation' });
     const unknown = client(() => Response.json({ error: 'unknown_identity' }, { status: 401 }));
     expect(await unknown.authority.organizationsFor('upstream')).toEqual({ kind: 'refused' });
-    const misconfigured = client(() => Response.json({ error: 'unauthorized' }, { status: 401 }));
+    const misconfigured = client(() =>
+      Response.json({ error: 'internal_unauthorized' }, { status: 401 }),
+    );
     expect(await rejection(misconfigured.authority.organizationsFor('upstream'))).toBeInstanceOf(
       OrganizationAuthorityDefect,
     );
@@ -191,7 +193,7 @@ describe('organization authority client', () => {
     }
     for (const [status, body] of [
       [201, { credentialId: 'another' }],
-      [401, { error: 'unauthorized' }],
+      [401, { error: 'internal_unauthorized' }],
       [403, { error: 'delegation_inactive' }],
       [500, { error: 'internal' }],
     ] as const) {
@@ -222,7 +224,7 @@ describe('organization authority client', () => {
       }).authority.reportConsentEnded(ended),
     ).toBe('unavailable');
     for (const answer of [
-      Response.json({ error: 'unauthorized' }, { status: 401 }),
+      Response.json({ error: 'internal_unauthorized' }, { status: 401 }),
       Response.json({ outcome: 'kept' }),
     ])
       expect(
@@ -296,7 +298,7 @@ describe('organization authority client', () => {
     expect(
       await rejection(
         client(() =>
-          Response.json({ error: 'unauthorized' }, { status: 401 }),
+          Response.json({ error: 'internal_unauthorized' }, { status: 401 }),
         ).authority.readRefreshAuthority(AUTHORITY),
       ),
     ).toBeInstanceOf(OrganizationAuthorityDefect);

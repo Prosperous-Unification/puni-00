@@ -637,6 +637,7 @@ export class OrganizationHarness {
     now,
     trustedIssuers,
     machineGrants,
+    delegationKey,
     migrate = (path) => {
       runMigrations(path, FOLDER);
     },
@@ -806,6 +807,29 @@ export class OrganizationHarness {
         committedFanout: services.committedFanout,
       },
       internalAuthSecret: 'x'.repeat(32),
+      ...(delegationKey === undefined
+        ? {}
+        : {
+            delegation: delegationVerifier(
+              delegationKey,
+              async (pair) => {
+                const userId = await new ExternalIdentityRepository(source.db, OPEN).findUserId(
+                  pair,
+                );
+                if (userId === null) return null;
+                return new UserRepository(source.db, OPEN).findById(userId);
+              },
+              (issuer, jti, expiresAt, at) =>
+                new SqliteDelegationUse(source.db, services.gate).consume(
+                  issuer,
+                  jti,
+                  expiresAt,
+                  at,
+                ),
+              () => services.clock.now(),
+              (userId) => new UserRepository(source.db, OPEN).findById(userId),
+            ),
+          }),
       ...(machineGrants === undefined
         ? {}
         : {
@@ -815,6 +839,7 @@ export class OrganizationHarness {
                 machineGrants.keys === null
                   ? null
                   : machineGrantVerifier(machineGrants.keys, () => services.clock.now()),
+              grantKeySecrets: [],
             },
             machineGrants: machineGrantAuthority({
               activationState: () => readOrganizationActivation(source.db),
@@ -1090,6 +1115,8 @@ export interface ComposedHarnessOptions {
    * each null to compose the deployment without it.
    */
   machineGrants?: HarnessMachineGrants;
+  /** Verifies delegations with this RSA public key, as `boot.ts` does with its configured pair. */
+  delegationKey?: CryptoKey;
 }
 
 /** What {@link ComposedHarnessOptions.machineGrants} wires. */

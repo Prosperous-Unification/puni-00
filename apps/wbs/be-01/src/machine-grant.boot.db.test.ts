@@ -21,7 +21,7 @@ const SECRET = 'm'.repeat(32);
 const AUTHORIZATION_SERVER = 'https://wbs.example/mcp/oauth';
 const SETTINGS: McpServiceSettings = {
   internalSecret: SECRET,
-  grantSigningKeys: { current: 'g'.repeat(32), previous: null },
+  grantSigningKeys: { current: 'grant-key-g-0123456789abcdefghijklmn', previous: null },
   authorizationServer: AUTHORIZATION_SERVER,
 };
 

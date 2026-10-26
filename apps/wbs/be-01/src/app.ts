@@ -767,9 +767,15 @@ export function mountedEndpoints(
 }
 
 export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = createLogger) {
-  const mcpSecret = opts.mcpService?.secret ?? null;
-  const secrets =
-    mcpSecret === null ? [opts.internalAuthSecret] : [opts.internalAuthSecret, mcpSecret];
+  const mcpService = opts.mcpService ?? NO_MCP_SERVICE;
+  // Proof: with the grant keys left out of this list, `redacts the mcp-01
+  // secret and the grant keys` (app.test.ts) saw a list without them; watched
+  // 2026-10-26.
+  const secrets = [
+    opts.internalAuthSecret,
+    ...(mcpService.secret === null ? [] : [mcpService.secret]),
+    ...mcpService.grantKeySecrets,
+  ];
   // Proof: on 2026-09-21, omitting `secrets` made “reports one redacted unexpected
   // production failure with its shared occurrence” receive undefined instead of the secret array.
   const logger = makeLogger({ service: 'be-01', version: opts.version, secrets });

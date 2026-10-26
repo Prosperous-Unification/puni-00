@@ -40,13 +40,22 @@ let issuers: LocalOidcIssuers;
 let ci: LocalIssuer;
 let keys: MachineGrantKeys;
 let rotatedKeys: MachineGrantKeys;
+/** The harness's delegation pair: the verifier on every route trusts its public key. */
+let delegationKeys: CryptoKeyPair;
 let h: OrganizationHarness;
 let projectA: string;
 
 beforeAll(async () => {
   issuers = new LocalOidcIssuers();
-  keys = await importMachineGrantKeys({ current: 'g'.repeat(32), previous: null });
-  rotatedKeys = await importMachineGrantKeys({ current: 'n'.repeat(32), previous: 'g'.repeat(32) });
+  delegationKeys = await generateKeyPair('RS256');
+  keys = await importMachineGrantKeys({
+    current: 'grant-key-g-0123456789abcdefghijklmn',
+    previous: null,
+  });
+  rotatedKeys = await importMachineGrantKeys({
+    current: 'grant-key-n-0123456789abcdefghijklmn',
+    previous: 'grant-key-g-0123456789abcdefghijklmn',
+  });
 });
 
 afterAll(async () => {
@@ -73,6 +82,7 @@ afterEach(() => {
 function openHarness(grants: Partial<HarnessMachineGrants> = {}): OrganizationHarness {
   return OrganizationHarness.openComposedWith({
     trustedIssuers: { fetch: issuers.fetch, configuredIssuer: null },
+    delegationKey: delegationKeys.publicKey,
     machineGrants: {
       secret: SECRET,
       keys,
@@ -248,6 +258,21 @@ describe('issuing a machine grant', () => {
     expect(exp! - iat!).toBe(MOST_MACHINE_GRANT_SECONDS);
   });
 
+  it('never outlives the rotated secret that minted it', async () => {
+    const { id, key } = await claireKey();
+    // A rotation 23 h 50 min ago: the old secret has ten minutes left.
+    const windowEnd = Date.now() + 10 * 60 * 1000;
+    h.sqlite.run('UPDATE machine_credential_secret SET expires_at = ? WHERE credential_id = ?', [
+      windowEnd,
+      id,
+    ]);
+    const answer = await requestGrant({ credential: { kind: 'api_key', key } });
+    expect(answer.status).toBe(200);
+    expect((answer.body as { expiresAt: number }).expiresAt).toBeLessThanOrEqual(
+      Math.floor(windowEnd / 1000),
+    );
+  });
+
   it('grants only read to a credential whose person is bound to a viewer', async () => {
     const { key } = await issueApiKey(h.sqlite, {
       organizationId: 'org-a',
@@ -260,7 +285,7 @@ describe('issuing a machine grant', () => {
     });
   });
 
-  it('refuses an unknown, revoked, wrong or non-member key alike, issuing nothing', async () => {
+  it('refuses an unknown, revoked, wrong or non-member key alike, recording no use', async () => {
     const { id, key } = await claireKey();
     const wrong = `${key.slice(0, -4)}AAAA`;
     const unknown = `wbs_mk_${crypto.randomUUID()}.${key.slice(-43)}`;
@@ -273,6 +298,8 @@ describe('issuing a machine grant', () => {
       [h.userId('dany')],
     );
     expect(await requestGrant({ credential: { kind: 'api_key', key } })).toEqual(UNKNOWN);
+    // The refused issuance used nothing, so its last use stays unrecorded.
+    expect(lastUsedAt(id)).toBeNull();
     h.member('org-a', 'dany', 'super_admin');
     revokeMachineCredential(h.sqlite, id, Date.now());
     expect(await requestGrant({ credential: { kind: 'api_key', key } })).toEqual(UNKNOWN);
@@ -396,6 +423,29 @@ describe('issuing a machine grant for a workload assertion', () => {
         })
       ).status,
     ).toBe(200);
+  });
+
+  it('admits a lowercase jwt typ, and echoes at most 64 printable characters of a typ', async () => {
+    await claireWorkload();
+    expect(
+      (
+        await requestGrant({
+          credential: {
+            kind: 'oidc',
+            assertion: await ci.signTyped({ sub: SUBJECT, aud: 'wbs' }, 'jwt'),
+          },
+        })
+      ).status,
+    ).toBe(200);
+    const long = `x+${'y'.repeat(100)}\u0007`;
+    const refused = await requestGrant({
+      credential: {
+        kind: 'oidc',
+        assertion: await ci.signTyped({ sub: SUBJECT, aud: 'wbs' }, long),
+      },
+    });
+    expect(refused.status).toBe(401);
+    expect((refused.body as { typ: string }).typ).toBe(long.slice(0, 64));
   });
 
   it('refuses an unknown subject unknown_identity and a stranger issuer invalid_token', async () => {
@@ -532,7 +582,10 @@ describe('a machine grant at each call', () => {
     expect(await withGrant(before, 'GET', '/api/projects')).toEqual(UNKNOWN);
     h.close();
     h = openHarness({
-      keys: await importMachineGrantKeys({ current: 'n'.repeat(32), previous: null }),
+      keys: await importMachineGrantKeys({
+        current: 'grant-key-n-0123456789abcdefghijklmn',
+        previous: null,
+      }),
     });
     await populate();
     expect(await withGrant(before, 'GET', '/api/projects')).toEqual({
@@ -547,8 +600,22 @@ describe('a machine grant at each call', () => {
   // watched 2026-10-26.
   it('refuses a grant signed with the delegation key under the current grant kid', async () => {
     const { id } = await claireKey();
-    const delegationKey = await generateKeyPair('RS256');
     const now = nowSeconds();
+    // The key is live on this harness: a direct context it signs is admitted.
+    const direct = await new SignJWT({
+      org: 'org-a',
+      scope: 'read',
+      identity_kind: 'first_party',
+    })
+      .setProtectedHeader({ alg: 'RS256', typ: 'wbs-delegation+jwt' })
+      .setIssuer('wbs')
+      .setAudience('wbs-be-01/direct')
+      .setSubject(h.userId('dany'))
+      .setJti(crypto.randomUUID())
+      .setIssuedAt(now)
+      .setExpirationTime(now + 120)
+      .sign(delegationKeys.privateKey);
+    expect((await h.callWith(direct, 'GET', '/api/projects')).status).toBe(200);
     const forged = await new SignJWT({ person_id: 'claire', org: 'org-a', scope: 'read write' })
       .setProtectedHeader({ alg: 'RS256', typ: MACHINE_GRANT_TOKEN_TYPE, kid: keys.current.kid })
       .setIssuer('wbs')
@@ -557,7 +624,7 @@ describe('a machine grant at each call', () => {
       .setJti(crypto.randomUUID())
       .setIssuedAt(now)
       .setExpirationTime(now + 600)
-      .sign(delegationKey.privateKey);
+      .sign(delegationKeys.privateKey);
     expect(await withGrant(forged, 'GET', '/api/projects')).toEqual({
       status: 401,
       body: { error: 'invalid_token' },
