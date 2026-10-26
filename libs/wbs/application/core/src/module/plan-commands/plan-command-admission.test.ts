@@ -87,7 +87,9 @@ describe('the admission a batch graph is built with', () => {
   it('admits the granted actor on the granted project only while its unit of work runs', async () => {
     const { runner, admissions, whileBuilt } = runnerOver();
 
-    expect(await runner.runWithin(PROJECT, ACTOR, [], SCOPED, null)).toMatchObject({ ok: true });
+    expect(await runner.runWithin(PROJECT, ACTOR, [], SCOPED, null, null)).toMatchObject({
+      ok: true,
+    });
 
     expect(whileBuilt).toEqual([{ granted: true, otherActor: false, otherProject: false }]);
     // Proof: skipping `expire` in `execute` made this receive true (0 pass,
@@ -107,7 +109,7 @@ describe('the admission a batch graph is built with', () => {
   it('grants a journal walk until it settles, and its repair nothing', async () => {
     const { runner, admissions, whileBuilt } = runnerOver('entry-1');
 
-    await runner.undoWithin(PROJECT, ACTOR, SCOPED);
+    await runner.undoWithin({ projectId: PROJECT, userId: ACTOR, personId: null }, SCOPED);
 
     expect(admissions).toHaveLength(2);
     expect(whileBuilt[0]?.granted).toBe(true);
@@ -119,7 +121,7 @@ describe('the admission a batch graph is built with', () => {
   it('builds a legacy journal walk with the creator rule', async () => {
     const { runner, admissions } = runnerOver();
 
-    await runner.undoWithin(PROJECT, ACTOR, LEGACY_ACCESS);
+    await runner.undoWithin({ projectId: PROJECT, userId: ACTOR, personId: null }, LEGACY_ACCESS);
 
     expect(admissions).toEqual([CREATOR_ADMISSION]);
   });

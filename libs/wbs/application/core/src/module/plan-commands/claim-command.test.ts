@@ -111,7 +111,7 @@ async function seeded(identities: Identities = BOUND) {
   const revision = async (id: string) =>
     (await source.stores.workItems.listByProject(projectId)).find((row) => row.id === id)?.revision;
   const entries = async (actor: string) =>
-    (await source.stores.journal.entriesFor(projectId, actor)).length;
+    (await source.stores.journal.entriesFor({ projectId, userId: actor, personId: null })).length;
   return { source, fixture, graph, runner, projectId, steps, claims, progress, revision, entries };
 }
 
@@ -477,6 +477,7 @@ describe('claimWorkItem in a batch', () => {
           [{ kind: 'claimWorkItem', workItemId: '090', personId }],
           LEGACY_ACCESS,
           credential,
+          null,
         );
       expect(await claimAs('codex-fleet', FLEET)).toMatchObject({
         ok: false,

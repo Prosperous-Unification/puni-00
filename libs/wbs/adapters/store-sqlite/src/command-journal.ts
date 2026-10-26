@@ -4,9 +4,10 @@ import {
   type JournalEntry,
   type NewJournalEntry,
   type PlanEvent,
+  type UndoStack,
   type UndoState,
 } from '@wbs/core';
-import { and, asc, eq, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, lt, type SQL, sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
@@ -15,7 +16,26 @@ import { commandJournal, type CommandJournalRow, planEvent } from './schema';
 import { requireStepBlockageActivation } from './step-blockage-activation';
 
 /**
- * The undo stack, one per (project, account), on the server — and the one
+ * The rows of one {@link UndoStack}. `person_id IS ?` rather than `=`, so the
+ * account's own stack (a null person) matches only null rows; `= NULL` would
+ * match nothing and leave the human with no undo at all.
+ *
+ * Proof (watched 2026-10-26): with the person predicate dropped, the SQLite
+ * certification's `journal.append:acting-person-stacks` failed (74 pass,
+ * 1 fail); with `=` for `IS`, `command-journal.db.test.ts` failed 7 of 9.
+ */
+function stackOf(stack: UndoStack): SQL {
+  const mine = and(
+    eq(commandJournal.projectId, stack.projectId),
+    eq(commandJournal.userId, stack.userId),
+    sql`${commandJournal.personId} IS ${stack.personId}`,
+  );
+  if (mine === undefined) throw new Error('an undo stack has no predicate');
+  return mine;
+}
+
+/**
+ * The undo stacks, one per {@link UndoStack}, on the server — and the one
  * statement that writes the plan's history, because a command is journalled and
  * recorded in the same transaction. See {@link CommandJournalRepository.append}.
  *
@@ -31,6 +51,16 @@ import { requireStepBlockageActivation } from './step-blockage-activation';
  * as it stands when the statement runs, which is what makes one statement
  * enough. SQLite serialises writers, so there is no moment at which two
  * inserts are both choosing a number.
+ *
+ * The number is the **pair's**, shared by every stack of the account, so the
+ * unique index stays `(project_id, user_id, seq)` and the outgoing colour,
+ * which numbers by the pair, can never collide with this one mid-swap. One
+ * stack's numbers therefore have gaps, and the prune counts rows, not numbers.
+ *
+ * **Mid-swap.** The outgoing colour knows nothing of `person_id` and writes it
+ * NULL, so an agent edit it journals lands on its human's own stack, as every
+ * edit did before the column. It also reads, clears and prunes by the pair, so
+ * until it stops, its undo can reach an agent entry this colour wrote.
  */
 export class CommandJournalRepository implements CommandJournalStore {
   constructor(
@@ -40,11 +70,11 @@ export class CommandJournalRepository implements CommandJournalStore {
   ) {}
 
   /**
-   * Appends, clears this account's redo branch, prunes the stack and writes the
+   * Appends, clears this stack's redo branch, prunes the stack and writes the
    * history row — in one transaction, because all four describe the same act.
    *
    * The order matters. The redo branch goes **first**: those entries hold the
-   * highest `seq` values for the pair, and leaving them would make the new
+   * highest `seq` values for the stack, and leaving them would make the new
    * entry look older than commands that are no longer reachable. Pruning goes
    * last, against the maximum the insert has just written.
    *
@@ -58,7 +88,7 @@ export class CommandJournalRepository implements CommandJournalStore {
    * a second write path cannot be added by accident.
    *
    * The prune deliberately does **not** reach `plan_event`: the journal is fifty
-   * deep per account and the history is kept by age. Pruning the history here
+   * deep per stack and the history is kept by age. Pruning the history here
    * would make it a second undo stack.
    *
    * Proof: with the `planEvent` insert moved out of the transaction and run after
@@ -70,10 +100,7 @@ export class CommandJournalRepository implements CommandJournalStore {
   async append(entry: NewJournalEntry, event: PlanEvent): Promise<void> {
     await this.gate.enter(async () => {
       await Promise.resolve();
-      const mine = and(
-        eq(commandJournal.projectId, entry.projectId),
-        eq(commandJournal.userId, entry.userId),
-      );
+      const mine = stackOf(entry);
       this.db.transaction((tx) => {
         tx.delete(commandJournal)
           .where(and(mine, eq(commandJournal.undone, true)))
@@ -83,6 +110,7 @@ export class CommandJournalRepository implements CommandJournalStore {
             id: entry.id,
             projectId: entry.projectId,
             userId: entry.userId,
+            personId: entry.personId,
             // Never a number this process read and wrote back. See the class note.
             seq: sql`(select coalesce(max(${commandJournal.seq}), 0) + 1 from ${commandJournal} where ${commandJournal.projectId} = ${entry.projectId} and ${commandJournal.userId} = ${entry.userId})`,
             kind: entry.kind,
@@ -93,16 +121,23 @@ export class CommandJournalRepository implements CommandJournalStore {
             createdAt: entry.createdAt,
           })
           .run();
-        // Everything more than JOURNAL_DEPTH entries below the newest. Compared
-        // against the maximum in SQL rather than against a count read out first,
-        // so the prune describes the table the insert just left behind.
+        // Everything older than this stack's JOURNAL_DEPTH-th newest entry.
+        // Ranked in SQL rather than against a count read out first, so the
+        // prune describes the table the insert just left behind; ranked rather
+        // than `max(seq) - 49`, because the account's other stacks leave gaps.
+        // Under fifty rows the subquery is NULL and `seq < NULL` deletes none.
+        // Proof: with `max(seq) - 49` over the pair, the SQLite certification's
+        // `journal.append:acting-person-stacks` lost the human's older entry
+        // (74 pass, 1 fail) and `an agent's fifty-one edits never prune its
+        // human's history` (undo-acting-person.controller.db.test.ts) failed
+        // (4 pass, 1 fail); watched 2026-10-26.
         tx.delete(commandJournal)
           .where(
             and(
               mine,
               lt(
                 commandJournal.seq,
-                sql`(select max(${commandJournal.seq}) from ${commandJournal} where ${commandJournal.projectId} = ${entry.projectId} and ${commandJournal.userId} = ${entry.userId}) - ${JOURNAL_DEPTH - 1}`,
+                sql`(select ${commandJournal.seq} from ${commandJournal} where ${mine} order by ${commandJournal.seq} desc limit 1 offset ${JOURNAL_DEPTH - 1})`,
               ),
             ),
           )
@@ -126,17 +161,18 @@ export class CommandJournalRepository implements CommandJournalStore {
     });
   }
 
-  async entriesFor(projectId: string, userId: string): Promise<JournalEntry[]> {
+  async entriesFor(stack: UndoStack): Promise<JournalEntry[]> {
     const rows = await this.db
       .select()
       .from(commandJournal)
-      .where(and(eq(commandJournal.projectId, projectId), eq(commandJournal.userId, userId)))
+      .where(stackOf(stack))
       .orderBy(asc(commandJournal.seq));
     return rows.map(asEntry);
   }
 
-  async flip(id: string, undone: boolean, preconditions: unknown): Promise<void> {
+  async flip(stack: UndoStack, id: string, undone: boolean, preconditions: unknown): Promise<void> {
     await this.gate.enter(async () => {
+      await Promise.resolve();
       // Proof: forward/inverse/precondition inventory branches omitted separately; their empty nested replay negatives advanced the cursor (2026-10-14).
       const admission = this.db.get<{ required: number }>(sql`SELECT EXISTS (
         SELECT 1 FROM command_journal journal, json_tree(journal.payload) node
@@ -150,10 +186,16 @@ export class CommandJournalRepository implements CommandJournalStore {
       ) AS required`);
       // Proof: flip admission omitted; mounted empty structural undo returned 200 and changed its cursor (2026-10-14).
       if (admission.required === 1) requireStepBlockageActivation(this.db);
-      await this.db
+      const flipped = this.db
         .update(commandJournal)
         .set({ undone, preconditions: JSON.stringify(preconditions) })
-        .where(eq(commandJournal.id, id));
+        .where(and(eq(commandJournal.id, id), stackOf(stack)))
+        .run();
+      // Proof: with the stack dropped from the WHERE, and again with this
+      // check removed, the SQLite certification's
+      // `journal.append:acting-person-stacks` saw a flip of another stack's
+      // entry resolve (74 pass, 1 fail each); watched 2026-10-26.
+      if (flipped.changes !== 1) throw new Error(`no journal entry ${id} on that undo stack`);
     });
   }
 
@@ -179,18 +221,12 @@ export class CommandJournalRepository implements CommandJournalStore {
    * has been editing all afternoon holds fifty entries, and counting them to
    * discover whether there is at least one is work with no reader.
    */
-  async stateOf(projectId: string, userId: string): Promise<UndoState> {
+  async stateOf(stack: UndoStack): Promise<UndoState> {
     const half = async (undone: boolean): Promise<boolean> => {
       const rows = await this.db
         .select({ id: commandJournal.id })
         .from(commandJournal)
-        .where(
-          and(
-            eq(commandJournal.projectId, projectId),
-            eq(commandJournal.userId, userId),
-            eq(commandJournal.undone, undone),
-          ),
-        )
+        .where(and(stackOf(stack), eq(commandJournal.undone, undone)))
         .limit(1);
       return rows.length > 0;
     };
@@ -212,6 +248,7 @@ function asEntry(row: CommandJournalRow): JournalEntry {
     id: row.id,
     projectId: row.projectId,
     userId: row.userId,
+    personId: row.personId,
     seq: row.seq,
     kind: row.kind,
     payload: JSON.parse(row.payload),

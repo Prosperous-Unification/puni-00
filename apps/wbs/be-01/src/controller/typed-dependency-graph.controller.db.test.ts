@@ -418,7 +418,9 @@ describe('graph-changing writes on a legacy-only project', () => {
       // receive 200 instead of 409; watched 2026-10-14.
       if (refreshRevisions) {
         // Refresh only revision evidence so the independent graph guard is reached.
-        const entry = (await journal.entriesFor(at.projectId, at.userId)).at(-1);
+        const entry = (
+          await journal.entriesFor({ projectId: at.projectId, userId: at.userId, personId: null })
+        ).at(-1);
         if (entry === undefined) throw new Error('move journal entry missing');
         const preconditions = readPreconditions(entry.preconditions);
         const rows = await workItems.listByProject(at.projectId);
