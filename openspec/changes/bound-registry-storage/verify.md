@@ -765,6 +765,65 @@ validated final permission that authorizes the sampled checksum can succeed desp
 a changed initial record. Only changed valid samples without that authorization
 can retry, still capped at three; stable mismatch and all final validation failures
 refuse. Current/next hash preparation, next-only reopening and revocation before a
-fenced replacement remain unchanged. A focused actual-authority counterexample
-against the existing guard is required before changing it; implementation and
-regression evidence for this refined rule are pending.
+fenced replacement remain unchanged. The controlled counterexample and corrected
+implementation are recorded below; installed adoption remains pending.
+
+## Final-permission correction and successful platform pulls
+
+Before changing the guard, two actual-authority interleavings failed against the
+old implementation: a compatible commit before checksum needed two samples instead
+of one, and three queued compatible commits exhausted the old three-sample rule.
+The fixture uses actual journal/flock/fsync/permit updates with modeled capacity
+and UID/GID metadata. This establishes the predicate defect independently of the
+unexplained earlier HTTP refusals.
+
+The corrected coherence suite passed **27 tests/79 assertions**; together with the
+unchanged diagnostic-parser suite it passed **43 tests/149 assertions**. Actual
+commits after checksum with disjoint final permission converge in two samples when
+quiet, or refuse after three unproved attempts. Six isolated mutations failed the
+precise covering assertions: fourth attempt, stale initial permission, retrying a
+stable mismatch, omitted final read, omitted changed-record retry and omitted
+final checksum match. Stable-mismatch retry removal proves immediate refusal,
+not acceptance of an unsafe grant. Final metadata/boot/revocation/expiry and
+checksum-status negatives remain covered. Library/spec typechecks, shell syntax,
+ShellCheck and scoped formatting passed; these are not the full host gate.
+
+Normal startup SHA256 is
+`020d445290293563758ac52529abb65e7a3bb633bd75414564d411eb7824a220`.
+The separately bound diagnostic copy is
+`ff8846339c0cf636cd0e116e2086d58328b7aff34cbb27f7aadf23735c3768d1`;
+removing its marked lines reconstructs that normal script exactly. Diagnostic
+records still describe desired state, without proving server acknowledgement.
+
+HOST34 passed in **117.029 seconds**, exit0 without timeout. All four managed OCI
+index publications, three promotions, matching registry/journal backup, exact
+retirement, API unlink, offline GC and retained-content checks passed. Six untagged
+platform children and their shared layer survived. Two independently empty Docker
+stores then pulled amd64 and arm64 images, checked their selected configurations,
+unpacked two layers each and verified the expected files. Both owned Docker
+process groups terminated successfully with no cleanup failures.
+
+This run uses synthetic Kubernetes/consumer/history/provider admission and an
+accelerated eight-day retirement authority clock. Eleven valid guard observations
+include an initial missing-permission refusal followed by allowed first-attempt
+decisions; they do not count actual authority crossings or prove continuous mode.
+The owned-root propagation check, read-only cgroup view and actual EROFS write-open
+refusal passed. All222 periodic host root/cgroup snapshots and the final snapshot
+matched. Normal teardown unmounted the owned root last and detached all four loops.
+
+Independent worker and controller audits found the exact fixture, its three
+namespaces, process/descriptor references, loop backing and outside lock processes
+absent. The worker scanned all process mount views; the controller scanned its
+observer mount view and namespace descriptors. Both verified host state and more
+than20GiB root reserve. All91 source and nine payload pins matched after termination.
+
+The complete Task4.2 remains open: at least14 ordered promotions to isolate older
+environment current-plus-two from newest-ten retention; shared independent roots
+and repeated retirement; unsafe-GC and partial post-unlink failure witnesses;
+owner/root interruption and backend-lock recovery; killed GC/restore; physical
+registry ENOSPC with independently healthy journal; verified recovery rebind and
+ordinary CLI continuation; remaining R5 proofs, affected checks and independent
+review. The native expiry fault marker must be adapted to the corrected predicate
+before its next replay. Backup budgeting, delivered monitoring, installed scenario
+audit and the final exact-revision host gate are also incomplete. No new production
+storage safeguards have been activated.
