@@ -375,6 +375,22 @@ export async function observeFluxReconciliation(
       const states = new Map(resources.states.map((status) => [status.uid, status]));
       if (indexed.size !== resources.resources.length || states.size !== resources.states.length)
         return refuseFlux('resource-observation-duplicate');
+      // Attribute existing children before parent readiness can skip their observation.
+      // Proof: moving this attribution after readiness accepted a renamed replacement after an initially stale parent became current.
+      for (const required of expected) {
+        if (!['Elasticsearch', 'Kibana', 'Prometheus', 'Alertmanager'].includes(required.kind))
+          continue;
+        const resource = indexed.get(key(required));
+        if (resource === undefined || initialChildren.has(resource.uid)) continue;
+        const children = resources.resources.filter(
+          (child) =>
+            child.ownerUID === resource.uid && ['StatefulSet', 'Deployment'].includes(child.kind),
+        );
+        const identities = identifyChildren(children);
+        // A parent with no children yet may converge; its first nonempty set fixes attribution.
+        // Proof: pinning an empty set instead made the legitimate first-appearance observation refuse.
+        if (identities.length > 0) initialChildren.set(resource.uid, identities);
+      }
       // Check attributed children on every complete snapshot, even when the parent is now unready.
       for (const [parentUID, attributed] of initialChildren) {
         const children = resources.resources.filter(
@@ -496,11 +512,6 @@ export async function observeFluxReconciliation(
                 child.ownerUID === resource.uid &&
                 ['StatefulSet', 'Deployment'].includes(child.kind),
             );
-            const identities = identifyChildren(children);
-            // A parent with no children yet may converge; its first nonempty set fixes attribution.
-            // Proof: pinning an empty set instead made the legitimate first-appearance observation refuse.
-            if (!initialChildren.has(resource.uid) && identities.length > 0)
-              initialChildren.set(resource.uid, identities);
             // Proof: bypassing child readiness accepted an unready controller-created StatefulSet.
             if (
               children.length === 0 ||

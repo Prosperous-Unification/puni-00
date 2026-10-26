@@ -530,3 +530,43 @@ remain unverified and required. No managed-host operation, live credentials, sou
 cluster lifecycle, push, merge or branch switch occurred. Generic Fleet observations and the
 existing CLI/full-checkout assumptions are unchanged. Parent scoped re-review follows the normal
 hook fix commit and source stop.
+
+### Task 6b fix round 2 — initial-unready child attribution (2026-10-26)
+
+Scoped re-review accepted I1/I2 but retained the initial-unready I3 path. The first snapshot
+contained stale parent P and child A; the next contained current P and renamed/replaced child B.
+First attribution previously followed the parent's readiness continue, so B was accepted.
+The first nonempty child set is now attributed for each expected native parent before readiness
+filtering or continuity checks. Empty-to-first appearance remains allowed; attributed sets still
+refuse disappearance/replacement. This is read-only observation consistency, not creation ownership.
+
+The exact new regression failed before the change: `Expected refusal but operation resolved`
+(0 pass/1 fail, 6.170s wall). The focused child family then passed 5/5 tests and 5 assertions
+(6.88s runner/6.916s wall): renamed replacement, disappearance, later-unready disappearance,
+initially-unready replacement, and legitimate first appearance. Its command was
+`bun test --timeout=30000 tools/tool-fleet/src/observability-flux.test.ts --test-name-pattern 'attributed controller child|initially absent controller child|initially unready parent'`.
+The new RED and mutation selected only `--test-name-pattern 'initially unready parent'`.
+
+R5: moving attribution back after readiness reproduced the same false acceptance (exit1,
+6.147s wall). The production file was restored byte-for-byte before static checks. The adjacent
+Proof comment identifies the moved-attribution fault. No test-harness failures occurred; the two
+failing test runs are the intended baseline RED and watched production-path mutation. Final
+document formatting initially failed (0.516s) on an extra blank line in the appended section;
+Prettier corrected it (0.310s), without changing prior evidence. Final formatting was rechecked.
+
+Fresh amended-path checks: `bunx eslint` on `observability-flux-observation.ts` and
+`observability-flux.test.ts` passed (4.107s); `bunx tsc --build --force tools/tool-fleet/tsconfig.json`
+passed (1.548s); `bunx prettier --check` on those files passed (0.648s);
+`bunx --no-install openspec validate observability-environment-parity --strict --json`
+passed with zero issues (0.765s). Exact commands/logs/timings and the proof script are retained in
+ignored `.superpowers/sdd/observability-environment-parity/task-6b-fix-2-evidence/`.
+No unchanged 51-test suite, earlier 9/28 proofs, schema work, render, full-host or app/browser
+checks were repeated. I1/I2 source, CLI arguments and full-checkout/runtime-file assumptions are
+unchanged. Normal-hook source commit and original reviewer's scoped re-review follow.
+
+Full Task6b/bootstrap handoff/canonical3.1 remain OPEN: actual adapter authentication against a
+published candidate, complete creation ownership and capacity admission (including the unchanged
+16GiB floor), material/network prerequisites, actual candidate Flux/Helm/ECK readiness, stored
+signals/UI/native health/isolation/history and outage/backup/recovery acceptance remain required
+and unverified here. No live, remote, credential, lifecycle, publication, push or branch operation
+occurred. Resource ownership remains unproven; fixture results are component evidence only.

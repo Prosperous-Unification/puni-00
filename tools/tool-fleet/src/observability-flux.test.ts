@@ -1317,6 +1317,39 @@ for (const fault of ['rename-and-replace', 'disappear', 'unready-parent-disappea
   });
 }
 
+test('an initially unready parent cannot replace its attributed child when ready', async () => {
+  observations = structuredClone(healthy);
+  const resources = observations['resources'] as Resource[];
+  const child = resources.find((resource) => resource.ownerUID !== '')!;
+  const parent = resources.find((resource) => resource.uid === child.ownerUID)!;
+  parent.observedGeneration = 0;
+  let reads = 0;
+  async function changing(argv: string[]) {
+    if (argv.some((part) => part.startsWith('kustomizations.')) && ++reads === 2) {
+      const state = (observations['states'] as { uid: string }[]).find(
+        (state) => state.uid === child.uid,
+      )!;
+      parent.observedGeneration = parent.generation;
+      child.name = 'replacement-child';
+      child.uid = 'replacement-uid';
+      state.uid = child.uid;
+    }
+    return fixtureRead(argv);
+  }
+  expect(
+    await rejection(
+      observeFluxReconciliation(
+        directory,
+        packet,
+        bound,
+        { ...observationTarget(), timeoutMs: 500 },
+        join(directory, 'initially-unready-parent.json'),
+        changing,
+      ),
+    ),
+  ).toMatch('controller-child-identity-changed');
+});
+
 test('an initially absent controller child may first appear before attribution', async () => {
   observations = structuredClone(healthy);
   let reads = 0;
