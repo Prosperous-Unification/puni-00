@@ -1,0 +1,168 @@
+# Local rehearsal S3 target only. Production uses provider object storage with versioned buckets
+# and a separately retained off-region copy (docs/infra/recovery.md).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: object-store
+  namespace: puni-backup
+spec:
+  storageClassName: puni-retain
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: object-store
+  namespace: puni-backup
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app.kubernetes.io/name: object-store }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: object-store }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: minio
+          image: docker.io/puni-local/object-store:RELEASE.2025-09-07T16-13-09Z@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+          imagePullPolicy: Never
+          command:
+            - sh
+            - -ec
+            - |
+              # Proof: removing this refusal let the ambient-bypass negative enter mc (backup-tls.test.ts).
+              [ "${MC_INSECURE+x}" != x ] || { echo "certificate bypass is forbidden" >&2; exit 1; }
+              # Proof: removing each file guard changed its missing/unreadable/empty refusal (backup-tls.test.ts).
+              for path in /object-store-tls/public.crt /object-store-tls/private.key /object-store-ca/ca.crt; do
+                [ -e "$path" ] || { echo "missing TLS input: $path" >&2; exit 1; }
+                [ -r "$path" ] || { echo "unreadable TLS input: $path" >&2; exit 1; }
+                [ -s "$path" ] || { echo "empty TLS input: $path" >&2; exit 1; }
+              done
+              mkdir -p "$MC_CONFIG_DIR/certs/CAs"
+              cp /object-store-ca/ca.crt "$MC_CONFIG_DIR/certs/CAs/ca.crt"
+              exec minio server --certs-dir /object-store-tls /data
+          env:
+            - { name: MC_CONFIG_DIR, value: /tmp/mc }
+          envFrom:
+            - secretRef: { name: object-store-root }
+          ports: [{ name: s3, containerPort: 9000 }]
+          readinessProbe:
+            # Proof: restoring Service DNS fails with no Ready route; the pinned loopback probe succeeds (backup-tls.test.ts).
+            exec:
+              command:
+                - sh
+                - -ec
+                - timeout 4 sh -ec 'mc alias set store https://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; mc ready store'
+            timeoutSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { cpu: '1', memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tls, mountPath: /object-store-tls, readOnly: true }
+            - { name: ca, mountPath: /object-store-ca, readOnly: true }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: object-store }
+        - name: tls
+          secret:
+            secretName: object-store-tls
+            defaultMode: 288
+            items:
+              - { key: tls.crt, path: public.crt }
+              - { key: tls.key, path: private.key }
+        - name: ca
+          secret: { secretName: object-store-ca, defaultMode: 292 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: object-store
+  namespace: puni-backup
+spec:
+  selector: { app.kubernetes.io/name: object-store }
+  ports: [{ name: s3, port: 9000, targetPort: s3 }]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: object-store-buckets
+  namespace: puni-backup
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: buckets
+          image: docker.io/puni-local/object-store:RELEASE.2025-09-07T16-13-09Z@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+          imagePullPolicy: Never
+          command:
+            - sh
+            # Proof: injected mc exit 42 returned success when -e was removed (object-store-buckets.test.ts).
+            - -ec
+            - |
+              # Proof: removing this refusal let the ambient-bypass negative enter mc (backup-tls.test.ts).
+              [ "${MC_INSECURE+x}" != x ] || { echo "certificate bypass is forbidden" >&2; exit 1; }
+              # Proof: removing each file guard changed its missing/unreadable/empty refusal (backup-tls.test.ts).
+              for path in /object-store-ca/ca.crt; do
+                [ -e "$path" ] || { echo "missing TLS input: $path" >&2; exit 1; }
+                [ -r "$path" ] || { echo "unreadable TLS input: $path" >&2; exit 1; }
+                [ -s "$path" ] || { echo "empty TLS input: $path" >&2; exit 1; }
+              done
+              mkdir -p "$MC_CONFIG_DIR/certs/CAs"
+              cp /object-store-ca/ca.crt "$MC_CONFIG_DIR/certs/CAs/ca.crt"
+              mc alias set store https://object-store.puni-backup.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              # Replaced versions expire after 30 days; current objects follow each tool's retention.
+              echo '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":30}}]}' > /tmp/lifecycle.json
+              for bucket in puni-velero puni-es-snapshots puni-sqlite puni-etcd; do
+                mc mb --ignore-existing "store/$bucket"
+                mc version enable "store/$bucket"
+                mc ilm import "store/$bucket" < /tmp/lifecycle.json
+                # Proof: empty lifecycle readback returned success with the case refusal removed (object-store-buckets.test.ts).
+                case "$(mc ilm export "store/$bucket")" in
+                  *'"NoncurrentVersionExpiration":{"NoncurrentDays":30}'*) ;;
+                  *) echo "store/$bucket lifecycle rule missing" >&2; exit 1 ;;
+                esac
+              done
+          env:
+            - { name: MC_CONFIG_DIR, value: /tmp/mc }
+          envFrom:
+            - secretRef: { name: object-store-root }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: ca, mountPath: /object-store-ca, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        - name: ca
+          secret: { secretName: object-store-ca, defaultMode: 292 }

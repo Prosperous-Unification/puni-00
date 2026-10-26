@@ -1,0 +1,203 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: puni-platform
+  namespace: observability
+  labels:
+    puni.dev/telemetry-instance: prod
+spec:
+  groups:
+    - name: puni-endpoints
+      rules:
+        - alert: PuniEndpointDown
+          expr: probe_success == 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: '{{ $labels.instance }} failed its blackbox probe'
+    - name: puni-telemetry
+      rules:
+        - alert: PuniLogBacklog
+          expr: max by (pod) (otelcol_exporter_queue_size{exporter="elasticsearch"}) > 20
+          for: 1m
+          labels: { severity: warning }
+          annotations:
+            summary: '{{ $labels.pod }} is queueing logs it cannot deliver to Elasticsearch'
+        # A failed send loses its batch for good; the Elasticsearch exporter does not retry a request
+        # that times out (docs/infra/platform.md, "Log loss"). A full queue drops nothing: it blocks
+        # (`block_on_overflow`), which PuniLogQueueFull covers.
+        # The collector creates the counter at its first failure, already incremented, so `increase`
+        # alone misses that drop; the `unless` branch catches a pod's counter that had no sample in
+        # the hour before the window, which a scrape gap shorter than an hour does not fake.
+        # Proof: with the `increase` branch alone, the first-dropped-batch promtool case got no
+        # alert, and k3d run 1's stored series gave no sample, on 2026-10-12.
+        # Proof: with `unless … offset 5m` in place of `last_over_time(…[1h] offset 5m)`, the
+        # scrape-gap promtool case alerted on 2026-10-12.
+        - alert: PuniLogRecordsDropped
+          expr: >-
+            (sum by (pod)
+            (increase(otelcol_exporter_send_failed_log_records{exporter="elasticsearch"}[5m]))
+            > 0) or ((sum by (pod)
+            (otelcol_exporter_send_failed_log_records{exporter="elasticsearch"})
+            > 0)
+              unless sum by (pod) (last_over_time(otelcol_exporter_send_failed_log_records{exporter="elasticsearch"}[1h] offset 5m)))
+          labels: { severity: critical }
+          annotations:
+            summary: '{{ $labels.pod }} dropped log records it could not deliver to
+              Elasticsearch'
+        # A full queue blocks the pipeline: the filelog receiver stops reading and resumes from its
+        # checkpoint, so lines are lost only if the kubelet rotates them away first, which no counter
+        # records.
+        # Proof: without the exporter filter, the full remote-write queue alerted in the full-queue
+        # promtool case; with `> 1`, the full log queue did not, on 2026-10-12.
+        - alert: PuniLogQueueFull
+          expr: >-
+            max by (pod) (
+              otelcol_exporter_queue_size{exporter="elasticsearch", data_type="logs"}
+              / otelcol_exporter_queue_capacity{exporter="elasticsearch", data_type="logs"}
+            ) >= 1
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: '{{ $labels.pod }} stopped reading logs because its Elasticsearch queue
+              is full'
+        - alert: PuniLogIngestStopped
+          # `or vector(0)` keeps the alert live when the collector or its series disappears.
+          # Proof: the previous expression failed the vanished-series promtool case on 2026-09-18.
+          # The collector's counters have no `_total` suffix in Prometheus.
+          # Proof: with `_total` the rule fired while k3d sent records, and the records-flow
+          # promtool case failed, on 2026-10-12.
+          expr: >-
+            (sum(rate(otelcol_exporter_sent_log_records{exporter="elasticsearch"}[15m]))
+            or vector(0)) == 0
+          for: 15m
+          labels: { severity: critical }
+          annotations:
+            summary: No log records reached Elasticsearch for 15 minutes
+    - name: puni-backups
+      rules:
+        # A failed sqlite-backup or sqlite-backup-verify Job alerts until a later run of the same
+        # CronJob succeeds.
+        # Proof: matching only owner_name="sqlite-backup" failed the restore-verification promtool
+        # case on 2026-09-18.
+        # Proof: the previous kube_job_failed rule failed both clear-after-success promtool cases.
+        - alert: PuniBackupJobFailed
+          expr: >-
+            max by (namespace, owner_name) (
+              (kube_job_status_start_time
+                * on (namespace, job_name) group_left ()
+                  (kube_job_failed{condition="true"} == 1))
+              * on (namespace, job_name) group_left (owner_name)
+                kube_job_owner{owner_kind="CronJob", owner_name=~"sqlite-backup|sqlite-backup-verify"}
+            ) > on (namespace, owner_name) (
+              max by (namespace, owner_name) (
+                label_replace(kube_cronjob_status_last_successful_time{cronjob=~"sqlite-backup|sqlite-backup-verify"},
+                  "owner_name", "$1", "cronjob", "(.+)")
+              )
+              or on (namespace, owner_name)
+              0 * max by (namespace, owner_name) (
+                kube_job_owner{owner_kind="CronJob", owner_name=~"sqlite-backup|sqlite-backup-verify"}
+              )
+            )
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: 'The latest {{ $labels.namespace }}/{{ $labels.owner_name }} run
+              failed'
+        - alert: PuniElasticSnapshotJobFailed
+          expr: kube_job_failed{condition="true", namespace="observability",
+            job_name="elastic-snapshots"} == 1
+          for: 15m
+          labels: { severity: critical }
+          annotations:
+            summary: The Elastic snapshot repository and policy job failed
+        - alert: PuniSqliteBackupStale
+          # Covers a CronJob that succeeded long ago and one that has never succeeded.
+          # Proof: the previous expression failed the never-succeeded promtool case on 2026-09-18.
+          expr: >-
+            (time() -
+            kube_cronjob_status_last_successful_time{namespace="wbs-solver",
+            cronjob="sqlite-backup"}
+              > 26 * 3600)
+            or ((time() - kube_cronjob_created{namespace="wbs-solver",
+            cronjob="sqlite-backup"} > 26 * 3600)
+              unless on (namespace, cronjob)
+              kube_cronjob_status_last_successful_time{namespace="wbs-solver", cronjob="sqlite-backup"})
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: No successful SQLite backup for more than 26 hours
+        - alert: PuniSqliteBackupSuspended
+          expr: kube_cronjob_spec_suspend{namespace="wbs-solver", cronjob="sqlite-backup"}
+            == 1
+          for: 1h
+          labels: { severity: critical }
+          annotations:
+            summary: The SQLite backup CronJob is suspended
+        - alert: PuniSqliteBackupMissing
+          expr: absent(kube_cronjob_created{namespace="wbs-solver",
+            cronjob="sqlite-backup"})
+          for: 1h
+          labels: { severity: critical }
+          annotations:
+            summary: The SQLite backup CronJob does not exist
+        - alert: PuniVeleroBackupFailed
+          expr: >-
+            increase(velero_backup_failure_total[1h]) > 0 or
+            increase(velero_backup_partial_failure_total[1h]) > 0
+          labels: { severity: critical }
+          annotations:
+            summary: A Velero backup failed or partially failed
+        - alert: PuniVeleroBackupStale
+          expr: >-
+            time() -
+            velero_backup_last_successful_timestamp{schedule="velero-daily-volumes"}
+            > 26 * 3600
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: No successful scheduled Velero backup for more than 26 hours
+        - alert: PuniVeleroBackupNeverSucceeded
+          expr: absent(velero_backup_last_successful_timestamp{schedule="velero-daily-volumes"})
+          for: 26h
+          labels: { severity: critical }
+          annotations:
+            summary: The scheduled Velero backup has never succeeded
+        - alert: PuniVolumeNearlyFull
+          expr: kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes
+            < 0.15
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: '{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has under
+              15% free'
+    - name: puni-freshness
+      rules:
+        # Proof: removing this rule failed workers-vanish; dropping its selectors let foreign
+        # cluster/namespace samples silence the foreign-workers promtool case.
+        - alert: PuniWorkersTelemetryMissing
+          expr: absent(system_memory_usage_bytes{puni_cluster="workers-local",k8s_namespace_name="observability"})
+          for: 10m
+          labels: { severity: critical }
+          annotations:
+            summary: Workers host telemetry is missing for 10 minutes
+        # kube-state-metrics reports success only after the SLM validator exits zero.
+        # Proof: removing this rule failed missing, stale and never-checked cases; dropping its
+        # selectors let a foreign successful check silence the foreign-snapshot promtool case.
+        # The five-minute pending period begins at age 30m, so firing starts at age 35m.
+        # Proof: age >35m plus for:5m failed both 35m/39m deadline cases in real promtool
+        # on 2026-10-14; stale and never-successful validators remained silent.
+        - alert: PuniElasticSnapshotStale
+          expr: >-
+            (time() - max by (puni_cluster, namespace, cronjob) (
+              kube_cronjob_status_last_successful_time{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"}) >= 30 * 60)
+            or ((time() - max by (puni_cluster, namespace, cronjob) (
+              kube_cronjob_created{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"}) >= 30 * 60)
+              unless on (puni_cluster, namespace, cronjob)
+              kube_cronjob_status_last_successful_time{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"})
+            or
+            absent(kube_cronjob_created{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"})
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: No recent successful Elastic snapshot freshness check

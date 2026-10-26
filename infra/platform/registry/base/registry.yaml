@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: registry
+  namespace: puni-registry
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry
+  namespace: puni-registry
+spec:
+  storageClassName: puni-retain
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: puni-registry
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app.kubernetes.io/name: registry }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: registry }
+    spec:
+      serviceAccountName: registry
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: registry
+          image: docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278
+          env:
+            - { name: REGISTRY_HTTP_ADDR, value: ':5000' }
+            - { name: REGISTRY_HTTP_DEBUG_ADDR, value: ':5001' }
+            - { name: REGISTRY_HTTP_TLS_CERTIFICATE, value: /certs/tls.crt }
+            - { name: REGISTRY_HTTP_TLS_KEY, value: /certs/tls.key }
+            - { name: REGISTRY_AUTH, value: htpasswd }
+            - { name: REGISTRY_AUTH_HTPASSWD_REALM, value: puni-registry }
+            - { name: REGISTRY_AUTH_HTPASSWD_PATH, value: /auth/htpasswd }
+            - { name: REGISTRY_STORAGE_DELETE_ENABLED, value: 'true' }
+            # Garbage collection flips this to true, restarts, collects, then restores false;
+            # docs/infra/platform.md has the procedure.
+            - { name: REGISTRY_STORAGE_MAINTENANCE_READONLY, value: '{"enabled": false}' }
+          ports:
+            - { name: registry, containerPort: 5000 }
+            - { name: debug, containerPort: 5001 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /debug/health, port: debug }
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: '1', memory: 512Mi }
+          volumeMounts:
+            - { name: storage, mountPath: /var/lib/registry }
+            - { name: tls, mountPath: /certs, readOnly: true }
+            - { name: auth, mountPath: /auth, readOnly: true }
+      volumes:
+        - name: storage
+          persistentVolumeClaim: { claimName: registry }
+        - name: tls
+          secret: { secretName: registry-tls }
+        - name: auth
+          secret: { secretName: registry-auth }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: puni-registry
+spec:
+  selector: { app.kubernetes.io/name: registry }
+  ports:
+    - { name: registry, port: 5000, targetPort: registry }
+    - { name: debug, port: 5001, targetPort: debug }

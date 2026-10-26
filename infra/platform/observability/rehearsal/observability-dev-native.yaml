@@ -1,0 +1,1151 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: signal-collector
+  namespace: observability-dev
+spec:
+  serviceName: signal-collector
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-collector
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signal-collector
+      annotations:
+        puni.dev/platform-collection-owner: otel-collector
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        puni.dev/capability-observability: "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: collector
+          image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+          command:
+            - /otelcol-contrib
+          args:
+            - --config=/configuration/collector.yaml
+          ports:
+            - name: otlp-http
+              containerPort: 4318
+            - name: platform
+              containerPort: 14317
+            - name: probe-metrics
+              containerPort: 8889
+            - name: metrics
+              containerPort: 8888
+            - name: health
+              containerPort: 13133
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: configuration
+              mountPath: /configuration
+              readOnly: true
+            - name: server
+              mountPath: /trust/server
+              readOnly: true
+            - name: clients
+              mountPath: /trust/clients
+              readOnly: true
+            - name: state
+              mountPath: /var/lib/otelcol
+            - name: client
+              mountPath: /trust/client
+              readOnly: true
+            - name: upstream
+              mountPath: /trust/upstream
+              readOnly: true
+            - name: metrics
+              mountPath: /trust/metrics
+              readOnly: true
+      volumes:
+        - name: configuration
+          configMap:
+            name: signal-configuration-043cff9e01ea41224f6a44bcded892aa57a82a01f4e51b1343b478454ac9d81a
+        - name: server
+          secret:
+            secretName: signal-collector-tls
+        - name: clients
+          secret:
+            secretName: signal-client-trust
+        - name: client
+          secret:
+            secretName: signal-collector-client
+        - name: upstream
+          secret:
+            secretName: signal-gateway-trust
+        - name: metrics
+          secret:
+            secretName: signal-metrics-writer
+  volumeClaimTemplates:
+    - metadata:
+        name: state
+      spec:
+        storageClassName: puni-retain
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signal-collector
+  namespace: observability-dev
+  labels:
+    app.kubernetes.io/name: signal-collector
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signal-collector
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: platform
+      port: 14317
+      targetPort: platform
+    - name: probe-metrics
+      port: 8889
+      targetPort: probe-metrics
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: signal-collector
+  namespace: observability-dev
+  labels:
+    puni.dev/telemetry-instance: dev
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-collector
+  endpoints:
+    - port: metrics
+    - port: probe-metrics
+  namespaceSelector:
+    matchNames:
+      - observability-dev
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: signal-gateway
+  namespace: observability-dev
+spec:
+  serviceName: signal-gateway
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-gateway
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signal-gateway
+      annotations:
+        puni.dev/platform-collection-owner: otel-collector
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        puni.dev/capability-observability: "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: docker.elastic.co/elastic-agent/elastic-agent:9.3.8@sha256:0b85d58ffa0e87c30baf3ab9cc3aab1e64da47607c6c1e10e9529d0665a54afd
+          command:
+            - /usr/share/elastic-agent/elastic-agent
+          args:
+            - otel
+            - --config=/configuration/gateway.yaml
+          env:
+            - name: ELASTIC_INGEST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: signal-elastic-ingest
+                  key: password
+          ports:
+            - name: otlp
+              containerPort: 4317
+            - name: platform
+              containerPort: 14317
+            - name: metrics
+              containerPort: 8888
+            - name: health
+              containerPort: 13133
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1024Mi
+            limits:
+              cpu: "1"
+              memory: 1024Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: configuration
+              mountPath: /configuration
+              readOnly: true
+            - name: server
+              mountPath: /trust/server
+              readOnly: true
+            - name: clients
+              mountPath: /trust/clients
+              readOnly: true
+            - name: state
+              mountPath: /var/lib/elastic-agent
+            - name: elastic
+              mountPath: /trust/elastic
+              readOnly: true
+      volumes:
+        - name: configuration
+          configMap:
+            name: signal-configuration-043cff9e01ea41224f6a44bcded892aa57a82a01f4e51b1343b478454ac9d81a
+        - name: server
+          secret:
+            secretName: signal-gateway-tls
+        - name: clients
+          secret:
+            secretName: signal-client-trust
+        - name: elastic
+          secret:
+            secretName: elasticsearch-es-http-certs-public
+  volumeClaimTemplates:
+    - metadata:
+        name: state
+      spec:
+        storageClassName: puni-retain
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signal-gateway
+  namespace: observability-dev
+  labels:
+    app.kubernetes.io/name: signal-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signal-gateway
+  ports:
+    - name: otlp
+      port: 4317
+      targetPort: otlp
+    - name: platform
+      port: 14317
+      targetPort: platform
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: signal-gateway
+  namespace: observability-dev
+  labels:
+    puni.dev/telemetry-instance: dev
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-gateway
+  endpoints:
+    - port: metrics
+  namespaceSelector:
+    matchNames:
+      - observability-dev
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: signal-metrics-aeaa989f07b246eea01a08390631ff11d16047a930c15b07111eb47d08655d04
+  namespace: observability-dev
+data:
+  dynamic.yaml: >
+    http:
+      routers:
+        write:
+          entryPoints:
+            - metrics
+          rule: Path(`/api/v1/write`) && Method(`POST`)
+          middlewares:
+            - write
+          service: prometheus
+          tls: {}
+        query:
+          entryPoints:
+            - metrics
+          rule: (Path(`/api/v1/query`) || Path(`/api/v1/query_range`)) && (Method(`GET`)
+            || Method(`POST`))
+          middlewares:
+            - query
+          service: prometheus
+          tls: {}
+      middlewares:
+        write:
+          basicAuth:
+            usersFile: /auth/write/users
+            removeHeader: true
+        query:
+          basicAuth:
+            usersFile: /auth/query/users
+            removeHeader: true
+      services:
+        prometheus:
+          loadBalancer:
+            servers:
+              - url: http://kps-prometheus.observability-dev.svc:9090
+    tls:
+      certificates:
+        - certFile: /tls/tls.crt
+          keyFile: /tls/tls.key
+      options:
+        default:
+          minVersion: VersionTLS13
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signal-metrics
+  namespace: observability-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signal-metrics
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signal-metrics
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        puni.dev/capability-observability: "true"
+      containers:
+        - name: proxy
+          image: docker.io/library/traefik:v3.7.13@sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259
+          args:
+            - --entrypoints.metrics.address=:8443
+            - --providers.file.filename=/configuration/dynamic.yaml
+            - --api=false
+            - --global.checknewversion=false
+            - --global.sendanonymoususage=false
+          ports:
+            - name: https
+              containerPort: 8443
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            tcpSocket:
+              port: https
+          volumeMounts:
+            - name: configuration
+              mountPath: /configuration
+              readOnly: true
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            - name: write
+              mountPath: /auth/write
+              readOnly: true
+            - name: query
+              mountPath: /auth/query
+              readOnly: true
+      volumes:
+        - name: configuration
+          configMap:
+            name: signal-metrics-aeaa989f07b246eea01a08390631ff11d16047a930c15b07111eb47d08655d04
+        - name: tls
+          secret:
+            secretName: signal-metrics-tls
+        - name: write
+          secret:
+            secretName: signal-metrics-write-auth
+        - name: query
+          secret:
+            secretName: signal-metrics-query-auth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signal-metrics
+  namespace: observability-dev
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signal-metrics
+  ports:
+    - name: https
+      port: 8443
+      targetPort: https
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: signal-metrics
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signal-metrics
+  policyTypes:
+    - Ingress
+  ingress: []
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: elastic-settings
+  namespace: observability-dev
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: apply
+          image: docker.io/oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a
+          command:
+            - bun
+            - /settings/apply.js
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: settings
+              mountPath: /settings
+              readOnly: true
+            - name: failure-fields
+              mountPath: /failure-fields
+              readOnly: true
+            - name: es-ca
+              mountPath: /es-ca
+              readOnly: true
+      volumes:
+        - name: settings
+          configMap:
+            name: signal-configuration-043cff9e01ea41224f6a44bcded892aa57a82a01f4e51b1343b478454ac9d81a
+        - name: failure-fields
+          configMap:
+            name: elastic-failure-fields-da663d9e4a75ecc9553029ec76dac8b5de2e11870f0e6135d77886daf141afa3
+        - name: es-ca
+          secret:
+            secretName: elasticsearch-es-http-certs-public
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: signal-configuration-043cff9e01ea41224f6a44bcded892aa57a82a01f4e51b1343b478454ac9d81a
+  namespace: observability-dev
+data:
+  collector.yaml: >
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      file_storage/queue:
+        directory: /var/lib/otelcol/queue
+        create_directory: true
+        timeout: 5s
+      file_storage/checkpoints:
+        directory: /var/lib/otelcol/checkpoints
+        create_directory: true
+      basicauth/metrics:
+        client_auth:
+          username: writer
+          password_file: /trust/metrics/password
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+            max_request_body_size: 1048576
+            tls:
+              cert_file: /trust/server/tls.crt
+              key_file: /trust/server/tls.key
+              client_ca_file: /trust/clients/ca.crt
+              client_ca_file_reload: true
+              min_version: "1.3"
+              reload_interval: 1m
+      otlp/platform:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:14317
+            max_recv_msg_size_mib: 1
+            tls:
+              cert_file: /trust/server/tls.crt
+              key_file: /trust/server/tls.key
+              client_ca_file: /trust/clients/ca.crt
+              client_ca_file_reload: true
+              min_version: "1.3"
+              reload_interval: 1m
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 384
+        spike_limit_mib: 64
+      batch:
+        timeout: 1s
+        send_batch_size: 128
+        send_batch_max_size: 256
+      filter/source:
+        error_mode: propagate
+        logs:
+          log_record:
+            - (resource.attributes["deployment.environment.name"] != "dev") or
+              resource.attributes["service.name"] == nil or
+              resource.attributes["service.name"] == ""
+        traces:
+          span:
+            - (resource.attributes["deployment.environment.name"] != "dev") or
+              resource.attributes["service.name"] == nil or
+              resource.attributes["service.name"] == ""
+        metrics:
+          datapoint:
+            - (resource.attributes["deployment.environment.name"] != "dev") or
+              resource.attributes["service.name"] == nil or
+              resource.attributes["service.name"] == ""
+      filter/platform:
+        error_mode: propagate
+        logs:
+          log_record:
+            - (resource.attributes["puni.cluster"] != "platform-local" and
+              resource.attributes["puni.cluster"] != "workers-local") or
+              resource.attributes["deployment.environment.name"] != nil
+        traces:
+          span:
+            - (resource.attributes["puni.cluster"] != "platform-local" and
+              resource.attributes["puni.cluster"] != "workers-local") or
+              resource.attributes["deployment.environment.name"] != nil
+        metrics:
+          datapoint:
+            - (resource.attributes["puni.cluster"] != "platform-local" and
+              resource.attributes["puni.cluster"] != "workers-local") or
+              resource.attributes["deployment.environment.name"] != nil
+      transform/redact:
+        log_statements:
+          - context: log
+            statements:
+              - replace_pattern(body, "AGE-SECRET-KEY-1[0-9A-Z]{58}", "[REDACTED]")
+              - replace_pattern(body, "gh[pousr]_[A-Za-z0-9]{36,}", "[REDACTED]")
+              - replace_pattern(body, "AKIA[0-9A-Z]{16}", "[REDACTED]")
+              - replace_pattern(body,
+                "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+",
+                "$$1[REDACTED]")
+              - replace_pattern(body,
+                "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+                "$$1[REDACTED]")
+              - replace_pattern(attributes["msg"], "AGE-SECRET-KEY-1[0-9A-Z]{58}",
+                "[REDACTED]")
+              - replace_pattern(attributes["msg"], "gh[pousr]_[A-Za-z0-9]{36,}",
+                "[REDACTED]")
+              - replace_pattern(attributes["msg"], "AKIA[0-9A-Z]{16}", "[REDACTED]")
+              - replace_pattern(attributes["msg"],
+                "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+",
+                "$$1[REDACTED]")
+              - replace_pattern(attributes["msg"],
+                "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+                "$$1[REDACTED]")
+      resource/cluster:
+        attributes:
+          - key: puni.cluster
+            value: ${env:PUNI_CLUSTER_ID}
+            action: upsert
+          - key: host.name
+            value: ${env:OTEL_K8S_NODE_NAME}
+            action: upsert
+      resource/host-namespace:
+        attributes:
+          - key: k8s.namespace.name
+            value: observability
+            action: upsert
+    exporters:
+      otlp:
+        endpoint: signal-gateway.observability-dev.svc:4317
+        tls: &a1
+          ca_file: /trust/upstream/ca.crt
+          cert_file: /trust/client/tls.crt
+          key_file: /trust/client/tls.key
+          server_name_override: signal-gateway.observability-dev.svc
+          min_version: "1.3"
+          reload_interval: 1m
+        timeout: 10s
+        sending_queue: &a2
+          enabled: true
+          storage: file_storage/queue
+          sizer: bytes
+          queue_size: 16777216
+          num_consumers: 2
+          block_on_overflow: false
+        retry_on_failure: &a3
+          enabled: true
+          initial_interval: 1s
+          max_interval: 5s
+          max_elapsed_time: 30s
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        resource_to_telemetry_conversion:
+          enabled: false
+        metric_expiration: 2m
+      prometheusremotewrite:
+        endpoint: https://signal-metrics.observability-dev.svc:8443/api/v1/write
+        resource_to_telemetry_conversion:
+          enabled: true
+        tls:
+          ca_file: /trust/metrics/ca.crt
+          min_version: "1.3"
+        auth:
+          authenticator: basicauth/metrics
+        timeout: 10s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 5s
+          max_elapsed_time: 30s
+        remote_write_queue:
+          enabled: true
+          queue_size: 256
+          num_consumers: 2
+        wal:
+          directory: /var/lib/otelcol/prometheus
+          buffer_size: 100
+          truncate_frequency: 1m
+      otlp/platform:
+        endpoint: signal-gateway.observability-dev.svc:14317
+        tls: *a1
+        timeout: 10s
+        sending_queue: *a2
+        retry_on_failure: *a3
+    service:
+      extensions:
+        - health_check
+        - file_storage/queue
+        - file_storage/checkpoints
+        - basicauth/metrics
+      telemetry:
+        metrics:
+          level: detailed
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
+      pipelines:
+        logs:
+          receivers:
+            - otlp
+          processors:
+            - memory_limiter
+            - filter/source
+            - transform/redact
+            - batch
+          exporters:
+            - otlp
+        traces:
+          receivers:
+            - otlp
+          processors:
+            - memory_limiter
+            - filter/source
+            - batch
+          exporters:
+            - otlp
+        metrics:
+          receivers:
+            - otlp
+          processors:
+            - memory_limiter
+            - filter/source
+            - batch
+          exporters:
+            - prometheus
+        logs/forwarded:
+          receivers:
+            - otlp/platform
+          processors:
+            - memory_limiter
+            - filter/platform
+            - transform/redact
+            - batch
+          exporters:
+            - otlp/platform
+        metrics/forwarded:
+          receivers:
+            - otlp/platform
+          processors:
+            - memory_limiter
+            - filter/platform
+            - batch
+          exporters:
+            - prometheusremotewrite
+  gateway.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      file_storage/queue:
+        directory: /var/lib/elastic-agent/queue
+        create_directory: true
+        timeout: 5s
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+            max_recv_msg_size_mib: 1
+            tls:
+              cert_file: /trust/server/tls.crt
+              key_file: /trust/server/tls.key
+              client_ca_file: /trust/clients/ca.crt
+              client_ca_file_reload: true
+              min_version: "1.3"
+              reload_interval: 1m
+      otlp/platform:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:14317
+            max_recv_msg_size_mib: 1
+            tls:
+              cert_file: /trust/server/tls.crt
+              key_file: /trust/server/tls.key
+              client_ca_file: /trust/clients/ca.crt
+              client_ca_file_reload: true
+              min_version: "1.3"
+              reload_interval: 1m
+    connectors:
+      elasticapm: {}
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 768
+        spike_limit_mib: 128
+      elasticapm: {}
+      batch:
+        timeout: 1s
+        send_batch_size: 128
+        send_batch_max_size: 256
+      filter/source:
+        error_mode: propagate
+        logs:
+          log_record:
+            - (resource.attributes["deployment.environment.name"] != "dev") or
+              resource.attributes["service.name"] == nil or
+              resource.attributes["service.name"] == ""
+        traces:
+          span:
+            - (resource.attributes["deployment.environment.name"] != "dev") or
+              resource.attributes["service.name"] == nil or
+              resource.attributes["service.name"] == ""
+        metrics:
+          datapoint:
+            - (resource.attributes["deployment.environment.name"] != "dev") or
+              resource.attributes["service.name"] == nil or
+              resource.attributes["service.name"] == ""
+      filter/platform:
+        error_mode: propagate
+        logs:
+          log_record:
+            - (resource.attributes["puni.cluster"] != "platform-local" and
+              resource.attributes["puni.cluster"] != "workers-local") or
+              resource.attributes["deployment.environment.name"] != nil
+        traces:
+          span:
+            - (resource.attributes["puni.cluster"] != "platform-local" and
+              resource.attributes["puni.cluster"] != "workers-local") or
+              resource.attributes["deployment.environment.name"] != nil
+        metrics:
+          datapoint:
+            - (resource.attributes["puni.cluster"] != "platform-local" and
+              resource.attributes["puni.cluster"] != "workers-local") or
+              resource.attributes["deployment.environment.name"] != nil
+      resource/stream/platform:
+        attributes:
+          - key: data_stream.namespace
+            from_attribute: puni.cluster
+            action: upsert
+      resource/stream:
+        attributes:
+          - key: data_stream.namespace
+            value: dev
+            action: upsert
+    exporters:
+      elasticsearch/otel:
+        endpoints:
+          - https://elasticsearch-es-http.observability-dev.svc:9200
+        mapping:
+          mode: otel
+          allowed_modes:
+            - otel
+        timeout: 10s
+        sending_queue:
+          enabled: true
+          storage: file_storage/queue
+          sizer: bytes
+          queue_size: 16777216
+          num_consumers: 2
+          block_on_overflow: false
+        retry:
+          enabled: true
+          max_retries: 2
+          initial_interval: 1s
+          max_interval: 5s
+        user: signal-ingest
+        password: ${env:ELASTIC_INGEST_PASSWORD}
+        tls:
+          ca_file: /trust/elastic/ca.crt
+          min_version: "1.3"
+        discover:
+          on_start: false
+          interval: 0s
+    service:
+      extensions:
+        - health_check
+        - file_storage/queue
+      telemetry:
+        metrics:
+          level: detailed
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
+      pipelines:
+        logs:
+          receivers:
+            - otlp
+          processors:
+            - memory_limiter
+            - filter/source
+            - resource/stream
+            - batch
+          exporters:
+            - elasticapm
+            - elasticsearch/otel
+        traces:
+          receivers:
+            - otlp
+          processors:
+            - memory_limiter
+            - filter/source
+            - resource/stream
+            - batch
+            - elasticapm
+          exporters:
+            - elasticapm
+            - elasticsearch/otel
+        metrics/apm:
+          receivers:
+            - elasticapm
+          processors:
+            - memory_limiter
+            - resource/stream
+          exporters:
+            - elasticsearch/otel
+        logs/platform:
+          receivers:
+            - otlp/platform
+          processors:
+            - memory_limiter
+            - filter/platform
+            - resource/stream/platform
+            - batch
+          exporters:
+            - elasticsearch/otel
+  retention.json: '{"elastic":{"logs":{"policyName":"puni-dev-logs","policy":{"policy":{"phases":{"hot":{"actions":{"rollover":{"max_age":"1d","max_primary_shard_size":"10gb"}}},"delete":{"min_age":"30d","actions":{"delete":{}}}}}},"templateName":"logs-otel@custom","template":{"template":{"settings":{"index.lifecycle.name":"puni-dev-logs","index.lifecycle.prefer_ilm":true,"index.number_of_replicas":0,"index.mapping.total_fields.limit":500,"index.mapping.total_fields.ignore_dynamic_beyond_limit":true},"mappings":{"properties":{"attributes.level":{"type":"keyword"},"attributes.service":{"type":"keyword"},"attributes.msg":{"type":"match_only_text"},"attributes.time":{"type":"date","format":"epoch_millis"},"attributes.failure.occurrence_id":{"type":"keyword"},"attributes.failure.fingerprint":{"type":"keyword"},"attributes.failure.v":{"type":"keyword"}}}}}},"traces":{"policyName":"puni-dev-traces","policy":{"policy":{"phases":{"hot":{"actions":{"rollover":{"max_age":"1d","max_primary_shard_size":"10gb"}}},"delete":{"min_age":"7d","actions":{"delete":{}}}}}},"templateName":"traces-otel@custom","template":{"template":{"settings":{"index.lifecycle.name":"puni-dev-traces","index.lifecycle.prefer_ilm":true,"index.number_of_replicas":0,"index.mapping.total_fields.limit":500,"index.mapping.total_fields.ignore_dynamic_beyond_limit":true}}}},"metrics":{"policyName":"puni-dev-metrics","policy":{"policy":{"phases":{"hot":{"actions":{"rollover":{"max_age":"1d","max_primary_shard_size":"10gb"}}},"delete":{"min_age":"7d","actions":{"delete":{}}}}}},"templateName":"metrics-otel@custom","template":{"template":{"settings":{"index.lifecycle.name":"puni-dev-metrics","index.lifecycle.prefer_ilm":true,"index.number_of_replicas":0,"index.mapping.total_fields.limit":500,"index.mapping.total_fields.ignore_dynamic_beyond_limit":true}}}}},"prometheus":["--storage.tsdb.retention.time=15d","--storage.tsdb.retention.size=8GB"]}'
+  logs-policy.json: '{"policy":{"phases":{"hot":{"actions":{"rollover":{"max_age":"1d","max_primary_shard_size":"10gb"}}},"delete":{"min_age":"30d","actions":{"delete":{}}}}}}'
+  logs-template.json: '{"template":{"settings":{"index.lifecycle.name":"puni-dev-logs","index.lifecycle.prefer_ilm":true,"index.number_of_replicas":0,"index.mapping.total_fields.limit":500,"index.mapping.total_fields.ignore_dynamic_beyond_limit":true},"mappings":{"properties":{"attributes.level":{"type":"keyword"},"attributes.service":{"type":"keyword"},"attributes.msg":{"type":"match_only_text"},"attributes.time":{"type":"date","format":"epoch_millis"},"attributes.failure.occurrence_id":{"type":"keyword"},"attributes.failure.fingerprint":{"type":"keyword"},"attributes.failure.v":{"type":"keyword"}}}}}'
+  traces-policy.json: '{"policy":{"phases":{"hot":{"actions":{"rollover":{"max_age":"1d","max_primary_shard_size":"10gb"}}},"delete":{"min_age":"7d","actions":{"delete":{}}}}}}'
+  traces-template.json: '{"template":{"settings":{"index.lifecycle.name":"puni-dev-traces","index.lifecycle.prefer_ilm":true,"index.number_of_replicas":0,"index.mapping.total_fields.limit":500,"index.mapping.total_fields.ignore_dynamic_beyond_limit":true}}}'
+  metrics-policy.json: '{"policy":{"phases":{"hot":{"actions":{"rollover":{"max_age":"1d","max_primary_shard_size":"10gb"}}},"delete":{"min_age":"7d","actions":{"delete":{}}}}}}'
+  metrics-template.json: '{"template":{"settings":{"index.lifecycle.name":"puni-dev-metrics","index.lifecycle.prefer_ilm":true,"index.number_of_replicas":0,"index.mapping.total_fields.limit":500,"index.mapping.total_fields.ignore_dynamic_beyond_limit":true}}}'
+  apply.js: |
+    const { Bun, process, Buffer, fetch, AbortSignal } = globalThis;
+    const password = process.env.ELASTIC_PASSWORD;
+    // Proof: retention Job refuses missing credentials; removing this check admits an empty credential.
+    if (!password) throw new Error('ELASTIC_PASSWORD is required');
+    const ca = await Bun.file('/es-ca/ca.crt').text();
+    const url = 'https://elasticsearch-es-http.observability-dev.svc:9200';
+    /** The filtered health and acknowledgement contracts are closed; unknown outcomes fail the Job. */
+    function assertResponse(response, contract) {
+      // Proof: retention Job rejects health/mutation missing, null, unknown fields and wrong values;
+      // removing this guard makes those production-program negative controls fail.
+      if (response === null || typeof response !== 'object' || Array.isArray(response) ||
+          Object.keys(response).length !== Object.keys(contract).length ||
+          !Object.entries(contract).every(([key, values]) => Object.hasOwn(response, key) && values.includes(response[key])))
+        throw new Error('Invalid retention response');
+    }
+    /** TLS, credentials, redirect refusal and timeout apply to every health/mutation exchange. */
+    async function request(path, method, body) {
+      const response = await fetch(url + path, {
+        method, body, redirect: 'error', signal: AbortSignal.timeout(150000), tls: { ca },
+        headers: { authorization: 'Basic ' + Buffer.from('elastic:' + password).toString('base64'), 'content-type': 'application/json' },
+      });
+      // Proof: retention Job rejects health and mutation HTTP 503/202 even with otherwise valid JSON;
+      // removing this guard makes those production-program negative controls fail.
+      if (response.status !== 200) throw new Error('Retention HTTP ' + String(response.status));
+      return await response.json();
+    }
+    assertResponse(await request('/_cluster/health?wait_for_status=yellow&timeout=120s&filter_path=status,timed_out', 'GET'),
+      { status: ['yellow', 'green'], timed_out: [false] });
+    async function mutate(path, filename) {
+      assertResponse(await request(path, 'PUT', await Bun.file(import.meta.dir + '/' + filename).text()), { acknowledged: [true] });
+    }
+    const retention = JSON.parse(await Bun.file(import.meta.dir + '/retention.json').text());
+    for (const signal of ['logs', 'traces', 'metrics']) {
+      const policy = retention.elastic[signal];
+      await mutate('/_ilm/policy/' + policy.policyName, signal + '-policy.json');
+      await mutate('/_component_template/' + policy.templateName, signal + '-template.json');
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elastic-failure-fields-da663d9e4a75ecc9553029ec76dac8b5de2e11870f0e6135d77886daf141afa3
+  namespace: observability-dev
+data:
+  failure-fields.json: |
+    {
+      "properties": {
+        "attributes.level": { "type": "keyword" },
+        "attributes.service": { "type": "keyword" },
+        "attributes.msg": { "type": "match_only_text" },
+        "attributes.time": { "type": "date", "format": "epoch_millis" },
+        "attributes.failure.occurrence_id": { "type": "keyword" },
+        "attributes.failure.fingerprint": { "type": "keyword" },
+        "attributes.failure.v": { "type": "keyword" }
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana-objects-d1531561c480a0d836300f417df105437129d8cfda55e5d90d7900f8b51580ef
+  namespace: observability-dev
+data:
+  apply.sh: >
+    set -eu
+
+    url=https://kibana-kb-http.observability-dev.svc:5601
+
+    kb() {
+      curl --fail-with-body --silent --show-error --max-time 150 --cacert /kibana-ca/ca.crt \
+        --user "elastic:${ELASTIC_PASSWORD}" --header 'kbn-xsrf: true' "$@"
+    }
+
+    # Kibana answers its status endpoint long before it can import; only
+    `available` may import.
+
+    # Bounded at 60 checks, 10 s apart, inside the Job's own deadline; then the
+    attempt fails.
+
+    # Proof: on k3d on 2026-10-11, with Kibana scaled to zero and the bound
+    lowered to 3, the Job
+
+    # failed with "did not report available after 3 checks"; with the bound
+    removed it stayed active.
+
+    attempt=0
+
+    until kb "$url/api/status" | grep -q '"overall":{"level":"available"'; do
+      attempt=$((attempt + 1))
+      if [ "$attempt" -ge 60 ]; then
+        echo "Kibana did not report available after $attempt checks" >&2
+        exit 1
+      fi
+      sleep 10
+    done
+
+    # Kibana answers 200 even when it imported nothing, so the body's top-level
+    verdict decides.
+
+    # Proof: on k3d on 2026-10-11 an objects file with an unknown saved-object
+    type answered 200 with
+
+    # `"success":false`; this check failed the Job (exit 1), and with it removed
+    the Job completed.
+
+    imported=$(kb --request POST "$url/api/saved_objects/_import?overwrite=true"
+    \
+      --form file=@/objects/objects.ndjson)
+    echo "$imported"
+
+    case "$imported" in
+      *'"success":true,'*) ;;
+      *)
+        echo 'Kibana refused the saved objects' >&2
+        exit 1
+        ;;
+    esac
+  objects.ndjson: |
+    {"type":"index-pattern","id":"puni-logs-otel","attributes":{"name":"PUNI logs","timeFieldName":"@timestamp","title":"logs-puni.otel-*"},"references":[],"coreMigrationVersion":"8.8.0","typeMigrationVersion":"8.0.0"}
+    {"type":"lens","id":"puni-failures-by-fingerprint","attributes":{"state":{"datasourceStates":{"formBased":{"layers":{"failures":{"columnOrder":["fingerprint","occurrences"],"columns":{"fingerprint":{"customLabel":true,"dataType":"string","isBucketed":true,"label":"Fingerprint","operationType":"terms","params":{"missingBucket":false,"orderBy":{"columnId":"occurrences","type":"column"},"orderDirection":"desc","otherBucket":true,"size":20},"scale":"ordinal","sourceField":"attributes.failure.fingerprint"},"occurrences":{"customLabel":true,"dataType":"number","isBucketed":false,"label":"Occurrences","operationType":"count","params":{"emptyAsNull":true},"scale":"ratio","sourceField":"___records___"}},"incompleteColumns":{}}}}},"filters":[],"query":{"language":"kuery","query":"attributes.failure.fingerprint : *"},"visualization":{"layers":[{"accessors":["occurrences"],"layerId":"failures","layerType":"data","seriesType":"bar_horizontal","xAccessor":"fingerprint"}],"legend":{"isVisible":false,"position":"right"},"preferredSeriesType":"bar_horizontal"}},"title":"Failures by fingerprint","visualizationType":"lnsXY"},"references":[{"id":"puni-logs-otel","name":"indexpattern-datasource-layer-failures","type":"index-pattern"}],"coreMigrationVersion":"8.8.0","typeMigrationVersion":"10.1.0"}
+    {"type":"lens","id":"puni-latest-occurrence-per-fingerprint","attributes":{"state":{"datasourceStates":{"formBased":{"layers":{"latest":{"columnOrder":["fingerprint","lastSeen","occurrence","service","occurrences"],"columns":{"fingerprint":{"customLabel":true,"dataType":"string","isBucketed":true,"label":"Fingerprint","operationType":"terms","params":{"missingBucket":false,"orderBy":{"columnId":"lastSeen","type":"column"},"orderDirection":"desc","otherBucket":false,"size":100},"scale":"ordinal","sourceField":"attributes.failure.fingerprint"},"lastSeen":{"customLabel":true,"dataType":"date","isBucketed":false,"label":"Last seen","operationType":"max","params":{"emptyAsNull":true},"scale":"ratio","sourceField":"@timestamp"},"occurrence":{"customLabel":true,"dataType":"string","isBucketed":false,"label":"Latest occurrence","operationType":"last_value","params":{"sortField":"@timestamp"},"scale":"ordinal","sourceField":"attributes.failure.occurrence_id"},"occurrences":{"customLabel":true,"dataType":"number","isBucketed":false,"label":"Occurrences","operationType":"count","params":{"emptyAsNull":true},"scale":"ratio","sourceField":"___records___"},"service":{"customLabel":true,"dataType":"string","isBucketed":false,"label":"Service","operationType":"last_value","params":{"sortField":"@timestamp"},"scale":"ordinal","sourceField":"attributes.service"}},"incompleteColumns":{}}}}},"filters":[],"query":{"language":"kuery","query":"attributes.failure.fingerprint : *"},"visualization":{"columns":[{"columnId":"fingerprint"},{"columnId":"lastSeen"},{"columnId":"occurrence"},{"columnId":"service"},{"columnId":"occurrences"}],"layerId":"latest","layerType":"data"}},"title":"Latest occurrence per fingerprint","visualizationType":"lnsDatatable"},"references":[{"id":"puni-logs-otel","name":"indexpattern-datasource-layer-latest","type":"index-pattern"}],"coreMigrationVersion":"8.8.0","typeMigrationVersion":"10.1.0"}
+    {"type":"dashboard","id":"puni-failures","attributes":{"description":"Failure reports grouped by fingerprint over the last 7 days.","kibanaSavedObjectMeta":{"searchSourceJSON":"{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[]}"},"optionsJSON":"{\"useMargins\":true,\"syncColors\":false,\"hidePanelTitles\":false}","panelsJSON":"[{\"type\":\"lens\",\"panelIndex\":\"byFingerprint\",\"gridData\":{\"x\":0,\"y\":0,\"w\":48,\"h\":15,\"i\":\"byFingerprint\"},\"embeddableConfig\":{},\"panelRefName\":\"panel_byFingerprint\"},{\"type\":\"lens\",\"panelIndex\":\"latest\",\"gridData\":{\"x\":0,\"y\":15,\"w\":48,\"h\":20,\"i\":\"latest\"},\"embeddableConfig\":{},\"panelRefName\":\"panel_latest\"}]","timeFrom":"now-7d","timeRestore":true,"timeTo":"now","title":"Failures"},"references":[{"id":"puni-failures-by-fingerprint","name":"panel_byFingerprint","type":"lens"},{"id":"puni-latest-occurrence-per-fingerprint","name":"panel_latest","type":"lens"}],"coreMigrationVersion":"8.8.0","typeMigrationVersion":"10.3.0"}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kibana-objects
+  namespace: observability-dev
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: apply
+          image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+          command:
+            - sh
+            - /objects/apply.sh
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: objects
+              mountPath: /objects
+              readOnly: true
+            - name: kibana-ca
+              mountPath: /kibana-ca
+              readOnly: true
+      volumes:
+        - name: objects
+          configMap:
+            name: kibana-objects-d1531561c480a0d836300f417df105437129d8cfda55e5d90d7900f8b51580ef
+        - name: kibana-ca
+          secret:
+            secretName: kibana-kb-http-certs-public
