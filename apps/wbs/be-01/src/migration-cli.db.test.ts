@@ -1137,9 +1137,9 @@ describe('migration deploy entrypoints', () => {
     );
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('claims exist');
-    // The empty binding, resource, occupancy and organization limits migrations
-    // newer than add_claim reverse first, each in its own transaction, so
-    // add_claim's refusal leaves them reversed.
+    // The empty binding, resource, occupancy, runtime and organization limits
+    // migrations newer than add_claim reverse first, each in its own transaction,
+    // so add_claim's refusal leaves them reversed.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
@@ -1151,6 +1151,7 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
+          name !== '20261022121000_add_runtime_commands' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
           name !== '20261022140000_add_resource_provider' &&
@@ -1213,7 +1214,8 @@ describe('migration deploy entrypoints', () => {
     const down = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('resources exist');
-    // The newer, empty claim occupancy, machine credential and organization limits migrations reverse first.
+    // The newer, empty claim occupancy, machine credential, runtime and organization
+    // limits migrations reverse first.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
@@ -1222,6 +1224,7 @@ describe('migration deploy entrypoints', () => {
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
           name !== '20261022110100_check_machine_credential_id' &&
           name !== '20261022120000_scope_trusted_issuer_audience' &&
+          name !== '20261022121000_add_runtime_commands' &&
           name !== '20261022130000_add_organization_limits' &&
           name !== '20261022130100_widen_organization_audit_organization_limits' &&
           name !== '20261022140000_add_resource_provider' &&

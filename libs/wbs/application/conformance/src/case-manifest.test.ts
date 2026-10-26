@@ -85,6 +85,7 @@ describe('the closed case manifest', () => {
       'attempts',
       'blockages',
       'stepParallels',
+      'runtimeCommands',
       'claims',
       'demands',
       'dependencies',
@@ -94,6 +95,7 @@ describe('the closed case manifest', () => {
       'savedPlans',
       'savedPlanCapture',
     ]);
+    expect(CASE_MANIFEST.runtimeCommands).toEqual(['runtimeCommands.write:permanent-history']);
     expect(CASE_MANIFEST.stepParallels).toEqual(['stepParallels.set:sparse-replace-remove']);
     expect(CASE_MANIFEST.blockages).toEqual(['blockages.set:read-remove']);
     expect(CASE_MANIFEST.claims).toEqual([

@@ -136,7 +136,7 @@ describe('person account and credential pin migrations', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}, ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
+      `rolled back: 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, 20261022121000_add_runtime_commands, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}, ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
     );
     expect(columnsOf(dbPath, 'person')).not.toContain('account_id');
     expect(columnsOf(dbPath, 'external_identity')).not.toContain('person_id');

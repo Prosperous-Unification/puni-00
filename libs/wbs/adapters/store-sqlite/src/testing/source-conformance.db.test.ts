@@ -51,6 +51,10 @@ import {
   subtreeSeedRecords,
   TARGETED_ORDER_WORK_ITEM_IDS,
 } from '@wbs/conformance';
+import {
+  runtimeCommandConformance,
+  runtimeRecordConformance,
+} from '@wbs/conformance/runtime-command-conformance';
 import type {
   JournalEntry,
   PlanEvent,
@@ -899,6 +903,7 @@ const openers: ExistingStoreOpeners = {
   attempts: (caseId) => openSqliteCase('attempts', caseId),
   blockages: (caseId) => openSqliteCase('blockages', caseId),
   stepParallels: (caseId) => openSqliteCase('stepParallels', caseId),
+  runtimeCommands: (caseId) => openSqliteCase('runtimeCommands', caseId),
   claims: (caseId) => openSqliteCase('claims', caseId),
   demands: (caseId) => openSqliteCase('demands', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
@@ -959,6 +964,7 @@ const declaration: SourceDeclaration = {
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
+    runtimeCommands: { kind: 'offered', gaps: [], open: openers.runtimeCommands },
     claims: { kind: 'offered', gaps: [], open: openers.claims },
     demands: { kind: 'offered', gaps: [], open: openers.demands },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
@@ -4868,6 +4874,7 @@ async function proveFault(
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
         stepParallels: (caseId) => takeFixture('stepParallels', caseId),
+        runtimeCommands: (caseId) => takeFixture('runtimeCommands', caseId),
         claims: (caseId) => takeFixture('claims', caseId),
         demands: (caseId) => takeFixture('demands', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
@@ -8894,4 +8901,21 @@ describe('SQLite existing source conformance', () => {
       },
     });
   });
+});
+
+describe('permanent runtime storage conformance', () => {
+  const open = () => {
+    const directory = mkdtempSync(join(tmpdir(), 'runtime-conformance-'));
+    const dbPath = join(directory, 'plan.db');
+    runMigrations(dbPath, MIGRATIONS);
+    const source = openSqliteSource({ dbPath });
+    return Promise.resolve({
+      source,
+      async close() {
+        await closeSqliteResources(source, directory);
+      },
+    });
+  };
+  runtimeCommandConformance(open);
+  runtimeRecordConformance(open);
 });

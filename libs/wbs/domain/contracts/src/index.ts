@@ -42,6 +42,7 @@ export * from './http/refusal';
 export * from './http/resource-runtime-shapes';
 export * from './http/resource-shapes';
 export * from './http/resource-use-shapes';
+export * from './http/runtime-command-shapes';
 export * from './http/saved-plan-shapes';
 export * from './http/schema-shape';
 export * from './http/session-policy-shapes';
@@ -60,5 +61,17 @@ export * from './http/work-item-shapes';
 export * from './internal';
 export * from './logger';
 export * from './oidc-identity';
+export * from './plan-command-values';
 export * from './principal';
+export * from './runtime-command-values';
+export { matchesRuntimeClaim, matchesRuntimeReceipt, matchesRuntimeScope } from './runtime-receipt';
+export {
+  canonicalRuntimeRequest,
+  parseCanonicalRuntimeRequest,
+  parseRuntimeAuthorityRequest,
+  parseRuntimeClaimRequest,
+  parseRuntimeLookup,
+  parseRuntimeStateRequest,
+  parseRuntimeWriteRequest,
+} from './runtime-request';
 export * from './ws';

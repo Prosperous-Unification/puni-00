@@ -357,6 +357,7 @@ describe('the optimizer migration', () => {
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022130000_add_organization_limits',
+        '20261022121000_add_runtime_commands',
         '20261022120000_scope_trusted_issuer_audience',
         '20261022110100_check_machine_credential_id',
         '20261022110000_widen_organization_audit_machine_credentials',
@@ -435,6 +436,10 @@ describe('the optimizer migration', () => {
             name !== 'organization_trusted_issuer' &&
             name !== 'machine_credential' &&
             name !== 'machine_credential_secret' &&
+            name !== 'runtime_ledger' &&
+            name !== 'runtime_authority' &&
+            name !== 'runtime_claim_binding' &&
+            name !== 'runtime_command_receipt' &&
             name !== 'organization_limits' &&
             name !== 'measure' &&
             name !== 'measure_estimate' &&

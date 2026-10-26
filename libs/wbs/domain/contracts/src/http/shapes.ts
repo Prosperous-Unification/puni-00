@@ -128,6 +128,7 @@ import {
   readResourceUseHistory,
   registerResourceUse,
 } from './resource-use-shapes';
+import { runtimeCommandShapes } from './runtime-command-shapes';
 import {
   compareSavedPlans,
   deleteSavedPlan,
@@ -173,7 +174,7 @@ import {
 } from './work-item-shapes';
 
 /** Migrated HTTP declarations; legacy families join this table as their handlers migrate. */
-export const httpShapes = [
+const ordinaryHttpShapes = [
   bindResourceAuthority,
   readResourceAuthority,
   admitResourceRuntimeUse,
@@ -318,3 +319,8 @@ export const httpShapes = [
   issueMcpDelegation,
   readMcpAuthority,
 ] as const;
+
+export const httpShapes: readonly [...typeof ordinaryHttpShapes, ...typeof runtimeCommandShapes] = [
+  ...ordinaryHttpShapes,
+  ...runtimeCommandShapes,
+];

@@ -142,6 +142,7 @@ describe(MIGRATION, () => {
       RESOURCE_PROVIDER,
       LIMITS_AUDIT,
       MIGRATION,
+      '20261022121000_add_runtime_commands',
     ]);
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name = 'organization_limits'").all(),

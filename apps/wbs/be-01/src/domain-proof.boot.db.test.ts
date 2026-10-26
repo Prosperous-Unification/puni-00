@@ -331,16 +331,12 @@ describe('boot-owned retained proof scheduling', () => {
     const queued = Promise.withResolvers<undefined>();
     const order: string[] = [];
     let holding: Promise<undefined> | undefined;
+    let gate: ReturnType<typeof openSqliteSource>['gate'] | undefined;
     running = await boot(options, {
       dnsTransport: { exchange: () => Promise.reject(new DnsUnavailableError('outage')) },
       openSource: (configured) => {
         const source = openSqliteSource(configured);
-        holding = source.gate.enter(() => held.promise);
-        const enter = source.gate.enter.bind(source.gate);
-        spyOn(source.gate, 'enter').mockImplementation((work) => {
-          queued.resolve(undefined);
-          return enter(work);
-        });
+        gate = source.gate;
         return {
           ...source,
           close: async () => {
@@ -348,6 +344,16 @@ describe('boot-owned retained proof scheduling', () => {
             await source.close();
           },
         };
+      },
+      startProofWorker: (schedule) => {
+        if (gate === undefined) throw new Error('source gate missing before proof worker startup');
+        holding = gate.enter(() => held.promise);
+        const enter = gate.enter.bind(gate);
+        spyOn(gate, 'enter').mockImplementation((work) => {
+          queued.resolve(undefined);
+          return enter(work);
+        });
+        return startDomainProofWorker(schedule);
       },
     });
     try {
