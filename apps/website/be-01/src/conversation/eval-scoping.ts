@@ -181,7 +181,6 @@ export function hasExploratoryGuidance(reply: string): boolean {
  */
 export function readAcknowledgement(reply: string, questionId: QuestionId): string {
   const label = getScopingQuestion(questionId).label;
-  if (reply === label) return '';
   // Proof: keeping the catalogue suffix failed the mounted valid declarative-acknowledgement control.
   return reply.slice(0, -(label.length + 2));
 }
