@@ -398,3 +398,78 @@ manually before cleanup. Ordinary `down` still derives its targets from names an
 labels; a journal does not make that teardown safe for recovery or prove which attempt created
 an object. The separate journal-consuming lifecycle refuses deletion, and the F9 recovery CLI
 remains disabled pending complete resource evidence and an identity-safe executor.
+
+### Authenticated observability source binding and read-only reconciliation
+
+`observability-flux-cli.ts` stages the source portion of the observability rehearsal. It does
+not execute the authenticated bootstrap handoff or establish full Kubernetes acceptance.
+Prepare a packet with the current generator using `observability-parity-rehearsal-cli.ts`;
+validation preserves the original input-source revision and separately records generator
+provenance. An external publisher must put exactly that packet, including `rehearsal.json`,
+at a Git repository root. Extra tracked files, symlinks and arbitrary prefixes refuse. The
+artifact root is `.`, while the Flux graph root is `./infra/clusters/platform/local`.
+Publication and credential provisioning are separate operator prerequisites.
+
+Use a regular current-user-owned mode 0600 request file, at most 64 KiB:
+
+```json
+{
+  "packetRequest": {
+    "sourceRevision": "<exact input-source commit>",
+    "network": "<the same explicit network map used to prepare the packet>"
+  },
+  "packetDirectory": "/absolute/path/to/packet",
+  "source": {
+    "repositoryURL": "ssh://git@reviewed-host/packet-repository",
+    "artifactCommit": "<exact published packet commit>",
+    "artifactRoot": ".",
+    "graphRoot": "./infra/clusters/platform/local",
+    "identityFile": "/owner-only/read-identity",
+    "knownHostsFile": "/owner-only/reviewed-known-hosts",
+    "timeoutMs": 300000
+  }
+}
+```
+
+The identity and host-trust files have the same bounded mode 0600/current-owner requirement.
+Supply independently reviewed host trust; the adapter verifies the supplied keys during SSH
+and records their hash, but does not invent evidence of human review or prove that the
+repository credential lacks write privileges. The URL must use the explicit `ssh://user@host/path`
+form without password, port, query or fragment. No credential URL or private material appears
+in receipts. Ambient SSH configuration, agents, credentials and Git configuration are excluded.
+
+```sh
+PUNI_PARITY_TOOLS=/absolute/path/to/locked-tools bun tools/tool-fleet/src/observability-flux-cli.ts bind /private/request.json /private/receipts/binding.json
+PUNI_PARITY_TOOLS=/absolute/path/to/locked-tools bun tools/tool-fleet/src/observability-flux-cli.ts observe /private/request-with-target.json /private/receipts/observation.json
+```
+
+The receipt directory must already be mode 0700 and owned by the current user. Receipts are
+exclusive, synchronized creations; a second operation never overwrites an existing receipt.
+`observe` performs a fresh binding first and saves it beside the observation as
+`observation.json.binding.json`. For observation, add `target` containing the existing lab's
+`labId`, `attemptId`, `daemonId`, exact `markerUID`, `sourceUID`, `rootUID`, and `timeoutMs`
+(1–300000). It reads the existing owner-only lab record and creation journal, uses only the
+recorded platform-local context/kubeconfig, and checks the current Docker daemon and immutable
+marker. This establishes read-only attribution; it does not establish complete resource
+creation ownership or authorize adopting resources by names/labels.
+
+The observer reads exact source revision/digest and root/stage revisions, deployed Helm history,
+controller/native readiness, and operator-child UIDs within one bounded deadline. Source,
+marker and daemon are read again before a successful receipt. The existing closed projections
+are reused; Secret values and full Secret objects are never queried. The returned observations
+are not stored-signal, UI, isolation, retained-history or recovery acceptance. Fixture tests
+exercise adapter behavior only. Read-only binding/observation does not require the 16 GiB
+mutation floor; any later lab mutation still requires the unchanged platform guard, a full
+measured budget, complete ownership, material and network prerequisites. The authenticated
+handoff remains `infra/ansible/playbooks/platform.yml`, using `puni-platform`, `puni-cluster`,
+`puni-platform-auth`, `sops-age` and `platform-local-kubeconfig`; this adapter does not run it.
+
+Run the source CLI from a full implementation checkout with its Git metadata, the original
+input-source commit available locally, Bun dependencies, and the same generator revision and
+bytes that prepared the packet. Runtime tools are Git, tar, SSH, ssh-keygen, and the locked
+kubectl in `PUNI_PARITY_TOOLS`. The artifact-only branch is a source publication, not the CLI
+checkout. A standalone compiled binary is not supported by this CLI: its repository root comes
+from `import.meta.dir`, and validation needs actual Git exports and generator files. Copying
+only an executable or receipt cannot replace that validation. The operator may use an isolated
+implementation checkout on the managed host where the existing read identity/trust reside;
+this source portion creates no credential, publication, checkout or remote execution itself.

@@ -385,3 +385,80 @@ Observed through bounded SSH subprocesses: `k3s kubectl get nodes --request-time
 Two temporary recording failures are retained as failed attempts: `Path.open` rejected the unsupported `opener` argument, and applying the singular Secret template directly to a List produced invalid `%!q` output despite kubectl exit0. The caller was corrected to use builtin `open` and a List wrapper, then parsed the corrected JSON before retaining the metadata. The malformed outputs are not inventory evidence or a production adapter failure.
 
 No live object, source pin, suspension, credential, volume, workload or route changed. Complete source-bound preflight, candidate/material ownership, capacity including coexistence/transients, actual Kubernetes stored signals/isolation/UI/recovery/history and live dev cutover remain incomplete.
+
+## Task 6b source portion — authenticated binding and read-only observation (2026-10-26)
+
+Parent-approved scope: exact-artifact Git binding and read-only reconciliation observation;
+actual authenticated bootstrap handoff and full Task6b/canonical3.1 runtime acceptance remain
+OPEN. No canonical checkbox changed. Base `fffc6cdef1ccad0c4f391a026c9ec25a104fbae1`.
+
+`validateFluxPacket` invokes the existing complete packet validator and retains verified bytes
+in an in-process capability. `bindObservabilitySource` authenticates Git transport with bounded
+owner-only identity/trust inputs, fetches the exact external commit, and compares full repository
+root closure and every blob including `rehearsal.json`. It records original source SHA, generator
+provenance, artifact commit and graph path separately. Artifact root is `.`, graph root is
+`./infra/clusters/platform/local`. No URL, credential bytes or invented review proof is emitted.
+The bootstrap descriptor preserves `puni-platform`/`puni-cluster` and the existing prerequisite
+contract; it does not execute that handoff or create Secrets.
+
+`observeFluxReconciliation` reuses the existing lab record, creation journal, name derivation
+and closed Kubernetes resource projections. It checks current daemon/immutable marker identity,
+source UID/revision/digest/current generation, exact root/stage revisions and dependency graph,
+nine deployed Helm histories/native source references, native/controller workloads and ECK/
+Prometheus/Alertmanager children. Source, marker and daemon are reread before success; replacement
+UIDs refuse. One deadline bounds reads/retries. Receipts preserve source/target/observed resource
+UIDs and safe states, or a fixed failure category; exclusive synchronized creation preserves the
+first receipt. Creation-journal attribution is explicitly **resourceOwnership:unproven**;
+capacity admission and full runtime acceptance are not certified. No mutation path is added.
+
+| Final command                                                                          | Fresh result                                             |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `bun test --timeout=30000 tools/tool-fleet/src/observability-flux.test.ts`             | 45 pass,0 fail,103 assertions;16.14s runner/16.171s wall |
+| `bunx eslint tools/tool-fleet/src/observability-flux{,-observation,-cli,.test}.ts`     | exit0,4.982s; four explicit paths in saved command       |
+| `bunx tsc --build --force tools/tool-fleet/tsconfig.json`                              | exit0,1.664s                                             |
+| `bunx prettier --check` on the four files and `docs/infra/local.md`                    | exit0,0.755s                                             |
+| `bunx --no-install openspec validate observability-environment-parity --strict --json` | valid,0 issues,exit0,0.962s                              |
+
+Useful positives use actual Git fetch/upload-pack and blob reads, actual files and subprocesses,
+the full CLI binding entrypoint, and pinned kubectl Go templates over a read-only loopback HTTP
+fixture. Only the SSH network endpoint and Kubernetes observations are fixtures. This is not
+actual remote authentication, deployment or Kubernetes acceptance. The parent's separate managed-
+host Git read and live inventory are distinct evidence; this worker performed no remote operation.
+
+Watched proofs:28 isolated mutations,all exit1,173.813s total; each restored before the next.
+Removing permissions,size,exclusive receipt,parent mode,file closure,blob comparison,capability,
+output cap,marker,daemon,source identity/current readiness,journal,root UID,stage current/revision,
+Helm history/source,ECK/workload/child readiness or final source reread accepted the corresponding
+invalid operation. Removing NOFOLLOW changed the symlink refusal category; removing NONBLOCK
+blocked the actual FIFO until the1.5s harness deadline. Removing replacement detection lost its
+specific category and reached later source-stale refusal. Delaying the process deadline by1s
+failed the elapsed bound at1056.67ms. These distinctions are retained, not reported as uniformly
+fail-open. The first raw-diagnostic experiment failed formatting only, **not privacy**; the
+corrected required-packet-read experiment exposed `PRIVATE-MARKER` in raw ENOENT output and
+failed the explicit non-disclosure assertion. Adjacent production Proof comments cite observed
+faults. Exact commands, logs, test names and per-fault timings are retained in ignored
+`.superpowers/sdd/observability-environment-parity/task-6b-evidence/`.
+
+Failure lineage retained: missing module/CLI REDs; first binding run12pass/1fail7.16s because
+mode000 correctly raised actual EACCES/input-unreadable instead of the test's permissions category;
+observer15pass/13fail6.97s because ConfigMaps have no spec; corrected discrimination then exposed
+fixture UID collisions across kinds (1pass/12fail6.11s). After fixing fixture UIDs,14pass/1fail9.21s
+identified downstream stage mismatch overwriting source-stale diagnostics; source priority fixed.
+The first kubectl projection fixture omitted HelmRelease/StatefulSet API discovery; its corrected
+read-only discovery made the new templates pass. Initial lint/type issues (bounded ArkType syntax,
+optional narrowed values, imports and Bun assertion typings) were corrected before final checks.
+
+Not run: old51-test packet suite, old renders/proof batches, full host gates, wider app/browser
+checks, publication, persistent credentials, cluster lifecycle, authenticated bootstrap handoff,
+actual candidate reconciliation or stored-signal/UI/isolation/history/recovery acceptance. Full
+budget, complete created-resource identities, actual material/network prerequisites and owned
+candidate remain unresolved. Read-only binding/observation adds no admission override; the
+unchanged16GiB mutation floor and existing admission refusal remain binding. The controller's
+artifact digest is observed; this source portion verifies fetched Git blobs, not a separately
+downloaded source-controller archive. Actual deployed chart/CRD/native compatibility and complete
+runtime readiness still require the original full acceptance path.
+
+CLI usage and managed-host execution assumptions are in `docs/infra/local.md`. Source execution
+needs a complete implementation checkout/Git metadata with the original source commit, matching
+generator revision/bytes, Bun dependencies, Git/tar/SSH/ssh-keygen and pinned kubectl. The artifact-
+only branch cannot run the CLI, and a standalone compiled binary is not implemented.
