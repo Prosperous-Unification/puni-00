@@ -226,6 +226,7 @@ export function requireFluxBinding(binding: FluxBinding, packet: FluxPacket): vo
 
 /**
  * Fetch an externally published exact-root packet using only supplied SSH identity and host trust.
+ * Snapshot the validated request before I/O so caller mutation cannot rewrite authenticated attribution.
  * Compare every tracked blob, including provenance, before recording a usable binding. Never publish,
  * create a cluster/Secret, attest human review, or claim that successful transport establishes readiness.
  */
@@ -234,9 +235,11 @@ export async function bindObservabilitySource(
   input: unknown,
   receiptPath: string,
 ) {
-  const source = Source(input);
-  if (source instanceof type.errors || source.repositoryURL.split('/').includes('..'))
+  const decoded = Source(input);
+  if (decoded instanceof type.errors || decoded.repositoryURL.split('/').includes('..'))
     return refuseFlux('source-malformed');
+  // Proof: removing this snapshot let an in-flight caller URL mutation relabel the fetched repository hash.
+  const source = structuredClone(decoded);
   const content = readFluxPacket(packet);
   const deadline = Date.now() + source.timeoutMs;
   const identity = await readFluxBytes(source.identityFile);

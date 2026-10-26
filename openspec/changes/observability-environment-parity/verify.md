@@ -462,3 +462,71 @@ CLI usage and managed-host execution assumptions are in `docs/infra/local.md`. S
 needs a complete implementation checkout/Git metadata with the original source commit, matching
 generator revision/bytes, Bun dependencies, Git/tar/SSH/ssh-keygen and pinned kubectl. The artifact-
 only branch cannot run the CLI, and a standalone compiled binary is not implemented.
+
+### Task 6b fix round1 — condition freshness and stable attribution (2026-10-26)
+
+Base `5d473d4cb271a8d5fc370aea1847a02050d3c311`; only the three accepted Important
+findings from the scoped review and their directly related controls are changed. Full Task6b,
+authenticated bootstrap execution, ownership/capacity admission and canonical3.1 runtime
+acceptance remain OPEN. No canonical checkbox changes.
+
+I1: Prometheus/Alertmanager use their condition-level generation, preserving the reused generic
+resource projection's absent-root value0. The Fleet adapter requires **both Available and
+Reconciled to be True at the current metadata generation**. A fresh unrelated Ready condition
+cannot substitute for either. Confirmed the condition fields in the two committed CRDs from
+`infra/platform/charts/kube-prometheus-stack-91.4.1.tgz` using `tar -xzOf ...` plus focused `rg`
+reads; no chart render was run. The operator's [status-subresource contract](https://prometheus-operator.dev/docs/proposals/implemented/status-subresource/)
+explains these two conditions. The existing pinned-kubectl/HTTP fixture now projects supported
+monitoring shapes without invented status-root generation and supplies those real projected
+resources/states to the production observer. Four current CRs pass; eight stale/unhealthy
+Available/Reconciled cases refuse despite a fresh unrelated Ready condition.
+
+I2: Source and target requests are structured-cloned after validation and before the first
+await, following the existing preflight decoder boundary. A controlled SSH fixture pause lets
+the real Git fetch begin against A before the caller changes its URL to B; the binding remains
+attributed to A. A target mutation during Docker observation cannot substitute a foreign marker,
+and the failure receipt preserves the original target UID.
+
+I3: The first nonempty child identity set is pinned per parent UID (kind/namespace/name/UID).
+Every later complete resource snapshot checks that set before readiness filtering, so a renamed
+replacement or disappeared child refuses even if its parent has become unready. An initially
+empty set can acquire its first children; once attributed, later additions, disappearance or
+replacement refuse. This is observation consistency, not creation ownership or rollout authority.
+
+Focused RED/GREEN: initial6fail/0pass7.846s exposed false monitoring currentReady and the wrong
+repository attribution hash. Corrected realistic monitoring fixtures also caused initial target/
+child negatives to reach the known native-generation blocker; those initial categories are not
+reported as isolated exploit proofs. I1 passed1 test/61assertions10.626s; I2 passed2 tests6.459s;
+initial I3 controls passed3 tests6.231s. A directly related unready-parent disappearance control
+then failed6.014s (resource-unready instead of child-identity refusal), revealing readiness
+filtering still masked continuity. Moving the check before that filter passed in6.266s. There
+were no failed harness/tool attempts in this round; these failed runs are retained as their
+actual production/control lineage.
+
+Nine new mutations were watched, all exit1, total59.014s; each restored before the next.
+Removing any of four condition status/generation checks produced currentReady:true for its
+stale/unhealthy fixture. Bypassing the observer's monitoring gate accepted stale readiness.
+Removing the source snapshot emitted B's hash after fetching A; removing the target snapshot
+accepted the substituted marker. Removing child-set continuity accepted a renamed replacement;
+disappearance controls instead reached later bounded readiness refusals (fixed-category proofs).
+Pinning an initially empty set broke the valid first-appearance positive. Adjacent Proof comments
+name the observed failures. Only these new proof cases ran, not the earlier28-proof batch.
+
+| Final command                                                                          | Fresh result                                             |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `bun test --timeout=30000 tools/tool-fleet/src/observability-flux.test.ts`             | 51 pass,0 fail,164 assertions;20.36s runner/20.409s wall |
+| `bunx eslint` on the three amended Flux files                                          | exit0,5.015s                                             |
+| `bunx tsc --build --force tools/tool-fleet/tsconfig.json`                              | exit0,1.853s                                             |
+| `bunx prettier --check` on those files                                                 | exit0,0.494s                                             |
+| `bunx --no-install openspec validate observability-environment-parity --strict --json` | valid,0issues,exit0,0.844s                               |
+
+This was the single necessary covering pass for the amended adapter and corrected shared fixture,
+not an unchanged45-test rerun. The earlier packet51-test/render/proof/fullhost/app/browser batches
+were not repeated. Exact commands/logs/timings and proof script are in ignored
+`.superpowers/sdd/observability-environment-parity/task-6b-fix-1-evidence/`.
+Actual adapter SSH authentication, candidate Kubernetes deployment, bootstrap/material/network
+handoff, complete ownership/full capacity, stored-signal/UI/isolation/history/recovery acceptance
+remain unverified and required. No managed-host operation, live credentials, source publication,
+cluster lifecycle, push, merge or branch switch occurred. Generic Fleet observations and the
+existing CLI/full-checkout assumptions are unchanged. Parent scoped re-review follows the normal
+hook fix commit and source stop.

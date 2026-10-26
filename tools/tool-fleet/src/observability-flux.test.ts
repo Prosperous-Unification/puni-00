@@ -392,6 +392,7 @@ function readyObservations(): Record<string, unknown> {
       const parent = resource(kind, namespace, name, {
         owner: `helm:${namespace}-${release}`,
         ownerNamespace: namespace,
+        ...(kind === 'Prometheus' || kind === 'Alertmanager' ? { observedGeneration: 0 } : {}),
       });
       resource('StatefulSet', namespace, `${name}-child`, {
         owner: '',
@@ -796,6 +797,37 @@ test('pinned kubectl projects real source digest, stale condition, deployed hist
       ],
     },
   };
+  const monitoring = ['observability', 'observability-dev'].flatMap((namespace) =>
+    ['Prometheus', 'Alertmanager'].map((kind) => ({
+      apiVersion: 'monitoring.coreos.com/v1',
+      kind,
+      metadata: {
+        name: kind === 'Prometheus' ? 'kps-prometheus' : 'kps-alertmanager',
+        namespace,
+        uid: `${kind}-${namespace}-${kind === 'Prometheus' ? 'kps-prometheus' : 'kps-alertmanager'}`,
+        generation: 1,
+        annotations: {
+          'meta.helm.sh/release-name': `${namespace}-kube-prometheus-stack`,
+          'meta.helm.sh/release-namespace': namespace,
+        },
+      },
+      spec: { replicas: 1 },
+      status: {
+        replicas: 1,
+        updatedReplicas: 1,
+        availableReplicas: 1,
+        unavailableReplicas: 0,
+        paused: false,
+        conditions: ['Available', 'Reconciled'].map((condition) => ({
+          type: condition,
+          status: 'True',
+          observedGeneration: 1,
+          lastTransitionTime: '2026-10-26T00:00:00Z',
+        })),
+      },
+    })),
+  );
+  (manifests['resources'] as { items: unknown[] }).items.push(...monitoring);
   const methods: string[] = [];
   const server = Bun.serve({
     hostname: '127.0.0.1',
@@ -814,6 +846,11 @@ test('pinned kubectl projects real source digest, stale condition, deployed hist
         return Response.json({
           kind: 'APIGroupList',
           groups: [
+            {
+              name: 'monitoring.coreos.com',
+              versions: [{ groupVersion: 'monitoring.coreos.com/v1', version: 'v1' }],
+              preferredVersion: { groupVersion: 'monitoring.coreos.com/v1', version: 'v1' },
+            },
             {
               name: 'helm.toolkit.fluxcd.io',
               versions: [{ groupVersion: 'helm.toolkit.fluxcd.io/v2', version: 'v2' }],
@@ -836,6 +873,27 @@ test('pinned kubectl projects real source digest, stale condition, deployed hist
               singularName: 'helmrelease',
               namespaced: true,
               kind: 'HelmRelease',
+              verbs: ['get', 'list'],
+            },
+          ],
+        });
+      if (path === '/apis/monitoring.coreos.com/v1')
+        return Response.json({
+          kind: 'APIResourceList',
+          groupVersion: 'monitoring.coreos.com/v1',
+          resources: [
+            {
+              name: 'prometheuses',
+              singularName: 'prometheus',
+              namespaced: true,
+              kind: 'Prometheus',
+              verbs: ['get', 'list'],
+            },
+            {
+              name: 'alertmanagers',
+              singularName: 'alertmanager',
+              namespaced: true,
+              kind: 'Alertmanager',
               verbs: ['get', 'list'],
             },
           ],
@@ -919,6 +977,71 @@ test('pinned kubectl projects real source digest, stale condition, deployed hist
     expect(observedResources.resources[0].sourceKind).toBe('GitRepository');
     expect(observedResources.states[0].currentReady).toBe(true);
     expect(observedResources.states[1]).toMatchObject({ desired: 1, ready: 1, updated: 0 });
+    async function observeMonitoring(label: string) {
+      const projected = (await project('configmaps', fluxProjections.resources)) as {
+        resources: Resource[];
+        states: { uid: string; currentReady: boolean }[];
+      };
+      observations = structuredClone(healthy);
+      for (const custom of monitoring) {
+        const resource = projected.resources.find(
+          (resource) => resource.uid === custom.metadata.uid,
+        )!;
+        const status = projected.states.find((status) => status.uid === custom.metadata.uid)!;
+        expect(resource.observedGeneration).toBe(0);
+        const resources = observations['resources'] as Resource[];
+        resources[resources.findIndex((entry) => entry.uid === resource.uid)] = resource;
+        const states = observations['states'] as { uid: string; currentReady: boolean }[];
+        states[states.findIndex((entry) => entry.uid === status.uid)] = status;
+      }
+      return {
+        projected,
+        operation: () =>
+          observeFluxReconciliation(
+            directory,
+            packet,
+            bound,
+            { ...observationTarget(), timeoutMs: 500 },
+            join(directory, `monitoring-${label}.json`),
+            fixtureRead,
+          ),
+      };
+    }
+    const current = await observeMonitoring('current');
+    expect(
+      current.projected.states
+        .filter((state) => monitoring.some((custom) => custom.metadata.uid === state.uid))
+        .every((state) => state.currentReady),
+    ).toBe(true);
+    expect((await current.operation()).status).toBe('observed');
+    for (const kind of ['Prometheus', 'Alertmanager']) {
+      const custom = monitoring.find((custom) => custom.kind === kind)!;
+      for (const conditionType of ['Available', 'Reconciled']) {
+        const condition = custom.status.conditions.find(
+          (condition) => condition.type === conditionType,
+        )!;
+        for (const fault of ['stale', 'unhealthy']) {
+          condition.observedGeneration = fault === 'stale' ? 0 : 1;
+          condition.status = fault === 'unhealthy' ? 'False' : 'True';
+          // A fresh unrelated condition must never substitute for the unhealthy/stale relevant one.
+          custom.status.conditions.push({
+            type: 'Ready',
+            status: 'True',
+            observedGeneration: 1,
+            lastTransitionTime: '2026-10-26T00:00:00Z',
+          });
+          const negative = await observeMonitoring(`${kind}-${conditionType}-${fault}`);
+          expect(
+            negative.projected.states.find((state) => state.uid === custom.metadata.uid)!
+              .currentReady,
+          ).toBe(false);
+          expect(await rejection(negative.operation())).toMatch('resource-unready-or-stale');
+          custom.status.conditions.pop();
+          condition.observedGeneration = 1;
+          condition.status = 'True';
+        }
+      }
+    }
     expect(methods.every((method) => method === 'GET')).toBe(true);
   } finally {
     await server.stop(true);
@@ -1098,4 +1221,128 @@ test('resource replacement while waiting refuses the new UID', async () => {
       ),
     ),
   ).toMatch('resource-identity-changed');
+});
+
+test('caller mutation during authenticated fetch cannot rewrite repository attribution', async () => {
+  const executable = join(directory, 'bin/ssh');
+  const original = await readFile(executable, 'utf8');
+  const started = join(directory, 'fetch-started');
+  const release = join(directory, 'fetch-release');
+  await writeFile(
+    executable,
+    original.replace(
+      'exec git-upload-pack',
+      `touch '${started}'\nwhile [ ! -f '${release}' ]; do sleep 0.01; done\nexec git-upload-pack`,
+    ),
+    { mode: 0o700 },
+  );
+  const request = { ...source };
+  const operation = bindObservabilitySource(
+    packet,
+    request,
+    join(directory, 'source-snapshot.json'),
+  );
+  try {
+    const deadline = Date.now() + 3000;
+    while (!(await Bun.file(started).exists())) {
+      if (Date.now() >= deadline) throw new Error('Fixture fetch did not start');
+      await Bun.sleep(10);
+    }
+    request.repositoryURL = 'ssh://git@unfetched.invalid/packet';
+    await writeFile(release, 'continue');
+    const snapshot = await operation;
+    expect(snapshot.repositoryIdentitySHA256).toBe(bound.repositoryIdentitySHA256);
+  } finally {
+    await writeFile(release, 'continue');
+    await writeFile(executable, original, { mode: 0o700 });
+  }
+});
+
+test('caller mutation during target observation cannot substitute a foreign marker', async () => {
+  observations = structuredClone(healthy);
+  const request = observationTarget();
+  async function changing(argv: string[]) {
+    if (argv[0] === 'docker') {
+      request.markerUID = 'foreign-marker';
+      Object.assign(observations['marker'] as object, { uid: 'foreign-marker' });
+    }
+    return fixtureRead(argv);
+  }
+  const path = join(directory, 'target-snapshot.json');
+  expect(
+    await rejection(observeFluxReconciliation(directory, packet, bound, request, path, changing)),
+  ).toMatch('target-mismatch');
+  expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({
+    target: { markerUID: 'marker-uid' },
+  });
+});
+
+for (const fault of ['rename-and-replace', 'disappear', 'unready-parent-disappear'] as const) {
+  test(`attributed controller child cannot ${fault} across retries`, async () => {
+    observations = structuredClone(healthy);
+    Object.assign(observations['details'] as object, { currentReady: false });
+    let reads = 0;
+    async function changing(argv: string[]) {
+      if (argv.some((part) => part.startsWith('kustomizations.')) && ++reads === 2) {
+        const resources = observations['resources'] as Resource[];
+        const child = resources.find((resource) => resource.ownerUID !== '')!;
+        const states = observations['states'] as { uid: string }[];
+        const state = states.find((state) => state.uid === child.uid)!;
+        if (fault === 'rename-and-replace') {
+          child.name = 'replacement-child';
+          child.uid = 'replacement-uid';
+          state.uid = child.uid;
+        } else {
+          observations['resources'] = resources.filter((resource) => resource !== child);
+          observations['states'] = states.filter((entry) => entry !== state);
+          if (fault === 'unready-parent-disappear')
+            resources.find((resource) => resource.uid === child.ownerUID)!.observedGeneration = 0;
+        }
+        Object.assign(observations['details'] as object, { currentReady: true });
+      }
+      return fixtureRead(argv);
+    }
+    expect(
+      await rejection(
+        observeFluxReconciliation(
+          directory,
+          packet,
+          bound,
+          { ...observationTarget(), timeoutMs: 500 },
+          join(directory, `child-${fault}.json`),
+          changing,
+        ),
+      ),
+    ).toMatch('controller-child-identity-changed');
+  });
+}
+
+test('an initially absent controller child may first appear before attribution', async () => {
+  observations = structuredClone(healthy);
+  let reads = 0;
+  async function appearing(argv: string[]) {
+    if (argv.some((part) => part.startsWith('kustomizations.'))) {
+      if (++reads === 1) {
+        const resources = observations['resources'] as Resource[];
+        const child = resources.find((resource) => resource.ownerUID !== '')!;
+        observations['resources'] = resources.filter((resource) => resource !== child);
+        observations['states'] = (observations['states'] as { uid: string }[]).filter(
+          (state) => state.uid !== child.uid,
+        );
+      } else observations = structuredClone(healthy);
+    }
+    return fixtureRead(argv);
+  }
+  expect(
+    (
+      await observeFluxReconciliation(
+        directory,
+        packet,
+        bound,
+        { ...observationTarget(), timeoutMs: 500 },
+        join(directory, 'first-child.json'),
+        appearing,
+      )
+    ).status,
+  ).toBe('observed');
 });

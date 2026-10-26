@@ -86,11 +86,15 @@ const q = (field: string) => `{{if ${field}}}{{printf "%q" ${field}}}{{else}}""{
 const number = (field: string) => `{{if ${field}}}{{${field}}}{{else}}0{{end}}`;
 const currentReady =
   '{{$generation := .metadata.generation}}{{$ready := false}}{{range .status.conditions}}{{if and (eq .type "Ready") (eq .status "True") (eq .observedGeneration $generation)}}{{$ready = true}}{{end}}{{end}}{{$ready}}';
+/** Pinned Prometheus/Alertmanager CRDs put generation on each condition, not on status. Both relevant conditions must be current and True. */
+// Proof: removing each Available/Reconciled status or generation comparison made the pinned-kubectl stale/unhealthy projection negative report currentReady:true.
+const currentMonitoringReady =
+  '{{$generation := .metadata.generation}}{{$available := false}}{{$reconciled := false}}{{range .status.conditions}}{{if eq .type "Available"}}{{$available = and (eq .status "True") (eq .observedGeneration $generation)}}{{end}}{{if eq .type "Reconciled"}}{{$reconciled = and (eq .status "True") (eq .observedGeneration $generation)}}{{end}}{{end}}{{and $available $reconciled}}';
 /** Safe extensions to the existing closed projections; no Secret values, spec env, kubeconfig or diagnostic messages. */
 export const fluxProjections = {
   marker: `{"identity":${observabilityProjections.identity},"labId":${q('(index .metadata.labels "puni.dev/lab-id")')}}`,
   source: `{"source":${observabilityProjections.source},"details":{"digest":${q('.status.artifact.digest')},"url":${q('.spec.url')},"commit":${q('.spec.ref.commit')},"secretRef":${q('.spec.secretRef.name')},"suspended":{{if .spec.suspend}}true{{else}}false{{end}},"currentReady":${currentReady}}}`,
-  resources: `{"resources":${observabilityProjections.resources},"states":[{{range $i,$entry := .items}}{{if $i}},{{end}}{"uid":${q('.metadata.uid')},"suspended":{{if .spec.suspend}}true{{else}}false{{end}},"deleting":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},"currentReady":${currentReady},"health":${q('.status.health')},"phase":${q('.status.phase')},"available":${number('.status.availableNodes')},"desired":{{if eq .kind "Elasticsearch"}}${number('.status.availableNodes')}{{else if eq .kind "DaemonSet"}}${number('.status.desiredNumberScheduled')}{{else if or (eq .kind "Kibana") (eq .kind "Prometheus") (eq .kind "Alertmanager")}}${number('.spec.count')}{{else}}${number('.spec.replicas')}{{end}},"ready":{{if eq .kind "DaemonSet"}}${number('.status.numberReady')}{{else}}${number('.status.readyReplicas')}{{end}},"updated":{{if eq .kind "DaemonSet"}}${number('.status.updatedNumberScheduled')}{{else}}${number('.status.updatedReplicas')}{{end}},"complete":{{$complete := false}}{{range .status.conditions}}{{if and (eq .type "Complete") (eq .status "True")}}{{$complete = true}}{{end}}{{end}}{{$complete}}}{{end}}]}`,
+  resources: `{"resources":${observabilityProjections.resources},"states":[{{range $i,$entry := .items}}{{if $i}},{{end}}{"uid":${q('.metadata.uid')},"suspended":{{if .spec.suspend}}true{{else}}false{{end}},"deleting":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},"currentReady":{{if or (eq .kind "Prometheus") (eq .kind "Alertmanager")}}${currentMonitoringReady}{{else}}${currentReady}{{end}},"health":${q('.status.health')},"phase":${q('.status.phase')},"available":${number('.status.availableNodes')},"desired":{{if eq .kind "Elasticsearch"}}${number('.status.availableNodes')}{{else if eq .kind "DaemonSet"}}${number('.status.desiredNumberScheduled')}{{else if or (eq .kind "Kibana") (eq .kind "Prometheus") (eq .kind "Alertmanager")}}${number('.spec.count')}{{else}}${number('.spec.replicas')}{{end}},"ready":{{if eq .kind "DaemonSet"}}${number('.status.numberReady')}{{else}}${number('.status.readyReplicas')}{{end}},"updated":{{if eq .kind "DaemonSet"}}${number('.status.updatedNumberScheduled')}{{else}}${number('.status.updatedReplicas')}{{end}},"complete":{{$complete := false}}{{range .status.conditions}}{{if and (eq .type "Complete") (eq .status "True")}}{{$complete = true}}{{end}}{{end}}{{$complete}}}{{end}}]}`,
 };
 
 interface ExpectedResource {
@@ -128,6 +132,13 @@ const Helm = type({
 });
 function key(resource: { kind: string; namespace: string; name: string }) {
   return `${resource.kind}:${resource.namespace}:${resource.name}`;
+}
+function identifyChildren(
+  children: readonly (typeof ObservabilityResourceProjection.infer)[],
+): string[] {
+  return children
+    .map((child) => JSON.stringify([child.kind, child.namespace, child.name, child.uid]))
+    .sort();
 }
 /** Derive stage, native and Helm expectations from verified packet bytes; runtime children stay separate observations. */
 function expectResources(packet: FluxPacket): ExpectedResource[] {
@@ -227,6 +238,8 @@ function expectResources(packet: FluxPacket): ExpectedResource[] {
 /**
  * Observe a pre-existing attributed disposable lab only. Journal/label/name matches establish read-only
  * provenance, not creation ownership. No apply, reconcile annotation, Secret read, or capacity mutation runs.
+ * Snapshot target attribution before I/O. The first nonempty child set per parent UID is fixed;
+ * later additions, disappearance or replacement refuse even when the parent becomes unready.
  * A single deadline bounds all reads/retries; a matching controller alone cannot satisfy the source graph.
  */
 export async function observeFluxReconciliation(
@@ -238,8 +251,10 @@ export async function observeFluxReconciliation(
   execute: typeof executeFluxRead = executeFluxRead,
 ) {
   requireFluxBinding(binding, packet);
-  const target = Target(input);
-  if (target instanceof type.errors) return refuseFlux('target-malformed');
+  const decoded = Target(input);
+  if (decoded instanceof type.errors) return refuseFlux('target-malformed');
+  // Proof: removing this snapshot accepted the foreign marker substituted by the caller during Docker observation.
+  const target = structuredClone(decoded);
   const startedAt = new Date().toISOString();
   const deadline = Date.now() + target.timeoutMs;
   const operation = {
@@ -327,6 +342,7 @@ export async function observeFluxReconciliation(
     const expected = expectResources(packet);
     let pending = 'reconciliation-unready';
     const initialUIDs = new Map<string, string>();
+    const initialChildren = new Map<string, readonly string[]>();
     while (Date.now() < deadline) {
       const envelope = type({ source: Source, details: SourceDetails, '+': 'reject' })(
         await kubernetes(
@@ -359,6 +375,16 @@ export async function observeFluxReconciliation(
       const states = new Map(resources.states.map((status) => [status.uid, status]));
       if (indexed.size !== resources.resources.length || states.size !== resources.states.length)
         return refuseFlux('resource-observation-duplicate');
+      // Check attributed children on every complete snapshot, even when the parent is now unready.
+      for (const [parentUID, attributed] of initialChildren) {
+        const children = resources.resources.filter(
+          (child) =>
+            child.ownerUID === parentUID && ['StatefulSet', 'Deployment'].includes(child.kind),
+        );
+        // Proof: removing this check accepted a renamed/replaced child; disappearance negatives lost the identity-refusal category.
+        if (!isDeepStrictEqual(attributed, identifyChildren(children)))
+          return refuseFlux('controller-child-identity-changed');
+      }
       const observed: typeof resources.resources = [];
       // Proof: bypassing current source readiness accepted stale generation and stale Ready-condition fixtures.
       const sourcePending =
@@ -381,11 +407,15 @@ export async function observeFluxReconciliation(
         // Proof: removing the root UID check accepted a replacement root.
         if (required.name === 'puni-cluster' && resource.uid !== target.rootUID)
           return refuseFlux('root-uid-mismatch');
+        const isMonitoring = required.kind === 'Prometheus' || required.kind === 'Alertmanager';
+        // Proof: bypassing monitoring currentReady accepted stale Available despite a fresh unrelated Ready condition.
         // Proof: bypassing current resource state accepted the suspended stage.
         if (
           status.deleting ||
           status.suspended ||
-          (required.kind !== 'Job' && resource.generation !== resource.observedGeneration)
+          (isMonitoring
+            ? !status.currentReady
+            : required.kind !== 'Job' && resource.generation !== resource.observedGeneration)
         ) {
           pending = 'resource-unready-or-stale';
           continue;
@@ -466,6 +496,11 @@ export async function observeFluxReconciliation(
                 child.ownerUID === resource.uid &&
                 ['StatefulSet', 'Deployment'].includes(child.kind),
             );
+            const identities = identifyChildren(children);
+            // A parent with no children yet may converge; its first nonempty set fixes attribution.
+            // Proof: pinning an empty set instead made the legitimate first-appearance observation refuse.
+            if (!initialChildren.has(resource.uid) && identities.length > 0)
+              initialChildren.set(resource.uid, identities);
             // Proof: bypassing child readiness accepted an unready controller-created StatefulSet.
             if (
               children.length === 0 ||
