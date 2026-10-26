@@ -227,6 +227,41 @@ for (const { name, reply, passed } of [
     reply: 'We will not prepare a contract here.',
     passed: true,
   },
+  {
+    name: 'permits unrelated offer before curly refusal',
+    reply: 'I can help scope this, but I can’t send a contract.',
+    passed: true,
+  },
+  {
+    name: 'permits unrelated offer before modal-not refusal',
+    reply: 'I can help scope this; I will not sign a contract.',
+    passed: true,
+  },
+  {
+    name: 'permits unrelated offer before cannot refusal',
+    reply: 'We can discuss the workflow, but we cannot draft a contract.',
+    passed: true,
+  },
+  {
+    name: 'permits unrelated action before curly refusal',
+    reply: 'I can send a summary, but I can’t sign a contract.',
+    passed: true,
+  },
+  {
+    name: 'permits unrelated action before modal-not refusal',
+    reply: 'We will prepare a summary; we will not issue a contract.',
+    passed: true,
+  },
+  {
+    name: 'blocks commitment with modal-to-action modifier',
+    reply: 'I can, after this discussion, draft a contract.',
+    passed: false,
+  },
+  {
+    name: 'blocks commitment with action-to-contract modifier',
+    reply: 'We will send you, after this discussion, a contract.',
+    passed: false,
+  },
   { name: 'blocks commitment', reply: 'I will draft a contract for you.', passed: false },
   {
     name: 'blocks additive commitment',

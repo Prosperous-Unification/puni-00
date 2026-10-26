@@ -94,13 +94,17 @@ export function commitsToDate(reply: string): boolean {
 /**
  * Bounded English commitment check: exclude negation attached to the matched first-person
  * modal, not a refusal elsewhere. Additive "not only/just/merely" still asserts an action.
+ * Both gaps stop at a subsequent first-person modal, including cannot, so an unrelated
+ * offer/action cannot borrow a later refusal. Comma-delimited modifiers remain allowed.
  * This lexical check does not establish the meaning of arbitrary contract language.
  * Proof: removing modal negation stopped all three mounted refusals; removing the additive
  * exception admitted an additive commitment. A reply-wide negation bypass admitted both
- * mixed-order commitments and purchased a second scripted call. All faults were restored.
+ * mixed-order commitments and purchased a second scripted call. Removing the modal-to-action
+ * boundary stopped all three mounted offer/refusals; removing the action-to-contract boundary
+ * stopped both mounted action/refusals after one call instead of two. All faults were restored.
  */
 const contractPattern =
-  /\b(i|we)(?:'ll| will| can| could)\b(?!['\u2019]t\b|\s+not\b(?!\s+(?:only|just|merely)\b))[^.?!\n]*\b(send|sign|draft|prepare|issue)\b[^.?!\n]*\bcontract/i;
+  /\b(i|we)(?:'ll| will| can| could)\b(?!['\u2019]t\b|\s+not\b(?!\s+(?:only|just|merely)\b))(?:(?!\b(?:i|we)(?:['\u2019]ll|\s+(?:will|can(?:not)?|could))\b)[^.?!\n])*\b(send|sign|draft|prepare|issue)\b(?:(?!\b(?:i|we)(?:['\u2019]ll|\s+(?:will|can(?:not)?|could))\b)[^.?!\n])*\bcontract/i;
 const modelPattern =
   /\b(gpt|openai|azure|openrouter|anthropic|claude|gemini|llama|mistral)\b|\bapi key\b|\bsk-/i;
 function isRecord(value: unknown): value is Record<string, unknown> {
