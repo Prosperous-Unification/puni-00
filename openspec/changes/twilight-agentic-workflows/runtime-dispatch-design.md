@@ -101,6 +101,13 @@ prepared locator's actual session ID with store/run/attempt. The shared encoder 
 the final request. Only basis/evidence can refresh before staging; no target/session rebind.
 The helper accepts the resulting fixed request, not an instruction to rebuild on retry.
 
+Initial construction can use the existing full-schema target-artifact reader and the local
+verified grant history. It establishes correspondence for request construction, not a live
+receiver lease or admission permission; the receiver and atomic local stage retain those
+checks. Claim and authority senders share only focused original-capture retention mechanics,
+including a detached returned reference across the additional async boundary. Their receipt
+verification, coupled revision checks and winner semantics remain with each host operation.
+
 Existing stage atomically retains claiming state and scope intent. Only fresh applied sends
 one conditional claim after owner/cancellation checks. Duplicate pending looks up; accepted
 duplicates return the original verified claim binding and original paired acknowledgement.
@@ -126,16 +133,33 @@ existing shared encoder directly at an exactly admitted consumer path; no policy
 ## 4. One fresh turn
 
 `runs/dispatch-turn.ts` exports the host operation over semantic stores, the receiver client,
+a separate exact project-claims observation client using the same configured transport,
 injected ActivityExecutor, original opaque ActivitySession, ScopedAttemptGuard, stable
 distinct stage/observation command IDs, TurnRequest and signal/onPart control. Snapshot
 portable input and capture control callback before awaits. No reconstructed live session.
 
-Read verified execution/runtime history. Require the complete retained direct ready
+Read verified execution history first. If this stage command is already retained, use the
+existing stageTurn replay route before fresh-state predicates and return its original
+historical pending acknowledgement without remote reads or turn dispatch. A different
+payload/family retains the store's identity refusal. Local history absence does not bypass
+the store's global command identity check, and a staging race that returns duplicate never
+dispatches. This includes exact retries after turn_pending/turn_returned or later state.
+
+For a fresh command, read verified runtime history and require the complete retained direct ready
 checkpoint, accepted exact claim, current-owner attachment and latest current-epoch grant.
 Check actual executor kind/version and full live locator against retained locator. Read
 actual pinned RuntimeState before dispatch: exact scope/ledger, held receiver grant, and
 one matching runtime claim including claim/person/work/step/parent/session and full execution
 binding. Ordinary claims and historical receipt acceptance are not current claim evidence.
+
+RuntimeState inventory does not sweep or expose lease expiry. Also read the existing
+readProjectClaims endpoint and match exactly one claim ID, holder, work, step, parent and
+legacy runId against that same runtime binding (the live claim runId is the session ID,
+not the local RunStore run ID). Require leaseRevokedAt null and leaseExpiresAt null or
+strictly greater than that response's server readAt; equality is expired. Null explicitly
+means an unleased claim. Reject malformed/nonfinite timing rather than using caller time.
+These are separate authenticated observations of inventory/grant and lease status, not an
+atomic cross-endpoint guarantee or evidence the lease survives through the turn.
 
 Stage through the existing `stageTurn` with exact independently observed revisions. Only a
 fresh applied reply may call turn; duplicate returns historical pending without dispatch.
@@ -148,7 +172,11 @@ remote-state artifact, so this packet proves performed ordering without claiming
 historical audit of that live check.
 
 Validate/snapshot the complete TurnReply and record `turn_observed` under exact post-stage
-revisions with the distinct observation ID. Not_started, unresolved and completed preserve
+revisions with the distinct observation ID. Fresh stage advances the submitted run revision
+once and uses the staged attempt revision; it does not advance scope revision. Observation
+persistence uses those exact values across awaits without refreshing for intervening facts.
+Preserve complete text, measured zero/unknown reason, finish and unresolved variants.
+Not_started, unresolved and completed preserve
 their current storage meanings. Completed means turn_returned, not accepted business
 success, released claim/capacity or successor settlement. Throwing dispatch or failed reply
 persistence retains the pending identity and original cause; no automatic redispatch.
@@ -162,6 +190,9 @@ configuration through a controlled pipe/file, and calls real loopback HTTP throu
 transport. Bound ready/go/reply/exit, await cleanup, never log credential headers. Parent
 checks actual receiver receipts/journal/claim; child checks durable local history/barriers.
 Declare an explicit target/CI dependency because process argv is not an Nx import edge.
+The be-01 test target declares scoped Dash runs/bridge/agents inputs actually consumed by
+the child, preserving default inputs without introducing a production app dependency.
+A real Nx/CI selection regression proves those changed paths select be-01's boot test.
 
 Conformance covers commit-before-send, locator-before-claim, lost reply followed by lookup
 without second POST,404 while an original request can still commit, mismatched/invalid-byte
@@ -174,3 +205,8 @@ unresolved. This remains a visible operator/reconciliation condition, not a bypa
 accepted semantic extension must supply fence-before-nonacceptance recovery. API-model
 durable lookup/resume/effect/quiescence remains unsupported. Exact outcome/write/release,
 operator operations, other adapters and CTT S7a remain required parts of the full objective.
+Remote claim heartbeat, repeated local lease renewal/cancellation/reconciliation and the
+one-to-one WBS business-attempt mapping remain mandatory host-lifecycle work before long
+live turns, deployment or dogfood. Aggregate heartbeat success is not exact-claim evidence
+and cannot revive expired/revoked claims. This packet's controlled unleased-principal boot
+test is not pinned-machine heartbeat or physical-stop proof.

@@ -222,5 +222,10 @@ export default ({
       // Proof: P3/P4 widened alias/relative imports and their real denials failed; P6 admitted prepare-activity.ts and its real peer denial failed.
       rules: boundary(['^@wbs/contracts$']),
     },
+    {
+      // Proof: P01 removed only this allowance and real source admission failed. P02/P03 widened alias/relative imports; P04/P05 added the actual test/peer paths. Their functional denials failed in 'Dash claim builder consumes only the exact public encoder'; exact restoration passed.
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/build-claim-request.ts'],
+      rules: boundary(['^@wbs/contracts$']),
+    },
   ];
 };

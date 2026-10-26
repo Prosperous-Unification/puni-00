@@ -9,7 +9,7 @@ its complete acceptance requirements are met.
 - [x] Authority delivery, through [authority tasks](authority-dispatch-tasks.md): RED commit-before-POST, exact historical duplicate lookup/acceptance,
       unchanged sticky pending on404/refusal/cancellation, concurrent original-evidence
       preservation and old-epoch grant refusal; implement design section2 using actual stores.
-- [ ] Prepared claim delivery: RED committed locator and exact session claim, immutable
+- [ ] Prepared claim delivery, through [claim tasks](claim-dispatch-tasks.md): RED committed locator and exact session claim, immutable
       retry bytes/state evidence, distinct local command IDs, lookup-only duplicate delivery
       and actual coupled receipt acceptance; implement design section3 without ordinary fallback.
 - [ ] Fresh turn and real boot integration: RED actual current claim/grant/live locator

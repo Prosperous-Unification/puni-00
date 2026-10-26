@@ -198,6 +198,48 @@ describe('the effective production and test boundaries', () => {
       );
   }, 30_000);
 
+  it('Dash claim builder consumes only the exact public encoder at its source path', async () => {
+    const root = 'apps/twilight-structure/twilight-dash/cli/src/runs/';
+    const path = root + 'build-claim-request.ts';
+    const peer = root + 'prepare-activity.ts';
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
+    if (!isRecord(peerOptions)) throw new Error('claim builder peer policy malformed');
+    const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+    if (!isRecord(options)) throw new Error('claim builder policy malformed');
+    const source = await readFile(join(workspace, path), 'utf8');
+    expect(importsAlias(source, '@wbs/contracts')).toBe(true);
+    expect(source).toContain("import { canonicalRuntimeRequest } from '@wbs/contracts';");
+    const [actual] = await lint.lintText(source, { filePath: path });
+    expect(actual.fatalErrorCount).toBe(0);
+    expect(
+      actual.messages.filter((message) => message.ruleId === '@nx/enforce-module-boundaries'),
+    ).toEqual([]);
+    for (const alias of [
+      '@wbs/store-memory',
+      '@wbs/contracts/solver/supervisor-protocol',
+      '@twilight-burokrat/judge',
+      relative(dirname(path), 'libs/wbs/domain/contracts/src/index.ts'),
+    ]) {
+      const [denial] = await lint.lintText("await import('" + alias + "');", { filePath: path });
+      expect(denial.fatalErrorCount).toBe(0);
+      expect(
+        denial.messages.map((message) => message.ruleId),
+        alias,
+      ).toContain('@nx/enforce-module-boundaries');
+    }
+    for (const denied of [root + 'build-claim-request.test.ts', peer]) {
+      const [denial] = await lint.lintText("await import('@wbs/contracts');", { filePath: denied });
+      expect(denial.fatalErrorCount).toBe(0);
+      expect(
+        denial.messages.map((message) => message.ruleId),
+        denied,
+      ).toContain('@nx/enforce-module-boundaries');
+    }
+    expect(options['allow']).toEqual(['^@wbs/contracts$']);
+    const withoutAllowance: Readonly<Record<string, unknown>> = { ...options, allow: [] };
+    expect(withoutAllowance).toEqual(peerOptions);
+  }, 30_000);
+
   it('Dash durable execution admits only exact public consumers and denies adjacent paths', async () => {
     const root = 'apps/twilight-structure/twilight-dash/cli/src/runs/';
     const peerOptions = boundaryOf(

@@ -66,6 +66,44 @@ Historical acceptance SHALL NOT establish a current receiver lease or a new loca
 - **WHEN** original evidence, complete correspondence or trusted persistence fails unexpectedly after the intent is known
 - **THEN** the bridge throws a fixed-message error retaining detached immutable intent correlation and original private cause without a new POST or pending release
 
+### Requirement: Prepared claim delivery preserves fixed input and coupled acknowledgement
+
+The bridge SHALL construct a claim for the retained prepared session and deliver its fixed
+canonical request with stable distinct local stage and acceptance identities. Only fresh
+staging SHALL elect a conditional claim POST. Duplicate delivery SHALL use verified original
+acknowledgement or exact lookup. Local revision checks SHALL never silently refresh during
+receipt reconciliation. Historical acknowledgement SHALL NOT grant current turn permission.
+
+#### Scenario: Initial claim construction uses a retained prepared target
+
+- **WHEN** verified execution and runtime history and an actual state artifact identify the prepared target and selected local-epoch grant
+- **THEN** construction uses that target, parent and actual prepared session binding, refreshing only basis and evidence without sending or granting execution permission
+
+#### Scenario: Fresh claim staging commits
+
+- **WHEN** the exact prepared request is newly staged and current ownership and cancellation checks allow dispatch
+- **THEN** one conditional claim POST follows the commit, and receipt acceptance uses submitted run/scope revisions advanced once plus the staged attempt revision
+
+#### Scenario: Duplicate delivery has an old pre-stage guard
+
+- **WHEN** exact duplicate staging returns its historical acknowledgement and lookup finds a valid receipt under the old submitted guard
+- **THEN** acceptance preserves that guard unchanged and its revision conflict stays pending until the caller explicitly observes state and submits current revisions with identical fixed inputs
+
+#### Scenario: State changes during lookup
+
+- **WHEN** an intervening local fact changes the submitted acceptance revisions while lookup is pending
+- **THEN** acceptance refuses without an internal refresh or overwrite of the new fact
+
+#### Scenario: Compatible claim receipts race
+
+- **WHEN** different compatible receipt bytes race for the same stable local acceptance ID and complete runtime intent
+- **THEN** acknowledgements retain the first complete paired ClaimAcceptAck and original artifact, while another local acceptance ID remains an identity conflict
+
+#### Scenario: Late old-owner claim is acknowledged
+
+- **WHEN** a current owner explicitly reconciles a valid late receipt for the original pending claim
+- **THEN** original intent and attachment provenance survive, no turn or capacity release follows, and uncertain404/refusal/transport results remain pending
+
 ### Requirement: Dash claims, reports and releases through WBS as one agent person
 
 Twilight Dash SHALL read startable work and write claims, progress, measures, releases and

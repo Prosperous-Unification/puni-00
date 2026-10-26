@@ -2909,3 +2909,32 @@ ADR0061. The stale WBS-only G2 note is preserved as earlier history and explicit
 superseded, matching current design/ADR0057/ADR0061. No other-owner project was changed
 and no agent person or formal execution claim was fabricated. Preparation PR759 remains
 unmerged pending its canonical h4 gate; its PR CI has passed.
+
+## Prepared claim construction — 2026-10-27
+
+Claim-dispatch Task1 builds fixed canonical input from verified prepared execution/runtime
+history and an actual retained target artifact. Only basis/evidence refresh; target, parent
+and actual session binding remain fixed. Construction performs no network/store mutation,
+renewal or execution and grants no live permission. The public encoder is consumed directly
+at one exact new source allowance; existing policy/tests are preserved.
+
+Final memory/SQLite tests pass88cases108expect calls in5.05s; the named real policy case
+passes1case18assertions. All40 Bun-only finite owned-check/consumption/policy trials fail
+as intended and pass after exact restoration. C13/C19 are typed-refusal diagnostics;
+construction correspondence is not an atomic-stage bypass claim. Four frozen test/helper
+files remain byte-identical; source/policy executable transpilation matches pre-comment
+baselines. Raw attempts, mutants, actual argv/exits and hashes/modes are retained under
+.superpowers/sdd/claim-dispatch-tasks. Setup/syntax/fixture/static failures receive no credit.
+
+Fresh graph-backed four uncached Dash/tool-devsync lint/typecheck targets pass in29.8s;
+touched formatting/diff and scoped OpenSpec pass. Nx socket fallback and13 inherited
+long-requirement warnings remain. Independent task review approves spec and quality with
+no Critical/Important finding and audits all40 trials/current identities without test reruns.
+Normal Task1 checkpoint remains required before Task2 claim delivery.
+
+The next turn design now distinguishes unswept runtime inventory from observed lease
+validity: separate existing project-claims read, exact correspondence, revocation refusal and
+expiry greater than server readAt. Historical turn replay precedes fresh-ready predicates;
+fresh turn staging leaves scope revision unchanged. These are forward requirements, not
+implemented turn/lease/boot acceptance. Heartbeat, long-turn lifecycle, business attempt
+mapping and complete S0/S7a remain open.
