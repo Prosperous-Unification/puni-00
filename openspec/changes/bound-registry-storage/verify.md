@@ -1360,3 +1360,65 @@ remained unchanged.
 This closes the unsafe-flag counterfactual only. The tag-cleanup case, partial-state
 census/recovery, remaining Task8 failures and validation/review, backup budgeting,
 monitoring and installed adoption remain incomplete.
+
+## Exact deletion status and native local backup boundaries
+
+A scratch copy of the current production `maintainRegistry`, with only its
+relative imports relocated, passed four tests and32 assertions against an actual
+local HTTP server, journal, kernel flock and physical census. HTTP500/404 are
+refused by the earlier unchanged HTTP request helper; HTTP200/201 reach the
+strict deletion-status check, which requires202. Removing only that check in the
+copy produced two failures:200/201 wrongly persisted accepted deletion state.
+Later physical reconciliation still refused, so this does not demonstrate verified
+deletion, completed retirement or GC. Restoring the exact copy passed4/32 again.
+The original production file was never edited. Copy/import/mutation/log hashes
+were independently reconstructed. Capacity, backup, readers and image admission
+were modeled; publication age used a synthetic eight-day authority clock, physical
+seed content and actual reserve/finish receipts. No actual publication or elapsed
+grace is claimed. Repository test integration and an accurate adjacent `Proof:`
+comment remain pending the frozen partial-deletion rehearsal's closure.
+
+The existing enabled native backup-store test was also run against current source:
+
+```sh
+PUNI_TEST_RESTIC_BINARY=/tmp/task8-restic-native/restic bun test \
+  --preload ./tools/test/scratch/preload.ts --timeout 30000 \
+  tools/tool-fleet/src/registry-backup-store.test.ts
+```
+
+It returned0 with3 tests/12 assertions: the pinned restic binary backed up both
+contents roots, verified the captured journal, restored the two subtrees and
+refused a corrupted pack; loader-environment and missing-authority refusals also
+passed. The actual inherited kernel flock and child lifecycle were exercised.
+Admission was modeled and source/target directories were ordinary local
+directories. This proves no physical quota, provider history, root guardian, UTS
+isolation or installed recovery. The exact fixture and test root were independently
+absent afterward.
+
+A separate scratch native probe passed1 test/29 assertions using the same pinned
+restic and current production store/lock functions. While an actual restic process
+held an encrypted foreign lock, reconciliation refused its unmatched durable owner
+before origin exclusion or deletion; the raw local census and ciphertext remained
+unchanged. Ordinary effect admission refused the visible lock before repository
+inspection, while reconciliation's bounded read-only repository inspection passed.
+A second initialized repository was refused against the first repository's pinned
+identity. A deliberately corrupt encrypted lock with a matching ciphertext-hash
+filename failed actual decryption and remained untouched. No origin-exclusion or
+removal callback ran. Provider versions, root-attempt metadata and origin ports
+were modeled; no native provider-history or successful recovery claim follows.
+
+The lock-holding fixture deliberately waited on empty input; closing that input
+produced terminal3 with the exact no-data-read error, rather than a successful
+backup. Initial setup failures are preserved: interruption with an open input,
+empty-input status mismatch, a local Bun pipe-write `EPERM`, and a strict census
+observing initial lock-file publication. The final fixture waits at most five
+seconds for its owned lock publication before running the unchanged strict
+production census. All owned children were terminal and authority closed before
+removal; the exact final fixture was independently absent. No independent
+PID/start census is claimed.
+
+All100 frozen rehearsal source hashes still matched after these local checks.
+The partial-deletion rehearsal has not launched while a separately observed live
+h4claw job holds admission. Remaining Task8 native failures, partial-state recovery,
+repository test integration, validation/review and Tasks9–11 remain incomplete;
+these checks have not activated production safeguards.
