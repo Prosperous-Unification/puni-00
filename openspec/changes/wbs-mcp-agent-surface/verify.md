@@ -336,6 +336,11 @@ tool-devsync; nothing was done on the dev host.
 | N2   | the "Run scoping" requirement names the secret-shaped refusal                                                                                                                                                                                              | —                                                             | `openspec validate --strict`                                                                                                                      |
 | N3   | `assertServiceSecretStrength` applies the floor to `MCP_BE_INTERNAL_SECRET` at boot; the activation CLI runs boot's checks (`machineGrantSettingsFaultsOf`: the secret's strength, the keys' import) and refuses `machine_grant_settings_invalid` (exit 8) | boot check removed; faults left out of `unready`              | `refuses a weak MCP_BE_INTERNAL_SECRET before opening storage` (booted); `refuses activation with a weak grant key or secret, naming it` (exit 0) |
 
+Results at 4bf2f39b7: `wbs-be-01:test` 3752 pass, 0 fail (3755 tests); `wbs-core:test`
+1382 pass, 0 fail; lint and typecheck for wbs-core, wbs-be-01 and tool-remote-scripts exit 0;
+wbs-contracts, wbs-mcp-01 and tool-remote-scripts tests 0 fail; `openspec validate --all
+--json` and Burokrat `check-indexes` exit 0.
+
 **Open, pre-existing, not fixed here:** `WBS_DELEGATION_SIGNING_KEY` and
 `WBS_DELEGATION_VERIFY_KEY` have the same gap in `tools/tool-remote-scripts/src/lib/docker.ts`:
 neither is in be's `SECRET_KEYS` nor `APP_ENV_ALLOWED_KEYS`, so the prod swap cannot pass
