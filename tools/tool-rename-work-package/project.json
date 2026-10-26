@@ -1,0 +1,35 @@
+{
+  "name": "tool-rename-work-package",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-rename-work-package/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test --preload ../test/scratch/preload.ts --timeout=30000",
+        "cwd": "tools/tool-rename-work-package"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-rename-work-package/src"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-rename-work-package/src --cache --cache-location .nx/eslintcache-tool-rename-work-package"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/tool-rename-work-package/tsconfig.json"
+      }
+    }
+  }
+}

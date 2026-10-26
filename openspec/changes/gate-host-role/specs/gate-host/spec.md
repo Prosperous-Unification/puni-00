@@ -45,3 +45,22 @@ writable.
 
 - **WHEN** the account is not in the docker group
 - **THEN** the play fails at `docker ps`
+
+### Requirement: Gate sandbox tools are available
+
+The role SHALL install Ubuntu apt `bubblewrap` and `busybox`. Read-only gate-account probes
+SHALL require system `bwrap` resolution and version execution, system BusyBox resolution and
+benign execution, and executable BusyBox at `/bin/busybox` and `/usr/bin/busybox`. Failed
+resolution or execution SHALL stop the validation command before later success can mask it.
+These probes SHALL NOT grant namespace permissions or establish namespace capability.
+
+#### Scenario: Required sandbox tools are absent or broken
+
+- **WHEN** a required `bwrap` or BusyBox executable is absent, nonexecutable or exits unsuccessfully
+- **THEN** validation fails without a later successful probe masking that failure
+
+#### Scenario: Required sandbox tools are available
+
+- **WHEN** the system tools resolve and their version or benign `true` probes succeed
+- **THEN** tool validation succeeds without claiming namespace capability or a passing canonical gate
+- **AND** the unchanged canonical gate remains the namespace probe, with no AppArmor, sysctl or user-namespace permission change

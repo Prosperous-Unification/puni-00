@@ -502,7 +502,7 @@ organization_id, position, …)`, back-filled by mapping each space's work packa
   another (remove it there first, so no move is silent), `DELETE …/:projectId` sets none,
   `POST …/:projectId/move` reorders within the space. Deleting a space returns its projects
   to none in the same transaction; a space owns no project lifecycle and grants no access,
-  and it holds its own local settings. [ADR 0061](../../../docs/adr/0061-a-space-is-an-organizational-unit.md)
+  and it holds its own local settings. [ADR 0062](../../../docs/adr/0062-a-space-is-an-organizational-unit.md)
   (written 2026-10-25) supersedes ADR 0033 ("A space is a lens", many spaces per
   project). `GET /api/spaces/:id/roll-ups` answers one row
   per project folded from its work packages' roll-ups (earliest start, latest finish, summed

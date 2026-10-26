@@ -1,0 +1,413 @@
+# Verification
+
+Implementation and task reviews are complete. The final combined-fix scoped review approved all findings without new breakage;
+final-tree checks and supported boundaries are recorded below.
+
+Base: `830e774d2302d852432c51ded1e1b38e85728f66` (fresh merged main).
+
+Final evidence must include real provider cleanup, command outcomes, live holds, replacement
+canaries, preserved work, atomic admission, crash recovery and WBS request/event round trips.
+Namespace-isolated tests prove the disposable fixture, not visibility of existing host PIDs.
+Record exact commands, results, watched safety negatives and remaining coverage limits below.
+
+## Real WBS–Dash roundtrip (2026-10-25)
+
+The coordinator ran a disposable smoke under an isolated Linux user/PID namespace using
+the real composed WBS app, SQLite stores and Dash runtime. The first run exposed a real
+protocol defect: a release event retaining the request id from its earlier pending event
+was rejected after the pending event acknowledged the request. The backend now accepts
+validated causal linkage to an acknowledged request while independently retaining any
+newer unacknowledged request. Targeted regressions cover that ordering.
+
+After the fix, the smoke exited 0 and reported:
+
+```json
+{
+  "verified": true,
+  "physicalPathAbsent": true,
+  "releasedDiskUnits": 1,
+  "reclaimedBytes": null,
+  "wbsState": "release_verified",
+  "acknowledgedRequest": true,
+  "responseLossReplay": true,
+  "restartRecovery": true,
+  "outageRecovery": true,
+  "uniqueReleaseHistory": true
+}
+```
+
+This proves actual disposable-directory deletion, reservation settlement, request delivery
+across ledger reopen, replay after lost acknowledgement, publication after a WBS outage,
+and one immutable release history entry. All fixture roots/databases were removed in
+finally blocks. The committed smoke path and final-tree command are recorded after review.
+
+## Specification gate
+
+`node_modules/.bin/openspec validate --all --json --no-interactive` exited 0:
+288 items passed, 0 failed (270 changes and 18 specifications). This is a structural
+specification check; runtime and integration evidence is recorded separately above.
+
+## Runtime review closure and final independent checks
+
+Independent review found three Important issues in the initial runtime: worktree-only
+reflog history could become unreachable, Git worktree removal bypassed shared-hardlink
+checks, and leader exit stopped escalation against surviving owned children. Commits
+`1edc0582e` and `4fe3f8c67` preserve and verify reflog/private-ref objects, apply universal
+no-follow shared-storage checks, and persist proven descendants before identity-checked
+Linux pidfd signaling. A real prune fixture restores the preserved source. An unrelated
+process remains alive when its recorded start identity does not match. Unknown membership
+stays blocked. Scoped independent re-review approved all three fixes without new findings.
+
+The implementer ran 31 inner runtime cases/183 assertions and four additional watched
+mutations (Git shared-storage inspection, PID-start comparison, session witness, and
+leader-exit escalation). An initially weak signal-death assertion was strengthened to
+check both exit and signal status, then its mutation was rerun and failed as intended.
+All mutated source was restored before the final run.
+
+The coordinator independently ran:
+
+```sh
+bun test apps/twilight-structure/twilight-dash/cli/src/resources/runtime.test.ts apps/twilight-structure/twilight-dash/cli/src/cli.test.ts apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts --timeout=120000
+unshare --user --map-root-user --pid --fork --mount-proc bun apps/wbs/be-01/scripts/resource-cleanup-smoke.ts
+```
+
+Results: 31 outer tests passed/143 assertions (including the real namespace suite),
+0 failed. The final smoke exited 0 with all fields below true:
+
+```json
+{
+  "verified": true,
+  "physicalPathAbsent": true,
+  "blockedRetryRecovered": true,
+  "releasedDiskUnits": 1,
+  "reclaimedBytes": null,
+  "wbsState": "release_verified",
+  "acknowledgedRequest": true,
+  "responseLossReplay": true,
+  "restartRecovery": true,
+  "outageRecovery": true,
+  "uniqueReleaseHistory": true
+}
+```
+
+The final combined backend gate passed 273 tests/6483 assertions across 15 files.
+Graph-backed ESLint passed on all 45 changed source/test files. Frontend evidence is in
+the companion tracking verify record (59 view tests, browser smoke and production build).
+
+## Production build and dependency layout
+
+`NX_DAEMON=false bunx nx run wbs-be-01:build --skip-nx-cache` passed, including its six
+dependency tasks, Dash's observation launcher, backend bundle and generated OpenAPI.
+The first attempt correctly refused an external build-host path: this isolated worktree
+initially borrowed dependencies through a symlink. Bun's CLI preserve-symlinks flag did not
+change the build API's behavior. A temporary checkout-local hardlink tree provided the
+required physical path layout without reinstalling or duplicating package file contents.
+The packaging guard was unchanged. The original dependency symlink was saved for restoration
+after final validation; that restoration is recorded in the resource-cleanup section.
+
+The actual Nx typecheck gate passed for seven affected projects and three required module
+checks (domain, contracts, core, SQLite, backend, frontend and Dash), with cache bypassed:
+
+```sh
+NX_DAEMON=false bunx nx run-many --target=typecheck --projects=wbs-domain,wbs-contracts,wbs-core,wbs-store-sqlite,wbs-be-01,wbs-fe-01,twilight-dash --parallel=1 --skip-nx-cache
+```
+
+No h2/remote gate or live host enrollment was performed. The local supported
+provider and its disposable namespace fixtures are the verification boundary.
+
+## Final whole-branch fixes
+
+The whole-branch review found three defects: Git index flags could hide modified source;
+a terminal no-effect acknowledgment regenerated its evidence locator; and planning deletion
+before first publication could strand the ordered authority stream. Commit `d92479207`
+retains flagged worktrees, reuses the complete original durable proof, and admits immutable
+WBS attribution before physical effects or source-sequence allocation. It also corrects the
+browser fixture's source/projection revisions. No migrations were changed by this fix.
+
+WBS provisional admission uses the existing resource-use snapshot and immutable registered
+history at source revision 0; the runtime-use row is inserted at ordered registration revision 1.
+Exact replay remains credential/epoch/account/organization bound and survives planning deletion.
+Confirmation preserves newer projection revisions and cleanup requests. A live creator awaiting
+admission is not recovered as abandoned; a sealed or dead creator's intent is retried and
+verified as never created. Rejected/ambiguous admissions remain charged with no path or source
+sequence and cannot strand independently admitted publication. Persistently refused admission
+requires operator repair. New creation therefore depends on WBS availability; cleanup of already
+admitted resources remains offline-capable.
+
+Both real Git flag regressions failed with released hidden source before the fix. The terminal
+race failed with evidence locator /4 instead of /3; the deleted-task smoke failed with registered
+sequence 9 HTTP404. Parent sealing stranded a creating child, watcher recovery cancelled a live
+creator, and duplicate admission event identity across projects returned200 rather than409.
+Each regression was observed failing then passing, with production `Proof:` comments retained.
+
+The combined fixer then ran nine independent production mutations, restoring each in finally:
+
+| Removed or broken check                  | Observed negative                                                      |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| Git index-tag guard                      | Both hidden-source fixtures released instead of retaining exact bytes. |
+| Original terminal evidence locator       | Composed race failed complete evidence equality.                       |
+| Exact admission receipt identity         | Wrong receipt permitted creation.                                      |
+| Admission before effects/source sequence | Actual deleted work item stranded registered sequence9 with HTTP404.   |
+| Source-0 cleanup-event fence             | Cleanup published before registration instead of an empty outbox.      |
+| Immutable admission replay envelope      | Changed declaration returned200 rather than409.                        |
+| Ordered confirmation matches admission   | Changed locator after project deletion returned200 rather than409.     |
+| Preserve current WBS projection          | Newer revision/pending request was erased.                             |
+| Admission epoch                          | Wrong epoch returned200 rather than409.                                |
+
+Earlier runtime mutation coverage independently removed owner/mode, authority binding,
+unresolved reservation charging, revision/incarnation, procfs holds, inode identity,
+missing-target intent, shared-hardlink, tracked generated-source and parent manifest guards.
+Every mutation failed its real fixture and was restored. These complement the four later
+shared-storage/descendant-identity mutations and Git prune/restore proof recorded above.
+
+## Independent final-tree gates
+
+After all production mutations were restored, the coordinator repeated the runtime/CLI command
+and real composed smoke shown above: **31 outer tests passed, 143 assertions**, zero failures
+(44.57s), containing all **36 real namespace runtime cases**. The smoke exited0 and returned:
+
+```json
+{
+  "verified": true,
+  "physicalPathAbsent": true,
+  "blockedRetryRecovered": true,
+  "releasedDiskUnits": 1,
+  "reclaimedBytes": null,
+  "wbsState": "release_verified",
+  "acknowledgedRequest": true,
+  "responseLossReplay": true,
+  "restartRecovery": true,
+  "outageRecovery": true,
+  "uniqueReleaseHistory": true,
+  "terminalRaceReplay": true,
+  "admittedDeletionRecovery": true,
+  "uncertainAdmissionRecovery": true,
+  "rejectedAdmissionDoesNotBlockStream": true
+}
+```
+
+This covers actual deletion, a real open-file hold, retry, exact original proof after
+restart/response loss, and a surviving replacement canary. Work-item/resource deletion use
+production commands; project deletion uses the existing orphan database fixture because this
+increment has no public project-delete route. Provider-only tests stub the admission HTTP
+transport; this smoke exercises the real WBS app, routes and SQLite stores.
+
+Final graph-backed `bunx eslint` passed all **47 changed TypeScript/TSX files**. The actual
+seven-project Nx typecheck command above passed with its three module gates (2m2s), and the
+actual backend build passed with all six dependencies (2.4s), cache bypassed. Full OpenSpec
+validation passed **288/288**, zero failures. Backend, frontend and browser evidence is in the
+companion tracking record. Normal commit hooks passed; the Tool Wiki activation check is
+inactive/not certified because its external activation root is absent. No remote h2/full
+monorepo gate, live enrollment or real Claude/Codex workload was run.
+
+## Decisions and resource cleanup
+
+The earlier tracking-first scope was superseded by the user's explicit choice of tracking plus
+Dash runtime; both are implemented. The durable-admission ruling trades availability of new
+work during WBS outages for immutable authorized attribution before effects. WBS does not
+become the physical capacity authority. Unsupported provider kinds, transfers, recovery across
+authority rotation, hard quotas and native unwrapped harness interception remain outside this
+local rollout; the CLI runbook states the managed creation boundary.
+
+After successful final type/build/test/lint checks, the coordinator removed only the temporary
+checkout-local hardlink dependency tree and restored its saved original `node_modules` symlink
+to `/home/df/wd/puni/puni-00/node_modules`. The main dependency file inode/content remained
+untouched. No dependencies were installed. Final task artifact cleanup and review closure are
+recorded below; the source branch/worktree remains available for review.
+
+## Final review and cleanup closure
+
+The scoped re-review of `449146ec1..d92479207` approved all four findings: flagged Git source
+is retained, terminal evidence is reused exactly, admission precedes effects and survives
+planning deletion, and browser revisions agree. It found no new breakage and no newly deferred
+observations. This is code review plus the execution evidence above, not live-host certification.
+The interrupted-removal fixture constructs a durable crash state; it is not an independent
+power-loss or kill-at-every-instruction proof.
+
+The coordinator removed the recorded `/tmp` implementation/probe/mutation helpers and logs,
+worktree build outputs (about100MiB), Nx/Vite caches, browser screenshots/reports/JUnit, and this
+plan's unique ignored SDD workspace. No `dash-resources-*` or `wbs-dash-roundtrip-*` fixture
+directories remained. The original shared dependency symlink is restored; no shared package
+contents or unrelated sibling plan files were removed. The isolated source worktree stays
+on `feat/wbs-resource-release` for review. Normal documentation commit hooks and a final clean
+status check complete the handoff; no global runtime/service was installed or activated.
+
+## Existing-account amendment (2026-10-25)
+
+At the user's request, the current Unix account is the supported setup; no separate account
+is required. Managed creation no longer scans all same-user processes as a precondition.
+The three cleanup-time inspections remain in force. An inaccessible process records its PID
+in the blocker, preserves the target and reservation, and allows an explicit retry after access
+is resolved. The runbook now uses owner-only directories under `$HOME` without sudo/useradd.
+
+The new real-process regression starts a non-dumpable Python process and independently observes
+EACCES reading its mappings. The isolated namespace runner drops CAP_SYS_PTRACE via `setpriv`
+so privileged inspection cannot conceal that failure. Against the prior implementation, the
+test failed at the dedicated-user startup refusal (two assertions). After the amendment it
+passed 12 assertions: creation and command execution succeeded, cleanup stayed blocked with
+its PID, output survived, capacity stayed charged, no verified release was published, and
+retry after the process exited removed the target and settled one reservation.
+
+A watched mutation returning immediately from `inspectHolds` made the regression fail with
+expected `blocked`, received `released`; the target was removed. The production guard was
+restored before final checks, and its adjacent Proof comment records the observed failure.
+No safety override or ignored inspection failure was added.
+
+Final commands and observations:
+
+```sh
+bun test apps/twilight-structure/twilight-dash/cli/src/resources/runtime.test.ts apps/twilight-structure/twilight-dash/cli/src/cli.test.ts apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts --timeout=120000
+unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace bun apps/wbs/be-01/scripts/resource-cleanup-smoke.ts
+NX_DAEMON=false bunx nx run twilight-dash:typecheck --skip-nx-cache
+bunx eslint apps/twilight-structure/twilight-dash/cli/src/resources/runtime.ts apps/twilight-structure/twilight-dash/cli/src/resources/runtime.test.ts
+node_modules/.bin/openspec validate dash-resource-cleanup --strict --no-interactive
+```
+
+Runtime/CLI: 31 outer tests, 143 assertions, zero failures (35.87s), including all 37 real
+namespace cases. The composed smoke exited0 with every boolean proof true, including actual
+removal, blocker retry, terminal replay, planning-deletion admission recovery and uncertain
+admission recovery. Dash typecheck passed (4.9s), scoped lint passed, and strict OpenSpec
+validation passed. Formatting and whitespace checks passed. The focused independent reviewer
+approved the seven-file code/spec/runbook diff without findings; no test suite was rerun by the
+reviewer. No backend/UI production code or public protocol changed, so the previous broad
+backend/browser/build evidence was not unnecessarily repeated.
+
+A disposable subprocess probe also confirmed the ordinary account still sees its protected
+process as its own UID while mapping reads return EACCES. It was terminated and reaped. No
+accounts, services or live resource roots were created. This task's temporary evidence, Nx
+cache and typecheck outputs are removed after recording these results; the original shared
+node_modules symlink and source branch remain.
+
+## Rollout gate regression corrections (2026-10-25)
+
+The full h2puni gate on `b463045a0d1020ca9cde1d9397d2ff61a2bb9731` exposed stale
+migration expectations and a schema declaration mismatch. The resource migrations now appear
+in exact ascending ledgers and descending rollback lists, newest-migration assertions, refusal
+ledger expectations, and the three complete rollback table inventories. The SQL migrations
+were unchanged. `schema.ts` now declares the three indexes already created by their SQL:
+`resource_use_project`, `resource_use_lifecycle`, and `resource_cleanup_request_authority`.
+
+Before correction, the focused schema-index/organization-limit run reported 7 pass and 3 fail;
+the backend migration CLI group reported 76 pass and 9 fail. The covering store run after the
+first corrections reported 659 pass and three newly exposed table-inventory failures. After
+correcting those exact inventories, their four-file run (including the unchanged schema-index
+regression) passed all 56 tests and 166 assertions. The seven backend migration files passed
+all 85 tests and 591 assertions. No assertion operator or migration/rollback behavior changed.
+An independent review approved the complete 45-file correction without findings.
+
+Formatting and whitespace checks passed. After explicitly generating the Nx project graph,
+changed-file ESLint was rerun so module-boundary checks could execute. A new full remote gate
+and GitHub CI are still required on the corrected commit; the failed earlier gate is not a
+release approval.
+
+## Hosted namespace provisioning correction (2026-10-25)
+
+The original GitHub Twilight log (run `40191312192`) for candidate `b463045a0d1020ca9cde1d9397d2ff61a2bb9731`
+failed the unchanged real runtime integration test with
+`unshare: write failed /proc/self/uid_map: Operation not permitted`. The existing CI profile
+admitted only `/usr/bin/bwrap`, after the main Twilight Nx step. The workflow now loads an
+AppArmor `userns` profile for `/usr/bin/unshare` before that step, only for full gates or exact
+`twilight-dash` membership. It preserves the host-wide restriction and runs this real probe
+as the runner account before allowing the runtime tests to start:
+
+```sh
+unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true
+```
+
+No runtime guard, test skip, sudo test execution, laptop policy or host account changed.
+Three new workflow regressions initially failed because provisioning was absent. After the
+workflow correction, `bun test tools/tool-devsync/src/toolchain-pins.test.ts` passed all
+24 tests and 94 assertions. The tests check executable scope, conditional job membership,
+ordering and the exact unprivileged probe. They also execute the production shell block
+against controlled loader/probe failures and verify that each error stops execution.
+Six watched workflow mutations failed: late provision, unscoped provision, wrong executable,
+missing probe, ignored profile-loader failure and ignored probe failure. All were restored.
+
+The unchanged real runtime suite passed locally:
+`bun test apps/twilight-structure/twilight-dash/cli/src/resources/runtime.test.ts --timeout=120000`
+reported one outer integration test, two assertions, zero failures (28.64s). The exact probe
+above also exited0. Scoped ESLint and shellcheck of the parsed production run block passed.
+These local checks do not exercise Ubuntu's hosted AppArmor enforcement: a new GitHub run
+must establish that the provision resolves the original UID-map failure on that runner.
+No AppArmor profile was loaded on the development machine.
+
+The covering tool-devsync typecheck exposed a test-only comparison introduced by this branch:
+`eslint-boundaries.test.ts` passed unknown peer options to a narrowly inferred equality matcher.
+The resources boundary test now validates those options and types its comparison record like
+the adjacent activation boundary test. `bunx tsc --build --force tools/tool-devsync/tsconfig.json`
+then exited0. Its focused real ESLint boundary regression passed (one test, 13 assertions),
+and scoped lint/format checks passed. No import allowance or assertion was weakened.
+
+## Measure-column browser teardown correction (2026-10-25)
+
+GitHub run `40194109802`, pixels shard 2, failed the fresh-reader case in
+`measure-columns.spec.ts` with `apiResponse.json: Response has been disposed`.
+The retained trace shows the second reader's intercepted plan fetch starting at
+750856.665, the header and empty-measure-headings assertions finishing at 750904.972
+while the body was empty, and the fetch returning at 750954.369 after context close
+had started. Header visibility did not establish that this reader had loaded its plan.
+
+The test now waits for every seeded row by its row ID before checking initial,
+reloaded, and second-reader column preferences. The second page drains intercepted
+handlers with `unrouteAll({ behavior: 'wait' })` in `finally` before closing its context;
+the primary page drains in `afterEach`. Errors still fail the test. All column,
+preference, budget, and write/read assertions remain intact; no retry, fixed delay,
+timeout increase, or production UI change was added.
+
+The real four-case file passed with the repository's ordinary server configuration:
+
+```sh
+CI=1 E2E_PORT_SHIFT=8000 E2E_TEST_DATABASE=<task-temp>/test.db \
+  PWTEST_CACHE_DIR=<task-temp>/cache bunx playwright test \
+  --config apps/wbs/fe-01/playwright.config.ts \
+  apps/wbs/fe-01/e2e/measure-columns.spec.ts --project chromium \
+  --reporter=list --output <task-temp>/results
+```
+
+Playwright returned 0: **4 passed in 37.4s**, including the failed case in 8.5s.
+`bunx eslint apps/wbs/fe-01/e2e/measure-columns.spec.ts` and `git diff --check` passed.
+The task created local `.env` files through `bun run dev:setup`, then removed only
+those initially absent files plus its temporary database, cache, and browser outputs.
+All three isolated ports (11100, 11200, 12200) were confirmed stopped after cleanup.
+The temporary launcher reported a variable-shadowing error after the successful
+Playwright subprocess and completed cleanup; this was outside the test run.
+The original CI trace is the observed failure evidence; no synthetic delay was needed.
+A new GitHub run remains required to verify the complete shard.
+
+## Latest-main resource UI integration (2026-10-25)
+
+Main advanced to `2ca06fcf191be55289930d10f119a9c884fac564` during rollout. The sole merge
+conflict retained main's `mayWrite` gate for creating resources and this branch's
+`ResourceUsesPanel`, including its dirty/busy callbacks. The viewer test now explicitly
+allows the additional resource-use GET while continuing to reject every unexpected write;
+the two integration fixtures provide the admin role required by main's fail-closed role read.
+The first correctly configured frontend run exposed those two fixture mismatches (80 pass,
+2 fail); after their correction, both resource panel files passed all 82 tests. The frontend
+Nx typecheck and its dependency passed with cache bypassed (43.0s). Independent comparison
+against the incoming merge stage confirmed every upstream permission check was preserved.
+
+## Resource integration dependency graph correction (2026-10-25)
+
+The canonical h2 gate at `071f3e602` exposed two stale tool-devsync expectations:
+Dash was expected not to import WBS contracts, and the product graph omitted the
+resource runtime contract edge and the executable WBS/Dash smoke composition.
+Both failures reproduced locally before edits (0 pass, 2 fail).
+
+The hash oracle now expects the direct WBS contract dependency and additionally
+requires the resource-runtime transport shape in the actual Nx task hash. The
+product graph allows that contract edge under the already-tested resources-only
+ESLint alias restriction. The WBS-to-Dash exception requires Nx to attribute all
+imports to exactly `apps/wbs/be-01/scripts/resource-cleanup-smoke.ts`; it is not a
+blanket product exception. Product tags, global policy and ESLint allowances are
+unchanged.
+
+Two watched mutations independently failed the exact-file assertion: an additional
+production WBS importer, and an implicit dependency with the smoke import removed
+(no contributing source file). All mutations were restored. The focused graph,
+cache-input and effective ESLint checks then passed 5 tests and 25 assertions.
+The missing-attribution mutation runner initially rejected Bun's diff formatting
+while validating its output; inspection confirmed the intended test failed on the
+empty source list, and the runner's finally block restored both source files.
+
+The complete workspace-projects and workspace-targets suites passed all 43 tests
+and 116 assertions (4.83s). The tool-devsync forced TypeScript build exited 0.

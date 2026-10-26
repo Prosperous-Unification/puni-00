@@ -96,6 +96,8 @@ describe(MIGRATION, () => {
   // read no definitions for either existing organization; watched 2026-10-23.
   it('seeds the five definitions for every organization that existed before it', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,
@@ -223,7 +225,11 @@ describe(MIGRATION, () => {
     expect(ledger()).toEqual(
       before.filter(
         ({ name }) =>
-          name !== MEASURE_FACTS && name !== MEASURE_ESTIMATES && name !== WORK_ITEM_BUDGETS,
+          name !== '20261025120000_add_resource_use' &&
+          name !== '20261025130000_add_resource_runtime' &&
+          name !== MEASURE_FACTS &&
+          name !== MEASURE_ESTIMATES &&
+          name !== WORK_ITEM_BUDGETS,
       ),
     );
   });
@@ -231,6 +237,8 @@ describe(MIGRATION, () => {
   it('rolls back over untouched seeded definitions, and comes forward seeding again', () => {
     organization('org-a', 5);
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       WORK_ITEM_BUDGETS,
       MEASURE_ESTIMATES,
       MEASURE_FACTS,

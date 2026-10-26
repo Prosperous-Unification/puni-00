@@ -1,0 +1,141 @@
+{
+  "sourceHead": "2f4a859d28f74971b340c78fe6b3f934131fd4d0",
+  "scope": "Exact-file proof archive inventory declarations, adjacent pilot Proof comment and bounded evidence only",
+  "identities": {
+    "completedAt": "2026-10-25T04:48:25.374Z",
+    "sources": 11958,
+    "sourceAndGitIdentitiesEqual": true,
+    "checks": ["pilot", "lint", "typecheck", "format-check", "openspec", "diff-check"]
+  },
+  "checks": [
+    {
+      "metadata": {
+        "name": "pilot",
+        "argv": [
+          "bun",
+          "test",
+          "src/policy/pilot-policy.test.ts",
+          "--preload",
+          "../../../../tools/test/scratch/preload.ts",
+          "--timeout=60000"
+        ],
+        "cwd": "/home/df/.codex/worktrees/d4f8/puni-00/apps/twilight-structure/twilight-burokrat/cli",
+        "startedAt": "2026-10-25T04:44:40.795Z",
+        "endedAt": "2026-10-25T04:47:54.813Z",
+        "durationMs": 194017.779258,
+        "exitCode": 0,
+        "stdoutSha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+        "stderrSha256": "4e37cf8d57d61674dbd2fd11887c5e5b8a81e33064ceba19650bc40587d94011"
+      },
+      "stdout": "bun test v1.4.4 (38afee6c8)\n",
+      "stderr": "\nsrc/policy/pilot-policy.test.ts:\n(pass) reviewed radical-modularity pilot through production CLI > loads the narrow enforced Tool Wiki bootstrap policy through the trusted boundary [3169.90ms]\n(pass) reviewed radical-modularity pilot through production CLI > pins exact pre-index tuples and passes observe lint from external trust [22032.30ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses an externally selected mapping that resolves inside the candidate [4929.75ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses a missing externally selected mapping [3354.85ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses an unreadable externally selected mapping distinctly from absence [3485.78ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses an externally selected mapping whose digest differs from its binding [2861.04ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses an externally selected mapping for a different source revision [3663.36ms]\n(pass) reviewed radical-modularity pilot through production CLI > fails observe lint when one actual pilot member leaves its index [7440.55ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses a stale Burokrat test command without its literal source selection [14670.14ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses prose facts presented as applicable checks [15059.29ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses an owned README declared as its own external consumer [6409.89ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses a pilot mapping whose pinned predecessor identity differs from the candidate [6550.33ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses a missing mapped pilot index with current candidate evidence [7386.15ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses externally pinned module and ownership claims that disagree with indexes [21757.72ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses mapped external consumers that disagree with the owned index [7223.26ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses a selected pilot index omitted from the externally pinned mapping [7876.95ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses a trusted selector left at the pre-move directory of a relocated boundary [6589.37ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses an empty, unmapped, incompatible, or escaping pre-index tuple manifest [12759.59ms]\n(pass) reviewed radical-modularity pilot through production CLI > refuses a creation revision that is not the new module’s own first commit [31685.55ms]\n(pass) on-disk bootstrap policy, mapping and relationship files > shared test contract README checks have executable target facts [0.67ms]\n(pass) on-disk bootstrap policy, mapping and relationship files > the bootstrap policy and mapping select the moved pilot boundaries at HEAD [26.83ms]\n(pass) on-disk bootstrap policy, mapping and relationship files > every obligation check id resolves to a fact its policy declares [0.82ms]\n(pass) on-disk bootstrap policy, mapping and relationship files > every bootstrap nx-target fact names a workspace project whose cwd exists at HEAD [3905.03ms]\n(pass) on-disk bootstrap policy, mapping and relationship files > every bootstrap module declares external consumers that exist at HEAD [42.18ms]\n\n 24 pass\n 0 fail\n 430 expect() calls\nRan 24 tests across 1 file. [193.97s]\n"
+    },
+    {
+      "metadata": {
+        "name": "lint",
+        "argv": [
+          "node",
+          "node_modules/nx/dist/bin/nx.js",
+          "run",
+          "twilight-burokrat:lint:source",
+          "--skip-nx-cache"
+        ],
+        "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+        "startedAt": "2026-10-25T04:47:54.813Z",
+        "endedAt": "2026-10-25T04:48:21.347Z",
+        "durationMs": 26533.208748999983,
+        "exitCode": 0,
+        "stdoutSha256": "e30b3720ca92aea4fd93e74fe69ce8602daad67631035a6d6083c13405d78685",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "\n> nx run twilight-burokrat:\"lint:source\"\n\n> bunx eslint apps/twilight-structure/twilight-burokrat/cli/src\r\n\r\n\n\n\n NX   Successfully ran target lint:source for project twilight-burokrat\n\n\n  Run duration:      25.5s\n  Cache:             Skipped (--skip-nx-cache)\n  Critical path:     25.5s (1 task)\n  Recoverable time:  <1ms\n",
+      "stderr": ""
+    },
+    {
+      "metadata": {
+        "name": "typecheck",
+        "argv": [
+          "node",
+          "node_modules/nx/dist/bin/nx.js",
+          "run",
+          "twilight-burokrat:typecheck",
+          "--skip-nx-cache"
+        ],
+        "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+        "startedAt": "2026-10-25T04:48:21.347Z",
+        "endedAt": "2026-10-25T04:48:23.760Z",
+        "durationMs": 2413.0202740000095,
+        "exitCode": 0,
+        "stdoutSha256": "122367765b74e2b0220f4929921b7538ca6d4216e0247f08c70f623e7f463ec5",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "\n> nx run twilight-burokrat:typecheck\n\n> bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json\r\n\r\n\n\n\n NX   Successfully ran target typecheck for project twilight-burokrat\n\n\n  Run duration:      1.7s\n  Cache:             Skipped (--skip-nx-cache)\n  Critical path:     1.7s (1 task)\n  Recoverable time:  <1ms\n",
+      "stderr": ""
+    },
+    {
+      "metadata": {
+        "name": "format-check",
+        "argv": [
+          "node",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--check",
+          "docs/wiki-policy/policy.json",
+          "docs/wiki-policy/bootstrap-policy.json",
+          "apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts",
+          "openspec/changes/burokrat-workflow-binding-validation/tasks.md",
+          "openspec/changes/burokrat-workflow-binding-validation/verify.md",
+          "openspec/changes/burokrat-workflow-binding-validation/evidence/inventory-repair.json"
+        ],
+        "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+        "startedAt": "2026-10-25T04:48:23.760Z",
+        "endedAt": "2026-10-25T04:48:24.366Z",
+        "durationMs": 605.7590289999789,
+        "exitCode": 0,
+        "stdoutSha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "Checking formatting...\nAll matched files use Prettier code style!\n",
+      "stderr": ""
+    },
+    {
+      "metadata": {
+        "name": "openspec",
+        "argv": [
+          "./node_modules/.bin/openspec",
+          "validate",
+          "burokrat-workflow-binding-validation",
+          "--json"
+        ],
+        "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+        "startedAt": "2026-10-25T04:48:24.366Z",
+        "endedAt": "2026-10-25T04:48:25.012Z",
+        "durationMs": 646.1354240000073,
+        "exitCode": 0,
+        "stdoutSha256": "1711cdd6597a0761090185cbd33b273a528c8872caa5fed020091033ba2f170a",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "{\n  \"items\": [\n    {\n      \"id\": \"burokrat-workflow-binding-validation\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 17\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/home/df/.codex/worktrees/d4f8/puni-00\",\n    \"source\": \"nearest\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "metadata": {
+        "name": "diff-check",
+        "argv": ["git", "diff", "--check"],
+        "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+        "startedAt": "2026-10-25T04:48:25.013Z",
+        "endedAt": "2026-10-25T04:48:25.031Z",
+        "durationMs": 18.211788999993587,
+        "exitCode": 0,
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "limitations": [
+    "This record preserves local checks of the uncommitted inventory repair. It is not the exact-SHA host gate or applicable CI verdict.",
+    "The 179 workflow-binding focused cases are unchanged and were not repeated for this metadata-only repair.",
+    "The canonical 2f4a859d gate was intentionally canceled after the diagnosed CI failure; its partial observations are not a complete passing gate."
+  ]
+}

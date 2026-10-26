@@ -261,15 +261,91 @@ so a startable step names the activity to run. Not the step graph, which is WBS'
 _Avoid_: Workflow config, pipeline, step mapping
 
 **Attempt**:
-One admitted try of one activity on one claimed step, with its own state, agent run and
-usage; a retry is a new attempt on the same claim. Reported to WBS as that step node's
-**Attempt** ([root glossary](../../CONTEXT.md)); one Dash attempt is one WBS attempt.
+One admitted try of one activity on one exact claimed step, with its own state, agent run
+and usage; continuation or reattachment retains that attempt and claim. A retry is a new
+attempt of the same logical operation with a new exact claim
+([retry protocol](../../openspec/changes/twilight-agentic-workflows/receiver-design.md#shared-semantic-records)).
 _Avoid_: Job, execution, session, try
+
+**Activity preparation**:
+The identified request to create an executor session for one runtime attempt before its
+activity turn is dispatched.
+_Avoid_: Turn, admission, launch command
+
+**Preparation intent**:
+The retained activity preparation, selected manifest identity, executor version, exact WBS
+target observation and local owner provenance for one admitted attempt.
+_Avoid_: Open acknowledgement, execution permission
+
+**Target observation**:
+The exact work item and step identity projected from one retained WBS runtime-state
+observation, including its scope, receiver ledger and basis.
+_Avoid_: Workflow graph, eligibility approval
+
+**Executor locator**:
+The portable identity of a prepared executor session, its preparation, selected activity
+and executor version.
+_Avoid_: Live attachment, worker address
+
+**Session attachment**:
+The attributed opening or reattachment of an exact executor locator to one local owner
+and epoch.
+_Avoid_: Receiver grant, durable session capability
+
+**Claim binding**:
+The retained association of an attempt with its exact runtime claim request, acceptance
+and receiver-generated claim identity.
+_Avoid_: Thin claim authority, current grant
+
+**Execution checkpoint**:
+The last meaningful preparation, claim or turn position within one attempt, retained when
+recovery or settlement changes that attempt's state.
+_Avoid_: Second attempt, independent session state
+
+**Execution history**:
+An attempt's ordered execution submissions and original acknowledgements together with
+its decision consumptions and settlement records.
+_Avoid_: Current state, event subscription
+
+**Creation key**:
+The adapter-instance-scoped identity of one session preparation payload, reused for exact
+retries of that preparation.
+_Avoid_: Operation key, turn key, session ID
+
+**Executor session**:
+The adapter or backend conversation identity used as an attempt's agent run; it is distinct
+from that attempt and its logical operation.
+_Avoid_: Attempt, worker, provider response ID
+
+**Turn key**:
+The session-scoped identity of one immutable activity turn request, reused for exact
+retries of that request.
+_Avoid_: Creation key, decision ID, operation key
+
+**Turn intent**:
+The retained identity and immutable request for one activity turn whose dispatch and
+outcome may need reconciliation.
+_Avoid_: Turn result, execution fact, receipt
 
 **Run store**:
 Twilight Dash's durable record of runs, attempts and recovery facts, separate from the
 lease authority and the observation store.
 _Avoid_: Checkpoint, state file, database
+
+**Execution fact**:
+An observation of an attempt's claim, session, recovery, wait or quiescence, recorded
+without performing the activity.
+_Avoid_: Business outcome, launch instruction
+
+**Execution command**:
+A request to retain an execution fact, claim transition or turn intent for a named attempt,
+with a stable identity reused for exact retries. A later observation is a distinct command.
+_Avoid_: Fact digest, revision, WBS progress command
+
+**Human wait**:
+A persisted request for a person's choice, identified by its attempt and correlation key.
+A later request within the same attempt has a fresh key even when its prompt repeats.
+_Avoid_: Dependency completion, paused job
 
 **Lifecycle point**:
 A named stage, activity, tool, decision, rework, trigger or profile-change event
@@ -299,6 +375,31 @@ _Avoid_: Scheduling, launch
 **Reservation**:
 A claim on part of a capacity pool or budget held for one admitted activity.
 _Avoid_: Allocation, quota
+
+**Resource use**:
+A specific resource managed for an execution and backed by runtime reservations; the use
+remains attributable after the execution ends.
+_Avoid_: Reservation, WBS occupancy, allocation
+
+**Resource cleanup**:
+Settlement of resource uses by preserving required work, withdrawing access, and verifying
+release or accepted continuing ownership.
+_Avoid_: Claim release, work outcome, garbage collection
+
+**Resource release**:
+Verified return of particular reserved runtime capacity after the corresponding use ends.
+Returning reusable capacity and destroying a disposable resource are distinct releases.
+_Avoid_: Lease expiry, cancellation, production release
+
+**Release record**:
+The attributable evidence for one verified resource release, including its capacity and
+resource identity; retrying its delivery does not create a second release.
+_Avoid_: Cleanup request, capacity report, receipt (without qualification)
+
+**Retained resource**:
+A resource use kept under an identified continuing owner, reason and review deadline,
+whose physical capacity remains charged.
+_Avoid_: Released reservation, free capacity
 
 **Lease**:
 Time-bounded ownership of a reservation or workspace, fenced by a token so an
@@ -612,3 +713,23 @@ _Avoid_: Runner as the identity of work
 **Carried execution**:
 A previously performed execution whose outcome is reused by a later delivery attempt without repeating its work.
 _Avoid_: Retry execution
+
+**Delivery timing receipt**:
+A source-attributed record of one delivery interval, its measurement basis, outcome and evidence completeness, linked to the work it describes.
+_Avoid_: Deployment success, acceptance receipt
+
+**Delivery timing cohort**:
+Delivery observations selected by an explicit workload and execution-context rule for a timing comparison, including failed and unfinished attempts.
+_Avoid_: Successful runs only, interchangeable workloads
+
+**Delivery timing comparison**:
+A reproducible comparison between baseline and candidate cohorts that states the observed difference, evidence limits and whether an improvement claim is supported.
+_Avoid_: Speedup inferred from one run
+
+**Delivery finding**:
+A retained, evidence-linked assessment of a delivery bottleneck, regression or observation gap, with a stable identity and a lifecycle across repeated observations.
+_Avoid_: Proven cause, automatic repair authority
+
+**Delivery observation health**:
+The freshness, coverage and collection status of delivery evidence, independent of whether the observed application or verification passed.
+_Avoid_: Application health, successful deployment

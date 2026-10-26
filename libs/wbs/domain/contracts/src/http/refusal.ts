@@ -1,4 +1,5 @@
 import type { PlanCommandKind } from '../commands/definitions';
+import type { mixedBases } from './work-item-response';
 
 /**
  * Modeled HTTP failures; status/code pairing is narrowed by each endpoint shape.
@@ -390,6 +391,7 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  outstandingUses?: number;
   /**
    * The provider instance the resource names, whose reference and report a
    * confirmed removal takes with it (`compute-providers` P3), or null.
@@ -509,10 +511,16 @@ export type CommandRefusalDetail = {
                                   ? CapacityLimitRefusalDetail
                                   : C extends 'budget_exhausted'
                                     ? BudgetExhaustedRefusalDetail
-                                    : Record<never, never>);
+                                    : // Proof (type boundary only): omitting this arm produced TS2353 for bases
+                                      // and TS2578 for missing-bases negatives in assertMixedRateCardRefusalTypes.
+                                      C extends 'mixed_rate_cards'
+                                      ? { bases: typeof mixedBases.infer }
+                                      : Record<never, never>);
 };
 
 type BareRefusalCode =
+  | 'conflict'
+  | 'resource_tracking_unavailable'
   // Proof: omission failed the closed-registry compiler case with TS2345 (mutation-registry.txt, 2026-10-17).
   | 'unsupported_step_parallelism'
   | 'step_blockage_inactive'
@@ -643,6 +651,18 @@ type BareRefusalCode =
   // Provisioning tokens (`organization-scim`): two tokens already live
   // (`sso_connection_unproven` above also refuses a token).
   | 'token_limit'
+  | 'runtime_scope_unavailable'
+  | 'runtime_generation_conflict'
+  | 'runtime_authority_stale'
+  | 'runtime_revision_conflict'
+  | 'runtime_claim_mismatch'
+  | 'runtime_claim_unmanaged'
+  | 'runtime_attempt_bound'
+  | 'runtime_command_conflict'
+  | 'runtime_ledger_mismatch'
+  | 'runtime_receipt_not_found'
+  | 'runtime_command_target_mismatch'
+  | 'runtime_command_not_supported'
   // Machine credentials (`wbs-machine-credentials`): an agent person bound to
   // an account that is no member; a second rotation inside the window; a
   // rotation of a credential whose secret its issuer rotates.
@@ -669,6 +689,8 @@ type BareRefusalCode =
   | 'delivery_busy';
 
 type SharedCommandCode =
+  | 'person_not_bound'
+  | 'credential_not_for_person'
   | 'not_found'
   | 'forbidden'
   | 'name_required'
@@ -681,7 +703,6 @@ type SharedCommandCode =
   | 'unknown_person'
   | 'agent_person_limit'
   | 'capacity_limit'
-  | 'person_not_bound'
   | 'organization_required'
   | 'unknown_provider';
 
@@ -724,7 +745,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
      */
     organization_required: undefined | CommandContext;
     /** Naming the person from a machine credential create; with its command context from a batch. */
-    person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
+    person_not_bound: undefined | { personId: string } | CommandRefusalDetail['person_not_bound'];
+    credential_not_for_person: undefined | CommandRefusalDetail['credential_not_for_person'];
     /**
      * Also a trusted issuer that unrevoked machine credentials name
      * (`wbs-machine-credentials` A16), and a provider instance resources name

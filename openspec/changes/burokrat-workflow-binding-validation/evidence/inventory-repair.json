@@ -1,0 +1,124 @@
+{
+  "sourceHead": "2f4a859d28f74971b340c78fe6b3f934131fd4d0",
+  "archiveSha256": "f86441e976b078228e0a89252733407c3601b1daf1471f9a78348b54ea9b8582",
+  "declaration": {
+    "path": "openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz",
+    "format": "application/gzip",
+    "consumer": "openspec/changes/burokrat-workflow-binding-validation/verify.md",
+    "regenerationAuthority": {
+      "kind": "external",
+      "authority": "Historical execution recorded in openspec/changes/burokrat-workflow-binding-validation/verify.md; rerunning its commands produces a new receipt."
+    }
+  },
+  "identities": [
+    {
+      "path": "docs/wiki-policy/policy.json",
+      "originalSha256": "f98c28a6e4fa882b2e49894cde049349090a21ee0edfa1123069f220d4b08096",
+      "repairedSha256": "def057dbf1167bdcff68bbb66c4fb3660adb235c221624be2936759d0c137b5f"
+    },
+    {
+      "path": "docs/wiki-policy/bootstrap-policy.json",
+      "originalSha256": "ce5dfd618bdf2061113ab004bbbc0cb83ce0bbc845348a9d814c8ceb65f77683",
+      "repairedSha256": "3bafd2dc677ab6457485c00e3a2e06f012f3b10a9b553dde56d3300d69f9ef16"
+    }
+  ],
+  "observations": [
+    {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "run",
+        "/home/df/.codex/worktrees/d4f8/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+        "classify-candidate",
+        "committed",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/listed",
+        "111ee99365cf6906cfd279449f7af46dd28427a6",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/0.before.policy.json"
+      ],
+      "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "undeclared binary content at openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz\n"
+    },
+    {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "run",
+        "/home/df/.codex/worktrees/d4f8/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+        "classify-candidate",
+        "committed",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/listed",
+        "111ee99365cf6906cfd279449f7af46dd28427a6",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/1.before.policy.json"
+      ],
+      "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "undeclared binary content at openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz\n"
+    },
+    {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "run",
+        "/home/df/.codex/worktrees/d4f8/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+        "classify-candidate",
+        "committed",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/listed",
+        "111ee99365cf6906cfd279449f7af46dd28427a6",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/0.after.policy.json"
+      ],
+      "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+      "exitCode": 0,
+      "stdout": "{\"selection\":{\"kind\":\"committed\",\"revision\":\"111ee99365cf6906cfd279449f7af46dd28427a6\",\"tree\":\"031df6190309316fb068e159fb287f6bc549c919\"},\"entries\":[{\"path\":\"openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz\",\"mode\":\"100644\",\"blob\":\"fa0538966d99d55e663fc2ac7034a72c61c384dd\",\"classification\":{\"kind\":\"content\",\"contentClass\":\"binary\",\"format\":\"application/gzip\",\"consumer\":\"openspec/changes/burokrat-workflow-binding-validation/verify.md\",\"regenerationAuthority\":{\"kind\":\"external\",\"authority\":\"Historical execution recorded in openspec/changes/burokrat-workflow-binding-validation/verify.md; rerunning its commands produces a new receipt.\"}}}],\"untracked\":[],\"policyId\":\"classification.radical-modularity-pilot.v1\"}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "run",
+        "/home/df/.codex/worktrees/d4f8/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+        "classify-candidate",
+        "committed",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/unlisted",
+        "c1f37e583e7ca5a40f1d593da17bd02e00f18b13",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/0.unlisted.policy.json"
+      ],
+      "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "undeclared binary content at openspec/changes/burokrat-workflow-binding-validation/evidence/unlisted-control.json.gz\n"
+    },
+    {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "run",
+        "/home/df/.codex/worktrees/d4f8/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+        "classify-candidate",
+        "committed",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/listed",
+        "111ee99365cf6906cfd279449f7af46dd28427a6",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/1.after.policy.json"
+      ],
+      "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+      "exitCode": 0,
+      "stdout": "{\"selection\":{\"kind\":\"committed\",\"revision\":\"111ee99365cf6906cfd279449f7af46dd28427a6\",\"tree\":\"031df6190309316fb068e159fb287f6bc549c919\"},\"entries\":[{\"path\":\"openspec/changes/burokrat-workflow-binding-validation/evidence/validator-proofs.json.gz\",\"mode\":\"100644\",\"blob\":\"fa0538966d99d55e663fc2ac7034a72c61c384dd\",\"classification\":{\"kind\":\"content\",\"contentClass\":\"binary\",\"format\":\"application/gzip\",\"consumer\":\"openspec/changes/burokrat-workflow-binding-validation/verify.md\",\"regenerationAuthority\":{\"kind\":\"external\",\"authority\":\"Historical execution recorded in openspec/changes/burokrat-workflow-binding-validation/verify.md; rerunning its commands produces a new receipt.\"}}}],\"untracked\":[],\"policyId\":\"classification.radical-modularity-pilot.v1\"}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "run",
+        "/home/df/.codex/worktrees/d4f8/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+        "classify-candidate",
+        "committed",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/unlisted",
+        "c1f37e583e7ca5a40f1d593da17bd02e00f18b13",
+        "/home/df/.codex/worktrees/d4f8/puni-00/.superpowers/sdd/tasks/inventory-repair/1.unlisted.policy.json"
+      ],
+      "cwd": "/home/df/.codex/worktrees/d4f8/puni-00",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "undeclared binary content at openspec/changes/burokrat-workflow-binding-validation/evidence/unlisted-control.json.gz\n"
+    }
+  ],
+  "limits": "Fixture commits contain only the named archive at its exact declared or unlisted control path; complete candidate classification and the production pilot are verified separately."
+}

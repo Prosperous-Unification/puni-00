@@ -170,14 +170,26 @@ claim instant. It SHALL offer no claim or release control.
 
 Below the held claims, the Claims sheet SHALL list the claim history read's events newest
 first, each naming who, which items and the reason (`claimed`, `released`, `lease expired`,
-`credential revoked`). It SHALL read the claim history when opened and again on each tree
-change while open, and not on `claims_changed`.
+`credential revoked`). A release the sweep made SHALL be worded by its reason and SHALL name no
+holder as the owner of the lease or credential
+(`A lease expired: released 5 items of lead, w1 and w3`), since one sweep event also carries
+the claims delegated under an expired subtree claim, each with its own holder. It SHALL read
+the claim history when opened and again on each tree change while open, and not on
+`claims_changed`.
 
 #### Scenario: A reaped claim says why
 
 - **WHEN** the sweep releases `codex`'s claim on `080.25` while the sheet is open
-- **THEN** the claim leaves the held list and the history's newest row reads `codex` released
-  `080.25` because its lease expired
+- **THEN** the claim leaves the held list and the history's newest row reads
+  `A lease expired: released 1 item of codex` over `080.25`, never `codex released`
+
+#### Scenario: A reaped subtree claim blames no delegated holder
+
+- **WHEN** the sweep releases `lead`'s expired subtree claim on `020` with `w1`'s and `w3`'s
+  claims delegated under it
+- **THEN** the history's newest row reads
+  `A lease expired: released 3 items of lead, w1 and w3`, and says of no holder that their
+  lease expired
 
 #### Scenario: The history cannot be read
 

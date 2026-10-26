@@ -72,7 +72,11 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-budget-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    '20261025130000_add_resource_runtime',
+    '20261025120000_add_resource_use',
+    MIGRATION,
+  ]);
   db = openDatabase(path);
   seedBaseline();
   db.close();
@@ -185,7 +189,11 @@ describe(MIGRATION, () => {
         .all();
     const before = facts();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
+      MIGRATION,
+    ]);
     db = openDatabase(path);
     expect(db.query("SELECT name FROM sqlite_master WHERE name LIKE '%budget%'").all()).toEqual([]);
     expect(facts()).toEqual(before);
