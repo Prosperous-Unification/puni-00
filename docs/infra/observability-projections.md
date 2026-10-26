@@ -121,3 +121,95 @@ references above, then bind actual target/namespace/controller ownership, creden
 capacity, admission and operator-UI routes through the existing preflight and rehearsal
 contracts. The current dev runtime and all persistent secrets remain untouched by this
 source operation.
+
+## Common service-source assembly
+
+`createObservabilityComposition(root, request)` in
+[`observability-composition.ts`](../../tools/tool-fleet/src/observability-composition.ts)
+adds common ES/Kibana releases and native collector, APM gateway, metrics proxy,
+retention and Kibana setup resources around the unchanged chart-role projection.
+It produces an in-memory **assembly**, with `securityConformant`, `wholeRenderParity`,
+`runtimeRehearsal`, `liveBinding`, `claimsBound`, `controllerHandoverExecuted` and
+`activationReady` all false. It creates no selected Flux entry or Secret contents.
+The existing projection target continues to certify only its original chart-role scope.
+
+The request requires explicit policies as well as placement and application identity:
+
+```json
+{
+  "placement": "production",
+  "instances": [
+    { "environment": "dev", "namespace": "observability-dev", "policy": "development" },
+    { "environment": "prod", "namespace": "observability", "policy": "retained-production" }
+  ]
+}
+```
+
+| Policy                 | ES memory / heap / claim | Allowed instance           |
+| ---------------------- | ------------------------ | -------------------------- |
+| `development`          | 2Gi / 1g / 10Gi          | Dev, on either placement   |
+| `retained-production`  | 4Gi / 2g / 100Gi         | Prod, on either placement  |
+| `disposable-rehearsal` | 2Gi / 1g / 10Gi          | Prod, local placement only |
+
+A local rehearsal must explicitly request its smaller policy; the generator never infers
+capacity from placement. Existing signal and Prometheus retention remains shared and
+is included in each instance's `retention` descriptor. These are declared bounds, not
+admission or coexistence evidence. The common ES pod declares RuntimeDefault explicitly,
+retains the previously measured S3 init 128Mi request / 256Mi limit and verified HTTPS
+trust program, and declares 16Mi trust scratch. ES and Kibana each declare 1Gi writable
+root ephemeral storage with nonroot/no-escalation/drop-ALL context. New bounds are
+unmeasured; actual ECK init containers, pod storage and admission still need observation.
+
+`projection` preserves the exact approved chart-role object. Each instance's typed
+`monitoring` release names its `baseOwner` and supplies the service-policy override for
+that same KPS owner. The override adds Alertmanager `storage.volumeClaimTemplate`
+(1Gi, `puni-retain`, ReadWriteOnce) and `persistentVolumeClaimRetentionPolicy` with both
+scale and delete set to Retain, using the pinned chart's Alertmanager-specific fields.
+This is a new, unbound, unmeasured claim. It neither identifies existing Alertmanager
+history nor proves operator-generated PVC retention. Existing production identities,
+Prometheus storage, platform monitoring and controller monitor remain in the base.
+
+`selectObservabilityComposition(candidate, ['dev'])` returns the controller prerequisites,
+dev KPS service override, dev ES/Kibana releases and dev native resources. It requires the
+actual retained reader's exclusion before dev namespace activation; it starts no production
+store or platform collector. Selecting `['prod', 'platform']` substitutes the desired reader
+release as well. Every owner appears once; foreign/missing/duplicate monitoring bases,
+changed overrides, duplicate selections and duplicate final owners refuse.
+
+`retainedReader.desiredManifest` preserves its existing owner/sinks/queues/redaction and adds
+both the dev namespace pod-path exclusion and rejection of logs carrying that namespace
+attribute, including records without an application environment. `prerequisites` requires
+verification on the **actual retained reader**, plus observed controller ownership/handover.
+The existing selected reader remains unchanged. The desired declaration is not proof that
+the live leak has been closed.
+
+The native packet has fifteen resources per namespace. `assertObservabilityAssemblyResources`
+checks the reviewed kind/API set, exact inventory and concrete namespace. Four ConfigMaps
+use full SHA-256 content-addressed names; only the corresponding namespace-local volume
+references are rewritten. Payloads, Pod/Job references and reference multiplicity are checked.
+Both immutable Jobs retain Flux's `force: enabled` replacement annotation. Changed content
+therefore changes the relevant templates in source; actual controller refresh remains a
+runtime obligation. No global namespace replacement or semantic comparison exception is used.
+`assertObservabilityComposition(root, candidate)` regenerates and compares the entire assembly,
+including requirements, completion flags and original projection. Call it before consuming a
+previously stored candidate; generated objects alone provide no external authority.
+
+[`observability-authority.ts`](../../tools/tool-fleet/src/observability-authority.ts) exports
+`declareObservabilitySecrets`, `declareObservabilityAuthority` and `declareObservabilityRoutes`
+for the next source/authentication adapters. Required Secret names and keys are namespace-local
+references only. ECK fileRealm requires `users`/`users_roles`, roles require `roles.yml`, and the
+health role has no cluster grants and only `read` on exact `logs-*.otel-{environment}` and
+`traces-*.otel-{environment}` patterns. Query client credentials are separate from existing
+Elastic ingest/setup admin and metrics-write credentials. Metrics queries use separate
+basic-auth material and only query/query_range routes. Instance-exclusive ingest CA intent
+requires effective cross-instance rejection; differing references are not proof.
+
+Route descriptors bind internal HTTPS endpoint/serverName and credential/trust references.
+Their external dial binding for the observer and retained Docker Grafana is explicitly
+`required`; no reachable external URL is invented. Authentication work must resolve material,
+verify same-route TLS and complete read-only grants, and demonstrate query mutation denial
+and cross-instance rejection in the disposable lab. CNI, stored three-signal acceptance,
+operator-generated pod support, claims, current-node hostPath costs and live readiness remain
+unverified. The next source slice must finish namespaced discovery, all selectors/target
+bounds, default-deny flows, retained-reader prerequisite validation and exact full-render
+closure/comparison. These assembly results do not complete canonical task 2.2.

@@ -85,7 +85,7 @@ export function observabilityInputs(
   };
 }
 
-const metadata = (name: string) => ({ name, namespace: 'observability' });
+const metadata = (name: string, namespace: string) => ({ name, namespace });
 const labels = (name: string) => ({ 'app.kubernetes.io/name': name });
 const resources = (memory: number) => ({
   requests: { cpu: '100m', memory: `${String(memory)}Mi` },
@@ -109,7 +109,7 @@ const mount = (name: string, mountPath: string) => ({ name, mountPath, readOnly:
 const documents = (manifests: readonly object[]) =>
   manifests.map((manifest) => stringify(manifest)).join('---\n');
 
-function createSignalWorkload(role: 'collector' | 'gateway', image: string) {
+function createSignalWorkload(role: 'collector' | 'gateway', image: string, namespace: string) {
   const name = `signal-${role}`;
   const isCollector = role === 'collector';
   const ports = isCollector
@@ -151,7 +151,7 @@ function createSignalWorkload(role: 'collector' | 'gateway', image: string) {
     {
       apiVersion: 'apps/v1',
       kind: 'StatefulSet',
-      metadata: metadata(name),
+      metadata: metadata(name, namespace),
       spec: {
         serviceName: name,
         replicas: 1,
@@ -224,7 +224,7 @@ function createSignalWorkload(role: 'collector' | 'gateway', image: string) {
     {
       apiVersion: 'v1',
       kind: 'Service',
-      metadata: metadata(name),
+      metadata: metadata(name, namespace),
       spec: {
         type: 'ClusterIP',
         selector: labels(name),
@@ -238,7 +238,7 @@ function createSignalWorkload(role: 'collector' | 'gateway', image: string) {
     {
       apiVersion: 'monitoring.coreos.com/v1',
       kind: 'ServiceMonitor',
-      metadata: metadata(name),
+      metadata: metadata(name, namespace),
       spec: {
         selector: { matchLabels: labels(name) },
         endpoints: [{ port: 'metrics' }, ...(isCollector ? [{ port: 'probe-metrics' }] : [])],
@@ -251,7 +251,7 @@ function createSignalWorkload(role: 'collector' | 'gateway', image: string) {
   );
 }
 
-function createMetricsProxy(image: string) {
+function createMetricsProxy(image: string, namespace: string) {
   const name = 'signal-metrics';
   const configuration = {
     http: {
@@ -277,7 +277,7 @@ function createMetricsProxy(image: string) {
       },
       services: {
         prometheus: {
-          loadBalancer: { servers: [{ url: 'http://kps-prometheus.observability.svc:9090' }] },
+          loadBalancer: { servers: [{ url: `http://kps-prometheus.${namespace}.svc:9090` }] },
         },
       },
     },
@@ -290,13 +290,13 @@ function createMetricsProxy(image: string) {
     {
       apiVersion: 'v1',
       kind: 'ConfigMap',
-      metadata: metadata(name),
+      metadata: metadata(name, namespace),
       data: { 'dynamic.yaml': stringify(configuration) },
     },
     {
       apiVersion: 'apps/v1',
       kind: 'Deployment',
-      metadata: metadata(name),
+      metadata: metadata(name, namespace),
       spec: {
         replicas: 1,
         selector: { matchLabels: labels(name) },
@@ -342,7 +342,7 @@ function createMetricsProxy(image: string) {
     {
       apiVersion: 'v1',
       kind: 'Service',
-      metadata: metadata(name),
+      metadata: metadata(name, namespace),
       spec: {
         type: 'ClusterIP',
         selector: labels(name),
@@ -352,7 +352,7 @@ function createMetricsProxy(image: string) {
     {
       apiVersion: 'networking.k8s.io/v1',
       kind: 'NetworkPolicy',
-      metadata: metadata(name),
+      metadata: metadata(name, namespace),
       spec: {
         podSelector: { matchLabels: labels(name) },
         policyTypes: ['Ingress'],
@@ -361,7 +361,7 @@ function createMetricsProxy(image: string) {
             from: [
               {
                 namespaceSelector: {
-                  matchLabels: { 'kubernetes.io/metadata.name': 'observability' },
+                  matchLabels: { 'kubernetes.io/metadata.name': namespace },
                 },
               },
             ],
@@ -374,13 +374,13 @@ function createMetricsProxy(image: string) {
 }
 
 /** Flux recreates this bounded Job when its hash-named retention/mapping inputs change. */
-function createRetentionJob(image: string) {
+function createRetentionJob(image: string, namespace: string) {
   return {
     apiVersion: 'batch/v1',
     kind: 'Job',
     metadata: {
       name: 'elastic-settings',
-      namespace: 'observability',
+      namespace,
       annotations: {
         'kustomize.toolkit.fluxcd.io/force': 'enabled',
       },
@@ -492,6 +492,7 @@ export async function renderObservability(root: string): Promise<Record<string, 
     'observability/elastic/settings/settings.yaml': stringify(
       createRetentionJob(
         `${lock.runtimeImages.sqliteBackup.name}@${lock.runtimeImages.sqliteBackup.digest}`,
+        'observability',
       ),
     ),
     'observability/base/coexistence.json': JSON.stringify(await assessObservabilityBudget(root)),
@@ -499,18 +500,20 @@ export async function renderObservability(root: string): Promise<Record<string, 
       ...createSignalWorkload(
         'collector',
         image(lock.charts.opentelemetryCollector.images, 'collector'),
+        'observability',
       ),
       ...createSignalWorkload(
         'gateway',
         `${lock.runtimeImages.elasticGateway.name}@${lock.runtimeImages.elasticGateway.digest}`,
+        'observability',
       ),
     ]),
     'observability/base/metrics.yaml': documents([
-      ...createMetricsProxy(image(lock.charts.traefik.images, 'controller')),
+      ...createMetricsProxy(image(lock.charts.traefik.images, 'controller'), 'observability'),
       {
         apiVersion: 'networking.k8s.io/v1',
         kind: 'NetworkPolicy',
-        metadata: metadata('prometheus-private'),
+        metadata: metadata('prometheus-private', 'observability'),
         spec: {
           podSelector: { matchLabels: { 'app.kubernetes.io/name': 'prometheus' } },
           policyTypes: ['Ingress'],
@@ -535,67 +538,8 @@ export async function renderObservability(root: string): Promise<Record<string, 
       environment: environment === 'production' ? 'prod' : 'dev',
       namespace: 'observability',
     });
-    const paths = {
-      collector: join(root, 'infra/platform/observability/otel/collector.yaml'),
-      agent: join(root, 'infra/platform/telemetry/agent/agent.yaml'),
-      failureFields: join(
-        root,
-        'infra/platform/observability/elastic/settings/failure-fields.json',
-      ),
-    };
-    const configuration = createSignalConfiguration(inputs, paths);
-    const rendered = renderSignalConfiguration(inputs, configuration, paths);
-    for (const [name, content] of Object.entries(rendered).filter(
-      ([name]) => name !== 'failure-fields.json',
-    ))
+    for (const [name, content] of Object.entries(renderObservabilityConfiguration(root, inputs)))
       files[`observability/${environment}/${name}`] = content;
-    const policies = configuration.retention;
-    const statements = [
-      `const { Bun, process, Buffer, fetch, AbortSignal } = globalThis;
-const password = process.env.ELASTIC_PASSWORD;
-// Proof: retention Job refuses missing credentials; removing this check admits an empty credential.
-if (!password) throw new Error('ELASTIC_PASSWORD is required');
-const ca = await Bun.file('/es-ca/ca.crt').text();
-const url = 'https://elasticsearch-es-http.observability.svc:9200';
-/** The filtered health and acknowledgement contracts are closed; unknown outcomes fail the Job. */
-function assertResponse(response, contract) {
-  // Proof: retention Job rejects health/mutation missing, null, unknown fields and wrong values;
-  // removing this guard makes those production-program negative controls fail.
-  if (response === null || typeof response !== 'object' || Array.isArray(response) ||
-      Object.keys(response).length !== Object.keys(contract).length ||
-      !Object.entries(contract).every(([key, values]) => Object.hasOwn(response, key) && values.includes(response[key])))
-    throw new Error('Invalid retention response');
-}
-/** TLS, credentials, redirect refusal and timeout apply to every health/mutation exchange. */
-async function request(path, method, body) {
-  const response = await fetch(url + path, {
-    method, body, redirect: 'error', signal: AbortSignal.timeout(150000), tls: { ca },
-    headers: { authorization: 'Basic ' + Buffer.from('elastic:' + password).toString('base64'), 'content-type': 'application/json' },
-  });
-  // Proof: retention Job rejects health and mutation HTTP 503/202 even with otherwise valid JSON;
-  // removing this guard makes those production-program negative controls fail.
-  if (response.status !== 200) throw new Error('Retention HTTP ' + String(response.status));
-  return await response.json();
-}
-assertResponse(await request('/_cluster/health?wait_for_status=yellow&timeout=120s&filter_path=status,timed_out', 'GET'),
-  { status: ['yellow', 'green'], timed_out: [false] });
-async function mutate(path, filename) {
-  assertResponse(await request(path, 'PUT', await Bun.file(import.meta.dir + '/' + filename).text()), { acknowledged: [true] });
-}`,
-    ];
-    for (const [signal, policy] of Object.entries(policies.elastic)) {
-      files[`observability/${environment}/${signal}-policy.json`] = JSON.stringify(policy.policy);
-      files[`observability/${environment}/${signal}-template.json`] = JSON.stringify(
-        policy.template,
-      );
-    }
-    statements.push(`const retention = JSON.parse(await Bun.file(import.meta.dir + '/retention.json').text());
-for (const signal of ['logs', 'traces', 'metrics']) {
-  const policy = retention.elastic[signal];
-  await mutate('/_ilm/policy/' + policy.policyName, signal + '-policy.json');
-  await mutate('/_component_template/' + policy.templateName, signal + '-template.json');
-}`);
-    files[`observability/${environment}/apply.js`] = statements.join('\n') + '\n';
   }
   return files;
 }
@@ -661,4 +605,92 @@ export async function assertObservability(root: string): Promise<void> {
     const actual = await readFile(join(root, 'infra/platform', path), 'utf8');
     if (actual !== expected) throw new Error(`observability generated artifact differs: ${path}`);
   }
+}
+
+/** Shared configuration and retention program with concrete endpoints supplied by the Fleet binding. */
+export function renderObservabilityConfiguration(
+  root: string,
+  inputs: SignalInputs,
+): Record<string, string> {
+  const files: Record<string, string> = {};
+  const paths = {
+    collector: join(root, 'infra/platform/observability/otel/collector.yaml'),
+    agent: join(root, 'infra/platform/telemetry/agent/agent.yaml'),
+    failureFields: join(root, 'infra/platform/observability/elastic/settings/failure-fields.json'),
+  };
+  const configuration = createSignalConfiguration(inputs, paths);
+  const rendered = renderSignalConfiguration(inputs, configuration, paths);
+  for (const [name, content] of Object.entries(rendered).filter(
+    ([name]) => name !== 'failure-fields.json',
+  ))
+    files[name] = content;
+  const policies = configuration.retention;
+  const statements = [
+    `const { Bun, process, Buffer, fetch, AbortSignal } = globalThis;
+const password = process.env.ELASTIC_PASSWORD;
+// Proof: retention Job refuses missing credentials; removing this check admits an empty credential.
+if (!password) throw new Error('ELASTIC_PASSWORD is required');
+const ca = await Bun.file('/es-ca/ca.crt').text();
+const url = '${inputs.endpoints.elasticsearch}';
+/** The filtered health and acknowledgement contracts are closed; unknown outcomes fail the Job. */
+function assertResponse(response, contract) {
+  // Proof: retention Job rejects health/mutation missing, null, unknown fields and wrong values;
+  // removing this guard makes those production-program negative controls fail.
+  if (response === null || typeof response !== 'object' || Array.isArray(response) ||
+      Object.keys(response).length !== Object.keys(contract).length ||
+      !Object.entries(contract).every(([key, values]) => Object.hasOwn(response, key) && values.includes(response[key])))
+    throw new Error('Invalid retention response');
+}
+/** TLS, credentials, redirect refusal and timeout apply to every health/mutation exchange. */
+async function request(path, method, body) {
+  const response = await fetch(url + path, {
+    method, body, redirect: 'error', signal: AbortSignal.timeout(150000), tls: { ca },
+    headers: { authorization: 'Basic ' + Buffer.from('elastic:' + password).toString('base64'), 'content-type': 'application/json' },
+  });
+  // Proof: retention Job rejects health and mutation HTTP 503/202 even with otherwise valid JSON;
+  // removing this guard makes those production-program negative controls fail.
+  if (response.status !== 200) throw new Error('Retention HTTP ' + String(response.status));
+  return await response.json();
+}
+assertResponse(await request('/_cluster/health?wait_for_status=yellow&timeout=120s&filter_path=status,timed_out', 'GET'),
+  { status: ['yellow', 'green'], timed_out: [false] });
+async function mutate(path, filename) {
+  assertResponse(await request(path, 'PUT', await Bun.file(import.meta.dir + '/' + filename).text()), { acknowledged: [true] });
+}`,
+  ];
+  for (const [signal, policy] of Object.entries(policies.elastic)) {
+    files[`${signal}-policy.json`] = JSON.stringify(policy.policy);
+    files[`${signal}-template.json`] = JSON.stringify(policy.template);
+  }
+  statements.push(`const retention = JSON.parse(await Bun.file(import.meta.dir + '/retention.json').text());
+for (const signal of ['logs', 'traces', 'metrics']) {
+  const policy = retention.elastic[signal];
+  await mutate('/_ilm/policy/' + policy.policyName, signal + '-policy.json');
+  await mutate('/_component_template/' + policy.templateName, signal + '-template.json');
+}`);
+  files['apply.js'] = statements.join('\n') + '\n';
+  return files;
+}
+
+/** Common native workloads; namespace-bound references are constructed at their owning fields. */
+export async function createObservabilityWorkloads(root: string, namespace: string) {
+  const lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+  // readToolchain requires these exact image role sets before these internal lookups.
+  const [collector] = lock.charts.opentelemetryCollector.images.filter(
+    (image) => image.role === 'collector',
+  );
+  const [proxy] = lock.charts.traefik.images.filter((image) => image.role === 'controller');
+  return [
+    ...createSignalWorkload('collector', `${collector.name}@${collector.digest}`, namespace),
+    ...createSignalWorkload(
+      'gateway',
+      `${lock.runtimeImages.elasticGateway.name}@${lock.runtimeImages.elasticGateway.digest}`,
+      namespace,
+    ),
+    ...createMetricsProxy(`${proxy.name}@${proxy.digest}`, namespace),
+    createRetentionJob(
+      `${lock.runtimeImages.sqliteBackup.name}@${lock.runtimeImages.sqliteBackup.digest}`,
+      namespace,
+    ),
+  ];
 }
