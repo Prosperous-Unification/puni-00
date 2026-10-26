@@ -7705,3 +7705,7 @@ The additive journal inspection field supplies negative-only backing-directory i
 ## Private R5 main, source and browser composition
 
 [Exact committed preservation, finite checks and retained failures](verify-main-r5-20261026.md) records main-preservation9e9 and reviewed source/browser mergee2b33 with separate evidence attribution. The protected-operation matrix correction changes only the expected test list; runtime classification remains unchanged. Full feature/provider/native/host acceptance, archive preflight/final sealing and architectural main merge remain open.
+
+## Archive preflight and newer-journal source union
+
+[Accepted source, corrected causal claims and exact newer-J union](verify-source-stageb-archive-preflight.md#root-source-acceptance-and-newer-journal-union--2026-10-26) records sourcef6 and reviewed private merge381, including426 source tests and the retained compiler-format failure/correction. These are bounded source and inert standard-tool results; final sealing, native/provider/host acceptance, parent tasks and architectural main merge remain open.

@@ -989,3 +989,10 @@ This private B1 checkpoint does not complete B2 installation/provenance or the p
 - [x] Correct selection-response guard proofs, owned delayed-response cleanup/error attribution and exact command/history attribution; obtain independent source approval and preserve actual loopback observations.
 
 These are bounded fixture/source checks. Full11.1/11.2, live-old-consumer delivery, provider/native/host acceptance and architectural main merge remain open. [Private R5 composition](verify-main-r5-20261026.md) records the unchanged source pins and fresh finite union checks.
+
+### Archive preflight and original borrowing source checkpoint
+
+- [x] Implement the fixed policy/tool/recipient preflight and same-closure assembler with original I/J joins, bounded real child/pipe settlement and original preflight borrowing. [Source and conformance evidence](verify-source-stageb-archive-preflight.md).
+- [x] Correct independent proof-fidelity findings, preserve invalid histories, obtain source approval and verify the real union against the newer negative-only J projection.
+
+This closes only the bounded preflight/source integration. Production recipient/tool/controller approval, complete B2/K/P/O/R, cleanup-phase failure sealing, final ciphertext custody, native/host acceptance and architectural main merge remain open.
