@@ -60,6 +60,10 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiOrganizationMemberships',
       'getApiOrganizationProject-rank',
       'getApiOrganizationProvisioningTokens',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'getApiOrganizationResourceAuthoritiesByAuthorityId',
       'getApiOrganizationSession-policy',
       'getApiOrganizationSso-connections',
       'getApiOrganizationTrusted-issuers',
@@ -82,6 +86,14 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiProjectsByIdExport',
       'getApiProjectsByIdHistory',
       'getApiProjectsByIdPeopleByPersonIdWork',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'getApiProjectsByIdResourceUses',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'getApiProjectsByIdResourceUsesByUseIdHistory',
       'getApiProjectsByIdResources',
       'getApiProjectsByIdSaved-plans',
       'getApiProjectsByIdSaved-plansCompare',
@@ -93,6 +105,10 @@ test('pins the complete protected and exempt operation matrix', () => {
       // Proof: temporarily exempting this saved-reference delivery operation
       // moved it out of the protected matrix and failed this test (2026-10-24).
       'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
       'getApiSaved-plansById',
       'getApiServices',
       'getApiSpaces',
@@ -141,6 +157,14 @@ test('pins the complete protected and exempt operation matrix', () => {
       'postApiProjectsByIdOpened',
       'postApiProjectsByIdOptimizationRetry',
       'postApiProjectsByIdRedo',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'postApiProjectsByIdResourceUses',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'postApiProjectsByIdResourceUsesByUseIdEvents',
       'postApiProjectsByIdSaved-plans',
       'postApiProjectsByIdSteps',
       'postApiProjectsByIdUndo',
@@ -155,7 +179,19 @@ test('pins the complete protected and exempt operation matrix', () => {
       'postInternalMcpOrganizations',
       'postInternalResume',
       'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'putApiOrganizationResourceAuthoritiesByAuthorityId',
       'putApiOrganizationSession-policy',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix consumer (2026-10-26);
+      // restoring the classifier passed both tests. Classification proof only.
+      'putApiResourceAuthoritiesByAuthorityIdEvents',
     ],
     exempt: [
       'getApiAuthLinkAuth0Callback',
