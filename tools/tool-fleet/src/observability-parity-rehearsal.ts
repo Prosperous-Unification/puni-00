@@ -16,6 +16,7 @@ const SHA = /^[a-f0-9]{40}$/;
 const Request = type({ sourceRevision: SHA, network: 'unknown', '+': 'reject' });
 const graph = 'infra/clusters/platform/local';
 const services = 'infra/platform/observability/rehearsal';
+const controllers = 'infra/platform/observability/rehearsal-controllers';
 const receiptName = 'rehearsal.json';
 const dependencies: Record<string, string[]> = {
   target: [],
@@ -25,7 +26,8 @@ const dependencies: Record<string, string[]> = {
   secrets: ['policy'],
   certificates: ['controllers', 'secrets'],
   platform: ['storage', 'secrets'],
-  observability: ['platform', 'certificates'],
+  'observability-controllers': ['platform', 'certificates'],
+  observability: ['platform', 'certificates', 'observability-controllers'],
   alerts: ['observability'],
   backup: ['alerts'],
 };
@@ -165,10 +167,12 @@ async function buildPacket(root: string, input: unknown) {
     const files = new Map<string, Buffer>();
     const put = (path: string, bytes: string) => files.set(path, Buffer.from(bytes));
     const resourceNames: string[] = [];
+    const controllerNames: string[] = [];
     for (const release of source.releases) {
       const path = `releases/${release.owner}.yaml`;
-      put(`${services}/${path}`, release.manifest);
-      resourceNames.push(path);
+      const isController = release.owner === 'observability/prometheus-controller';
+      put(`${isController ? controllers : services}/${path}`, release.manifest);
+      (isController ? controllerNames : resourceNames).push(path);
     }
     for (const instance of source.instances) {
       for (const part of ['native', 'security'] as const) {
@@ -229,7 +233,28 @@ async function buildPacket(root: string, input: unknown) {
     const observability = parseDocument(
       await readFile(join(exported, graph, 'observability.yaml'), 'utf8'),
     );
+    const controllerStage = observability.clone();
+    controllerStage.setIn(['metadata', 'name'], 'observability-controllers');
+    controllerStage.setIn(['spec', 'path'], `./${controllers}`);
+    put(`${graph}/observability-controllers.yaml`, controllerStage.toString());
+    put(
+      `${controllers}/kustomization.yaml`,
+      stringify({
+        apiVersion: 'kustomize.config.k8s.io/v1beta1',
+        kind: 'Kustomization',
+        resources: controllerNames,
+      }),
+    );
+    const graphRoot = parseDocument(
+      await readFile(join(exported, graph, 'kustomization.yaml'), 'utf8'),
+    );
+    graphRoot.addIn(['resources'], 'observability-controllers.yaml');
+    put(`${graph}/kustomization.yaml`, graphRoot.toString());
     observability.setIn(['spec', 'path'], `./${services}`);
+    observability.setIn(
+      ['spec', 'dependsOn'],
+      dependencies['observability'].map((name) => ({ name })),
+    );
     put(`${graph}/observability.yaml`, observability.toString());
     const namespaces = await readFile(
       join(exported, 'infra/platform/policy/namespaces.yaml'),
@@ -358,6 +383,7 @@ const Identity = type({
 });
 function requireGraph(source: string, stage: string): void {
   // Proof: bypassing this guard failed all five packaged-graph negatives: only hash refusal remained.
+  // Proof: Task 6c bypass lost dependency/wait/timeout/health-override refusal categories before hashes.
   const manifest = type({
     apiVersion: "'kustomize.toolkit.fluxcd.io/v1'",
     kind: "'Kustomization'",
@@ -368,6 +394,8 @@ function requireGraph(source: string, stage: string): void {
       decryption: { provider: 'string', secretRef: { name: 'string' } },
       'dependsOn?': type({ name: 'string' }).array(),
       'healthChecks?': 'unknown[]',
+      'healthCheckExprs?': 'unknown[]',
+      'timeout?': 'string',
       path: 'string',
       prune: 'boolean',
       'wait?': 'boolean',
@@ -397,7 +425,16 @@ function requireGraph(source: string, stage: string): void {
           namespace: 'kube-system',
         },
       ])) ||
-    (stage === 'observability' && manifest.spec.path !== `./${services}`)
+    // Proof: a factory dropping its own dependency edge was accepted before this independent invariant.
+    (stage === 'observability' &&
+      (manifest.spec.path !== `./${services}` ||
+        !manifest.spec.dependsOn?.some(
+          (dependency) => dependency.name === 'observability-controllers',
+        ))) ||
+    (stage === 'observability-controllers' &&
+      (manifest.spec.path !== `./${controllers}` ||
+        manifest.spec.timeout !== '20m' ||
+        manifest.spec.healthCheckExprs !== undefined))
   )
     throw new Error('Rehearsal graph prerequisite differs');
 }
@@ -438,11 +475,15 @@ function requireProtectedResources(source: string, path?: string): void {
           name: 'puni-platform',
           namespace: 'flux-system',
         }) ||
-        (path?.startsWith(`${services}/releases/`) &&
-          path !==
-            `${services}/releases/${manifest.metadata.namespace ?? '_'}/${manifest.metadata.name}.yaml`)
+        ([services, controllers].some((directory) => path?.startsWith(`${directory}/releases/`)) &&
+          ![services, controllers].some(
+            (directory) =>
+              path ===
+              `${directory}/releases/${manifest.metadata.namespace ?? '_'}/${manifest.metadata.name}.yaml`,
+          ))
       )
         // Proof: bypassing protected-resource checks failed owner/source/API negatives with only hash refusal.
+        // Proof: omitting the controller directory changed its foreign release namespace to a Secret-closure refusal.
         throw new Error('Rehearsal graph Helm owner, API or source differs');
     }
     if (
@@ -489,6 +530,59 @@ function requireProtectedResources(source: string, path?: string): void {
     }
   }
 }
+/** Inspect only bounded packet-local references; expected factory bytes cannot certify provider/consumer order. */
+function requireControllerOrder(files: Map<string, Buffer>): void {
+  function readStage(directory: string) {
+    const visited = new Set<string>();
+    function readResources(path: string): ReturnType<typeof documents> {
+      if (!path.startsWith('infra/') || visited.has(path))
+        throw new Error('Rehearsal controller ordering differs');
+      visited.add(path);
+      if (files.has(`${path}/kustomization.yaml`))
+        return readResources(`${path}/kustomization.yaml`);
+      const bytes = files.get(path);
+      if (bytes === undefined) throw new Error('Rehearsal controller ordering differs');
+      return documents(bytes.toString()).flatMap((document) => {
+        if (document.get('kind') !== 'Kustomization') return [document];
+        const manifest = type({
+          apiVersion: "'kustomize.config.k8s.io/v1beta1'",
+          kind: "'Kustomization'",
+          resources: 'string[]',
+          '+': 'reject',
+        })(document.toJSON());
+        if (manifest instanceof type.errors)
+          throw new Error('Rehearsal controller ordering differs');
+        return manifest.resources.flatMap((reference) => {
+          // Absolute, remote and escaping references never reach a filesystem or external loader.
+          if (reference.startsWith('/') || reference.includes(':'))
+            throw new Error('Rehearsal controller ordering differs');
+          return readResources(relative('/', resolve('/', dirname(path), reference)));
+        });
+      });
+    }
+    return readResources(directory);
+  }
+  const early = readStage(controllers);
+  const main = readStage(services);
+  const isProvider = (document: (typeof early)[number]) =>
+    document.get('kind') === 'HelmRelease' &&
+    document.getIn(['metadata', 'namespace']) === 'observability' &&
+    document.getIn(['metadata', 'name']) === 'prometheus-controller';
+  const monitors = main.filter((document) => document.get('kind') === 'ServiceMonitor');
+  // Proof: bypassing this inspection lost nine prehash refusal categories; bypassing both ordering guards
+  // accepted matching broken-factory bytes with the provider beside its consumers.
+  if (
+    early.length !== 1 ||
+    !early.every(isProvider) ||
+    main.some(isProvider) ||
+    !isDeepStrictEqual(
+      monitors.map((document) => document.getIn(['metadata', 'namespace'])).sort(),
+      ['observability', 'observability', 'observability-dev', 'observability-dev'],
+    )
+  )
+    throw new Error('Rehearsal controller ordering differs');
+}
+
 async function validateBuilds(
   root: string,
   tools: string,
@@ -528,7 +622,17 @@ async function validateBuilds(
     const destination = type('string').assert(parseDocument(source).getIn(['spec', 'path']));
     const rendered = execute([kubectl, 'kustomize', join(directory, destination)], root).toString();
     requireProtectedResources(rendered);
-    for (const document of documents(rendered)) {
+    const built = documents(rendered);
+    // Proof: bypassing this check changed empty pinned-stage output to a Helm owner-closure refusal.
+    if (
+      stage === 'observability-controllers' &&
+      (built.length !== 1 ||
+        built[0].get('kind') !== 'HelmRelease' ||
+        built[0].getIn(['metadata', 'namespace']) !== 'observability' ||
+        built[0].getIn(['metadata', 'name']) !== 'prometheus-controller')
+    )
+      throw new Error('Rehearsal graph controller build differs');
+    for (const document of built) {
       const manifest = Identity.assert(document.toJSON());
       const identity = `${manifest.apiVersion}:${manifest.kind}:${manifest.metadata.namespace ?? '_'}:${manifest.metadata.name}`;
       if (seen.has(identity)) throw new Error('Rehearsal graph duplicate owner');
@@ -564,7 +668,7 @@ async function validateBuilds(
       );
       if (hash(await readFile(join(directory, chart.chart))) !== pin?.sha256)
         throw new Error('Rehearsal graph chart pin differs');
-      if (stage === 'observability')
+      if (stage === 'observability' || stage === 'observability-controllers')
         owners.push(`${manifest.metadata.namespace ?? '_'}/${manifest.metadata.name}`);
     }
   }
@@ -595,6 +699,7 @@ export async function validateObservabilityRehearsal(
     if (path !== receiptName) actualFiles.set(path, await readFile(join(directory, path)));
   // Proof: removing this actual-packet inspection failed seven reference/declaration/producer negatives before hashes.
   inspectRehearsalSecrets(actualFiles, expected.instanceSecrets);
+  requireControllerOrder(actualFiles);
   // Proof: removing closure accepted extra.txt; extra-file negative failed.
   if (!isDeepStrictEqual(paths, [...expected.files.keys(), receiptName].sort()))
     throw new Error('Rehearsal file closure differs');

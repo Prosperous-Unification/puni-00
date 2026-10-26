@@ -570,3 +570,120 @@ published candidate, complete creation ownership and capacity admission (includi
 signals/UI/native health/isolation/history and outage/backup/recovery acceptance remain required
 and unverified here. No live, remote, credential, lifecycle, publication, push or branch operation
 occurred. Resource ownership remains unproven; fixture results are component evidence only.
+
+### Task 6c — normal Flux API ordering prerequisite (2026-10-27)
+
+At base `24622cd5025c1fb00b70932ccf439d4a5bf50de1`, the generated application stage
+mixed the sole ServiceMonitor CRD provider with four native consumers. This is the pinned
+Flux/SSA source prediction documented in `flux-order-research.md`, not a measured live failure.
+The approved shape adds exactly `flux-system/observability-controllers`, rooted at
+`./infra/platform/observability/rehearsal-controllers`, moving only
+`observability/prometheus-controller`. It inherits platform/certificates dependencies,
+GitRepository/puni-platform, platform-local-kubeconfig, SOPS/sops-age, prune, wait:true and
+20m timeout. Observability keeps platform/certificates and gains the controller-stage edge.
+The stage waits for the actual HelmRelease through normal Flux health checking; custom health
+expressions cannot override this stage's built-in health semantics. ECK and application
+HelmRelease dependencies, downstream alerts/backup, service/claim identities and pins stay intact.
+No selected `infra/` source file changed.
+
+The earlier policy stage creates observability; its generated namespace document also creates
+observability-dev. Both platform and certificates transitively depend on policy/secrets;
+the new stage preserves that chain. Existing KPS Helm hooks produce kps-admission TLS;
+the disabled Prometheus/Alertmanager workloads do not introduce an early material consumer.
+Global default denies cover wbs/workers/website-dev, not the operator namespace; application
+policies select application pods. No concrete cycle was found in callers and saved pinned-chart
+material. No operator networking changes were made. The cost is one extra health-gated stage
+and an explicit reference contract for the two inspected directories.
+
+Changed interfaces are `dependencies`, `buildPacket`, `requireGraph`,
+`requireProtectedResources`, new `requireControllerOrder`, and `validateBuilds` in
+`tools/tool-fleet/src/observability-parity-rehearsal.ts`; and `expectResources` in
+`tools/tool-fleet/src/observability-flux-observation.ts`. Existing public functions/CLI arguments
+are unchanged; receipts now enumerate 11 stages, and the observer expects 12 Kustomizations
+including puni-cluster. The readyObservations fixture, stage paths/dependencies, sole controller
+Helm owner and relocated webhook-producer fault fixture moved together. Previously accepted
+monitoring condition freshness, source/target snapshots and child continuity code are unchanged.
+
+Actual packet validation first checks regular-file/symlink provenance, then inspects only packet
+Map entries under infra, using explicit relative Kustomize resources. Absolute/remote/escaping,
+duplicate/missing references and transforms outside apiVersion/kind/resources refuse; no external
+loader or filesystem reference resolution runs in that inspection. It requires one early provider,
+no application-stage provider and exactly two native monitors per namespace. A separate literal
+main-stage dependency invariant does not trust the factory dependency table. File/path/hash safety
+ordering remains intact; actual pinned kubectl Kustomize builds run after trusted bytes and check
+controller-only output, exact stage closure, global duplicates and combined Helm owner closure.
+
+The prepared CLI packet from the exact base source has 75 files, artifact SHA-256
+`cab20a253675a437e9f2e32b5be740233a757c0bcb5ac6f00a7246f0059c03ad`.
+Source and generator revisions both identify the base; generator dirty:true/reviewStatus:unobserved
+truthfully records amended, uncommitted generator bytes. This is a source-only sample, not a
+published artifact. It contains nine Helm identities split 1 early/8 application, 51 external
+Secret declarations, 10 controller Secret declarations and 92 references. Authored template
+accounting remains 13 claims/133120 MiB, includes disabled templates, and does not admit capacity.
+The unchanged 16384 MiB floor still cannot authorize unknown full-stack/coexistence demand.
+The early pinned Kustomize output is one document/no ServiceMonitor, SHA-256
+`2f01254e8bc7cb6cc75a14287fcddb968ddc0ad670815d179521b308c8d6f662`;
+application output is 86 documents/eight HelmReleases/four ServiceMonitors, SHA-256
+`f53b3ae53e93b7c920e6460026baa9515bf1f21bcd3dfb9bf2ba1a82f48a44b0`.
+The moved controller's exact bytes match the saved Task6a packet:
+`e131e26cfcbfd1a03e16f27e7168b0c917221d5470effb11c55e45a374c6814a`.
+The saved packet is older source 9d08fb1; its separately absent external declaration inventory
+file is prior source work, not an extra controller-stage change. All shared application/native
+and remaining release files compare unchanged with that saved packet.
+
+TDD/focused commands and measured wall times:
+
+- `bun test --timeout=30000 tools/tool-fleet/src/observability-parity-rehearsal.test.ts --test-name-pattern 'controller barrier builds'`: RED 0/1, missing new stage, 3.385s.
+- `bun test --timeout=30000 tools/tool-fleet/src/observability-parity-rehearsal.test.ts tools/tool-fleet/src/observability-flux.test.ts --test-name-pattern 'controller barrier|observes exact source'`: initial 11 pass/1 fail, 18.464s. The same-stage fault fixture copied instead of moving its provider, so the existing Secret producer guard refused first. Correcting the fixture to move the sole provider yielded 19/19, 38 assertions, 28.768s.
+- `bun test --timeout=30000 tools/tool-fleet/src/observability-parity-rehearsal.test.ts tools/tool-fleet/src/observability-flux.test.ts --test-name-pattern 'controller barrier|observes exact source|packages exact two-instance|same revision and generator|source receipt inventories|prepare preserves the selected|packet file closure refuses|complete packet receipt|Secret reference closure refuses webhook-producer|CLI prepare and validate'`: one selected covering pass, 33/33, 105 assertions, 61.020s. It covers exact graph/determinism, file closure, CLI bridge, claim accounting, full material inventory and the relocated webhook producer; old45/51 suites were not rerun wholesale.
+- `bun test --timeout=30000 tools/tool-fleet/src/observability-parity-rehearsal.test.ts --test-name-pattern 'matching broken-factory bytes without'`: further independent-edge RED, 0/1, 8.699s, factory/expected bytes both omitted the edge and child exit0 exposed false acceptance. Added the literal edge invariant.
+- Final focused command above: 24/24, 44 assertions, 39.689s, after the edge invariant and typed YAML/Bun-expect corrections. It includes unready controller-stage/Helm, wrong-stage path/owner, prehash wait/dependency/timeout/health override, same-stage provider, extra consumer, missing monitor and bounded reference controls.
+
+Seven distinct watched R5 controls restore production files byte-for-byte. Semantic-category
+proofs: bypassing prehash membership loses nine expected early categories (16.457s);
+bypassing requireGraph changes the four new stage-contract refusals to hash refusals (8.952s);
+bypassing the empty actual build guard changes that refusal to Helm owner closure (7.660s);
+omitting the new directory from release-path protection changes a foreign namespace to Secret
+closure (4.925s corrected proof). These are not fail-open claims. Fail-open proofs: forcing the
+observer's controller Helm owner back to observability accepts the wrong owner (5.990s);
+bypassing both order guards accepts matching same-stage broken-factory bytes (7.358s);
+removing the independent edge check accepts matching missing-edge factory bytes (7.431s).
+The final edge-only restored regression passes 1/1, two assertions, 6.496s. Adjacent Proof comments
+name the faults. Matching-factory controls execute modified copies of the real production module,
+so prepare and validation regenerate the same bad expected bytes; they do not mock validation.
+
+Failed attempts/limits: initial same-stage fixture error is recorded above. The first early-path
+proof harness expected an ordering diagnostic but observed the earlier existing Secret closure;
+its assertion failed (4.669s), was corrected, then the watched production negative passed.
+Initial ESLint failed 20 localized new-test diagnostics (6.491s) and typecheck failed YAML generic/
+unknown annotation errors (2.160s). Precise YAML schemas, parsed-document callback inference and
+existing Bun rejects style fixed these; final lint/typecheck passed. One edge-proof log filename
+collided with its outer runner log; the same single mutation/restored regression was recaptured
+under distinct names (first pair 10.020s/8.452s; retained pair 7.431s/6.496s), without a broader
+rerun. Logs, scripts, receipts and exact mutation replacements live in ignored
+`.superpowers/sdd/observability-environment-parity/task-6c-evidence/`.
+
+Fresh amended-path static commands: `bunx eslint tools/tool-fleet/src/observability-parity-rehearsal.ts tools/tool-fleet/src/observability-parity-rehearsal.test.ts tools/tool-fleet/src/observability-flux-observation.ts tools/tool-fleet/src/observability-flux.test.ts`
+passed (5.454s); `bunx tsc --build --force tools/tool-fleet/tsconfig.json` passed (1.375s).
+The final source hashes are recorded below. Final formatting/strict OpenSpec and normal-hook
+commit receipts follow in the task report; no success is inferred for unrun checks.
+
+Final source/test SHA-256:
+
+- `tools/tool-fleet/src/observability-parity-rehearsal.ts`: `b92db8f2318ea77bd8f17304f973c3cc7e1f8e0ed7b638af4614727aaa94a859`.
+- `tools/tool-fleet/src/observability-parity-rehearsal.test.ts`: `25580c6bba354a0ecb1a5e652d294453de23e693b7ef7af63d9998ee5962fe8b`.
+- `tools/tool-fleet/src/observability-flux-observation.ts`: `f4e4fc50b35d92cb744b05bb3a71bcdb3ea329afe16fb603116aade3c9c5baf6`.
+- `tools/tool-fleet/src/observability-flux.test.ts`: `9e6743caf4aeaff8ebb5d0dcf78de7ca7b50a509c97a7e3367b7dd74efb4fd79`.
+
+This completes only the bounded source ordering prerequisite pending independent review.
+Canonical3.1, full Task6b handoff and runtime acceptance remain OPEN. Actual empty-cluster Flux
+must still prove the controller stage Ready and the ServiceMonitor CRD Established before main
+reconciliation. Full creation accounting/ownership, capacity, authenticated real binding,
+material/network/CNI, stored signals, operator UI, history, outage/recovery/backup and live
+acceptance remain required and unverified. Kustomize and fixture success cannot prove them.
+No unchanged chart rendering, prior45/51/proof batches, full-host gate, app/browser test, live/
+cluster/remote operation, real credential access, source publication/push/merge or branch switch
+ran. Dev and withheld production source/observation/alerts/backup were untouched. No canonical
+checkbox changed. Normal-hook source commit and SOURCESTOP for fresh independent review follow.
+
+Final Task6c source format check passed (0.632s) on the four amended TS files and verify.md; `bunx --no-install openspec validate observability-environment-parity --strict --json` passed with zero issues (0.230s); `git diff --check` passed (0.010s). The final mutation restoration hashes match the four source/test hashes recorded above. Normal-hook source commit is the next step; full runtime acceptance remains OPEN.

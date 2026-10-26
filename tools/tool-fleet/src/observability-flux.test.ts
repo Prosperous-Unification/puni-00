@@ -313,6 +313,7 @@ function readyObservations(): Record<string, unknown> {
     secrets: 'secrets/platform-local',
     certificates: 'certificates/platform/local',
     platform: 'registry/local',
+    'observability-controllers': 'observability/rehearsal-controllers',
     observability: 'observability/rehearsal',
     alerts: 'alerts/local',
     backup: 'backup/local',
@@ -335,7 +336,8 @@ function readyObservations(): Record<string, unknown> {
     secrets: ['policy'],
     certificates: ['controllers', 'secrets'],
     platform: ['storage', 'secrets'],
-    observability: ['platform', 'certificates'],
+    'observability-controllers': ['platform', 'certificates'],
+    observability: ['platform', 'certificates', 'observability-controllers'],
     alerts: ['observability'],
     backup: ['alerts'],
   };
@@ -366,6 +368,7 @@ function readyObservations(): Record<string, unknown> {
       : ['kube-prometheus-stack', 'elasticsearch', 'kibana']) {
       const [chart, version] = charts[name];
       resource('HelmRelease', namespace, name, {
+        owner: name === 'prometheus-controller' ? 'observability-controllers' : 'observability',
         revision: version,
         chart: `./infra/platform/charts/${chart}-${version}.tgz`,
         sourceKind: 'GitRepository',
@@ -470,7 +473,7 @@ test('observes exact source, all stages, deployed Helm history and ECK children 
   expect(receipt.status).toBe('observed');
   expect(receipt.source.digest).toBe(`sha256:${'a'.repeat(64)}`);
   expect(receipt.resources.filter((resource) => resource.kind === 'Kustomization')).toHaveLength(
-    11,
+    12,
   );
   expect(receipt.resources.filter((resource) => resource.kind === 'HelmRelease')).toHaveLength(9);
   expect(receipt.resourceOwnership).toBe('unproven');
@@ -1378,4 +1381,46 @@ test('an initially absent controller child may first appear before attribution',
       )
     ).status,
   ).toBe('observed');
+});
+
+test.each([
+  'controller-stage-path',
+  'controller-stage-owner',
+  'controller-helm-owner',
+  'controller-stage-unready',
+  'controller-helm-unready',
+])('controller barrier observation refuses %s', async (fault) => {
+  observations = structuredClone(healthy);
+  const resources = observations['resources'] as Resource[];
+  const stage = resources.find(
+    (resource) =>
+      resource.kind === 'Kustomization' && resource.name === 'observability-controllers',
+  )!;
+  if (fault === 'controller-stage-path') stage.path = './infra/platform/observability/rehearsal';
+  if (fault === 'controller-stage-owner') stage.owner = 'observability';
+  if (fault === 'controller-stage-unready') stage.ready = false;
+  if (fault === 'controller-helm-unready')
+    resources.find(
+      (resource) => resource.kind === 'HelmRelease' && resource.name === 'prometheus-controller',
+    )!.ready = false;
+  if (fault === 'controller-helm-owner')
+    resources.find(
+      (resource) => resource.kind === 'HelmRelease' && resource.name === 'prometheus-controller',
+    )!.owner = 'observability';
+  expect(
+    await rejection(
+      observeFluxReconciliation(
+        directory,
+        packet,
+        bound,
+        observationTarget(),
+        join(directory, `${fault}.json`),
+        fixtureRead,
+      ),
+    ),
+  ).toBe(
+    fault === 'controller-stage-path'
+      ? 'stage-revision-or-path-mismatch'
+      : 'reconciliation-owner-or-readiness-mismatch',
+  );
 });

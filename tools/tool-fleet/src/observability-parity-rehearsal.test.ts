@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { type } from 'arktype';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { parseDocument, stringify } from 'yaml';
+import { parseAllDocuments, parseDocument, stringify } from 'yaml';
 
 import {
   assessObservabilityRehearsalAdmission,
@@ -66,6 +66,7 @@ test('packages exact two-instance Flux graph with original dependencies and no r
     'secrets',
     'certificates',
     'platform',
+    'observability-controllers',
     'observability',
     'alerts',
     'backup',
@@ -524,7 +525,7 @@ test.each([
       }),
     );
   } else if (fault === 'webhook-producer') {
-    const path = join(copy, services, 'releases/observability/prometheus-controller.yaml');
+    const path = join(copy, controllers, 'releases/observability/prometheus-controller.yaml');
     const document = parseDocument(await readFile(path, 'utf8'));
     document.setIn(
       ['spec', 'values', 'prometheusOperator', 'admissionWebhooks', 'patch', 'enabled'],
@@ -580,4 +581,211 @@ test.each([
   expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
     /Secret reference/,
   );
+});
+
+const controllers = 'infra/platform/observability/rehearsal-controllers';
+const controller = 'releases/observability/prometheus-controller.yaml';
+
+test('controller barrier builds the sole provider before four native ServiceMonitor consumers', async () => {
+  const stage = parseDocument(
+    await readFile(join(packet, graph, 'observability-controllers.yaml'), 'utf8'),
+  );
+  const Stage = type({ spec: { dependsOn: type({ name: 'string' }).array() } });
+  expect(Stage.assert(stage.toJSON() as unknown).spec.dependsOn).toEqual([
+    { name: 'platform' },
+    { name: 'certificates' },
+  ]);
+  expect(stage.getIn(['spec', 'wait'])).toBe(true);
+  expect(stage.getIn(['spec', 'timeout'])).toBe('20m');
+  const main = parseDocument(await readFile(join(packet, graph, 'observability.yaml'), 'utf8'));
+  expect(Stage.assert(main.toJSON() as unknown).spec.dependsOn).toEqual([
+    { name: 'platform' },
+    { name: 'certificates' },
+    { name: 'observability-controllers' },
+  ]);
+  function build(path: string) {
+    const child = Bun.spawnSync([join(tools, 'kubectl'), 'kustomize', join(packet, path)], {
+      cwd: root,
+    });
+    expect(child.exitCode).toBe(0);
+    const Resource = type({ kind: 'string', metadata: { name: 'string', 'namespace?': 'string' } });
+    return parseAllDocuments(child.stdout.toString()).map((document) =>
+      Resource.assert(document.toJSON() as unknown),
+    );
+  }
+  const provider = build(controllers);
+  expect(provider).toHaveLength(1);
+  expect(provider[0]).toMatchObject({
+    kind: 'HelmRelease',
+    metadata: { name: 'prometheus-controller', namespace: 'observability' },
+    spec: { chart: { spec: { version: '91.4.1' } }, values: { crds: { enabled: true } } },
+  });
+  const consumers = build(services);
+  expect(
+    consumers
+      .filter((manifest) => manifest.kind === 'ServiceMonitor')
+      .map((manifest) => manifest.metadata.namespace)
+      .sort(),
+  ).toEqual(['observability', 'observability', 'observability-dev', 'observability-dev']);
+  expect(consumers.filter((manifest) => manifest.kind === 'HelmRelease')).toHaveLength(8);
+  expect(
+    consumers.some(
+      (manifest) =>
+        manifest.kind === 'HelmRelease' && manifest.metadata.name === 'prometheus-controller',
+    ),
+  ).toBe(false);
+  expect(
+    consumers.find(
+      (manifest) => manifest.kind === 'HelmRelease' && manifest.metadata.name === 'eck-operator',
+    ),
+  ).toBeDefined();
+});
+
+test.each(['dependency', 'wait', 'timeout', 'health-override'])(
+  'controller barrier refuses %s before file hashes',
+  async (fault) => {
+    const copy = await alter(
+      `${graph}/${fault === 'dependency' ? 'observability' : 'observability-controllers'}.yaml`,
+      (document) => {
+        if (fault === 'dependency')
+          document.setIn(['spec', 'dependsOn'], [{ name: 'platform' }, { name: 'certificates' }]);
+        if (fault === 'wait') document.setIn(['spec', 'wait'], false);
+        if (fault === 'timeout') document.setIn(['spec', 'timeout'], '0s');
+        if (fault === 'health-override')
+          document.setIn(
+            ['spec', 'healthCheckExprs'],
+            [{ apiVersion: 'helm.toolkit.fluxcd.io/v2', kind: 'HelmRelease', current: 'true' }],
+          );
+      },
+    );
+    expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
+      'Rehearsal graph prerequisite differs',
+    );
+  },
+);
+
+test.each(['same-stage', 'extra-controller-consumer', 'missing-monitor'])(
+  'controller barrier independently refuses %s before file hashes',
+  async (fault) => {
+    const copy = await mkdtemp(join(directory, 'ordering-'));
+    await cp(packet, copy, { recursive: true });
+    const mainPath = join(copy, services, 'kustomization.yaml');
+    const earlyPath = join(copy, controllers, 'kustomization.yaml');
+    const main = parseDocument(await readFile(mainPath, 'utf8'));
+    const early = parseDocument(await readFile(earlyPath, 'utf8'));
+    if (fault === 'same-stage') {
+      await cp(join(copy, controllers, controller), join(copy, services, controller));
+      await rm(join(copy, controllers, controller));
+      main.addIn(['resources'], controller);
+      early.set('resources', []);
+    }
+    if (fault === 'extra-controller-consumer')
+      early.addIn(['resources'], '../rehearsal/observability-native.yaml');
+    if (fault === 'missing-monitor') {
+      const path = join(copy, services, 'observability-native.yaml');
+      const native = parseAllDocuments(await readFile(path, 'utf8'));
+      let removed = false;
+      await writeFile(
+        path,
+        native
+          .filter((document) => {
+            if (!removed && document.get('kind') === 'ServiceMonitor') {
+              removed = true;
+              return false;
+            }
+            return true;
+          })
+          .map((document) => document.toString())
+          .join('---\n'),
+      );
+    }
+    await writeFile(mainPath, main.toString());
+    await writeFile(earlyPath, early.toString());
+    expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
+      'Rehearsal controller ordering differs',
+    );
+  },
+);
+
+test.each([
+  'remote-reference',
+  'absolute-reference',
+  'escaping-reference',
+  'duplicate-reference',
+  'missing-reference',
+  'unsupported-transform',
+])('controller barrier bounds packet reference %s', async (fault) => {
+  const copy = await alter(`${controllers}/kustomization.yaml`, (document) => {
+    if (fault === 'remote-reference')
+      document.addIn(['resources'], 'https://example.invalid/provider.yaml');
+    if (fault === 'absolute-reference') document.addIn(['resources'], '/etc/passwd');
+    if (fault === 'escaping-reference')
+      document.addIn(['resources'], '../../../../../outside.yaml');
+    if (fault === 'duplicate-reference') document.addIn(['resources'], controller);
+    if (fault === 'missing-reference') document.addIn(['resources'], 'missing.yaml');
+    if (fault === 'unsupported-transform') document.set('namespace', 'foreign');
+  });
+  expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
+    'Rehearsal controller ordering differs',
+  );
+});
+
+async function injectFactoryFault(name: string, before: string, after: string) {
+  const path = join(root, 'tools/tool-fleet/src/observability-parity-rehearsal.ts');
+  const source = await readFile(path, 'utf8');
+  if (!source.includes(before)) throw new Error('Factory fault injection anchor absent');
+  const injected = source
+    .replace(before, after)
+    .replace(/from '([^']+)'/g, (statement: string, specifier: string) =>
+      specifier.startsWith('node:')
+        ? statement
+        : `from ${JSON.stringify(Bun.resolveSync(specifier, join(root, 'tools/tool-fleet/src')))}`,
+    );
+  const module = join(directory, `${name}.ts`);
+  await writeFile(module, injected);
+  const runner = join(directory, `${name}-runner.ts`);
+  await writeFile(
+    runner,
+    `const {prepareObservabilityRehearsal} = await import(${JSON.stringify(module)});\ntry { await prepareObservabilityRehearsal(${JSON.stringify(root)}, ${JSON.stringify(tools)}, ${JSON.stringify(request)}, ${JSON.stringify(join(directory, name))}); } catch (failure) { console.error(failure.message); process.exit(1); }`,
+  );
+  return Bun.spawnSync(['bun', runner], { cwd: root, timeout: 30000 });
+}
+
+test('controller barrier rejects matching broken-factory bytes with provider back beside consumers', async () => {
+  const child = await injectFactoryFault(
+    'same-stage-factory',
+    "const isController = release.owner === 'observability/prometheus-controller';",
+    'const isController = false;',
+  );
+  expect(child.exitCode).toBe(1);
+  expect(child.stderr.toString().trim()).toBe('Rehearsal controller ordering differs');
+});
+
+test('controller barrier rejects empty actual pinned controller-stage output', async () => {
+  const child = await injectFactoryFault(
+    'empty-controller-build',
+    'const built = documents(rendered);',
+    "const built = stage === 'observability-controllers' ? [] : documents(rendered);",
+  );
+  expect(child.exitCode).toBe(1);
+  expect(child.stderr.toString().trim()).toBe('Rehearsal graph controller build differs');
+});
+
+test('controller barrier refuses a mismatched early release identity before file hashes', async () => {
+  const copy = await alter(`${controllers}/${controller}`, (document) => {
+    document.setIn(['metadata', 'namespace'], 'foreign');
+  });
+  expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
+    'Rehearsal graph Helm owner, API or source differs',
+  );
+});
+
+test('controller barrier rejects matching broken-factory bytes without the dependency edge', async () => {
+  const child = await injectFactoryFault(
+    'missing-barrier-factory',
+    "observability: ['platform', 'certificates', 'observability-controllers'],",
+    "observability: ['platform', 'certificates'],",
+  );
+  expect(child.exitCode).toBe(1);
+  expect(child.stderr.toString().trim()).toBe('Rehearsal graph prerequisite differs');
 });

@@ -183,8 +183,14 @@ function expectResources(packet: FluxPacket): ExpectedResource[] {
     });
   }
   for (const owner of receipt.helmOwners) {
+    // Proof: assigning the controller to observability accepted the wrong-stage Helm owner observation.
+    const stage =
+      owner === 'observability/prometheus-controller'
+        ? 'observability-controllers'
+        : 'observability';
+    const directory = stage === 'observability-controllers' ? 'rehearsal-controllers' : 'rehearsal';
     const manifest = parseDocument(
-      readManifest(`infra/platform/observability/rehearsal/releases/${owner}.yaml`),
+      readManifest(`infra/platform/observability/${directory}/releases/${owner}.yaml`),
     ).toJSON() as unknown;
     const document = Document.assert(manifest);
     const spec = Helm.assert(document.spec).chart.spec;
@@ -192,7 +198,7 @@ function expectResources(packet: FluxPacket): ExpectedResource[] {
       kind: 'HelmRelease',
       namespace: document.metadata.namespace ?? '',
       name: document.metadata.name,
-      owner: 'observability',
+      owner: stage,
       chart: spec.chart,
       version: spec.version,
       sourceName: spec.sourceRef.name,
