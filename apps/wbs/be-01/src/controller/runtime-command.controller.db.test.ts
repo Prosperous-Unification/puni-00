@@ -303,6 +303,7 @@ test('commit then lose only reply, reopen and lookup or replay the exact immutab
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled',
         organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+        mcpService: TEST_MCP_SERVICE_SETTINGS,
       },
       {
         openSource: (options) => {
@@ -738,6 +739,8 @@ test('all four runtime routes enforce authentication before revealing scope or r
 
 import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import * as normalizers from '@wbs/core/service/command-normalizers';
+
+import { TEST_MCP_SERVICE_SETTINGS } from '../testing/machine-grant-fixture';
 
 test('malformed trusted command refusal throws its producer diagnostic', async () => {
   const request = await createClaimRequest();
