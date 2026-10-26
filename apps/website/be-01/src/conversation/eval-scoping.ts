@@ -174,11 +174,14 @@ export function hasExploratoryGuidance(reply: string): boolean {
 }
 
 /**
- * The acknowledgement before the catalogue suffix in a freshly committed structured reply.
- * {@link getScopingQuestion} supplies the exact label appended by the shared scopingReplyText renderer.
+ * The visible acknowledgement before the catalogue question in a freshly committed structured
+ * reply. Exact-label v6 presentation has an omitted acknowledgement and returns an empty string.
+ * {@link getScopingQuestion} supplies the exact label.
  * Call only when the committed revision advanced; refusal replies retain an older question.
  */
 export function readAcknowledgement(reply: string, questionId: QuestionId): string {
+  const label = getScopingQuestion(questionId).label;
+  if (reply === label) return '';
   // Proof: keeping the catalogue suffix failed the mounted valid declarative-acknowledgement control.
-  return reply.slice(0, -(getScopingQuestion(questionId).label.length + 2));
+  return reply.slice(0, -(label.length + 2));
 }

@@ -51,7 +51,12 @@ export interface SalesEvaluation {
   reasoningTokens: number;
   knownMicroUsd: number;
   unknownReservedMicroUsd: number;
-  sessions: { script: string; promptVersion: string; operations: OperationMeasure[] }[];
+  sessions: {
+    script: string;
+    promptVersion: string;
+    omittedAcknowledgements: number;
+    operations: OperationMeasure[];
+  }[];
 }
 
 /** Currency symbols, a figure followed by `k`, hourly rates and a budget stated as a figure. */
@@ -637,6 +642,10 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       sessions.push({
         script: script.name,
         promptVersion: script.protocol === 'scoping' ? scopingPromptVersion : salesPromptVersion,
+        // A visible empty prefix is an omission count, not evidence that the raw model complied.
+        omittedAcknowledgements: acknowledgements.filter(
+          (acknowledgement) => acknowledgement === '',
+        ).length,
         operations: meter.operations.slice(firstOperation),
       });
       if (options.show)

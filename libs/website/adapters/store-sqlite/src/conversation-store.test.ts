@@ -244,6 +244,7 @@ test('admission replays, conflicts, refuses in-flight and orders the initial ope
     replyVersion: null,
     replyFailure: null,
     reply: 'Who uses it?',
+    promptVersion: 'puni-sales-v1',
   });
   expect(
     store.admitConversationOperation({ ...initial, bodyHash: 'hash:changed description' }),
@@ -343,7 +344,13 @@ test('a closed provider admits no new conversation or operation but still replay
     store.admitConversationOperation(
       ask('claim-1', 'key-claim-1-1', 'message 1', { initial: true, pricing: closed }),
     ),
-  ).toEqual({ kind: 'completed', reply: 'reply 1', replyVersion: null, replyFailure: null });
+  ).toEqual({
+    kind: 'completed',
+    reply: 'reply 1',
+    replyVersion: null,
+    replyFailure: null,
+    promptVersion: 'puni-sales-v1',
+  });
   expect(
     store.admitConversationOperation(ask('claim-1', 'new-key-1', 'More', { pricing: closed })),
   ).toEqual({ kind: 'provider_unavailable' });
@@ -1079,12 +1086,14 @@ for (const exhaustion of ['turns', 'conversation_spend'] as const)
       replyVersion: null,
       replyFailure: null,
       reply: 'Initial reply',
+      promptVersion: 'puni-sales-v1',
     });
     expect(store.admitConversationOperation(selection)).toEqual({
       kind: 'completed',
       replyVersion: null,
       replyFailure: null,
       reply: 'Selected reply',
+      promptVersion: 'puni-sales-v1',
     });
     expect(
       store.admitConversationOperation({ ...initial, bodyHash: 'changed-initial-body' }),

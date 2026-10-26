@@ -17,7 +17,7 @@ import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
-import type { ProviderFetch } from './stream';
+import { type ProviderFetch, replayReply } from './stream';
 import {
   composeSystemText,
   providerDeclineReply,
@@ -3385,38 +3385,111 @@ for (const historicalVersion of [
   'puni-scoping-v2',
   'puni-scoping-v3',
   'puni-scoping-v4',
+  'puni-scoping-v5',
+  'opaque-historical',
 ])
-  test(`new scoping operations record v5 while historical ${historicalVersion} replies replay without a paid call`, async () => {
+  test(`new scoping operations record v6 while historical ${historicalVersion} replies replay without a paid call`, async () => {
     const fake = fakeOpenRouter(() =>
-      structuredReply('A saved acknowledgement.', 'improve-blocker'),
+      structuredReply('A saved question? What is holding it back?', 'improve-blocker'),
     );
     const config = paidConfig(fake.providerFetch);
     const api = mountApi(config);
     try {
       const visitor = await beginScopingVisitor(api);
       await (await sendInitial(api, visitor)).text();
-      expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v5');
+      expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v6');
       const database = new Database(config.databasePath);
       database.query('UPDATE conversation_operation SET prompt_version = ?').run(historicalVersion);
+      database
+        .query("UPDATE conversation_turn SET content = ? WHERE role = 'assistant'")
+        .run(
+          `A saved question? What is holding it back?\n\n${getScopingQuestion('improve-blocker').label}`,
+        );
       database.close();
       const saved = await readConversation(api, visitor.cookie);
       const savedOperations = operations(config.databasePath);
       const replay = await (await sendInitial(api, visitor)).text();
-      expect(replay).toContain('A saved acknowledgement.');
+      expect(replay).toContain('A saved question? What is holding it back?');
+      const lastTurn = saved.turns.at(-1);
+      if (!lastTurn) throw new Error('Missing historical assistant turn');
+      expect(await assembleReply(replay)).toBe(lastTurn.content);
       expect(fake.bodies).toHaveLength(1);
       expect(operations(config.databasePath)).toEqual(savedOperations);
       const replayed = await readConversation(api, visitor.cookie);
       expect(replayed.turns).toEqual(saved.turns);
       expect(replayed.scoping).toEqual(saved.scoping);
       await (
-        await sendMessage(api, visitor, 'v5-after-old-replay', 'The problem is recurring bugs.')
+        await sendMessage(api, visitor, 'v6-after-old-replay', 'The problem is recurring bugs.')
       ).text();
       expect(operations(config.databasePath).map((operation) => operation.prompt_version)).toEqual([
         historicalVersion,
-        'puni-scoping-v5',
+        'puni-scoping-v6',
       ]);
       expect(fake.bodies).toHaveLength(2);
     } finally {
       api.close();
     }
   });
+
+test('v6 question duplication is omitted identically in fresh stream, stored turn and replay', async () => {
+  const fake = fakeOpenRouter(() =>
+    structuredReply('The obstacle is recurring bugs. What is holding it back?', 'improve-blocker'),
+  );
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  try {
+    const visitor = await beginScopingVisitor(api);
+    const first = await assembleReply(await (await sendInitial(api, visitor)).text());
+    expect(first).toBe(getScopingQuestion('improve-blocker').label);
+    const stored = await readConversation(api, visitor.cookie);
+    expect(stored.turns.at(-1)?.content).toBe(first);
+    const replay = await assembleReply(await (await sendInitial(api, visitor)).text());
+    expect(replay).toBe(first);
+    expect(fake.bodies).toHaveLength(1);
+    const database = new Database(config.databasePath);
+    const operation = database
+      .query<{ reply: string; prompt_version: string }, []>(
+        'SELECT reply, prompt_version FROM conversation_operation',
+      )
+      .get();
+    expect(operation?.reply).toContain('The obstacle is recurring bugs. What is holding it back?');
+    expect(operation?.prompt_version).toBe('puni-scoping-v6');
+    database.close();
+  } finally {
+    api.close();
+  }
+});
+
+test('v6 concern-only question and candidate brief stay verbatim through fresh, store and replay', async () => {
+  const message = 'Can PUNI review this? We can discuss the affected workflow.';
+  const brief = 'Visitor asks for review? The recurring bug affects a checkout.';
+  const fake = fakeOpenRouter(() => structuredReply(message, null, brief));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  try {
+    const visitor = await beginScopingVisitor(api);
+    expect(await assembleReply(await (await sendInitial(api, visitor)).text())).toBe(message);
+    const stored = await readConversation(api, visitor.cookie);
+    expect(stored.turns.at(-1)?.content).toBe(message);
+    if (stored.scoping.version !== 1) throw new Error('Missing scoping state');
+    expect(stored.scoping.candidateBrief).toBe(brief);
+    expect(await assembleReply(await (await sendInitial(api, visitor)).text())).toBe(message);
+    expect(fake.bodies).toHaveLength(1);
+  } finally {
+    api.close();
+  }
+});
+
+test('structured replay refuses a missing recorded prompt identity', () => {
+  expect(() =>
+    replayReply(
+      JSON.stringify({
+        version: 1,
+        message: 'Question?',
+        nextQuestionId: 'improve-blocker',
+        brief: null,
+      }),
+      1,
+    ),
+  ).toThrow('prompt identity');
+});

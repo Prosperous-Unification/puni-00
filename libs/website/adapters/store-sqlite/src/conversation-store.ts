@@ -6,11 +6,11 @@ import {
   deriveReplyStage,
   invalidScopingReplyText,
   parseScopingAnswerRequest,
+  presentScopingReply,
   readScopingReply,
   type ReplyFailure,
   type ScopingAnswerRequest,
   type ScopingReply,
-  scopingReplyText,
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
@@ -112,7 +112,13 @@ export type ConversationAdmission =
       history: ConversationTurn[];
       context: ConversationContext;
     }
-  | { kind: 'completed'; reply: string; replyVersion: 1 | null; replyFailure: ReplyFailure | null }
+  | {
+      kind: 'completed';
+      reply: string;
+      replyVersion: 1 | null;
+      replyFailure: ReplyFailure | null;
+      promptVersion: string;
+    }
   | { kind: 'exhausted'; reason: ConversationExhaustedReason }
   /** Paid inference is paused; `openedPauseId` names the pause this admission opened, if any. */
   | { kind: 'paused'; openedPauseId: string | null }
@@ -147,6 +153,7 @@ interface OperationRow {
   reply_version: 1 | null;
   reply_failure: unknown;
   settlement: string | null;
+  prompt_version: string;
 }
 
 /**
@@ -494,7 +501,7 @@ export function admitConversationOperation(
       const visitorTurns = countVisitorTurns(database, conversation.id);
       const existing = database
         .query<OperationRow, [string, string]>(
-          'SELECT id, body_hash, state, reply, reply_version, reply_failure, settlement FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
+          'SELECT id, body_hash, state, reply, reply_version, reply_failure, settlement, prompt_version FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
         )
         .get(conversation.id, request.idempotencyKey);
       if (existing) {
@@ -512,6 +519,7 @@ export function admitConversationOperation(
             reply: existing.reply,
             replyVersion: existing.reply_version,
             replyFailure: readReplyFailure(existing),
+            promptVersion: existing.prompt_version,
           };
         }
       }
@@ -702,10 +710,11 @@ function settleConversationOperation(
             state: ConversationOperationState;
             stage: ConversationReplyStage;
             reserved_micro_usd: number | null;
+            prompt_version: string;
           },
           [string]
         >(
-          'SELECT conversation_id, message, state, stage, reserved_micro_usd FROM conversation_operation WHERE id = ?',
+          'SELECT conversation_id, message, state, stage, reserved_micro_usd, prompt_version FROM conversation_operation WHERE id = ?',
         )
         .get(id);
       if (operation?.state !== 'inflight') return false;
@@ -731,7 +740,11 @@ function settleConversationOperation(
         !applyScopingReply(database, draft.id, structured.reply, now)
       )
         return false;
-      const prose = structured?.kind === 'valid' ? scopingReplyText(structured.reply) : reply;
+      // Proof: using the legacy formatter here failed the mounted fresh/store/replay equality fixture.
+      const prose =
+        structured?.kind === 'valid'
+          ? presentScopingReply(structured.reply, operation.prompt_version).text
+          : reply;
       const capture =
         !structured && operation.stage === 'brief' && refusal === null ? captureBrief(reply) : null;
       const settled = database

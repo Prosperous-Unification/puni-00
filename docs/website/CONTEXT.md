@@ -34,6 +34,10 @@ _Avoid_: Product category
 A selectable response to the current scoping question, offered alongside the visitor's own words and an uncertainty option.
 _Avoid_: Required answer
 
+**Question acknowledgement**:
+An optional contextual comment from the assistant connecting the visitor's answer to the next scoping question.
+_Avoid_: Follow-up question
+
 **Request reference**:
 An optional example, link or description supplied by a visitor, together with what they want to borrow, change or avoid.
 _Avoid_: Inspected source

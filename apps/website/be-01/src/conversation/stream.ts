@@ -3,11 +3,11 @@ import {
   type ConversationAdmissionMarker,
   conversationAdmissionPart,
   invalidScopingReplyText,
+  presentScopingReply,
   readScopingReply,
   type ReplyFailure,
   replyReplacePart,
   type ScopingReply,
-  scopingReplyText,
 } from '@website/contracts';
 import {
   createUIMessageStream,
@@ -195,8 +195,16 @@ export function replayReply(
   replyVersion: 1 | null = null,
   replyFailure: ReplyFailure | null = null,
   admission?: ConversationAdmissionMarker,
+  promptVersion?: string,
 ): Response {
-  const prose = replyVersion === 1 ? scopingReplyText(readScopingReply(reply)) : reply;
+  let prose = reply;
+  if (replyVersion === 1) {
+    // Proof: removing this guard made the mounted structured replay missing-identity test return a response.
+    if (promptVersion === undefined)
+      throw new Error('Structured replay lacks recorded prompt identity');
+    // Proof: forcing the current identity here failed historical-v5 mounted replay.
+    prose = presentScopingReply(readScopingReply(reply), promptVersion).text;
+  }
   const stream = createUIMessageStream({
     execute: ({ writer }) => {
       if (admission) writer.write({ type: conversationAdmissionPart, data: admission });
@@ -238,7 +246,10 @@ export interface ConfirmedReplyOptions {
   /** Commits the reply and settled usage; false leaves the operation to be marked unknown. */
   complete(reply: string, actualMicroUsd: number, truncated: boolean): boolean;
   /** Buffers a version-1 envelope; null settles a known invalid envelope with the fixed manual path. */
-  structured?: { complete(reply: ScopingReply | null, actualMicroUsd: number): boolean };
+  structured?: {
+    promptVersion: string;
+    complete(reply: ScopingReply | null, actualMicroUsd: number): boolean;
+  };
   /** Settles an operation whose final usage is unknown; see the store's ceiling settlement. */
   markUnknown(): void;
   /** Told of each provider failure (5xx, timeout, non-refusal stream error), not of a stop. */
@@ -397,7 +408,10 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
             options.markUnknown();
             return;
           }
-          confirmedText = reply === null ? invalidScopingReplyText : scopingReplyText(reply);
+          confirmedText =
+            reply === null
+              ? invalidScopingReplyText
+              : presentScopingReply(reply, options.structured.promptVersion).text;
           replyFailure = reply === null ? 'invalid_scoping_reply' : null;
           return;
         }

@@ -478,7 +478,7 @@ test('declared exploration accepts committed guidance without forcing a brief or
     assertion: 'streamEqualsStored',
     passed: true,
   });
-  expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v5');
+  expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v6');
 });
 
 for (const ending of [undefined, 'exploration'] as const)
@@ -599,6 +599,8 @@ test('corpus rejects malformed or conflicting exploration expectations and legac
 for (const message of [
   'What would you most like the app to make possible next?',
   'What would you like to make possible next?',
+  'What would you like to make possible next？',
+  'What would you like to make possible next؟',
   'Recurring bugs are the blocker; their cause needs inspection.',
 ])
   test(`selected-question quality checks acknowledgement: ${message}`, async () => {
@@ -632,14 +634,14 @@ for (const message of [
       write: () => undefined,
       pause: () => Promise.resolve(),
     });
-    const valid = !message.includes('?');
-    expect(calls).toBe(valid ? 2 : 1);
-    expect(evaluation.passed).toBe(valid);
+    expect(calls).toBe(2);
+    expect(evaluation.passed).toBe(true);
     expect(evaluation.results).toContainEqual({
       script: 'click-improve',
       assertion: 'declarativeAcknowledgement',
-      passed: valid,
+      passed: true,
     });
+    expect(evaluation.sessions[0]?.omittedAcknowledgements).toBe(/[?؟？]/u.test(message) ? 1 : 0);
     expect(evaluation.results).toContainEqual({
       script: 'click-improve',
       assertion: 'streamEqualsStored',

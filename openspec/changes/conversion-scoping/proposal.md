@@ -6,8 +6,8 @@ The agreed conversion journey lets visitors answer through choices, receive usef
 
 - Six starting choices and free text enter one claim-bound scoping conversation without repeating the landing action.
 - Suggested answers, optional references and corrections work alongside typing. The assistant connects supplied details, answers questions, avoids repeated caveats, and suggests a focused first review step before the default email invitation.
-- Conversation progression follows validated reply content instead of fixed turn numbers. An early human-review shortcut and an email-free exploration path remain available.
-- Visitors edit their brief and explicitly send it with email. Explain human review naturally; operators receive that brief and references.
+- Conversation progression follows validated reply content instead of fixed turn numbers. For new v6 operations, a question acknowledgement with question punctuation is omitted so the selected catalogue question appears once; saved earlier prompt identities keep their exact presentation. An early human-review shortcut and an email-free exploration path remain available.
+- Visitors review and edit their brief before explicitly sending it with email. Explain human review naturally; operators receive that brief and references.
 - The services section presents the five offers with matching conversation CTAs. Privacy copy explains the actual anonymous chat, references, processors, storage and follow-up.
 - Preserve and verify existing cost controls; evaluate conversation quality and actual session cost before activation.
 
@@ -28,15 +28,3 @@ Use existing Bun/Nx, React, API, SQLite and OpenRouter boundaries. HTTP idle bud
 ### Modified Capabilities
 
 This supersedes conflicting active Build chat harness behavior, mapped in design.md.
-
-## Domain Terms
-
-Starting choice, suggested answer, request reference; recorded in the website context.
-
-## Decisions Recorded
-
-None. The approach extends existing boundaries and remains reversible.
-
-## Impact
-
-Website contracts, API conversation/provider transport, SQLite store and retention, React harness, evaluation corpus, browser regressions and private landing integration. No paid inference, deployment or outbound communication is authorized by this planning artifact.

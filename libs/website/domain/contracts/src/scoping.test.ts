@@ -6,6 +6,7 @@ import {
   parseScopingAnswerRequest,
   parseScopingIntake,
   parseScopingReply,
+  presentScopingReply,
   type QuestionId,
   readScopingReply,
   resolveScopingAnswer,
@@ -20,6 +21,57 @@ const reply: ScopingReply = {
   nextQuestionId: null,
   brief: null,
 };
+
+for (const punctuation of ['?', '？', '؟'])
+  test(`v6 omits a question-shaped optional acknowledgement containing ${punctuation}`, () => {
+    const question = {
+      ...reply,
+      message: `Recurring bugs. What helps next${punctuation}`,
+      nextQuestionId: 'improve-outcome',
+    } as const;
+    expect(presentScopingReply(question, 'puni-scoping-v6')).toEqual({
+      kind: 'acknowledgement_omitted',
+      text: getScopingQuestion('improve-outcome').label,
+    });
+    expect(presentScopingReply(question, 'puni-scoping-v5')).toEqual({
+      kind: 'acknowledgement_present',
+      text: `${question.message}\n\n${getScopingQuestion('improve-outcome').label}`,
+    });
+  });
+
+test('v6 keeps declarative context, no-question concerns and candidate handoffs verbatim', () => {
+  expect(
+    presentScopingReply(
+      {
+        ...reply,
+        message: 'Recurring bugs affect the next release.',
+        nextQuestionId: 'improve-outcome',
+      },
+      'puni-scoping-v6',
+    ),
+  ).toEqual({
+    kind: 'acknowledgement_present',
+    text: `Recurring bugs affect the next release.\n\n${getScopingQuestion('improve-outcome').label}`,
+  });
+  expect(
+    presentScopingReply(
+      { ...reply, message: 'Can you help? Yes, here is a review path.', brief: 'Exact candidate?' },
+      'puni-scoping-v6',
+    ),
+  ).toEqual({
+    kind: 'message_only',
+    text: 'Can you help? Yes, here is a review path.',
+  });
+  expect(
+    presentScopingReply(
+      { ...reply, message: 'What next?', nextQuestionId: 'improve-outcome' },
+      'opaque-historical',
+    ),
+  ).toMatchObject({
+    kind: 'acknowledgement_present',
+    text: `What next?\n\n${getScopingQuestion('improve-outcome').label}`,
+  });
+});
 
 const paths = [
   {

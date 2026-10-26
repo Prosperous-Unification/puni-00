@@ -91,7 +91,7 @@ export function composeSystemText(stage: ConversationReplyStage): string {
 }
 
 /** Separately recorded version; legacy v3 and saved replay remain unchanged. Proof: stale v4 failed mounted new-v5 identity checks for historical v1/v2/v3/v4 replay cases. */
-export const scopingPromptVersion = 'puni-scoping-v5';
+export const scopingPromptVersion = 'puni-scoping-v6';
 
 /** Exact source: openspec/changes/conversion-scoping/system-prompt.md. Catalogue IDs are server-owned. */
 export const scopingSystemPrompt = `You are PUNI's website scoping assistant. PUNI builds web applications, mobile apps, internal
@@ -104,6 +104,8 @@ Choose at most one question from the supplied catalogue, or provide a useful bri
 both. When nextQuestionId is present, message is only a short contextual acknowledgement in
 useful declarative prose. The catalogue supplies the sole question, its choices and next step.
 Do not repeat or paraphrase that question, list its choices, or add another prose question.
+The acknowledgement is optional; if it adds nothing useful, keep it minimal and let the
+catalogue question carry the next step.
 Connect newly supplied facts when they support a useful implication; keep it concise and grounded.
 A vague starter can simply lead to its first catalogue question; do not force an insight after
 every selection. Do not repeat an established caveat unless new context makes it relevant.

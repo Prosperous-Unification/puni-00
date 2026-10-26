@@ -725,7 +725,13 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     provider: ReturnType<typeof selectConversationProvider>['kind'],
   ): Response {
     if (admitted.kind === 'completed')
-      return replayReply(admitted.reply, admitted.replyVersion, admitted.replyFailure);
+      return replayReply(
+        admitted.reply,
+        admitted.replyVersion,
+        admitted.replyFailure,
+        undefined,
+        admitted.promptVersion,
+      );
     if (admitted.kind === 'exhausted') {
       const reason = admitted.reason;
       const code =
@@ -1115,6 +1121,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         structured:
           admitted.context.scoping.version === 1
             ? {
+                promptVersion: scopingPromptVersion,
                 complete: (reply, actualMicroUsd) =>
                   store.completeScopingConversationOperation(
                     admitted.id,
