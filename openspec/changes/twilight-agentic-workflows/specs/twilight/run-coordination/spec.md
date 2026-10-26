@@ -1,5 +1,28 @@
 ## ADDED Requirements
 
+### Requirement: Preparation dispatch elects only a fresh committed intent
+
+The host SHALL commit verified preparation before invoking open and the complete locator
+before returning a live session. Only newly applied intent MAY open; replay SHALL report
+pending. Live ownership SHALL be checked before open. Uncertain creation or persistence
+SHALL retain the checkpoint and capacity. Preparation SHALL establish neither turn
+authority nor quiescence.
+
+#### Scenario: Concurrent preparation retries
+
+- **WHEN** concurrent host calls submit the same preparation command
+- **THEN** exactly one newly applied call may open a session and the duplicate reports pending without invoking open
+
+#### Scenario: Session creation precedes a lost locator acknowledgement
+
+- **WHEN** open returned a locator but retaining it throws or refuses
+- **THEN** no usable live session is returned, the error retains preparation and known locator correlation, and a subsequent duplicate does not open again
+
+#### Scenario: Restart with unsupported preparation recovery
+
+- **WHEN** a replacement host replays the retained preparation command and the adapter has no durable recovery
+- **THEN** it returns pending without reconstructing a live attachment, releasing capacity or blindly creating a replacement
+
 ### Requirement: Persistence is abstract and providers satisfy semantic contracts
 
 Twilight Dash SHALL depend on RunStore and ArtifactStore ports independent of storage

@@ -2690,3 +2690,83 @@ Candidate `aefa2314caaf66607c5a0f98af9c0297a240cf9b` failed workspace CI [402483
 The unchanged production helper dispatches process-group SIGKILL and awaits its direct child; it does not synchronously join every descendant. An unchanged local selected test passed, so no deterministic local reproduction of the CI race is claimed. A diagnostic observed the descendant still runnable immediately after actual group SIGKILL dispatch, then absent by the receipt. The hard-deadline fixture now shares the direct-exit fixture's existing bounded stopped-state observation (300 ms maximum, 5 ms polling, Z/X or ENOENT/ESRCH accepted, other read failures propagated). Its unchanged 1,800 ms total ceiling is checked after that observation. The 500 ms process deadline and 3,000 ms test budget remain unchanged.
 
 The repaired selected case passed. An authorized isolated production fault changed group SIGKILL to direct-child-only SIGKILL; the actual selected test then failed at its bounded descendant-survival assertion (expected true, received false, 806.81 ms). Production bytes were restored exactly: SHA-256 `6990ba2d2e4474e80d83e3b4767bd640e6b49e85af425452dd4ba13e296652d9` before/after, with the one-line fault hashing `39f400c491af4aa7685e1b1772c94a2b433c4870ea78b8c06afa6b708ca00dce`. The complete restored file passed all 27 cases with 96 assertions. An incidental evidence-parser failure and an EPERM while forwarding already captured negative streams remain recorded separately; neither masks the actual negative exit/assertion or exact restoration. No production source, guard, dependency, migration or test budget changes. Independent review, scoped checks and a new exact-candidate gate/CI remain required; the failed candidate's queued gate cannot certify a later revision.
+
+## Next dispatch slice and dependency reconciliation — 2026-10-26
+
+Foundation [PR742](https://github.com/Prosperous-Unification/puni-00/pull/742) is merged as
+5daf7d2cad8b46a2f097116836b74e8834d19b5e; its actual full post-merge CI40276699217 passed.
+That publication does not complete the parent S0/S7a scope. Work resumes in isolated
+/tmp/puni-agentic-dispatch-20261026 on main base
+dacf0f10f384ec3a21bde70db0500ba0b7a38d90. The user checkout and prior foundation evidence
+remain untouched. Current OpenSpec apply reports39 parent tasks,5 complete34 remaining.
+
+[Preparation dispatch design](preparation-dispatch-design.md) and
+[its task](preparation-dispatch-tasks.md) connect verified intent to executor open, then
+locator retention to publication of the original opaque session. Only newly applied intent
+opens; exact duplicate acknowledges history and remains pending. This slice changes no
+WBS transport/auth, claim or turn implementation and grants no replacement permission.
+Source implementation and independent acceptance are still in progress at this entry.
+
+Frozen Bun1.4.4 install completed1493packages with no lockfile change. The unchanged three
+existing preparation/execution-history files first reported406pass6fail1255expect calls
+in42.53s. All six failed at child.stdin.flush with EPERM. The identical command with process
+permissions completed exit0:412pass0fail1303expect calls in47.90s. No assertion, budget or
+source changed to obtain the pass. Raw logs:
+/tmp/puni-agentic-dispatch-baseline-20261026.log and
+/tmp/puni-agentic-dispatch-baseline-escalated-20261026.log. Normal scoped OpenSpec validation
+passes with13 inherited warnings; the new preparation requirement adds no warning.
+
+The planned exact CTT dependency is now published. Read-only API observes main
+e52fab02333a044472e9aea864db26a8c33fc051 and package0.11.0; registry0.11.0 returns200.
+The257551-byte archive matches its published SHA512 integrity and has SHA256
+121125e2a4fd6469101b1435a33738abd85dbe00085920a82cf87f854ffed4ed. All509 installed members
+in a disposable consumer directory match that archive byte-for-byte. Actual Bun consumption
+passes6tests23expect calls in90ms: root/subpath sentinel identity, callback-free summary,
+complete eager deferral/seed readiness, generation-checked duplicate settlement, join
+blocking, cross-runner generation refusal, reconstruction equality and typed disconnected
+cycle diagnostics. Raw package, consumer source/logs and correspondence manifest remain in
+/tmp/puni-ctt-0.11.0-consumer-20261026. This verifies published API availability, not PUNI
+dependency adoption, its compatibility adapter or S7a. Published ESM entries use
+createRequire over one CJS implementation, as their own README states. Sources:
+[CTT package](https://github.com/dany-fedorov/configurable-tree-traversal/blob/e52fab02333a044472e9aea864db26a8c33fc051/package.json),
+[exact registry metadata](https://registry.npmjs.org/configurable-tree-traversal/0.11.0).
+
+The standalone consumer subsequently passes strict NodeNext typechecking with the
+repository's actual TypeScript7.0.2 entry and Bun types (skipLibCheck enabled). The corrected
+command exits0 with an empty typecheck-corrected.log. The initial typecheck.log retains a
+guessed missing typescript/bin/tsc path, which is setup failure only. This is not PUNI
+compatibility-adapter typechecking or dependency adoption.
+
+Other-owner MCP plan PR751 remains explicitly held for Dany; PR756 is its machine-grant
+slice. Neither is adopted or modified here. Future sender must consume the accepted agent
+surface, preserve exact response-byte evidence and reconcile sticky pending commands
+without treating404/refusal as proof an earlier request cannot commit. Current tools expose
+no WBS/Fable connector, so no remote project ownership/status update is asserted. Exact-SHA
+canonical host gate, CI, independent implementation review and integration for this new
+candidate remain pending. No production action or live paid model call occurred.
+
+### Preparation dispatcher implementation acceptance
+
+The four declared helper/test paths now implement the preparation-only contract. Final
+focused memory/SQLite tests pass66cases282expect calls in4.83s. Fresh-graph uncached Dash
+lint/typecheck pass (34.9s/6.3s); owned-path format and whitespace checks pass. Initial
+socket/type failures and skipped-module-rule lint diagnostics are retained and do not count
+as final verification. Final lint retains the ambient NO_COLOR/FORCE_COLOR warning.
+
+All27 new-helper mutation receipts have a finite negative and restored passing selector.
+Root reconstructed each mutant from its unique baseline anchor, checked the source hashes
+and raw failure/pass markers, and inspected the final baseline delta: comments/JSDoc only.
+F08 establishes the intended diagnostic boundary; F14 establishes correlated malformed
+locator rejection. Neither is claimed as an unsafe provider-publication escape. F21 actually
+observes premature live publication if the locator-save await is removed. SQLite reopen
+cases prove retained preparing/prepared history and no duplicate open; they are not
+SIGKILL, power-loss or physical-worker proofs. Evidence lives in this plan-specific ignored
+.superpowers/sdd/preparation-dispatch-tasks directory. Helper SHA256:
+8ed414dfe94ea2d360b2790e609986cce2afefb032eb88f0304388e36acf880d.
+
+Independent task review approves spec compliance and quality with no Critical/Important
+finding. The color-environment warning is nonblocking. Returning the original opaque session
+while separately retaining its detached locator is within this preparation-only contract;
+the future guarded-turn host must establish live/retained locator correspondence before
+effects. Whole-branch review and new exact-SHA host/CI/integration acceptance remain pending.
+No parent S0/S7a completion, WBS status mutation or production action is asserted.
