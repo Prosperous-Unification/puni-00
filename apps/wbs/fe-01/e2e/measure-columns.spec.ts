@@ -243,12 +243,24 @@ async function openPanel(page: Page, number: string) {
   return panel;
 }
 
+/** A table header exists before the selected plan's intercepted read has rendered. */
+async function expectSeededRows(page: Page, seeded: SeededPlan): Promise<void> {
+  for (const rowId of Object.values(seeded.rowIds)) {
+    await expect(page.locator(`tbody tr[data-row-id="${rowId}"]`)).toBeVisible();
+  }
+}
+
 async function freshContextPage(browser: Browser, width: number, height: number) {
   const context = await browser.newContext({ viewport: { width, height } });
   return { context, page: await context.newPage() };
 }
 
 test.describe('measure columns', () => {
+  test.afterEach(async ({ page }) => {
+    // A reload or write can leave an intercepted read running at the last assertion.
+    // Drain it before the fixture disposes responses; route errors still fail the test.
+    await page.unrouteAll({ behavior: 'wait' });
+  });
   test('a fresh reader sees time only; tokens enabled stays with that reader', async ({
     page,
     browser,
@@ -259,6 +271,7 @@ test.describe('measure columns', () => {
     await answerMeasures(page, devStepId);
     await openSeededPlan(page, seeded);
     await expect(page.locator('th[data-column="final-total"]')).toBeVisible();
+    await expectSeededRows(page, seeded);
     expect(await measureHeadings(page)).toEqual([]);
 
     await page.locator('details[data-columns] > summary').click();
@@ -290,12 +303,23 @@ test.describe('measure columns', () => {
     // browser holds none of it.
     await page.reload();
     await expect(page.locator('th[data-column="measure-tokens-fact"]')).toBeVisible();
+    await expectSeededRows(page, seeded);
     const other = await freshContextPage(browser, 1440, 900);
-    await answerMeasures(other.page, devStepId);
-    await openSeededPlan(other.page, seeded);
-    await expect(other.page.locator('th[data-column="final-total"]')).toBeVisible();
-    expect(await measureHeadings(other.page)).toEqual([]);
-    await other.context.close();
+    try {
+      await answerMeasures(other.page, devStepId);
+      await openSeededPlan(other.page, seeded);
+      await expect(other.page.locator('th[data-column="final-total"]')).toBeVisible();
+      // CI run 40194109802 reached the empty-headings assertion with an empty body,
+      // then closed this context while route.fetch still owned the plan response.
+      await expectSeededRows(other.page, seeded);
+      expect(await measureHeadings(other.page)).toEqual([]);
+    } finally {
+      try {
+        await other.page.unrouteAll({ behavior: 'wait' });
+      } finally {
+        await other.context.close();
+      }
+    }
   });
 
   test('the Measures panel draws strict, advisory, mixed and empty states', async ({

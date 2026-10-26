@@ -34,6 +34,8 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
+import { SqliteResourceRuntime } from '@wbs/store-sqlite';
+import { SqliteResourceUses } from '@wbs/store-sqlite';
 import {
   computeProvidersOver,
   currentMembershipAccess,
@@ -224,6 +226,13 @@ export class OrganizationHarness {
   claimLeaseSweep(): ClaimLeaseSweep {
     if (this.composedClaimLeases === undefined) throw new Error('composed claim leases are absent');
     return this.composedClaimLeases;
+  }
+
+  /** Exercises an already-admitted runtime actor against the same database and gate as HTTP ingestion. */
+  resourceRuntime(): SqliteResourceRuntime {
+    if (this.composedSource === undefined || this.composedGate === undefined)
+      throw new Error('composed resource runtime is absent');
+    return new SqliteResourceRuntime(this.composedSource.db, this.composedGate);
   }
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
@@ -509,6 +518,8 @@ export class OrganizationHarness {
       },
       machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
       computeProviders: computeProvidersOver(db, gate),
+      resourceUses: new SqliteResourceUses(db, gate),
+      resourceRuntime: new SqliteResourceRuntime(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -743,6 +754,8 @@ export class OrganizationHarness {
       machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
       claimLeases: services.claimLeases,
       computeProviders: computeProvidersOver(source.db, services.gate),
+      resourceUses: new SqliteResourceUses(source.db, services.gate),
+      resourceRuntime: new SqliteResourceRuntime(source.db, services.gate),
       // As `boot.ts` wires it, so the composed boundary serves the limits read too.
       // Proof: without it, `swarm-end-to-end.db.test.ts` read the limits 403
       // no_active_organization on an activated organization; watched 2026-10-23.

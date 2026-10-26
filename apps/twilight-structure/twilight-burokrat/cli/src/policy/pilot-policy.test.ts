@@ -485,6 +485,10 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // Proof (2026-10-19): this pilot failed on the undeclared shared-unit-recovery denial receipt.
     // Removing either exact recovery gzip declaration from either shipped policy made production
     // classify-candidate exit 1 naming that archive; both policies also refused an unlisted gzip.
+    // Proof (2026-10-25): CI run40159790962 refused the workflow-binding proof gzip.
+    // Both original shipped policies reproduced that refusal; exact-file declarations restored
+    // binary classification and both still refused a same-byte unlisted gzip control.
+    // See openspec/changes/burokrat-workflow-binding-validation/evidence/inventory-repair.json.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

@@ -18,7 +18,7 @@
 
 ## 1. The rename (slice 1, `feat/wbs-work-packages-1`)
 
-- [ ] 1.1 Red: `tools/tool-rename-work-package/src/rename-map.test.ts` (every key has its five
+- [x] 1.1 Red: `tools/tool-rename-work-package/src/rename-map.test.ts` (every key has its five
       spellings, no target collides with an identifier already in the tree; `check` exits 1
       on an injected residual outside the allow-list and 0 inside it; `apply` is idempotent;
       every per-line new-sense pattern in `allow-list.ts` still matches at least one line of
@@ -309,7 +309,7 @@ Precondition (design "Dependency graph"): 3.8 executed and `wbs-permissions` 3.4
       package rows beneath). Green: `<merge-date>100100_space_holds_projects_people_teams`
       with its `WAIVERS` entry (`DROP TABLE` for `project` and `space_work_package`, E39),
       store, routes, contracts, mcp-01's README count raised (WP-10), the runbook step
-      printing `space_project_dropped` into `verify.md`, and the code following ADR 0061.
+      printing `space_project_dropped` into `verify.md`, and the code following ADR 0062.
       R5 faults: the dropped-membership insert removed (the multi-space fixture's report
       assertion fails); the final `project.id` tie-break removed (the tied-projects case
       depends on row order and the fixture inserted in reverse fails); the

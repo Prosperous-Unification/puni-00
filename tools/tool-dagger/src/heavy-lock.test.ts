@@ -1,4 +1,13 @@
-import { closeSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  copyFileSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -169,6 +178,62 @@ function holderWaitingFor(release: string): string {
 }
 
 describe('with-heavy-lock', () => {
+  it.each([
+    { supplied: undefined, expected: '1800' },
+    { supplied: '0', expected: '0' },
+    { supplied: '7200', expected: '7200' },
+  ])('keeps gate queue budget $expected in the lock shell only', ({ supplied, expected }) => {
+    const root = scratchSync('gate-queue-environment-');
+    roots.push(root);
+    mkdirSync(join(root, 'bin'));
+    copyFileSync(
+      join(import.meta.dir, '../../../bin/h2puni-gate.sh'),
+      join(root, 'bin/h2puni-gate.sh'),
+    );
+    // Run the complete shipped entrypoint. Only its lock library is mocked, so
+    // this fixture never takes the canonical host lock or runs heavy gate steps.
+    writeFileSync(
+      join(root, 'bin/h2puni-gate-lib.sh'),
+      `resolve_heavy_lock_path() { printf '%s\\n' "$PWD/mock-lock"; }
+       with_heavy_lock() {
+         printf 'shell=%s\\n' "$HEAVY_LOCK_WAIT_SECONDS"
+         bash -c 'printf "child=%s\\nlabel=%s\\n" "\${HEAVY_LOCK_WAIT_SECONDS-unset}" "$HEAVY_LOCK_LABEL"'
+       }
+       gate_with_pinned_head() { with_heavy_lock; }
+      `,
+    );
+    for (const args of [
+      ['init', '-q', '-b', 'main'],
+      [
+        '-c',
+        'user.name=gate test',
+        '-c',
+        'user.email=gate@example.invalid',
+        'commit',
+        '-qm',
+        'fixture',
+        '--allow-empty',
+      ],
+    ]) {
+      const command = Bun.spawnSync(['git', '-C', root, ...args]);
+      expect(command.exitCode).toBe(0);
+    }
+    const revision = Bun.spawnSync(['git', '-C', root, 'rev-parse', 'HEAD']);
+    expect(revision.exitCode).toBe(0);
+    const sha = revision.stdout.toString().trim();
+    const environment: NodeJS.ProcessEnv = { ...process.env, TOOL_WIKI_ACTIVATION_ROOT: '' };
+    delete environment['HEAVY_LOCK_WAIT_SECONDS'];
+    if (supplied !== undefined) environment['HEAVY_LOCK_WAIT_SECONDS'] = supplied;
+    const execution = Bun.spawnSync(['bash', join(root, 'bin/h2puni-gate.sh'), sha], {
+      env: environment,
+    });
+    expect(execution.exitCode).toBe(0);
+    expect(execution.stderr.toString()).toBe('');
+    expect(execution.stdout.toString()).toBe(
+      `shell=${expected}\nchild=unset\nlabel=gate:${sha.slice(0, 8)}\n`,
+    );
+  });
+
   it('rejects a colon-bearing shim at the contender environment boundary', () => {
     expect(() => contenderEnvironment('/tmp/wbs:shim', '/usr/bin:/bin', '/tmp')).toThrow(
       'PATH entry contains a colon',
