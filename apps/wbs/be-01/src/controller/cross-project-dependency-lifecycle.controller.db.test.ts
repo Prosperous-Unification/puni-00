@@ -300,14 +300,20 @@ test('restricted readable remote successor permits derived handdown while ordina
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);

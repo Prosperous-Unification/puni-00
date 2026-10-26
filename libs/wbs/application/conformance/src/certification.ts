@@ -133,6 +133,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'subtrees.insertSubtree:late-failure',
   'journal.append:history-atomic',
   'journal.append:account-redo-depth',
+  'journal.append:acting-person-stacks',
   'journal.flip:preconditions',
   'journal.appendEvent:history-only',
   'savedPlans.write:bytes-and-bodies',

@@ -498,7 +498,9 @@ for (const refreshRevisions of [false, true]) {
     // Proof: bypassing applyRestore shape validation made the refreshed-evidence
     // case receive 500 instead of 409; watched 2026-10-14.
     if (refreshRevisions) {
-      const entry = (await journal.entriesFor(plan.projectId, plan.userId)).at(-1);
+      const entry = (
+        await journal.entriesFor({ projectId: plan.projectId, userId: plan.userId, personId: null })
+      ).at(-1);
       if (entry === undefined) throw new Error('delete journal entry missing');
       const preconditions = readPreconditions(entry.preconditions);
       const rows = await workItems.listByProject(plan.projectId);

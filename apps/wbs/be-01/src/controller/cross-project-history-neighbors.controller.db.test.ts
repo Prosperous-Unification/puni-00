@@ -1,6 +1,7 @@
 import { readPreconditions } from '@wbs/core/service/compensating';
 import { afterEach, expect, test } from 'bun:test';
 
+import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
 import { closeFixture, harness, openFixture, readTables } from './cross-project-dependency-fixture';
 
 afterEach(closeFixture);
@@ -127,3 +128,97 @@ for (const interveningEdit of [false, true])
     );
     expect(pushes).toEqual(sent);
   });
+
+test('connected replay rebases only its acting person stack and discards only its stale selected row', async () => {
+  const pushes: string[] = [];
+  const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
+  const accountId = fixture.principal.id;
+  for (const person of ['history-agent', 'other-history-agent'])
+    addAgentPerson(harness.sqlite, person, 'org-a', accountId);
+  const first = await issueApiKey(harness.sqlite, {
+    organizationId: 'org-a',
+    personId: 'history-agent',
+    issuedBy: accountId,
+  });
+  const second = await issueApiKey(harness.sqlite, {
+    organizationId: 'org-a',
+    personId: 'other-history-agent',
+    issuedBy: accountId,
+  });
+  const route = `/api/projects/${fixture.owner.projectId}`;
+  const command = (key: string, commands: unknown[]) =>
+    harness.callWith(key, 'POST', `${route}/commands`, { commands });
+  expect(
+    (await command(first.key, [{ kind: 'addTypedDependency', ...fixture.input }])).status,
+  ).toBe(200);
+  const older = readLatestEntry(fixture.owner.projectId);
+  const relationship = harness.sqlite
+    .query<{ id: string }, []>('SELECT id FROM external_dependency')
+    .get();
+  if (relationship === null) throw new Error('mixed history relationship missing');
+  expect(
+    (
+      await command(second.key, [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.owner.workItemId,
+          patch: { notes: 'Other actor history' },
+        },
+      ])
+    ).status,
+  ).toBe(200);
+  const readOther = () =>
+    harness.sqlite
+      .query('SELECT * FROM command_journal WHERE person_id=? ORDER BY seq')
+      .all('other-history-agent');
+  const other = readOther();
+  expect(other).toHaveLength(1);
+  expect(
+    (
+      await command(first.key, [
+        {
+          kind: 'updateTypedDependency',
+          dependencyId: relationship.id,
+          ...fixture.input,
+          type: 'SS',
+        },
+      ])
+    ).status,
+  ).toBe(200);
+  expect((await harness.callWith(first.key, 'POST', `${route}/undo`)).status).toBe(200);
+  expect(readOther()).toEqual(other);
+  expect((await harness.callWith(first.key, 'POST', `${route}/redo`)).status).toBe(200);
+  expect(readOther()).toEqual(other);
+  expect((await harness.callWith(first.key, 'POST', `${route}/undo`)).status).toBe(200);
+  expect(readOther()).toEqual(other);
+  expect(
+    (
+      await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+        commands: [
+          {
+            kind: 'patchWorkItem',
+            workItemId: fixture.predecessor.workItemId,
+            patch: { notes: 'Remote conflict' },
+          },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const before = readTables();
+  const sent = [...pushes];
+  const refused = await harness.callWith(first.key, 'POST', `${route}/undo`);
+  expect(refused.status).toBe(409);
+  expect(refused.body).toMatchObject({ error: 'stale_undo' });
+  expect(readTables()).toEqual(
+    before.map((table) =>
+      table.name === 'command_journal'
+        ? {
+            ...table,
+            rows: table.rows.filter((row) => (JSON.parse(row) as { id: string }).id !== older.id),
+          }
+        : table,
+    ),
+  );
+  expect(readOther()).toEqual(other);
+  expect(pushes).toEqual(sent);
+});

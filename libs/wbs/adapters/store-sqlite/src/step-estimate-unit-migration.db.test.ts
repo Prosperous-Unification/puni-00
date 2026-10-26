@@ -132,6 +132,7 @@ it.each([
     // Proof: removing the damaged-journal CASE guard failed all eight cases on a missing throw;
     // persisting optimistic=241 after rollback failed all eight exact-state comparisons (2026-10-14).
     expect(rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit')).toEqual([
+      '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',
@@ -198,7 +199,15 @@ it('allows a legacy object journal without a unit map through direct down', () =
     sqlite.run(
       `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'rename','{}','{}','{"expected":{},"from":{}}',0,1)`,
     );
-    const history = sqlite.query('SELECT * FROM command_journal').all();
+    // The columns that predate both migrations: the rollback also passes
+    // `add_command_journal_person`, which drops `person_id`.
+    const journal = () =>
+      sqlite
+        .query(
+          'SELECT id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at FROM command_journal',
+        )
+        .all();
+    const history = journal();
     rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts');
     expect(
       sqlite
@@ -206,7 +215,7 @@ it('allows a legacy object journal without a unit map through direct down', () =
         .all()
         .map((column) => column.name),
     ).not.toContain('estimate_unit');
-    expect(sqlite.query('SELECT * FROM command_journal').all()).toEqual(history);
+    expect(journal()).toEqual(history);
   } finally {
     sqlite.close();
   }

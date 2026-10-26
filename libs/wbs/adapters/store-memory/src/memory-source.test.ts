@@ -286,6 +286,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       id: 'journal-1',
       projectId: 'p1',
       userId: 'owner',
+      personId: null,
       kind: 'rename',
       payload: { nested: { label: 'stored payload' } },
       inverse: { type: 'rename' },
@@ -563,8 +564,12 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     },
     {
       name: 'journal',
-      returned: await stores.journal.entriesFor('p1', 'owner'),
-      reread: () => stores.journal.entriesFor('p1', 'owner'),
+      returned: await stores.journal.entriesFor({
+        projectId: 'p1',
+        userId: 'owner',
+        personId: null,
+      }),
+      reread: () => stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null }),
     },
     { name: 'project create', returned: created, reread: () => stores.projects.findById('p2') },
     { name: 'project update', returned: updated, reread: () => stores.projects.findById('p1') },
@@ -892,6 +897,7 @@ describe('the staged memory source', () => {
       id: 'legitimate-entry',
       projectId: 'p1',
       userId: 'owner',
+      personId: null,
       kind: 'rename',
       payload: { type: 'rename', name: 'After' },
       inverse: { type: 'rename', name: 'Before' },
@@ -917,9 +923,9 @@ describe('the staged memory source', () => {
     );
     expect(await source.stores.planEvents.listFor('p1', {})).toEqual([event]);
     expect(await fixture.independentJournalHistoryFor()).toEqual([]);
-    expect(await source.stores.journal.entriesFor('p1', 'owner')).toEqual([
-      { ...entry, seq: 1, undone: false },
-    ]);
+    expect(
+      await source.stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null }),
+    ).toEqual([{ ...entry, seq: 1, undone: false }]);
     await source.close();
   });
 

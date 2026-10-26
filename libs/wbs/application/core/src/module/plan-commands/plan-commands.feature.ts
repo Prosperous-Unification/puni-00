@@ -1,5 +1,6 @@
 import type { PlanCommandKind } from '@wbs/contracts';
 import {
+  actingPersonOf,
   type AuthenticatedUser,
   type ClaimReceipt,
   type CredentialPin,
@@ -304,7 +305,18 @@ type RuntimeCommandsPrelude = (
 interface RuntimeCommandCaller {
   readonly kind: 'runtime';
   readonly actorId: string;
+  readonly actingPersonId: string | null;
   readonly prepare: RuntimeCommandsPrelude;
+}
+
+/**
+ * Detaches complete plain request evidence before the writer can queue it.
+ * Database authority is freshly resolved in the admitted turn against this
+ * same principal and expected context; runtime evidence is already detached.
+ */
+function retainCaller<T extends CommandCaller | RuntimeCommandCaller>(caller: T): T {
+  // Proof: omitting this snapshot let revoked A replaced by valid B reach fan-out capture in all four queued batch/prelude/undo/redo controls (2026-10-26).
+  return caller.kind === 'human' ? structuredClone(caller) : caller;
 }
 
 export interface PlanCommandRunnerOptions {
@@ -400,6 +412,10 @@ export class PlanCommandRunner {
    * {@link run} through the caller's access. Under scoped access the project
    * and the role are checked inside the batch's own unit of work, and every
    * command is held to the organization: see {@link applyAll}.
+   *
+   * Request evidence is detached before queuing; current authority is resolved
+   * in the writer turn. The same retained principal selects the acting person's
+   * journal stack for the entry and its undoable/redoable answer.
    */
   runWithin(
     projectId: string,
@@ -489,6 +505,7 @@ export class PlanCommandRunner {
       {
         kind: 'runtime',
         actorId,
+        actingPersonId: actingPersonOf(authentication),
         prepare: async (scope) => {
           const admitted = await scope.authorizeRuntime({
             organizationId,
@@ -604,6 +621,14 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     prelude?: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R> | RuntimeExecutionReply> {
+    caller = retainCaller(caller);
+    // Proof: replacing ordinary person derivation with null left Codex renamed after its undo; runtime null derivation wrote [null,null] for both machine and consent (R13, 2026-10-26).
+    const actingPersonId =
+      caller.kind === 'runtime'
+        ? caller.actingPersonId
+        : caller.kind === 'human'
+          ? actingPersonOf(caller.principal.authentication)
+          : null;
     // Proof: removing this branch admitted the real direct read-only runner in command-current-authority.controller.db.test.ts.
     if (caller.kind === 'human' && !caller.principal.scopes.includes('write'))
       return { ok: false, error: 'insufficient_scope' };
@@ -736,7 +761,15 @@ export class PlanCommandRunner {
                   reason: 'calendar_range',
                 };
               } else {
-                await graph.workItems.recordCollected(projectId, actorId, collected.recordings);
+                // Onto the stack of the person the credential acts as, so an
+                // agent's batch never lands on its human's own undo.
+                // Proof: with `null` for the person, every case of
+                // `undo-acting-person.controller.db.test.ts` failed (0 pass,
+                // 5 fail); watched 2026-10-26.
+                await graph.workItems.recordCollected(
+                  { projectId, userId: actorId, personId: actingPersonId },
+                  collected.recordings,
+                );
                 applied = collected;
               }
             } else {
@@ -823,7 +856,14 @@ export class PlanCommandRunner {
     const afterCommit = this.opts.publicServices;
     if (collected.dirty) await afterCommit.workItems.announceTreeNow(projectId);
     if ('runtimeApplied' in done) return { runtime: { ok: true, value: done.runtimeApplied } };
-    const state = await afterCommit.workItems.undoState(projectId, actorId);
+    // Proof: with `null` for the person, `agent B's edit keeps agent A's redo,
+    // and the human's` (undo-acting-person.controller.db.test.ts) read the
+    // account's redoable stack (4 pass, 1 fail); watched 2026-10-26.
+    const state = await afterCommit.workItems.undoState({
+      projectId,
+      userId: actorId,
+      personId: actingPersonId,
+    });
     return { ok: true, results: collected.result, ...state };
   }
 
@@ -912,6 +952,9 @@ export class PlanCommandRunner {
     caller: CommandCaller,
     journal: 'undo' | 'redo',
   ): Promise<ScopedUndoOutcome> {
+    caller = retainCaller(caller);
+    const actingPersonId =
+      caller.kind === 'human' ? actingPersonOf(caller.principal.authentication) : null;
     // Proof: removing this branch let the direct read-only undo/redo assertion receive ok:true (current-authority HTTP suite).
     if (caller.kind === 'human' && !caller.principal.scopes.includes('write'))
       return { ok: false, error: 'insufficient_scope' };
@@ -961,8 +1004,14 @@ export class PlanCommandRunner {
                   ? workItems.undo(projectId, actorId)
                   : workItems.redo(projectId, actorId)
                 : journal === 'undo'
-                  ? workItems.undoWithin(projectId, actorId, access)
-                  : workItems.redoWithin(projectId, actorId, access),
+                  ? workItems.undoWithin(
+                      { projectId, userId: actorId, personId: actingPersonId },
+                      access,
+                    )
+                  : workItems.redoWithin(
+                      { projectId, userId: actorId, personId: actingPersonId },
+                      access,
+                    ),
             );
             if (collected.result.ok && access.kind === 'scoped') {
               // A backstop behind `undoWithin`'s own reference check, which refuses

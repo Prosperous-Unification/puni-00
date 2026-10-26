@@ -499,7 +499,9 @@ it('advances SQLite assignment and directory cascades before the next runner com
       { retained: 2, stored: 2 },
       { retained: 3, stored: 3 },
     ]);
-    const assignmentEntry = (await source.stores.journal.entriesFor(PROJECT, OWNER)).at(-1);
+    const assignmentEntry = (
+      await source.stores.journal.entriesFor({ projectId: PROJECT, userId: OWNER, personId: null })
+    ).at(-1);
     if (assignmentEntry === undefined) throw new Error('SQLite assignment batch wrote no journal');
     expect(assignmentEntry.preconditions).toEqual({
       expected: { [ROW]: 4 },
@@ -1080,7 +1082,9 @@ it('refreshes a dependency survivor before the next runner command and preserves
     // retainedBeforeNext at 1 while the admitted SQLite row was revision 2.
     expect(retainedBeforeNext).toBe(2);
     expect(retainedBeforeNext).toBe(authoritativeBeforeNext);
-    const entry = (await source.stores.journal.entriesFor(PROJECT, OWNER)).at(0);
+    const entry = (
+      await source.stores.journal.entriesFor({ projectId: PROJECT, userId: OWNER, personId: null })
+    ).at(0);
     if (entry === undefined) throw new Error('dependency survivor batch wrote no journal entry');
     expect(entry.preconditions).toEqual({
       expected: { survivor: 3 },

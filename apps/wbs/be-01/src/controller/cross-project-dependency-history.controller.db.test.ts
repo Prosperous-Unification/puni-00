@@ -66,7 +66,10 @@ test('actual first child hands an outgoing node to its child and undo redo prese
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -85,7 +88,10 @@ test('actual first child hands an outgoing node to its child and undo redo prese
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -171,7 +177,10 @@ test('mixed incident handdown preserves scopes steps both owners history and loc
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.undoWithin(owner, actor, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: owner, userId: actor, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -179,7 +188,10 @@ test('mixed incident handdown preserves scopes steps both owners history and loc
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.redoWithin(owner, actor, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: owner, userId: actor, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -322,7 +334,10 @@ for (const corruption of [
     const replay = runSemantic(fixture, async (service) => {
       const patched = await service.patch(fixture.ancestor, actor, { notes: 'must roll back' });
       if (!patched.ok) return patched;
-      return service.undoWithin(owner, actor, fixture.expectedAccess);
+      return service.undoWithin(
+        { projectId: owner, userId: actor, personId: null },
+        fixture.expectedAccess,
+      );
     });
     const outcome: unknown = await replay.then(
       (value) => value,
@@ -380,8 +395,11 @@ for (const revocation of ['membership', 'credential'] as const)
           (
             await runSemantic(fixture, (service) =>
               service.undoWithin(
-                fixture.owner.projectId,
-                fixture.principal.id,
+                {
+                  projectId: fixture.owner.projectId,
+                  userId: fixture.principal.id,
+                  personId: null,
+                },
                 fixture.expectedAccess,
               ),
             )
@@ -503,7 +521,10 @@ test('compound handdown carries local statement estimate and progress facts with
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.undoWithin(owner, actor, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: owner, userId: actor, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -516,7 +537,10 @@ test('compound handdown carries local statement estimate and progress facts with
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.undoWithin(owner, actor, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: owner, userId: actor, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -524,14 +548,20 @@ test('compound handdown carries local statement estimate and progress facts with
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.redoWithin(owner, actor, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: owner, userId: actor, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.redoWithin(owner, actor, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: owner, userId: actor, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -593,7 +623,10 @@ test('outer batch retains earliest remote before revisions across two consecutiv
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.undoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: owner, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -601,7 +634,10 @@ test('outer batch retains earliest remote before revisions across two consecutiv
   expect(
     (
       await runSemantic(fixture, (service) =>
-        service.redoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: owner, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -624,7 +660,10 @@ for (const delivery of ['unreadable-project', 'missing-row', 'foreign-row'] as c
     expect(
       (
         await runSemantic(fixture, (service) =>
-          service.undoWithin(owner, actor, fixture.expectedAccess),
+          service.undoWithin(
+            { projectId: owner, userId: actor, personId: null },
+            fixture.expectedAccess,
+          ),
         )
       ).ok,
     ).toBe(true);
@@ -634,7 +673,10 @@ for (const delivery of ['unreadable-project', 'missing-row', 'foreign-row'] as c
       async (service) => {
         const patched = await service.patch(fixture.ancestor, actor, { notes: 'must roll back' });
         if (!patched.ok) return patched;
-        return service.redoWithin(owner, actor, fixture.expectedAccess);
+        return service.redoWithin(
+          { projectId: owner, userId: actor, personId: null },
+          fixture.expectedAccess,
+        );
       },
       (stores) => ({
         ...stores,

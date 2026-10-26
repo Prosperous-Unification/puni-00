@@ -7723,3 +7723,13 @@ At exact `39a5e2953d570e67dbbc8d16e311b379d4c89288`, the established external-tr
 The unchanged two-case attempt-worker replay passed 2 tests/6 assertions in 8.45 seconds with both five-second readiness limits retained. This does not explain or fix the CI zero-readiness failure. No worker, timeout or production logic changed. That failure remains an open investigation.
 
 The resource-use patch is separately published as the single-file, main-based [PR #754](https://github.com/Prosperous-Unification/puni-00/pull/754), head `6f794aede0908be6d074a5a068453db2f3d8bf22`: its 41 resource-use tests and static checks passed on main. Its CI and merge verdict remain separate. The upgrade fixture stays on the private feature branch. PR #630 and architectural/native/provider acceptance remain held.
+
+## R13 main per-person undo reconciliation — 2026-10-26
+
+[Principal retention, fresh authority, per-person history and causal verification](verify-main-undo-person.md)
+records the independently reviewed finite private R13 source union. Scoped tests,
+compilers and static checks passed, but the fresh contracts-memory comparison
+passes main at 411 MB and fails R13 at 511 MB against the unchanged strict <500 MB
+bound. Repair is required before full-gate/delivery acceptance. R13 CI/host gates,
+native/provider/full-goal acceptance and architectural MAIN/PR #630 merge remain
+unverified or held; parent task checkboxes are unchanged.

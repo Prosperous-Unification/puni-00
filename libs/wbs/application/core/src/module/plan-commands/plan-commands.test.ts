@@ -541,7 +541,9 @@ describe('working plan directory mutations through runner commands', () => {
       expect(assignedAndPatched).toMatchObject({ ok: true });
       expect(readsAfterAssign).toEqual({ full: 2, targeted: 2, placements: 0 });
       expect(targetedHydrations).toEqual([[row.value.id], [row.value.id], [row.value.id]]);
-      const journal = (await source.stores.journal.entriesFor(projectId, OWNER)).at(0);
+      const journal = (
+        await source.stores.journal.entriesFor({ projectId, userId: OWNER, personId: null })
+      ).at(0);
       if (journal === undefined) throw new Error('assignment batch wrote no journal entry');
       expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
       expect(await source.stores.directory.assignmentsFor(row.value.id)).toEqual([

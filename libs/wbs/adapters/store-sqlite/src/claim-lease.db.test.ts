@@ -411,14 +411,14 @@ describe('release by the coordinator', () => {
   it('refuses the holder’s undo after a reap, and redoes a claim with a fresh lease', async () => {
     const { run, claim, items, runner, projectId, claims, leases } = await seeded();
     await run([claim(items.one, 'codex')], pinned('codex'));
-    // Undo and redo by the claim's writing account put it back with a lease
+    // Undo and redo by the agent that wrote the claim put it back with a lease
     // from the redo's instant (L11).
     now = T + MINUTE;
-    expect(await runner.undoWithin(projectId, principalOf(null), admin)).toMatchObject({
+    expect(await runner.undoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
       ok: true,
     });
     now = T + 5 * MINUTE;
-    expect(await runner.redoWithin(projectId, principalOf(null), admin)).toMatchObject({
+    expect(await runner.redoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
       ok: true,
     });
     expect(leases()).toEqual([
@@ -426,7 +426,7 @@ describe('release by the coordinator', () => {
     ]);
     now = T + 5 * MINUTE + CLAIM_LEASE_MS;
     expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
-    expect(await runner.undoWithin(projectId, principalOf(null), admin)).toMatchObject({
+    expect(await runner.undoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
       ok: false,
     });
     expect(claims()).toBe(0);

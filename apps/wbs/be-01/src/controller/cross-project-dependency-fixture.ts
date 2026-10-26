@@ -164,8 +164,7 @@ export async function runSemantic<T extends { ok: boolean }>(
       const collected = await service.collect(() => operation(service));
       if (collected.result.ok)
         await service.recordCollected(
-          fixture.owner.projectId,
-          fixture.principal.id,
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
           collected.recordings,
         );
       return { commit: collected.result.ok, value: collected.result };

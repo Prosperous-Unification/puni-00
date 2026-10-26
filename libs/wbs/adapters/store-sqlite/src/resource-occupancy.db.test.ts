@@ -233,7 +233,11 @@ for (const store of STORES) {
       try {
         const before = {
           rows: await source.stores.workItems.listByProject(projectId),
-          journal: await source.stores.journal.entriesFor(projectId, F),
+          journal: await source.stores.journal.entriesFor({
+            projectId: projectId,
+            userId: F,
+            personId: null,
+          }),
           progress: await source.stores.progress.listByProject(projectId),
           claims: await source.stores.claims.listByProject(projectId),
           occupancy: await source.stores.claims.occupancyOf(projectId),
@@ -245,7 +249,11 @@ for (const store of STORES) {
         expect(refused).toMatchObject({ ok: false, at: 1, reason: 'prerequisites_unmet' });
         expect({
           rows: await source.stores.workItems.listByProject(projectId),
-          journal: await source.stores.journal.entriesFor(projectId, F),
+          journal: await source.stores.journal.entriesFor({
+            projectId: projectId,
+            userId: F,
+            personId: null,
+          }),
           progress: await source.stores.progress.listByProject(projectId),
           claims: await source.stores.claims.listByProject(projectId),
           occupancy: await source.stores.claims.occupancyOf(projectId),

@@ -269,7 +269,7 @@ function applied(outcome: ScopedBatchOutcome): Map<string, string> {
 const names = async (): Promise<string[]> =>
   (await workItemStore.listByProject(projectId)).map((row) => row.name).sort();
 
-const journal = () => journalStore.entriesFor(projectId, ownerId);
+const journal = () => journalStore.entriesFor({ projectId, userId: ownerId, personId: null });
 
 const DRAFT: PlanCommand[] = [
   { kind: 'createWorkItem', ref: 'strip', parentId: null, afterId: null, name: 'Strip' },
@@ -489,6 +489,7 @@ describe('a command batch', () => {
         id: crypto.randomUUID(),
         projectId,
         userId: ownerId,
+        personId: null,
         kind: 'batch',
         payload: { label: '2 changes', forward: { do: 'batch', steps: [impossible, rename] } },
         inverse: { do: 'batch', steps: [rename, impossible] },

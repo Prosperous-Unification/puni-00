@@ -97,7 +97,8 @@ async function seeded() {
   });
   const demands = () => source.stores.demands.listByProject(projectId);
   const capacities = () => graph.capacity.listResourceCapacitiesFor(projectId);
-  const entries = async () => (await source.stores.journal.entriesFor(projectId, F)).length;
+  const entries = async () =>
+    (await source.stores.journal.entriesFor({ projectId, userId: F, personId: null })).length;
   /** Creates the two resources the cases use and answers their ids. */
   const declare = async () => {
     const answer = await runner.runDirectory(F, [

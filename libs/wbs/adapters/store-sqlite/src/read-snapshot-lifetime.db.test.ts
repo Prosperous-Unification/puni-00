@@ -364,7 +364,9 @@ test.each(['discard', 'throw'] as const)(
       if (repair === 'throw')
         expect((await failureOf(reading)).message).toBe('repair failed after durable discard');
       else await reading;
-      expect(await source.stores.journal.entriesFor('a1', 'ada')).toEqual([]);
+      expect(
+        await source.stores.journal.entriesFor({ projectId: 'a1', userId: 'ada', personId: null }),
+      ).toEqual([]);
       await source.uow.run(async () => {
         sqlite.db.run(sql`UPDATE project SET name = 'following run' WHERE id = 'a1'`);
         await Promise.resolve();

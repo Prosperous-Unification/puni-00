@@ -214,7 +214,8 @@ async function seeded(store: (typeof STORES)[number]) {
       )
       .toSorted();
   };
-  const entries = async () => (await source.stores.journal.entriesFor(projectId, F)).length;
+  const entries = async () =>
+    (await source.stores.journal.entriesFor({ projectId, userId: F, personId: null })).length;
   const close = async () => {
     await source.close();
     dispose();

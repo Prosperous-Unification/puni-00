@@ -114,7 +114,11 @@ for (const operation of [
           (
             await runSemantic(
               fixture,
-              (service) => service.undoWithin(owner, actor, fixture.expectedAccess),
+              (service) =>
+                service.undoWithin(
+                  { projectId: owner, userId: actor, personId: null },
+                  fixture.expectedAccess,
+                ),
               undefined,
               authoring.port,
             )
@@ -141,9 +145,15 @@ for (const operation of [
               case 'copy':
                 return service.duplicate(fixture.owner.workItemId, actor);
               case 'undo':
-                return service.undoWithin(owner, actor, fixture.expectedAccess);
+                return service.undoWithin(
+                  { projectId: owner, userId: actor, personId: null },
+                  fixture.expectedAccess,
+                );
               case 'redo':
-                return service.redoWithin(owner, actor, fixture.expectedAccess);
+                return service.redoWithin(
+                  { projectId: owner, userId: actor, personId: null },
+                  fixture.expectedAccess,
+                );
             }
           },
           undefined,
@@ -321,13 +331,19 @@ test('derived incident history does not require general external authoring', asy
         const replay =
           direction === 'undo'
             ? await service.undoWithin(
-                fixture.owner.projectId,
-                fixture.principal.id,
+                {
+                  projectId: fixture.owner.projectId,
+                  userId: fixture.principal.id,
+                  personId: null,
+                },
                 fixture.expectedAccess,
               )
             : await service.redoWithin(
-                fixture.owner.projectId,
-                fixture.principal.id,
+                {
+                  projectId: fixture.owner.projectId,
+                  userId: fixture.principal.id,
+                  personId: null,
+                },
                 fixture.expectedAccess,
               );
         expect(current.readCount()).toBe(reads);

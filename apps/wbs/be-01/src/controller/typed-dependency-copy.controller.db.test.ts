@@ -384,7 +384,9 @@ it('copies typed prerequisites and replays them with stable ids', async () => {
     successor: whole(outside),
   });
   expect(await typed.listByProject(plan.projectId)).toHaveLength(9);
-  const entry = (await journal.entriesFor(plan.projectId, plan.userId)).at(-1);
+  const entry = (
+    await journal.entriesFor({ projectId: plan.projectId, userId: plan.userId, personId: null })
+  ).at(-1);
   if (entry === undefined) throw new Error('copy journal missing');
   const preconditions = readPreconditions(entry.preconditions);
   expect(preconditions.from).toEqual({ [outside]: beforeOutside.revision });

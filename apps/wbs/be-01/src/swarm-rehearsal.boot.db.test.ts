@@ -900,7 +900,14 @@ describe('a swarm of two fleets on one plan', () => {
     // `assignee-management` + `resource-occupancy`: a worker claims Review of a held leaf with
     // assign: the leaf's occupancy is shared, so nothing more is acquired.
     const held = heldLeaf();
-    const reviewer = held.fleet === 'claude' ? 'claude-w3' : 'claire-w2';
+    // Never the leaf's own worker: its by-person read would list its dev and qa claims too.
+    // Proof: with the fixed `claude-w3`, a race that left B3 as fleet B's only held leaf
+    // read `[dev, qa, review]` here (h2puni gate on 15fd22d7e, 2026-10-26); `===` for `!==`
+    // below reproduces it on every run.
+    const reviewer = AGENTS.find(
+      (agent) => agent.startsWith(`${held.fleet}-w`) && agent !== held.worker,
+    );
+    if (reviewer === undefined) throw new Error(`no second ${held.fleet} worker to review`);
     const before = occupied();
     const claimed = await commandsAs(held.fleet, [
       {

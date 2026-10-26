@@ -1627,3 +1627,57 @@ for (const fault of ['receipt', 'second-recipient'] as const)
     expect(fixture.delivered).toEqual(deliveries);
     expect(fixture.published).toEqual(announcements);
   });
+
+describe('runtime writes on the acting person undo stack', () => {
+  const journalPeople = (fixture: Awaited<ReturnType<typeof held>>) =>
+    fixture.sqlite.db
+      .all<{ personId: string | null }>(
+        'SELECT person_id AS personId FROM command_journal ORDER BY seq',
+      )
+      .map(({ personId }) => personId);
+
+  // Proof: with `null` for the acting person in `runRuntimeCommands`, the machine case
+  // journalled on the account's stack (`[null, null]` for `['agent', 'agent']`) and the two
+  // human cases still passed; watched 2026-10-26.
+  it.each(['machine', 'consent'] as const)(
+    "journals a %s credential's runtime write on its agent person's stack",
+    async (kind) => {
+      const acting: RuntimeContext = {
+        ...machineContext,
+        actor: {
+          ...machineContext.actor,
+          authentication:
+            kind === 'machine'
+              ? { kind, credentialId: 'verified-machine', personId: 'agent' }
+              : {
+                  kind,
+                  credentialId: 'verified-consent',
+                  personId: 'agent',
+                  issuer: 'https://idp.example/',
+                  subject: 'ada',
+                },
+        },
+      };
+      const fixture = await held(false, acting);
+      const request = await fixture.write();
+      const accepted = value(await fixture.runner.writeRuntime(acting, request));
+      expect(journalPeople(fixture)).toEqual(['agent', 'agent']);
+      const before = fixture.sqlite.db.all('SELECT * FROM command_journal ORDER BY seq');
+      const history = fixture.sqlite.db.all('SELECT * FROM plan_event ORDER BY rowid');
+      fixture.blockCapture();
+      expect(value(await fixture.runner.writeRuntime(acting, request))).toEqual(accepted);
+      expect(fixture.sqlite.db.all('SELECT * FROM command_journal ORDER BY seq')).toEqual(before);
+      expect(fixture.sqlite.db.all('SELECT * FROM plan_event ORDER BY rowid')).toEqual(history);
+    },
+  );
+
+  it.each([
+    ['first_party', { kind: 'first_party', issuedAt: 1 }],
+    ['upstream', { kind: 'upstream', issuer: 'https://idp.example/', subject: 'ada' }],
+  ] as const)("journals a %s human's runtime write on the account's stack", async (_, auth) => {
+    const human: RuntimeContext = { ...context, actor: { ...actor, authentication: auth } };
+    const fixture = await held(false, human);
+    value(await fixture.runner.writeRuntime(human, await fixture.write()));
+    expect(journalPeople(fixture)).toEqual([null, null]);
+  });
+});

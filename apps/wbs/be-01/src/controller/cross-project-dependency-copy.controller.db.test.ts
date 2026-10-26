@@ -127,7 +127,10 @@ test('semantic copy retains local and remote prerequisites with exact revisions 
   expect(
     (
       await runSemanticCopy(fixture, (service) =>
-        service.undoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: owner, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -135,7 +138,10 @@ test('semantic copy retains local and remote prerequisites with exact revisions 
   expect(
     (
       await runSemanticCopy(fixture, (service) =>
-        service.redoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: owner, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -207,7 +213,10 @@ for (const phase of ['after copy', 'after undo'] as const)
       expect(
         (
           await runSemanticCopy(fixture, (service) =>
-            service.undoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+            service.undoWithin(
+              { projectId: owner, userId: fixture.principal.id, personId: null },
+              fixture.expectedAccess,
+            ),
           )
         ).ok,
       ).toBe(true);
@@ -227,8 +236,14 @@ for (const phase of ['after copy', 'after undo'] as const)
     const before = readTables();
     const replayed = await runSemanticCopy(fixture, (service) =>
       phase === 'after copy'
-        ? service.undoWithin(owner, fixture.principal.id, fixture.expectedAccess)
-        : service.redoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+        ? service.undoWithin(
+            { projectId: owner, userId: fixture.principal.id, personId: null },
+            fixture.expectedAccess,
+          )
+        : service.redoWithin(
+            { projectId: owner, userId: fixture.principal.id, personId: null },
+            fixture.expectedAccess,
+          ),
     );
     expect(replayed.ok).toBe(false);
     expect(readTables()).toEqual(before);
@@ -488,14 +503,21 @@ for (const delivery of ['missing project', 'foreign step'] as const)
     expect(
       (
         await runSemanticCopy(fixture, (service) =>
-          service.undoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+          service.undoWithin(
+            { projectId: owner, userId: fixture.principal.id, personId: null },
+            fixture.expectedAccess,
+          ),
         )
       ).ok,
     ).toBe(true);
     const before = readTables();
     const replayed = await runSemanticCopy(
       fixture,
-      (service) => service.redoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+      (service) =>
+        service.redoWithin(
+          { projectId: owner, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       (stores) => ({
         ...stores,
         projects: new Proxy(stores.projects, {
@@ -534,7 +556,10 @@ test('semantic replay refuses absent external before metadata without restoring 
   expect(
     (
       await runSemanticCopy(fixture, (service) =>
-        service.undoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: owner, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       )
     ).ok,
   ).toBe(true);
@@ -547,7 +572,10 @@ test('semantic replay refuses absent external before metadata without restoring 
     .run(JSON.stringify(preconditions), owner, 'duplicate');
   const before = readTables();
   const failure = await runSemanticCopy(fixture, (service) =>
-    service.redoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+    service.redoWithin(
+      { projectId: owner, userId: fixture.principal.id, personId: null },
+      fixture.expectedAccess,
+    ),
   ).catch((cause: unknown) => cause);
   expect(failure).toMatchObject({ message: 'journal external revision coverage is not exact' });
   expect(readTables()).toEqual(before);
@@ -708,7 +736,10 @@ test('copy undo refuses a local retained prerequisite edited by another actor th
   const before = readTables();
   expect(
     await runSemanticCopy(fixture, (service) =>
-      service.undoWithin(owner, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: owner, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: false, reason: 'stale_undo' });
   expect(readTables()).toEqual(before);

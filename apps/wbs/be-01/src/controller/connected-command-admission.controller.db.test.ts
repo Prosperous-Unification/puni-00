@@ -489,8 +489,7 @@ async function semantic<T extends { readonly ok: boolean }>(
       inspectCollected?.(collected.recordings);
       if (collected.result.ok)
         await service.recordCollected(
-          fixture.owner.projectId,
-          fixture.principal.id,
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
           collected.recordings,
         );
       expect(broadcast.published).toEqual([]);
@@ -583,13 +582,19 @@ test('real SQLite external undo redo checks remote revisions and flips exact met
   if (!added.ok) throw new Error('semantic typed add refused');
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: true });
   expect(harness.sqlite.query('SELECT * FROM external_dependency').all()).toEqual([]);
   expect(
     await semantic(fixture, (service) =>
-      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.redoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: true });
   expect(
@@ -601,7 +606,10 @@ test('real SQLite external undo redo checks remote revisions and flips exact met
   const before = effects();
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: false, reason: 'stale_undo' });
   expect(effects()).toEqual(before);
@@ -736,7 +744,10 @@ test('real SQLite history refuses missing external revision metadata without par
     .run();
   const before = effects();
   const failure: unknown = await semantic(fixture, (service) =>
-    service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    service.undoWithin(
+      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      fixture.expectedAccess,
+    ),
   ).then(
     () => null,
     (error: unknown) => error,
@@ -784,7 +795,10 @@ for (const defect of [
     const before = effects();
     const failure = await observed(
       semantic(fixture, (service) =>
-        service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       ),
     );
     expect(failure).toBeInstanceOf(Error);
@@ -934,8 +948,7 @@ test('undo-create refuses a newly linked outgoing predecessor even when its loca
   expect(
     await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
       service.undoWithin(
-        fixture.predecessor.projectId,
-        fixture.principal.id,
+        { projectId: fixture.predecessor.projectId, userId: fixture.principal.id, personId: null },
         fixture.expectedAccess,
       ),
     ),
@@ -1000,8 +1013,11 @@ test('undo-create reports missing trusted incident IDs without changing tables o
         });
         try {
           return await service.undoWithin(
-            fixture.predecessor.projectId,
-            fixture.principal.id,
+            {
+              projectId: fixture.predecessor.projectId,
+              userId: fixture.principal.id,
+              personId: null,
+            },
             fixture.expectedAccess,
           );
         } finally {
@@ -1043,7 +1059,10 @@ test('undo-create refuses a newly linked incoming successor even when its local 
   const before = effects();
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: false, reason: 'stale_undo' });
   expect(effects()).toEqual(before);
@@ -1136,7 +1155,10 @@ test('external successor deletion removes its owned incoming link and undo resto
   ).toEqual({ id: unrelated.value });
   harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
   const undone = await semantic(fixture, (service) =>
-    service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    service.undoWithin(
+      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      fixture.expectedAccess,
+    ),
   );
   expect(undone).toMatchObject({ ok: true });
   expect(
@@ -1149,7 +1171,10 @@ test('external successor deletion removes its owned incoming link and undo resto
     harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(unrelated.value),
   ).toEqual({ id: unrelated.value });
   const redone = await semantic(fixture, (service) =>
-    service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    service.redoWithin(
+      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      fixture.expectedAccess,
+    ),
   );
   expect(redone).toMatchObject({ ok: true });
   expect(
@@ -1193,7 +1218,10 @@ test('external successor deletion undo refuses a concurrent predecessor revision
   const before = effects();
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: false, reason: 'stale_undo' });
   expect(effects()).toEqual(before);
@@ -1325,7 +1353,10 @@ test('external removal and both replay directions preserve the same stable relat
   expect(harness.sqlite.query('SELECT id FROM external_dependency').all()).toEqual([]);
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: true });
   expect(
@@ -1333,7 +1364,10 @@ test('external removal and both replay directions preserve the same stable relat
   ).toBe(added.value);
   expect(
     await semantic(fixture, (service) =>
-      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.redoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: true });
   expect(harness.sqlite.query('SELECT id FROM external_dependency').all()).toEqual([]);
@@ -1497,7 +1531,10 @@ for (const operation of [
             case 'replay-move':
             case 'replay-delete':
             case 'replay-restore':
-              return service.undoWithin(fixture.owner.projectId, actor, fixture.expectedAccess);
+              return service.undoWithin(
+                { projectId: fixture.owner.projectId, userId: actor, personId: null },
+                fixture.expectedAccess,
+              );
             case 'typed-add':
               return service.addTypedDependency(fixture.owner.projectId, actor, {
                 ...fixture.input,
@@ -2055,13 +2092,11 @@ test('local external local updates preserve identity and both-direction history 
       await semantic(fixture, (service) =>
         direction === 'undo'
           ? service.undoWithin(
-              fixture.owner.projectId,
-              fixture.principal.id,
+              { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
               fixture.expectedAccess,
             )
           : service.redoWithin(
-              fixture.owner.projectId,
-              fixture.principal.id,
+              { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
               fixture.expectedAccess,
             ),
       ),
@@ -2105,7 +2140,10 @@ test('collected history keeps an external endpoint first seen after the first ow
   });
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: true });
   expect(harness.sqlite.query('SELECT * FROM external_dependency').all()).toEqual([]);
@@ -2193,12 +2231,18 @@ for (const peerEdit of [false, true])
     ).toMatchObject({ ok: true });
     expect(
       await semantic(fixture, (service) =>
-        service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       ),
     ).toMatchObject({ ok: true });
     const before = effects();
     const undone = await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     );
     expect(undone).toMatchObject(peerEdit ? { ok: false, reason: 'stale_undo' } : { ok: true });
     if (peerEdit) expect(effects()).toEqual(before);
@@ -2260,7 +2304,10 @@ test('replay refuses a corrupt scoped stored-row delivery even when its unqualif
     await semantic(
       fixture,
       (service) =>
-        service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       undefined,
       undefined,
       undefined,
@@ -2313,7 +2360,10 @@ test('mixed nested replay keeps an unrelated foreign patch outside typed endpoin
   const before = effects();
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: false, reason: 'not_found' });
   expect(effects()).toEqual(before);
@@ -2543,11 +2593,17 @@ test('ordered restore lets an external create-link batch redo its local successo
   });
   expect(added).toMatchObject({ ok: true });
   const undone = await semantic(fixture, (service) =>
-    service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    service.undoWithin(
+      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      fixture.expectedAccess,
+    ),
   );
   expect(undone).toMatchObject({ ok: true });
   const redone = await semantic(fixture, (service) =>
-    service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    service.redoWithin(
+      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      fixture.expectedAccess,
+    ),
   );
   expect(redone).toMatchObject({ ok: true });
 });
@@ -2655,7 +2711,10 @@ async function undoneExternalCreate() {
   if (!added.ok || successorId === undefined) throw new Error('fixture external create refused');
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: true });
   const entry = harness.sqlite
@@ -2698,7 +2757,10 @@ test('ordered restore replays nested local restoration before an external typed 
   const { fixture } = prepared;
   expect(
     await semantic(fixture, (service) =>
-      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.redoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: true });
   expect(
@@ -2815,7 +2877,10 @@ for (const defect of [
     replaceForward(prepared, forward);
     const before = effects();
     const redone = await semantic(fixture, (service) =>
-      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.redoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     );
     expect(redone).toMatchObject(
       defect === 'shape'
@@ -2837,7 +2902,10 @@ for (const refusal of ['forbidden', 'unknown_step'] as const)
     const redone = await semantic(
       fixture,
       (service) =>
-        service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       undefined,
       undefined,
       undefined,
@@ -2871,7 +2939,10 @@ test('ordered restore never defers a missing remote row even when replay carries
   const before = effects();
   expect(
     await semantic(fixture, (service) =>
-      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.redoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: false, reason: 'not_found', detail: null });
   expect(effects()).toEqual(before);
@@ -2953,7 +3024,10 @@ for (const strategy of ['cascade', 'promote'] as const) {
     harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
     expect(
       await semantic(fixture, (service) =>
-        service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.undoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       ),
     ).toMatchObject({ ok: true });
     expect(
@@ -2965,7 +3039,10 @@ for (const strategy of ['cascade', 'promote'] as const) {
     ).toEqual(original);
     expect(
       await semantic(fixture, (service) =>
-        service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+        service.redoWithin(
+          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          fixture.expectedAccess,
+        ),
       ),
     ).toMatchObject({ ok: true });
     expect(
@@ -3040,7 +3117,10 @@ test('undo reaches the actual remote cycle guard after only unguarded remote end
     });
     expect(patched).toMatchObject({ ok: true });
     if (!patched.ok) return patched;
-    return service.undoWithin(b.projectId, fixture.principal.id, fixture.expectedAccess);
+    return service.undoWithin(
+      { projectId: b.projectId, userId: fixture.principal.id, personId: null },
+      fixture.expectedAccess,
+    );
   });
   expect(undone).toMatchObject({
     ok: false,
@@ -3064,8 +3144,7 @@ for (const defect of ['project-read', 'foreign-project', 'wrong-identity'] as co
           expect(patched).toMatchObject({ ok: true });
           if (!patched.ok) return patched;
           return service.redoWithin(
-            fixture.owner.projectId,
-            fixture.principal.id,
+            { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
             fixture.expectedAccess,
           );
         },
@@ -3469,7 +3548,10 @@ test('admitted redo refuses a misowned resulting relationship before storage', a
   if (!linked.ok) throw new Error('fixture link refused');
   expect(
     await semantic(fixture, (service) =>
-      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.undoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({ ok: true });
   const entry = harness.sqlite
@@ -3494,7 +3576,10 @@ test('admitted redo refuses a misowned resulting relationship before storage', a
   const before = effects();
   expect(
     await semantic(fixture, (service) =>
-      service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      service.redoWithin(
+        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        fixture.expectedAccess,
+      ),
     ),
   ).toMatchObject({
     ok: false,

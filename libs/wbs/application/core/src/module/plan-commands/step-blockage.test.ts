@@ -78,7 +78,7 @@ async function seeded(fault?: 'refuse' | 'throw') {
       source.stores.projects.findById(projectId),
       source.stores.progress.listByProject(projectId),
       source.stores.blockages.listByProject(projectId),
-      source.stores.journal.entriesFor(projectId, OWNER),
+      source.stores.journal.entriesFor({ projectId, userId: OWNER, personId: null }),
       source.stores.planEvents.listFor(projectId, {}),
     ]);
   const command = (isBlocked: boolean) => ({
@@ -99,7 +99,9 @@ describe('public blockage authoring over transactional memory', () => {
       ).toMatchObject({ ok: true });
       const facts = await source.stores.blockages.listByProject(projectId);
       expect(facts).toHaveLength(1);
-      expect(await source.stores.journal.entriesFor(projectId, OWNER)).toHaveLength(1);
+      expect(
+        await source.stores.journal.entriesFor({ projectId, userId: OWNER, personId: null }),
+      ).toHaveLength(1);
       const trees = broadcast.published.filter(({ event }) => event.type === 'tree_replaced');
       expect(trees.length).toBeGreaterThan(0);
       expect(JSON.stringify(trees)).toContain('blocked');
@@ -183,7 +185,11 @@ describe('public blockage authoring over transactional memory', () => {
           { workItemId: 'leaf', stepId, blockedAt: -23 },
           { at: 2, by: OWNER },
         );
-        for (const entry of await source.stores.journal.entriesFor(projectId, OWNER))
+        for (const entry of await source.stores.journal.entriesFor({
+          projectId,
+          userId: OWNER,
+          personId: null,
+        }))
           await source.stores.journal.restamp(entry.id, {
             ...(entry.preconditions as object),
             expected: {},

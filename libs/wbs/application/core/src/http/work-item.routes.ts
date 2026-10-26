@@ -1,6 +1,8 @@
 import {
+  actingPersonOf,
   applyDirectoryCommands,
   applyProjectCommands,
+  type AuthenticatedUser,
   commandParserRefusal,
   getStepReference,
   getWorkItem,
@@ -35,6 +37,7 @@ import { CLAIM_HISTORY_LIMIT } from '../module/work-item/claim-history';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
+import type { UndoStack } from '../ports/command-journal-store';
 import type { CapacityReports } from '../ports/compute-providers';
 import type { RefusedOrganizationAccess } from '../ports/organization-access';
 import type { OrganizationAccess } from '../ports/organization-access';
@@ -95,6 +98,25 @@ class BadRequest extends Error {
 function asRecord(body: unknown): Record<string, unknown> {
   if (!isFieldBag(body)) throw new BadRequest('expected_object');
   return body;
+}
+
+/**
+ * The caller's own undo stack on this project: the account, and the agent
+ * person its machine or consent credential acts as. A consent principal acts as
+ * its human's account, so the account alone would let the agent's undo pop the
+ * human's browser edits.
+ *
+ * Proof: with `personId: null` here, four of the five cases of
+ * `undo-acting-person.controller.db.test.ts` failed (1 pass, 4 fail), and
+ * `undo and redo walk a consent agent's own stack` (work-item.routes.test.ts)
+ * failed (1 pass, 1 fail); watched 2026-10-26.
+ */
+function undoStackOf(projectId: string, principal: AuthenticatedUser): UndoStack {
+  return {
+    projectId,
+    userId: principal.id,
+    personId: actingPersonOf(principal.authentication),
+  };
 }
 
 /**
@@ -642,7 +664,7 @@ export function workItemRoutes(
           status: 200,
           body: {
             ...tree,
-            ...(await workItems.undoState(params.id, principal.id)),
+            ...(await workItems.undoState(undoStackOf(params.id, principal))),
             ...(await readStepAddresses(params.id, tree, digest)),
             // Proof: left out, `carries UTC by default and the patched zone
             // after a PATCH` (`step-node-attempt.controller.db.test.ts`) read

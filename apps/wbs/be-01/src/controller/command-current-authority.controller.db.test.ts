@@ -916,3 +916,121 @@ for (const fault of ['membership', 'revocation'] as const)
       separate.close();
     }
   }, 15_000);
+
+for (const operation of ['batch', 'prelude', 'undo', 'redo'] as const)
+  for (const revoked of [false, true])
+    test(`retained ${operation} keeps original request evidence after alias replacement${revoked ? ' and revocation' : ''}`, async () => {
+      const fixture = await open();
+      const accountId = harness.userId('ada');
+      for (const person of ['original-agent', 'replacement-agent'])
+        addAgentPerson(harness.sqlite, person, 'org-a', accountId);
+      const original = await issueApiKey(harness.sqlite, {
+        organizationId: 'org-a',
+        personId: 'original-agent',
+        issuedBy: accountId,
+      });
+      const replacement = await issueApiKey(harness.sqlite, {
+        organizationId: 'org-a',
+        personId: 'replacement-agent',
+        issuedBy: accountId,
+      });
+      const principal = await harness.authenticatedMachinePrincipal(original.key);
+      const replacementPrincipal = await harness.authenticatedMachinePrincipal(replacement.key);
+      const access = {
+        kind: 'scoped' as const,
+        scope: { organizationId: 'org-a', userId: accountId, role: 'member' as const },
+      };
+      const runner = harness.publicCommands();
+      const commands = [
+        {
+          kind: 'createWorkItem' as const,
+          parentId: null,
+          afterId: null,
+          name: 'Original agent row',
+        },
+      ];
+      expect(await runner.runWithin(fixture.projectId, principal, commands, access)).toMatchObject({
+        ok: true,
+      });
+      if (operation === 'redo')
+        expect(await runner.undoWithin(fixture.projectId, principal, access)).toMatchObject({
+          ok: true,
+        });
+      let release!: () => void;
+      let entered!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const held = harness.holdWriteTurn(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+        entered,
+      );
+      await ready;
+      let preludes = 0;
+      const pending =
+        operation === 'undo'
+          ? runner.undoWithin(fixture.projectId, principal, access)
+          : operation === 'redo'
+            ? runner.redoWithin(fixture.projectId, principal, access)
+            : operation === 'prelude'
+              ? runner.runAfterWithin(
+                  fixture.projectId,
+                  principal,
+                  () => {
+                    preludes += 1;
+                    return Promise.resolve(null);
+                  },
+                  commands,
+                  access,
+                )
+              : runner.runWithin(fixture.projectId, principal, commands, access);
+      // Mutate nested evidence before replacing the original authentication entirely.
+      if (principal.authentication === undefined)
+        throw new Error('fixture machine authentication missing');
+      Object.assign(principal.authentication, replacementPrincipal.authentication);
+      Object.assign(principal, replacementPrincipal);
+      if (!revoked) {
+        // The retained account/context must also survive aliases, without granting stale DB authority.
+        principal.id = 'alias-account';
+        principal.scopes = [];
+        Object.assign(principal.delegation ?? {}, { organizationId: 'org-b' });
+        access.scope.organizationId = 'org-b';
+        access.scope.userId = 'alias-account';
+      }
+      if (revoked)
+        harness.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [original.id]);
+      const before = effects();
+      const captures = observedCaptures;
+      const pushes = observedPushes;
+      try {
+        if (revoked) refusingObservations = true;
+        release();
+        await held;
+        const answer = await pending;
+        if (revoked) {
+          expect(answer).toEqual({ ok: false, refusal: 'organization_context_changed' });
+          expect(effects()).toEqual(before);
+          expect(preludes).toBe(0);
+          expect(observedCaptures).toBe(captures);
+          expect(observedPushes).toBe(pushes);
+        } else {
+          expect(answer).toMatchObject({ ok: true });
+          expect(preludes).toBe(operation === 'prelude' ? 1 : 0);
+          expect(
+            harness.sqlite
+              .query('SELECT id FROM command_journal WHERE person_id=?')
+              .all('replacement-agent'),
+          ).toEqual([]);
+          expect(
+            harness.sqlite
+              .query('SELECT DISTINCT person_id FROM command_journal WHERE person_id IS NOT NULL')
+              .all(),
+          ).toEqual([{ person_id: 'original-agent' }]);
+        }
+      } finally {
+        release();
+        await held;
+      }
+    });
