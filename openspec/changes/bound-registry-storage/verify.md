@@ -696,6 +696,21 @@ actual `EROFS` on `O_WRONLY` without writing, and unchanged shared-superblock
 flags and host state before/during/after. The [Linux mount contract](https://man7.org/linux/man-pages/man2/mount.2.html)
 permits per-mount read-only access over a read-write superblock and warns that
 shared-superblock remount changes affect other mounts. No superblock remount,
-controller write, process migration or delegation is allowed. The corrected
-mount-only run and subsequent Docker proof remain pending. This is a fixture
-prerequisite; no new production safeguards have been activated.
+controller write, process migration or delegation is allowed.
+
+The corrected mount-only proof then passed in2.495seconds. Actual write-open
+returned `EROFS` without writing, the private mount stayed read-only over the
+unchanged shared superblock, and host state matched before, while the view was
+held open, and afterward. Both normal unmounts and separate worker/parent exact
+resource-cleanup audits passed; all16 frozen artifact pins still matched. This
+proves the read-only view prerequisite. The subsequent Docker proof remains
+pending; no new production safeguards have been activated.
+
+The integrated HOST31 run subsequently passed its read-only cgroup checks,
+92 periodic host-state comparisons and normal cgroup/proc teardown. It FAILED
+before promotions, retirement, GC or Docker: three publications completed with
+18 HTTP events each; the fourth received HTTP405 on its first blob-upload POST.
+The actual guard or lease decision causing that refusal remains unknown. Both
+resource-cleanup audits passed and all90 source/nine payload pins matched after
+termination. This does not identify HOST29's earlier failure or establish a
+successful Docker pull. Bounded guard-decision correlation is the next diagnostic.
