@@ -18,6 +18,7 @@ import {
   createObservabilityNetworkPolicies,
   encodeObservabilitySource,
 } from './observability-source-network';
+import { assertObservabilitySelfScrapes } from './observability-source-scrapes';
 
 // Proof: removing the API union made all five independent kind/API negatives accept foreign/v1 in observability-source-render.test.ts.
 const API = ObservabilityResourceAPI.or({
@@ -190,6 +191,11 @@ export function assertRenderedObservabilitySource(
       indexObservabilitySource({ [`${namespace}/native`]: instance.native })[`${namespace}/native`],
       'native policy',
     );
+    assertObservabilitySelfScrapes(
+      namespace,
+      indexed[`${namespace}/kube-prometheus-stack`],
+      indexed[`${namespace}/security`],
+    );
     const security = encodeObservabilitySource([
       ...createObservabilityDiscovery(namespace),
       ...createObservabilityNetworkPolicies(namespace, source.network, source.enrolled),
@@ -321,6 +327,13 @@ export function assertRenderedObservabilitySource(
       );
     }
 
+    // Proof: skipping this equality admitted escalation/capability/missing-context faults and the same weakened ES policy in both placement parity inputs.
+    requirePath(
+      es,
+      ['spec', 'nodeSets', 0, 'podTemplate', 'spec', 'containers', 0, 'securityContext'],
+      { allowPrivilegeEscalation: false, capabilities: { drop: ['ALL'] } },
+      'Elasticsearch container security',
+    );
     requirePath(
       es,
       ['spec', 'nodeSets', 0, 'podTemplate', 'spec', 'securityContext'],

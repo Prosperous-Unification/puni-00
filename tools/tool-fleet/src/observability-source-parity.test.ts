@@ -135,3 +135,40 @@ test('full parity refuses reversed placement pair', () => {
     /placement pair/,
   );
 });
+
+test('full parity refuses common ES container privilege weakening in both placements', () => {
+  const captures = [
+    { source: local, rendered: { ...left } },
+    { source: production, rendered: { ...right } },
+  ];
+  for (const capture of captures) {
+    const owner = 'observability-dev/elasticsearch';
+    const documents = parseAllDocuments(capture.rendered[owner]);
+    documents[0].setIn(
+      [
+        'spec',
+        'nodeSets',
+        0,
+        'podTemplate',
+        'spec',
+        'containers',
+        0,
+        'securityContext',
+        'allowPrivilegeEscalation',
+      ],
+      true,
+    );
+    capture.rendered[owner] = documents
+      .map((document) => stringify(document.toJSON()))
+      .join('---\n');
+  }
+  expect(() =>
+    assertObservabilitySourceParity(
+      local,
+      captures[0].rendered,
+      production,
+      captures[1].rendered,
+      reviewObservabilitySourceDifferences(local, production),
+    ),
+  ).toThrow(/container security/);
+});

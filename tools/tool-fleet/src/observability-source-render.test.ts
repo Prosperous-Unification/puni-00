@@ -247,3 +247,121 @@ test('full source refuses missing snapshot flow patch', () => {
   resource.patches = [];
   expect(() => assertRenderedObservabilitySource(changed, rendered)).toThrow(/snapshot flow patch/);
 });
+
+test.each(['observability-dev', 'observability'])(
+  'full source independently refuses omitted reloader scrape flows in %s',
+  (namespace) => {
+    for (const role of ['prometheus', 'alertmanager'])
+      for (const direction of ['ingress', 'egress'] as const) {
+        const changed = { ...rendered };
+        const owner = `${namespace}/security`;
+        const policies = parseAllDocuments(changed[owner]).map(
+          (document) =>
+            document.toJSON() as {
+              metadata: { name: string };
+              spec: {
+                ingress: { ports: { port: number }[] }[];
+                egress: { ports: { port: number }[] }[];
+              };
+            },
+        );
+        const selected = policies.find(
+          (policy) =>
+            policy.metadata.name === `allow-${direction === 'egress' ? 'prometheus' : role}`,
+        );
+        if (!selected) throw new Error('fixture policy absent');
+        for (const rule of selected.spec[direction])
+          rule.ports = rule.ports.filter((port: { port: number }) => port.port !== 8080);
+        changed[owner] = policies.map((policy) => stringify(policy)).join('---\n');
+        expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/scrape/);
+      }
+  },
+);
+test.each([
+  'monitor endpoint',
+  'monitor selector',
+  'service port',
+  'service target',
+  'service selector',
+])('full source independently refuses reloader %s mismatch', (fault) => {
+  const changed = { ...rendered };
+  const owner = 'observability-dev/kube-prometheus-stack';
+  const documents = parseAllDocuments(changed[owner]);
+  const kind = fault.startsWith('monitor') ? 'ServiceMonitor' : 'Service';
+  const resource = documents.find(
+    (document) =>
+      document.get('kind') === kind && document.getIn(['metadata', 'name']) === 'kps-alertmanager',
+  );
+  if (!resource) throw new Error('fixture scrape resource absent');
+  if (fault === 'monitor selector') resource.setIn(['spec', 'selector', 'matchLabels'], {});
+  if (fault === 'monitor endpoint')
+    resource.setIn(['spec', 'endpoints', 1, 'port'], 'missing-port');
+  if (fault === 'service port') resource.setIn(['spec', 'ports', 1, 'port'], 8081);
+  if (fault === 'service target')
+    resource.setIn(['spec', 'ports', 1, 'targetPort'], 'foreign-port');
+  if (fault === 'service selector') resource.setIn(['spec', 'selector', 'alertmanager'], 'foreign');
+  changed[owner] = documents.map((document) => stringify(document.toJSON())).join('---\n');
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/scrape/);
+});
+
+test.each(['escalation', 'capability add', 'capability drop', 'missing context'])(
+  'full source independently rejects ES container %s',
+  (fault) => {
+    for (const namespace of ['observability-dev', 'observability']) {
+      const changed = { ...rendered };
+      const owner = `${namespace}/elasticsearch`;
+      const documents = parseAllDocuments(changed[owner]);
+      const path = [
+        'spec',
+        'nodeSets',
+        0,
+        'podTemplate',
+        'spec',
+        'containers',
+        0,
+        'securityContext',
+      ];
+      if (fault === 'escalation') documents[0].setIn([...path, 'allowPrivilegeEscalation'], true);
+      if (fault === 'capability add')
+        documents[0].setIn([...path, 'capabilities', 'add'], ['SYS_ADMIN']);
+      if (fault === 'capability drop') documents[0].setIn([...path, 'capabilities', 'drop'], []);
+      if (fault === 'missing context') documents[0].deleteIn(path);
+      changed[owner] = documents.map((document) => stringify(document.toJSON())).join('---\n');
+      expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(
+        /container security/,
+      );
+    }
+  },
+);
+
+test('full source rejects malformed scrape contract', () => {
+  const changed = { ...rendered };
+  const owner = 'observability-dev/kube-prometheus-stack';
+  const documents = parseAllDocuments(changed[owner]);
+  const service = documents.find(
+    (document) =>
+      document.get('kind') === 'Service' &&
+      document.getIn(['metadata', 'name']) === 'kps-alertmanager',
+  );
+  if (!service) throw new Error('fixture Service absent');
+  service.setIn(['spec', 'ports'], 'invalid');
+  changed[owner] = documents.map((document) => stringify(document.toJSON())).join('---\n');
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(
+    /scrape contract malformed/,
+  );
+});
+
+test('full source rejects malformed scrape sender policy', () => {
+  const changed = { ...rendered };
+  const owner = 'observability-dev/security';
+  const documents = parseAllDocuments(changed[owner]);
+  const policy = documents.find(
+    (document) => document.getIn(['metadata', 'name']) === 'allow-prometheus',
+  );
+  if (!policy) throw new Error('fixture policy absent');
+  policy.setIn(['spec', 'egress'], 'invalid');
+  changed[owner] = documents.map((document) => stringify(document.toJSON())).join('---\n');
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(
+    /scrape policy malformed/,
+  );
+});

@@ -145,3 +145,50 @@ test('same-owner snapshot patch has an existing parent and preserves metadata', 
   expect(document.getIn(['metadata', 'name'])).toBe('elastic-snapshot-check');
   expect(handoff?.applied).toBe(false);
 });
+
+test('both namespaces declare narrow Prometheus and Alertmanager reloader scrape flows', async () => {
+  const source = await createObservabilitySource(root, request('production'));
+  for (const instance of source.instances) {
+    const policies = parseAllDocuments(instance.security).map(
+      (document) =>
+        document.toJSON() as {
+          metadata: { name: string };
+          spec: {
+            egress: { to: unknown[]; ports: { protocol: string; port: number }[] }[];
+            ingress: { from: unknown[]; ports: { protocol: string; port: number }[] }[];
+          };
+        },
+    );
+    const prometheus = policies.find((policy) => policy.metadata.name === 'allow-prometheus');
+    if (!prometheus) throw new Error('fixture Prometheus policy absent');
+    for (const [role, key, name] of [
+      ['prometheus', 'operator.prometheus.io/name', 'kps-prometheus'],
+      ['alertmanager', 'alertmanager', 'kps-alertmanager'],
+    ]) {
+      const target = policies.find((policy) => policy.metadata.name === `allow-${role}`);
+      if (!target) throw new Error('fixture target policy absent');
+      const peer = {
+        namespaceSelector: { matchLabels: { 'kubernetes.io/metadata.name': instance.namespace } },
+        podSelector: { matchLabels: { [key]: name } },
+      };
+      expect(
+        prometheus.spec.egress.some(
+          (rule: { to: unknown[]; ports: { protocol: string; port: number }[] }) =>
+            JSON.stringify(rule.to) == JSON.stringify([peer]) &&
+            rule.ports.some((port) => port.protocol === 'TCP' && port.port === 8080),
+        ),
+      ).toBe(true);
+      const sender = {
+        namespaceSelector: { matchLabels: { 'kubernetes.io/metadata.name': instance.namespace } },
+        podSelector: { matchLabels: { 'operator.prometheus.io/name': 'kps-prometheus' } },
+      };
+      expect(
+        target.spec.ingress.some(
+          (rule: { from: unknown[]; ports: { protocol: string; port: number }[] }) =>
+            JSON.stringify(rule.from) == JSON.stringify([sender]) &&
+            rule.ports.some((port) => port.protocol === 'TCP' && port.port === 8080),
+        ),
+      ).toBe(true);
+    }
+  }
+});

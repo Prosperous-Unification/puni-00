@@ -110,8 +110,9 @@ export function createObservabilityNetworkPolicies(
   for (const [role, ports] of [
     ['collector', [8888, 8889]],
     ['gateway', [8888]],
-    ['prometheus', [9090]],
-    ['alertmanager', [9093]],
+    // Proof: removing reloader 8080 failed the source flow control and the independent actual-render coverage check, even with the same broken factory used for expected policy.
+    ['prometheus', [9090, 8080]],
+    ['alertmanager', [9093, 8080]],
   ] as const)
     flow(pod('prometheus'), pod(role), ports);
   for (const host of network.observer) {
