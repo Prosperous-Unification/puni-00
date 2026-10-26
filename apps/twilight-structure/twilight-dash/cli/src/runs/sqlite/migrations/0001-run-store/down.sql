@@ -1,0 +1,13 @@
+DROP TABLE run_receipt;
+DROP TABLE run_consumption;
+DROP TABLE run_decision;
+DROP TABLE run_outbox;
+DROP TABLE run_completion;
+DROP TABLE run_execution;
+DROP TABLE run_artifact;
+DROP INDEX run_active_occurrence;
+DROP TABLE run_reservation;
+DROP TABLE run_attempt;
+DROP TABLE run_record;
+DROP TABLE run_manifest;
+DROP TABLE run_meta;

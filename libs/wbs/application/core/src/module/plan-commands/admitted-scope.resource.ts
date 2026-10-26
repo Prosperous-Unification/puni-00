@@ -5,6 +5,8 @@ import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-values';
 import type { Scope } from '../../ports/unit-of-work';
 import type { PlanCommandServices } from './plan-command-graph';
+import type { RuntimeAdmission, RuntimeAdmissionIdentity } from './runtime-authority';
+import type { RuntimeReadRefusal } from './runtime-state';
 
 /**
  * Builds a batch's service graph over the scope its unit of work admitted,
@@ -102,8 +104,12 @@ export interface OpenCommandGraph {
   close(): void;
 }
 
-/** Repository-free operations available to a command act. */
+/** Feature-owned command and receiver operations; the raw borrowed scope stays private. */
 export interface CommandAdmission {
+  /** Pure current runtime authorization over this same borrowed command transaction. */
+  authorizeRuntime(
+    identity: RuntimeAdmissionIdentity,
+  ): Promise<RuntimeAdmission | RuntimeReadRefusal>;
   refuseOutsideScope: AdmittedScope['refuseOutsideScope'];
   listCrossReferenceKinds: AdmittedScope['listCrossReferenceKinds'];
   openCommandGraph(

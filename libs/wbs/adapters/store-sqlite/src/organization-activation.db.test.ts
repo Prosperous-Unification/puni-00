@@ -211,6 +211,8 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',
       '20261023160000_add_measure_estimate',
       '20261023150000_key_step_measure',
@@ -220,6 +222,7 @@ describe('organization activation marker schema', () => {
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
+      '20261022121000_add_runtime_commands',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -261,7 +264,7 @@ describe('organization activation marker schema', () => {
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe('20261023170000_add_work_item_budget');
+    expect(readAppliedMigrations().at(-1)).toBe('20261025130000_add_resource_runtime');
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 

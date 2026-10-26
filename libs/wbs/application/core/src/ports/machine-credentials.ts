@@ -303,7 +303,8 @@ export type ConsentEndOutcome = 'revoked' | 'already_revoked' | 'absent';
 export interface ConsentCredentials {
   /**
    * The agent persons of `organizationId` whose `account_id` is `userId`,
-   * by name; empty when none.
+   * each under its organization-local name (the one `GET /api/people` shows,
+   * never the root name), ordered by that name then id; empty when none.
    */
   agentsBoundTo(userId: string, organizationId: string): Promise<readonly ConsentAgent[]>;
   /**

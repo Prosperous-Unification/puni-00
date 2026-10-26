@@ -419,6 +419,64 @@ describe('the CI gate scope', () => {
     );
   });
 
+  it('provisions and probes unshare before selected Dash runtime tests', async () => {
+    const workflow = await readCiWorkflow();
+    const name = 'Provision unshare for Dash resource tests';
+    const step = gateStep(workflow, 'gate_twilight', name);
+    expect(step.if).toBe(
+      "${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-dash') }}",
+    );
+    const steps = workflow.jobs?.gate_twilight?.steps ?? [];
+    expect(steps.indexOf(step)).toBeLessThan(
+      steps.indexOf(gateStep(workflow, 'gate_twilight', 'Twilight — test, typecheck, build, lint')),
+    );
+    expect(step).not.toHaveProperty('continue-on-error');
+    const script = commandsOf(step.run ?? '');
+    expect(script).toContain(
+      "'profile unshare /usr/bin/unshare flags=(unconfined) {' '  userns,' '}'",
+    );
+    expect(script).toContain('sudo tee /etc/apparmor.d/unshare > /dev/null');
+    const load = 'sudo apparmor_parser --replace /etc/apparmor.d/unshare';
+    const probe =
+      'unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true';
+    expect(script).toContain(load);
+    expect(script).toContain(`\n${probe}\n`);
+    expect(script.indexOf(load)).toBeLessThan(script.indexOf(probe));
+    expect(script).not.toMatch(/sysctl|sudo unshare|continue-on-error|\|\| true/);
+    for (const job of ['gate_mode', 'gate_docs', 'gate_workspace'] as const) {
+      expect(workflow.jobs?.[job]?.steps?.some((candidate) => candidate.name === name)).toBe(false);
+    }
+  });
+
+  it.each([
+    ['profile loader', 41, 0],
+    ['namespace probe', 0, 42],
+  ] as const)('refuses a failed Dash %s before runtime tests', async (_failure, loader, probe) => {
+    const step = gateStep(
+      await readCiWorkflow(),
+      'gate_twilight',
+      'Provision unshare for Dash resource tests',
+    );
+    // These shell boundaries never load a profile or touch /etc on the developer's machine.
+    const boundaries = `
+      sudo() {
+        case "$1" in
+          tee) cat > /dev/null ;;
+          apparmor_parser) return ${String(loader)} ;;
+          *) return 97 ;;
+        esac
+      }
+      unshare() { return ${String(probe)}; }
+    `;
+    const execution = Bun.spawnSync([
+      'bash',
+      '-c',
+      `${boundaries}\n${step.run ?? ''}\nprintf 'runtime-started\\n'`,
+    ]);
+    expect(execution.exitCode).toBe(loader || probe);
+    expect(execution.stdout.toString()).not.toContain('runtime-started');
+  });
+
   it('runs Burokrat packaging only for full gates or exact project membership', async () => {
     const workflow = await readCiWorkflow();
     for (const name of [

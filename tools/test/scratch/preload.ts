@@ -10,7 +10,11 @@ import { removeProcessRoot } from '.';
 // Proof: tool-git-hooks:typecheck caught a deliberate string assigned to number
 // here (TS2322); removing ../test/scratch/**/*.ts from its spec include hid the
 // same error. The temporary assignment was removed after both runs.
-afterAll(removeProcessRoot);
+// Cleanup alone may outlast an ordinary target's 10-second test budget. A
+// synchronous overrun is reported after return; this cannot interrupt a blocked syscall.
+// Proof: omitting this allowance failed cleanup-budget.test.ts with an unnamed
+// hook timeout under injected rmSync latency; ordinary hangs still timed out at 20ms.
+afterAll(removeProcessRoot, 30_000);
 
 // No `setDefaultTimeout` here. Bun 1.4.2 applies a preload's default to the first test file only
 // and overrides the target's `--timeout=<ms>` there, so the 30-second default this file used to set

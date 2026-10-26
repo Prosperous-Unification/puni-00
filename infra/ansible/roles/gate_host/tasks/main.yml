@@ -27,7 +27,9 @@
   tags: [gate_host]
   ansible.builtin.apt:
     # python3-packaging is what ansible.builtin.pip imports on the host.
-    name: [git, jq, perl, python3-packaging, python3-venv, shellcheck, unzip]
+    # Proof: removing bubblewrap or busybox separately failed the parsed apt-task
+    # contract in ansible.test.ts (installs both system sandbox tools).
+    name: [git, jq, perl, python3-packaging, python3-venv, shellcheck, unzip, bubblewrap, busybox]
     state: present
     update_cache: true
     cache_valid_time: 3600

@@ -72,6 +72,8 @@ or `Dockerfile` fails the deploy with the command that applies it. Dev has **no 
 since 2026-08-06 — be-01 and gw-01 guard themselves, and account registration is open to the
 internet.
 
+Dev observability: [bounded observer, private stores and retained-store rollback](docs/runbook-dev-observability-runtime.md); [existing Grafana views](docs/runbook-dev-observability-grafana.md).
+
 **Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.** Dev no
 longer rehearses the prod swap (runbook, _What dev no longer proves_): run a prod dry-run before any prod deploy.
 

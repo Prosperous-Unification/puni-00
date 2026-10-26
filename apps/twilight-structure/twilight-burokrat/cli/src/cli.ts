@@ -32,6 +32,7 @@ import {
   readInvocationJournal,
   validateReviewProvenance,
 } from './review/invocation-journal';
+import { runWorkflowBindingCommand } from './workflow-binding';
 
 interface JsonDocument {
   bytes: Uint8Array;
@@ -362,6 +363,13 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
     const reference = readJsonDocument(args[1]);
     const tasks = readJsonDocument(args[2]);
     process.stdout.write(`${JSON.stringify(validatePlanTasks(reference.input, tasks.input))}\n`);
+    return;
+  }
+  // Proof: removing this early route sent the incomplete binding command to RecordKind
+  // decoding; its production CLI test lost invalid_arguments.
+  if (args[0] === 'validate' && args[1] === 'workflow-binding') {
+    const digest = runWorkflowBindingCommand(args, process.cwd());
+    process.stdout.write(`${digest}\n`);
     return;
   }
   if (args.length === 3 && (args[0] === 'validate' || args[0] === 'validate-record')) {
