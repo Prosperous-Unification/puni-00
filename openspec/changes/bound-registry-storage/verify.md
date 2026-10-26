@@ -1031,3 +1031,30 @@ The diagnostic boundary's local extracted-body test passed18 assertions; removin
 either original-error or reporter-error preservation failed its exact assertion.
 These modeled tests and cleanup results do not establish native interruption
 success.
+
+HOST44 supplied the exact rejecting input: a worker-thread child encountered before
+backup-command filtering had root UID/GID but stateZ. The strict live-process
+reader correctly refused that zombie. Its former command remains unknown. The
+run failed in **60.190 seconds**, exit1 without timeout, before establishing the
+selected fault. The fixture's next correction selects exact pinned backup argv
+before applying the unchanged live-root and process-identity checks; this does
+not turn nonmatching children into evidence of worker or process-group absence.
+A separate owned local fork confirmed stateZ with an empty command line, then was
+reaped and its proc entry disappeared. That component observation does not
+establish the failed host child's former command or native cancellation behavior.
+
+Before HOST44, all eight process-reader call sites gained fixed-role, root-UID,
+root-GID and state observations from the original read inputs. The existing strict
+parser and read count stayed unchanged; logging failures preserve both errors.
+The extracted caller/parser tests passed **3 tests/60 assertions**. Eight earlier
+independent diagnostic removals and two direct-call bypass removals failed actual
+assertions. The extracted observer body retained identical TypeScript AST kinds,
+token text and child order, so those eight removals were not replayed. This is
+modeled diagnostic evidence, not a native interruption pass. A prepared HOST43
+packet was superseded and never accepted or executed.
+
+HOST44 normal teardown, all111 host comparisons and the final comparison passed.
+Both independent cleanup audits and all97 source/nine payload pins passed with
+more than20GiB reserve. The worker covered all process mount views and its queue
+label; controller mount scope remains its observer view. Actual owner/guardian
+loss, deadline, cancellation and backend-lock recovery acceptance remain open.
