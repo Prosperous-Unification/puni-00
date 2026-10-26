@@ -14,6 +14,7 @@ import type { MachineCredentials } from '../../ports/machine-credentials';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
 import type { TrustedIssuerTokens } from '../../ports/trusted-issuers';
+import { machineGrantScopesOf } from '../../service/machine-grant';
 import { digestMachineSecret, type MachineKey, parseMachineKey } from '../../service/machine-key';
 import type { AccountResource } from './account.resource';
 
@@ -103,6 +104,30 @@ export interface TrustedIssuerVerification {
 
 /** What {@link AuthService.authenticateOrRefuse} answers besides a principal. */
 export type AuthenticationRefusal = 'unknown_identity' | 'invalid_token';
+
+/**
+ * A machine credential's proof as mcp-01's token endpoint received it
+ * (`wbs-mcp-agent-surface` M2): a whole `wbs_mk_` key, or a workload
+ * assertion of a trusted issuer.
+ */
+export type PresentedMachineCredential =
+  | { readonly kind: 'api_key'; readonly key: string }
+  | { readonly kind: 'oidc'; readonly assertion: string };
+
+/** A proof {@link AuthService.admitMachineProof} admitted, its last use recorded. */
+export interface AdmittedMachineProof {
+  readonly actor: MachineActor;
+  readonly source: 'api_key' | 'oidc';
+  /** The verified assertion's `exp` in seconds; null for an API key. */
+  readonly assertionExpiresAt: number | null;
+}
+
+/** What a machine grant names, as its verifier read it (M3). */
+export interface PresentedMachineGrant {
+  readonly credentialId: string;
+  readonly personId: string;
+  readonly organizationId: string;
+}
 
 export type { AuthenticatedUser } from '@wbs/contracts';
 
@@ -370,6 +395,20 @@ export class AuthService {
   private async authenticateMachineKey(
     key: MachineKey,
   ): Promise<AuthenticatedUser | 'unknown_identity'> {
+    const admitted = await this.admitMachineKey(key);
+    if (admitted === 'unknown_identity') return admitted;
+    return machinePrincipalOf(admitted.actor, admitted.username);
+  }
+
+  /**
+   * {@link authenticateMachineKey}'s admission: the actor and its account's
+   * username, the use recorded.
+   *
+   * @throws as {@link authenticateMachineKey} does.
+   */
+  private async admitMachineKey(
+    key: MachineKey,
+  ): Promise<{ readonly actor: MachineActor; readonly username: string } | 'unknown_identity'> {
     const machines = this.opts.machineKeys;
     // Proof: answering unknown_identity here made `throws on a well-formed key
     // when machine credentials are not wired` (machine-key.test.ts) resolve;
@@ -401,7 +440,96 @@ export class AuthService {
     // recorded` (machine-key.test.ts) admitted; watched 2026-10-23.
     if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
-    return machinePrincipalOf(admission.actor, account.username);
+    return { actor: admission.actor, username: account.username };
+  }
+
+  /**
+   * The machine credential a token request presents (`wbs-mcp-agent-surface`
+   * M2, M3), admitted through the same verifiers and the same
+   * {@link admitMachineCredential} decision as on `/api`, its last use
+   * recorded:
+   *
+   * - an API key must be a whole `wbs_mk_` key; anything else, malformed or
+   *   not, is `unknown_identity` with no read;
+   * - an assertion must be a trusted issuer's ({@link authenticateTrustedIssuerToken});
+   *   a token of the configured sign-in issuer, or no JWT at all, is
+   *   `unknown_identity` with no credential read, never the browser path.
+   *
+   * @throws when machine credentials or trusted issuers are not wired, when
+   * the admitted credential's account does not exist, and on every store
+   * failure.
+   */
+  async admitMachineProof(
+    presented: PresentedMachineCredential,
+  ): Promise<AdmittedMachineProof | AuthenticationRefusal> {
+    // No assertion `jti` is consumed (M3): one projected Kubernetes token
+    // serves every process of its pod until it rotates.
+    // Proof: with a single-use consume of the assertion's `(iss, jti)` put in
+    // front of this admission, `admits one Kubernetes token, one jti, from
+    // three processes` (be-01 machine-grant.controller.db.test.ts) answered
+    // the second and third 401 unknown_identity; watched 2026-10-26.
+    if (presented.kind === 'api_key') {
+      const key = parseMachineKey(presented.key);
+      if (key === null || key === 'malformed') return 'unknown_identity';
+      const admitted = await this.admitMachineKey(key);
+      if (admitted === 'unknown_identity') return admitted;
+      return { actor: admitted.actor, source: 'api_key', assertionExpiresAt: null };
+    }
+    const trusted = this.opts.trustedIssuers;
+    if (trusted === undefined)
+      throw new Error('a workload assertion was presented but trusted issuers are not wired');
+    const admitted = await this.admitTrustedIssuerToken(presented.assertion, trusted);
+    if (admitted === 'configured_path') return 'unknown_identity';
+    if (typeof admitted === 'string') return admitted;
+    return {
+      actor: admitted.actor,
+      source: 'oidc',
+      assertionExpiresAt: admitted.assertionExpiresAt,
+    };
+  }
+
+  /**
+   * The principal a verified machine grant acts as at one use
+   * (`wbs-mcp-agent-surface` M3): its credential reread by id and judged by
+   * {@link admitMachineCredential}'s `grant` variant (revocation, binding,
+   * membership and pool expiry), the account read for its username, the use
+   * recorded coarsely. The principal is {@link machinePrincipalOf}'s with
+   * scopes derived from the reread role alone ({@link machineGrantScopesOf}).
+   * Nothing about the grant is consumed: it is reusable until its `exp`.
+   *
+   * @throws when machine credentials are not wired, when the admitted
+   * credential's account does not exist, and on every store failure.
+   */
+  async admitMachineGrant(
+    grant: PresentedMachineGrant,
+  ): Promise<AuthenticatedUser | 'unknown_identity'> {
+    const machines = this.opts.machineKeys;
+    if (machines === undefined)
+      throw new Error('a machine grant was presented but machine credentials are not wired');
+    const now = machines.now();
+    // Proof: with this reread replaced by a per-credential cache filled at
+    // first use, `is refused unknown_identity at the next call after its
+    // credential is revoked` (be-01 machine-grant.controller.db.test.ts)
+    // answered 200 after the revocation; watched 2026-10-26.
+    const admission = admitMachineCredential(
+      { kind: 'grant', ...grant },
+      await machines.credentials.findById(grant.credentialId),
+      now,
+    );
+    if (admission.kind === 'refused') return admission.refusal;
+    const { actor } = admission;
+    // A grant admission refuses a non-member account, so the role is read.
+    if (actor.accountRole === null)
+      throw new Error(`machine credential ${actor.credentialId} was admitted without a role`);
+    const account = await this.opts.account.readAccount(actor.accountId);
+    if (account === null)
+      throw new Error(`machine credential ${actor.credentialId} acts as a missing account`);
+    if ((await machines.credentials.touchLastUsed(actor.credentialId, now)) === 'absent')
+      return 'unknown_identity';
+    return {
+      ...machinePrincipalOf(actor, account.username),
+      scopes: [...machineGrantScopesOf(actor.accountRole)],
+    };
   }
 
   /**
@@ -433,6 +561,29 @@ export class AuthService {
     token: string,
     trusted: TrustedIssuerVerification,
   ): Promise<AuthenticatedUser | AuthenticationRefusal | 'configured_path'> {
+    const admitted = await this.admitTrustedIssuerToken(token, trusted);
+    if (typeof admitted === 'string') return admitted;
+    return machinePrincipalOf(admitted.actor, admitted.username);
+  }
+
+  /**
+   * {@link authenticateTrustedIssuerToken}'s admission: the actor, its
+   * account's username and the verified token's `exp`, the use recorded.
+   *
+   * @throws as {@link authenticateTrustedIssuerToken} does.
+   */
+  private async admitTrustedIssuerToken(
+    token: string,
+    trusted: TrustedIssuerVerification,
+  ): Promise<
+    | {
+        readonly actor: MachineActor;
+        readonly username: string;
+        readonly assertionExpiresAt: number;
+      }
+    | AuthenticationRefusal
+    | 'configured_path'
+  > {
     const claims = trusted.tokens.peek(token);
     if (claims === null) return 'configured_path';
     // Proof: with this comparison removed, `never consults trusted issuers
@@ -493,7 +644,11 @@ export class AuthService {
     // As on the API-key path: a removal committed since admission.
     if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
-    return machinePrincipalOf(admission.actor, account.username);
+    return {
+      actor: admission.actor,
+      username: account.username,
+      assertionExpiresAt: verdict.expiresAt,
+    };
   }
 
   private async issue(user: User): Promise<SignedIn> {

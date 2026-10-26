@@ -20,6 +20,7 @@ import {
   oidcTokenVerifierFromEnv,
   type TokenVerifier,
 } from '@wbs/auth';
+import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts';
 import { credentialRuleRefusal } from '@wbs/core';
 import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
@@ -269,9 +270,8 @@ export class McpOAuthServer implements McpOAuthHandler {
     private readonly upstream: UpstreamClient,
     options: Options = {},
   ) {
-    const resource = new URL(config.MCP_PUBLIC_URL);
-    this.audience = `${resource.origin}${resource.pathname.replace(/\/$/, '')}`;
-    this.issuer = `${this.audience}/oauth`;
+    this.audience = canonicalMcpResourceOf(config.MCP_PUBLIC_URL);
+    this.issuer = mcpAuthorizationServerOf(config.MCP_PUBLIC_URL);
     this.callbackUrl = `${this.issuer}/callback`;
     this.groupsClaim = options.groupsClaim ?? 'wbs_groups';
     this.groupPrefix = options.groupPrefix ?? 'dev';

@@ -12,6 +12,13 @@
 // absent, lacks the epoch migration or is at epoch 0, `--apply` refuses before opening the WBS
 // database, and a rehearsal prints its plan and then the same refusal. There is no bypass.
 //
+// Activation also needs be-01's machine grant settings (`wbs-mcp-agent-surface` M3): the CLI
+// reads `MCP_BE_INTERNAL_SECRET`, `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` and
+// `WBS_MCP_AUTHORIZATION_SERVER` from its own environment, set as be-01's will be, and while
+// any is unset `--apply` refuses before opening the WBS database, naming them; a rehearsal
+// prints its plan and then the same refusal. be-01 refuses to boot an activated store without
+// them, so this is where an operator learns it, before the marker is written.
+//
 // `--prune-retained-streams` deletes the event streams of deleted projects that
 // reconciliation would otherwise refuse (exit 6, `event_stream`); it is a usage
 // error without `--apply`, so a rehearsal always reports them first.
@@ -19,7 +26,8 @@
 // Without `--apply` it rehearses the whole transaction and rolls it back,
 // printing the plan. Prints one JSON document on stdout; a refusal prints one
 // JSON line on stderr and exits with its own code (3 activated, 4 organization exists,
-// 5 super-admin unresolved, 6 reconciliation failed, 7 MCP epoch not advanced). A broken
+// 5 super-admin unresolved, 6 reconciliation failed, 7 MCP epoch not advanced, 8 machine
+// grant settings missing). A broken
 // marker, a malformed legacy pair or MCP epoch, an unreadable MCP store or bad arguments throw.
 //
 // There is no undo. Activation is one-way: the marker refuses reverting, and
@@ -33,6 +41,7 @@ import {
   type LegacyActivationRefusal,
 } from '@wbs/store-sqlite/organization-legacy-activation';
 
+import { loadMcpServiceSettings, missingMcpServiceSettings } from './config';
 import { type McpEpochNotAdvanced, readMcpEpochReadiness } from './mcp-credential-epoch';
 
 const REFUSAL_EXIT_CODES: Record<LegacyActivationRefusal['refusal'], number> = {
@@ -42,6 +51,7 @@ const REFUSAL_EXIT_CODES: Record<LegacyActivationRefusal['refusal'], number> = {
   reconciliation_failed: 6,
 };
 const MCP_EPOCH_NOT_ADVANCED_EXIT = 7;
+const MACHINE_GRANT_SETTINGS_MISSING_EXIT = 8;
 
 const USAGE =
   'usage: DB_PATH=/path/plan.db bun organization-activation-cli.ts --mcp-store <mcp store> --name <name> --super-admin <user id or username> [--apply [--prune-retained-streams]]';
@@ -78,16 +88,33 @@ if (
 )
   throw new Error(USAGE);
 
+/** What stops an activation before it writes: the MCP epoch, then the machine grant settings. */
+type Unready =
+  | McpEpochNotAdvanced
+  | { readonly refusal: 'machine_grant_settings_missing'; readonly missing: readonly string[] };
+
 /** Raw bytes, one line: see the refusal branch below for why not console.error. */
-function refuseMcpEpoch(refusal: McpEpochNotAdvanced): void {
+function refuseUnready(refusal: Unready): void {
   process.stderr.write(`${JSON.stringify(refusal)}\n`);
-  process.exitCode = MCP_EPOCH_NOT_ADVANCED_EXIT;
+  process.exitCode =
+    refusal.refusal === 'machine_grant_settings_missing'
+      ? MACHINE_GRANT_SETTINGS_MISSING_EXIT
+      : MCP_EPOCH_NOT_ADVANCED_EXIT;
 }
 
 const mcpEpoch = readMcpEpochReadiness(mcpStore);
+const missingGrantSettings = missingMcpServiceSettings(loadMcpServiceSettings(process.env));
+const unready: Unready | null =
+  mcpEpoch ??
+  (missingGrantSettings.length === 0
+    ? null
+    : { refusal: 'machine_grant_settings_missing', missing: missingGrantSettings });
 // Proof: 2026-10-22, applying regardless here made `refuses activation while the MCP epoch is 0,
 // writing nothing` (organization-activation-cli.db.test.ts) print `mode: applied`.
-if (values.apply && mcpEpoch !== null) refuseMcpEpoch(mcpEpoch);
+// Proof: with the grant settings left out of `unready`, `refuses activation without the machine
+// grant settings, naming them, writing nothing` and its rehearsal twin exited 0 instead of 8;
+// watched 2026-10-26.
+if (values.apply && unready !== null) refuseUnready(unready);
 else {
   const connection = openExistingConnection(dbPath);
   try {
@@ -103,10 +130,10 @@ else {
       process.stdout.write(
         `${JSON.stringify({ ...activation, mappedRoots: Object.fromEntries(mappedRoots) }, null, 2)}\n`,
       );
-      // Only a rehearsal reaches here with the epoch not advanced: it shows the plan, then refuses.
+      // Only a rehearsal reaches here unready: it shows the plan, then refuses.
       // Proof: 2026-10-22, dropping this made `rehearses while the MCP epoch is 0, then reports
       // the refusal` (organization-activation-cli.db.test.ts) exit 0.
-      if (mcpEpoch !== null) refuseMcpEpoch(mcpEpoch);
+      if (unready !== null) refuseUnready(unready);
     } else {
       // Raw bytes, one line: Bun's console.error wraps its output in red ANSI escapes under
       // FORCE_COLOR, which Nx sets, and the caller parses this line.

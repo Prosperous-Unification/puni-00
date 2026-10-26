@@ -735,6 +735,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   {
+    operationId: 'postInternalMcpMachineGrants',
+    method: 'POST',
+    path: '/internal/mcp/machine-grants',
+    kind: 'control',
+  },
+  {
     operationId: 'postInternalMcpOrganizations',
     method: 'POST',
     path: '/internal/mcp/organizations',

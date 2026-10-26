@@ -96,7 +96,7 @@ const trustedIssuers: TrustedIssuerVerification = {
   configuredIssuer: () => Promise.resolve(null),
   tokens: {
     peek: () => ({ issuer: 'https://idp', subject: 'agent', audiences: ['api://wbs'] }),
-    verify: () => Promise.resolve({ kind: 'verified', subject: 'agent' }),
+    verify: () => Promise.resolve({ kind: 'verified', subject: 'agent', expiresAt: 2_000_000_000 }),
   },
 };
 

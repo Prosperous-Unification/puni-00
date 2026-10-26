@@ -22,6 +22,7 @@ import {
   JoinRequestRepository,
   MachineCredentialAdministrationRepository,
   MachineCredentialRepository,
+  MachineTokenAuditRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
@@ -48,7 +49,7 @@ import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { DiBag } from 'di-bag';
 
 import { type AppOptions, buildApp } from './app';
-import type { DelegationKeys } from './config';
+import { type DelegationKeys, type McpServiceSettings, missingMcpServiceSettings } from './config';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { readDeployedCommit } from './deployed-commit';
 import { OPEN } from './repository/gate';
@@ -64,6 +65,12 @@ import { importDelegationKeys, type ImportedDelegationKeys } from './runtime/del
 import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
 import { createEmailDelivery } from './runtime/email-delivery';
 import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
+import {
+  importMachineGrantKeys,
+  type MachineGrantKeys,
+  machineGrantVerifier,
+} from './runtime/machine-grant';
+import { machineGrantAuthority } from './runtime/machine-grant-authority';
 import { type McpDelegationAuthority, mcpDelegationAuthority } from './runtime/mcp-delegation';
 import { organizationCookieBinding } from './runtime/organization-cookie';
 import {
@@ -107,6 +114,13 @@ export interface BootOptions {
   /** Parsed explicit SMTP authority; absence keeps direct/test boot callers disabled. */
   emailDelivery?: EmailDeliveryConfig;
   delegationKeys?: DelegationKeys;
+  /**
+   * mcp-01's dedicated secret, the machine grant keys and its authorization
+   * server (`wbs-mcp-agent-surface` M3, M14). Absent means none configured: a
+   * pre-activation store boots and issues nothing, and an activated store
+   * refuses readiness naming every missing variable.
+   */
+  mcpService?: McpServiceSettings;
   /** Explicit recursive IPs; absence retains the refusing domain resolver. */
   organizationDnsResolvers?: readonly string[];
   /** Defaults to enabled exactly when authoritative DNS is configured. */
@@ -284,6 +298,42 @@ function mcpDelegationComposition(
   };
 }
 
+/** No mcp-01 service setting configured. */
+const NO_MCP_SERVICE_SETTINGS: McpServiceSettings = {
+  internalSecret: null,
+  grantSigningKeys: null,
+  authorizationServer: null,
+};
+
+/**
+ * Machine grants (`wbs-mcp-agent-surface` M3): the identity that admits
+ * mcp-01's dedicated secret and the grants it carries, and the issuance its
+ * token endpoint asks for. Issuance reads the activation marker per request,
+ * so a process started before activation issues once the marker is set.
+ */
+function machineGrantComposition(
+  db: ReturnType<typeof openSqliteSource>['db'],
+  services: BeServices,
+  settings: McpServiceSettings,
+  keys: MachineGrantKeys | null,
+): Pick<AppOptions, 'mcpService' | 'machineGrants'> {
+  const now = () => services.clock.now();
+  return {
+    mcpService: {
+      secret: settings.internalSecret,
+      verifyGrant: keys === null ? null : machineGrantVerifier(keys, now),
+    },
+    machineGrants: machineGrantAuthority({
+      activationState: () => readOrganizationActivation(db),
+      keys,
+      authorizationServer: settings.authorizationServer,
+      admitProof: (presented) => services.auth.admitMachineProof(presented),
+      audit: new MachineTokenAuditRepository(db, services.gate),
+      now,
+    }),
+  };
+}
+
 export interface RunningBe {
   /** Terminal worker failure; observation immediately replays an already-latched cause. */
   readonly backgroundFailure: BackgroundFailureSource;
@@ -337,6 +387,11 @@ export async function bootBe01(
   // hide until a later activation.
   const delegationKeys =
     opts.delegationKeys === undefined ? undefined : await importDelegationKeys(opts.delegationKeys);
+  const mcpService = opts.mcpService ?? NO_MCP_SERVICE_SETTINGS;
+  const grantKeys =
+    mcpService.grantSigningKeys === null
+      ? null
+      : await importMachineGrantKeys(mcpService.grantSigningKeys);
   // Proof: dropping scheduling in the combined SMTP/DNS boot test observed0 workers instead of1.
   const schedulesProofs =
     opts.organizationDomainProofScheduling === undefined
@@ -433,6 +488,18 @@ export async function bootBe01(
             opts.logger.info({ coded: coded.length }, 'step codes backfilled');
           }
           if (opts.migrateOnStartup !== true) readStepBlockageActivation(db);
+          // An activated store serves machine grants, so their secret, keys and
+          // authorization server are required, never defaulted
+          // (`wbs-mcp-agent-surface` M3).
+          // Proof: with this refusal disabled, `refuses an activated store
+          // without the machine grant settings, naming them`
+          // (machine-grant.boot.db.test.ts) saw boot resolve with no readiness
+          // failure; watched 2026-10-26.
+          const missing = missingMcpServiceSettings(mcpService);
+          if (missing.length > 0 && readOrganizationActivation(db) === 'activated')
+            throw new Error(
+              `be-01 refuses an activated store without ${missing.join(', ')}; see docs/runbook-organization-activation.md`,
+            );
           if (opts.localIdentity !== undefined) {
             // The one write in the tree whose author is the row it writes:
             // the fixed local-mode account brings itself into existence, so
@@ -661,6 +728,10 @@ export async function bootBe01(
               deployedCommit: () => readDeployedCommit(opts.commitDir),
               internalAuthSecret: opts.internalAuthSecret,
               ...mcpDelegationComposition(db, services, delegationKeys),
+              // Proof: omitting this binding made `issues a grant once activated
+              // and admits it on the next call` (machine-grant.boot.db.test.ts)
+              // answer the grant request 401; watched 2026-10-26.
+              ...machineGrantComposition(db, services, mcpService, grantKeys),
               version: opts.version,
             });
             // Pushed before `listen`, because from here on there is something

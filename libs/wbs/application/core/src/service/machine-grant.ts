@@ -1,4 +1,4 @@
-import type { MachineActor } from '@wbs/domain';
+import type { MachineActor, OrganizationRole } from '@wbs/domain';
 
 /**
  * The longest a machine grant lives (`wbs-mcp-agent-surface` M3, M4): mcp-01's
@@ -65,9 +65,18 @@ export function machineGrantTermsOf(
     personId: actor.personId,
     organizationId: actor.organizationId,
     accountId: actor.accountId,
-    scopes: actor.accountRole === 'viewer' ? ['read'] : ['read', 'write'],
+    scopes: machineGrantScopesOf(actor.accountRole),
     runId: request.runId,
     issuedAt,
     expiresAt,
   };
+}
+
+/**
+ * The scopes a machine grant carries, from its credential's account role
+ * alone (M3): `read` for a `viewer`, `read write` for every other role, never
+ * `editor`.
+ */
+export function machineGrantScopesOf(role: OrganizationRole): readonly ('read' | 'write')[] {
+  return role === 'viewer' ? ['read'] : ['read', 'write'];
 }
