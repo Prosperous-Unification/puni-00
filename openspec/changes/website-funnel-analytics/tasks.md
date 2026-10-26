@@ -17,7 +17,7 @@ Read [intent](proposal.md), [behavior](specs/funnel-analytics/spec.md), [design]
 
 ## 3. Private site and acquisition continuity
 
-- [ ] 3.1 In the private checkout identified by conversion-scoping slice 4.1, record actual site tag/consent integration files before editing. Reuse the shared event contract, preference behavior and safe loader. Wire hero, services, About, published articles and CTA events; add the Privacy choices control. Test acceptance/rejection/withdrawal on keyboard and mobile and prove all functional CTAs work when Google is blocked.
+- [x] 3.1 In the private checkout identified by conversion-scoping slice 4.1, record actual site tag/consent integration files before editing. Reuse the shared event contract, preference behavior and safe loader. Wire hero, services, About, published articles and CTA events; add the Privacy choices control. Test acceptance/rejection/withdrawal on keyboard and mobile and prove all functional CTAs work when Google is blocked.
 - [ ] 3.2 Configure a development-only test property and distinct cookie prefix when property access exists. Test a registered campaign URL through the real intake POST/API redirect/app route to confirmed submission. Use the same stream and compatible cookies for each intended environment, check original attribution/no self-referral, and keep functional claims host-only. Negative: use mismatched cookie/tag configuration and watch session-continuity assertions fail. Never add raw descriptions, claims, emails or internal IDs to a linker or redirect.
 
 ## 4. Reports, notice and release
