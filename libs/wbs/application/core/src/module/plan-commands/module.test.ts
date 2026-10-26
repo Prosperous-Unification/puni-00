@@ -146,6 +146,7 @@ describe('the Plan commands module', () => {
             scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
           },
           null,
+          null,
         )
       ).ok,
     ).toBe(true);

@@ -241,7 +241,12 @@ for (const direction of ['forward', 'inverse', 'preconditions'] as const) {
         expect(
           source.uow.run(async ({ stores }) => {
             source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
-            await stores.journal.flip('j', undone, {});
+            await stores.journal.flip(
+              { projectId: 'p', userId: 'u', personId: null },
+              'j',
+              undone,
+              {},
+            );
             return { commit: true, value: 'committed' };
           }),
         ).rejects.toBeInstanceOf(StepBlockageInactive);
