@@ -23,6 +23,7 @@ export type PlainReason =
   | 'project_required'
   | 'unknown_ref'
   | 'missing_id'
+  | 'person_required'
   | 'duplicate_ref';
 /**
  * Refuses a command naming a row or step outside the project, for the

@@ -466,6 +466,27 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(JSON.stringify(responses?.['400'])).toContain('work_item_takes_one_type');
   });
 
+  it("tells a model a claim or release naming no person is the agent's own, and declares person_required", () => {
+    const commands = byName(tools, 'postApiProjectsByIdCommands');
+    const list = commands.inputSchema.properties['commands'] as {
+      items: { anyOf: { description: string; properties: { kind: { const: string } } }[] };
+    };
+    for (const kind of ['claimWorkItem', 'releaseWorkItem']) {
+      const variant = list.items.anyOf.find(({ properties }) => properties.kind.const === kind);
+      if (variant === undefined) throw new Error(`${kind} tool input missing`);
+      // Proof: with definitions.ts put back to its earlier claim and release
+      // descriptions, this failed on claimWorkItem's missing `own person`;
+      // watched 2026-10-26.
+      expect(variant.description).toContain('calling agent’s own person');
+      expect(variant.description).toContain('person_required');
+    }
+    const pathItem = document.paths?.['/api/projects/{id}/commands'] as
+      { post?: { responses?: Record<string, unknown> } } | undefined;
+    // Proof: with `person_required` removed from the batch 400 arm in
+    // work-item-shapes.ts this failed on the missing code; watched 2026-10-26.
+    expect(JSON.stringify(pathItem?.post?.responses?.['400'])).toContain('person_required');
+  });
+
   it('derives the timezone list read and the attempt commands by step node ID', () => {
     // `step-node-attempts` D3: Settings and a model read the zones the server accepts.
     const timezones = byName(tools, 'getApiTimezones');

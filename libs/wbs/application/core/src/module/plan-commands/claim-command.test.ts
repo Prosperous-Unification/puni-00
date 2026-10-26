@@ -490,6 +490,38 @@ describe('claimWorkItem in a batch', () => {
     }
   });
 
+  // `wbs-claim-own-person`, through the binding itself: legacy access skips the
+  // scoped reference check that resolves the claimant first.
+  // Proof: with `claimant`'s acting-person default removed, the agent claim
+  // answered person_required; with it falling back to the actor id, the account
+  // claim answered unknown_person; watched 2026-10-26.
+  it('claims and releases as the acting agent person when none is named; an account must name one', async () => {
+    const { source, runner, projectId, claims } = await seeded();
+    try {
+      const asAgent = (command: Parameters<typeof runner.run>[2][number]) =>
+        runner.runWithin(projectId, F, [command], LEGACY_ACCESS, { personId: 'claire' }, 'claire');
+      expect(await asAgent({ kind: 'claimWorkItem', workItemId: '090' })).toMatchObject({
+        ok: true,
+      });
+      expect((await claims()).map(({ personId }) => personId)).toEqual(['claire', 'claire']);
+      expect(await asAgent({ kind: 'releaseWorkItem', workItemId: '090' })).toMatchObject({
+        ok: true,
+      });
+      expect(await claims()).toEqual([]);
+      for (const kind of ['claimWorkItem', 'releaseWorkItem'] as const) {
+        expect(await runner.run(projectId, F, [{ kind, workItemId: '090' }])).toMatchObject({
+          ok: false,
+          at: 0,
+          kind,
+          reason: 'person_required',
+        });
+      }
+      expect(await claims()).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+
   // An organization-owned person binds only to a member (S3-2), and the claim
   // then reads that binding through the source's real directory.
   it('claims as an owned person bound to a member of its organization', async () => {

@@ -459,6 +459,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'project_required':
     case 'unknown_ref':
     case 'missing_id':
+    case 'person_required':
     case 'duplicate_ref':
     case 'name_required':
     case 'strategy_required':

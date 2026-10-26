@@ -123,6 +123,11 @@ export type CommandRefusalCode =
   | 'project_required'
   | 'unknown_ref'
   | 'missing_id'
+  /**
+   * `claimWorkItem` or `releaseWorkItem` naming no person from a request that
+   * acts as its account, which has no agent person to stand for.
+   */
+  | 'person_required'
   | 'duplicate_ref'
   | 'name_required'
   | 'not_found'
