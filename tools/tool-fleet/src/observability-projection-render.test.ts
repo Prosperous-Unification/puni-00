@@ -76,7 +76,7 @@ test.each(['missing', 'duplicate', 'foreign', 'extra'] as const)(
     if (fault === 'extra')
       documents.push(
         parseAllDocuments(
-          'kind: ConfigMap\nmetadata: { name: extra, namespace: observability }\n',
+          'apiVersion: v1\nkind: ConfigMap\nmetadata: { name: extra, namespace: observability }\n',
         )[0],
       );
     rendered[owner] = documents.map((document) => document.toString()).join('---\n');
@@ -198,7 +198,10 @@ test('supported native List members remain individually checked', async () => {
     null,
     [null],
     [...manifests, manifests[0]],
-    [...manifests, { kind: 'ConfigMap', metadata: { name: 'foreign', namespace: 'foreign' } }],
+    [
+      ...manifests,
+      { apiVersion: 'v1', kind: 'ConfigMap', metadata: { name: 'foreign', namespace: 'foreign' } },
+    ],
   ]) {
     const broken = {
       ...rendered,
@@ -365,4 +368,80 @@ test('placement comparison refuses two production candidates masquerading as two
   expect(() => {
     assertObservabilityProjectionParity(projection, rendering(), projection, rendering());
   }).toThrow(/placement pair/);
+});
+
+const apiFaults = [
+  ['missing', undefined],
+  ['empty', ''],
+  ['null', null],
+  ['number', 1],
+  ['object', { group: 'apps', version: 'v1' }],
+  ['foreign group', 'foreign.example.test/v1'],
+  ['foreign version', 'apps/v99'],
+  ['wrong standard API', 'v1'],
+] as const;
+
+test.each(
+  apiFaults.flatMap(([fault, apiVersion]) =>
+    ['ordinary', 'List'].map((wrapper) => [wrapper, fault, apiVersion] as const),
+  ),
+)('reviewed API identity on %s refuses %s', async (wrapper, _fault, apiVersion) => {
+  const projection = await createObservabilityProjection(root, request('production'));
+  const rendered = rendering();
+  const owner = 'observability/prometheus-controller';
+  const documents: Document[] = parseAllDocuments(rendered[owner]);
+  const deployment = documents.find((document) => document.get('kind') === 'Deployment');
+  if (!deployment) throw new Error('test controller missing');
+  if (apiVersion === undefined) deployment.delete('apiVersion');
+  else deployment.set('apiVersion', apiVersion);
+  rendered[owner] =
+    wrapper === 'ordinary'
+      ? documents.map((document) => document.toString()).join('---\n')
+      : stringify({
+          apiVersion: 'v1',
+          kind: 'List',
+          items: documents.map((document) => {
+            const manifest: unknown = document.toJSON();
+            return manifest;
+          }),
+        });
+  expect(() => assertRenderedObservabilityProjection(projection, rendered)).toThrow(
+    /apiVersion|kind/,
+  );
+});
+
+test.each([
+  'Alertmanager',
+  'ClusterRole',
+  'ClusterRoleBinding',
+  'ConfigMap',
+  'CustomResourceDefinition',
+  'DaemonSet',
+  'Deployment',
+  'Job',
+  'MutatingWebhookConfiguration',
+  'Prometheus',
+  'PrometheusRule',
+  'Role',
+  'RoleBinding',
+  'Secret',
+  'Service',
+  'ServiceAccount',
+  'ServiceMonitor',
+  'StatefulSet',
+  'ValidatingWebhookConfiguration',
+])('reviewed API identity rejects a foreign group for %s', async (kind) => {
+  const projection = await createObservabilityProjection(root, request('production'));
+  const rendered = rendering();
+  const entry = Object.entries(fixture).find(([, manifests]) =>
+    manifests.some((manifest) => manifest.kind === kind),
+  );
+  if (!entry) throw new Error('test resource kind missing');
+  const [owner, manifests] = entry;
+  const selected = manifests.find((manifest) => manifest.kind === kind);
+  if (!selected) throw new Error('test resource missing');
+  change(rendered, owner, kind, selected.metadata.name, ['apiVersion'], 'foreign.example.test/v1');
+  expect(() => assertRenderedObservabilityProjection(projection, rendered)).toThrow(
+    /apiVersion|kind/,
+  );
 });

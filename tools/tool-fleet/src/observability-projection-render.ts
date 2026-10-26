@@ -19,10 +19,33 @@ const Release = type({
   metadata: { name: 'string>0', namespace: 'string>0' },
   spec: { chart: { spec: { chart: 'string>0', version: 'string>0' } }, values: 'object' },
 });
+/** Reviewed API identities for every allowed inventory kind, independent of the candidate render. */
+const ResourceAPI = type({
+  apiVersion: "'v1'",
+  kind: "'ConfigMap' | 'Secret' | 'Service' | 'ServiceAccount'",
+})
+  .or({ apiVersion: "'apps/v1'", kind: "'DaemonSet' | 'Deployment' | 'StatefulSet'" })
+  .or({ apiVersion: "'batch/v1'", kind: "'Job'" })
+  .or({
+    apiVersion: "'rbac.authorization.k8s.io/v1'",
+    kind: "'ClusterRole' | 'ClusterRoleBinding' | 'Role' | 'RoleBinding'",
+  })
+  .or({ apiVersion: "'apiextensions.k8s.io/v1'", kind: "'CustomResourceDefinition'" })
+  .or({
+    apiVersion: "'admissionregistration.k8s.io/v1'",
+    kind: "'MutatingWebhookConfiguration' | 'ValidatingWebhookConfiguration'",
+  })
+  .or({
+    apiVersion: "'monitoring.coreos.com/v1'",
+    kind: "'Alertmanager' | 'Prometheus' | 'PrometheusRule' | 'ServiceMonitor'",
+  });
+
+// Proof: removing this API intersection admits missing/malformed/foreign API identities on
+// ordinary resources and native List members, including foreign groups for all 19 allowed kinds.
 const Manifest = type({
   kind: 'string>0',
   metadata: { name: 'string>0', 'namespace?': 'string>0' },
-});
+}).and(ResourceAPI);
 const List = type({ apiVersion: "'v1'", kind: "'List'", items: 'unknown[]', '+': 'reject' });
 const Spec = type({ spec: 'Record<string, unknown>' });
 const inventory: Record<string, string[]> = resourceInventory;
