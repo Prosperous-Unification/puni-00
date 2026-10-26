@@ -1375,8 +1375,9 @@ The original production file was never edited. Copy/import/mutation/log hashes
 were independently reconstructed. Capacity, backup, readers and image admission
 were modeled; publication age used a synthetic eight-day authority clock, physical
 seed content and actual reserve/finish receipts. No actual publication or elapsed
-grace is claimed. Repository test integration and an accurate adjacent `Proof:`
-comment remain pending the frozen partial-deletion rehearsal's closure.
+grace is claimed. The four cases are now integrated in
+`tools/tool-fleet/src/registry-maintenance-delete-status.test.ts`; the accurate
+production `Proof:` comment remains pending the frozen rehearsal's closure.
 
 The existing enabled native backup-store test was also run against current source:
 
@@ -1417,8 +1418,27 @@ production census. All owned children were terminal and authority closed before
 removal; the exact final fixture was independently absent. No independent
 PID/start census is claimed.
 
-All100 frozen rehearsal source hashes still matched after these local checks.
-The partial-deletion rehearsal has not launched while a separately observed live
-h4claw job holds admission. Remaining Task8 native failures, partial-state recovery,
-repository test integration, validation/review and Tasks9–11 remain incomplete;
-these checks have not activated production safeguards.
+The native probe is now integrated in
+`tools/tool-fleet/src/registry-backup-encrypted-lock.test.ts`, enabled by the same
+`PUNI_TEST_RESTIC_BINARY` setting. Its corrected stream close is awaited; a fresh
+enabled run passed1/29. The ordinary run visibly skips this native case when the
+binary is not selected. The deletion-status cases passed4/32, the tool-fleet spec
+typecheck passed, and scoped ESLint and formatting passed for both new files.
+Initial integration typing/schema failures and the16-error lint failure are
+preserved. Only the two new test files changed; all100 frozen rehearsal source,
+nine payload, archive and packet bindings remained unchanged. The exact native
+fixture and test root were independently absent; no independent PID/start census
+is claimed.
+
+A separate exact-copy check bound the current backup-attempt lineage guard to
+all15 rejection cases, including the newer PID-namespace comparison. Current
+source and existing tests were copied with reversible import relocation. Normal
+27 tests/32 assertions passed; removing only `requireRegistryBackupAttempt`'s
+compound condition and throw caused15 missing-refusal failures while the other12
+tests passed. Restoring the exact copy passed27/32 again. Original source stayed
+intact throughout. Guardian observations use modeled kernel read ports; this is
+no proof of a root caller's mandatory invocation, installed IPC, or provider effects.
+
+Remaining Task8 native failures, partial-state recovery, production proof comments,
+full validation/review and Tasks9–11 remain incomplete. These checks have not
+activated production safeguards.
