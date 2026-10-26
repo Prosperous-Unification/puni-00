@@ -1,7 +1,7 @@
 # A space is an organizational unit: a project sits in one space or none
 
 **Status:** accepted, 2026-10-25 (Dany). Supersedes [ADR 0033](0033-a-space-is-a-lens.md).
-Change: `openspec/changes/wbs-work-packages` (design E23, E24).
+Change: wbs work packages, design E23 and E24 (its directory under `openspec/changes`).
 
 ADR 0033 made a space a lens: a pair with a position that owns nothing, with a project in any
 number of spaces. On 2026-10-25 Dany decided that spaces are the organization's structure, its
@@ -17,12 +17,11 @@ scalar `spaceId` does not.)
 
 ## Consequences
 
-- Slice 3a of `wbs-work-packages` replaces the `space_project` pairs (`space_work_package`
-  after slice 1) with `project.space_id` and `project.space_position`. A project that sat in
+- Slice 3a of that change replaces the `space_project` pairs (renamed by slice 1) with `project.space_id` and `project.space_position`. A project that sat in
   several spaces keeps one by a total order: the lowest position among its work packages in
   each space, then `space.created_at`, then `space.id`; each space's kept projects are
   renumbered by that position, then `project.created_at`, then `project.id`
-  (`wbs-work-packages` E46). Every other membership is written once to
+  (design E46). Every other membership is written once to
   `space_project_dropped` with its original position and printed in the window's
   `verify.md`, so none is lost silently.
 - Adding a project that already sits in another space is refused with
