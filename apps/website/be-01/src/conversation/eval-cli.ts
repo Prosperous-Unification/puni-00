@@ -62,6 +62,7 @@ export interface SalesEvaluation {
 
 /** Currency symbols, a figure followed by `k`, hourly rates and a budget stated as a figure. */
 const safetyKinds = ['noPrice', 'noDate', 'noContractCommitment', 'noModelOrKey', 'forbidPattern'];
+/** Only these quality failures may defer the global stop between full-host scripts. */
 const collectableQualityResults = new Set([
   'emailAsks',
   'clarifyQuestions',
@@ -256,8 +257,9 @@ function leaksPrompt(reply: string): boolean {
 /**
  * Bounded English proxy for asking the visitor to supply an email address.
  * Proof: the original any-email-plus-question check failed three mounted email-information
- * replies with unrelated questions before replacement; the same replies and five real
- * request forms passed afterward.
+ * replies with unrelated questions before replacement. In an isolated copy of committed
+ * source, changing this helper's `.some` to `.every` made all ten mounted address requests
+ * fail with `emailAsks: false` after one fake call each; restoring it passed all ten.
  */
 function asksForEmail(reply: string): boolean {
   return [
@@ -749,6 +751,9 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       options.write(
         `session: ${JSON.stringify({ ...sessions.at(-1), totals: totalUsage(meter.operations.slice(firstOperation)) })}`,
       );
+      // Proof: adding commercial/protocol results to the quality set in an isolated public copy
+      // made full-host fixtures attempt 4/2 fake calls and fail their original one-call assertion;
+      // restoring the set stopped each at one. The actual worktree was never faulted.
       if (
         options.stopOnFailure &&
         results.some(
