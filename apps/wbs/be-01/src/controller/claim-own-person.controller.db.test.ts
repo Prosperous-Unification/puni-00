@@ -112,12 +112,17 @@ describe('a claim or release naming no person', () => {
     const implicitRows = claimRows();
     expect((await asCodex([{ kind: 'releaseWorkItem', workItemId: leaf }])).status).toBe(200);
     const explicit = await asCodex([{ ...claim(), personId: 'codex' }]);
-    expect(explicit.status).toBe(200);
-    const { results: implicitResults } = implicit.body as { results: unknown[] };
-    const { results: explicitResults } = explicit.body as { results: { claimIds: string[] }[] };
-    expect((implicitResults[0] as { claimIds: string[] }).claimIds.length).toBe(
-      explicitResults[0]?.claimIds.length ?? -1,
-    );
+    // Claim ids are minted afresh; everything else in the answer is compared whole:
+    // alreadyHeld, assignedStepIds, acquired, undoable and redoable.
+    const comparable = ({ status, body }: Answer) => {
+      const { results, ...rest } = body as { results: { claimIds: string[] }[] };
+      return {
+        status,
+        ...rest,
+        results: results.map(({ claimIds, ...each }) => ({ ...each, claims: claimIds.length })),
+      };
+    };
+    expect(comparable(explicit)).toEqual(comparable(implicit));
     expect(claimRows()).toEqual(implicitRows.map((row) => ({ ...row })));
   });
 

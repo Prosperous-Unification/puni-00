@@ -6,7 +6,9 @@
       `credential_not_for_person`. Watched red (3 fail, 1 pass) on `dacf0f10f`.
 - [x] 1.2 core `claim-command.test.ts`: the same default and refusal through legacy access,
       where the binding resolves the claimant without the scoped reference check.
-- [x] 1.3 mcp-01 `openapi-tools.test.ts`: both variant descriptions name the default and
+- [x] 1.3 mcp-01 `organization-delegation.boot.test.ts`: a consent session's claim naming no
+      person is its agent's; a human MCP session naming none gets `person_required`.
+- [x] 1.4 mcp-01 `openapi-tools.test.ts`: both variant descriptions name the default and
       `person_required`; the batch 400 declares it.
 
 ## 2. Implementation

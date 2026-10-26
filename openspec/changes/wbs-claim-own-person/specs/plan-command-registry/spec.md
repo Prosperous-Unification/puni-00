@@ -5,7 +5,7 @@
 When `claimWorkItem` or `releaseWorkItem` names neither `personId` nor `personRef`, the
 command SHALL use the agent person of the machine credential or MCP consent that
 authenticated the request, and SHALL behave exactly as if it named that person: the same
-claim rows, lease, binding and pin refusals, journal stack and undo. A named person SHALL
+claim rows, lease, pin refusals, journal stack and undo. A named person SHALL
 take precedence over it.
 
 #### Scenario: An API key claims and releases for itself
@@ -30,7 +30,8 @@ take precedence over it.
 When a request acting as its account (a session, a first-party credential or an upstream
 pair) applies `claimWorkItem` or `releaseWorkItem` naming no person, the command SHALL be
 refused `400 person_required` naming its position and kind, and the batch SHALL write
-nothing.
+nothing. The refusal SHALL come after the work-item, ref and step reference refusals and
+before `person_not_bound`.
 
 #### Scenario: A session must name the person
 

@@ -459,7 +459,6 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'project_required':
     case 'unknown_ref':
     case 'missing_id':
-    case 'person_required':
     case 'duplicate_ref':
     case 'name_required':
     case 'strategy_required':
@@ -546,6 +545,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'steps_must_be_at_most_50':
     case 'steps_must_name_a_step':
     case 'steps_on_subtree':
+    case 'person_required':
     case 'person_not_bound':
     case 'credential_not_for_person':
     case 'parent_claim_unknown':

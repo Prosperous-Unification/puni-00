@@ -123,11 +123,6 @@ export type CommandRefusalCode =
   | 'project_required'
   | 'unknown_ref'
   | 'missing_id'
-  /**
-   * `claimWorkItem` or `releaseWorkItem` naming no person from a request that
-   * acts as its account, which has no agent person to stand for.
-   */
-  | 'person_required'
   | 'duplicate_ref'
   | 'name_required'
   | 'not_found'
@@ -240,6 +235,11 @@ export type CommandRefusalCode =
   | 'taken'
   | 'in_use'
   // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`), in the spec's order.
+  /**
+   * Naming no person from a request that acts as its account, which has no
+   * agent person to stand for (`wbs-claim-own-person`).
+   */
+  | 'person_required'
   | 'person_not_bound'
   | 'credential_not_for_person'
   | 'parent_claim_unknown'

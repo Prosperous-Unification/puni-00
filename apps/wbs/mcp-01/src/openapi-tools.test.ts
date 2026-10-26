@@ -478,7 +478,11 @@ describe('toolsFromDocument, on the generated document', () => {
       // descriptions, this failed on claimWorkItem's missing `own person`;
       // watched 2026-10-26.
       expect(variant.description).toContain('calling agent’s own person');
-      expect(variant.description).toContain('person_required');
+      expect(variant.description).toContain('machine credential');
+      expect(variant.description).toContain('MCP agent consent');
+      expect(variant.description).toContain(
+        'a caller acting as its account (browser or MCP session without an agent, upstream token) must name one, else person_required',
+      );
     }
     const pathItem = document.paths?.['/api/projects/{id}/commands'] as
       { post?: { responses?: Record<string, unknown> } } | undefined;
