@@ -1442,3 +1442,58 @@ no proof of a root caller's mandatory invocation, installed IPC, or provider eff
 Remaining Task8 native failures, partial-state recovery, production proof comments,
 full validation/review and Tasks9–11 remain incomplete. These checks have not
 activated production safeguards.
+
+## Partial tag-deletion rehearsal stopped before DELETE
+
+HOST53 returned1 without timeout in96.588 seconds. The managed expired publication,
+protected index publication and explicit protection succeeded. The retirement owner
+returned1 after the fixed root dispatcher entered `serve-deletion`. The HTTP trace
+contains reads but no DELETE; the tag-fault observation receipt was absent. The
+intended HTTP500-after-revision-unlink witness remains unverified.
+
+Owner frame27700:22 maps to the generic authenticated root `effect-failed` response
+in the frozen normal bundle. Controller frame21059:40 maps to reading the absent
+`deletion-fault.log`. Neither identifies the underlying root exception. The fixed
+classifier's retained-stage label does not establish that retained verification or
+GC ran. The original cause remains unknown; several pre-dispatch, guard, open and
+metadata paths can precede the missing receipt. No functional fix follows from
+choosing one without evidence.
+
+The outer teardown unmounted the private cgroup before proc, removed its root mount
+last, detached all four owned loops and released its canonical lock. All180 periodic
+host root/cgroup comparisons and the final comparison passed. Both independent
+read-only audits returned0 with empty stderr. They confirmed the exact fixture,
+three namespaces, descriptor/backing references and three outside PID/start
+identities absent, with more than20GiB host reserve. The worker covered all process
+mount views and its queue label; the controller covered its observer mount view
+and namespace descriptors. All100 normal source/nine regular payload/archive and
+script bindings matched at closure. The earlier tool cancellation occurred before
+dispatch; a fresh admission check and normal review preceded this single actual run.
+
+This closes the failed run and its cleanup. Local fixture diagnostic preparation is
+released: fixed failure stages and bounded owned-link metadata, preserving original
+errors, topology admission and all functional predicates/lifetimes. It does not
+authorize a new native run before packet review. The tag-failure witness, subsequent
+strict census/recovery and remaining Task8/9–11 acceptance stay incomplete.
+
+## Additional current guardian boundaries
+
+Fresh exact-copy checks against the current guardian reader passed modeled input
+cases, then independently removed each selected guard. The PID bound lost two
+refusals, raw observation-size bounds lost four, and stat identity/grammar lost
+three: invalid inputs returned a guardian identity. The restored input suite
+passed14 tests/14 assertions. A separate machine-change input extends the existing
+double-observation race suite: normal/restored28 tests/33 assertions passed, while
+removing only its final comparison lost the four PID/boot/namespace/machine race
+refusals. Earlier exact root-credential/liveness and mounted-proc checks retain
+their separately recorded three/one removal witnesses.
+
+The explicit incomplete-fields check had a different result: removing it left all
+14 input cases passing because the final required-start-ticks schema still refused
+the truncated record. This is a duplicate validation, not an independent safety
+proof; consolidation is queued after diagnostic isolation with the final schema
+and truncated-input negative retained. Overlong namespace input also remains
+schema-refused when the raw-size guard is removed. All these observations use
+modeled read ports and preserved source copies; they establish no actual kernel,
+root caller, installed IPC or provider behavior. Repository integration of the new
+input/race cases and production proof comments remains pending.
