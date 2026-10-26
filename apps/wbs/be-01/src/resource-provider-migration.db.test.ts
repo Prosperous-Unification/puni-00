@@ -186,7 +186,7 @@ describe(RESOURCE_PROVIDER, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
+      `rolled back: 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
     );
     expect(columnsOf(dbPath, 'resource')).not.toContain('provider_id');
     expect(columnsOf(dbPath, 'compute_provider')).toEqual([]);
