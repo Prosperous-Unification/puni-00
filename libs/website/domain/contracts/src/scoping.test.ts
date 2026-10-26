@@ -39,6 +39,18 @@ for (const punctuation of ['?', '？', '؟'])
     });
   });
 
+test('v7 omits a question-shaped acknowledgement for the recorded operation identity', () => {
+  const question = {
+    ...reply,
+    message: 'The weekly report is repetitive. Where does it start?',
+    nextQuestionId: 'automate-task',
+  } as const;
+  expect(presentScopingReply(question, 'puni-scoping-v7')).toEqual({
+    kind: 'acknowledgement_omitted',
+    text: getScopingQuestion('automate-task').label,
+  });
+});
+
 test('v6 keeps declarative context, no-question concerns and candidate handoffs verbatim', () => {
   expect(
     presentScopingReply(

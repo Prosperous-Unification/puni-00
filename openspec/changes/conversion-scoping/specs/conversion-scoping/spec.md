@@ -174,27 +174,60 @@ An explicitly exploratory scenario SHALL accept a committed structured ending wi
 
 ### Requirement: The catalogue owns selected-question wording
 
-The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. The v5 instruction and evaluation-only punctuation decision remain historical. New operations SHALL record `puni-scoping-v6`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
+The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. The v5 instruction and evaluation-only punctuation decision remain historical. New operations SHALL record `puni-scoping-v7`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
 
-#### Scenario: Optional acknowledgement on a new selected question
+#### Scenario: Optional acknowledgement on an explicitly versioned selected question
 
-- **WHEN** a valid v6 reply selects a catalogue question and its message contains `?`, `？` or `؟`, including a duplicate or paraphrase of that question
+- **WHEN** a valid v6 or v7 reply selects a catalogue question and its message contains `?`, `？` or `؟`, including a duplicate or paraphrase of that question
 - **THEN** the entire optional acknowledgement is omitted from the visitor-visible stream, stored turn and replay, and the validated catalogue question appears exactly once with unchanged choices and revision; the raw envelope remains stored
 
 #### Scenario: Preserve context and historical presentation
 
-- **WHEN** a v6 message is declarative or selects no question, or a saved v1–v5 or opaque-identity reply is viewed or replayed
+- **WHEN** a v6 or v7 message is declarative or selects no question, or a saved v1–v5 or opaque-identity reply is viewed or replayed
 - **THEN** its applicable acknowledgement/full message and question rendering remain byte-for-byte unchanged, with no new provider call; visitor content and candidate briefs are never filtered
 
-#### Scenario: Evaluation distinguishes historical raw failure from v6 visible omission
+#### Scenario: Evaluation distinguishes historical raw failure from v6/v7 visible omission
 
 - **WHEN** a historical v2–v5 selected-question acknowledgement asks a prose question before the catalogue question is rendered
-- **THEN** the evaluator quality assertion fails and paid mode stops before another turn; under v6, the visitor-visible sole-question assertion passes only after the optional acknowledgement is omitted and evaluation records the omission count without claiming raw-model compliance
+- **THEN** the evaluator quality assertion fails and paid mode stops before another turn; under v6 or v7, the visitor-visible sole-question assertion passes only after the optional acknowledgement is omitted and evaluation records the omission count without claiming raw-model compliance
 
 #### Scenario: Historical structured output is replayed
 
-- **WHEN** an existing `puni-scoping-v1`, `puni-scoping-v2`, `puni-scoping-v3`, `puni-scoping-v4`, `puni-scoping-v5` or opaque-identity operation is replayed under the new runtime
-- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v6`
+- **WHEN** an existing `puni-scoping-v1`, `puni-scoping-v2`, `puni-scoping-v3`, `puni-scoping-v4`, `puni-scoping-v5`, `puni-scoping-v6` or opaque-identity operation is replayed under the new runtime
+- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v7`
+
+### Requirement: Known answers and exploration guide v7 scoping
+
+The v7 prompt SHALL treat typed facts and selected answers as known throughout every route, skipping questions they already answer. Pure curiosity SHALL remain exploration without a candidate or selected question until the visitor states work to be done. A visitor with a goal who asks where to start after an unrelated question SHALL be offered a grounded provisional brief with unknowns. Actual quality acceptance remains separate.
+
+#### Scenario: Supplied details answer later route questions
+
+- **WHEN** typed context already states a simpler-product change, an assistant help area and autonomy, or an automation workflow
+- **THEN** the v7 prompt directs the assistant to use those facts without repeating the corresponding catalogue question
+
+#### Scenario: Curiosity remains non-project exploration
+
+- **WHEN** a curious visitor chooses an assistant example or autonomy but states no work request
+- **THEN** the v7 prompt directs a helpful ending with both optional fields null, without a candidate labeled exploratory
+
+#### Scenario: Returned visitor asks for a starting point
+
+- **WHEN** a visitor returns from an unrelated question with a goal and asks where to start
+- **THEN** the v7 prompt directs a grounded provisional brief with explicit unknowns rather than repeating a stage question
+
+### Requirement: Evaluation receipts record transport status only
+
+Each evaluation operation SHALL expose `httpStatus: number | null`, initialized null and set to the actual response status when transport resolves. Existing session receipts SHALL carry that numeric field without response bodies, headers or raw errors. HTTP failure or missing usage SHALL retain existing unknown reservation and exception behavior.
+
+#### Scenario: HTTP error without charge
+
+- **WHEN** a synthetic provider returns HTTP 503 with no usable charge
+- **THEN** the receipt records 503, the API receives the original status and body, and the operation retains its full unknown reservation
+
+#### Scenario: Transport throws before a response
+
+- **WHEN** the evaluation transport throws before producing a response
+- **THEN** the original error propagates and the reserved operation retains null status
 
 ### Requirement: Grounded judgment advances the conversation
 

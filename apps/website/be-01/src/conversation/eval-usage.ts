@@ -2,6 +2,8 @@ import { isRecord } from './eval-scoping';
 import { type ProviderFetch, readFinalCharge, readFinalUsage } from './stream';
 
 export interface OperationMeasure {
+  /** Actual response status, or null until transport resolves and when it throws. */
+  httpStatus: number | null;
   promptTokens: number | null;
   completionTokens: number | null;
   reasoningTokens: number | null;
@@ -50,6 +52,7 @@ export function meterUsage(
     )
       throw new Error('Evaluation spend bound reached before provider request');
     const operation: OperationMeasure = {
+      httpStatus: null,
       promptTokens: null,
       completionTokens: null,
       reasoningTokens: null,
@@ -67,6 +70,8 @@ export function meterUsage(
     operations.push(operation);
     const started = performance.now();
     const response = await base(input, init);
+    // Proof: the injected HTTP 503 kept its response but the mounted meter receipt lacked status before this assignment.
+    operation.httpStatus = response.status;
     if (!response.body) {
       operation.latencyMilliseconds = performance.now() - started;
       return response;

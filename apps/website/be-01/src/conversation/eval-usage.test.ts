@@ -92,3 +92,27 @@ test('evaluation invalid optional counters stay unknown without hiding the known
     reasoningTokens: null,
   });
 });
+
+test('HTTP error status is retained while missing usage keeps the full reservation', async () => {
+  const meter = meterUsage(() => new Response('upstream unavailable', { status: 503 }), rates);
+  const received = await meter.providerFetch('https://fixture.invalid', request);
+  expect(received.status).toBe(503);
+  expect(await received.text()).toBe('upstream unavailable');
+  await meter.settle();
+  expect(meter.operations[0]?.httpStatus).toBe(503);
+  expect(meter.operations[0]?.knownMicroUsd).toBe(0);
+  expect(meter.operations[0]?.unknownReservedMicroUsd).toBeGreaterThan(1100);
+});
+
+test('transport failure retains null status and the reservation without masking the error', async () => {
+  const meter = meterUsage(() => {
+    throw new Error('synthetic transport failure');
+  }, rates);
+  const failure = await Promise.resolve(
+    meter.providerFetch('https://fixture.invalid', request),
+  ).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(Error);
+  expect(String(failure)).toContain('synthetic transport failure');
+  expect(meter.operations[0]?.httpStatus).toBeNull();
+  expect(meter.operations[0]?.unknownReservedMicroUsd).toBeGreaterThan(1100);
+});
