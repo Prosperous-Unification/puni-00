@@ -1059,7 +1059,7 @@ more than20GiB reserve. The worker covered all process mount views and its queue
 label; controller mount scope remains its observer view. Actual owner/guardian
 loss, deadline, cancellation and backend-lock recovery acceptance remain open.
 
-## Selector correction ready; native execution awaiting approval
+## Selector correction and approved owner-loss rehearsal
 
 The fixture now reads bounded candidate argv before applying the unchanged strict
 process checks. It excludes empty or unrelated argv from fault-target selection,
@@ -1078,11 +1078,48 @@ unrelated zombie and are not independent selected-identity witnesses. One initia
 expected error string was corrected to match the existing parser text. No
 production process validator, timer or cancellation behavior changed.
 
-HOST45 is frozen and **unexecuted**. Independent build bytes, all97 source/nine
+HOST45 was frozen before execution. Independent build bytes, all97 source/nine
 payload pins, archive membership, coordinator bindings and all six reviewed diffs
-matched. Automatic approval review rejected its launch before process creation,
-requesting explicit authorization for transferring the private package to the
-private host, acquiring the shared heavy lock and terminating owned test
-processes. No execution session was created or workaround attempted. The user's
-explicit approval is pending. This approval rejection is not a native runtime
-failure, and the selector correction still needs its native interruption proof.
+matched. Automatic approval review initially rejected its launch before process
+creation, requesting explicit authorization for transferring the private package
+to the private host, acquiring the shared heavy lock and terminating owned test
+processes. That attempt created no session and no workaround was attempted. The
+user subsequently explicitly approved the reviewed h4claw rehearsal. Fresh pins
+and duplicate-run checks passed, then the original driver launched exactly once.
+The initial approval rejection was separate from the subsequent native run
+recorded below.
+
+The approved HOST45 run failed in **134.594 seconds**, exit1 without timeout.
+The selector correction progressed to the intended fault: the actual owner exited137,
+the actual contention probe exited0, and the monitor observed pending SIGINT,
+the worker's held canonical descriptor and eventual exact process-group absence
+within598ms. These are observed time points, not continuous exclusion sampling.
+The durable fence and prior verified-backup assertions passed. The subsequent
+contender-acquire command exited1; its reported frame identified the generic
+owner-stage assertion, not the underlying error. The controlled restic130 receipt,
+lock cleanup, reconciliation and verified retry assertions were not reached.
+The complete rehearsal therefore failed.
+
+Normal teardown, all255 host root/cgroup comparisons and the final comparison
+passed. Both independent cleanup audits found the exact owned fixture, all three
+namespaces, process/descriptor references, loop backing and outside lock processes
+absent. Root reserve exceeded20GiB and all97 source/nine payload pins matched.
+Worker mount census covered all process views; controller mount census covered
+its observer view, with namespace descriptors checked separately.
+
+A separate local reproduction used the actual canonical journal, flock/fsync,
+write-permit and check-capacity implementations with modeled capacity. Its
+measurement callback ran under the actual lock and the fence remained set.
+Providing an ordinary-supervisor permit port without starting that supervisor
+necessarily failed its readonly acknowledgement; two unchanged35-second waits
+produced a70.332-second refusal. The exact owned local fixture was removed after
+inode/owner checks and no child processes were created. This establishes an
+independent fixture contract incompatibility, without authenticating HOST45's
+omitted child-stderr cause.
+
+The next offline T2 correction will omit only that optional ordinary-supervisor
+port while retaining the actual canonical lock, journal, physical measurements,
+fence and group-absence callback. This is an explicit fixture substitution;
+ordinary CLI/permission and image continuation remain mandatory separate Task8
+acceptance. Failed owner diagnostics will use the existing bounded receiver so
+later failures expose validated clues while retaining failure status.
