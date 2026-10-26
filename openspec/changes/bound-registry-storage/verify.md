@@ -1164,3 +1164,36 @@ covered its observer mount view plus process and namespace descriptors.
 Guardian-loss and deadline cases are being prepared as separate fixed selectors
 of the same build, without changing timers or increasing containment budgets.
 The full Task8 and Tasks9–11 acceptance remains incomplete.
+
+## Guardian loss and forced cleanup
+
+HOST47 passed in **101.928 seconds**, exit0 without timeout and empty stderr,
+using the same97 source pins and exact build as HOST46. Only the fixed Python
+selector and receipt labels changed. The fixture killed the exact current root
+guardian while restic was stopped at its ciphertext-lock boundary. The owner
+returned1; the worker observed control EOF, became the exact PID1 orphan, retained
+the canonical descriptor and received pending SIGINT. The nonblocking
+probe confirmed contention while that descriptor was held. Forced cleanup completed with
+exact process-group absence after **5.068 seconds**.
+
+After group absence, the offline T2 authority callback ran. The root-owned
+terminal record bound the exact worker/restic identity to exit137
+with SIGKILL. The previous verified backup and fence survived, and the exact
+backend lock remained. Legitimate reconciliation recorded removal of that lock,
+then a fresh snapshot/verification completed with no prepared attempts or residual
+locks. This proves the scoped guardian-loss path, not foreign-lock or provider-version
+history preservation, timer-removal behavior, ordinary permission integration or
+installed adoption. Kubernetes/readers/local provider admission and the offline
+T2 ordinary-supervisor omission remain explicit substitutions.
+
+Normal teardown, all192 host root/cgroup comparisons and the final comparison
+passed. Both independent audits found the exact owned fixture, all three
+namespaces, process/descriptor references, backing associations and outside lock
+processes absent, with more than20GiB reserve. All97 source/nine payload pins
+matched after termination. Worker mount census covers all process views and the
+queue label; controller mount census covers its observer view and namespace
+descriptors. The deadline case retains the same build and containment budgets.
+Its120-second native-fixture deadline tests the actual root-control mechanism;
+the installed production CLI's one-hour setting remains unchanged. Source review
+confirmed the census readonly helper closes before the held snapshot begins, so
+its earlier timer does not overlap this deadline test.
