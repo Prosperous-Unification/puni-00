@@ -253,7 +253,7 @@ permission (the table in "The `may` port"). No cache; a per-organization grant v
 the hook if measurement ever asks for one.
 
 **P14. The space slot on the chain is declared, not filled.** _Revised 2026-10-25 after
-Dany's decision on #698 E23/E24 (ADR 0062): was "a project may sit in several spaces, with
+Dany's decision on #698 E23/E24 (ADR 0063): was "a project may sit in several spaces, with
 no home space; `ScopeChain.spaceIds: readonly string[]` is the set, a space-overridable
 setting with different values in two of them resolves `ambiguous_space_value`, and space
 grants combine strongest-wins over the set"._ `scope_kind`'s CHECK admits
