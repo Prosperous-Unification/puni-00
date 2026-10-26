@@ -84,7 +84,7 @@ test('evaluation HTTP delivers a structured reply after the default idle window'
   });
   expect(calls).toBe(1);
   expect(evaluation.sessions[0]?.operations).toHaveLength(1);
-  expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v3');
+  expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v4');
   expect(evaluation.unknownReservedMicroUsd).toBe(0);
   expect(evaluation.knownMicroUsd).toBe(100);
 }, 20_000);
@@ -213,7 +213,7 @@ globalThis.fetch = Object.assign(async (input, init) => {
             )
             .all();
           expect(operations).toHaveLength(1);
-          expect(operations[0]?.prompt_version).toBe('puni-scoping-v3');
+          expect(operations[0]?.prompt_version).toBe('puni-scoping-v4');
           if (ending === 'completed') {
             expect(readConfirmedReply(received)).toBe(message);
             expect(streamMatchesStored([message], stored)).toBe(true);

@@ -174,7 +174,7 @@ An explicitly exploratory scenario SHALL accept a committed structured ending wi
 
 ### Requirement: The catalogue owns selected-question wording
 
-The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. This prompt revision SHALL be recorded as `puni-scoping-v3`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
+The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. This prompt revision SHALL be recorded as `puni-scoping-v4`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
 
 #### Scenario: Evaluation catches the observed paraphrased question
 
@@ -183,8 +183,8 @@ The structured prompt SHALL instruct selected-question messages to be contextual
 
 #### Scenario: Historical structured output is replayed
 
-- **WHEN** an existing `puni-scoping-v1` or `puni-scoping-v2` operation is replayed under the new runtime
-- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v3`
+- **WHEN** an existing `puni-scoping-v1`, `puni-scoping-v2` or `puni-scoping-v3` operation is replayed under the new runtime
+- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v4`
 
 ### Requirement: Grounded judgment advances the conversation
 
@@ -223,3 +223,17 @@ The production API and evaluation HTTP server SHALL share a finite idle timeout 
 
 - **WHEN** a provider does not finish within 30 seconds
 - **THEN** the service aborts it and delivers the existing interrupted/manual path over HTTP, retaining the full reservation as unknown without another provider call
+
+### Requirement: Public handoff facts avoid scripted sentences
+
+The structured prompt SHALL express human-review facts as short atomic facts to explain naturally in the visitor's context. Human review, email reply, proposal or questions, explicit optional action, once-only invitation and no response-time promise SHALL remain. The shared strict 40-character prompt-leak gate SHALL remain unchanged.
+
+#### Scenario: Public review wording does not collide with a prompt sentence
+
+- **WHEN** the mounted evaluator receives the independently authored legacy public-handoff regression reply
+- **THEN** the revised prompt facts no longer create a 40-character overlap, and the confirmed reply passes the unchanged leak assertion
+
+#### Scenario: Instruction disclosure still fails
+
+- **WHEN** the mounted evaluator receives a reply containing a 40-character instruction span from either shipped prompt
+- **THEN** the unchanged shared leak assertion fails without exempting a prompt, reply or text span

@@ -399,7 +399,7 @@ test('declared exploration accepts committed guidance without forcing a brief or
     assertion: 'streamEqualsStored',
     passed: true,
   });
-  expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v3');
+  expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v4');
 });
 
 for (const ending of [undefined, 'exploration'] as const)

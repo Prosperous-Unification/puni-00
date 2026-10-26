@@ -7,7 +7,7 @@ The agreed conversion journey lets visitors answer through choices, receive usef
 - Six starting choices and free text enter one claim-bound scoping conversation without repeating the landing action.
 - Suggested answers, optional references and corrections work alongside typing. The assistant connects supplied details, answers questions, avoids repeated caveats, and suggests a focused first review step before the default email invitation.
 - Conversation progression follows validated reply content instead of fixed turn numbers. An early human-review shortcut and an email-free exploration path remain available.
-- Visitors review and edit their brief before explicitly sending it with an email. Operators receive the same brief and references.
+- Visitors edit their brief and explicitly send it with email. Explain human review naturally; operators receive that brief and references.
 - The services section presents the five offers with matching conversation CTAs. Privacy copy explains the actual anonymous chat, references, processors, storage and follow-up.
 - Preserve and verify existing cost controls; evaluate conversation quality and actual session cost before activation.
 
