@@ -109,7 +109,7 @@ Model charges are separate from hosting, acquisition and human follow-up. The lo
 
 ## Analytics choice and reports
 
-**Recommendation: GA4 for acquisition and measured funnel behavior, existing server records for submissions and spend.** Start with opt-in basic blocking, no remarketing or content capture, and separate production/development configuration. The user supplied development measurement ID `G-R0JM3R4SSV`; it must be loaded through the consented adapter described in the [analytics design](../../openspec/changes/website-funnel-analytics/design.md). Account settings and collected events still require verification.
+**Recommendation: GA4 for acquisition and measured funnel behavior, existing server records for submissions and spend.** Start with opt-in basic blocking, no remarketing or content capture, and separate production/development configuration. The owner-supplied development and production IDs and the explicit release hold are recorded in [analytics account setup](analytics-setup.md). Use the consented adapter described in the [analytics design](../../openspec/changes/website-funnel-analytics/design.md). Account settings and collected events still require verification.
 
 The first reports should answer:
 

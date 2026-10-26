@@ -4,10 +4,10 @@ This is the concrete setup specification for the owner of the GA4 account. It is
 
 ## Properties and activation
 
-| Environment | One web stream covers             | Measurement ID      | Current evidence                                                                                   |
-| ----------- | --------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
-| Development | dev.puni.dev and dev.app.puni.dev | `G-R0JM3R4SSV`      | Owner disabled Enhanced measurement; fresh intercepted official-runtime proof passed on 2026-10-25 |
-| Production  | puni.dev and app.puni.dev         | Pending owner input | No property/settings/delivery proof                                                                |
+| Environment | One web stream covers             | Measurement ID | Current evidence                                                                                   |
+| ----------- | --------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
+| Development | dev.puni.dev and dev.app.puni.dev | `G-R0JM3R4SSV` | Owner disabled Enhanced measurement; fresh intercepted official-runtime proof passed on 2026-10-25 |
+| Production  | puni.dev and app.puni.dev         | `G-69BBG6ZLB3` | Owner supplied ID on 2026-10-26; property/settings/delivery proof pending; release on hold         |
 
 Use separate Dev/Production properties and one shared web stream per environment. The app is a website, so it does not need a native Android/iOS stream. [Google account structure](https://support.google.com/analytics/answer/9679158?hl=en) recommends one web stream for a connected web journey.
 
@@ -15,7 +15,7 @@ Before activation, record the selected property, stream, access owner, measureme
 
 Verify advertising/Signals/personalization and automatic user-provided-data collection remain off. Do not connect Ads, create remarketing audiences or infer these account settings from the browser's denied ad-consent commands. The proposed event retention is two months; record the actual value and reset-on-new-activity setting before making a notice claim. The proposed reset setting is off. GA retention for event/user-level detail does not delete standard aggregate reports; avoid saying all analytics disappears after two months. [Retention behavior](https://support.google.com/analytics/answer/7667196?hl=en).
 
-Use the shared consent adapter and environment build configuration, not a second unconditional snippet. App build inputs are `VITE_ANALYTICS_ENABLED`, `VITE_ANALYTICS_ENVIRONMENT` and `VITE_ANALYTICS_MEASUREMENT_ID`; production must reject the development ID. Private site/release integration supplies matching configuration. Both environments default off. A property ID alone is not authorization to bypass consent or unresolved release checks.
+Use the shared consent adapter and environment build configuration, not a second unconditional snippet. App build inputs are `VITE_ANALYTICS_ENABLED`, `VITE_ANALYTICS_ENVIRONMENT` and `VITE_ANALYTICS_MEASUREMENT_ID`; production must reject the development ID. Private site/release integration supplies matching configuration. Both environments default off. The owner explicitly requested no release on 2026-10-26 when supplying the production ID. Source preparation and isolated tests may continue; image publication, deployment and production activation require later explicit approval. A property ID alone is not authorization to bypass consent or unresolved release checks.
 
 ## Custom definitions and the enquiry event
 
@@ -68,4 +68,4 @@ Use a synthetic development request after the approved integration is deployed a
 
 Record delivery in Realtime/DebugView, then verify the custom dimensions and saved analyses after processing. A network enqueue/intercept is not proof of ingestion. Custom dimensions can take 24–48 hours after definition and collection to appear, and key-event standard reporting can take up to 24 hours; document collection and processed-report availability separately. [Dimension timing](https://support.google.com/analytics/answer/14239696?hl=en), [key-event timing](https://support.google.com/analytics/answer/13128484?hl=en).
 
-Compare two saved server requests when only one visitor consents: two operational submissions and one measured lead is an expected outcome. Never divide all server leads by only GA visitors and label that a site conversion rate. Analytics describes the consenting measured cohort; qualification, human follow-up and won clients remain separate operator outcomes. Keep missing account access, production ID, unverified settings or unavailable reports explicitly open in the release record.
+Compare two saved server requests when only one visitor consents: two operational submissions and one measured lead is an expected outcome. Never divide all server leads by only GA visitors and label that a site conversion rate. Analytics describes the consenting measured cohort; qualification, human follow-up and won clients remain separate operator outcomes. Keep missing account access, unverified settings or unavailable reports explicitly open in the release record.
