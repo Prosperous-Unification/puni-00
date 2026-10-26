@@ -174,6 +174,7 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
           ],
           runtimeContext.access,
           null,
+          null,
         ),
       ).toMatchObject({ ok: true });
     }
@@ -327,6 +328,7 @@ async function leased() {
       ],
       machineContext.access,
       { personId: 'agent' },
+      null,
     ),
   ).toMatchObject({ ok: true });
   const leases = () =>
@@ -593,6 +595,7 @@ describe('conditional exact runtime write', () => {
         [refs('https://example.com/current')],
         context.access,
         null,
+        null,
       ),
     ).toMatchObject({ ok: true });
     const before = await snapshot();
@@ -682,6 +685,7 @@ describe('conditional exact runtime write', () => {
           },
         ],
         context.access,
+        null,
         null,
       ),
     ).toMatchObject({ ok: true });
@@ -1307,6 +1311,7 @@ it('refuses releasing another held step independently of ordinary claim eligibil
       ],
       context.access,
       null,
+      null,
     ),
   ).toMatchObject({ ok: true });
   const request = await write([{ ...release, steps: ['review'] }]);
@@ -1329,4 +1334,33 @@ it('requires a write action at the write boundary before admission', async () =>
   );
   expect(turns()).toBe(turnsBefore);
   expect(await snapshot()).toEqual(before);
+});
+
+describe('runtime writes on the acting person undo stack', () => {
+  const journalPeople = (fixture: Awaited<ReturnType<typeof held>>) =>
+    fixture.sqlite.db
+      .all<{ personId: string | null }>(
+        'SELECT person_id AS personId FROM command_journal ORDER BY seq',
+      )
+      .map(({ personId }) => personId);
+
+  // Proof: with `null` for the acting person in `runRuntimeCommands`, the machine case
+  // journalled on the account's stack (`[null, null]` for `['agent', 'agent']`) and the two
+  // human cases still passed; watched 2026-10-26.
+  it("journals a machine credential's runtime write on its agent person's stack", async () => {
+    const fixture = await held(false, machineContext);
+    value(await fixture.runner.writeRuntime(machineContext, await fixture.write()));
+    // The runtime claim and the write are each one journal entry.
+    expect(journalPeople(fixture)).toEqual(['agent', 'agent']);
+  });
+
+  it.each([
+    ['first_party', { kind: 'first_party', issuedAt: 1 }],
+    ['upstream', { kind: 'upstream', issuer: 'https://idp.example/', subject: 'ada' }],
+  ] as const)("journals a %s human's runtime write on the account's stack", async (_, auth) => {
+    const human: RuntimeContext = { ...context, actor: { ...actor, authentication: auth } };
+    const fixture = await held(false, human);
+    value(await fixture.runner.writeRuntime(human, await fixture.write()));
+    expect(journalPeople(fixture)).toEqual([null, null]);
+  });
 });
