@@ -461,7 +461,8 @@ const batchRefusals = [
 ] as const;
 
 /**
- * Reads the complete tree, this account's conditional undo state, and current
+ * Reads the complete tree, the caller's own conditional undo state (its account
+ * and acting person), and current
  * step addresses. The two address fields are optional on the wire because a
  * newer client can read an older be-01 during blue/green swap or after rollback.
  * Every be-01 that knows these fields sends both; they stay outside

@@ -42,3 +42,13 @@ edit the outgoing colour journals mid-swap lands on its human's stack.
 
 - **WHEN** a release that predates the column journals an entry
 - **THEN** the account's own stack holds it and no agent's stack does
+
+### Requirement: A rollback discards agents' stacks only
+
+Rolling the migration back SHALL delete every entry with an acting person before dropping the
+column, and SHALL leave every account's own stack unchanged.
+
+#### Scenario: Rolling back after an agent has journalled
+
+- **WHEN** an agent's entry and its human's entries are journalled and the migration rolls back
+- **THEN** the agent's entry is gone and the human's stack holds exactly its own entries

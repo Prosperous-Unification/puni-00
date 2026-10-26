@@ -102,7 +102,14 @@ async function seeded(cap = 40) {
   });
   /** One batch by Dany's account, under an agent's credential or a session (null). */
   const run = (commands: PlanCommand[], credential: CredentialPin | null) =>
-    runner.runWithin(projectId, 'dany', commands, admin, credential);
+    runner.runWithin(
+      projectId,
+      'dany',
+      commands,
+      admin,
+      credential,
+      credential !== null && 'personId' in credential ? credential.personId : null,
+    );
   const plan = await run(
     [
       { kind: 'createWorkItem', ref: 'parent', name: 'Parent', parentId: null, afterId: null },

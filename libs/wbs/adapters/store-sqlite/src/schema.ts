@@ -2502,7 +2502,11 @@ export const commandJournal = sqliteTable(
     undone: integer('undone', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at').notNull(),
   },
-  (t) => [uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq)],
+  (t) => [
+    uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq),
+    index('command_journal_person_stack').on(t.projectId, t.userId, t.personId, t.seq),
+    index('command_journal_person').on(t.personId),
+  ],
 );
 
 export type CommandJournalRow = typeof commandJournal.$inferSelect;
@@ -2512,9 +2516,9 @@ export type CommandJournalRow = typeof commandJournal.$inferSelect;
  *
  * **This is the third log in this file and it is not either of the other two.**
  * `event_log` is the websocket resume buffer, keyed by subscription and pruned
- * by count. `command_journal` is an undo stack: one per (project, **account**),
- * fifty deep, and its `append` deletes that account's redo branch every time it
- * writes. Neither can answer "how did this estimate move" — the first never
+ * by count. `command_journal` is an undo stack: one per (project, **account**,
+ * acting person), fifty deep, and its `append` deletes that stack's redo branch
+ * every time it writes. Neither can answer "how did this estimate move" — the first never
  * held it, and the second is per-person, evicted after an afternoon's editing,
  * and loses anything undone. Dany, 2026-08-13: *"so that later I can examine
  * the history of estimates changes"*. `notes/wbs-brief-2026-08-14-r5-r6-history.md`

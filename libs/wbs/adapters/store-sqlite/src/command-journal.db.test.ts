@@ -233,6 +233,35 @@ describe('appending a command', () => {
       expect(outgoingUndo.map(({ id }) => id)).toEqual(['agent', 'outgoing']);
     });
 
+    // The outgoing colour's own append, verbatim in shape: it clears the redo
+    // branch and prunes by (project, account) alone, so until it stops it can
+    // clear an agent's redo and, counting the agent's rows, prune the human's
+    // older entries. Pinned here so the window is a stated fact, not a surprise.
+    it('lets the outgoing colour clear and prune by the pair until it stops', async () => {
+      await journal.append(entry('human-old', 1_000), event('human-old', 1_000));
+      for (let n = 0; n < JOURNAL_DEPTH; n++)
+        await journal.append(
+          { ...entry(`agent-${String(n)}`, 2_000 + n), personId: 'codex' },
+          event(`agent-${String(n)}`, 2_000 + n),
+        );
+      await journal.flip(CODEX_STACK, 'agent-49', true, { expected: {}, from: {} });
+      const pair = "project_id = 'p1' AND user_id = 'owner'";
+      sqlite.run(`DELETE FROM command_journal WHERE ${pair} AND undone = 1`);
+      sqlite.run(
+        `INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+         VALUES ('outgoing', 'p1', 'owner', (SELECT coalesce(max(seq), 0) + 1 FROM command_journal WHERE ${pair}), 'estimate', '{}', '{}', '{}', 0, 3000)`,
+      );
+      sqlite.run(
+        `DELETE FROM command_journal WHERE ${pair} AND seq < (SELECT max(seq) FROM command_journal WHERE ${pair}) - ${String(JOURNAL_DEPTH - 1)}`,
+      );
+
+      expect((await journal.entriesFor(OWNER_STACK)).map((each) => each.id)).toEqual(['outgoing']);
+      const agent = (await journal.entriesFor(CODEX_STACK)).map((each) => each.id);
+      expect(agent).toHaveLength(JOURNAL_DEPTH - 1);
+      expect(agent).not.toContain('agent-49');
+      expect(agent.at(0)).toBe('agent-0');
+    });
+
     it('numbers a new stack after the account’s other stacks, never colliding', async () => {
       await journal.append(entry('mine', 1_000), event('mine', 1_000));
       await journal.append({ ...entry('agent', 2_000), personId: 'codex' }, event('agent', 2_000));

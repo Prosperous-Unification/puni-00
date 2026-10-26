@@ -106,14 +106,32 @@ export function credentialPinOf(
 }
 
 /**
- * The person a credential pin acts as on the undo journal: a machine or
- * consent credential's own agent person, else null — the account acting as
- * itself. An upstream pair answers null, as lease renewal reads it: the
- * operator link that could pin a pair to an agent is the retired M2M path, and
- * resolving it would need a store this pure rule does not have.
+ * The person a request acts as on the undo journal: a machine or consent
+ * credential's own agent person, else null — the account acting as itself.
+ * An upstream pair answers null, as lease renewal reads it: the operator link
+ * that could pin a pair to an agent is the retired M2M path, and resolving it
+ * would need a store this pure rule does not have. Absent authentication (a
+ * direct context, the local development identity) is the account itself.
+ *
+ * Exhaustive over `kind`, so a new credential kind fails typecheck here rather
+ * than landing on its human's stack.
  */
-export function actingPersonOf(pin: CredentialPin | null): string | null {
-  return pin !== null && 'personId' in pin ? pin.personId : null;
+export function actingPersonOf(
+  authentication: CredentialAuthentication | undefined,
+): string | null {
+  if (authentication === undefined) return null;
+  switch (authentication.kind) {
+    case 'machine':
+    case 'consent':
+      return authentication.personId;
+    case 'upstream':
+    case 'first_party':
+      return null;
+    default: {
+      const unknown: never = authentication;
+      throw new Error(`unknown credential authentication ${JSON.stringify(unknown)}`);
+    }
+  }
 }
 
 /** Evidence from the credential verifier, never from caller-declared kind or expiry. */

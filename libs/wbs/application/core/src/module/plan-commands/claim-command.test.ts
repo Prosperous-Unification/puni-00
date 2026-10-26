@@ -477,6 +477,7 @@ describe('claimWorkItem in a batch', () => {
           [{ kind: 'claimWorkItem', workItemId: '090', personId }],
           LEGACY_ACCESS,
           credential,
+          null,
         );
       expect(await claimAs('codex-fleet', FLEET)).toMatchObject({
         ok: false,

@@ -4,7 +4,6 @@ import {
   applyProjectCommands,
   type AuthenticatedUser,
   commandParserRefusal,
-  credentialPinOf,
   getStepReference,
   getWorkItem,
   getWorkItemRows,
@@ -100,17 +99,6 @@ function asRecord(body: unknown): Record<string, unknown> {
 }
 
 /**
- * How an undo or a redo answers, in one place because the two routes must
- * answer identically.
- *
- * Both refusals are 409. Neither request is malformed and both would have
- * worked a moment earlier: an empty stack and a moved revision are states of
- * the plan, not faults in what was asked. `stale_undo` carries the `detail`
- * saying **which** row moved, because "that could not be undone" with no
- * reason is a dead end for the person reading it — the whole point of this
- * change is that a refusal says why out loud.
- */
-/**
  * The caller's own undo stack on this project: the account, and the agent
  * person its machine or consent credential acts as. A consent principal acts as
  * its human's account, so the account alone would let the agent's undo pop the
@@ -125,10 +113,21 @@ function undoStackOf(projectId: string, principal: AuthenticatedUser): UndoStack
   return {
     projectId,
     userId: principal.id,
-    personId: actingPersonOf(credentialPinOf(principal.authentication)),
+    personId: actingPersonOf(principal.authentication),
   };
 }
 
+/**
+ * How an undo or a redo answers, in one place because the two routes must
+ * answer identically.
+ *
+ * Both refusals are 409. Neither request is malformed and both would have
+ * worked a moment earlier: an empty stack and a moved revision are states of
+ * the plan, not faults in what was asked. `stale_undo` carries the `detail`
+ * saying **which** row moved, because "that could not be undone" with no
+ * reason is a dead end for the person reading it — the whole point of this
+ * change is that a refusal says why out loud.
+ */
 // Proof: returning the whole value exposed private entryId in the direct undo/redo case.
 function answerUndo(outcome: UndoOutcome): HttpReply<typeof undoProject> {
   if (outcome.ok)

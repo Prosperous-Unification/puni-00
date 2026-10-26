@@ -1,4 +1,4 @@
-import { type AuthenticatedUser, credentialPinOf } from '@wbs/contracts';
+import { actingPersonOf, type AuthenticatedUser, credentialPinOf } from '@wbs/contracts';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
@@ -38,6 +38,10 @@ export function runCommandBatch(
         input.commands,
         input.access,
         credentialPinOf(input.actor.authentication),
+        // Proof: with `null` here, every case of
+        // `undo-acting-person.controller.db.test.ts` failed (0 pass, 5 fail);
+        // watched 2026-10-26.
+        actingPersonOf(input.actor.authentication),
       );
 }
 
@@ -63,5 +67,6 @@ export function runCommandBatchAfter<R>(
     input.commands,
     input.access,
     credentialPinOf(input.actor.authentication),
+    actingPersonOf(input.actor.authentication),
   );
 }

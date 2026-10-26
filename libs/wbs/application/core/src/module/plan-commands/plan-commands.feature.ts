@@ -1,5 +1,5 @@
 import type { PlanCommandKind } from '@wbs/contracts';
-import { actingPersonOf, type CredentialPin } from '@wbs/contracts';
+import type { CredentialPin } from '@wbs/contracts';
 import type {
   BudgetExhausted,
   LeaseStanding,
@@ -333,13 +333,18 @@ export class PlanCommandRunner {
    * credential is linked, so none is pinned (`link-credential-cli.ts` refuses).
    */
   run(projectId: string, actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
+    return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null, null).then(
+      legacyOutcome,
+    );
   }
 
   /**
    * {@link run} through the caller's access. Under scoped access the project
    * and the role are checked inside the batch's own unit of work, and every
-   * command is held to the organization: see {@link applyAll}.
+   * command is held to the organization: see {@link applyAll}.   *
+   * `actingPersonId` is the agent person the request acts as on the undo
+   * journal (`actingPersonOf`), null for the account itself: the batch's entry
+   * and its undoable/redoable answer are that {@link UndoStack}'s.
    */
   runWithin(
     projectId: string,
@@ -347,8 +352,9 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(projectId, actorId, commands, access, credential);
+    return this.execute(projectId, actorId, commands, access, credential, actingPersonId);
   }
 
   /**
@@ -362,8 +368,9 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
-    return this.execute(projectId, actorId, commands, access, credential, prelude);
+    return this.execute(projectId, actorId, commands, access, credential, actingPersonId, prelude);
   }
 
   /**
@@ -378,7 +385,7 @@ export class PlanCommandRunner {
     access: ResourceAccess,
   ): Promise<ScopedBatchOutcome> {
     // A directory batch claims nothing, so it reads no credential pin.
-    return this.execute(null, actorId, commands, access, null);
+    return this.execute(null, actorId, commands, access, null, null);
   }
 
   /**
@@ -389,7 +396,7 @@ export class PlanCommandRunner {
    * `project_required` at its index.
    */
   runDirectory(actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(null, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
+    return this.execute(null, actorId, commands, LEGACY_ACCESS, null, null).then(legacyOutcome);
   }
 
   /**
@@ -425,6 +432,7 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
     projectId: string | null,
@@ -432,6 +440,7 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
   private async execute<R>(
@@ -440,6 +449,7 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
     prelude?: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     // This batch's own collector and its own graph over it. Two batches never
@@ -538,7 +548,7 @@ export class PlanCommandRunner {
                 // `undo-acting-person.controller.db.test.ts` failed (0 pass,
                 // 5 fail); watched 2026-10-26.
                 await graph.workItems.recordCollected(
-                  { projectId, userId: actorId, personId: actingPersonOf(credential) },
+                  { projectId, userId: actorId, personId: actingPersonId },
                   collected.recordings,
                 );
                 applied = collected;
@@ -619,7 +629,7 @@ export class PlanCommandRunner {
     const state = await afterCommit.workItems.undoState({
       projectId,
       userId: actorId,
-      personId: actingPersonOf(credential),
+      personId: actingPersonId,
     });
     return { ok: true, results: done.result, ...state };
   }

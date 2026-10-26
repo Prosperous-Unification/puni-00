@@ -9426,8 +9426,8 @@ export class WorkItemService {
   }
 
   /**
-   * Writes one command down — to the account's undo stack and to the project's
-   * history — after it has been applied and announced.
+   * Writes one command down — to the actor's {@link UndoStack} and to the
+   * project's history — after it has been applied and announced.
    *
    * **Ordering, and what it costs.** The change is applied and broadcast
    * first, then journalled. A journal write that throws therefore fails the

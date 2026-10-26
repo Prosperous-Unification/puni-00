@@ -1627,12 +1627,19 @@ token reaches with nothing but a name it already knows.
 _Avoid_: integration, link, external project
 
 **Command journal**:
-The last fifty reversible commands one actor ran on one project, held on the server in the
-order they happened — one stack per project, account and **acting person** (the agent person a
-machine or consent credential acts as; none for the account acting as itself), because undo is
-personal ([conditional-undo](openspec/changes/archive/2026-08-10-conditional-undo/specs/wbs-domain/spec.md)).
+The last fifty reversible commands one acting person ran on one project, held on the server in
+the order they happened — one stack per project, account and **acting person**, because undo is
+personal. Supersedes the per-account stack of
+[conditional-undo](openspec/changes/archive/2026-08-10-conditional-undo/specs/wbs-domain/spec.md);
+see [undo-per-acting-person](openspec/changes/undo-per-acting-person/proposal.md).
 Not the plan history.
 _Avoid_: history, audit log, activity, event log
+
+**Acting person**:
+Whom a request's undo stack belongs to besides its account: the agent person a machine or
+consent credential is pinned to, or none when the account acts as itself (a browser session, an
+upstream token). Two credentials pinned to one agent person share its stack.
+_Avoid_: actor, principal, pin
 
 **Plan history**:
 Every command anybody ran on one project, kept — the plan's own record, per project

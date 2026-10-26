@@ -10,8 +10,6 @@ import { afterEach, describe, expect, it } from 'bun:test';
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const JOURNAL_PERSON = '20261026120000_add_command_journal_person';
-/** The statement the refusal pins as the manual completion. */
-const DISCARD_AGENT_ENTRIES = 'DELETE FROM command_journal WHERE person_id IS NOT NULL';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -89,6 +87,21 @@ function entryIds(dbPath: string): string[] {
   }
 }
 
+/** One account's rows by the pair alone, as the outgoing release reads its stack. */
+function stackOf(dbPath: string, userId: string): string[] {
+  const sqlite = openDatabase(dbPath);
+  try {
+    return sqlite
+      .query<{ id: string }, [string]>(
+        "SELECT id FROM command_journal WHERE project_id = 'p' AND user_id = ? ORDER BY seq",
+      )
+      .all(userId)
+      .map(({ id }) => id);
+  } finally {
+    sqlite.close();
+  }
+}
+
 function newestApplied(dbPath: string): string | undefined {
   const sqlite = openDatabase(dbPath);
   try {
@@ -140,29 +153,66 @@ describe('the command journal person migration', () => {
     expect(entryIds(dbPath)).toEqual(['human']);
   }, 60_000);
 
-  // Proof: the guard's INSERT in `add_command_journal_person/down.sql` replaced
-  // with `SELECT 0` made this fail on `Expected: not 0` for the exit code
-  // (1 pass, 1 fail; watched 2026-10-26).
-  it('refuses rollback while an agent’s entry is journalled, naming the count and the discard', async () => {
+  // Proof: with the DELETE removed from `add_command_journal_person/down.sql`,
+  // this found `agent` among the human's rows after the rollback (watched
+  // 2026-10-26): the outgoing release reads by (project, account), so its undo
+  // would have reverted the agent's edit.
+  it('discards only the agents’ entries on rollback, leaving every human stack whole', async () => {
     const { root, dbPath } = migratedStore();
+    run(
+      dbPath,
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('kat', 'kat', 'x', 1)",
+    );
     journal(dbPath, 'human', 1, null);
     journal(dbPath, 'agent', 2, 'codex');
+    journal(dbPath, 'human-again', 3, null);
+    run(
+      dbPath,
+      `INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+       VALUES ('kat-own', 'p', 'kat', 1, 'rename', '{}', '{}', '{}', 0, 1)`,
+    );
 
     const down = await rollBack(root, dbPath, baseline());
-    expect(down.exitCode).not.toBe(0);
-    expect(down.stderr).toContain(`rolling back ${JOURNAL_PERSON} failed`);
-    expect(down.stderr).toContain(
-      `1 undo journal entries belong to agent persons; discard them with ${DISCARD_AGENT_ENTRIES}, then rerun migrate-down-cli.ts`,
-    );
-    expect(columnsOf(dbPath)).toContain('person_id');
-    expect(entryIds(dbPath)).toEqual(['human', 'agent']);
-    expect(newestApplied(dbPath)).toBe(JOURNAL_PERSON);
-
-    run(dbPath, DISCARD_AGENT_ENTRIES);
-    const completed = await rollBack(root, dbPath, baseline());
-    expect(completed.stderr).toBe('');
-    expect(completed.exitCode).toBe(0);
+    expect(down.stderr).toBe('');
+    expect(down.exitCode).toBe(0);
+    expect(down.stdout).toContain(`rolled back: ${JOURNAL_PERSON}`);
     expect(columnsOf(dbPath)).not.toContain('person_id');
-    expect(entryIds(dbPath)).toEqual(['human']);
+    expect(newestApplied(dbPath)).toBe(baseline());
+    // The outgoing release's own stack read: by the pair alone.
+    expect(stackOf(dbPath, 'dany')).toEqual(['human', 'human-again']);
+    expect(stackOf(dbPath, 'kat')).toEqual(['kat-own']);
   }, 60_000);
+
+  // Proof: without `command_journal_person` the cascade's lookup read `SCAN
+  // command_journal USING COVERING INDEX command_journal_person_stack` here
+  // (2 pass, 1 fail; watched 2026-10-26).
+  it('serves each stack query and the person cascade from an index', () => {
+    const { dbPath } = migratedStore();
+    const sqlite = openDatabase(dbPath);
+    try {
+      const plan = (sql: string): string =>
+        sqlite
+          .query<{ detail: string }, []>(`EXPLAIN QUERY PLAN ${sql}`)
+          .all()
+          .map(({ detail }) => detail)
+          .join(' | ');
+      const stack = "project_id = 'p' AND user_id = 'dany' AND person_id IS 'codex'";
+      expect(plan(`SELECT * FROM command_journal WHERE ${stack} ORDER BY seq`)).toBe(
+        'SEARCH command_journal USING INDEX command_journal_person_stack (project_id=? AND user_id=? AND person_id=?)',
+      );
+      expect(
+        plan(`SELECT id FROM command_journal WHERE ${stack} AND undone = 1 LIMIT 1`),
+      ).toContain(
+        'USING INDEX command_journal_person_stack (project_id=? AND user_id=? AND person_id=?)',
+      );
+      expect(
+        plan(`SELECT seq FROM command_journal WHERE ${stack} ORDER BY seq DESC LIMIT 1 OFFSET 49`),
+      ).toContain('USING COVERING INDEX command_journal_person_stack');
+      expect(plan("SELECT 1 FROM command_journal WHERE person_id = 'codex'")).toContain(
+        'USING COVERING INDEX command_journal_person (person_id=?)',
+      );
+    } finally {
+      sqlite.close();
+    }
+  });
 });
