@@ -1058,3 +1058,31 @@ Both independent cleanup audits and all97 source/nine payload pins passed with
 more than20GiB reserve. The worker covered all process mount views and its queue
 label; controller mount scope remains its observer view. Actual owner/guardian
 loss, deadline, cancellation and backend-lock recovery acceptance remain open.
+
+## Selector correction ready; native execution awaiting approval
+
+The fixture now reads bounded candidate argv before applying the unchanged strict
+process checks. It excludes empty or unrelated argv from fault-target selection,
+then requires the selected process's fresh root identity, parent, group and argv.
+A changed argv after preselection refuses instead of silently becoming a nonmatch.
+Ten selector cases passed18 assertions, including one preselection ENOENT followed
+by successful convergence. The affected five-file suite passed **28 tests/189
+assertions**; both typechecks and formatting passed.
+
+Four independent removals failed their exact assertions: removing preselection
+reached the unrelated zombie refusal; removing the byte bound lost its explicit
+refusal while a later bounded-loop refusal remained; removing the fresh argv
+comparison wrongly accepted a changed command; removing existing ENOENT handling
+broke the convergence case. The initial RED suite's UID/Z cases were masked by the
+unrelated zombie and are not independent selected-identity witnesses. One initial
+expected error string was corrected to match the existing parser text. No
+production process validator, timer or cancellation behavior changed.
+
+HOST45 is frozen and **unexecuted**. Independent build bytes, all97 source/nine
+payload pins, archive membership, coordinator bindings and all six reviewed diffs
+matched. Automatic approval review rejected its launch before process creation,
+requesting explicit authorization for transferring the private package to the
+private host, acquiring the shared heavy lock and terminating owned test
+processes. No execution session was created or workaround attempted. The user's
+explicit approval is pending. This approval rejection is not a native runtime
+failure, and the selector correction still needs its native interruption proof.
