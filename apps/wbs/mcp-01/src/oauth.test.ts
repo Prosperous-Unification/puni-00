@@ -332,6 +332,8 @@ describe('McpOAuthServer', () => {
 
   // Proof: omitting cleanup before the capacity check leaves an expired client
   // occupying the only slot and rejects a replacement connector forever.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('expires dynamic clients and frees their capacity', async () => {
     const expiring = fixture({ clientLimit: 1, clientTtlMs: 1_000 });
     const clientId = await register(expiring.oauth);
@@ -424,6 +426,8 @@ describe('McpOAuthServer', () => {
 
   // Proof: extending expiry from the current time on every authorize lets a
   // registered but unauthenticated client renew itself forever without login.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('caps repeated authorization extensions at an absolute unproven lifetime', async () => {
     const { advance, oauth } = fixture();
     const clientId = await register(oauth);
@@ -3123,6 +3127,8 @@ describe('registered clients across a restart', () => {
     server.close();
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('answers invalid_client with a re-register hint for an unknown client_id', async () => {
     const { oauth } = fixture();
     const response = await oauth.response(new Request(authorizeUrl('never-registered')));
@@ -3132,6 +3138,8 @@ describe('registered clients across a restart', () => {
     expect(await response?.json()).toEqual(INVALID_CLIENT);
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('answers invalid_client once an unproven client expires across a restart', async () => {
     const server = restartable({ clientTtlMs: 1_000 });
     const clientId = await register(server.oauth);
@@ -3213,6 +3221,30 @@ describe('registered clients across a restart', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it('refuses a stored redirect that carries a planted response field', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { oauth } = fixture({ store });
+    const planted = 'http://127.0.0.1:33418/callback?code=planted';
+    store.admitClient(
+      'unknown',
+      1_700_000_000_000,
+      () => true,
+      () => ({
+        clientId: 'planted-client',
+        source: 'unknown',
+        redirectUris: [planted],
+        proven: true,
+        expiresAt: 1_700_000_000_000 + 60_000,
+        unprovenExpiresAt: 1_700_000_000_000 + 60_000,
+      }),
+    );
+
+    const refused = await oauth.response(new Request(authorizeUrl('planted-client', planted)));
+    expect(refused?.status).toBe(400);
+    expect(await refused?.json()).toEqual({ error: 'invalid_request' });
+    store.close();
+  });
+
   it('deletes an expired client from the store when the next request sweeps', async () => {
     const store = new McpSessionStore(':memory:', [randomBytes(32)]);
     const { advance, oauth } = fixture({ clientTtlMs: 1_000, store });
@@ -3226,6 +3258,8 @@ describe('registered clients across a restart', () => {
     store.close();
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('keeps the absolute unproven lifetime an authorization extension stored before the restart', async () => {
     const server = restartable();
     const clientId = await register(server.oauth);
@@ -3342,6 +3376,8 @@ describe('registered clients across a restart', () => {
 
   // Proof: 2026-10-25, a proven lifetime of 2 * REFRESH_ABSOLUTE_MS made this authorization
   // answer 302 instead of invalid_client; dropping the cleanup sweep kept the expired row.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('deletes an expired proven client with no live family and answers invalid_client', async () => {
     const server = restartable(refreshable);
     const clientId = await register(server.oauth);
@@ -3407,6 +3443,8 @@ describe('registered clients across a restart', () => {
 
   // Proof: 2026-10-25, dropping `expires_at > ?` from the store's client renewal moved the planted
   // expired row 30 d forward (stored 1702592060000, not 1700000030000).
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('does not revive an expired, unswept client through a refresh', async () => {
     const server = restartable(refreshable);
     const clientId = await register(server.oauth);
@@ -3456,5 +3494,369 @@ describe('registered clients across a restart', () => {
     server.advance(15 * DAY);
     await refused(first, firstToken);
     server.close();
+  });
+
+  describe('re-admitting a swept client', () => {
+    const START = 1_700_000_000_000;
+    const LOOPBACK = 'http://127.0.0.1:33418/callback';
+    const issuedId = () => randomBytes(32).toString('base64url');
+
+    /** Stores `clientId` as a client that expires 1 s after `now`, as a former lifetime left it. */
+    function plantClient(
+      store: McpSessionStore,
+      clientId: string,
+      redirectUris: readonly string[] = [LOOPBACK],
+      now = START,
+    ): void {
+      store.admitClient(
+        'unknown',
+        now,
+        () => true,
+        () => ({
+          clientId,
+          source: 'unknown',
+          redirectUris,
+          proven: true,
+          expiresAt: now + 1_000,
+          unprovenExpiresAt: now + 1_000,
+        }),
+      );
+    }
+
+    /** A connector's cached id whose client a restarted mcp-01 sweeps at its next request. */
+    function sweptClient(limits: Parameters<typeof fixture>[0] = {}) {
+      const server = restartable(limits);
+      const clientId = issuedId();
+      plantClient(server.store, clientId);
+      server.restart();
+      server.advance(1_001);
+      return { clientId, server };
+    }
+
+    function storedRow(path: string, clientId: string): unknown {
+      const db = new Database(path, { strict: true });
+      try {
+        return db.query('SELECT * FROM mcp_client WHERE client_id = ?').get(clientId);
+      } finally {
+        db.close();
+      }
+    }
+
+    function authorizeFrom(url: URL, source: string): Request {
+      return new Request(url, { headers: { 'x-forwarded-for': source } });
+    }
+
+    async function codeAt(
+      oauth: McpOAuthServer,
+      clientId: string,
+      redirectUri: string,
+      verifier: string,
+    ): Promise<string> {
+      const url = authorizeUrl(clientId, redirectUri);
+      url.searchParams.set('code_challenge', challengeOf(verifier));
+      const started = await oauth.response(new Request(url));
+      expect(started?.status).toBe(302);
+      const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+      const upstream = new URL(started?.headers.get('location') ?? 'https://invalid');
+      const completed = await oauth.response(
+        new Request(
+          `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstream.searchParams.get('state'))}`,
+          { headers: { cookie: binding } },
+        ),
+      );
+      const returned = new URL(completed?.headers.get('location') ?? 'https://invalid');
+      expect(`${returned.origin}${returned.pathname}`).toBe(redirectUri);
+      return returned.searchParams.get('code') ?? '';
+    }
+
+    async function exchangeAt(
+      oauth: McpOAuthServer,
+      clientId: string,
+      code: string,
+      verifier: string,
+      redirectUri: string,
+    ): Promise<Response | undefined> {
+      return oauth.response(
+        new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+          body: new URLSearchParams({
+            client_id: clientId,
+            code,
+            code_verifier: verifier,
+            grant_type: 'authorization_code',
+            redirect_uri: redirectUri,
+          }),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          method: 'POST',
+        }),
+      );
+    }
+
+    // The regression test for the connector stuck on dev with a swept client_id.
+    // Proof: 2026-10-25, the oauth.ts before re-admission made the first authorization answer
+    // 400 invalid_client instead of 302.
+    it('re-admits a swept client, exchanges its code, and keeps it proven across a restart', async () => {
+      const { clientId, server } = sweptClient();
+      const verifier = 'r'.repeat(43);
+      const code = await codeAt(server.oauth, clientId, LOOPBACK, verifier);
+      const readmittedAt = START + 1_001;
+      expect(server.store.client(clientId, readmittedAt)).toMatchObject({
+        clientId,
+        proven: false,
+        redirectUris: [LOOPBACK],
+        source: 'unknown',
+        unprovenExpiresAt: readmittedAt + 1_200_000,
+      });
+      const exchanged = await exchangeAt(server.oauth, clientId, code, verifier, LOOPBACK);
+      expect(exchanged?.status).toBe(200);
+      expect(server.store.client(clientId, readmittedAt)).toMatchObject({
+        proven: true,
+        expiresAt: readmittedAt + 30 * DAY,
+      });
+
+      server.restart();
+      server.advance(DAY);
+      expect(
+        (await server.oauth.response(new Request(authorizeUrl(clientId, LOOPBACK))))?.status,
+      ).toBe(302);
+      server.close();
+    });
+
+    it('re-admits a swept client at a listed hosted callback', async () => {
+      const { clientId, server } = sweptClient();
+      const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+
+      expect(response?.status).toBe(302);
+      expect(server.store.client(clientId, START + 1_001)?.redirectUris).toEqual([CALLBACK]);
+      server.close();
+    });
+
+    // Proof: 2026-10-25, dropping the shape check from readmitClient made every case here
+    // answer 302 instead of 400 invalid_client.
+    it.each([
+      ['an id issued by an injected generator', () => 'start-1-1'],
+      ['a 42-character id', () => issuedId().slice(0, 42)],
+      ['a 44-character id', () => `${issuedId()}A`],
+      ['a padded id', () => `${issuedId().slice(0, 42)}A=`],
+      ['a non-canonical last character', () => `${issuedId().slice(0, 42)}B`],
+      ['a base64 rather than base64url id', () => `${issuedId().slice(0, 41)}+A`],
+      ['an empty id', () => ''],
+    ])('keeps invalid_client for a swept client whose id is %s', async (_, idOf) => {
+      const server = restartable();
+      const clientId = idOf();
+      const response = await server.oauth.response(new Request(authorizeUrl(clientId, LOOPBACK)));
+
+      expect(response?.status).toBe(400);
+      expect(response?.headers.get('location')).toBeNull();
+      expect(await response?.json()).toEqual(INVALID_CLIENT);
+      expect(storedRow(server.path, clientId)).toBeNull();
+      server.close();
+    });
+
+    // Proof: 2026-10-25, dropping the redirect check from readmitClient stored a client for
+    // every case and answered the planted-query and oversized loopbacks 302 and the rest 400
+    // invalid_request.
+    it.each([
+      'https://evil.example/callback',
+      'https://vscode.dev:8443/redirect',
+      'http://192.168.1.2:8080/callback',
+      'http://127.0.0.1:33418/callback?code=planted',
+      'http://127.0.0.1:33418/callback#fragment',
+      `http://127.0.0.1:33418/${'p'.repeat(600)}`,
+    ])(
+      'keeps invalid_client for a swept client with the unlisted or malformed redirect %s',
+      async (redirectUri) => {
+        const { clientId, server } = sweptClient();
+        const response = await server.oauth.response(
+          new Request(authorizeUrl(clientId, redirectUri)),
+        );
+
+        expect(response?.status).toBe(400);
+        expect(await response?.json()).toEqual(INVALID_CLIENT);
+        expect(storedRow(server.path, clientId)).toBeNull();
+        server.close();
+      },
+    );
+
+    it('keeps invalid_request for a malformed authorization of a swept client', async () => {
+      const { clientId, server } = sweptClient();
+      const url = authorizeUrl(clientId, LOOPBACK);
+      url.searchParams.set('code_challenge_method', 'plain');
+
+      const response = await server.oauth.response(new Request(url));
+      expect(response?.status).toBe(400);
+      expect(await response?.json()).toEqual({ error: 'invalid_request' });
+      expect(storedRow(server.path, clientId)).toBeNull();
+      server.close();
+    });
+
+    // Proof: 2026-10-25, admitting with `() => true` in readmitClient made the first authorization
+    // answer 302 instead of 429.
+    it('re-admits a swept client only within the per-source unproven cap', async () => {
+      const { clientId, server } = sweptClient({ clientSourceLimit: 1 });
+      expect((await registrationResponse(server.oauth, [CALLBACK], '203.0.113.1')).status).toBe(
+        201,
+      );
+
+      const refused = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '203.0.113.1'),
+      );
+      expect(refused?.status).toBe(429);
+      expect(await refused?.json()).toEqual({ error: 'temporarily_unavailable' });
+      expect(storedRow(server.path, clientId)).toBeNull();
+
+      const admitted = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '203.0.113.2'),
+      );
+      expect(admitted?.status).toBe(302);
+      expect(server.store.client(clientId, START + 1_001)?.source).toBe('203.0.113.2');
+      server.close();
+    });
+
+    // Proof: 2026-10-25, re-admitting before reading the stored client, with the store's live-row
+    // read dropped, made this authorization throw `UNIQUE constraint failed:
+    // mcp_client.client_id`; with the live-row read kept it returned the row unchanged.
+    it('never re-admits or alters a live client', async () => {
+      const server = restartable();
+      const clientId = issuedId();
+      plantClient(server.store, clientId, [CALLBACK], START + 5_000);
+      const before = storedRow(server.path, clientId);
+      server.restart();
+
+      const response = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '203.0.113.7'),
+      );
+      expect(response?.status).toBe(400);
+      expect(await response?.json()).toEqual({ error: 'invalid_request' });
+      expect(storedRow(server.path, clientId)).toEqual(before);
+      server.close();
+    });
+
+    // Blue and green share the store: the second colour read the id as absent before the first
+    // admitted it.
+    // Proof: 2026-10-25, dropping the live-row read from the store's readmitClient made this
+    // throw `UNIQUE constraint failed: mcp_client.client_id`.
+    it('continues with the client another process re-admitted first, unchanged', async () => {
+      const { clientId, server } = sweptClient();
+      expect(
+        (await server.oauth.response(new Request(authorizeUrl(clientId, LOOPBACK))))?.status,
+      ).toBe(302);
+      const first = storedRow(server.path, clientId);
+      const other = new McpSessionStore(server.path, [Buffer.alloc(32, 13)]);
+      const now = START + 1_001;
+
+      const continued = other.readmitClient(
+        {
+          clientId,
+          source: '203.0.113.9',
+          redirectUris: [CALLBACK],
+          proven: false,
+          expiresAt: now + 600_000,
+          unprovenExpiresAt: now + 1_200_000,
+        },
+        now,
+        () => true,
+      );
+      expect(continued).toMatchObject({ redirectUris: [LOOPBACK], source: 'unknown' });
+      expect(storedRow(server.path, clientId)).toEqual(first);
+      other.close();
+      server.close();
+    });
+
+    /** A proven client of an issued-shape id with a live family, then swept by an older release. */
+    async function sweptWithLiveFamily() {
+      const server = restartable(refreshable);
+      const clientId = issuedId();
+      server.store.admitClient(
+        'unknown',
+        START,
+        () => true,
+        () => ({
+          clientId,
+          source: 'unknown',
+          redirectUris: [CALLBACK],
+          proven: true,
+          expiresAt: START + 30 * DAY,
+          unprovenExpiresAt: START + 30 * DAY,
+        }),
+      );
+      const refreshToken = await signIn(server.oauth, clientId);
+      const db = new Database(server.path, { strict: true });
+      db.query('DELETE FROM mcp_client WHERE client_id = ?').run(clientId);
+      db.close();
+      server.advance(HOUR);
+      return { clientId, refreshToken, server };
+    }
+
+    // Proof: 2026-10-25, renewing unproven clients at refresh moved the pre-claimed row 30 d
+    // forward (expiresAt 1702595900000, not 1700004200000).
+    it("keeps a pre-claimed swept id unproven through the victim's refresh", async () => {
+      const { clientId, refreshToken, server } = await sweptWithLiveFamily();
+      const claimed = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '198.51.100.66'),
+      );
+      expect(claimed?.status).toBe(302);
+      const preClaimed = server.store.client(clientId, START + HOUR);
+      server.advance(5 * 60_000);
+
+      await refreshed(server.oauth, clientId, refreshToken);
+      expect(server.store.client(clientId, START + HOUR)).toEqual(preClaimed);
+      expect(preClaimed?.proven).toBe(false);
+      server.advance(DAY);
+      const victim = await server.oauth.response(new Request(authorizeUrl(clientId)));
+      expect(victim?.status).toBe(302);
+      expect(server.store.client(clientId, START + HOUR + DAY)).toMatchObject({
+        proven: false,
+        redirectUris: [CALLBACK],
+        source: 'unknown',
+      });
+      server.close();
+    });
+
+    // Proof: 2026-10-25, renewing unproven clients at refresh answered the authorization an hour
+    // after the refresh 429 instead of 302: the row outlived its absolute unproven lifetime.
+    it('keeps an abandoned re-admission unproven through a refresh', async () => {
+      const { clientId, refreshToken, server } = await sweptWithLiveFamily();
+      expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+      server.advance(5 * 60_000);
+
+      await refreshed(server.oauth, clientId, refreshToken);
+      server.advance(HOUR);
+      expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+      server.close();
+    });
+
+    // Proof: 2026-10-25, dropping `expires_at > ?` from the store's extendClient moved the
+    // planted expired row's expiry to the extension.
+    it('does not revive an expired, unswept client through an authorization extension', () => {
+      const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+      const clientId = issuedId();
+      plantClient(store, clientId);
+      const now = START + 2_000;
+
+      store.extendClient(clientId, now + 600_000, now);
+      expect(store.client(clientId, START)?.expiresAt).toBe(START + 1_000);
+      store.close();
+    });
+
+    // Proof: 2026-10-25, replacing the store's expired-row DELETE with a no-op returned the
+    // planted expired row instead of the re-admitted client.
+    it('re-admits over an expired row of the same id that no sweep removed yet', () => {
+      const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+      const clientId = issuedId();
+      plantClient(store, clientId);
+      const now = START + 2_000;
+      const readmitted = {
+        clientId,
+        source: '203.0.113.9',
+        redirectUris: [CALLBACK],
+        proven: false,
+        expiresAt: now + 600_000,
+        unprovenExpiresAt: now + 1_200_000,
+      };
+
+      expect(store.readmitClient(readmitted, now, () => true)).toEqual(readmitted);
+      expect(store.client(clientId, now)).toEqual(readmitted);
+      store.close();
+    });
   });
 });
