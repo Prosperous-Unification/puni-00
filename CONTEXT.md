@@ -1029,7 +1029,7 @@ An audited record, beside one step node and the attempt that raised it, of one t
 plan did not settle: what was asked, the agent's proposed answer, its declared risk facts and
 topics, who submitted it (always the attempt's executor), the disposition the policy gave it
 and, later, the reviewer's verdict. Never deleted by any command
-([ADR 0059](docs/adr/0059-a-question-is-a-satellite-fact-judged-by-the-plan.md)).
+([ADR 0062](docs/adr/0062-a-question-is-a-satellite-fact-judged-by-the-plan.md)).
 _Avoid_: assumption (a disposition), ticket, issue, decision log, open point, needs-Dany
 
 **Question kind**:

@@ -35,7 +35,7 @@ up) at a work package, `project.manage_settings` (project-manager and up), the
 `organization.manage_*` family (org-admin and up); under its P3 and P5 a package may be
 restricted, so project membership does not imply reading every package.
 
-Rationale for the shape is ADR 0059; this file is what gets built. Three Codex reviews
+Rationale for the shape is ADR 0062; this file is what gets built. Three Codex reviews
 (gpt-6-astra, high, 2026-10-25) drove D2, D4, D6 to D8 and D10 to D16.
 
 ## Decisions

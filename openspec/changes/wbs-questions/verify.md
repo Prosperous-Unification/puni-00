@@ -1,7 +1,7 @@
 # Verification
 
 Base: `f5904f9e6` (main, 2026-10-25). This PR carries the proposal, design, delta spec, tasks,
-ADR 0059 and the glossary terms only; no behavior ships with it.
+ADR 0062 and the glossary terms only; no behavior ships with it.
 
 ## Commands run on this PR
 

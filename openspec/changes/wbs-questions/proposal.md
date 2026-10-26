@@ -56,7 +56,7 @@ Reviewer, Notice, Downstream reach, Question priority, Unnoticed question — ne
 
 ## Decisions Recorded
 
-ADR 0059 "A question is a satellite fact judged by the plan".
+ADR 0062 "A question is a satellite fact judged by the plan".
 
 ## Impact
 

@@ -9,7 +9,7 @@ resolve and deletion refusals. Test names in backticks are the spec's scenario t
 ## 0. Words first
 
 - [x] 0.1 `CONTEXT.md`: the nineteen terms after the step blockage activation receipt entry.
-- [x] 0.2 `docs/adr/0059-a-question-is-a-satellite-fact-judged-by-the-plan.md`, proposed.
+- [x] 0.2 `docs/adr/0062-a-question-is-a-satellite-fact-judged-by-the-plan.md`, proposed.
 
 ## 1. The pure core (D3, D5, D10, D11, D14)
 
