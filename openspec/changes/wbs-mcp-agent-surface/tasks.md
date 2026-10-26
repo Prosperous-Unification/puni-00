@@ -46,14 +46,14 @@
 
 ## 1. be-01: the machine grant
 
-- [ ] 1.1 Red: `machine-grant.test.ts` in `@wbs/core`. A `PresentedMachineProof` variant
+- [x] 1.1 Red: `machine-grant.test.ts` in `@wbs/core`. A `PresentedMachineProof` variant
       (`grant`) of `admitMachineCredential` judges revocation, binding, membership and pool
       `expiresAt` in one place. The test covers:
   - `exp` = `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion exp)`;
   - scopes from the credential only;
   - the opted-in run carried through;
   - a property that a revoked, unbound or expired-pool credential is never admitted.
-- [ ] 1.2 Green: the grant keys (`kid`, current and previous). Boot refuses a missing key once
+- [x] 1.2 Green: the grant keys (`kid`, current and previous). Boot refuses a missing key once
       the activation marker is set, and the activation preflight lists a missing key. The
       route `POST /internal/mcp/machine-grants` (M14's secret):
   - answers `409 not_activated` before activation;
@@ -107,9 +107,10 @@
     refusal** (as the latest audit widening's own test asserts). The narrow table's CHECK
     would reject the copied rows anyway, so "rows deleted" cannot be observed;
   - answer a missing secret with `unknown_grant_key`, and mcp-01's fault test sees a
-    re-fetch instead of a reported fault.
+    re-fetch instead of a reported fault. (Slice 1 observes the be-01 half; mcp-01's fault
+    test arrives with task 3.2. See verify.md, slice 1.)
 
-- [ ] 1.3 The grant verifier and exact audience dispatch in `identity.ts`, with constant-time
+- [x] 1.3 The grant verifier and exact audience dispatch in `identity.ts`, with constant-time
       secret admission. Tests: "A grant without the secret", "Revocation at the next call",
       "No write per call" and "A long delegation stays refused". Negatives:
   - remove the secret check;

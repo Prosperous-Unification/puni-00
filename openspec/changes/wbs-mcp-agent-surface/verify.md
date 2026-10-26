@@ -190,8 +190,133 @@ Recorded in the PR description with their output: `openspec validate wbs-mcp-age
 Prettier on the changed files. Not run: the h2puni gate and the full Nx suites. Nothing is
 implemented, and CI carries them.
 
+## Slice 1: the machine grant at be-01 (tasks 1.1 to 1.3)
+
+Built on branch `feat/wbs-mcp-machine-grant-1` (the plan branch with `origin/main` dacf0f10f
+merged in), 2026-10-26, on the assumed M1 to M16. Every test below ran under
+`env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+What landed:
+
+- **1.1** `admitMachineCredential` gains the `grant` proof (`@wbs/domain`
+  `machine-credential.ts`): an `api_key` or `oidc` credential, never `mcp_consent`, naming the
+  grant's person and organization, whose bound account is still a member there.
+  `MachineCredentialRecord` gains `boundAccountRole` (read with the credential) and `expiresAt`
+  (judged for every source). `machineGrantTermsOf` and `MOST_MACHINE_GRANT_SECONDS`
+  (`@wbs/core` `service/machine-grant.ts`) own `exp`, scopes and the run.
+- **1.2** Migration `20261026130000_widen_organization_audit_machine_tokens` with a guarded
+  `down.sql`; `MachineTokenAuditRepository` (`@wbs/store-sqlite`); the grant keys, signer and
+  verifier (`runtime/machine-grant.ts`); issuance (`runtime/machine-grant-authority.ts`) at
+  `POST /internal/mcp/machine-grants` (`issueMcpMachineGrant` in `@wbs/contracts`);
+  `MCP_BE_INTERNAL_SECRET`, `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT`/`_PREVIOUS` and
+  `WBS_MCP_AUTHORIZATION_SERVER` in `config.ts`; boot's refusal of an activated store without
+  them; the activation CLI's preflight (exit 8); `401 internal_unauthorized` on
+  `/internal/mcp/*`. The issuer canonicalisation moved to `@wbs/contracts`
+  (`mcp-authorization-server.ts`), and mcp-01's `oauth.ts` uses it.
+- **1.3** `identity.ts`: the `mcp-internal` and `mcp-dedicated` requirements, every secret
+  compared by `timingSafeEqual` over SHA-256 digests, the grant bearer branch (secret first,
+  grant keys alone, credential reread through `AuthService.admitMachineGrant`, nothing
+  consumed), and delegation dispatch by exact audience (`invalid_token` otherwise).
+
+### Slice 1 notes (assumptions taken, and gaps in the design)
+
+1. **The secret's header** is not named by the design. Slice 1 uses
+   `x-mcp-internal-auth` (`MCP_INTERNAL_SECRET_HEADER` in `@wbs/contracts`).
+2. **The grant keys' form** is not specified. Slice 1 uses HS256 over a secret of at least 32
+   characters (be-01 alone signs and verifies), with the `kid` derived from the secret (the
+   first 16 base64url characters of its SHA-256), so a configured `kid` can never disagree
+   with its key. Current and previous must differ.
+3. **Pool expiry** (M7) has no column before task 6.1. The record carries `expiresAt`, judged
+   for every source, and the SQLite read answers the constant `NO_CREDENTIAL_EXPIRY` (null)
+   until 6.1 adds the column.
+4. **Membership in one place**: the record gains `boundAccountRole`, and the `grant` variant
+   refuses a non-member `unknown_identity`; issuance refuses one the same way through
+   `machineGrantTermsOf`. An API key on `/api` (until M9) keeps today's
+   `403 not_a_member` from organization access, unchanged.
+5. **Runs that look like secrets**: M15 calls `wbs_run` opaque, 1 to 256 characters, but the
+   audit refuses a detail value shaped like a secret (`isSecretShaped`: a `wbs_mk_` or
+   `wbs_scim_` prefix, 64 hex characters, or a pipe-separated pair). The most restrictive
+   reading: the grant route answers such a run `400 invalid_body`, so a key never reaches an
+   audit row and issuance is never a 500 for it.
+6. **Boot and activation require all three settings**, not only the grant key the design
+   names: an activated store can serve no grant without the secret or the authorization
+   server either. **Every activated deployment, dev included, refuses to boot this be-01
+   until the three are seeded**; task 8.2's seeding must precede any deploy of this code (the
+   2026-10-22 rule: seed required keys on dev before merging).
+7. **The `typ` refusal at be-01** is `401 unsupported_assertion_type` naming the `typ`, and an
+   undecodable assertion is `401 invalid_token`; mcp-01 maps both to `400 invalid_grant`
+   (slice 2).
+8. **Delegations of an unknown audience** now answer `401 invalid_token` (before:
+   `unauthenticated`), as M3 says; array audiences too. The `gateway-delegation` route is
+   unchanged.
+9. **`/internal/mcp/*` refusals** of the secret moved from `401 unauthorized` to
+   `401 internal_unauthorized`. mcp-01 reads every 401 that is not a user's refusal as a
+   deployment fault already (`organization-authority.ts` `isUserRefusal`), so its behaviour is
+   unchanged; its stubs still answer `unauthorized`.
+10. **Not in slice 1**: the per-call grant principal carries no `runId` (task 1.4), and the
+    A25 audience rule (task 1.5) is not applied at issuance.
+11. **Constant-time compares have no behavioural negative**: timing is not observable in
+    these tests. The equality is covered by the missing, wrong and gateway-secret negatives.
+12. **The `unknown_grant_key` negative of 1.2** is observed at be-01 only (the test sees that
+    code instead of `internal_unauthorized`); mcp-01's fault test, which would see a re-fetch,
+    arrives with task 3.2.
+13. **Secrets in reports**: a 500 on the grant route reports the error alone, never the body
+    (`createUnexpectedFailureReporter`), and no query binds the key or the assertion (read in
+    the code, not tested). The task 2.3 test (an injected throw during a Basic request) is not
+    written yet.
+
+### Commands and results
+
+All on 2026-10-26 at d0d21035d (the docs commit after it changes no code), with
+`env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                                                  | Result                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-domain wbs-core wbs-store-sqlite wbs-contracts wbs-auth wbs-be-01 wbs-mcp-01` | exit 0 at 94469226c; `wbs-be-01` typecheck and lint rerun at d0d21035d, exit 0                                                                                                                                                                                        |
+| `bunx nx run wbs-be-01:test`                                                                                             | 3740 pass, 0 fail, 3 skipped, 3743 tests in 255 files (1183.6 s), exit 0. The first run, at 94469226c, failed 2 (`capacity-fanout-process.db.test.ts` and `runtime-command.controller.db.test.ts` reboot an activated store without the settings); fixed in d0d21035d |
+| `bunx nx run-many -t test -p wbs-core wbs-store-sqlite --parallel=1`                                                     | 1381 pass, 0 fail; 1999 pass, 0 fail, 1 skipped; exit 0                                                                                                                                                                                                               |
+| `bunx nx run-many -t test -p wbs-domain wbs-contracts wbs-auth`                                                          | 125, 1341 (3 skipped) and 607 pass, 0 fail; exit 0                                                                                                                                                                                                                    |
+| `bunx nx run wbs-mcp-01:test`                                                                                            | 550 pass, 0 fail, exit 0 (at 52c6d866b, before two test-only commits)                                                                                                                                                                                                 |
+| `bun test tools/tool-remote-scripts/src/swap-maintenance.db.test.ts`                                                     | 2 pass, 0 fail                                                                                                                                                                                                                                                        |
+| the 50 files pinning the migration list or rollback order (store-sqlite and be-01)                                       | 829 pass, 4 fail on first run (three pins and the audit index baseline); fixed, the four files rerun 72 pass, 0 fail                                                                                                                                                  |
+| `bunx openspec validate --all --json`                                                                                    | exit 0; 297 items, 297 passed                                                                                                                                                                                                                                         |
+| Burokrat `check-indexes working . HEAD`                                                                                  | exit 0                                                                                                                                                                                                                                                                |
+| `bunx prettier --check` on every file this slice changed but the two SQL files (Prettier has no SQL parser)              | "All matched files use Prettier code style!", exit 0                                                                                                                                                                                                                  |
+
+Not run: the h2puni gate, fe-01 and its browser e2e (`organization-context.real.spec.ts`
+boots be-01 and activates afterwards, so the boot refusal does not reach it; not observed),
+gw-01's suite, and the tool-devsync workspace tests. CI carries them.
+
 ## Failure-proof table
 
-| Check                                                                           | Fault injected | Test that observed it failing | Result |
-| ------------------------------------------------------------------------------- | -------------- | ----------------------------- | ------ |
-| (none yet: every row is added by the slice that builds the check, per tasks.md) |                |                               |        |
+Slice 1 rows. Each check was watched failing with the fault injected, then restored; the
+`Proof:` comment sits beside the check.
+
+| Check                                           | Fault injected                                                 | Test that observed it failing                                                                                                                               | Result                                 |
+| ----------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| grant variant: pool expiry                      | expiry check removed (`admitMachineCredential`)                | core `machine-grant.test.ts`: `refuses a pool credential at and after its expiry`, the never-admits property                                                | 2 fail                                 |
+| grant variant: no consent credential            | consent half answering false                                   | `never admits a consent credential, whose sessions take delegations instead`                                                                                | 1 fail                                 |
+| grant variant: person, organization, credential | each comparison removed in turn                                | `refuses a grant naming another person, organization or credential`                                                                                         | 1 fail each                            |
+| grant variant: membership                       | role predicate removed                                         | `refuses a credential whose account is no longer a member…`, the property (after its generators were weighted; it first passed, caught by the example only) | 2 fail, three runs                     |
+| down.sql guard                                  | filter replaced by `WHERE 0`                                   | `machine-token-audit-migration.db.test.ts`: `refuses rollback over one machine-token audit row…`                                                            | named refusal absent                   |
+| run key coalesce                                | dropped from the index and `RUN_KEY` together                  | `machine-token-audit.db.test.ts`: `writes one row per run and UTC day…`                                                                                     | 2nd and 3rd no-run answered `recorded` |
+| UTC day                                         | `date(created_at)` in the index and `RUN_DAY_KEY`              | same test, plus the 150-run test (150 rows)                                                                                                                 | all six `recorded`                     |
+| overflow stop                                   | stop disabled                                                  | `writes 100 run rows and one overflow row for 150 runs…`; the model property                                                                                | 150 run rows                           |
+| overflow key                                    | `(credential, created_at)` in the index and `OVERFLOW_DAY_KEY` | same; the model property                                                                                                                                    | 50 overflow rows                       |
+| targeted insert vs `INSERT OR IGNORE`           | run insert as `INSERT OR IGNORE`                               | `throws on a CHECK violation…`, `throws on a row-id collision…`                                                                                             | both resolved                          |
+| targeted vs untargeted conflict                 | `ON CONFLICT DO NOTHING`                                       | `throws on a row-id collision under a different key`                                                                                                        | resolved                               |
+| recount inside the turn                         | count read outside and reused                                  | model property (`fc.asyncModelRun`, seed 20261026): `[IssueOne(r4), IssueRacing(r0, r1)]`                                                                   | 101st run row                          |
+| read first                                      | early return removed                                           | `answers a seen run without taking the write turn`; mounted `answers a token request while a batch holds the write turn…`                                   | `pending`                              |
+| activation                                      | check removed (`machineGrantAuthority`)                        | `machine-grant.controller.db.test.ts`: `issues nothing before activation`                                                                                   | 200 with a grant                       |
+| secret code on `/internal/mcp/*`                | `internal_unauthorized` → `unknown_grant_key`                  | `answers a missing, wrong or gateway secret internal_unauthorized`                                                                                          | wrong code (be-01 half)                |
+| grant needs the secret                          | check removed (`delegatedOrSession`)                           | `refuses a grant without the secret, or with a wrong one…`                                                                                                  | 200                                    |
+| reread at every call                            | per-credential cache filled at first use                       | `is refused unknown_identity at the next call after its credential is revoked`                                                                              | 200 after revoke                       |
+| nothing consumed per call                       | `jti` consume around the grant verifier                        | `writes nothing per call: 100 reads…`                                                                                                                       | 401 on a later read                    |
+| exact audience dispatch                         | former dispatch (all but direct to via-mcp-01)                 | `delegation.controller.db.test.ts`: `refuses a gateway, grant or unknown audience invalid_token`                                                            | `unauthenticated`                      |
+| grant keys alone                                | RS256 retry against a delegation key                           | `refuses a grant signed with the delegation key under the current grant kid`                                                                                | 200 for the forgery                    |
+| no assertion `jti` consume                      | `(iss, jti)` consume before admission                          | `admits one Kubernetes token, one jti, from three processes`                                                                                                | 200, 401, 401                          |
+| boot refusal                                    | refusal disabled                                               | `machine-grant.boot.db.test.ts`: `refuses an activated store without the machine grant settings…`                                                           | boot resolved                          |
+| boot composition                                | `machineGrantComposition` omitted                              | `issues a grant once activated and admits it on the next call`                                                                                              | 401                                    |
+| activation preflight                            | grant settings left out of `unready`                           | `organization-activation-cli.db.test.ts`: both machine-grant-settings cases                                                                                 | exit 0, not 8                          |
+| previous key needs current                      | guard disabled                                                 | `config.test.ts`: `refuses a previous grant key without a current one`                                                                                      | loaded                                 |
+| canonical authorization server                  | reproduction check dropped                                     | `mcp-authorization-server.test.ts`, `config.test.ts`                                                                                                        | uppercase host admitted                |
