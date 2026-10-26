@@ -3380,30 +3380,38 @@ test('cache-aware unsafe reservation refuses before paid transport', async () =>
   api.close();
 });
 
-test('new scoping operations record v2 while historical v1 replies replay without a paid call', async () => {
-  const fake = fakeOpenRouter(() => structuredReply('A saved acknowledgement.', 'improve-blocker'));
-  const config = paidConfig(fake.providerFetch);
-  const api = mountApi(config);
-  try {
-    const visitor = await beginScopingVisitor(api);
-    await (await sendInitial(api, visitor)).text();
-    expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v2');
-    const database = new Database(config.databasePath);
-    database.query("UPDATE conversation_operation SET prompt_version = 'puni-scoping-v1'").run();
-    database.close();
-    const replay = await (await sendInitial(api, visitor)).text();
-    expect(replay).toContain('A saved acknowledgement.');
-    expect(fake.bodies).toHaveLength(1);
-    expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v1');
-    await (
-      await sendMessage(api, visitor, 'v2-after-old-replay', 'The problem is recurring bugs.')
-    ).text();
-    expect(operations(config.databasePath).map((operation) => operation.prompt_version)).toEqual([
-      'puni-scoping-v1',
-      'puni-scoping-v2',
-    ]);
-    expect(fake.bodies).toHaveLength(2);
-  } finally {
-    api.close();
-  }
-});
+for (const historicalVersion of ['puni-scoping-v1', 'puni-scoping-v2'])
+  test(`new scoping operations record v3 while historical ${historicalVersion} replies replay without a paid call`, async () => {
+    const fake = fakeOpenRouter(() =>
+      structuredReply('A saved acknowledgement.', 'improve-blocker'),
+    );
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    try {
+      const visitor = await beginScopingVisitor(api);
+      await (await sendInitial(api, visitor)).text();
+      expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v3');
+      const database = new Database(config.databasePath);
+      database.query('UPDATE conversation_operation SET prompt_version = ?').run(historicalVersion);
+      database.close();
+      const saved = await readConversation(api, visitor.cookie);
+      const savedOperations = operations(config.databasePath);
+      const replay = await (await sendInitial(api, visitor)).text();
+      expect(replay).toContain('A saved acknowledgement.');
+      expect(fake.bodies).toHaveLength(1);
+      expect(operations(config.databasePath)).toEqual(savedOperations);
+      const replayed = await readConversation(api, visitor.cookie);
+      expect(replayed.turns).toEqual(saved.turns);
+      expect(replayed.scoping).toEqual(saved.scoping);
+      await (
+        await sendMessage(api, visitor, 'v3-after-old-replay', 'The problem is recurring bugs.')
+      ).text();
+      expect(operations(config.databasePath).map((operation) => operation.prompt_version)).toEqual([
+        historicalVersion,
+        'puni-scoping-v3',
+      ]);
+      expect(fake.bodies).toHaveLength(2);
+    } finally {
+      api.close();
+    }
+  });

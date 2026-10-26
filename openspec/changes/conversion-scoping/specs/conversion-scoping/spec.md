@@ -174,7 +174,7 @@ An explicitly exploratory scenario SHALL accept a committed structured ending wi
 
 ### Requirement: The catalogue owns selected-question wording
 
-The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. This prompt revision SHALL be recorded as `puni-scoping-v2`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
+The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. This prompt revision SHALL be recorded as `puni-scoping-v3`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
 
 #### Scenario: Evaluation catches the observed paraphrased question
 
@@ -183,5 +183,29 @@ The structured prompt SHALL instruct selected-question messages to be contextual
 
 #### Scenario: Historical structured output is replayed
 
-- **WHEN** an existing `puni-scoping-v1` operation is replayed under the new runtime
-- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v2`
+- **WHEN** an existing `puni-scoping-v1` or `puni-scoping-v2` operation is replayed under the new runtime
+- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v3`
+
+### Requirement: Grounded judgment advances the conversation
+
+The structured prompt SHALL connect supplied facts concisely when they support useful judgment, without forcing insight or repeating established caveats without new reason. At useful handoff it SHALL suggest a focused possible first review step, distinct from visitor requirements. Unknowns SHALL remain explicit; causes, evidence, technology, users and requirements SHALL NOT be invented, and outcomes SHALL NOT be promised.
+
+#### Scenario: New context narrows the useful review
+
+- **WHEN** recurring bugs are followed by a payments goal and a recent payment failure
+- **THEN** the acknowledgement connects the new payment context without repeating a generic inspection caveat, and the handoff suggests a focused review of the reported payment path without claiming a cause or completed inspection
+
+#### Scenario: A vague starter has no supported insight yet
+
+- **WHEN** the visitor supplies only Improve my app
+- **THEN** a short acknowledgement and the first relevant catalogue question suffice, without invented facts or a forced diagnosis
+
+#### Scenario: Existing visitor choices retain their meaning
+
+- **WHEN** the conversation follows any of the six routes, exploration, references, corrections, a concern, an early/immediate brief or declined email
+- **THEN** the existing adaptive behavior and explicit optional human-review rules remain intact, and review suggestions do not become fabricated visitor requirements
+
+#### Scenario: Qualitative acceptance remains separate
+
+- **WHEN** deterministic prompt identity, replay and envelope checks pass
+- **THEN** useful judgment and non-repetition remain unverified until complete actual synthetic conversations pass all five qualitative dimensions; the failed v2 pilot remains historical failure evidence

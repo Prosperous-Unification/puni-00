@@ -47,7 +47,7 @@ test('the separately versioned scoping prompt equals its reviewed source', () =>
   );
   const block = /```text\n([\s\S]*?)\n```/.exec(document)?.[1];
   if (block === undefined) throw new Error('Missing prompt block');
-  // Proof: changing the source to "You were PUNI", and changing the v2 example to "warrants inspection", each failed this equality.
+  // Proof: keeping the v2 runtime against the revised v3 source failed this equality.
   expect(scopingSystemPrompt).toBe(block);
   expect(document).toContain(scopingPromptVersion);
 });

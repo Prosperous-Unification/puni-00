@@ -1,11 +1,11 @@
 ## Why
 
-The agreed conversion journey lets visitors answer through choices, receive useful judgment, and send a visible brief for human review. The existing chat requires a second Send after landing, advances by turn count, and has no suggested-answer contract. Those behaviors obstruct the intended short, attentive conversation.
+The agreed conversion journey lets visitors answer through choices, receive useful judgment, and send a visible brief for human review. The existing chat requires a second Send after landing, advances by turn count, and has no suggested-answer contract. These obstruct an attentive conversation.
 
 ## What Changes
 
 - Six starting choices and free text enter one claim-bound scoping conversation without repeating the landing action.
-- Suggested answers, optional references and corrections work alongside typing. The assistant uses supplied details, answers questions, and proposes a useful starting point before the default email invitation.
+- Suggested answers, optional references and corrections work alongside typing. The assistant connects supplied details, answers questions, avoids repeated caveats, and suggests a focused first review step before the default email invitation.
 - Conversation progression follows validated reply content instead of fixed turn numbers. An early human-review shortcut and an email-free exploration path remain available.
 - Visitors review and edit their brief before explicitly sending it with an email. Operators receive the same brief and references.
 - The services section presents the five offers with matching conversation CTAs. Privacy copy explains the actual anonymous chat, references, processors, storage and follow-up.
@@ -27,7 +27,7 @@ Use existing Bun/Nx, React, API, SQLite and OpenRouter boundaries. Keep anonymou
 
 ### Modified Capabilities
 
-None in the archived spec registry. This change explicitly supersedes conflicting behavior in the active Build chat harness change, as mapped in design.md.
+This supersedes conflicting active Build chat harness behavior, mapped in design.md.
 
 ## Domain Terms
 
