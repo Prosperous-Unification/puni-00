@@ -1266,3 +1266,52 @@ and is not a base for subsequent builds.
 The next two separately prepared cases target unsafe untagged GC and an actual
 post-unlink tag-cleanup failure. Their native execution and the remainder of
 Task8, full validation/reviews and Tasks9–11 are still incomplete.
+
+## GC and partial-deletion preparation; admission failure
+
+The two new fixed fixtures use actual managed publication of one expired
+single-platform image and one explicitly protected OCI index. They create no
+deployment-history claim. Kubernetes/readers/provider admission remain synthetic,
+and only retirement authority time advances eight days after publication.
+
+The restored local suite passed85 tests with247 assertions across seven files;
+after adding schema-validated native process receipts, the affected controller
+suite passed18 tests with22 assertions. Explicit library/specification type checks
+returned0 with empty logs, and format checks passed. The separately observed
+actual owned Bun child returned137 after SIGKILL with exitCode:null; its exact
+process group was absent. The tag fixture now requires observed termination and
+group absence before restoring its faulted file permissions.
+
+Forty-eight initial guard removals produced44 assertion failures and four
+inconclusive results. The inconclusive cases targeted the wrong cleanup caller or
+had inputs still refused by another check. Seven focused follow-ups supplied
+independent order/count/root/cleanup witnesses, a genuinely pending child-promise
+check and original-publication-error preservation. Each failed its intended
+assertion with the guard removed; normal source was restored. The original
+resolved-promise terminal mock is superseded. Owner/byte/inode precondition
+removals prove loss of the precise early refusal, while later defenses can still
+refuse; they do not demonstrate complete unsafe-operation success. Removing both
+native receipt emissions also failed their exact output assertions, followed by
+a restored controller pass. Full Task8 R5 inventory remains incomplete.
+
+HOST50 used the independently reproduced normal261-module build, with the timer's
+abort/cancel statements intact. It returned1 without timeout in3.618 seconds at
+canonical-lifeline readiness. The frozen coordinator's failure location precedes
+workload creation and archive delivery, so the registry workload did not run.
+This is an admission failure, with no GC or partial-deletion evidence. The
+coordinator drained but discarded the wrapper status/stderr; the original cause
+remains unknown. A later lock observation cannot authenticate that cause.
+
+Both bounded read-only admission audits returned0 with empty stderr and durable
+status. The exact marker was absent from process arguments and canonical label/
+queue records. The worker also observed no Task8 fixture paths, backing references
+or mounts in its observer view. Host namespace/cgroup/hostname baselines matched
+and root reserve exceeded20GiB. No runtime namespace or PID identities were
+emitted, so these audits do not invent the usual three-namespace cleanup proof.
+All100 normal source/nine payload/archive pins matched after termination.
+
+Only coordinator diagnostic preparation is released: bounded fixed stage/status/
+known-reason reporting, preserving the original failure and existing containment.
+No retry or tag-cleanup run is approved by this record. Both native witnesses,
+partial-state census/recovery, full Task8 validation/review and Tasks9–11 remain
+incomplete. Production safeguards have not been activated by this work.
