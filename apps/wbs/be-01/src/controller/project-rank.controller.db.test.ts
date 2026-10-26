@@ -106,6 +106,9 @@ beforeEach(async () => {
   billing = await create('ada', 'Billing');
   search = await create('mel', 'Search');
   foreign = await create('grace', 'Hidden');
+  for (const [index, projectId] of [platform, billing, search, foreign].entries()) {
+    h.sqlite.run('UPDATE project SET created_at = ? WHERE id = ?', [index + 1, projectId]);
+  }
 });
 
 afterEach(() => {

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, it } from 'bun:test';
 
-import fixture from '../../test/fixtures/runtime.json';
+import fixture from '../../fixtures/runtime.json';
 import { preflightRuntime, renderObserverUnits, validateRuntimeSnapshot } from './runtime';
 
 it('renders a bounded persistent SSH observer without recreating trusted checkpoints', () => {

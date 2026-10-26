@@ -12,9 +12,6 @@ const command = type.or(
   ...Object.values(commandDefinitions).map((definition) => definition.schema),
 );
 
-/** Strict standalone command validation; derived numbering is never a writable property. */
-export const planCommandSchema = requestSchema(command);
-
 /** The batch cap belongs after semantic parsing; this declaration neither caps nor normalizes commands. */
 // Proof: adding maxLength200 failed the 201-command structural control; the parser owns precedence.
 const commandsBody = type({ commands: command.array() });

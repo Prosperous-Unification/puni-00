@@ -8,6 +8,10 @@ Read-only probes on 2026-10-25 found the h3mon Docker OTel, VictoriaMetrics, Vic
 
 Current manifests pin Elasticsearch/Kibana 9.3.8, Prometheus 3.14.0 and collector-contrib 0.160.0. They provide logs and metrics pipelines, no Elastic trace pipeline; the contrib collector lacks Elastic's APM enrichment components. The Elastic snapshot policy selects `logs-*` only. Prometheus has 15-day/8-GB retention on a 10-Gi PVC. Elasticsearch requests 4 GiB with a 2-GiB heap and one 100-Gi PVC; Kibana requests 512 MiB. Grafana is disabled in kube-prometheus-stack, while a separate Grafana is live on h3mon. These are concrete rollout gaps, not a reason to deploy a duplicate stack.
 
+## Environment parity coordination
+
+The user requires shared behavior and deployment mechanisms across environments unless a concrete reason justifies a difference. The [environment-parity change](../observability-environment-parity/design.md) now owns common configuration, Kubernetes signal-path convergence, runtime rehearsal and the dev migration proposal. Its tasks 2.1 and 3.2 coordinate the gateway and preflight work already listed here; use one implementation for each, not parallel competing versions. This packet continues to own production-specific backup/access/alert readiness, production authorization and Victoria retirement. The merged Compose dev rollout is a transitional implementation, not proof of production parity. Instance isolation and live target ownership must be resolved before migration; no production deployment is authorized by this planning update.
+
 ## Goals / Non-Goals
 
 **Goals:** A usable, protected and recoverable production destination for all three signals; explicit ownership and capacity; dashboards and real alert delivery; reversible migration and evidence-based Victoria retirement.

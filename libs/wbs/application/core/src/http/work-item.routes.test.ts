@@ -55,6 +55,48 @@ test('typed undo and redo preserve actor and details without exposing journal en
         },
       }),
     ).toEqual({ ok: true, status: 200, body: { done: 'Undo change', detail: 'Work' } });
-    expect(call).toHaveBeenCalledWith('p', 'owner', { kind: 'legacy' });
+    expect(call).toHaveBeenCalledWith(
+      { projectId: 'p', userId: 'owner', personId: null },
+      { kind: 'legacy' },
+    );
+  }
+});
+
+test('undo and redo walk a consent agent’s own stack, not its human’s', async () => {
+  const f = fixture();
+  const agent = {
+    id: 'owner',
+    username: 'owner',
+    scopes: ['read', 'write'] as const,
+    authentication: {
+      kind: 'consent' as const,
+      issuer: 'https://idp.example/',
+      subject: 'owner',
+      credentialId: 'consent-1',
+      personId: 'codex',
+    },
+  };
+  for (const [endpoint, operation] of [
+    [f.endpoints[3], 'undoWithin'],
+    [f.endpoints[4], 'redoWithin'],
+  ] as const) {
+    const call = spyOn(f.runner, operation);
+    call.mockResolvedValueOnce({ ok: false, reason: 'nothing_to_undo', detail: null });
+    await endpoint.handle({
+      params: { id: 'p' },
+      query: undefined,
+      body: undefined,
+      principal: agent,
+      request: {
+        method: 'POST',
+        url: new URL('http://localhost'),
+        headers: new Headers(),
+        signal: new AbortController().signal,
+      },
+    });
+    expect(call).toHaveBeenCalledWith(
+      { projectId: 'p', userId: 'owner', personId: 'codex' },
+      { kind: 'legacy' },
+    );
   }
 });

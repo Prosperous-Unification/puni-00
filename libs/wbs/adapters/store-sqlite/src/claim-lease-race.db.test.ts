@@ -115,7 +115,14 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
       ),
   });
   const run = (commands: PlanCommand[], credential: CredentialPin | null) =>
-    runner.runWithin(projectId, 'dany', commands, admin, credential);
+    runner.runWithin(
+      projectId,
+      'dany',
+      commands,
+      admin,
+      credential,
+      credential !== null && 'personId' in credential ? credential.personId : null,
+    );
   const plan = await run(
     [
       ...Array.from({ length: LEAVES }, (_, n): PlanCommand => ({

@@ -186,6 +186,11 @@ async function steps() {
 }
 it('signals only the last matching claim release and leaves other runs and retained uses alone', async () => {
   const [dev, qa] = await steps();
+  // Both claims continue independently releasable work; QA has already started.
+  expect(
+    (await commands([{ kind: 'setProgress', workItemId: leaf, stepId: qa, state: 'in_progress' }]))
+      .status,
+  ).toBe(200);
   expect(
     (
       await commands([
@@ -223,11 +228,18 @@ it('signals only the last matching claim release and leaves other runs and retai
   });
 });
 it('signals lease expiry through the composed sweep without reporting release', async () => {
+  const [dev] = await steps();
   expect(
     (
       await h.callWith(key, 'POST', `/api/projects/${projectId}/commands`, {
         commands: [
-          { kind: 'claimWorkItem', workItemId: leaf, personId: 'agent-a', runId: 'run-a' },
+          {
+            kind: 'claimWorkItem',
+            workItemId: leaf,
+            personId: 'agent-a',
+            runId: 'run-a',
+            steps: [dev],
+          },
         ],
       })
     ).status,
@@ -436,8 +448,13 @@ it('refuses a stale revision even when the requested transition is otherwise val
   expect(states().find((each) => each.id === use.id)?.state).toBe('cleanup_pending');
 });
 it('never treats an unbound claim run as matching arbitrary registered runs', async () => {
+  const [dev] = await steps();
   expect(
-    (await commands([{ kind: 'claimWorkItem', workItemId: leaf, personId: 'agent-a' }])).status,
+    (
+      await commands([
+        { kind: 'claimWorkItem', workItemId: leaf, personId: 'agent-a', steps: [dev] },
+      ])
+    ).status,
   ).toBe(200);
   const use = await registered();
   expect(
@@ -723,11 +740,18 @@ it('acknowledges a stale queued request with the existing terminal proof and no 
 });
 it('revoking the worker queues runtime cleanup while its separate authority stays live', async () => {
   const r = await runtimeSetup();
+  const [dev] = await steps();
   expect(
     (
       await h.callWith(key, 'POST', `/api/projects/${projectId}/commands`, {
         commands: [
-          { kind: 'claimWorkItem', workItemId: leaf, personId: 'agent-a', runId: 'run-a' },
+          {
+            kind: 'claimWorkItem',
+            workItemId: leaf,
+            personId: 'agent-a',
+            runId: 'run-a',
+            steps: [dev],
+          },
         ],
       })
     ).status,
