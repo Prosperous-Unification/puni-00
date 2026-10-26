@@ -89,7 +89,7 @@ async function seeded() {
       stores.attempts.listByProject('p'),
       stores.directory.assignmentsInProject('p'),
       stores.typedDependencies.listByProject('p'),
-      stores.journal.entriesFor('p', 'owner'),
+      stores.journal.entriesFor({ projectId: 'p', userId: 'owner', personId: null }),
       stores.planEvents.listFor('p', {}),
     ]);
   return { source, stores, broadcast, requirements, snapshot, counts: () => ({ stamps, ids }) };
@@ -192,7 +192,7 @@ it('reads the admitted sparse store and rolls a preceding patch back with its jo
   const snapshot = () =>
     Promise.all([
       source.stores.workItems.listByProject('p'),
-      source.stores.journal.entriesFor('p', 'owner'),
+      source.stores.journal.entriesFor({ projectId: 'p', userId: 'owner', personId: null }),
       source.stores.planEvents.listFor('p', {}),
       source.stores.stepParallels.listByProject('p'),
     ]);
