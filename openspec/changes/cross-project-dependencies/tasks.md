@@ -975,3 +975,10 @@ A1 emits private serialized bytes only. Actual producer joins, shared capture ac
 - [x] Correct independent FD6 before-close oracle and required lint findings; retain the original mixed fault result, six newly executed affected proofs and earlier failures. Obtain scoped independent source approval and pass explicit compiler inclusion, graph-backed lint, formatting and actual journal/archive integration.
 
 This is source evidence under synthetic trusted-bootstrap fixtures. The fixed framed component witness is not a provider reply, approval, readiness or measurement, and does not establish actual C/shared-budget integration. Actual independent controller approval, persistent registry custody, standard-age recipient/tool validation, artifact provenance, G1 fixture authority, full B/K/P/O/A2/R, cross-process cutoff translation, native measurement/cleanup and authenticated final archive remain required. Parent 10.2 and architectural main merge remain open.
+
+### Stage B artifact verification and staging source checkpoint
+
+- [x] Implement authenticated nine-artifact byte readers and original-token staging using independently acquired read-only references, fixed child allocation after durable journal dispatch, real existing decoders and exact member/readback joins. [Bounded source evidence](verify-source-stageb-builder.md).
+- [x] Correct independent leaf-settlement, journal-alias, pending-verification and published-removal findings, including post-chmod descriptor recycling; retain watched consumer faults and obtain focused independent source approval.
+
+This private B1 checkpoint does not complete B2 installation/provenance or the provider. Actual G1 custody and five destination/build-history claims, K/P/O, standard-tool preflight and final sealing, R integration, native measurement/cleanup and exact-SHA host gates remain required. Parent 10.2 and architectural main merge remain open.
