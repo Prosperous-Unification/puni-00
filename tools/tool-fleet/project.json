@@ -172,6 +172,13 @@
         "command": "bun tools/tool-fleet/src/observability-parity-cli.ts . \"$PUNI_PARITY_TOOLS\""
       },
       "cache": false
+    },
+    "observability-preflight": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-fleet/src/observability-preflight-cli.ts"
+      }
     }
   }
 }
