@@ -317,6 +317,15 @@ fault injected, then restored; the `Proof:` comment sits beside it.
 | 14 mcp-01 stubs                     | `organization-authority.test.ts` stubs and comment use `internal_unauthorized`                                                                                                                                      | —                                         | —                                                                                                                                                                                                                |
 | spec, design                        | spec requirement "A run shaped like a secret is refused"; M2 issuance codes; M3 HS256 and HMAC `kid`, 60 s skew, per-call `invalid_token`, the secret-expiry term, all three settings at activation; M14 the header | —                                         | `openspec validate wbs-mcp-agent-surface --strict` valid                                                                                                                                                         |
 
+Results after the review fixes, at 7cb671ad9, `env -u CLAUDECODE`, `--skip-nx-cache`:
+lint and typecheck for wbs-domain, core, store-sqlite, contracts, auth, be-01, mcp-01 and
+tool-remote-scripts exit 0; `wbs-be-01:test` 3749 pass, 0 fail (3752 tests, 256 files);
+`wbs-core` 1382 and `wbs-store-sqlite` 1999 pass, 0 fail; `wbs-domain`, `wbs-contracts`,
+`wbs-auth`, `wbs-mcp-01` and `tool-remote-scripts` all pass, 0 fail (exit 0); `tool-deploy`
+828 pass (the overlay changed); `openspec validate --all --json` exit 0; Burokrat
+`check-indexes` exit 0; Prettier clean. Not run: the h2puni gate, fe-01 and its e2e, gw-01,
+tool-devsync; nothing was done on the dev host.
+
 ## Failure-proof table
 
 Slice 1 rows. Each check was watched failing with the fault injected, then restored; the
