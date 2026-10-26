@@ -1,6 +1,6 @@
 # A space is a lens: membership is a pair with a position and owns nothing
 
-**Status:** superseded by [ADR 0061](0061-a-space-is-an-organizational-unit.md) on 2026-10-25; accepted 2026-09-29 (WBS 010.4.15). Change: `openspec/changes/add-spaces`.
+**Status:** superseded by [ADR 0062](0062-a-space-is-an-organizational-unit.md) on 2026-10-25; accepted 2026-09-29 (WBS 010.4.15). Change: `openspec/changes/add-spaces`.
 
 A **space** groups an organization's projects for reading together. We store it as a row owned
 by one organization, and its membership as `space_project(space_id, project_id,
