@@ -3,6 +3,7 @@ import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 
 import { BOOTED_ORIGIN, BootedBrowserProcess } from './booted-browser-process';
 import { FakeOidcProvider } from './fake-oidc-provider';
+import { TEST_MACHINE_GRANT_ENV } from './machine-grant-fixture';
 import { writeMcpStoreFixture } from './mcp-store-fixture';
 
 /**
@@ -88,7 +89,7 @@ const server = Bun.serve({
           '--apply',
         ],
         {
-          env: { ...process.env, DB_PATH: backend.databasePath() },
+          env: { ...process.env, ...TEST_MACHINE_GRANT_ENV, DB_PATH: backend.databasePath() },
           stdout: 'pipe',
           stderr: 'pipe',
         },

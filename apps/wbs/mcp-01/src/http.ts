@@ -2,6 +2,7 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { TokenVerifier } from '@wbs/auth';
+import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts';
 
 import { authenticateCaller } from './caller-auth';
 import type { McpConfig } from './config';
@@ -23,10 +24,9 @@ export function healthResponse(url: URL): Response | undefined {
  * served because MCP clients may begin with the origin or the `/mcp` resource.
  */
 export function oauthMetadataResponse(url: URL, config: McpConfig): Response | undefined {
-  const resource = new URL(config.MCP_PUBLIC_URL);
-  const resourcePath = resource.pathname.replace(/\/$/, '');
-  const resourceUrl = `${resource.origin}${resourcePath}`;
-  const issuer = `${resourceUrl}/oauth`;
+  const resourceUrl = canonicalMcpResourceOf(config.MCP_PUBLIC_URL);
+  const resourcePath = resourceUrl.slice(new URL(resourceUrl).origin.length);
+  const issuer = mcpAuthorizationServerOf(config.MCP_PUBLIC_URL);
   const protectedResourcePaths = new Set([
     '/.well-known/oauth-protected-resource',
     `/.well-known/oauth-protected-resource${resourcePath}`,

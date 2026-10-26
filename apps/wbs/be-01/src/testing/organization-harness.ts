@@ -47,6 +47,7 @@ import {
   JoinRequestRepository,
   MachineCredentialAdministrationRepository,
   MachineCredentialRepository,
+  MachineTokenAuditRepository,
   OnboardingRepository,
   openSqliteSource,
   OrganizationLimitGaugeRepository,
@@ -103,6 +104,8 @@ import { joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
 import { runDomainProofWorker } from '../runtime/domain-proof-worker';
+import { type MachineGrantKeys, machineGrantVerifier } from '../runtime/machine-grant';
+import { machineGrantAuthority } from '../runtime/machine-grant-authority';
 import { organizationCookieBinding } from '../runtime/organization-cookie';
 import { organizationCredentialEvidence } from '../runtime/organization-credential';
 import { organizationSelection } from '../runtime/organization-selection';
@@ -633,6 +636,8 @@ export class OrganizationHarness {
     upstreamCredential,
     now,
     trustedIssuers,
+    machineGrants,
+    delegationKey,
     migrate = (path) => {
       runMigrations(path, FOLDER);
     },
@@ -802,6 +807,50 @@ export class OrganizationHarness {
         committedFanout: services.committedFanout,
       },
       internalAuthSecret: 'x'.repeat(32),
+      ...(delegationKey === undefined
+        ? {}
+        : {
+            delegation: delegationVerifier(
+              delegationKey,
+              async (pair) => {
+                const userId = await new ExternalIdentityRepository(source.db, OPEN).findUserId(
+                  pair,
+                );
+                if (userId === null) return null;
+                return new UserRepository(source.db, OPEN).findById(userId);
+              },
+              (issuer, jti, expiresAt, at) =>
+                new SqliteDelegationUse(source.db, services.gate).consume(
+                  issuer,
+                  jti,
+                  expiresAt,
+                  at,
+                ),
+              () => services.clock.now(),
+              (userId) => new UserRepository(source.db, OPEN).findById(userId),
+            ),
+          }),
+      ...(machineGrants === undefined
+        ? {}
+        : {
+            mcpService: {
+              secret: machineGrants.secret,
+              verifyGrant:
+                machineGrants.keys === null
+                  ? null
+                  : machineGrantVerifier(machineGrants.keys, () => services.clock.now()),
+              grantKeySecrets: [],
+            },
+            machineGrants: machineGrantAuthority({
+              activationState: () => readOrganizationActivation(source.db),
+              keys: machineGrants.keys,
+              authorizationServer: machineGrants.authorizationServer,
+              admitProof: (presented) => services.auth.admitMachineProof(presented),
+              audit: new MachineTokenAuditRepository(source.db, services.gate),
+              now: () => services.clock.now(),
+              ...(machineGrants.newId === undefined ? {} : { newId: machineGrants.newId }),
+            }),
+          }),
     });
     const harness = new OrganizationHarness(
       dir,
@@ -1060,6 +1109,23 @@ export interface ComposedHarnessOptions {
    * local issuer). `configuredIssuer` is the sign-in issuer they refuse.
    */
   trustedIssuers?: HarnessTrustedIssuers;
+  /**
+   * Composes machine grants as `boot.ts` does (`wbs-mcp-agent-surface` M3):
+   * mcp-01's dedicated secret, the grant keys and the authorization server,
+   * each null to compose the deployment without it.
+   */
+  machineGrants?: HarnessMachineGrants;
+  /** Verifies delegations with this RSA public key, as `boot.ts` does with its configured pair. */
+  delegationKey?: CryptoKey;
+}
+
+/** What {@link ComposedHarnessOptions.machineGrants} wires. */
+export interface HarnessMachineGrants {
+  readonly secret: string | null;
+  readonly keys: MachineGrantKeys | null;
+  readonly authorizationServer: string | null;
+  /** The audit row ids; random UUIDs when absent. */
+  readonly newId?: () => string;
 }
 
 /** What {@link ComposedHarnessOptions.trustedIssuers} wires. */

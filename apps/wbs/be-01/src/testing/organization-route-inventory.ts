@@ -1,6 +1,30 @@
 /** Independently enumerated production surface; control routes retain their existing authority contracts. */
 export const ORGANIZATION_ROUTE_INVENTORY = [
   {
+    operationId: 'readRuntimeState',
+    method: 'GET',
+    path: '/api/projects/:id/runtime-state',
+    kind: 'read',
+  },
+  {
+    operationId: 'lookupRuntimeReceipt',
+    method: 'GET',
+    path: '/api/projects/:id/runtime-commands/:commandId',
+    kind: 'read',
+  },
+  {
+    operationId: 'acquireRuntimeAuthority',
+    method: 'POST',
+    path: '/api/projects/:id/runtime-authority',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'applyRuntimeCommands',
+    method: 'POST',
+    path: '/api/projects/:id/runtime-commands',
+    kind: 'mutation',
+  },
+  {
     operationId: 'putApiOrganizationResourceAuthoritiesByAuthorityId',
     method: 'PUT',
     path: '/api/organization/resource-authorities/:authorityId',
@@ -708,6 +732,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postInternalMcpDelegation',
     method: 'POST',
     path: '/internal/mcp/delegation',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpMachineGrants',
+    method: 'POST',
+    path: '/internal/mcp/machine-grants',
     kind: 'control',
   },
   {

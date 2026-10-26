@@ -397,10 +397,24 @@ retry.
 - **WHEN** the token endpoint answers `429` with `Retry-After: 30`, 2 s into the helper's run
 - **THEN** the helper waits 7 s, retries once, and exits non-zero if that is refused too
 
+### Requirement: A run shaped like a secret is refused
+
+be-01 SHALL refuse a `wbs_run` that looks like a secret (a `wbs_mk_` or `wbs_scim_` prefix,
+64 hexadecimal characters, or a `|`-separated pair) `400 invalid_body`, because the run is
+written to the issuance audit row, and mcp-01 SHALL answer that token request
+`400 invalid_request`.
+
+#### Scenario: A run shaped like a secret
+
+- **WHEN** a token request carries `wbs_run` equal to a `wbs_mk_` key or to 64 hexadecimal
+  characters
+- **THEN** be-01 answers `400 invalid_body`, mcp-01 answers `400 invalid_request`, and no audit
+  row is written
+
 ### Requirement: Run scoping is opt-in through wbs_run
 
-A token request MAY carry `wbs_run` (1 to 256 characters), which be-01 SHALL sign into the
-grant. Without it, a grant SHALL carry no run, and renewal and `runId` SHALL behave as for an
+A token request MAY carry `wbs_run` (1 to 256 characters, not shaped like a secret: see
+"A run shaped like a secret is refused"), which be-01 SHALL sign into the grant. Without it, a grant SHALL carry no run, and renewal and `runId` SHALL behave as for an
 API key today. A run SHALL never be defaulted from the token's `jti`.
 
 #### Scenario: Re-fetching without wbs_run orphans nothing

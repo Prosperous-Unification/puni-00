@@ -190,8 +190,192 @@ Recorded in the PR description with their output: `openspec validate wbs-mcp-age
 Prettier on the changed files. Not run: the h2puni gate and the full Nx suites. Nothing is
 implemented, and CI carries them.
 
+## Slice 1: the machine grant at be-01 (tasks 1.1 to 1.3)
+
+Built on branch `feat/wbs-mcp-machine-grant-1` (the plan branch with `origin/main` dacf0f10f
+merged in), 2026-10-26, on the assumed M1 to M16. Every test below ran under
+`env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+What landed:
+
+- **1.1** `admitMachineCredential` gains the `grant` proof (`@wbs/domain`
+  `machine-credential.ts`): an `api_key` or `oidc` credential, never `mcp_consent`, naming the
+  grant's person and organization, whose bound account is still a member there.
+  `MachineCredentialRecord` gains `boundAccountRole` (read with the credential) and `expiresAt`
+  (judged for every source). `machineGrantTermsOf` and `MOST_MACHINE_GRANT_SECONDS`
+  (`@wbs/core` `service/machine-grant.ts`) own `exp`, scopes and the run.
+- **1.2** Migration `20261026130000_widen_organization_audit_machine_tokens` with a guarded
+  `down.sql`; `MachineTokenAuditRepository` (`@wbs/store-sqlite`); the grant keys, signer and
+  verifier (`runtime/machine-grant.ts`); issuance (`runtime/machine-grant-authority.ts`) at
+  `POST /internal/mcp/machine-grants` (`issueMcpMachineGrant` in `@wbs/contracts`);
+  `MCP_BE_INTERNAL_SECRET`, `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT`/`_PREVIOUS` and
+  `WBS_MCP_AUTHORIZATION_SERVER` in `config.ts`; boot's refusal of an activated store without
+  them; the activation CLI's preflight (exit 8); `401 internal_unauthorized` on
+  `/internal/mcp/*`. The issuer canonicalisation moved to `@wbs/contracts`
+  (`mcp-authorization-server.ts`), and mcp-01's `oauth.ts` uses it.
+- **1.3** `identity.ts`: the `mcp-internal` and `mcp-dedicated` requirements, every secret
+  compared by `timingSafeEqual` over SHA-256 digests, the grant bearer branch (secret first,
+  grant keys alone, credential reread through `AuthService.admitMachineGrant`, nothing
+  consumed), and delegation dispatch by exact audience (`invalid_token` otherwise).
+
+### Slice 1 notes (assumptions taken, and gaps in the design)
+
+1. **The secret's header** was not named by the design. Slice 1 uses
+   `x-mcp-internal-auth` (`MCP_INTERNAL_SECRET_HEADER` in `@wbs/contracts`), now recorded in
+   M14.
+2. **The grant keys' form** was not specified; now recorded in M3. HS256 over a secret of at
+   least 32 characters holding at least 10 distinct ones (be-01 alone signs and verifies),
+   with the `kid` the first 16 base64url characters of HMAC-SHA256(key,
+   `wbs-machine-grant-kid`). Current and previous must differ, and config refuses any two
+   equal values among `INTERNAL_AUTH_SECRET`, `MCP_BE_INTERNAL_SECRET` and both keys.
+3. **Pool expiry** (M7) has no column before task 6.1. The record carries `expiresAt`, judged
+   for every source, and the SQLite read answers the constant `NO_CREDENTIAL_EXPIRY` (null)
+   until 6.1 adds the column.
+4. **Membership in one place**: the record gains `boundAccountRole`, and the `grant` variant
+   refuses a non-member `unknown_identity`; issuance refuses one the same way through
+   `machineGrantTermsOf`. An API key on `/api` (until M9) keeps today's
+   `403 not_a_member` from organization access, unchanged.
+5. **Runs that look like secrets**: M15 calls `wbs_run` opaque, 1 to 256 characters, but the
+   audit refuses a detail value shaped like a secret (`isSecretShaped`: a `wbs_mk_` or
+   `wbs_scim_` prefix, 64 hex characters, or a pipe-separated pair). The most restrictive
+   reading: the grant route answers such a run `400 invalid_body`, so a key never reaches an
+   audit row and issuance is never a 500 for it. The spec now states it (requirement "A run
+   shaped like a secret is refused", mcp-01 mapping it to `400 invalid_request`).
+6. **Boot and activation require all three settings**, not only the grant key the design
+   names: an activated store can serve no grant without the secret or the authorization
+   server either. **Every activated deployment, dev included, refuses to boot this be-01
+   until the three are seeded**; task 8.2's seeding must precede any deploy of this code (the
+   2026-10-22 rule: seed required keys on dev before merging).
+7. **The `typ` refusal at be-01** is `401 unsupported_assertion_type` naming the `typ`, and an
+   undecodable assertion is `401 invalid_token`; mcp-01 maps both to `400 invalid_grant`
+   (slice 2).
+8. **Delegations of an unknown audience** now answer `401 invalid_token` (before:
+   `unauthenticated`), as M3 says; array audiences too. The `gateway-delegation` route is
+   unchanged.
+9. **`/internal/mcp/*` refusals** of the secret moved from `401 unauthorized` to
+   `401 internal_unauthorized`. mcp-01 reads every 401 that is not a user's refusal as a
+   deployment fault already (`organization-authority.ts` `isUserRefusal`), so its behaviour is
+   unchanged; its stubs still answer `unauthorized`.
+10. **Not in slice 1**: the per-call grant principal carries no `runId` (task 1.4), and the
+    A25 audience rule (task 1.5) is not applied at issuance.
+11. **Constant-time compares have no behavioural negative**: timing is not observable in
+    these tests. The equality is covered by the missing, wrong and gateway-secret negatives.
+12. **The `unknown_grant_key` negative of 1.2** is observed at be-01 only (the test sees that
+    code instead of `internal_unauthorized`); mcp-01's fault test, which would see a re-fetch,
+    arrives with task 3.2.
+13. **Secrets in reports (open, task 2.3)**: a 500 on the grant route reports the error alone, never the body
+    (`createUnexpectedFailureReporter`), and no query binds the key or the assertion (read in
+    the code, not tested). The task 2.3 test (an injected throw during a Basic request) is not
+    written yet.
+
+### Commands and results
+
+All on 2026-10-26 at d0d21035d (the docs commit after it changes no code), with
+`env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                                                  | Result                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-domain wbs-core wbs-store-sqlite wbs-contracts wbs-auth wbs-be-01 wbs-mcp-01` | exit 0 at 94469226c; `wbs-be-01` typecheck and lint rerun at d0d21035d, exit 0                                                                                                                                                                                        |
+| `bunx nx run wbs-be-01:test`                                                                                             | 3740 pass, 0 fail, 3 skipped, 3743 tests in 255 files (1183.6 s), exit 0. The first run, at 94469226c, failed 2 (`capacity-fanout-process.db.test.ts` and `runtime-command.controller.db.test.ts` reboot an activated store without the settings); fixed in d0d21035d |
+| `bunx nx run-many -t test -p wbs-core wbs-store-sqlite --parallel=1`                                                     | 1381 pass, 0 fail; 1999 pass, 0 fail, 1 skipped; exit 0                                                                                                                                                                                                               |
+| `bunx nx run-many -t test -p wbs-domain wbs-contracts wbs-auth`                                                          | 125, 1341 (3 skipped) and 607 pass, 0 fail; exit 0                                                                                                                                                                                                                    |
+| `bunx nx run wbs-mcp-01:test`                                                                                            | 550 pass, 0 fail, exit 0 (at 52c6d866b, before two test-only commits)                                                                                                                                                                                                 |
+| `bun test tools/tool-remote-scripts/src/swap-maintenance.db.test.ts`                                                     | 2 pass, 0 fail                                                                                                                                                                                                                                                        |
+| the 50 files pinning the migration list or rollback order (store-sqlite and be-01)                                       | 829 pass, 4 fail on first run (three pins and the audit index baseline); fixed, the four files rerun 72 pass, 0 fail                                                                                                                                                  |
+| `bunx openspec validate --all --json`                                                                                    | exit 0; 297 items, 297 passed                                                                                                                                                                                                                                         |
+| Burokrat `check-indexes working . HEAD`                                                                                  | exit 0                                                                                                                                                                                                                                                                |
+| `bunx prettier --check` on every file this slice changed but the two SQL files (Prettier has no SQL parser)              | "All matched files use Prettier code style!", exit 0                                                                                                                                                                                                                  |
+
+Not run: the h2puni gate, fe-01 and its browser e2e (`organization-context.real.spec.ts`
+boots be-01 and activates afterwards, so the boot refusal does not reach it; not observed),
+gw-01's suite, and the tool-devsync workspace tests. CI carries them.
+
+### Review of PR #756 (Fable, high), how each item is addressed
+
+Fixed on the same branch, 2026-10-26. Each new or changed check was watched failing with the
+fault injected, then restored; the `Proof:` comment sits beside it.
+
+| Item                                | Fix                                                                                                                                                                                                                 | Fault injected                            | Test that failed                                                                                                                                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 equal secrets                     | `loadMcpServiceSettings` refuses any two equal among `INTERNAL_AUTH_SECRET`, `MCP_BE_INTERNAL_SECRET`, both grant keys                                                                                              | refusal disabled                          | `config.test.ts` `refuses any two equal secrets…` (did not throw)                                                                                                                                                |
+| 2 grant outlives the rotated secret | the matched secret's expiry (`proofExpiresAt`) is a fourth term of the `exp` min                                                                                                                                    | term dropped; domain expiry answered null | `never outlives the rotated secret that minted it` (exp 1793077607 > 1793035007); domain `answers the matched secret's expiry…`                                                                                  |
+| 3 `iat` in the future               | kept, now with 60 s tolerance                                                                                                                                                                                       | check removed                             | `machine-grant.test.ts` `refuses a grant issued more than 60 s in the future…` (verified)                                                                                                                        |
+| 3 scalar `aud`                      | kept                                                                                                                                                                                                                | check removed                             | `refuses a grant whose audience is an array…` (verified)                                                                                                                                                         |
+| 3 previous ≠ current                | kept                                                                                                                                                                                                                | guard disabled                            | `refuses a previous key equal to the current one` (imported)                                                                                                                                                     |
+| 3 Proofs added                      | `typ` refusal, issuer mismatch, secret-shaped run, grant beside a cookie, `mcp-dedicated` excluding `x-internal-auth`, the `mcp-*` admission                                                                        | each check removed                        | `refuses an ID-JAG…` (200); `reports a different authorization server…` (200); `refuses a run…` (no 400); `refuses a grant beside a session cookie` (200); `answers a missing, wrong or gateway secret…` (twice) |
+| 4 replica skew                      | `clockTolerance: 60`, `iat * 1000 > now + 60 000`; M3 gains the per-call `invalid_token`                                                                                                                            | as item 3                                 | `…admits one 30 s ahead`                                                                                                                                                                                         |
+| 5 docs and plumbing                 | be-01 and mcp-01 `.env.example`; `deploy/k8s/wbs/overlays/local/kustomization.yaml` (lab-only placeholders); `tools/tool-remote-scripts/src/lib/docker.ts` be secrets and value rules; runbook step 2c and exit 8   | —                                         | `docker.test.ts` 128 pass                                                                                                                                                                                        |
+| 6 `typ`                             | case-insensitive; echo capped at 64 printable characters                                                                                                                                                            | exact compare; no cap                     | `admits a lowercase jwt typ…` (401; full 102-character echo)                                                                                                                                                     |
+| 6b key entropy                      | at least 10 distinct characters                                                                                                                                                                                     | check removed                             | `refuses a secret of too few distinct characters` (imported)                                                                                                                                                     |
+| 7 fractional `exp`                  | floored                                                                                                                                                                                                             | floor removed                             | core `floors a fractional request…` (1793005800.7)                                                                                                                                                               |
+| 8 touch on refusal                  | a grant request refuses a non-member before recording the use                                                                                                                                                       | refusal removed                           | `refuses an unknown, revoked, wrong or non-member key alike, recording no use` (last use recorded)                                                                                                               |
+| 9 mcp-01 canonicalisation           | `http.ts` uses the contracts functions; `loadConfig` refuses an `MCP_PUBLIC_URL` whose derived issuer is not canonical                                                                                              | check removed                             | mcp-01 `config.test.ts` `refuses a public URL whose derived issuer is not canonical` (`…/mcp//` loaded)                                                                                                          |
+| 10 JSDoc                            | `checkedRole` and `checkedTime` each under their own                                                                                                                                                                | —                                         | —                                                                                                                                                                                                                |
+| 11 names                            | core `MachineGrantBounds`, be-01 `MachineGrantIssueRequest`; `GrantableMachineSource` in `@wbs/domain` reused                                                                                                       | —                                         | —                                                                                                                                                                                                                |
+| 12 redaction                        | the grant keys join the logger's secrets; `NO_MACHINE_GRANTS` JSDoc corrected                                                                                                                                       | keys left out                             | `app.test.ts` `redacts the mcp-01 secret and the grant keys`                                                                                                                                                     |
+| 13 forgery                          | the composed harness now verifies delegations with a real pair (a direct context it signs is admitted, 200); the forgery is signed with that pair's private key                                                     | — (the prior RS256-retry negative stands) | `refuses a grant signed with the delegation key…`                                                                                                                                                                |
+| 14 mcp-01 stubs                     | `organization-authority.test.ts` stubs and comment use `internal_unauthorized`                                                                                                                                      | —                                         | —                                                                                                                                                                                                                |
+| spec, design                        | spec requirement "A run shaped like a secret is refused"; M2 issuance codes; M3 HS256 and HMAC `kid`, 60 s skew, per-call `invalid_token`, the secret-expiry term, all three settings at activation; M14 the header | —                                         | `openspec validate wbs-mcp-agent-surface --strict` valid                                                                                                                                                         |
+
+Results after the review fixes, at 7cb671ad9, `env -u CLAUDECODE`, `--skip-nx-cache`:
+lint and typecheck for wbs-domain, core, store-sqlite, contracts, auth, be-01, mcp-01 and
+tool-remote-scripts exit 0; `wbs-be-01:test` 3749 pass, 0 fail (3752 tests, 256 files);
+`wbs-core` 1382 and `wbs-store-sqlite` 1999 pass, 0 fail; `wbs-domain`, `wbs-contracts`,
+`wbs-auth`, `wbs-mcp-01` and `tool-remote-scripts` all pass, 0 fail (exit 0); `tool-deploy`
+828 pass (the overlay changed); `openspec validate --all --json` exit 0; Burokrat
+`check-indexes` exit 0; Prettier clean. Not run: the h2puni gate, fe-01 and its e2e, gw-01,
+tool-devsync; nothing was done on the dev host.
+
+### Re-review leftovers (2026-10-26)
+
+| Item | Fix                                                                                                                                                                                                                                                        | Fault injected                                                | Test that failed                                                                                                                                  |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1   | workload-assertion variant of the non-member test                                                                                                                                                                                                          | `members_only` refusal removed from `admitTrustedIssuerToken` | `refuses a non-member's assertion unknown_identity, recording no use` (last use recorded)                                                         |
+| R2   | `WBS_MCP_AUTHORIZATION_SERVER` in be's `APP_ENV_ALLOWED_KEYS`; runbook's prod sentence corrected (secrets via `/srv/wbs/.env` and `SECRET_KEYS`, the server via `/srv/wbs/be-01.env`)                                                                      | entry deleted                                                 | `docker.test.ts` `passes be-01.env carrying the machine grant authorization server` (threw)                                                       |
+| N1   | control character inside the first 64                                                                                                                                                                                                                      | replacement removed                                           | `admits a lowercase jwt typ, and echoes…` (raw BEL echoed)                                                                                        |
+| N2   | the "Run scoping" requirement names the secret-shaped refusal                                                                                                                                                                                              | —                                                             | `openspec validate --strict`                                                                                                                      |
+| N3   | `assertServiceSecretStrength` applies the floor to `MCP_BE_INTERNAL_SECRET` at boot; the activation CLI runs boot's checks (`machineGrantSettingsFaultsOf`: the secret's strength, the keys' import) and refuses `machine_grant_settings_invalid` (exit 8) | boot check removed; faults left out of `unready`              | `refuses a weak MCP_BE_INTERNAL_SECRET before opening storage` (booted); `refuses activation with a weak grant key or secret, naming it` (exit 0) |
+
+Results at 4bf2f39b7: `wbs-be-01:test` 3752 pass, 0 fail (3755 tests); `wbs-core:test`
+1382 pass, 0 fail; lint and typecheck for wbs-core, wbs-be-01 and tool-remote-scripts exit 0;
+wbs-contracts, wbs-mcp-01 and tool-remote-scripts tests 0 fail; `openspec validate --all
+--json` and Burokrat `check-indexes` exit 0.
+
+**Open, pre-existing, not fixed here:** `WBS_DELEGATION_SIGNING_KEY` and
+`WBS_DELEGATION_VERIFY_KEY` have the same gap in `tools/tool-remote-scripts/src/lib/docker.ts`:
+neither is in be's `SECRET_KEYS` nor `APP_ENV_ALLOWED_KEYS`, so the prod swap cannot pass
+them to be-01.
+
 ## Failure-proof table
 
-| Check                                                                           | Fault injected | Test that observed it failing | Result |
-| ------------------------------------------------------------------------------- | -------------- | ----------------------------- | ------ |
-| (none yet: every row is added by the slice that builds the check, per tasks.md) |                |                               |        |
+Slice 1 rows. Each check was watched failing with the fault injected, then restored; the
+`Proof:` comment sits beside the check.
+
+| Check                                           | Fault injected                                                 | Test that observed it failing                                                                                                                               | Result                                 |
+| ----------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| grant variant: pool expiry                      | expiry check removed (`admitMachineCredential`)                | core `machine-grant.test.ts`: `refuses a pool credential at and after its expiry`, the never-admits property                                                | 2 fail                                 |
+| grant variant: no consent credential            | consent half answering false                                   | `never admits a consent credential, whose sessions take delegations instead`                                                                                | 1 fail                                 |
+| grant variant: person, organization, credential | each comparison removed in turn                                | `refuses a grant naming another person, organization or credential`                                                                                         | 1 fail each                            |
+| grant variant: membership                       | role predicate removed                                         | `refuses a credential whose account is no longer a member…`, the property (after its generators were weighted; it first passed, caught by the example only) | 2 fail, three runs                     |
+| down.sql guard                                  | filter replaced by `WHERE 0`                                   | `machine-token-audit-migration.db.test.ts`: `refuses rollback over one machine-token audit row…`                                                            | named refusal absent                   |
+| run key coalesce                                | dropped from the index and `RUN_KEY` together                  | `machine-token-audit.db.test.ts`: `writes one row per run and UTC day…`                                                                                     | 2nd and 3rd no-run answered `recorded` |
+| UTC day                                         | `date(created_at)` in the index and `RUN_DAY_KEY`              | same test, plus the 150-run test (150 rows)                                                                                                                 | all six `recorded`                     |
+| overflow stop                                   | stop disabled                                                  | `writes 100 run rows and one overflow row for 150 runs…`; the model property                                                                                | 150 run rows                           |
+| overflow key                                    | `(credential, created_at)` in the index and `OVERFLOW_DAY_KEY` | same; the model property                                                                                                                                    | 50 overflow rows                       |
+| targeted insert vs `INSERT OR IGNORE`           | run insert as `INSERT OR IGNORE`                               | `throws on a CHECK violation…`, `throws on a row-id collision…`                                                                                             | both resolved                          |
+| targeted vs untargeted conflict                 | `ON CONFLICT DO NOTHING`                                       | `throws on a row-id collision under a different key`                                                                                                        | resolved                               |
+| recount inside the turn                         | count read outside and reused                                  | model property (`fc.asyncModelRun`, seed 20261026): `[IssueOne(r4), IssueRacing(r0, r1)]`                                                                   | 101st run row                          |
+| read first                                      | early return removed                                           | `answers a seen run without taking the write turn`; mounted `answers a token request while a batch holds the write turn…`                                   | `pending`                              |
+| activation                                      | check removed (`machineGrantAuthority`)                        | `machine-grant.controller.db.test.ts`: `issues nothing before activation`                                                                                   | 200 with a grant                       |
+| secret code on `/internal/mcp/*`                | `internal_unauthorized` → `unknown_grant_key`                  | `answers a missing, wrong or gateway secret internal_unauthorized`                                                                                          | wrong code (be-01 half)                |
+| grant needs the secret                          | check removed (`delegatedOrSession`)                           | `refuses a grant without the secret, or with a wrong one…`                                                                                                  | 200                                    |
+| reread at every call                            | per-credential cache filled at first use                       | `is refused unknown_identity at the next call after its credential is revoked`                                                                              | 200 after revoke                       |
+| nothing consumed per call                       | `jti` consume around the grant verifier                        | `writes nothing per call: 100 reads…`                                                                                                                       | 401 on a later read                    |
+| exact audience dispatch                         | former dispatch (all but direct to via-mcp-01)                 | `delegation.controller.db.test.ts`: `refuses a gateway, grant or unknown audience invalid_token`                                                            | `unauthenticated`                      |
+| grant keys alone                                | RS256 retry against a delegation key                           | `refuses a grant signed with the delegation key under the current grant kid`                                                                                | 200 for the forgery                    |
+| no assertion `jti` consume                      | `(iss, jti)` consume before admission                          | `admits one Kubernetes token, one jti, from three processes`                                                                                                | 200, 401, 401                          |
+| boot refusal                                    | refusal disabled                                               | `machine-grant.boot.db.test.ts`: `refuses an activated store without the machine grant settings…`                                                           | boot resolved                          |
+| boot composition                                | `machineGrantComposition` omitted                              | `issues a grant once activated and admits it on the next call`                                                                                              | 401                                    |
+| activation preflight                            | grant settings left out of `unready`                           | `organization-activation-cli.db.test.ts`: both machine-grant-settings cases                                                                                 | exit 0, not 8                          |
+| previous key needs current                      | guard disabled                                                 | `config.test.ts`: `refuses a previous grant key without a current one`                                                                                      | loaded                                 |
+| canonical authorization server                  | reproduction check dropped                                     | `mcp-authorization-server.test.ts`, `config.test.ts`                                                                                                        | uppercase host admitted                |

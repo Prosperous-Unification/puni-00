@@ -132,7 +132,7 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
       ),
   });
   const run = (userId: string, commands: PlanCommand[]) =>
-    runner.runWithin(projectId, userId, commands, accessOf(userId), null);
+    runner.runWithin(projectId, userId, commands, accessOf(userId), null, null);
   const leaves = await run(
     'dany',
     Array.from({ length: leafCount }, (_, n): PlanCommand => ({

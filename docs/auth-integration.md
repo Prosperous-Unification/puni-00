@@ -243,15 +243,34 @@ expire after 10 minutes of DCR inactivity. Starting authorization can extend an
 unproven client only to an absolute 20-minute lifetime, and a new flow is
 refused with 429 when that ceiling cannot cover the browser and code-exchange
 window. A successful code exchange promotes the client to proven, and each
-code exchange or successful refresh renews it to 30 days after that use
-(`PROVEN_CLIENT_TTL_MS`), so it outlives its refresh families (14-day idle,
-30-day absolute) and a connector that caches its `client_id`, such as Claude
-Code, can still start a fresh authorization after a family lapses. Registered
+code exchange or successful refresh renews a proven client to 30 days after
+that use (`PROVEN_CLIENT_TTL_MS`; a refresh never renews or proves an unproven
+one), so it outlives its refresh families (14-day idle, 30-day absolute) and a
+connector that caches its `client_id`, such as Claude Code, can still start a
+fresh authorization after a family lapses. Registered
 clients live in the MCP store (`MCP_STORE_PATH`), so restarts and deploys keep
-them and their lifetimes; authorization with an unknown or expired `client_id`
-answers `400 invalid_client` to the browser with an `error_description` asking
-for a new registration (automatic re-registration by clients is unobserved),
-while other malformed authorization requests stay `invalid_request`. A stored
+them and their lifetimes. Claude Code caches its `client_id` indefinitely and
+does not re-register when the browser shows `invalid_client`, so a well-formed
+authorization whose `client_id` has no live row is re-admitted as a fresh
+unproven client when the id has the exact shape mcp-01 issues (canonical
+base64url of 32 bytes) and the `redirect_uri` passes the `/register` callback
+checks; it goes through the same caps, keyed by the request's source, with that
+`redirect_uri` as its only callback, and a cap refusal answers 429 as `/register`
+does (`McpOAuthServer.readmitClient`, whose JSDoc explains why this is no weaker
+than open registration). A live client is never re-admitted or altered, and a
+second colour that re-admits the same id concurrently continues with the first
+one's row. A `client_id` therefore no longer names one registration; be-01 sees it only
+as the delegation's `client` label. Someone who learns another connector's swept
+id can re-admit it first with another listed callback, and an insider with
+`wbs:read` can complete a sign-in on it and keep it proven for 30 days, renewed also by
+the victim's own older family, so up to that family's absolute expiry plus 30
+days; that connector then gets `invalid_request` without a re-register hint while the
+other client lives, no worse than the permanent `invalid_client` it got before.
+A re-admitted claude.ai client is keyed by the user's browser address, not
+Anthropic's egress, so it leaves the shared proven budget of that egress.
+Any other unknown or expired `client_id` answers `400 invalid_client`
+to the browser with an `error_description` asking for a new registration, while
+other malformed authorization requests stay `invalid_request`. A stored
 client's redirect is re-checked against `HOSTED_REDIRECTS` and the loopback
 rule at every authorization, so removing a callback takes effect at deploy. Registration is
 capped at 20 unproven and 100 proven clients per forwarding source plus 1,000
@@ -264,16 +283,19 @@ above the per-source limits can return 429 until the oldest state expires;
 a proven client holds its per-source slot for 30 days after its last use.
 Revoking a family does not free its client's slot, and the 100-client proven
 per-source cap is shared by every claude.ai user behind one Anthropic egress
-address. A client unused for 30 days answers `invalid_client`, as do clients
-swept before the 30-day lifetime shipped once their families lapse; the remedy
-is to remove and re-add the connector, which registers a new client.
+address. A client unused for 30 days, or swept before the 30-day lifetime
+shipped, is re-admitted at its next authorization as above; a source at its cap
+gets 429 until a slot frees. Re-adding Claude Code hits the same cap (it
+registers from the same address); re-adding a claude.ai connector registers from
+Anthropic's egress, a different cap. Only a connector whose cached id or callback does not qualify still needs
+removing and re-adding.
 
 Before prod or outside users, choose how the proven cap scales: a per-subject
 cap, evicting proven clients with no live family least recently used first,
 releasing a client when its last family is revoked, or not counting proven
-clients in the per-source check. Tombstones that keep an expired client's id,
-source and redirect URIs, so authorization can re-admit it through the caps,
-would make that step unnecessary (follow-up).
+clients in the per-source check. Re-admitting swept clients at authorization
+already lets an evicted connector return through the caps, so eviction no longer
+strands it.
 
 Before cutover, the absent `/home/puni1/wbs-dev/state/mcp-exposure` marker makes
 the MCP public probe skip. Cutover atomically writes `enabled` to that mode-600

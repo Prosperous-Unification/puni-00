@@ -165,6 +165,10 @@ speaks it).
     saying ID-JAG is not supported. `at+jwt` (an RFC 9068 access token) is refused the same way,
     and so is every other `typ`. The audience preflight cannot know which `typ` an issuer will
     mint, so it does not list such issuers; the refusal names the `typ` at first use.
+    `typ` is compared case-insensitively. At be-01's grant route an unsupported `typ` is
+    `401 unsupported_assertion_type` naming it (at most 64 printable characters), and an
+    assertion that does not decode, or of no trusted issuer, is `401 invalid_token`; mcp-01
+    maps both, like `unknown_identity`, to `400 invalid_grant` (slice 1).
   - _Undefined cases defined._ Before activation the JWT-bearer grant answers `invalid_grant`.
     `client_credentials` carrying only a `client_assertion`, with no secret, is
     `invalid_client`, because WBS supports no assertion-based client authentication.
@@ -273,13 +277,20 @@ assertion minted for WBS could also be valid elsewhere).
   presented key or assertion. The grant is a JWT:
   - `typ wbs-machine-grant+jwt`, `aud wbs-be-01/machine-grant`;
   - `kid` from **`WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT`/`_PREVIOUS`**, never the delegation
-    key;
+    key. The grant is HS256 (be-01 alone signs and verifies it). Each key is a secret of at
+    least 32 characters holding at least 10 distinct ones, and its `kid` is the first 16
+    base64url characters of HMAC-SHA256(key, `wbs-machine-grant-kid`), so a configured `kid`
+    cannot disagree with its key and a published one reveals nothing of it (slice 1);
   - `sub` the credential, plus person, organization and source.
 - _One owner of the lifetime._ be-01 caps `exp` at
-  `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion.exp)`, with a 24 h + 60 s cap.
+  `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion.exp, secret expiry)`, floored to
+  a whole second, with a 24 h + 60 s cap. The secret expiry is the matched API-key secret's
+  end of rotation window, so no grant outlives the secret that minted it.
   mcp-01 sets its own token `exp` 60 s before the grant's, which absorbs clock skew.
-- _Verifier._ A dedicated verifier admits only that `typ`, that `aud` and those keys.
-  `directAudienceOf` dispatches on exact audiences, and any other audience is `invalid_token`.
+- _Verifier._ A dedicated verifier admits only that `typ`, that scalar `aud` and those keys.
+  It allows 60 s of clock skew between replicas (`iat` up to 60 s ahead, and jose's
+  `clockTolerance`). `directAudienceOf` dispatches on exact audiences, and any other audience
+  is `invalid_token`.
   A 3,600 s `via-mcp-01` delegation is still refused.
 - _Admission._ It needs M14's secret. It rereads the credential through a new
   `PresentedMachineProof` variant inside `admitMachineCredential`, so revocation, binding,
@@ -307,6 +318,9 @@ assertion minted for WBS could also be valid elsewhere).
     - `401 internal_unauthorized`: the service secret is missing or wrong. This is a reported
       server fault (HTTP 502 to the client) and never enters the refused set;
     - `401 unknown_grant_key`: the grant's `kid` is unknown;
+    - `401 invalid_token`: the grant does not verify (signature, claims, an `iat` more than
+      60 s ahead). mcp-01 maps it to HTTP `401 invalid_token`, so the client re-fetches, and
+      keeps it out of the refused set (slice 1);
   - be-01's `unknown_grant_key` (after a key rotation) is mapped to HTTP
     `401 invalid_token`, so a `headersHelper` re-runs and fetches a token under the new
     key. `WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS` is kept for at least
@@ -367,11 +381,14 @@ action = 'machine_token_issued' DO NOTHING`. The `WHERE` must repeat the partial
 
     Issuance is never refused for audit reasons, so audit volume is at most 101 rows per
     credential per day.
-- _Keys absent at activation._ be-01 boot requires `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` once
-  the activation marker is set. The activation runbook's preflight lists the missing key and
-  refuses to activate. A process that is already running when activation happens without the
-  key answers the grant route with a reported server fault (`500`), never a default, and the
-  next boot refuses.
+- _Settings absent at activation._ be-01 boot requires all three of `MCP_BE_INTERNAL_SECRET`,
+  `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` and `WBS_MCP_AUTHORIZATION_SERVER` once the
+  activation marker is set, naming each one missing: an activated store serves no grant
+  without any of them (slice 1). The activation CLI's preflight lists the missing ones and
+  refuses to activate (exit 8). A process that is already running when activation happens
+  without the key or the authorization server answers the grant route with a reported server
+  fault (`500`), never a default, and the next boot refuses. No two of these secrets and
+  `INTERNAL_AUTH_SECRET` may be equal: config refuses it.
 
 _Alternatives:_ a single-use delegation per call (one write per call); the delegation key with
 a new audience (rejected: no `kid` and no rotation, and the 300 s cap would be bent); naming
@@ -549,7 +566,8 @@ _Alternative:_ keep the fallback (today's passthrough; non-conformant).
 **M14. A dedicated mcp-01↔be-01 secret, a constant-time compare, and safe paths.**
 
 - _The secret._ `MCP_BE_INTERNAL_SECRET` is used only for `/internal/mcp/*` and for grant
-  admission. It is compared by `timingSafeEqual` over SHA-256 digests. `x-internal-auth`
+  admission, carried in the `x-mcp-internal-auth` header (slice 1). It is compared by
+  `timingSafeEqual` over SHA-256 digests. `x-internal-auth`
   stays for gw-01 and the tools, and gets the same constant-time compare.
 - _Cutover across colours._
   - Release N's be-01 accepts either secret on `/internal/mcp/*`. Swap be-01 first, then

@@ -205,10 +205,10 @@ export function organizationAuthority(
       if (response.status === 200)
         return { kind: 'issued', token: parsed(DELEGATION, text, 'delegation').token };
       const error = errorOf(text);
-      // Only be-01's own verdicts on the user's token. `unauthorized` (mcp-01's
-      // service secret) and a proxy or Basic-gate 401 are deployment defects:
+      // Only be-01's own verdicts on the user's token. `internal_unauthorized`
+      // (mcp-01's service secret) and a proxy or Basic-gate 401 are deployment defects:
       // reading them as the user's token would end every session.
-      // Proof: admitting any non-`unauthorized` 401 made `reads each modeled
+      // Proof: admitting any 401 but the secret's made `reads each modeled
       // delegation refusal and throws on the rest` in
       // `organization-authority.test.ts` read a Basic-gate challenge as
       // upstream_rejected; watched 2026-10-21.

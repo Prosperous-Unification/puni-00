@@ -78,18 +78,10 @@ test('hard deadline kills a real TERM-ignoring process and its descendant', asyn
   const receipt = await invocation;
   expect(receipt.timedOut).toBe(true);
   expect(receipt.exitCode).not.toBe(0);
-  expect(Date.now() - started).toBeLessThan(1800);
   expect(await readFile(join(path, 'ready'), 'utf8')).toBe('yes');
   const pid = Number(await readFile(join(path, 'child-pid'), 'utf8'));
-  let running: boolean;
-  try {
-    const status = await readFile(`/proc/${String(pid)}/stat`, 'utf8');
-    running = !/\) [ZX] /.test(status);
-  } catch (failure) {
-    if (failure instanceof Error && 'code' in failure && failure.code === 'ENOENT') running = false;
-    else throw failure;
-  }
-  expect(running).toBe(false);
+  await expectStopped(pid);
+  expect(Date.now() - started).toBeLessThan(1800);
 }, 3000);
 
 async function fixture() {
@@ -313,6 +305,14 @@ async function isStopped(readStatus: () => Promise<string>): Promise<boolean> {
   }
 }
 
+async function expectStopped(pid: number): Promise<void> {
+  const stopped = () => isStopped(() => readFile(`/proc/${String(pid)}/stat`, 'utf8'));
+  const deadline = Date.now() + 300;
+  while (!(await stopped()) && Date.now() < deadline) await Bun.sleep(5);
+  // Proof: direct-child-only SIGKILL leaves the descendant running and fails this bounded assertion.
+  expect(await stopped()).toBe(true);
+}
+
 for (const code of ['ENOENT', 'ESRCH']) {
   test(`stopped descendant oracle accepts process disappearance ${code}`, async () => {
     expect(await isStopped(() => Promise.reject(Object.assign(new Error(code), { code })))).toBe(
@@ -351,10 +351,7 @@ test('terminates local descendants when a command exits before its deadline', as
   expect(receipt.exitCode).toBe(0);
   expect(receipt.timedOut).toBe(false);
   const pid = Number(await readFile(join(path, 'child-pid'), 'utf8'));
-  const stopped = () => isStopped(() => readFile(`/proc/${String(pid)}/stat`, 'utf8'));
-  const deadline = Date.now() + 300;
-  while (!(await stopped()) && Date.now() < deadline) await Bun.sleep(5);
-  expect(await stopped()).toBe(true);
+  await expectStopped(pid);
 });
 
 for (const timeoutMs of [0, -1, Infinity, NaN]) {

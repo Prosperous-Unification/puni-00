@@ -1,5 +1,6 @@
 import { authModeOf } from '@wbs/auth';
 import { defineConfig } from '@wbs/config';
+import { canonicalMcpAuthorizationServer } from '@wbs/contracts';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
@@ -35,6 +36,84 @@ export function loadOrganizationDefaultLimits(
     maxConcurrentClaims: config.ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS,
     maxCapacityUnitsPerResource: config.ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE,
   };
+}
+
+/**
+ * mcp-01's service settings at be-01 (`wbs-mcp-agent-surface` M2, M3, M14):
+ * its dedicated secret, the machine grant signing keys and mcp-01's
+ * authorization server. Each is null when unset; an activated store refuses
+ * to boot while any is ({@link missingMcpServiceSettings}).
+ */
+export interface McpServiceSettings {
+  readonly internalSecret: string | null;
+  readonly grantSigningKeys: { readonly current: string; readonly previous: string | null } | null;
+  readonly authorizationServer: string | null;
+}
+
+const McpServiceConfig = type({
+  'MCP_BE_INTERNAL_SECRET?': 'string>=32',
+  'WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT?': 'string>=32',
+  'WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS?': 'string>=32',
+  'WBS_MCP_AUTHORIZATION_SERVER?': 'string',
+});
+
+/**
+ * {@link McpServiceSettings} from the environment, for be-01 and for the
+ * activation preflight run beside it.
+ *
+ * @throws naming the variable when one is shorter than 32 characters, when a
+ * previous grant key is set without a current one, when the authorization
+ * server is not the canonical `<MCP_PUBLIC_URL>/oauth`, and when any two of
+ * `INTERNAL_AUTH_SECRET` (when set), `MCP_BE_INTERNAL_SECRET` and the two grant
+ * keys are equal: mcp-01's secret equal to a grant key would let it forge
+ * grants, and equal to gw-01's would let gw-01 pass `mcp-dedicated`.
+ */
+export function loadMcpServiceSettings(
+  envSource: Record<string, string | undefined> = process.env,
+): McpServiceSettings {
+  const config = defineConfig(McpServiceConfig, envSource);
+  const current = config.WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT ?? null;
+  const previous = config.WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS ?? null;
+  // Proof: with this guard disabled, `refuses a previous grant key without a
+  // current one` (config.test.ts) loaded the settings; watched 2026-10-26.
+  if (current === null && previous !== null)
+    throw new Error(
+      'WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS needs WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT',
+    );
+  const server = config.WBS_MCP_AUTHORIZATION_SERVER ?? null;
+  const distinct: [string, string | null][] = [
+    ['INTERNAL_AUTH_SECRET', envSource['INTERNAL_AUTH_SECRET'] ?? null],
+    ['MCP_BE_INTERNAL_SECRET', config.MCP_BE_INTERNAL_SECRET ?? null],
+    ['WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT', current],
+    ['WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS', previous],
+  ];
+  // Proof: with this refusal removed, `refuses any two equal secrets among
+  // the internal secrets and grant keys` (config.test.ts) loaded each equal
+  // pair; watched 2026-10-26.
+  for (const [at, [name, value]] of distinct.entries())
+    for (const [otherName, other] of distinct.slice(at + 1))
+      if (value !== null && value === other)
+        throw new Error(`${name} and ${otherName} must differ`);
+  return {
+    internalSecret: config.MCP_BE_INTERNAL_SECRET ?? null,
+    grantSigningKeys: current === null ? null : { current, previous },
+    authorizationServer:
+      server === null
+        ? null
+        : canonicalMcpAuthorizationServer(server, 'WBS_MCP_AUTHORIZATION_SERVER'),
+  };
+}
+
+/**
+ * The variables an activated store needs and `settings` lacks, by name: what
+ * boot refuses on and what the activation preflight lists.
+ */
+export function missingMcpServiceSettings(settings: McpServiceSettings): string[] {
+  return [
+    ...(settings.internalSecret === null ? ['MCP_BE_INTERNAL_SECRET'] : []),
+    ...(settings.grantSigningKeys === null ? ['WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT'] : []),
+    ...(settings.authorizationServer === null ? ['WBS_MCP_AUTHORIZATION_SERVER'] : []),
+  ];
 }
 
 export const BeConfig = type({
@@ -94,6 +173,7 @@ export const loadConfig = (
   organizationDnsResolvers?: readonly string[];
   emailDelivery: EmailDeliveryConfig;
   organizationDefaultLimits: OrganizationLimitValues;
+  mcpService: McpServiceSettings;
 } => {
   const mode = authModeOf(envSource);
   const config = defineConfig(BeConfig, envSource);
@@ -130,6 +210,7 @@ export const loadConfig = (
     // Proof: removing this binding failed the production config disabled-mode assertion.
     emailDelivery: readEmailDelivery(envSource),
     organizationDefaultLimits: loadOrganizationDefaultLimits(envSource),
+    mcpService: loadMcpServiceSettings(envSource),
     SOLVER_BUDGET_MS: solverBudgetMs,
     SOLVER_SEARCH_WORKERS: solverSearchWorkers,
     SOLVER_MEMORY_LIMIT_MB: solverMemoryLimitMb,
