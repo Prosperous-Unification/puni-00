@@ -174,7 +174,7 @@ An explicitly exploratory scenario SHALL accept a committed structured ending wi
 
 ### Requirement: The catalogue owns selected-question wording
 
-The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. This prompt revision SHALL be recorded as `puni-scoping-v4`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
+The structured prompt SHALL instruct selected-question messages to be contextual declarative acknowledgements, without repeating or paraphrasing the catalogue question, listing its choices or adding a prose question. This prompt revision SHALL be recorded as `puni-scoping-v5`; protocol version1, historical prompt records and saved replay SHALL remain compatible. Legacy `puni-sales-v3` SHALL remain unchanged.
 
 #### Scenario: Evaluation catches the observed paraphrased question
 
@@ -183,8 +183,8 @@ The structured prompt SHALL instruct selected-question messages to be contextual
 
 #### Scenario: Historical structured output is replayed
 
-- **WHEN** an existing `puni-scoping-v1`, `puni-scoping-v2` or `puni-scoping-v3` operation is replayed under the new runtime
-- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v4`
+- **WHEN** an existing `puni-scoping-v1`, `puni-scoping-v2`, `puni-scoping-v3` or `puni-scoping-v4` operation is replayed under the new runtime
+- **THEN** its saved reply and recorded identity remain unchanged without another provider call, while new operations record `puni-scoping-v5`
 
 ### Requirement: Grounded judgment advances the conversation
 

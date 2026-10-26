@@ -3380,8 +3380,13 @@ test('cache-aware unsafe reservation refuses before paid transport', async () =>
   api.close();
 });
 
-for (const historicalVersion of ['puni-scoping-v1', 'puni-scoping-v2', 'puni-scoping-v3'])
-  test(`new scoping operations record v4 while historical ${historicalVersion} replies replay without a paid call`, async () => {
+for (const historicalVersion of [
+  'puni-scoping-v1',
+  'puni-scoping-v2',
+  'puni-scoping-v3',
+  'puni-scoping-v4',
+])
+  test(`new scoping operations record v5 while historical ${historicalVersion} replies replay without a paid call`, async () => {
     const fake = fakeOpenRouter(() =>
       structuredReply('A saved acknowledgement.', 'improve-blocker'),
     );
@@ -3390,7 +3395,7 @@ for (const historicalVersion of ['puni-scoping-v1', 'puni-scoping-v2', 'puni-sco
     try {
       const visitor = await beginScopingVisitor(api);
       await (await sendInitial(api, visitor)).text();
-      expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v4');
+      expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v5');
       const database = new Database(config.databasePath);
       database.query('UPDATE conversation_operation SET prompt_version = ?').run(historicalVersion);
       database.close();
@@ -3404,11 +3409,11 @@ for (const historicalVersion of ['puni-scoping-v1', 'puni-scoping-v2', 'puni-sco
       expect(replayed.turns).toEqual(saved.turns);
       expect(replayed.scoping).toEqual(saved.scoping);
       await (
-        await sendMessage(api, visitor, 'v4-after-old-replay', 'The problem is recurring bugs.')
+        await sendMessage(api, visitor, 'v5-after-old-replay', 'The problem is recurring bugs.')
       ).text();
       expect(operations(config.databasePath).map((operation) => operation.prompt_version)).toEqual([
         historicalVersion,
-        'puni-scoping-v4',
+        'puni-scoping-v5',
       ]);
       expect(fake.bodies).toHaveLength(2);
     } finally {

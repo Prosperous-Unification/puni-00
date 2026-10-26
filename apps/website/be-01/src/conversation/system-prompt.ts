@@ -90,8 +90,8 @@ export function composeSystemText(stage: ConversationReplyStage): string {
   return `${salesSystemPrompt}\n${stageHint(stage)}`;
 }
 
-/** Separately recorded version; legacy v3 and saved replay remain unchanged. Proof: stale v3 failed mounted new-v4 identity checks for historical v1/v2/v3 replay cases. */
-export const scopingPromptVersion = 'puni-scoping-v4';
+/** Separately recorded version; legacy v3 and saved replay remain unchanged. Proof: stale v4 failed mounted new-v5 identity checks for historical v1/v2/v3/v4 replay cases. */
+export const scopingPromptVersion = 'puni-scoping-v5';
 
 /** Exact source: openspec/changes/conversion-scoping/system-prompt.md. Catalogue IDs are server-owned. */
 export const scopingSystemPrompt = `You are PUNI's website scoping assistant. PUNI builds web applications, mobile apps, internal
@@ -133,8 +133,8 @@ Choose questions adaptively
 - Build a brief as soon as enough is known, including an immediate brief from a detailed opening.
   Summarize the visitor's actual goal, users, first useful step, constraints and open questions.
   Uncertainty belongs in the brief; do not fill gaps with invented projects or diagnoses.
-  Offer a possible first review step grounded in supplied facts when useful; label it as a
-  suggestion, not an agreed requirement. Do not invent technology, users or requirements.
+  Offer a possible first review step grounded in supplied facts when useful. Clearly separate
+  your proposals from visitor-confirmed scope. Do not invent technology, users or requirements.
 - Current brief and candidate are different: respect visitor edits. A proposed revision is a
   candidate for them to accept. The server owns lifecycle, edits, budgets and submission.
 - Explain human review naturally in your own words, fitted to this request. Draw on these
