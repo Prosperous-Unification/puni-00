@@ -7,6 +7,7 @@ import { expect, it } from 'bun:test';
 import { parseAllDocuments } from 'yaml';
 
 import type { DiscoveryCommand, DiscoveryResponse } from './discover';
+import type { WorkloadSpec } from './observability-workload';
 
 interface ReceiptView {
   candidateRevision: string;
@@ -44,10 +45,11 @@ async function fixture() {
   const snapshot = {
     contexts: 'reviewed-context\n',
     identity: {
-      name: 'puni-cluster-identity',
+      name: 'puni-cluster-platform-production',
+      namespace: 'kube-system',
       uid: 'identity-uid',
       marker: 'platform-production',
-      immutable: false,
+      immutable: true,
     },
     resources: [
       {
@@ -66,6 +68,10 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
       {
@@ -84,6 +90,10 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
       {
@@ -102,6 +112,10 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
       {
@@ -120,6 +134,10 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
       {
@@ -138,6 +156,10 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
       {
@@ -156,6 +178,10 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
       {
@@ -174,6 +200,10 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
       {
@@ -192,6 +222,10 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
       {
@@ -210,10 +244,16 @@ async function fixture() {
         ownerUID: '',
         path: '',
         sourceName: '',
+        sourceKind: '',
+        sourceNamespace: '',
+        releaseName: '',
+        releaseNamespace: '',
         dependencies: [] as { name: string; namespace: string }[],
       },
     ],
     source: {
+      kind: 'GitRepository',
+      namespace: 'flux-system',
       generation: 1,
       observedGeneration: 1,
       name: 'puni-platform',
@@ -237,21 +277,28 @@ async function fixture() {
     pods: [
       {
         uid: 'pod-uid',
+        deleting: false,
+        specOverride: undefined as unknown,
+        containerNames: ['collector'],
+        volumes: [] as NonNullable<(typeof WorkloadSpec.infer)['volumes']>,
+        mounts: [] as NonNullable<
+          (typeof WorkloadSpec.infer)['containers'][number]['volumeMounts']
+        >,
         name: 'current',
         namespace: 'observability',
         node: 'h3mon',
         phase: 'Running',
         ready: true,
         restartableInit: false,
-        requests: ['1Gi'],
-        limits: ['1Gi'],
-        cpuRequests: ['250m'],
+        requests: ['2Gi'],
+        limits: ['2Gi'],
+        cpuRequests: ['500m'],
         cpuLimits: ['500m'],
-        initCPUs: ['100m'],
-        initCPULimits: ['200m'],
+        initCPUs: [] as string[],
+        initCPULimits: [] as string[],
         overheadCPU: '0',
-        initRequests: ['128Mi'],
-        initLimits: ['128Mi'],
+        initRequests: [] as string[],
+        initLimits: [] as string[],
         overhead: '0',
         ownerUID: 'new-deployment-uid',
         images: ['example.invalid/collector@sha256:abc'],
@@ -334,6 +381,8 @@ async function fixture() {
       ],
     },
   };
+  for (const name of ['root', 'platform', 'controllers'])
+    snapshot.resources.push({ ...snapshot.resources[1], name, uid: `kust-${name}`, owner: 'root' });
   setupResourceSources(snapshot.resources);
   const artifact =
     'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: new\n  namespace: observability\nspec:\n  replicas: 1\n  template:\n    spec:\n      nodeSelector:\n        puni.dev/capability-observability: "true"\n      containers:\n        - name: collector\n          image: example.invalid/collector@sha256:abc\n          securityContext:\n            readOnlyRootFilesystem: true\n          resources:\n            requests:\n              cpu: 500m\n              memory: 2Gi\n            limits:\n              cpu: 500m\n              memory: 2Gi\n';
@@ -370,7 +419,13 @@ async function fixture() {
         requiredRevision: observedRevision,
       }),
     ),
-    source: { name: 'puni-platform', uid: 'source-uid', requiredRevision: `main@sha1:${deployed}` },
+    source: {
+      kind: 'GitRepository',
+      namespace: 'flux-system',
+      name: 'puni-platform',
+      uid: 'source-uid',
+      requiredRevision: `main@sha1:${deployed}`,
+    },
     secrets: [
       {
         name: 'query-client',
@@ -411,7 +466,7 @@ async function fixture() {
         storageMiB: 0,
         ephemeralMiB: 0,
         claims: [] as { name: string; uid: string; volume: string; volumeUID: string }[],
-        existingPodUID: '',
+        replicaUIDs: ['pod-uid'],
         artifactPath: join(directory, 'candidate.yaml'),
         artifactSHA256: createHash('sha256').update(artifact).digest('hex'),
       },
@@ -463,7 +518,7 @@ async function fixture() {
   await writeFile(join(directory, 'snapshot.json'), JSON.stringify(snapshot));
   await writeFile(
     join(bin, 'kubectl'),
-    `#!/usr/bin/env bun\nconst s=await Bun.file((process.env['PREFLIGHT_SNAPSHOT']??${JSON.stringify(join(directory, 'snapshot.json'))})).json();const args=process.argv.slice(2);const output=(key)=>{if(s.failure===key){console.log(JSON.stringify(s[key]));console.error('${marker} ${encoded}');process.exit(42)}if(s.malformed===key){console.log('${marker} ${encoded}');process.exit(0)}console.log(JSON.stringify(s[key]))};if(args.includes('get-contexts')){process.stdout.write(s.contexts);process.exit(0)}const resource=args[args.indexOf('get')+1];const keys={'configmap':'identity','gitrepository':'source','nodes':'nodes','pods':'pods','secret':'secrets','persistentvolumeclaims':'claims','persistentvolumes':'volumes','storageclasses':'storageClasses'};if(!keys[resource]){const kinds=resource.startsWith('namespaces')?['Namespace','CustomResourceDefinition']:resource.startsWith('kustomizations')?['Kustomization']:['HelmRelease','Deployment','ReplicaSet','StatefulSet','Elasticsearch','Kibana'];s.resources=s.resources.filter(r=>kinds.includes(r.kind))}output(keys[resource]??'resources');\n`,
+    `#!/usr/bin/env bun\nconst s=await Bun.file((process.env['PREFLIGHT_SNAPSHOT']??${JSON.stringify(join(directory, 'snapshot.json'))})).json();const args=process.argv.slice(2);const output=(key)=>{if(s.failure===key){console.log(JSON.stringify(s[key]));console.error('${marker} ${encoded}');process.exit(42)}if(s.malformed===key){console.log('${marker} ${encoded}');process.exit(0)}console.log(JSON.stringify(s[key]))};if(args.includes('get-contexts')){process.stdout.write(s.contexts);process.exit(0)}const resource=args[args.indexOf('get')+1];if(resource==='pods')s.pods=s.pods.map(${projectFixturePod.toString()});if(resource==='configmap'&&(args[args.indexOf('get')+2]!=='puni-cluster-platform-production'||args[args.indexOf('-n')+1]!=='kube-system'||s.canonicalMissing)){console.log(JSON.stringify(s.declarativeIdentity??{}));process.exit(44)}const keys={'configmap':'identity','gitrepository':'source','nodes':'nodes','pods':'pods','secret':'secrets','persistentvolumeclaims':'claims','persistentvolumes':'volumes','storageclasses':'storageClasses'};if(!keys[resource]){const kinds=resource.startsWith('namespaces')?['Namespace','CustomResourceDefinition']:resource.startsWith('kustomizations')?['Kustomization']:['HelmRelease','Deployment','ReplicaSet','StatefulSet','Elasticsearch','Kibana'];s.resources=s.resources.filter(r=>kinds.includes(r.kind))}output(keys[resource]??'resources');\n`,
   );
   await writeFile(
     join(bin, 'ssh'),
@@ -589,10 +644,10 @@ it('authorized inventory binds the reviewed revision without replacing the obser
     cpu: 'assessed',
     storage: 'assessed',
   });
-  expect(receipt.capacity[0].requiredCPUMilli).toBe(1350);
+  expect(receipt.capacity[0].requiredCPUMilli).toBe(1100);
   expect(receipt.storage.requiredMiB).toBe(1024);
-  expect(receipt.capacity[0].requiredMiB).toBe(4224);
-  expect(receipt.capacity[0].futureAllowanceFits).toBe(false);
+  expect(receipt.capacity[0].requiredMiB).toBe(3200);
+  expect(receipt.capacity[0].futureAllowanceFits).toBe(true);
 });
 
 for (const [name, fault, diagnostic] of [
@@ -931,7 +986,7 @@ it('existing observed pod is not charged twice for candidate coexistence', async
   setup.snapshot.pods[0].requests = ['2Gi'];
   setup.snapshot.pods[0].limits = ['2Gi'];
   setup.snapshot.pods[0].cpuRequests = ['500m'];
-  setup.request.candidate[0].existingPodUID = 'pod-uid';
+  setup.request.candidate[0].replicaUIDs = ['pod-uid'];
   const response = await setup.run();
   expect(response.exitCode).toBe(0);
   const receipt = JSON.parse(
@@ -943,10 +998,10 @@ it('existing observed pod is not charged twice for candidate coexistence', async
 
 it('foreign existing pod cannot suppress candidate capacity', async () => {
   const setup = await fixture();
-  setup.request.candidate[0].existingPodUID = 'pod-uid';
+  setup.request.candidate[0].replicaUIDs = ['foreign-uid'];
   const response = await setup.run();
   expect(response.exitCode).toBe(1);
-  expect(response.stderr.trim()).toBe('observability preflight: existing-workload-mismatch');
+  expect(response.stderr.trim()).toBe('observability preflight: replica-pin-mismatch');
 });
 
 for (const [name, fault, diagnostic] of [
@@ -956,9 +1011,9 @@ for (const [name, fault, diagnostic] of [
       s.snapshot.pods[0].name = 'new-hash';
       s.snapshot.pods[0].requests = ['2Gi'];
       s.snapshot.pods[0].ownerUID = 'foreign';
-      s.request.candidate[0].existingPodUID = 'pod-uid';
+      s.request.candidate[0].replicaUIDs = ['pod-uid'];
     },
-    'existing-workload-mismatch',
+    'replica-pin-mismatch',
   ],
   [
     'unknown retained Docker ownership refuses',
@@ -988,6 +1043,7 @@ it('absent selected candidate cannot certify migration despite complete inventor
   const setup = await fixture();
   setup.snapshot.resources = setup.snapshot.resources.filter((r) => r.name !== 'new');
   setup.request.resources = setup.request.resources.filter((r) => r.name !== 'new');
+  setup.request.candidate[0].replicaUIDs = [];
   const response = await setup.run();
   expect(response.exitCode).toBe(0);
   const receipt = JSON.parse(
@@ -1099,13 +1155,16 @@ for (const [name, fault, diagnostic] of [
 it('normal Kubernetes CPU overcommit does not create an artificial request deficit', async () => {
   const setup = await fixture();
   setup.snapshot.pods[0].cpuLimits = ['100'];
+  await rewriteCandidate(setup, (source) =>
+    source.replace('limits:\n              cpu: 500m', 'limits:\n              cpu: "100"'),
+  );
   const response = await setup.run();
   expect(response.exitCode).toBe(0);
   const receipt = JSON.parse(
     await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
   ) as ReceiptView;
   expect(receipt.migrationReady).toBe(true);
-  expect(receipt.capacity[0].requiredCPUMilli).toBe(1350);
+  expect(receipt.capacity[0].requiredCPUMilli).toBe(1100);
 });
 
 it('new PVC demand is derived from the selected artifact and charged against free storage once', async () => {
@@ -1116,7 +1175,7 @@ it('new PVC demand is derived from the selected artifact and charged against fre
   const receipt = JSON.parse(
     await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
   ) as ReceiptView;
-  expect(receipt.storage.requiredMiB).toBe(1536);
+  expect(receipt.storage.requiredMiB).toBe(1024);
   expect(receipt.migrationReady).toBe(true);
 });
 
@@ -1175,7 +1234,7 @@ it('deduplicates a real Pod to ReplicaSet to Deployment owner chain', async () =
   setup.snapshot.pods[0].limits = ['2Gi'];
   setup.snapshot.pods[0].cpuRequests = ['500m'];
   setup.snapshot.pods[0].ownerUID = 'replicaset-uid';
-  setup.request.candidate[0].existingPodUID = 'pod-uid';
+  setup.request.candidate[0].replicaUIDs = ['pod-uid'];
   setup.snapshot.resources.push({
     ...setup.snapshot.resources[8],
     kind: 'ReplicaSet',
@@ -1222,6 +1281,29 @@ it('resolves StatefulSet ownership through its actual ECK Elasticsearch controll
     ownerUID: 'elastic-uid',
     path: '',
     requiredRevision: '',
+  });
+  const release = {
+    ...setup.snapshot.resources[3],
+    name: 'elastic',
+    uid: 'elastic-release-uid',
+    owner: 'observability',
+    chart: '',
+    controllerEnabled: false,
+    releaseName: 'elastic',
+    releaseNamespace: 'observability',
+    revision: '9.3.8',
+  };
+  setup.snapshot.resources.push(release);
+  setup.request.resources.push({
+    kind: release.kind,
+    name: release.name,
+    namespace: release.namespace,
+    uid: release.uid,
+    owner: release.owner,
+    ownerNamespace: release.ownerNamespace,
+    ownerUID: release.ownerUID,
+    path: release.path,
+    requiredRevision: release.revision,
   });
   const response = await setup.run();
   expect(response.exitCode).toBe(0);
@@ -1354,7 +1436,7 @@ for (const [name, change, diagnostic] of [
         '      containers:',
         '      volumes:\n        - name: history\n          hostPath:\n            path: /retained-history\n      containers:',
       ),
-    'candidate-storage-unknown',
+    'workload-volume-unsupported',
   ],
   [
     'retained history cannot be writable-mounted by the new runtime',
@@ -1465,12 +1547,13 @@ it('source CPU overcommit is admitted by requests while preserving finite limit 
   await rewriteCandidate(setup, (source) =>
     source.replace('limits:\n              cpu: 500m', 'limits:\n              cpu: "100"'),
   );
+  setup.snapshot.pods[0].cpuLimits = ['100'];
   const response = await setup.run();
   expect(response.exitCode).toBe(0);
   const receipt = JSON.parse(
     await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
   ) as ReceiptView;
-  expect(receipt.capacity[0].requiredCPUMilli).toBe(1350);
+  expect(receipt.capacity[0].requiredCPUMilli).toBe(1100);
 });
 
 it('separate instances cannot share their selected namespace', async () => {
@@ -1525,6 +1608,12 @@ it('new PVC absent from the observed target remains a migration blocker', async 
       ) +
       '---\nkind: PersistentVolumeClaim\nmetadata:\n  name: new-storage\n  namespace: observability\nspec:\n  storageClassName: local-path\n  resources:\n    requests:\n      storage: 512Mi\n',
   );
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '          securityContext:',
+      '          volumeMounts:\n            - name: new-storage\n              mountPath: /state\n          securityContext:',
+    ),
+  );
   setup.request.candidate[0].storageMiB = 512;
   const response = await setup.run();
   expect(response.exitCode).toBe(0);
@@ -1564,8 +1653,12 @@ for (const [name, fault, diagnostic] of [
     'unsupported restartable init resource shape refuses',
     (s: Awaited<ReturnType<typeof fixture>>) => {
       s.snapshot.pods[0].restartableInit = true;
+      s.snapshot.pods[0].initRequests = ['128Mi'];
+      s.snapshot.pods[0].initLimits = ['128Mi'];
+      s.snapshot.pods[0].initCPUs = ['100m'];
+      s.snapshot.pods[0].initCPULimits = ['100m'];
     },
-    'pod-resource-shape-unsupported',
+    'workload-shape-unsupported',
   ],
 ] as const) {
   it(name, async () => {
@@ -1587,9 +1680,7 @@ it('source restartable init accounting is refused instead of underestimated', as
   );
   const response = await setup.run();
   expect(response.exitCode).toBe(1);
-  expect(response.stderr.trim()).toBe(
-    'observability preflight: candidate-resource-shape-unsupported',
-  );
+  expect(response.stderr.trim()).toBe('observability preflight: workload-shape-unsupported');
 });
 
 it('missing candidate artifact differs from unreadable candidate state', async () => {
@@ -1631,6 +1722,14 @@ async function bindSelectedPVC(setup: Awaited<ReturnType<typeof fixture>>): Prom
     path: '/var/lib/rancher/k3s/storage/new-pv',
     device: '8:1',
   });
+  source = source.replace(
+    '          securityContext:',
+    '          volumeMounts:\n            - name: new-storage\n              mountPath: /state\n          securityContext:',
+  );
+  setup.snapshot.pods[0].volumes = [
+    { name: 'new-storage', persistentVolumeClaim: { claimName: 'new-storage' } },
+  ];
+  setup.snapshot.pods[0].mounts = [{ name: 'new-storage', mountPath: '/state' }];
   candidate.storageMiB = 512;
   candidate.artifactSHA256 = createHash('sha256').update(source).digest('hex');
   await writeFile(candidate.artifactPath, source);
@@ -1778,7 +1877,10 @@ it('actual common blackbox Deployment selector and owned scheduled ReplicaSet po
   setup.snapshot.pods[0].imageIDs = [
     `docker-pullable://${workload.spec.template.spec.containers[0].image}`,
   ];
-  candidate.existingPodUID = 'pod-uid';
+  setup.snapshot.pods[0].containerNames = ['blackbox-exporter'];
+  setup.snapshot.pods[0].volumes = [{ name: 'config', configMap: { name: 'blackbox-exporter' } }];
+  setup.snapshot.pods[0].mounts = [{ name: 'config', mountPath: '/config', readOnly: true }];
+  candidate.replicaUIDs = ['pod-uid'];
   setup.snapshot.pods[0].requests = ['16Mi'];
   setup.snapshot.pods[0].limits = ['64Mi'];
   setup.snapshot.pods[0].cpuRequests = ['10m'];
@@ -1787,6 +1889,9 @@ it('actual common blackbox Deployment selector and owned scheduled ReplicaSet po
   setup.snapshot.pods[0].initLimits = [];
   setup.snapshot.pods[0].initCPUs = [];
   setup.snapshot.pods[0].initCPULimits = [];
+  const spec = projectFixturePod(setup.snapshot.pods[0]).spec as typeof WorkloadSpec.infer;
+  spec.automountServiceAccountToken = false;
+  setup.snapshot.pods[0].specOverride = spec;
   const response = await setup.run();
   expect(response.exitCode).toBe(0);
   const receipt = JSON.parse(
@@ -1864,7 +1969,7 @@ it('bounded disk emptyDir demand is source-bound and charged to observed free ca
     await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
   ) as ReceiptView;
   expect(receipt.storage.requiredMiB).toBe(1088);
-  expect(receipt.migrationReady).toBe(true);
+  expect(receipt.migrationReady).toBe(false);
 });
 
 it('bounded memory emptyDir demand is charged to memory rather than disk', async () => {
@@ -1881,7 +1986,7 @@ it('bounded memory emptyDir demand is charged to memory rather than disk', async
   const receipt = JSON.parse(
     await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
   ) as ReceiptView;
-  expect(receipt.capacity[0].requiredMiB).toBe(5248);
+  expect(receipt.capacity[0].requiredMiB).toBe(6272);
   expect(receipt.storage.requiredMiB).toBe(1024);
 });
 
@@ -1924,7 +2029,7 @@ it('owned pod scheduled elsewhere cannot certify selected placement', async () =
     await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
   ) as ReceiptView;
   expect(receipt.migrationReady).toBe(false);
-  expect(receipt.blockers).toContain('candidate-placement-unobserved-or-unready');
+  expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
 });
 
 it('required node affinity validates its In expression against the observed node', async () => {
@@ -2051,12 +2156,27 @@ for (const [name, fault] of [
 }
 
 function setupResourceSources(
-  resources: { kind: string; path: string; sourceName: string }[],
+  resources: {
+    kind: string;
+    name: string;
+    namespace: string;
+    path: string;
+    sourceName: string;
+    sourceKind: string;
+    sourceNamespace: string;
+    releaseName: string;
+    releaseNamespace: string;
+  }[],
 ): void {
   for (const resource of resources)
     if (resource.kind === 'Kustomization') {
       resource.path = './infra/platform/observability/production';
       resource.sourceName = 'puni-platform';
+      resource.sourceKind = 'GitRepository';
+      resource.sourceNamespace = 'flux-system';
+    } else if (resource.kind === 'HelmRelease') {
+      resource.releaseName = resource.name;
+      resource.releaseNamespace = resource.namespace;
     }
 }
 
@@ -2085,17 +2205,19 @@ for (const [name, fault, diagnostic] of [
   [
     'actual Flux dependency absent from inventory refuses',
     (s: Awaited<ReturnType<typeof fixture>>) => {
-      s.snapshot.resources[1].dependencies = [{ name: 'platform', namespace: 'flux-system' }];
+      s.snapshot.resources[1].dependencies = [
+        { name: 'absent-platform', namespace: 'flux-system' },
+      ];
     },
     'dependency-unready',
   ],
   [
     'actual Flux dependency cannot be omitted from reviewed UID pins',
     (s: Awaited<ReturnType<typeof fixture>>) => {
-      s.snapshot.resources[1].dependencies = [{ name: 'platform', namespace: 'flux-system' }];
+      s.snapshot.resources[1].dependencies = [{ name: 'new-platform', namespace: 'flux-system' }];
       s.snapshot.resources.push({
         ...s.snapshot.resources[1],
-        name: 'platform',
+        name: 'new-platform',
         uid: 'platform-dep-uid',
         dependencies: [],
       });
@@ -2118,3 +2240,688 @@ for (const [name, fault, diagnostic] of [
     expect(response.stderr.trim()).toBe(`observability preflight: ${diagnostic}`);
   });
 }
+
+it('fix1 mutable canonical target cannot be replaced by matching declarative identity', async () => {
+  const setup = await fixture();
+  setup.snapshot.identity.immutable = false;
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('target-mismatch');
+});
+
+it('fix1 omitted actual Flux owner refuses even when caller selects other ready resources', async () => {
+  const setup = await fixture();
+  setup.request.resources = setup.request.resources.filter((pin) => pin.kind !== 'Kustomization');
+  setup.snapshot.resources[1].ready = false;
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('flux-owner-unreviewed');
+});
+
+it('fix1 empty applied revision cannot bypass a revision-bearing prerequisite', async () => {
+  const setup = await fixture();
+  setup.request.resources[1].requiredRevision = '';
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('revision-pin-required');
+});
+
+it('fix1 old named pod resources cannot establish the selected candidate readiness', async () => {
+  const setup = await fixture();
+  setup.snapshot.pods[0].requests = ['1Gi'];
+  setup.snapshot.pods[0].limits = ['1Gi'];
+  setup.snapshot.pods[0].cpuRequests = ['250m'];
+  const response = await setup.run();
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(false);
+  expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
+});
+
+function projectFixturePod(pod: {
+  uid: string;
+  name: string;
+  namespace: string;
+  node: string;
+  phase: string;
+  ready: boolean;
+  ownerUID: string;
+  imageIDs: string[];
+  images: string[];
+  requests: string[];
+  limits: string[];
+  cpuRequests: string[];
+  cpuLimits: string[];
+  initRequests: string[];
+  initLimits: string[];
+  initCPUs: string[];
+  initCPULimits: string[];
+  overhead: string;
+  overheadCPU: string;
+  deleting?: boolean;
+  specOverride?: unknown;
+  containerNames?: string[];
+  mounts?: unknown[];
+  volumes?: unknown[];
+  restartableInit?: boolean;
+}) {
+  const containers = pod.requests.map((memory, index) => ({
+    name: pod.containerNames?.[index] ?? 'collector',
+    image: pod.images[index] ?? '',
+    resources: {
+      requests: { memory, cpu: pod.cpuRequests[index] ?? '' },
+      limits: { memory: pod.limits[index] ?? '', cpu: pod.cpuLimits[index] ?? '' },
+    },
+    securityContext: { readOnlyRootFilesystem: true },
+    volumeMounts: pod.mounts ?? [],
+  }));
+  const initContainers = pod.initRequests.map((memory, index) => ({
+    name: `init-${String(index)}`,
+    image: 'synthetic:init',
+    resources: {
+      requests: { memory, cpu: pod.initCPUs[index] ?? '' },
+      limits: { memory: pod.initLimits[index] ?? '', cpu: pod.initCPULimits[index] ?? '' },
+    },
+    securityContext: { readOnlyRootFilesystem: true },
+    ...(pod.restartableInit ? { restartPolicy: 'Always' } : {}),
+  }));
+  return {
+    uid: pod.uid,
+    name: pod.name,
+    namespace: pod.namespace,
+    node: pod.node,
+    phase: pod.phase,
+    ready: pod.ready,
+    deleting: pod.deleting ?? false,
+    ownerUID: pod.ownerUID,
+    imageIDs: pod.imageIDs,
+    spec: pod.specOverride ?? {
+      containers,
+      initContainers,
+      volumes: pod.volumes ?? [],
+      overhead: { memory: pod.overhead, cpu: pod.overheadCPU },
+    },
+  };
+}
+
+async function prepareFixReplicas(
+  setup: Awaited<ReturnType<typeof fixture>>,
+  count = 2,
+): Promise<void> {
+  await rewriteCandidate(setup, (source) =>
+    source
+      .replace('replicas: 1', `replicas: ${String(count)}`)
+      .replaceAll('memory: 2Gi', 'memory: 1Gi')
+      .replace('requests:\n              cpu: 500m', 'requests:\n              cpu: 250m'),
+  );
+  setup.request.candidate[0].memoryMiB = count * 1024;
+  setup.request.candidate[0].cpuMilli = count * 250;
+  const pod = setup.snapshot.pods[0];
+  pod.requests = ['1Gi'];
+  pod.limits = ['1Gi'];
+  pod.cpuRequests = ['250m'];
+  pod.name = 'new-first';
+  for (let index = 1; index < count; index += 1)
+    setup.snapshot.pods.push({
+      ...structuredClone(pod),
+      uid: `pod-${String(index)}`,
+      name: `new-${String(index)}`,
+    });
+  setup.request.candidate[0].replicaUIDs = setup.snapshot.pods.map((replica) => replica.uid);
+  setup.snapshot.nodes[0].allocatable = '4Gi';
+}
+
+it('fix1 two complete owned replicas fit without duplicate candidate charges', async () => {
+  const setup = await fixture();
+  await prepareFixReplicas(setup);
+  const response = await setup.run();
+  expect(response.stderr).toBe('');
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(true);
+  expect(receipt.capacity[0].requiredMiB).toBe(3200);
+  expect(receipt.capacity[0].additionalCandidateMiB).toBe(0);
+});
+
+it('fix1 partial replicas retain current cost and reserve only the missing replica', async () => {
+  const setup = await fixture();
+  await prepareFixReplicas(setup);
+  setup.snapshot.pods.pop();
+  setup.request.candidate[0].replicaUIDs = ['pod-uid'];
+  const response = await setup.run();
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(false);
+  expect(receipt.capacity[0].requiredMiB).toBe(3200);
+  expect(receipt.capacity[0].additionalCandidateMiB).toBe(1024);
+  expect(receipt.blockers).toContain('candidate-replica-count-mismatch');
+});
+
+it('fix1 omitted active replica UID cannot certify the complete observed set', async () => {
+  const setup = await fixture();
+  await prepareFixReplicas(setup);
+  setup.request.candidate[0].replicaUIDs.pop();
+  const response = await setup.run();
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(false);
+  expect(receipt.blockers).toContain('candidate-replicas-unreviewed');
+  expect(receipt.capacity[0].additionalCandidateMiB).toBe(0);
+});
+
+it('fix1 foreign replica UID cannot suppress a missing owned replica', async () => {
+  const setup = await fixture();
+  await prepareFixReplicas(setup);
+  setup.request.candidate[0].replicaUIDs[1] = 'foreign-uid';
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('replica-pin-mismatch');
+});
+
+it('fix1 old-template replica remains charged alongside its required replacement', async () => {
+  const setup = await fixture();
+  await prepareFixReplicas(setup);
+  setup.snapshot.pods[1].requests = ['512Mi'];
+  setup.snapshot.pods[1].limits = ['512Mi'];
+  const response = await setup.run();
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(false);
+  expect(receipt.capacity[0].requiredMiB).toBe(3712);
+  expect(receipt.capacity[0].additionalCandidateMiB).toBe(1024);
+  expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
+});
+
+it('fix1 terminating replica cannot disappear or satisfy a replacement slot', async () => {
+  const setup = await fixture();
+  await prepareFixReplicas(setup);
+  setup.snapshot.pods[1].deleting = true;
+  setup.snapshot.pods[1].phase = 'Succeeded';
+  setup.snapshot.nodes[0].allocatable = '6Gi';
+  const response = await setup.run();
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(false);
+  expect(receipt.capacity[0].requiredMiB).toBe(4224);
+  expect(receipt.capacity[0].additionalCandidateMiB).toBe(1024);
+});
+
+it('fix1 generic ephemeral storage is refused rather than silently costed at zero', async () => {
+  const setup = await fixture();
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '      containers:',
+      '      volumes:\n        - name: unbounded-storage\n          ephemeral:\n            volumeClaimTemplate:\n              spec:\n                resources:\n                  requests:\n                    storage: 20Gi\n      containers:',
+    ),
+  );
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('workload-volume-unsupported');
+});
+
+it('fix1 explicit source overhead cannot vanish from declared resource cost', async () => {
+  const setup = await fixture();
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '      containers:',
+      '      overhead:\n        memory: 1Gi\n        cpu: 250m\n      containers:',
+    ),
+  );
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('candidate-budget-mismatch');
+});
+
+it('fix1 supported overhead is shared by source and observed replica accounting', async () => {
+  const setup = await fixture();
+  setup.request.candidate[0].memoryMiB = 3072;
+  setup.request.candidate[0].cpuMilli = 750;
+  setup.snapshot.pods[0].overhead = '1Gi';
+  setup.snapshot.pods[0].overheadCPU = '250m';
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '      containers:',
+      '      overhead:\n        memory: 1Gi\n        cpu: 250m\n      containers:',
+    ),
+  );
+  const response = await setup.run();
+  expect(response.stderr).toBe('');
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(true);
+  expect(receipt.capacity[0].requiredMiB).toBe(4224);
+  expect(receipt.capacity[0].requiredCPUMilli).toBe(1350);
+});
+
+async function prepareFixClaim(setup: Awaited<ReturnType<typeof fixture>>): Promise<void> {
+  await bindSelectedPVC(setup);
+}
+
+it('fix1 an existing matching claim is accounted by identity rather than a pod-wide exemption', async () => {
+  const setup = await fixture();
+  await prepareFixClaim(setup);
+  const response = await setup.run();
+  expect(response.stderr).toBe('');
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(true);
+  expect(receipt.storage.requiredMiB).toBe(1024);
+});
+
+it('fix1 old claim mount cannot certify the source claim even when both claims exist', async () => {
+  const setup = await fixture();
+  await prepareFixClaim(setup);
+  setup.snapshot.pods[0].mounts = [];
+  const response = await setup.run();
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(false);
+  expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
+  expect(receipt.capacity[0].additionalCandidateMiB).toBe(2048);
+});
+
+it('fix1 omitted claim identity remains charged and blocks readiness independently of replica pins', async () => {
+  const setup = await fixture();
+  await prepareFixClaim(setup);
+  setup.request.candidate[0].claims = [];
+  const response = await setup.run();
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(false);
+  expect(receipt.storage.requiredMiB).toBe(1536);
+  expect(receipt.blockers).toContain('candidate-storage-unready-or-unreviewed');
+});
+
+async function prepareFixServiceAccount(setup: Awaited<ReturnType<typeof fixture>>) {
+  await rewriteCandidate(setup, (source) =>
+    source.replace('      containers:', '      serviceAccountName: discovery\n      containers:'),
+  );
+  const spec = projectFixturePod(setup.snapshot.pods[0]).spec as typeof WorkloadSpec.infer;
+  spec.serviceAccountName = 'discovery';
+  spec.automountServiceAccountToken = true;
+  spec.volumes = [
+    {
+      name: 'kube-api-access-abc12',
+      projected: {
+        defaultMode: 420,
+        sources: [
+          { serviceAccountToken: { path: 'token', expirationSeconds: 3607 } },
+          { configMap: { name: 'kube-root-ca.crt', items: [{ key: 'ca.crt', path: 'ca.crt' }] } },
+          {
+            downwardAPI: {
+              items: [{ path: 'namespace', fieldRef: { fieldPath: 'metadata.namespace' } }],
+            },
+          },
+        ],
+      },
+    },
+  ];
+  spec.containers[0].volumeMounts = [
+    {
+      name: 'kube-api-access-abc12',
+      mountPath: '/var/run/secrets/kubernetes.io/serviceaccount',
+      readOnly: true,
+    },
+  ];
+  setup.snapshot.pods[0].specOverride = spec;
+  return spec;
+}
+
+it('fix1 standard admission-added service-account projection is supported without reading token contents', async () => {
+  const setup = await fixture();
+  await prepareFixServiceAccount(setup);
+  const response = await setup.run();
+  expect(response.stderr).toBe('');
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(true);
+});
+
+for (const [name, change] of [
+  [
+    'fix1 altered admission projection source is not omitted',
+    (spec: typeof WorkloadSpec.infer) => {
+      const source = spec.volumes?.[0].projected?.sources[1].configMap;
+      if (source === undefined) throw new Error('fixture projection missing');
+      source.name = 'foreign-ca';
+    },
+  ],
+  [
+    'fix1 altered admission mount is not omitted',
+    (spec: typeof WorkloadSpec.infer) => {
+      const mount = spec.containers[0].volumeMounts?.[0];
+      if (mount === undefined) throw new Error('fixture mount missing');
+      mount.mountPath = '/other/path';
+    },
+  ],
+  [
+    'fix1 extra admission mount is not omitted',
+    (spec: typeof WorkloadSpec.infer) => {
+      spec.containers[0].volumeMounts?.push({
+        name: 'kube-api-access-abc12',
+        mountPath: '/other/path',
+        readOnly: true,
+      });
+    },
+  ],
+  [
+    'fix1 service-account identity cannot be normalized into the source account',
+    (spec: typeof WorkloadSpec.infer) => {
+      spec.serviceAccountName = 'foreign-account';
+    },
+  ],
+] as const) {
+  it(name, async () => {
+    const setup = await fixture();
+    const spec = await prepareFixServiceAccount(setup);
+    change(spec);
+    const response = await setup.run();
+    expect(response.exitCode).toBe(0);
+    const receipt = JSON.parse(
+      await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+    ) as ReceiptView;
+    expect(receipt.migrationReady).toBe(false);
+    expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
+  });
+}
+
+for (const [name, fault, diagnostic] of [
+  [
+    'fix1 canonical marker wrong name refuses',
+    (s: Awaited<ReturnType<typeof fixture>>) => {
+      s.snapshot.identity.name = 'puni-cluster-identity';
+    },
+    'target-mismatch',
+  ],
+  [
+    'fix1 canonical marker wrong namespace refuses',
+    (s: Awaited<ReturnType<typeof fixture>>) => {
+      s.snapshot.identity.namespace = 'flux-system';
+    },
+    'target-mismatch',
+  ],
+  [
+    'fix1 canonical marker missing cannot fall back to declarative configuration',
+    (s: Awaited<ReturnType<typeof fixture>>) => {
+      Object.assign(s.snapshot, {
+        canonicalMissing: true,
+        declarativeIdentity: {
+          ...s.snapshot.identity,
+          name: 'puni-cluster-identity',
+          namespace: 'flux-system',
+          immutable: false,
+        },
+      });
+    },
+    'command-failed',
+  ],
+  [
+    'fix1 full Flux source kind is bound',
+    (s: Awaited<ReturnType<typeof fixture>>) => {
+      s.snapshot.resources[1].sourceKind = 'OCIRepository';
+    },
+    'source-mismatch',
+  ],
+  [
+    'fix1 full Flux source namespace is bound',
+    (s: Awaited<ReturnType<typeof fixture>>) => {
+      s.snapshot.resources[1].sourceNamespace = 'foreign-namespace';
+    },
+    'source-mismatch',
+  ],
+] as const) {
+  it(name, async () => {
+    const setup = await fixture();
+    await injectFault(fault, setup);
+    const response = await setup.run();
+    expect(response.exitCode).toBe(1);
+    expect(response.stderr).toContain(diagnostic);
+  });
+}
+
+it('fix1 shared prerequisite may retain its independently reviewed earlier revision', async () => {
+  const setup = await fixture();
+  const prerequisite = setup.snapshot.resources.find(
+    (resource) => resource.name === 'platform' && resource.kind === 'Kustomization',
+  );
+  const pin = setup.request.resources.find((resource) => resource.uid === prerequisite?.uid);
+  if (prerequisite === undefined || pin === undefined)
+    throw new Error('fixture prerequisite missing');
+  prerequisite.revision = `main@sha1:${'c'.repeat(40)}`;
+  pin.requiredRevision = prerequisite.revision;
+  const response = await setup.run();
+  expect(response.stderr).toBe('');
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(true);
+  expect(receipt.candidateRevision).toBe(revision);
+});
+
+for (const [name, addition, diagnostic] of [
+  [
+    'fix1 source CSI is explicitly refused',
+    '      volumes:\n        - name: csi-demand\n          csi:\n            driver: example.invalid\n',
+    'workload-volume-unsupported',
+  ],
+  [
+    'fix1 source runtime class is explicitly refused',
+    '      runtimeClassName: unknown-runtime\n',
+    'workload-shape-unsupported',
+  ],
+  [
+    'fix1 source pod-level resources are explicitly refused',
+    '      resources:\n        requests:\n          memory: 20Gi\n',
+    'workload-shape-unsupported',
+  ],
+  [
+    'fix1 source missing volume variant is explicitly refused',
+    '      volumes:\n        - name: missing-kind\n',
+    'workload-volume-unsupported',
+  ],
+  [
+    'fix1 source multiple volume variants are explicitly refused',
+    '      volumes:\n        - name: two-kinds\n          configMap:\n            name: public-config\n          secret:\n            secretName: secret-reference-only\n',
+    'workload-volume-unsupported',
+  ],
+  [
+    'fix1 source duplicate volume names are explicitly refused',
+    '      volumes:\n        - name: duplicate\n          configMap:\n            name: one\n        - name: duplicate\n          configMap:\n            name: two\n',
+    'workload-volume-unsupported',
+  ],
+  [
+    'fix1 source malformed projection variants are explicitly refused',
+    '      volumes:\n        - name: projected\n          projected:\n            sources:\n              - configMap:\n                  name: one\n                secret:\n                  name: two\n',
+    'workload-volume-unsupported',
+  ],
+  [
+    'fix1 source resource-field projection is explicitly refused',
+    '      volumes:\n        - name: projected\n          projected:\n            sources:\n              - downwardAPI:\n                  items:\n                    - path: memory\n                      resourceFieldRef:\n                        resource: limits.memory\n',
+    'workload-volume-unsupported',
+  ],
+] as const) {
+  it(name, async () => {
+    const setup = await fixture();
+    await rewriteCandidate(setup, (source) =>
+      source.replace('      containers:', addition + '      containers:'),
+    );
+    const response = await setup.run();
+    expect(response.exitCode).toBe(1);
+    expect(response.stderr).toContain(diagnostic);
+  });
+}
+
+it('fix1 unknown mount reference is explicitly refused', async () => {
+  const setup = await fixture();
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '          image:',
+      '          volumeMounts:\n            - name: absent-volume\n              mountPath: /scratch\n          image:',
+    ),
+  );
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('workload-mount-unknown');
+});
+
+it('fix1 duplicate named containers are explicitly refused', async () => {
+  const setup = await fixture();
+  const spec = projectFixturePod(setup.snapshot.pods[0]).spec as typeof WorkloadSpec.infer;
+  spec.containers.push(structuredClone(spec.containers[0]));
+  setup.snapshot.pods[0].specOverride = spec;
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('workload-container-duplicate');
+});
+
+it('fix1 duplicate observed physical UID cannot count as two replicas', async () => {
+  const setup = await fixture();
+  await prepareFixReplicas(setup);
+  setup.snapshot.pods[1].uid = setup.snapshot.pods[0].uid;
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('replica-state-unknown');
+});
+
+for (const [name, change] of [
+  [
+    'fix1 named container identity must match source',
+    (spec: typeof WorkloadSpec.infer) => {
+      spec.containers[0].name = 'old-container';
+    },
+  ],
+  [
+    'fix1 named init resources must match source',
+    (spec: typeof WorkloadSpec.infer) => {
+      spec.initContainers = [{ ...structuredClone(spec.containers[0]), name: 'old-init' }];
+    },
+  ],
+] as const) {
+  it(name, async () => {
+    const setup = await fixture();
+    const spec = projectFixturePod(setup.snapshot.pods[0]).spec as typeof WorkloadSpec.infer;
+    change(spec);
+    setup.snapshot.pods[0].specOverride = spec;
+    const response = await setup.run();
+    expect(response.exitCode).toBe(0);
+    const receipt = JSON.parse(
+      await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+    ) as ReceiptView;
+    expect(receipt.migrationReady).toBe(false);
+    expect(receipt.blockers).toContain('candidate-replica-template-mismatch');
+  });
+}
+
+it('fix1 source claim must be mounted by a named container', async () => {
+  const setup = await fixture();
+  await prepareFixClaim(setup);
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '          volumeMounts:\n            - name: new-storage\n              mountPath: /state\n',
+      '',
+    ),
+  );
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('workload-claim-unmounted');
+});
+
+it('fix1 source CPU overhead cannot vanish independently of memory', async () => {
+  const setup = await fixture();
+  await rewriteCandidate(setup, (source) =>
+    source.replace('      containers:', '      overhead:\n        cpu: 250m\n      containers:'),
+  );
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('candidate-cpu-mismatch');
+});
+
+it('fix1 StatefulSet replicas bind exact source ordinal identities', async () => {
+  const setup = await fixture();
+  await prepareFixReplicas(setup);
+  await rewriteCandidate(setup, (source) =>
+    source.replace('kind: Deployment', 'kind: StatefulSet'),
+  );
+  setup.request.candidate[0].kind = 'StatefulSet';
+  const resource = setup.snapshot.resources.find((entry) => entry.uid === 'new-deployment-uid');
+  const pin = setup.request.resources.find((entry) => entry.uid === 'new-deployment-uid');
+  if (resource === undefined || pin === undefined) throw new Error('fixture controller missing');
+  resource.kind = 'StatefulSet';
+  pin.kind = 'StatefulSet';
+  setup.snapshot.pods.forEach((pod, index) => {
+    pod.name = `new-${String(index)}`;
+  });
+  const response = await setup.run();
+  expect(response.stderr).toBe('');
+  expect(response.exitCode).toBe(0);
+  const receipt = JSON.parse(
+    await readFile(join(setup.directory, 'receipt.json'), 'utf8'),
+  ) as ReceiptView;
+  expect(receipt.migrationReady).toBe(true);
+  expect(receipt.capacity[0].additionalCandidateMiB).toBe(0);
+});
+
+it('fix1 observed CPU limit must remain finite and cover its request', async () => {
+  const setup = await fixture();
+  setup.snapshot.pods[0].cpuLimits = ['0'];
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('cpu-unknown');
+});
+
+it('fix1 source claim pins cannot repeat the same claim identity', async () => {
+  const setup = await fixture();
+  await prepareFixClaim(setup);
+  setup.request.candidate[0].claims.push(structuredClone(setup.request.candidate[0].claims[0]));
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('candidate-storage-pin-unused');
+});
+
+it('fix1 missing actual UID parent cannot be replaced by matching ownership labels', async () => {
+  const setup = await fixture();
+  const resource = setup.snapshot.resources.find((entry) => entry.uid === 'new-deployment-uid');
+  const pin = setup.request.resources.find((entry) => entry.uid === 'new-deployment-uid');
+  if (resource === undefined || pin === undefined) throw new Error('fixture controller missing');
+  resource.ownerUID = 'absent-parent';
+  pin.ownerUID = 'absent-parent';
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('flux-owner-unreviewed');
+});
+
+it('fix1 zero emptyDir size cannot become bounded zero-cost demand', async () => {
+  const setup = await fixture();
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '      containers:',
+      '      volumes:\n        - name: scratch\n          emptyDir:\n            sizeLimit: "0"\n      containers:',
+    ),
+  );
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr).toContain('candidate-emptydir-unbounded');
+});

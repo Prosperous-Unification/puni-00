@@ -5,6 +5,12 @@ import { type } from 'arktype';
 import { parseAllDocuments } from 'yaml';
 
 import { type DiscoveryCommand, type RunDiscoveryCommand, runDiscoveryCommand } from './discover';
+import {
+  normalizeWorkload,
+  ObservedWorkloadSpec,
+  type WorkloadModel,
+  WorkloadSpec,
+} from './observability-workload';
 import { readSshTransport, renderRemoteCommandArguments, type SshTransport } from './ssh-transport';
 
 const name = /^[a-zA-Z0-9][a-zA-Z0-9._:/@-]*$/;
@@ -59,7 +65,7 @@ const Candidate = type({
     volumeUID: 'string',
     '+': 'reject',
   }).array(),
-  existingPodUID: 'string',
+  replicaUIDs: 'string[]',
   artifactPath: 'string>0',
   artifactSHA256: hash,
   '+': 'reject',
@@ -74,7 +80,14 @@ const Request = type({
   controllerContext: name,
   phase: "'inventory'|'cutover'",
   resources: ResourcePin.array(),
-  source: { name, uid: 'string', requiredRevision: 'string', '+': 'reject' },
+  source: {
+    kind: "'GitRepository'",
+    namespace: name,
+    name,
+    uid: 'string',
+    requiredRevision: 'string',
+    '+': 'reject',
+  },
   secrets: SecretPin.array(),
   claims: ClaimPin.array(),
   nodes: NodePin.array(),
@@ -109,7 +122,14 @@ const Request = type({
   timeoutMs: 'number.integer>0',
   '+': 'reject',
 });
-const Identity = type({ name, uid, marker: name, immutable: 'boolean', '+': 'reject' });
+const Identity = type({
+  name,
+  namespace: name,
+  uid,
+  marker: name,
+  immutable: 'boolean',
+  '+': 'reject',
+});
 const Resource = type({
   kind: name,
   name,
@@ -126,10 +146,16 @@ const Resource = type({
   ownerUID: 'string',
   path: 'string',
   sourceName: 'string',
+  sourceKind: 'string',
+  sourceNamespace: 'string',
+  releaseName: 'string',
+  releaseNamespace: 'string',
   dependencies: type({ name, namespace: 'string', '+': 'reject' }).array(),
   '+': 'reject',
 });
 const Source = type({
+  kind: "'GitRepository'",
+  namespace: name,
   name,
   uid,
   revision: 'string>0',
@@ -157,22 +183,13 @@ const Pod = type({
   node: 'string',
   phase: 'string>0',
   ready: 'boolean',
-  restartableInit: 'boolean',
-  requests: 'string[]',
-  limits: 'string[]',
-  cpuRequests: 'string[]',
-  cpuLimits: 'string[]',
-  initCPUs: 'string[]',
-  initCPULimits: 'string[]',
-  overheadCPU: 'string',
-  initRequests: 'string[]',
-  initLimits: 'string[]',
-  overhead: 'string',
+  deleting: 'boolean',
   ownerUID: 'string',
-  images: 'string[]',
   imageIDs: 'string[]',
+  spec: ObservedWorkloadSpec,
   '+': 'reject',
 });
+
 const Secret = type({ name, namespace: name, uid, keys: 'string[]', '+': 'reject' });
 const Claim = type({
   name,
@@ -307,21 +324,29 @@ const ready =
 const projectList = (body: string) =>
   `[{{range $i,$entry := .items}}{{if $i}},{{end}}${body}{{end}}]`;
 
+const projectMounts = `[{{range $i,$mount := .volumeMounts}}{{if $i}},{{end}}{"name":${quoteField('.name')},"mountPath":${quoteField('.mountPath')},"readOnly":{{if .readOnly}}true{{else}}false{{end}}{{if .subPath}},"subPath":${quoteField('.subPath')}{{end}}{{if .subPathExpr}},"subPathExpr":${quoteField('.subPathExpr')}{{end}}}{{end}}]`;
+const projectContainer = `{"name":${quoteField('.name')},"image":${quoteField('.image')},"resources":{"requests":{"memory":${projectOptionalField('.resources.requests.memory')},"cpu":${projectOptionalField('.resources.requests.cpu')}{{if .resources.requests}}{{if index .resources.requests "ephemeral-storage"}},"ephemeral-storage":${quoteField('(index .resources.requests "ephemeral-storage")')}{{end}}{{end}}},"limits":{"memory":${projectOptionalField('.resources.limits.memory')},"cpu":${projectOptionalField('.resources.limits.cpu')}{{if .resources.limits}}{{if index .resources.limits "ephemeral-storage"}},"ephemeral-storage":${quoteField('(index .resources.limits "ephemeral-storage")')}{{end}}{{end}}}},"securityContext":{"readOnlyRootFilesystem":{{if .securityContext.readOnlyRootFilesystem}}true{{else}}false{{end}}},"restartPolicy":${projectOptionalField('.restartPolicy')},"volumeMounts":${projectMounts},"unsupported":{{$unsupported := false}}{{if or .volumeDevices .resizePolicy}}{{$unsupported = true}}{{end}}{{range $key,$value := .resources.requests}}{{if and (ne $key "memory") (ne $key "cpu") (ne $key "ephemeral-storage")}}{{$unsupported = true}}{{end}}{{end}}{{range $key,$value := .resources.limits}}{{if and (ne $key "memory") (ne $key "cpu") (ne $key "ephemeral-storage")}}{{$unsupported = true}}{{end}}{{end}}{{$unsupported}}}`;
+const projectKeyPaths = `[{{range $i,$entry := .items}}{{if $i}},{{end}}{"key":${quoteField('.key')},"path":${quoteField('.path')}}{{end}}]`;
+const projectProjection = `{{if .secret}}{"secret":{{with .secret}}{"name":${quoteField('.name')},"optional":{{if .optional}}true{{else}}false{{end}},"items":${projectKeyPaths}}{{end}}}{{else if .configMap}}{"configMap":{{with .configMap}}{"name":${quoteField('.name')},"optional":{{if .optional}}true{{else}}false{{end}},"items":${projectKeyPaths}}{{end}}}{{else if .serviceAccountToken}}{"serviceAccountToken":{{with .serviceAccountToken}}{"path":${quoteField('.path')}{{if .audience}},"audience":${quoteField('.audience')}{{end}}{{if .expirationSeconds}},"expirationSeconds":{{.expirationSeconds}}{{end}}}{{end}}}{{else if .downwardAPI}}{"downwardAPI":{"items":[{{range $i,$entry := .downwardAPI.items}}{{if $i}},{{end}}{"path":${quoteField('.path')}{{if .fieldRef}},"fieldRef":{"fieldPath":${quoteField('.fieldRef.fieldPath')}}{{else}},"resourceFieldRef":true{{end}}}{{end}}]}}{{else}}{"unsupportedKind":"projection"}{{end}}`;
+const projectVolume = `{"name":${quoteField('.name')}{{if .persistentVolumeClaim}},"persistentVolumeClaim":{"claimName":${quoteField('.persistentVolumeClaim.claimName')},"readOnly":{{if .persistentVolumeClaim.readOnly}}true{{else}}false{{end}}}{{else if .emptyDir}},"emptyDir":{"medium":${projectOptionalField('.emptyDir.medium')},"sizeLimit":${projectOptionalField('.emptyDir.sizeLimit')}}{{else if .configMap}},"configMap":{"name":${quoteField('.configMap.name')}}{{else if .secret}},"secret":{"secretName":${quoteField('.secret.secretName')}}{{else if .projected}},"projected":{"defaultMode":{{if ne .projected.defaultMode nil}}{{.projected.defaultMode}}{{else}}420{{end}},"sources":[{{range $i,$source := .projected.sources}}{{if $i}},{{end}}${projectProjection}{{end}}]}{{else}},"unsupportedKind":{{if .ephemeral}}"ephemeral"{{else if .csi}}"csi"{{else if .hostPath}}"hostPath"{{else}}"volume"{{end}}{{end}}}`;
+// Proof: dropping unknown overhead dimensions failed the pinned-kubectl synthetic Pod unsupported-demand assertion in task-7-fix-1-kubectl-probes.ts.
+const projectWorkloadSpec = `{"containers":[{{range $i,$container := .containers}}{{if $i}},{{end}}${projectContainer}{{end}}],"initContainers":[{{range $i,$container := .initContainers}}{{if $i}},{{end}}${projectContainer}{{end}}],"volumes":[{{range $i,$volume := .volumes}}{{if $i}},{{end}}${projectVolume}{{end}}],"overhead":{"memory":{{if .overhead.memory}}${quoteField('.overhead.memory')}{{else}}"0"{{end}},"cpu":{{if .overhead.cpu}}${quoteField('.overhead.cpu')}{{else}}"0"{{end}}},"serviceAccountName":{{if .serviceAccountName}}${quoteField('.serviceAccountName')}{{else}}"default"{{end}},"automountServiceAccountToken":{{if eq .automountServiceAccountToken false}}false{{else}}true{{end}},"runtimeClassName":${projectOptionalField('.runtimeClassName')},"unsupported":{{$unsupported := false}}{{if or .resources .resourceClaims .ephemeralContainers}}{{$unsupported = true}}{{end}}{{range $key,$value := .overhead}}{{if and (ne $key "memory") (ne $key "cpu")}}{{$unsupported = true}}{{end}}{{end}}{{$unsupported}}}`;
 /** Closed safe projections used by the production kubectl adapter; Secret values are never selected. */
 export const observabilityProjections = {
   storageClasses: projectList(
     `{"name":${quoteField('.metadata.name')},"provisioner":${quoteField('.provisioner')},"bindingMode":${projectOptionalField('.volumeBindingMode')}}`,
   ),
-  identity: `{${metadata},"marker":${quoteField('(index .data "cluster-id")')},"immutable":{{if .immutable}}true{{else}}false{{end}}}`,
-  source: `{${metadata},"revision":${quoteField('.status.artifact.revision')},"ready":${ready},"generation":{{.metadata.generation}},"observedGeneration":{{if .status.observedGeneration}}{{.status.observedGeneration}}{{else}}0{{end}}}`,
+  identity: `{${metadata},${namespace},"marker":${quoteField('(index .data "cluster-id")')},"immutable":{{if .immutable}}true{{else}}false{{end}}}`,
+  source: `{${metadata},${namespace},"kind":${quoteField('.kind')},"revision":${quoteField('.status.artifact.revision')},"ready":${ready},"generation":{{.metadata.generation}},"observedGeneration":{{if .status.observedGeneration}}{{.status.observedGeneration}}{{else}}0{{end}}}`,
+  // Proof: replacing deployed history with lastAttemptedRevision failed the pinned-kubectl synthetic Helm projection assertion in task-7-fix-1-kubectl-probes.ts.
   resources: projectList(
-    `{${metadata},${namespace},"kind":${quoteField('.kind')},"owner":{{if and .metadata.labels (index .metadata.labels "kustomize.toolkit.fluxcd.io/name")}}${quoteField('(index .metadata.labels "kustomize.toolkit.fluxcd.io/name")')}{{else if and .metadata.annotations (index .metadata.annotations "meta.helm.sh/release-name")}}{{printf "%q" (printf "helm:%s" (index .metadata.annotations "meta.helm.sh/release-name"))}}{{else}}""{{end}},"ownerNamespace":{{if and .metadata.labels (index .metadata.labels "kustomize.toolkit.fluxcd.io/namespace")}}${quoteField('(index .metadata.labels "kustomize.toolkit.fluxcd.io/namespace")')}{{else}}{{if .metadata.annotations}}${projectOptionalField('(index .metadata.annotations "meta.helm.sh/release-namespace")')}{{else}}""{{end}}{{end}},"generation":{{if .metadata.generation}}{{.metadata.generation}}{{else}}0{{end}},"observedGeneration":{{if .status.observedGeneration}}{{.status.observedGeneration}}{{else}}0{{end}},"ready":${ready},"revision":{{if eq .kind "HelmRelease"}}${projectOptionalField('.status.lastAttemptedRevision')}{{else}}${projectOptionalField('.status.lastAppliedRevision')}{{end}},"path":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.path')}{{else}}""{{end}},"sourceName":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.sourceRef.name')}{{else}}""{{end}},"dependencies":[{{$namespace := .metadata.namespace}}{{range $i,$dependency := .spec.dependsOn}}{{if $i}},{{end}}{"name":${quoteField('.name')},"namespace":{{if .namespace}}${quoteField('.namespace')}{{else}}{{printf "%q" $namespace}}{{end}}}{{end}}],"chart":{{if eq .kind "HelmRelease"}}${projectOptionalField('.spec.chart.spec.chart')}{{else}}""{{end}},${ownerUID},"controllerEnabled":{{if eq .kind "HelmRelease"}}{{if eq .spec.chart.spec.chart "eck-operator"}}true{{else if eq .spec.chart.spec.chart "kube-prometheus-stack"}}{{if eq .spec.values.prometheusOperator.enabled false}}false{{else}}true{{end}}{{else}}false{{end}}{{else}}false{{end}}}`,
+    `{${metadata},${namespace},"kind":${quoteField('.kind')},"owner":{{if and .metadata.labels (index .metadata.labels "kustomize.toolkit.fluxcd.io/name")}}${quoteField('(index .metadata.labels "kustomize.toolkit.fluxcd.io/name")')}{{else if and .metadata.annotations (index .metadata.annotations "meta.helm.sh/release-name")}}{{printf "%q" (printf "helm:%s" (index .metadata.annotations "meta.helm.sh/release-name"))}}{{else}}""{{end}},"ownerNamespace":{{if and .metadata.labels (index .metadata.labels "kustomize.toolkit.fluxcd.io/namespace")}}${quoteField('(index .metadata.labels "kustomize.toolkit.fluxcd.io/namespace")')}{{else}}{{if .metadata.annotations}}${projectOptionalField('(index .metadata.annotations "meta.helm.sh/release-namespace")')}{{else}}""{{end}}{{end}},"generation":{{if .metadata.generation}}{{.metadata.generation}}{{else}}0{{end}},"observedGeneration":{{if .status.observedGeneration}}{{.status.observedGeneration}}{{else}}0{{end}},"ready":${ready},"revision":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}{{if eq .status "deployed"}}${projectOptionalField('.chartVersion')}{{else}}""{{end}}{{end}}{{else}}""{{end}}{{else}}${projectOptionalField('.status.lastAppliedRevision')}{{end}},"path":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.path')}{{else}}""{{end}},"sourceKind":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.sourceRef.kind')}{{else}}""{{end}},"sourceNamespace":{{if eq .kind "Kustomization"}}{{if .spec.sourceRef.namespace}}${quoteField('.spec.sourceRef.namespace')}{{else}}${quoteField('.metadata.namespace')}{{end}}{{else}}""{{end}},"releaseName":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}${projectOptionalField('.name')}{{end}}{{else}}""{{end}}{{else}}""{{end}},"releaseNamespace":{{if eq .kind "HelmRelease"}}{{with .status.history}}{{with index . 0}}${projectOptionalField('.namespace')}{{end}}{{else}}""{{end}}{{else}}""{{end}},"sourceName":{{if eq .kind "Kustomization"}}${projectOptionalField('.spec.sourceRef.name')}{{else}}""{{end}},"dependencies":[{{$namespace := .metadata.namespace}}{{range $i,$dependency := .spec.dependsOn}}{{if $i}},{{end}}{"name":${quoteField('.name')},"namespace":{{if .namespace}}${quoteField('.namespace')}{{else}}{{printf "%q" $namespace}}{{end}}}{{end}}],"chart":{{if eq .kind "HelmRelease"}}${projectOptionalField('.spec.chart.spec.chart')}{{else}}""{{end}},${ownerUID},"controllerEnabled":{{if eq .kind "HelmRelease"}}{{if eq .spec.chart.spec.chart "eck-operator"}}true{{else if eq .spec.chart.spec.chart "kube-prometheus-stack"}}{{if eq .spec.values.prometheusOperator.enabled false}}false{{else}}true{{end}}{{else}}false{{end}}{{else}}false{{end}}}`,
   ),
   nodes: projectList(
     `{${metadata},"machineID":${quoteField('.status.nodeInfo.machineID')},"labels":{ {{$first := true}}{{range $key,$value := .metadata.labels}}{{if not $first}},{{end}}{{$first = false}}{{printf "%q" $key}}:{{printf "%q" $value}}{{end}} },"allocatable":${quoteField('.status.allocatable.memory')},"allocatableCPU":${projectOptionalField('.status.allocatable.cpu')},"schedulable":{{if .spec.unschedulable}}false{{else}}true{{end}},"pressure":{{$memory := false}}{{$disk := false}}{{$pid := false}}{{range .status.conditions}}{{if eq .status "False"}}{{if eq .type "MemoryPressure"}}{{$memory = true}}{{end}}{{if eq .type "DiskPressure"}}{{$disk = true}}{{end}}{{if eq .type "PIDPressure"}}{{$pid = true}}{{end}}{{end}}{{end}}{{if and $memory $disk $pid}}"clear"{{else}}"unknown-or-pressured"{{end}},"ready":${ready}}`,
   ),
   pods: projectList(
-    `{${metadata},${namespace},"node":${projectOptionalField('.spec.nodeName')},"phase":${quoteField('.status.phase')},"ready":${ready},"restartableInit":{{$restartable := false}}{{range .spec.initContainers}}{{if eq .restartPolicy "Always"}}{{$restartable = true}}{{end}}{{end}}{{$restartable}},"requests":[{{range $i,$c := .spec.containers}}{{if $i}},{{end}}${projectOptionalField('.resources.requests.memory')}{{end}}],"limits":[{{range $i,$c := .spec.containers}}{{if $i}},{{end}}${projectOptionalField('.resources.limits.memory')}{{end}}],"cpuRequests":[{{range $i,$c := .spec.containers}}{{if $i}},{{end}}${projectOptionalField('.resources.requests.cpu')}{{end}}],"cpuLimits":[{{range $i,$c := .spec.containers}}{{if $i}},{{end}}${projectOptionalField('.resources.limits.cpu')}{{end}}],"initCPUs":[{{range $i,$c := .spec.initContainers}}{{if $i}},{{end}}{{if .resources.requests.cpu}}${quoteField('.resources.requests.cpu')}{{else}}""{{end}}{{end}}],"initCPULimits":[{{range $i,$c := .spec.initContainers}}{{if $i}},{{end}}${projectOptionalField('.resources.limits.cpu')}{{end}}],"overheadCPU":{{if .spec.overhead.cpu}}${quoteField('.spec.overhead.cpu')}{{else}}"0"{{end}},"initLimits":[{{range $i,$c := .spec.initContainers}}{{if $i}},{{end}}${projectOptionalField('.resources.limits.memory')}{{end}}],"initRequests":[{{range $i,$c := .spec.initContainers}}{{if $i}},{{end}}${projectOptionalField('.resources.requests.memory')}{{end}}],${ownerUID},"images":[{{range $i,$c := .spec.containers}}{{if $i}},{{end}}${quoteField('.image')}{{end}}],"imageIDs":[{{range $i,$c := .status.containerStatuses}}{{if $i}},{{end}}${quoteField('.imageID')}{{end}}],"overhead":{{if .spec.overhead.memory}}${quoteField('.spec.overhead.memory')}{{else}}"0"{{end}}}`,
+    `{${metadata},${namespace},"node":${projectOptionalField('.spec.nodeName')},"phase":${quoteField('.status.phase')},"ready":${ready},"deleting":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},${ownerUID},"imageIDs":[{{range $i,$container := .status.containerStatuses}}{{if $i}},{{end}}${quoteField('.imageID')}{{end}}],"spec":{{with .spec}}${projectWorkloadSpec}{{end}}}`,
   ),
   secrets: `{${metadata},${namespace},"keys":[{{$first := true}}{{range $key,$value := .data}}{{if not $first}},{{end}}{{$first = false}}{{printf "%q" $key}}{{end}}]}`,
   claims: projectList(
@@ -406,29 +431,6 @@ function readMemoryMiB(quantity: string): number {
   return memory;
 }
 
-function computePodMemoryMiB(pod: typeof Pod.infer): number {
-  if (
-    pod.requests.length === 0 ||
-    pod.requests.length !== pod.limits.length ||
-    pod.initRequests.length !== pod.initLimits.length
-  )
-    // Proof: removing this refusal failed `unknown current memory bounds refuse` with its named fault.
-    refusePreflight('memory-unknown');
-  const readPeak = (request: string, limit: string): number => {
-    const bound = readMemoryMiB(limit);
-    // Proof: removing this refusal failed `unbounded current memory limit refuses` with its named fault.
-    if (bound <= 0) refusePreflight('memory-unknown');
-    return Math.max(readMemoryMiB(request), bound);
-  };
-  return (
-    Math.max(
-      pod.requests.reduce((sum, request, index) => sum + readPeak(request, pod.limits[index]), 0),
-      ...pod.initRequests.map((request, index) => readPeak(request, pod.initLimits[index])),
-      0,
-    ) + readMemoryMiB(pod.overhead)
-  );
-}
-
 function readCPUMilli(quantity: string): number {
   const match = /^(\d+(?:\.\d+)?)(m|u|n)?$/.exec(quantity);
   // Proof: removing this refusal failed `unknown node CPU refuses` with its named fault.
@@ -441,25 +443,12 @@ function readCPUMilli(quantity: string): number {
   return cpu;
 }
 
-function computePodCPUMilli(pod: typeof Pod.infer): number {
-  // Proof: removing this refusal failed `unsupported restartable init resource shape refuses` with its named fault.
-  if (pod.restartableInit) refusePreflight('pod-resource-shape-unsupported');
-  if (
-    pod.cpuRequests.length !== pod.cpuLimits.length ||
-    pod.initCPUs.length !== pod.initCPULimits.length
-  )
-    // Proof: removing this refusal failed `unknown CPU array alignment refuses` with its named fault.
-    refusePreflight('cpu-unknown');
-  // Limits prove a finite bound, while scheduler admission uses requests under CPU overcommit.
-  pod.cpuLimits.forEach(readCPUMilli);
-  pod.initCPULimits.forEach(readCPUMilli);
-  return (
-    Math.max(
-      pod.cpuRequests.reduce((sum, quantity) => sum + readCPUMilli(quantity), 0),
-      ...pod.initCPUs.map(readCPUMilli),
-      0,
-    ) + readCPUMilli(pod.overheadCPU)
-  );
+function readWorkloadModel(spec: typeof WorkloadSpec.infer): WorkloadModel {
+  return normalizeWorkload(spec, {
+    memory: readMemoryMiB,
+    cpu: readCPUMilli,
+    refuse: refusePreflight,
+  });
 }
 
 function computeDockerCPUMilli(container: (typeof Docker.infer.containers)[number]): number {
@@ -521,7 +510,7 @@ async function readCandidateCosts(
 ): Promise<{
   readonly requiredClaims: readonly { readonly name: string; readonly requestedMiB: number }[];
   readonly replicas: number;
-  readonly images: readonly string[];
+  readonly models: readonly WorkloadModel[];
 }> {
   let source: string;
   try {
@@ -557,57 +546,7 @@ async function readCandidateCosts(
     spec: {
       replicas: 'number.integer>0',
       'volumeClaimTemplates?': VolumeTemplate.array(),
-      template: {
-        spec: {
-          'nodeName?': name,
-          'nodeSelector?': type({ '[string]': 'string' }),
-          'affinity?': {
-            'nodeAffinity?': {
-              'requiredDuringSchedulingIgnoredDuringExecution?': {
-                nodeSelectorTerms: type({
-                  'matchExpressions?': type({
-                    key: name,
-                    operator: 'string',
-                    values: 'string[]',
-                  }).array(),
-                  'matchFields?': 'unknown',
-                }).array(),
-              },
-            },
-            'podAffinity?': {
-              'requiredDuringSchedulingIgnoredDuringExecution?': 'unknown',
-              'preferredDuringSchedulingIgnoredDuringExecution?': 'unknown',
-            },
-            'podAntiAffinity?': {
-              'requiredDuringSchedulingIgnoredDuringExecution?': 'unknown',
-              'preferredDuringSchedulingIgnoredDuringExecution?': 'unknown',
-            },
-          },
-          'volumes?': type({
-            name,
-            'persistentVolumeClaim?': { claimName: name },
-            'hostPath?': { path: 'string' },
-            'emptyDir?': { 'sizeLimit?': 'string', 'medium?': 'string' },
-          }).array(),
-          containers: type({
-            image: 'string>0',
-            'securityContext?': { 'readOnlyRootFilesystem?': 'boolean' },
-            resources: {
-              requests: { memory: 'string>0', cpu: 'string>0', 'ephemeral-storage?': 'string' },
-              limits: { memory: 'string>0', cpu: 'string>0', 'ephemeral-storage?': 'string' },
-            },
-          }).array(),
-          'initContainers?': type({
-            'restartPolicy?': "'Always'",
-            image: 'string>0',
-            'securityContext?': { 'readOnlyRootFilesystem?': 'boolean' },
-            resources: {
-              requests: { memory: 'string>0', cpu: 'string>0', 'ephemeral-storage?': 'string' },
-              limits: { memory: 'string>0', cpu: 'string>0', 'ephemeral-storage?': 'string' },
-            },
-          }).array(),
-        },
-      },
+      template: { spec: WorkloadSpec },
     },
   });
   let documents: unknown[];
@@ -685,123 +624,68 @@ async function readCandidateCosts(
   if (spec.nodeName !== undefined && hasClaims && bindingMode === 'WaitForFirstConsumer')
     // Proof: removing this refusal failed `nodeName cannot bypass WaitForFirstConsumer for a selected new PVC` with its named fault.
     refusePreflight('candidate-placement-bypasses-scheduler');
-  if (spec.initContainers?.some((container) => container.restartPolicy === 'Always'))
-    // Proof: removing this refusal failed `source restartable init accounting is refused instead of underestimated` with its named fault.
-    refusePreflight('candidate-resource-shape-unsupported');
-  const readPeak = (container: (typeof spec.containers)[number]) =>
-    Math.max(
-      readMemoryMiB(container.resources.requests.memory),
-      readMemoryMiB(container.resources.limits.memory),
-    );
-  let memory =
-    workload.spec.replicas *
-    Math.max(
-      spec.containers.reduce((sum, container) => sum + readPeak(container), 0),
-      ...(spec.initContainers ?? []).map(readPeak),
-      0,
-    );
-
-  const readContainerCPU = (container: (typeof spec.containers)[number]) =>
-    readCPUMilli(container.resources.requests.cpu);
-  const cpu =
-    workload.spec.replicas *
-    Math.max(
-      spec.containers.reduce((sum, container) => sum + readContainerCPU(container), 0),
-      ...(spec.initContainers ?? []).map(readContainerCPU),
-      0,
-    );
-  // Proof: removing this refusal failed `tiny declared CPU cannot override source artifact` with its named fault.
-  if (cpu !== candidate.cpuMilli) refusePreflight('candidate-cpu-mismatch');
-  // Limits are required evidence, but normal Kubernetes CPU overcommit remains admissible.
-  for (const container of [...spec.containers, ...(spec.initContainers ?? [])])
-    readCPUMilli(container.resources.limits.cpu);
-  const readEphemeralPeak = (container: (typeof spec.containers)[number]) => {
-    const limit = container.resources.limits['ephemeral-storage'];
-    if (limit === undefined) {
-      if (container.securityContext?.readOnlyRootFilesystem === true) return 0;
-      // Proof: removing this refusal failed `unbounded writable source filesystem refuses` with its named fault.
-      return refusePreflight('candidate-ephemeral-unbounded');
-    }
-    const allowance = readMemoryMiB(limit);
-    const request = container.resources.requests['ephemeral-storage'];
-    if (allowance <= 0 || (request !== undefined && readMemoryMiB(request) > allowance))
-      // Proof: removing this refusal failed `zero ephemeral limit cannot mean a bounded writable allowance` with its named fault.
-      refusePreflight('candidate-ephemeral-unbounded');
-    return allowance;
-  };
-  const writablePeak = Math.max(
-    spec.containers.reduce((sum, container) => sum + readEphemeralPeak(container), 0),
-    ...(spec.initContainers ?? []).map(readEphemeralPeak),
-    0,
-  );
-  let memoryEmptyDirMiB = 0;
-  let diskEmptyDirMiB = 0;
-  let storageMiB = 0;
   const requiredClaims: { name: string; requestedMiB: number }[] = [];
-  const seenClaims = new Set<string>();
-  for (const volume of spec.volumes ?? []) {
-    if (volume.hostPath !== undefined)
-      // Proof: removing this refusal failed `unbound candidate hostPath refuses` with its named fault.
-      refusePreflight('candidate-storage-unknown');
-    if (volume.emptyDir !== undefined) {
-      // Proof: removing this refusal failed `source emptyDir without sizeLimit remains a concrete blocker` with its named fault.
-      if (volume.emptyDir.sizeLimit === undefined) refusePreflight('candidate-emptydir-unbounded');
-      const allowance = readMemoryMiB(volume.emptyDir.sizeLimit);
-      if (
-        allowance <= 0 ||
-        (volume.emptyDir.medium !== undefined && !['', 'Memory'].includes(volume.emptyDir.medium))
-      )
-        // Proof: removing this refusal failed `unsupported scratch medium refuses a guessed storage dimension` with its named fault.
-        refusePreflight('candidate-emptydir-unbounded');
-      if (volume.emptyDir.medium === 'Memory') memoryEmptyDirMiB += allowance;
-      else diskEmptyDirMiB += allowance;
-    }
-    if (volume.persistentVolumeClaim === undefined) continue;
-    const claimName = volume.persistentVolumeClaim.claimName;
-    if (seenClaims.has(claimName)) continue;
-    seenClaims.add(claimName);
-    if (
-      retained.some((claim) => claim.name === claimName && claim.namespace === candidate.namespace)
-    )
-      // Proof: removing this refusal failed `retained history cannot be writable-mounted by the new runtime` with its named fault.
-      refusePreflight('retained-store-dual-mount');
-    const claim = storageClaims.find(
-      (entry) =>
-        entry.metadata.name === claimName && entry.metadata.namespace === candidate.namespace,
-    );
-    // Proof: removing this refusal failed `missing candidate PVC source cannot be costed as empty storage` with its named fault.
-    if (claim?.spec.storageClassName !== storageClass) refusePreflight('candidate-storage-unknown');
-    const requestedMiB = readMemoryMiB(claim.spec.resources.requests.storage);
-    storageMiB += requestedMiB;
-    requiredClaims.push({ name: claimName, requestedMiB });
-  }
-  for (const claim of workload.spec.volumeClaimTemplates ?? []) {
-    // Proof: removing this refusal failed `StatefulSet template storage demand requires its exact selected storage class` with its named fault.
-    if (claim.spec.storageClassName !== storageClass) refusePreflight('candidate-storage-unknown');
-    const requestedMiB = readMemoryMiB(claim.spec.resources.requests.storage);
-    storageMiB += workload.spec.replicas * requestedMiB;
-    for (let ordinal = 0; ordinal < workload.spec.replicas; ordinal += 1)
+  const models: WorkloadModel[] = [];
+  for (let ordinal = 0; ordinal < workload.spec.replicas; ordinal += 1) {
+    const volumes = [...(spec.volumes ?? [])];
+    for (const claim of workload.spec.volumeClaimTemplates ?? []) {
+      if (claim.spec.storageClassName !== storageClass)
+        refusePreflight('candidate-storage-unknown');
+      const claimName = `${claim.metadata.name}-${candidate.name}-${String(ordinal)}`;
+      if (volumes.some((volume) => volume.name === claim.metadata.name))
+        refusePreflight('workload-volume-unsupported');
+      volumes.push({ name: claim.metadata.name, persistentVolumeClaim: { claimName } });
       requiredClaims.push({
-        name: `${claim.metadata.name}-${candidate.name}-${String(ordinal)}`,
-        requestedMiB,
+        name: claimName,
+        requestedMiB: readMemoryMiB(claim.spec.resources.requests.storage),
       });
+    }
+    const model = readWorkloadModel({ ...spec, volumes });
+    for (const volume of model.volumes.filter((volume) => volume.kind === 'claim')) {
+      if (
+        retained.some(
+          (claim) => claim.name === volume.reference && claim.namespace === candidate.namespace,
+        )
+      )
+        refusePreflight('retained-store-dual-mount');
+      if (requiredClaims.some((claim) => claim.name === volume.reference)) continue;
+      const claim = storageClaims.find(
+        (entry) =>
+          entry.metadata.name === volume.reference &&
+          entry.metadata.namespace === candidate.namespace,
+      );
+      if (claim?.spec.storageClassName !== storageClass)
+        refusePreflight('candidate-storage-unknown');
+      requiredClaims.push({
+        name: volume.reference,
+        requestedMiB: readMemoryMiB(claim.spec.resources.requests.storage),
+      });
+    }
+    for (const volume of model.volumes.filter((volume) => volume.kind === 'claim')) {
+      if (
+        ![...model.containers, ...model.initContainers].some((container) =>
+          container.mounts.some((mount) => mount.name === volume.name),
+        )
+      )
+        // Proof: `source-claim-mounted` removal/broken dependency failed `fix1 source claim must be mounted by a named container` with an assertion.
+        refusePreflight('workload-claim-unmounted');
+    }
+    models.push(model);
   }
-  memory = Math.max(memory, workload.spec.replicas * memoryEmptyDirMiB);
-  // Proof: removing this refusal failed `tiny caller cost cannot override rendered workload requests` with its named fault.
-  if (memory !== candidate.memoryMiB) refusePreflight('candidate-budget-mismatch');
-  const ephemeralMiB = workload.spec.replicas * Math.max(writablePeak, diskEmptyDirMiB);
-  // Proof: removing this refusal failed `small caller ephemeral allowance cannot replace bounded source scratch demand` with its named fault.
-  if (ephemeralMiB !== candidate.ephemeralMiB) refusePreflight('candidate-ephemeral-mismatch');
-  // Proof: removing this refusal failed `declared storage cost cannot replace selected artifact` with its named fault.
+  const storageMiB = requiredClaims.reduce((sum, claim) => sum + claim.requestedMiB, 0);
+  if (models.reduce((sum, model) => sum + model.memoryMiB, 0) !== candidate.memoryMiB)
+    refusePreflight('candidate-budget-mismatch');
+  if (models.reduce((sum, model) => sum + model.cpuMilli, 0) !== candidate.cpuMilli)
+    refusePreflight('candidate-cpu-mismatch');
+  if (models.reduce((sum, model) => sum + model.ephemeralMiB, 0) !== candidate.ephemeralMiB)
+    refusePreflight('candidate-ephemeral-mismatch');
   if (storageMiB !== candidate.storageMiB) refusePreflight('candidate-storage-mismatch');
-  if (candidate.claims.some((pin) => !requiredClaims.some((claim) => claim.name === pin.name)))
-    // Proof: removing this refusal failed `unused selected PVC pins refuse` with its named fault.
+  // Proof: `claim-pin-duplicate` removal/broken dependency failed `fix1 source claim pins cannot repeat the same claim identity` with an assertion.
+  if (new Set(candidate.claims.map((pin) => pin.name)).size !== candidate.claims.length)
     refusePreflight('candidate-storage-pin-unused');
-  return {
-    requiredClaims,
-    replicas: workload.spec.replicas,
-    images: spec.containers.map((container) => container.image),
-  };
+  if (candidate.claims.some((pin) => !requiredClaims.some((claim) => claim.name === pin.name)))
+    refusePreflight('candidate-storage-pin-unused');
+  return { requiredClaims, replicas: workload.spec.replicas, models };
 }
 
 /**
@@ -883,12 +767,19 @@ export async function preflightObservability(
   const identity = decodeProjection(
     Identity,
     await kubernetes(request.context, 'configmap', observabilityProjections.identity, [
-      'puni-cluster-identity',
+      // Proof: `canonical-query` removal/broken dependency failed `fix1 two complete owned replicas fit without duplicate candidate charges` with an assertion.
+      `puni-cluster-${request.targetMarker}`,
       '-n',
-      'flux-system',
+      'kube-system',
     ]),
   );
   if (
+    // Proof: `marker-name` removal/broken dependency failed `fix1 canonical marker wrong name refuses` with an assertion.
+    identity.name !== `puni-cluster-${request.targetMarker}` ||
+    // Proof: `marker-namespace` removal/broken dependency failed `fix1 canonical marker wrong namespace refuses` with an assertion.
+    identity.namespace !== 'kube-system' ||
+    // Proof: `immutable-marker` removal/broken dependency failed `fix1 mutable canonical target cannot be replaced by matching declarative identity` with an assertion.
+    !identity.immutable ||
     identity.marker !== request.targetMarker ||
     (request.phase === 'cutover' && identity.uid !== request.identityUID)
   )
@@ -899,7 +790,7 @@ export async function preflightObservability(
     await kubernetes(request.controllerContext, 'gitrepository', observabilityProjections.source, [
       request.source.name,
       '-n',
-      'flux-system',
+      request.source.namespace,
     ]),
   );
   const targetResources = decodeProjection(
@@ -1061,6 +952,8 @@ export async function preflightObservability(
   // Proof: removing this refusal failed `duplicate selected workload refuses` with its named fault.
   if (new Set(selected).size !== selected.length) refusePreflight('duplicate-selection');
   if (
+    source.namespace !== request.source.namespace ||
+    source.name !== request.source.name ||
     source.uid !== request.source.uid ||
     source.revision !== request.source.requiredRevision ||
     !source.ready ||
@@ -1085,7 +978,14 @@ export async function preflightObservability(
     if (seen.has(resource.uid)) refusePreflight('dependency-cycle');
     seen.add(resource.uid);
     // Proof: removing this refusal failed `observed Flux sourceRef cannot drift from the pinned Git source` with its named fault.
-    if (resource.sourceName !== request.source.name) refusePreflight('source-mismatch');
+    if (
+      // Proof: `source-kind` removal/broken dependency failed `fix1 full Flux source kind is bound` with an assertion.
+      resource.sourceKind !== request.source.kind ||
+      // Proof: `source-namespace` removal/broken dependency failed `fix1 full Flux source namespace is bound` with an assertion.
+      resource.sourceNamespace !== request.source.namespace ||
+      resource.sourceName !== request.source.name
+    )
+      refusePreflight('source-mismatch');
     for (const edge of resource.dependencies) {
       const dependency = resources.find(
         (entry) =>
@@ -1124,6 +1024,9 @@ export async function preflightObservability(
     )
       // Proof: removing this refusal failed `unknown owner refuses` with its named fault.
       refusePreflight('ownership-mismatch');
+    if (['Kustomization', 'HelmRelease'].includes(actual.kind) && pin.requiredRevision === '')
+      // Proof: `revision-pin` removal/broken dependency failed `fix1 empty applied revision cannot bypass a revision-bearing prerequisite` with an assertion.
+      refusePreflight('revision-pin-required');
     if (actual.kind === 'Kustomization') {
       // Proof: removing this refusal failed `observed Flux path cannot drift from the reviewed graph` with its named fault.
       if (actual.path !== pin.path) refusePreflight('source-mismatch');
@@ -1138,11 +1041,49 @@ export async function preflightObservability(
       // Proof: removing this refusal failed `unready dependency refuses migration` with its named fault.
       refusePreflight('dependency-unready');
   }
+  function requireFluxOwner(resource: typeof Resource.infer, seen = new Set<string>()): void {
+    if (seen.has(resource.uid)) return;
+    seen.add(resource.uid);
+    if (resource.ownerUID !== '') {
+      const parent = resources.find((entry) => entry.uid === resource.ownerUID);
+      // Proof: `owner-parent-present` removal/broken dependency failed `fix1 missing actual UID parent cannot be replaced by matching ownership labels` with an assertion.
+      if (parent === undefined) refusePreflight('flux-owner-unreviewed');
+      requireFluxOwner(parent, seen);
+      return;
+    }
+    let owner: typeof Resource.infer | undefined;
+    if (resource.owner.startsWith('helm:'))
+      owner = resources.find(
+        (entry) =>
+          entry.kind === 'HelmRelease' &&
+          entry.releaseName === resource.owner.slice(5) &&
+          entry.releaseNamespace === resource.ownerNamespace,
+      );
+    else
+      owner = resources.find(
+        (entry) =>
+          entry.kind === 'Kustomization' &&
+          entry.name === resource.owner &&
+          entry.namespace === resource.ownerNamespace,
+      );
+    // Proof: `flux-owner-pin` removal/broken dependency failed `fix1 omitted actual Flux owner refuses even when caller selects other ready resources` with an assertion.
+    if (owner === undefined || !request.resources.some((pin) => pin.uid === owner.uid))
+      refusePreflight('flux-owner-unreviewed');
+    if (!owner.ready || owner.generation !== owner.observedGeneration)
+      refusePreflight('dependency-unready');
+    if (owner.kind === 'Kustomization') requireDependencies(owner);
+    if (owner.uid !== resource.uid) requireFluxOwner(owner, seen);
+  }
+  for (const pin of request.resources) {
+    const resource = resources.find((entry) => entry.uid === pin.uid);
+    if (resource === undefined) refusePreflight('flux-owner-unreviewed');
+    requireFluxOwner(resource);
+  }
   const selectedClaims: {
     candidate: typeof Candidate.infer;
     requiredClaims: readonly { name: string; requestedMiB: number }[];
     replicas: number;
-    images: readonly string[];
+    models: readonly WorkloadModel[];
   }[] = [];
   for (const candidate of request.candidate) {
     if (
@@ -1163,6 +1104,77 @@ export async function preflightObservability(
       )),
     });
   }
+  const isActivePod = (pod: typeof Pod.infer) =>
+    // Proof: `terminating-retention` removal/broken dependency failed `fix1 terminating replica cannot disappear or satisfy a replacement slot` with an assertion.
+    pod.deleting || !['Succeeded', 'Failed'].includes(pod.phase);
+  if (new Set(pods.map((pod) => pod.uid)).size !== pods.length)
+    // Proof: `physical-uid` removal/broken dependency failed `fix1 duplicate observed physical UID cannot count as two replicas` with an assertion.
+    refusePreflight('replica-state-unknown');
+  const podModels = new Map(
+    // Proof: `observed-model-cache` removal/broken dependency failed `fix1 two complete owned replicas fit without duplicate candidate charges` with an assertion.
+    pods.filter(isActivePod).map((pod) => [pod.uid, readWorkloadModel(pod.spec)]),
+  );
+  function readObservedModel(pod: typeof Pod.infer): WorkloadModel {
+    const model = podModels.get(pod.uid);
+    if (model === undefined) refusePreflight('replica-state-unknown');
+    return model;
+  }
+  const assessments = selectedClaims.map((selection) => {
+    const { candidate, models } = selection;
+    const controller = resources.find(
+      (entry) =>
+        entry.kind === candidate.kind &&
+        entry.name === candidate.name &&
+        entry.namespace === candidate.namespace,
+    );
+    const owned =
+      controller === undefined
+        ? []
+        : pods.filter((pod) => {
+            const parent = resources.find(
+              (entry) => entry.uid === pod.ownerUID && entry.kind === 'ReplicaSet',
+            );
+            return (
+              isActivePod(pod) &&
+              pod.namespace === candidate.namespace &&
+              (parent === undefined ? pod.ownerUID : parent.ownerUID) === controller.uid
+            );
+          });
+    if (
+      new Set(candidate.replicaUIDs).size !== candidate.replicaUIDs.length ||
+      candidate.replicaUIDs.some((uid) => !owned.some((pod) => pod.uid === uid))
+    )
+      // Proof: `foreign-replica-pin` removal/broken dependency failed `fix1 foreign replica UID cannot suppress a missing owned replica` with an assertion.
+      refusePreflight('replica-pin-mismatch');
+    // Proof: `missing-replica-cost` removal/broken dependency failed `fix1 partial replicas retain current cost and reserve only the missing replica` with an assertion.
+    const unmatched = [...models];
+    const matched: typeof owned = [];
+    for (const pod of owned) {
+      if (pod.deleting || pod.node !== candidate.node) continue;
+      const model = readObservedModel(pod);
+      const ordinal =
+        candidate.kind === 'StatefulSet'
+          ? Number(pod.name.slice(candidate.name.length + 1))
+          : undefined;
+      const ordinalModel = ordinal === undefined ? undefined : models.at(ordinal);
+      const expected =
+        ordinal === undefined
+          ? // Proof: `replica-model-equality` removal/broken dependency failed `fix1 old named pod resources cannot establish the selected candidate readiness` with an assertion.
+            unmatched.findIndex((desired) => JSON.stringify(desired) === JSON.stringify(model))
+          : Number.isSafeInteger(ordinal) &&
+              ordinal >= 0 &&
+              pod.name === `${candidate.name}-${String(ordinal)}` &&
+              ordinalModel !== undefined &&
+              JSON.stringify(ordinalModel) === JSON.stringify(model)
+            ? unmatched.indexOf(ordinalModel)
+            : -1;
+      if (expected >= 0) {
+        unmatched.splice(expected, 1);
+        matched.push(pod);
+      }
+    }
+    return { ...selection, controller, owned, matched, unmatched };
+  });
   for (const secret of request.secrets) {
     const actual = secrets.find(
       (entry) => entry.name === secret.name && entry.namespace === secret.namespace,
@@ -1255,40 +1267,18 @@ export async function preflightObservability(
     )
       // Proof: removing this refusal failed `unready current node refuses` with its named fault.
       refusePreflight('node-mismatch');
-    const current = pods.filter(
-      (pod) => pod.node === pin.name && !['Succeeded', 'Failed'].includes(pod.phase),
+    const current = pods.filter((pod) => pod.node === pin.name && isActivePod(pod));
+    const selected = assessments.filter((assessment) => assessment.candidate.node === pin.name);
+    const additions = selected.reduce(
+      (sum, assessment) =>
+        sum + assessment.unmatched.reduce((total, model) => total + model.memoryMiB, 0),
+      0,
     );
-    let additions = 0;
-    let additionalCPUMilli = 0;
-    for (const candidate of request.candidate.filter((entry) => entry.node === pin.name)) {
-      if (candidate.existingPodUID === '') {
-        additions += candidate.memoryMiB;
-        additionalCPUMilli += candidate.cpuMilli;
-      } else {
-        const pod = current.find((entry) => entry.uid === candidate.existingPodUID);
-        const controller = resources.find(
-          (entry) =>
-            entry.kind === candidate.kind &&
-            entry.name === candidate.name &&
-            entry.namespace === candidate.namespace,
-        );
-        const parent = resources.find(
-          (entry) => entry.uid === pod?.ownerUID && entry.kind === 'ReplicaSet',
-        );
-        const controllerUID = parent === undefined ? pod?.ownerUID : parent.ownerUID;
-        if (
-          controller === undefined ||
-          !request.resources.some((entry) => entry.uid === controller.uid) ||
-          controller.uid !== controllerUID ||
-          pod?.namespace !== candidate.namespace ||
-          !pod.name.startsWith(candidate.name + '-') ||
-          computePodMemoryMiB(pod) !== candidate.memoryMiB ||
-          computePodCPUMilli(pod) !== candidate.cpuMilli
-        )
-          // Proof: removing this refusal failed `foreign pod controller cannot suppress candidate capacity` with its named fault.
-          refusePreflight('existing-workload-mismatch');
-      }
-    }
+    const additionalCPUMilli = selected.reduce(
+      (sum, assessment) =>
+        sum + assessment.unmatched.reduce((total, model) => total + model.cpuMilli, 0),
+      0,
+    );
     const retained =
       pin.name === request.docker.node
         ? docker.containers.filter(
@@ -1298,14 +1288,14 @@ export async function preflightObservability(
     // Proof: removing this refusal failed `unbounded Docker memory refuses` with its named fault.
     if (retained.some((entry) => entry.memoryBytes <= 0)) refusePreflight('docker-unbounded');
     const requiredMiB =
-      current.reduce((sum, pod) => sum + computePodMemoryMiB(pod), 0) +
+      current.reduce((sum, pod) => sum + readObservedModel(pod).memoryMiB, 0) +
       additions +
       retained.reduce((sum, container) => sum + container.memoryBytes / 1048576, 0) +
       pin.reserveMiB;
     const allocatableMiB = readMemoryMiB(node.allocatable);
     const allocatableCPUMilli = readCPUMilli(node.allocatableCPU);
     const requiredCPUMilli =
-      current.reduce((sum, pod) => sum + computePodCPUMilli(pod), 0) +
+      current.reduce((sum, pod) => sum + readObservedModel(pod).cpuMilli, 0) +
       additionalCPUMilli +
       retained.reduce((sum, container) => sum + computeDockerCPUMilli(container), 0) +
       pin.reserveCPUMilli;
@@ -1375,11 +1365,50 @@ export async function preflightObservability(
       // Proof: removing this refusal failed `wrong PV filesystem device refuses` with its named fault.
       refusePreflight('storage-filesystem-mismatch');
   }
-  const storageRequiredMiB =
-    request.candidate
-      .filter((entry) => entry.existingPodUID === '')
-      .reduce((sum, entry) => sum + entry.storageMiB + entry.ephemeralMiB, 0) +
-    request.storage.headroomMiB;
+  const claimBindings = selectedClaims.flatMap((selection) =>
+    selection.requiredClaims.map((required) => {
+      // Proof: `claim-pin-binding` removal/broken dependency failed `fix1 omitted claim identity remains charged and blocks readiness independently of replica pins` with an assertion.
+      const pin = selection.candidate.claims.find((entry) => entry.name === required.name);
+      const claim = claims.find(
+        (entry) =>
+          entry.name === required.name && entry.namespace === selection.candidate.namespace,
+      );
+      const volume = volumes.find((entry) => entry.uid === pin?.volumeUID);
+      const bound =
+        pin !== undefined &&
+        claim?.uid === pin.uid &&
+        claim.volume === pin.volume &&
+        claim.phase === 'Bound' &&
+        claim.storageClass === storageClass.name &&
+        readMemoryMiB(claim.requested) === required.requestedMiB &&
+        readMemoryMiB(claim.capacity) >= required.requestedMiB &&
+        volume?.name === pin.volume &&
+        volume.storageClass === storageClass.name &&
+        volume.claimUID === pin.uid &&
+        volume.policy === 'Retain';
+      if (
+        bound &&
+        (!volume.path.startsWith(request.storage.path + '/') ||
+          !volume.nodes.includes(request.storage.node) ||
+          filesystem.claimPaths.find((entry) => entry.path === volume.path)?.device !==
+            filesystem.device)
+      )
+        refusePreflight('storage-filesystem-mismatch');
+      return { required, bound };
+    }),
+  );
+  const newClaimMiB = claimBindings.reduce(
+    // Proof: `claim-new-cost` removal/broken dependency failed `fix1 omitted claim identity remains charged and blocks readiness independently of replica pins` with an assertion.
+    (sum, binding) => sum + (binding.bound ? 0 : binding.required.requestedMiB),
+    0,
+  );
+  const newEphemeralMiB = assessments.reduce(
+    (sum, assessment) =>
+      sum + assessment.unmatched.reduce((total, model) => total + model.ephemeralMiB, 0),
+    0,
+  );
+  const storageRequiredMiB = newClaimMiB + newEphemeralMiB + request.storage.headroomMiB;
+
   if (
     storageRequiredMiB * 1048576 > filesystem.availableBytes ||
     docker.volumes.some(
@@ -1398,81 +1427,41 @@ export async function preflightObservability(
     headroomMiB: request.storage.headroomMiB,
   };
   const blockers: string[] = [];
-  for (const { candidate, requiredClaims } of selectedClaims) {
-    for (const required of requiredClaims) {
-      const pin = candidate.claims.find((claim) => claim.name === required.name);
-      const claim = claims.find(
-        (entry) => entry.namespace === candidate.namespace && entry.name === required.name,
-      );
-      const volume = volumes.find((entry) => entry.name === pin?.volume);
-      if (
-        pin === undefined ||
-        claim?.uid !== pin.uid ||
-        claim.phase !== 'Bound' ||
-        claim.volume !== pin.volume ||
-        claim.storageClass !== storageClass.name ||
-        readMemoryMiB(claim.capacity) < required.requestedMiB ||
-        volume?.uid !== pin.volumeUID ||
-        volume.claimUID !== pin.uid ||
-        volume.policy !== 'Retain'
-      ) {
-        // Proof: dropping this blocker failed `new PVC absent from the observed target remains a migration blocker`.
-        blockers.push('candidate-storage-unready-or-unreviewed');
-        continue;
-      }
-      if (
-        !volume.path.startsWith(request.storage.path + '/') ||
-        !volume.nodes.includes(request.storage.node) ||
-        filesystem.claimPaths.find((entry) => entry.path === volume.path)?.device !==
-          filesystem.device
-      )
-        // Proof: removing this refusal failed `selected new PVC must bind the observed local filesystem device` with its named fault.
-        refusePreflight('storage-filesystem-mismatch');
-    }
-  }
-  for (const { candidate, replicas, images } of selectedClaims) {
-    const actual = resources.find(
-      (entry) =>
-        entry.kind === candidate.kind &&
-        entry.name === candidate.name &&
-        entry.namespace === candidate.namespace,
-    );
-    // Proof: dropping this blocker failed `absent selected candidate cannot certify migration despite complete inventory`.
-    if (actual === undefined) blockers.push('candidate-unobserved');
+  if (claimBindings.some((binding) => !binding.bound))
+    // Proof: `claim-readiness-blocker` removal/broken dependency failed `fix1 omitted claim identity remains charged and blocks readiness independently of replica pins` with an assertion.
+    blockers.push('candidate-storage-unready-or-unreviewed');
+  for (const assessment of assessments) {
+    const { candidate, controller, owned, matched, unmatched, replicas } = assessment;
+    if (controller === undefined) blockers.push('candidate-unobserved');
     else if (
-      !actual.ready ||
-      actual.generation !== actual.observedGeneration ||
-      !request.resources.some((entry) => entry.uid === actual.uid)
+      !controller.ready ||
+      controller.generation !== controller.observedGeneration ||
+      !request.resources.some((pin) => pin.uid === controller.uid)
     )
       blockers.push('candidate-unready-or-unreviewed');
-    if (actual !== undefined) {
-      const owned = pods.filter((pod) => {
-        const parent = resources.find(
-          (entry) => entry.uid === pod.ownerUID && entry.kind === 'ReplicaSet',
-        );
-        const controllerUID = parent === undefined ? pod.ownerUID : parent.ownerUID;
-        return (
-          controllerUID === actual.uid &&
-          pod.namespace === candidate.namespace &&
-          !['Succeeded', 'Failed'].includes(pod.phase)
-        );
-      });
-      if (
-        owned.length < replicas ||
-        owned.some(
-          (pod) =>
-            pod.node !== candidate.node ||
-            !pod.ready ||
-            pod.images.length !== images.length ||
-            !images.every((image) => pod.images.includes(image)) ||
-            pod.imageIDs.length !== images.length ||
-            pod.imageIDs.some((imageID) => imageID === ''),
-        )
+    if (owned.some((pod) => !candidate.replicaUIDs.includes(pod.uid)))
+      // Proof: `complete-replica-review` removal/broken dependency failed `fix1 omitted active replica UID cannot certify the complete observed set` with an assertion.
+      blockers.push('candidate-replicas-unreviewed');
+    if (owned.length !== replicas || owned.some((pod) => pod.deleting))
+      // Proof: `replica-count-blocker` removal/broken dependency failed `fix1 partial replicas retain current cost and reserve only the missing replica` with an assertion.
+      blockers.push('candidate-replica-count-mismatch');
+    if (unmatched.length !== 0 || matched.length !== replicas)
+      // Proof: `replica-template-blocker` removal/broken dependency failed `fix1 old-template replica remains charged alongside its required replacement` with an assertion.
+      blockers.push('candidate-replica-template-mismatch');
+    if (
+      matched.some(
+        (pod) =>
+          !pod.ready ||
+          pod.phase !== 'Running' ||
+          pod.node !== candidate.node ||
+          pod.imageIDs.length !== pod.spec.containers.length ||
+          pod.imageIDs.some((imageID) => imageID === ''),
       )
-        // Proof: dropping this blocker failed `owned pod scheduled elsewhere cannot certify selected placement`.
-        blockers.push('candidate-placement-unobserved-or-unready');
-    }
+    )
+      // Proof: `pod-readiness-blocker` removal/broken dependency failed `an unready owned pod remains a blocker despite a Ready controller` with an assertion.
+      blockers.push('candidate-placement-unobserved-or-unready');
   }
+
   return {
     schemaVersion: 1,
     candidateRevision: request.candidateRevision,
