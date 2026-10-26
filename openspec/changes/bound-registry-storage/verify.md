@@ -1230,3 +1230,39 @@ and verify actual cleanup before its expected failure. Generic nonzero exit or
 outer timeout will not count as a proof. The remaining Task8 failure matrix,
 ordinary CLI/permission/image continuation, full validation/reviews and Tasks9–11
 remain incomplete.
+
+## Compiled deadline removal is detected
+
+HOST49 is an **expected negative**, not a successful normal maintenance run. The
+normal source and independently rebuilt bundle were preserved. Only the actual
+shared root supervisor timer callback's abort and reader-cancel statements were
+removed from an isolated compiled payload:110 bytes, with timer creation, cleanup
+and every other byte unchanged. Production control source was never mutated.
+
+The run returned1 in165.312 seconds without timeout. At130.580 seconds the exact
+stopped restic had no pending SIGINT; fresh process identities and the same held
+canonical descriptor were verified. The fixture explicitly terminated its exact
+owned owner process, then observed owner termination and exact group absence at
+135.627 seconds. The resulting snapshot failure identified owner cancellation,
+with rootDeadline:false. Both rescue receipts were present and the monitor frame
+mapped to the unique missing-deadline error, rather than a generic aggregate or
+outer timeout. This proves the missing-signal check detects removal of the actual
+compiled deadline effect. It establishes no production one-hour elapsed timing,
+T2 acquisition, reconciliation, baseline backup or retry.
+
+Normal teardown and319 host root/cgroup comparisons plus the final comparison
+passed. The controller's independent cleanup returned0. The original worker
+audit's complete success receipts and empty stderr survived, but its terminal
+status was lost; that observation remains explicitly unknown in the unchanged
+original receipt. One fresh bounded read-only confirmation returned0 with empty
+stderr and durably recorded status. Both audit duties now confirm the exact
+fixture, all three namespaces, descriptor/backing references and outside lock
+processes absent, with more than20GiB reserve. Worker mount census covers all
+process views and its queue label; controller mount census covers its observer
+view and namespace descriptors. All97 normal source/nine payload/archive pins
+matched after cleanup. The unsafe compiled artifact remains isolated evidence
+and is not a base for subsequent builds.
+
+The next two separately prepared cases target unsafe untagged GC and an actual
+post-unlink tag-cleanup failure. Their native execution and the remainder of
+Task8, full validation/reviews and Tasks9–11 are still incomplete.
