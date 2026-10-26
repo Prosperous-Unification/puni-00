@@ -36,6 +36,13 @@ usage below 70%, sufficient host reserve and verified maintenance.
 - **WHEN** two publishers request overlapping capacity simultaneously
 - **THEN** at most one holds the publication slot and the other cannot spend its reservation
 
+#### Scenario: Permission checking overlaps an authority update
+
+- **WHEN** one valid authority update completes between the initial permission read and the journal checksum
+- **THEN** the guard makes at most three complete attempts, each reading permission before and after hashing the journal, and keeps admitted writes enabled only for stable permission matching that checksum
+- **AND** the final permission sample passes ownership, file metadata, bounded byte-format, current-boot and expiry checks
+- **AND** revocation, missing or malformed permission, expiry, stable checksum mismatch or permission changing through all three attempts selects read-only mode
+
 #### Scenario: Pressure cannot be resolved safely
 
 - **WHEN** all remaining images are protected and usage exceeds the stop threshold

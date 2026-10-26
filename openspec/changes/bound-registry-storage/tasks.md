@@ -96,6 +96,9 @@ layer across repositories`, `unknown stored revision blocks retirement`,
       negatives: stale Flux acknowledgement, surviving writer, killed GC, corrupted
       backup, missing lock acquisition and unconditional finally-reopen mutation.
       Preserve the last verified store and never test destruction against live images.
+      Before finalizing, fix permission sampling with a failing actual-authority
+      interleaving before changing the guard. Verify three-attempt convergence,
+      revocation and expiry after checksum before the native regression.
 - [ ] 4.3 Implement separate backup budgeting and retention in
       `backup-registry.ts` with paired tests, using verified restic snapshot identities
       and actual object-store accounting. Apply seven daily/four weekly coverage,
