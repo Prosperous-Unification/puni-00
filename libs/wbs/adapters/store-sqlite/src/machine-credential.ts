@@ -5,7 +5,12 @@ import {
   type OidcCredentialRecord,
   type TrustedIssuerRegistration,
 } from '@wbs/core';
-import type { MachineCredentialRecord, MachineCredentialSource } from '@wbs/domain';
+import {
+  type MachineCredentialRecord,
+  type MachineCredentialSource,
+  ORGANIZATION_ROLES,
+  type OrganizationRole,
+} from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -17,11 +22,29 @@ import {
   machineCredential,
   type MachineCredentialRow,
   machineCredentialSecret,
+  organizationMembership,
   organizationTrustedIssuer,
   person,
 } from './schema';
 
 const DIGEST = /^[0-9a-f]{64}$/;
+
+/**
+ * The bound account's membership in the credential's own organization: the
+ * role {@link MachineCredentialRecord.boundAccountRole} reads, absent for an
+ * unbound person or a non-member account.
+ */
+const boundMembership = and(
+  eq(organizationMembership.organizationId, machineCredential.organizationId),
+  eq(organizationMembership.userId, person.accountId),
+);
+
+/**
+ * No credential carries an expiry yet: only agent pools give one
+ * (`wbs-mcp-agent-surface` M7), and their migration (task 6.1) adds the column
+ * this read then returns in place of this constant.
+ */
+const NO_CREDENTIAL_EXPIRY = null;
 
 /** {@link MachineCredentials} over the shared database. */
 export class MachineCredentialRepository implements MachineCredentials {
@@ -45,9 +68,14 @@ export class MachineCredentialRepository implements MachineCredentials {
   async findById(id: string): Promise<MachineCredentialRecord | null> {
     await Promise.resolve();
     const row = this.db
-      .select({ credential: machineCredential, boundAccountId: person.accountId })
+      .select({
+        credential: machineCredential,
+        boundAccountId: person.accountId,
+        boundAccountRole: organizationMembership.role,
+      })
       .from(machineCredential)
       .innerJoin(person, eq(person.id, machineCredential.personId))
+      .leftJoin(organizationMembership, boundMembership)
       .where(eq(machineCredential.id, id))
       .get();
     if (row === undefined) return null;
@@ -71,7 +99,9 @@ export class MachineCredentialRepository implements MachineCredentials {
       personId: row.credential.personId,
       source: checkedSource(row.credential),
       boundAccountId: row.boundAccountId,
+      boundAccountRole: checkedRole(row.boundAccountRole, id),
       revokedAt: checkedTime(row.credential.revokedAt, id),
+      expiresAt: NO_CREDENTIAL_EXPIRY,
       trustedIssuerId: row.credential.trustedIssuerId,
       mcpFamilyId: row.credential.mcpFamilyId,
       secrets,
@@ -115,9 +145,14 @@ export class MachineCredentialRepository implements MachineCredentials {
   ): Promise<OidcCredentialRecord | null> {
     await Promise.resolve();
     const row = this.db
-      .select({ credential: machineCredential, boundAccountId: person.accountId })
+      .select({
+        credential: machineCredential,
+        boundAccountId: person.accountId,
+        boundAccountRole: organizationMembership.role,
+      })
       .from(machineCredential)
       .innerJoin(person, eq(person.id, machineCredential.personId))
+      .leftJoin(organizationMembership, boundMembership)
       .innerJoin(
         organizationTrustedIssuer,
         and(
@@ -147,7 +182,9 @@ export class MachineCredentialRepository implements MachineCredentials {
         personId: row.credential.personId,
         source: checkedSource(row.credential),
         boundAccountId: row.boundAccountId,
+        boundAccountRole: checkedRole(row.boundAccountRole, id),
         revokedAt: checkedTime(row.credential.revokedAt, id),
+        expiresAt: NO_CREDENTIAL_EXPIRY,
         trustedIssuerId: row.credential.trustedIssuerId,
         mcpFamilyId: row.credential.mcpFamilyId,
         secrets: [],
@@ -226,6 +263,14 @@ function checkedSource(row: MachineCredentialRow): MachineCredentialSource {
 }
 
 /** @throws on a time that is not a safe integer. */
+function checkedRole(value: string | null, id: string): OrganizationRole | null {
+  const roles: readonly string[] = ORGANIZATION_ROLES;
+  if (value !== null && !roles.includes(value))
+    throw new Error(`the account bound to machine credential ${id} has a malformed role`);
+  // Narrowed by the vocabulary check above, which is the boundary.
+  return value as OrganizationRole | null;
+}
+
 function checkedTime(value: number | null, id: string): number | null {
   if (value !== null && !Number.isSafeInteger(value))
     throw new Error(`machine credential ${id} has a malformed time`);

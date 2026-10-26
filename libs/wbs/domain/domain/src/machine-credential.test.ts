@@ -20,7 +20,9 @@ function apiKey(overrides: Partial<MachineCredentialRecord> = {}): MachineCreden
     personId: 'claire',
     source: 'api_key',
     boundAccountId: 'dany',
+    boundAccountRole: 'super_admin',
     revokedAt: null,
+    expiresAt: null,
     trustedIssuerId: null,
     mcpFamilyId: null,
     secrets: [{ digest: DIGEST, expiresAt: null }],
@@ -39,6 +41,7 @@ describe('admitMachineCredential', () => {
         accountId: 'dany',
         organizationId: 'org-a',
         personId: 'claire',
+        accountRole: 'super_admin',
         scopes: ['read', 'write'],
       },
     });
