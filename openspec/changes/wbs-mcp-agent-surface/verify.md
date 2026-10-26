@@ -435,6 +435,24 @@ no-store` (RFC 6749 §5.1). Route evidence records the two grant types by name a
 15. **A25's audience rule** (task 1.5) is still not applied; the fixture's trusted issuer uses
     audience `wbs`.
 
+### Commands and results, slice 2
+
+All on 2026-10-27 at f3fe2918f, with `env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                     | Result                                                                   |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 wbs-be-01 --parallel=1`                   | exit 0                                                                   |
+| `bunx nx run wbs-mcp-01:test`                                                               | 612 pass, 0 fail (24 files)                                              |
+| `bunx nx run wbs-contracts:test`                                                            | 607 pass, 0 fail                                                         |
+| `bunx nx run wbs-be-01:test`                                                                | 3752 pass, 3 skipped, 0 fail (3755 tests in 256 files, 1259.2 s), exit 0 |
+| `bunx nx run tool-devsync:test`                                                             | 940 pass, 0 fail (49 files, 735.3 s), exit 0                             |
+| `bunx openspec validate --all --json`                                                       | exit 0; 297 items, 297 passed                                            |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0 (the existing store-memory and plan-commands review debt)         |
+| `bunx prettier --check` on every changed file but `.env.example`                            | "All matched files use Prettier code style!"                             |
+
+Not run: the h2puni gate, fe-01 and its e2e, gw-01, and anything on the dev host. No
+migration and no `libs/**/service/` file changed, so no pin test or `kinds.json` entry was due.
+
 ### Failure-proof table, slice 2
 
 Each check was watched failing with the fault injected, then restored; the `Proof:` comment
