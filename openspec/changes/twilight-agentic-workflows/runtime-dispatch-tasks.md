@@ -6,7 +6,7 @@ composition gets its own test/review slice; no parent bridge/S0/S7a gate closes 
 its complete acceptance requirements are met.
 
 - [x] Correlated original-body receiver client, through [client tasks](runtime-client-tasks.md).
-- [ ] Authority delivery: RED commit-before-POST, exact historical duplicate lookup/acceptance,
+- [x] Authority delivery, through [authority tasks](authority-dispatch-tasks.md): RED commit-before-POST, exact historical duplicate lookup/acceptance,
       unchanged sticky pending on404/refusal/cancellation, concurrent original-evidence
       preservation and old-epoch grant refusal; implement design section2 using actual stores.
 - [ ] Prepared claim delivery: RED committed locator and exact session claim, immutable

@@ -2858,3 +2858,54 @@ with no remaining Important verification blocker. It inspected all14 actual chan
 28 trial executions/raw hashes, final checks and exact restoration. Source spec/quality
 approval stands; historical Python noncompliance remains an established separate finding.
 This accepts the client unit for a normal internal checkpoint, not the full runtime packet.
+
+## Durable authority delivery — 2026-10-27
+
+The client checkpoint260eb28e8 is committed and pushed. The next
+[authority delivery task](authority-dispatch-tasks.md) implements only section2 of the
+runtime packet: commit-first fresh POST, duplicate verified acknowledgement or exact lookup,
+sticky pending uncertainty and retained original acceptance evidence. It adds no credential,
+foreign-contract allowance, schema/migration, executor or ordinary-command fallback.
+
+Final actual memory/SQLite tests pass91cases523expect calls in3.66s, including one SQLite
+close/reopen case under original live ownership. Frozen tests and actual finite barriers
+cover commit/renew/receipt ordering, lost replies, concurrent byte-different winners and
+old-epoch acknowledgement without a new grant. This is not real receiver/process-kill,
+power-loss, physical fencing or automatic replacement proof.
+
+All29 counted Bun-only new-helper mutation trials fail for their named finite test and
+pass after exact source/mode restoration. A09's classifier false negative remains preserved;
+A09r supplies its counted corrected trial. A21's initial pre-mutation anchor error receives
+no proof credit. Existing guards and SQL stayed installed. Diagnostic/backstop scopes
+A05/A19–A22 and typed-return integration scopes A25/A27 remain explicit in the task report;
+they are not claimed as unsafe effects escaping inherited validation. Root independently
+checks all29 receipts/actual mutants/Bun argv, frozen baselines and current raw log hashes.
+Both production files transpile identically to their pre-comment baselines, and all3 final
+test files remain byte-identical. Evidence: .superpowers/sdd/authority-dispatch-tasks/.
+
+Fresh graph-backed uncached Dash lint/typecheck pass (28.3s/5.3s). Touched-file format/diff
+and scoped OpenSpec pass. Nx plugin socket fallback and13 inherited OpenSpec warnings
+remain; no module-check skipping was observed. Earlier fixture, rejection-observer,
+static invocation/import/type and proof-driver setup failures remain without pass credit.
+
+Root corrected an accidental collision with the existing runtime-authority-tasks.md before
+commit: the original completed persistence plan is restored to its exact HEAD blob, and
+this distinct unit uses authority-dispatch-tasks.md. All66 existing task artifacts survived
+the ignored workspace rename byte/mode-identically; the relocation receipt maps historical
+actual path strings without rewriting them. No source/test or acceptance scope changed.
+
+Independent Astra task review approves spec compliance and quality with no Critical or
+Important finding; its read-only audit independently checks all retained identities and
+mutation trials. Normal checkpoint remains pending at this entry. Claim/turn/boot integration,
+outcome/release, supported recovery, adapters and the CTT compatibility coordinator are
+still required; no full packet/S0/S7a acceptance or production deployment is claimed.
+
+## Dev WBS reconciliation — 2026-10-27
+
+The user completed the existing wbs-dev OAuth login; actual project/claim/work-item reads
+and one9-command update succeeded. Readback verifies030.09–030.11 done for merged
+foundation PR742, S0 still in_progress, and010.01 renamed/in_progress under accepted
+ADR0061. The stale WBS-only G2 note is preserved as earlier history and explicitly
+superseded, matching current design/ADR0057/ADR0061. No other-owner project was changed
+and no agent person or formal execution claim was fabricated. Preparation PR759 remains
+unmerged pending its canonical h4 gate; its PR CI has passed.

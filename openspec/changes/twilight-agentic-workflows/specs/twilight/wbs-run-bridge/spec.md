@@ -28,6 +28,44 @@ correspondence, authenticated acceptance nor current authority.
 - **WHEN** transport returns an actual Response after the request signal is already aborted
 - **THEN** the original Response reaches shared cancellation/discard without cloning or waiting for capture, and the exchange carries no captured bytes
 
+### Requirement: Authority delivery follows durable intent election
+
+The bridge SHALL commit the exact immutable authority request before sending it. Only fresh
+local staging SHALL elect one authority POST; duplicate staging SHALL return verified original
+acceptance or look up the original command. Unconfirmed replies SHALL preserve the pending
+intent. Original accepted evidence SHALL survive concurrent compatible response representations.
+Historical acceptance SHALL NOT establish a current receiver lease or a new local epoch grant.
+
+#### Scenario: Fresh authority intent waits for commit and ownership renewal
+
+- **WHEN** local staging or subsequent ownership renewal has not completed
+- **THEN** no authority POST is sent, and cancellation or renewal refusal after staging retains the pending identity
+
+#### Scenario: Lost response is reconciled
+
+- **WHEN** an authority response is lost and the same retained request is submitted again
+- **THEN** the bridge looks up its exact ledger and command without another POST, and accepts only independently verified original receipt bytes
+
+#### Scenario: Receipt is currently absent or refused
+
+- **WHEN** duplicate reconciliation returns404, a validated refusal, cancellation or transport uncertainty
+- **THEN** the original request remains pending without clearing, rebasing or treating absence as proof an earlier request cannot commit
+
+#### Scenario: Compatible receipt representations race
+
+- **WHEN** concurrent responses for the same accepted command contain different compatible JSON byte representations
+- **THEN** both acknowledgements use the first persisted verified acceptance artifact without replacing its original bytes
+
+#### Scenario: An old epoch request is acknowledged
+
+- **WHEN** a current local owner reconciles an exact authority request staged by an earlier local epoch
+- **THEN** acknowledgement remains historical and does not map that request into a current-epoch grant
+
+#### Scenario: Unexpected receipt or persistence fault follows staging
+
+- **WHEN** original evidence, complete correspondence or trusted persistence fails unexpectedly after the intent is known
+- **THEN** the bridge throws a fixed-message error retaining detached immutable intent correlation and original private cause without a new POST or pending release
+
 ### Requirement: Dash claims, reports and releases through WBS as one agent person
 
 Twilight Dash SHALL read startable work and write claims, progress, measures, releases and

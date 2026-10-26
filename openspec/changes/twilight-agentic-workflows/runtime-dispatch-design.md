@@ -108,6 +108,21 @@ Keep independently retained acceptance evidence when lookup returns a different 
 representation. Acceptance remains coupled to exact run/attempt/scope revisions. Save
 conflict or unknown acceptance never launches a turn, clears pending or frees capacity.
 
+Fresh staging accepts under the submitted run/scope revisions advanced exactly once and
+the staged acknowledgement's attempt revision. Duplicate staging uses the submitted guard
+unchanged: its acknowledgement is historical and carries no original run revision. A retry
+with the old pre-stage guard may look up but its acceptance revision-conflicts and stays
+pending. The caller explicitly inspects/reconciles before supplying current run/attempt/scope
+revisions on another call; the helper never refreshes that captured guard after lookup or
+derives a duplicate run revision from an acknowledgement/current read. Existing acceptance
+may resolve a claiming checkpoint inside reconciling/unresolved wrappers under that explicit
+current guard, preserving original attachment provenance and granting no turn permission.
+Recover a concurrent winner's exact original ClaimAcceptAck from verified execution history
+using the same stable acceptance command ID and complete RuntimeIntent. A different local
+acceptance ID remains an identity conflict; do not synthesize an acknowledgement from the
+current Attempt or substitute another command's reply. The canonical builder imports the
+existing shared encoder directly at an exactly admitted consumer path; no policy tunneling.
+
 ## 4. One fresh turn
 
 `runs/dispatch-turn.ts` exports the host operation over semantic stores, the receiver client,
