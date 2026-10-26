@@ -28,7 +28,7 @@ Effective supervisor identity; Solver identity broker; Supervisor admission base
 
 ## Decisions Recorded
 
-[Root authority publishes live supervisor identity](../../../docs/adr/0058-root-authority-publishes-live-supervisor-identity.md) (preferred, proposed for review).
+[Root authority publishes live supervisor identity](../../../docs/adr/0062-root-authority-publishes-live-supervisor-identity.md) (preferred, proposed for review).
 
 ## Impact
 

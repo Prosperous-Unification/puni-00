@@ -8,7 +8,7 @@ not host operational acceptance or adoption of a new source runtime image.
 ## Mechanical coordination
 
 Main's ADR 0057 describes activities; the feature monotone-activation decision is
-now [ADR 0060](../../../docs/adr/0060-cross-project-dependency-activation-is-monotone.md).
+now [ADR 0064](../../../docs/adr/0064-cross-project-dependency-activation-is-monotone.md).
 Current links and references follow that rename. Dated historical checkout paths
 and raw Bun 1.4.2 evidence remain unchanged. UI conflict resolution preserves
 scoped/captured dependency behavior alongside main's kit controls, select styles,

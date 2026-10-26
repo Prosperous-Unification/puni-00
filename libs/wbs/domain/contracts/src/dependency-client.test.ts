@@ -32,6 +32,14 @@ test('pins the complete protected and exempt operation matrix', () => {
       .sort(),
   }).toEqual({
     protected: [
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix (2026-10-26 R12); restoring
+      // the classifier passed both tests. Classification proof only.
+      'acquireRuntimeAuthority',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix (2026-10-26 R12); restoring
+      // the classifier passed both tests. Classification proof only.
+      'applyRuntimeCommands',
       'deleteApiOrganizationCompute-providersById',
       'deleteApiOrganizationDomainsById',
       'deleteApiOrganizationInvitationsById',
@@ -119,6 +127,10 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiTeams',
       'getApiWork-item-types',
       'getPlansBy-solutionBySlug',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix (2026-10-26 R12); restoring
+      // the classifier passed both tests. Classification proof only.
+      'lookupRuntimeReceipt',
       'patchApiOrganization',
       'patchApiOrganizationCompute-providersById',
       'patchApiOrganizationMembersByUserId',
@@ -192,6 +204,10 @@ test('pins the complete protected and exempt operation matrix', () => {
       // failed the real protected/exempt matrix consumer (2026-10-26);
       // restoring the classifier passed both tests. Classification proof only.
       'putApiResourceAuthoritiesByAuthorityIdEvents',
+      // Proof: temporarily exempting this exact operation in dependency-claim.ts
+      // failed the real protected/exempt matrix (2026-10-26 R12); restoring
+      // the classifier passed both tests. Classification proof only.
+      'readRuntimeState',
     ],
     exempt: [
       'getApiAuthLinkAuth0Callback',

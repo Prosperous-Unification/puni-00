@@ -1,6 +1,6 @@
 # Solver runtime admission prerequisite — 2026-10-23
 
-Scope: bounded Task 10.2-S1/S2/O4 source prerequisite under ADR 0059. The actual
+Scope: bounded Task 10.2-S1/S2/O4 source prerequisite under ADR 0063. The actual
 service/manual executable takes canonical `<edge state>/solver-runtime.lock`
 before config read, orphan sweep or bind, then retains its callback after listener
 readiness until process termination. It never takes edge.lock. The owner seam

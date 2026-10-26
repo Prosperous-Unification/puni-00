@@ -1,7 +1,7 @@
 # Whole source-dev exclusion source receipt
 
 This source-only prerequisite extends task 10.2/O4. It grants no activation,
-restoration, live installed-writer adoption or host authority claim. ADR 0059
+restoration, live installed-writer adoption or host authority claim. ADR 0063
 continues to apply. No host operations or Compose edits were performed.
 
 ## Implemented boundary
