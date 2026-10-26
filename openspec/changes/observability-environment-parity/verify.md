@@ -321,3 +321,52 @@ runtime inputs are in `.superpowers/sdd/observability-environment-parity/task-6a
 and its ignored `task-6a-evidence/` directory. Full host gates, remote publication, authenticated
 source transport, actual Flux/Helm/ECK reconciliation, runtime acceptance and live binding were
 not run under this source-only stop.
+
+### Task 6a review fix1 — Secret-reference closure and selector semantics (2026-10-26)
+
+Only the two accepted Important findings and their directly related boundaries changed.
+The original Task6a source report/evidence is preserved. Canonical 3.1/2.2 and all runtime,
+transport and live acceptance remain open; this is another source stop for scoped re-review.
+
+I1: the packet now carries the exact source `externally-provided.json` metadata listing,
+validated with a closed schema. Its receipt separates 51 externally supplied prerequisites
+from 10 declared controller outputs and records 90 consumed Secret references with exact
+namespace/name/keys. The omitted registry-auth, object-store root/TLS/CA, Velero cloud/Kopia,
+retained-reader CA/trust and Flux target/decryption inputs are explicit. Certificate, ECK
+and pinned monitoring-chart producers resolve controller outputs; webhook creation conditions
+read actual packaged chart defaults, never guessed effective values. Independent inspection
+of the actual packet runs before byte comparison and rejects undeclared native names/keys,
+CA references, missing declarations, absent/ambiguous producers and disabled webhook producers.
+Supported reference forms are bounded to this packet, not a general Kubernetes validator.
+
+I2: empty `matchLabels` and `matchExpressions` are semantically unconstrained. Only equality
+selectors used by the packet are supported; nonempty expressions and unknown selector fields
+refuse. A supplied namespace selector must constrain namespaces, even with a narrow pod
+selector. A constrained namespace may select all its pods; a pod-only peer must constrain pods.
+Omitted/empty ingress remains deny-all; omitted/empty from in an allow rule still refuses.
+The semantic refusal precedes file/hash checks and preserves the actual narrow-flow positive.
+
+Focused initial RED: 13 intended finding failures plus three table-shape harness errors,
+three passing controls, 17.40s. Intermediate failures identified compressed tar stdin needing
+`-z`, and Flux health-check references needing distinction from embedded resource metadata.
+Corrected focused controls pass 22/22, 49 assertions, 32.06s. A directly introduced declaration
+metadata-shape RED and graph-diagnostic ordering RED were corrected; amended controls pass
+2/2 in 5.38s. The covering amended rehearsal file passes 51/51, 115 assertions, 66.64s;
+this single covering run is justified by changes to shared prepare/validate receipt and
+closure behavior. Changed-file ESLint exits0 in4.81s and Fleet typecheck exits0 in2.06s.
+
+R5: forcing the selector predicate true caused eight fixed-category failures (13.495s);
+bypassing actual Secret inspection caused seven fixed-category failures (10.859s). Existing
+byte closure still refused these mutations; no full fail-open is claimed. Omitting non-instance
+external inventory failed the complete positive receipt assertion (6.490s); omitting controller
+outputs failed its producer assertion (7.373s). All mutations restored in finally. Adjacent
+Proof comments name these observations; malformed metadata initially fell only to byte hashes,
+then gained the independent reference refusal. Exact RED lineage, commands and logs are retained.
+
+Fresh source prepare including full internal validation exits0 in3.54s:73 files, artifact
+`2ba60d213e343f3a3b6c2bb4a69e21fb402247a80079fd043847cc317cf543bb`.
+The explicit synthetic /32 fixture bindings are still not runtime reachability evidence.
+No capacity/admission observation was repeated in this fix; the earlier refusal is historical.
+No old render/proof batch, full host gate, application suite, runtime/material access, source
+publication, push, merge or lifecycle operation ran. The fix report and final local commit are
+in `.superpowers/sdd/observability-environment-parity/task-6a-fix-1-report.md` and its evidence.

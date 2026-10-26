@@ -359,3 +359,225 @@ test('CLI unreadable packet refuses without exposing its private path', async ()
   expect(child.stderr.toString()).toContain('validation-refused');
   expect(child.stderr.toString()).not.toContain('PRIVATE-MARKER');
 });
+
+async function withIngress(ingress: unknown) {
+  const copy = await alter(`${services}/kustomization.yaml`, (document) => {
+    document.addIn(['resources'], 'selector-control.yaml');
+  });
+  await writeFile(
+    join(copy, services, 'selector-control.yaml'),
+    stringify({
+      apiVersion: 'networking.k8s.io/v1',
+      kind: 'NetworkPolicy',
+      metadata: { name: 'selector-control', namespace: 'observability' },
+      spec: {
+        podSelector: {},
+        policyTypes: ['Ingress'],
+        ...(ingress === undefined ? {} : { ingress }),
+      },
+    }),
+  );
+  return copy;
+}
+
+test.each([
+  { namespaceSelector: { matchLabels: {} } },
+  { namespaceSelector: { matchExpressions: [] } },
+  { podSelector: { matchLabels: {} } },
+  { podSelector: { matchExpressions: [] } },
+  { namespaceSelector: { matchLabels: {} }, podSelector: { matchExpressions: [] } },
+  { namespaceSelector: { matchLabels: {} }, podSelector: { matchLabels: { app: 'collector' } } },
+  { namespaceSelector: { matchExpressions: [{ key: 'app', operator: 'Exists' }] } },
+  { namespaceSelector: { matchLabels: { app: 'collector' }, unknown: true } },
+])(
+  'semantic ingress guard refuses unconstrained or unsupported selector %j before hashes',
+  async (peer) => {
+    const copy = await withIngress([{ from: [peer] }]);
+    expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
+      /broad ingress/,
+    );
+  },
+);
+
+test.each([
+  {
+    ingress: [
+      {
+        from: [
+          {
+            namespaceSelector: { matchLabels: { 'kubernetes.io/metadata.name': 'observability' } },
+            podSelector: { matchLabels: {} },
+          },
+        ],
+      },
+    ],
+  },
+  { ingress: [{ from: [{ podSelector: { matchLabels: { app: 'collector' } } }] }] },
+  { ingress: [] },
+  { ingress: undefined },
+])(
+  'semantic ingress guard preserves narrow peers or deny-all before byte closure %j',
+  async ({ ingress }) => {
+    const copy = await withIngress(ingress);
+    expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
+      /file closure/,
+    );
+  },
+);
+
+test.each([{}, { from: [] }])(
+  'semantic ingress guard still refuses unrestricted from %j',
+  async (rule) => {
+    const copy = await withIngress([rule]);
+    expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
+      /broad ingress/,
+    );
+  },
+);
+
+test('complete packet receipt distinguishes exact external material from packaged Secret producers', async () => {
+  const receipt = await validateObservabilityRehearsal(root, tools, request, packet);
+  const needed = [
+    ['puni-registry', 'registry-auth', ['htpasswd']],
+    ['puni-backup', 'object-store-root', ['MINIO_ROOT_PASSWORD', 'MINIO_ROOT_USER']],
+    ['puni-backup', 'object-store-tls', ['tls.crt', 'tls.key']],
+    ['puni-backup', 'object-store-ca', ['ca.crt']],
+    ['puni-backup', 'velero-credentials', ['cloud']],
+    ['puni-backup', 'velero-repo-credentials', ['repository-password']],
+    ['observability', 'otel-server-ca', ['tls.crt', 'tls.key']],
+    ['observability', 'otel-client-trust', ['ca.crt']],
+    ['flux-system', 'platform-local-kubeconfig', ['value.yaml']],
+    ['flux-system', 'sops-age', ['age.agekey']],
+  ] as const;
+  for (const [namespace, name, keys] of needed) {
+    const declaration = receipt.externalPrerequisites.find(
+      (secret) => secret.namespace === namespace && secret.name === name,
+    );
+    expect(declaration?.keys.toSorted()).toEqual([...keys]);
+    expect(declaration?.provisioner).toBe('external');
+  }
+  expect(receipt.externalPrerequisites.every((secret) => secret.provisioner === 'external')).toBe(
+    true,
+  );
+  for (const [namespace, name, provisioner] of [
+    ['puni-registry', 'registry-ca', 'cert-manager'],
+    ['puni-registry', 'registry-tls', 'cert-manager'],
+    ['observability', 'otel-server-tls', 'cert-manager'],
+    ['observability', 'elasticsearch-es-elastic-user', 'eck'],
+    ['observability-dev', 'kibana-kb-http-certs-public', 'eck'],
+    ['observability', 'kps-admission', 'helm-hook'],
+  ])
+    expect(
+      receipt.controllerSecrets.some(
+        (secret) =>
+          secret.namespace === namespace &&
+          secret.name === name &&
+          secret.provisioner === provisioner,
+      ),
+    ).toBe(true);
+  expect(
+    receipt.secretReferences.find(
+      (reference) => reference.namespace === 'puni-backup' && reference.name === 'object-store-ca',
+    )?.keys,
+  ).toEqual(['ca.crt']);
+});
+
+test.each([
+  'native-name',
+  'native-key',
+  'ca-reference',
+  'controller-producer',
+  'missing-declaration',
+  'declaration-shape',
+  'duplicate-producer',
+  'webhook-producer',
+])('Secret reference closure refuses %s independently before hashes', async (fault) => {
+  const copy = await mkdtemp(join(directory, 'secret-reference-'));
+  await cp(packet, copy, { recursive: true });
+  if (fault === 'declaration-shape') {
+    const path = join(copy, 'infra/platform/secrets/platform-local/externally-provided.json');
+    const declarations = type('object[]').assert(JSON.parse(await readFile(path, 'utf8')));
+    declarations.push({
+      namespace: 'observability',
+      name: 'unexpected',
+      source: 'operator',
+      unknown: 'PRIVATE-MARKER',
+    });
+    await writeFile(path, JSON.stringify(declarations));
+  } else if (fault === 'missing-declaration') {
+    const path = join(copy, 'infra/platform/secrets/platform-local/externally-provided.json');
+    const declarations = type({ namespace: 'string', name: 'string', source: 'string' })
+      .array()
+      .assert(JSON.parse(await readFile(path, 'utf8')));
+    await writeFile(
+      path,
+      JSON.stringify(declarations.filter((declaration) => declaration.name !== 'registry-auth')),
+    );
+  } else if (fault === 'duplicate-producer') {
+    await writeFile(
+      join(copy, services, 'duplicate-producer.yaml'),
+      stringify({
+        apiVersion: 'cert-manager.io/v1',
+        kind: 'Certificate',
+        metadata: { name: 'duplicate', namespace: 'puni-registry' },
+        spec: { secretName: 'registry-tls' },
+      }),
+    );
+  } else if (fault === 'webhook-producer') {
+    const path = join(copy, services, 'releases/observability/prometheus-controller.yaml');
+    const document = parseDocument(await readFile(path, 'utf8'));
+    document.setIn(
+      ['spec', 'values', 'prometheusOperator', 'admissionWebhooks', 'patch', 'enabled'],
+      false,
+    );
+    await writeFile(path, document.toString());
+  } else if (fault === 'controller-producer') {
+    await writeFile(join(copy, 'infra/platform/registry/local/issuers.yaml'), '');
+  } else if (fault === 'ca-reference') {
+    const path = join(copy, 'infra/platform/backup/velero/local/velero.yaml');
+    const document = parseDocument(await readFile(path, 'utf8'));
+    document.setIn(
+      ['spec', 'values', 'extraObjects', 0, 'spec', 'objectStorage', 'caCertRef', 'name'],
+      'undeclared-ca',
+    );
+    await writeFile(path, document.toString());
+  } else {
+    await writeFile(
+      join(copy, services, 'reference-control.yaml'),
+      stringify({
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: { name: 'reference-control', namespace: 'observability' },
+        spec: {
+          template: {
+            spec: {
+              containers: [
+                {
+                  name: 'consumer',
+                  image: 'busybox',
+                  env: [
+                    {
+                      name: 'INPUT',
+                      valueFrom: {
+                        secretKeyRef: {
+                          name:
+                            fault === 'native-name'
+                              ? 'undeclared-material'
+                              : 'signal-elastic-ingest',
+                          key: fault === 'native-key' ? 'undeclared-key' : 'password',
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      }),
+    );
+  }
+  expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(
+    /Secret reference/,
+  );
+});

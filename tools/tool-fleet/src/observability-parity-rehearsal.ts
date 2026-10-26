@@ -9,6 +9,7 @@ import { isNode, parseAllDocuments, parseDocument, stringify } from 'yaml';
 
 import { readToolchain } from './contracts';
 import { type HostCapacity, requireProfileResources } from './k3d-lab';
+import { inspectRehearsalSecrets } from './observability-rehearsal-secrets';
 import { createObservabilitySource } from './observability-source';
 
 const SHA = /^[a-f0-9]{40}$/;
@@ -288,11 +289,17 @@ async function buildPacket(root: string, input: unknown) {
       await collect(type('string').assert(document.getIn(['spec', 'path'])));
     }
     await collect('infra/versions/toolchain.json');
+    await collect('infra/platform/secrets/platform-local/externally-provided.json');
+    const instanceSecrets = source.instances.flatMap((instance) =>
+      instance.requiredSecrets.map((secret) => ({ namespace: instance.namespace, ...secret })),
+    );
+    const secretInventory = inspectRehearsalSecrets(files, instanceSecrets);
     const hashes = [...files]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([path, bytes]) => ({ path, sha256: hash(bytes) }));
     return {
       files,
+      instanceSecrets,
       receipt: {
         schemaVersion: 1 as const,
         scope: 'disposable-observability-source' as const,
@@ -305,12 +312,9 @@ async function buildPacket(root: string, input: unknown) {
         stages: Object.keys(dependencies),
         declaredCapacity: describeCapacity(files),
         helmOwners: source.releases.map((release) => release.owner),
-        externalPrerequisites: source.instances.flatMap((instance) =>
-          instance.requiredSecrets.map((secret) => ({ namespace: instance.namespace, ...secret })),
-        ),
+        ...secretInventory,
         remainingPrerequisites: [
-          'platform-local-kubeconfig and sops-age in flux-system',
-          'platform, registry, backup and retained-reader external identities',
+          'resolve declared external material and observe controller-produced Secrets',
           'observed network bindings and instance-distinct material',
           'full two-instance, transient and coexistence budget',
           'exact authenticated Flux source transport',
@@ -397,6 +401,23 @@ function requireGraph(source: string, stage: string): void {
   )
     throw new Error('Rehearsal graph prerequisite differs');
 }
+/** Only equality selectors used by this packet are supported; empty syntax is unconstrained, and expression evaluation is deliberately unsupported. */
+function constrainsSelector(input: unknown): boolean {
+  // Proof: forcing true failed eight empty/unsupported-selector negatives; only file closure remained.
+  const selector = type({
+    'matchLabels?': 'Record<string,string>',
+    'matchExpressions?': 'unknown[]',
+    '+': 'reject',
+  })(input);
+  if (
+    selector instanceof type.errors ||
+    Array.isArray(input) ||
+    Array.isArray(selector.matchLabels) ||
+    (selector.matchExpressions !== undefined && selector.matchExpressions.length > 0)
+  )
+    throw new Error('Rehearsal broad ingress refused');
+  return selector.matchLabels !== undefined && Object.keys(selector.matchLabels).length > 0;
+}
 function requireProtectedResources(source: string, path?: string): void {
   for (const document of documents(source)) {
     if (document.get('kind') === 'Kustomization') continue;
@@ -438,16 +459,30 @@ function requireProtectedResources(source: string, path?: string): void {
       if (!rule.from?.length) throw new Error('Rehearsal broad ingress refused');
       for (const peer of rule.from) {
         const entry = type({
-          'namespaceSelector?': 'object',
-          'podSelector?': 'object',
+          'namespaceSelector?': 'unknown',
+          'podSelector?': 'unknown',
           'ipBlock?': { cidr: 'string' },
-        }).assert(peer);
+          '+': 'reject',
+        })(peer);
+        if (entry instanceof type.errors) throw new Error('Rehearsal broad ingress refused');
+        if (entry.ipBlock !== undefined) {
+          if (
+            entry.namespaceSelector !== undefined ||
+            entry.podSelector !== undefined ||
+            !entry.ipBlock.cidr.endsWith('/32')
+          )
+            throw new Error('Rehearsal broad ingress refused');
+          continue;
+        }
+        const namespaceConstrained =
+          entry.namespaceSelector === undefined
+            ? false
+            : constrainsSelector(entry.namespaceSelector);
+        const podConstrained =
+          entry.podSelector === undefined ? false : constrainsSelector(entry.podSelector);
         if (
-          Object.keys(peer).length === 0 ||
-          (entry.namespaceSelector !== undefined &&
-            Object.keys(entry.namespaceSelector).length === 0) ||
-          (entry.podSelector !== undefined && Object.keys(entry.podSelector).length === 0) ||
-          (entry.ipBlock !== undefined && !entry.ipBlock.cidr.endsWith('/32'))
+          (entry.namespaceSelector !== undefined && !namespaceConstrained) ||
+          (!namespaceConstrained && !podConstrained)
         )
           throw new Error('Rehearsal broad ingress refused');
       }
@@ -555,6 +590,11 @@ export async function validateObservabilityRehearsal(
     requireProtectedResources(await readFile(join(directory, path), 'utf8'), path);
   for (const stage of Object.keys(dependencies))
     requireGraph(await readFile(join(directory, graph, `${stage}.yaml`), 'utf8'), stage);
+  const actualFiles = new Map<string, Buffer>();
+  for (const path of paths)
+    if (path !== receiptName) actualFiles.set(path, await readFile(join(directory, path)));
+  // Proof: removing this actual-packet inspection failed seven reference/declaration/producer negatives before hashes.
+  inspectRehearsalSecrets(actualFiles, expected.instanceSecrets);
   // Proof: removing closure accepted extra.txt; extra-file negative failed.
   if (!isDeepStrictEqual(paths, [...expected.files.keys(), receiptName].sort()))
     throw new Error('Rehearsal file closure differs');
