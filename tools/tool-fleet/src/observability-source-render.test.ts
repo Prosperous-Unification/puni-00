@@ -2,15 +2,17 @@ import { join } from 'node:path';
 
 import { type } from 'arktype';
 import { beforeAll, expect, test } from 'bun:test';
-import { parseAllDocuments, stringify } from 'yaml';
+import { parseAllDocuments, parseDocument, stringify } from 'yaml';
 
 import { createObservabilitySource, type ObservabilitySource } from './observability-source';
 import {
   assertObservabilitySource,
   assertRenderedObservabilitySource,
   indexObservabilitySource,
+  type ObservabilitySourceIndex,
   renderObservabilitySource,
 } from './observability-source-render';
+import { assertObservabilitySelectedResources } from './observability-source-resources';
 import { provisionObservabilityTools } from './observability-tools.fixture';
 
 const tools = await provisionObservabilityTools();
@@ -25,6 +27,7 @@ const network = {
 };
 let source: ObservabilitySource;
 let rendered: Record<string, string>;
+let indexed: ObservabilitySourceIndex;
 beforeAll(async () => {
   source = await createObservabilitySource(root, {
     placement: 'production',
@@ -35,6 +38,7 @@ beforeAll(async () => {
     network,
   });
   rendered = await renderObservabilitySource(root, tools, source);
+  indexed = indexObservabilitySource(rendered);
 });
 test('actual full pinned source rendering closes every owner and keeps source and runtime receipts distinct', () => {
   expect(assertRenderedObservabilitySource(source, rendered)).toMatchObject({
@@ -370,6 +374,7 @@ test('full source rejects malformed scrape sender policy', () => {
   );
 });
 
+const TestResource = type('Record<string,unknown>');
 const TestContainers = type({
   name: 'string',
   'resources?': {
@@ -444,25 +449,29 @@ const selectedPods: [string, string, (string | number)[], string[], string[]][] 
   ['observability/prometheus-controller', 'Job', ['spec', 'template', 'spec'], ['create'], []],
   ['observability/prometheus-controller', 'Job', ['spec', 'template', 'spec'], ['patch'], []],
 ];
+/** Mutates a fresh target document; the real pinned index and rendered bytes stay untouched. */
 function alterSelected(
   owner: string,
   kind: string,
   role: string | undefined,
-  change: (document: ReturnType<typeof parseAllDocuments>[number]) => void,
-) {
-  const changed = { ...rendered };
-  const documents = parseAllDocuments(changed[owner]);
-  const selected = documents.find(
-    (document) =>
-      document.get('kind') === kind &&
-      (role === undefined ||
-        kind !== 'Job' ||
-        document.getIn(['spec', 'template', 'spec', 'containers', 0, 'name']) === role),
-  );
-  if (!selected) throw new Error('selected test resource absent');
-  change(selected);
-  changed[owner] = documents.map((document) => document.toString()).join('---\n');
-  return changed;
+  change: (document: ReturnType<typeof parseDocument>) => void,
+): ObservabilitySourceIndex {
+  for (const [identity, manifest] of Object.entries(indexed[owner])) {
+    if (!identity.startsWith(`${kind}:`)) continue;
+    const document = parseDocument(stringify(manifest));
+    if (
+      role !== undefined &&
+      kind === 'Job' &&
+      document.getIn(['spec', 'template', 'spec', 'containers', 0, 'name']) !== role
+    )
+      continue;
+    change(document);
+    return {
+      ...indexed,
+      [owner]: { ...indexed[owner], [identity]: TestResource.assert(document.toJSON()) },
+    };
+  }
+  throw new Error('selected test resource absent');
 }
 const selectedBudgets: Partial<Record<string, [string, string, string, string, string]>> = {
   'Elasticsearch/prepare-s3-trust': ['100m', '500m', '128Mi', '256Mi', '64Mi'],
@@ -546,11 +555,9 @@ test.each(selectedFaults)(
       else if (fault === 'resources') document.deleteIn([...pod, field, index, 'resources']);
       else document.setIn([...pod, field, index, 'resources', ...fault.split('/')], '0');
     });
-    expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(
-      kind === 'Deployment' && fault === 'role'
-        ? /Projection controller watches differ/
-        : /selected resource/,
-    );
+    expect(() => {
+      assertObservabilitySelectedResources(source, changed);
+    }).toThrow(/selected resource/);
   },
 );
 test.each(['Prometheus', 'Alertmanager'])(
@@ -567,7 +574,9 @@ test.each(['Prometheus', 'Alertmanager'])(
         );
       },
     );
-    expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+    expect(() => {
+      assertObservabilitySelectedResources(source, changed);
+    }).toThrow(/selected resource/);
   },
 );
 test('selected source refuses a changed provider role assumption', () => {
@@ -585,7 +594,9 @@ test('selected source refuses a changed provider role assumption', () => {
       ],
     );
   });
-  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+  expect(() => {
+    assertObservabilitySelectedResources(source, changed);
+  }).toThrow(/selected resource/);
 });
 const scratchPods = selectedPods.filter(
   ([_owner, kind]) => kind === 'Elasticsearch' || kind === 'Kibana',
@@ -607,7 +618,9 @@ test.each(
     if (fault === 'foreign') document.setIn([...pod, 'volumes', index, 'name'], 'foreign-scratch');
     if (fault === 'duplicate') document.setIn([...pod, 'volumes', volumes.length], volumes[index]);
   });
-  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+  expect(() => {
+    assertObservabilitySelectedResources(source, changed);
+  }).toThrow(/selected resource/);
 });
 test.each(
   ['Prometheus', 'Alertmanager'].flatMap((kind) =>
@@ -623,7 +636,9 @@ test.each(
       else document.setIn(['spec', 'resources', 'limits', 'memory'], '0');
     },
   );
-  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+  expect(() => {
+    assertObservabilitySelectedResources(source, changed);
+  }).toThrow(/selected resource/);
 });
 test.each(['observability/eck-operator', 'observability/prometheus-controller'])(
   'selected provider pin refuses %s',
@@ -634,7 +649,9 @@ test.each(['observability/eck-operator', 'observability/prometheus-controller'])
     const document = parseAllDocuments(release.manifest)[0];
     document.setIn(['spec', 'chart', 'spec', 'version'], '99.0.0');
     release.manifest = document.toString();
-    expect(() => assertRenderedObservabilitySource(changed, rendered)).toThrow(/selected resource/);
+    expect(() => {
+      assertObservabilitySelectedResources(changed, indexed);
+    }).toThrow(/selected resource/);
   },
 );
 test.each([
@@ -644,7 +661,9 @@ test.each([
   const changed = alterSelected(owner, kind, undefined, (document) => {
     document.setIn(['spec', 'template', 'spec', 'containers', 0, 'image'], 'foreign/provider:99');
   });
-  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+  expect(() => {
+    assertObservabilitySelectedResources(source, changed);
+  }).toThrow(/selected resource/);
 });
 test.each([
   '--config-reloader-cpu-request=10m',
@@ -667,7 +686,9 @@ test.each([
       );
     },
   );
-  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+  expect(() => {
+    assertObservabilitySelectedResources(source, changed);
+  }).toThrow(/selected resource/);
 });
 
 test('selected source refuses a duplicate named provider role', () => {
@@ -675,7 +696,9 @@ test('selected source refuses a duplicate named provider role', () => {
     const path = ['spec', 'podTemplate', 'spec', 'initContainers'];
     document.setIn([...path, 1], document.getIn([...path, 0]));
   });
-  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+  expect(() => {
+    assertObservabilitySelectedResources(source, changed);
+  }).toThrow(/selected resource/);
 });
 
 test('native PVC indexing preserves full selected source extra-resource refusal', () => {
@@ -692,4 +715,52 @@ test('native PVC indexing preserves full selected source extra-resource refusal'
     'PersistentVolumeClaim:observability:foreign',
   );
   expect(() => assertRenderedObservabilitySource(source, changed)).toThrow('resource closure');
+});
+
+test('full source invokes selected guard for a missing reloader flag', () => {
+  const owner = 'observability/prometheus-controller';
+  const changed = { ...rendered };
+  const documents = parseAllDocuments(changed[owner]);
+  const controller = documents.find((document) => document.get('kind') === 'Deployment');
+  if (!controller) throw new Error('fixture controller absent');
+  const path = ['spec', 'template', 'spec', 'containers', 0, 'args'];
+  const flags = type('string[]').assert(parseDocument(stringify(controller.getIn(path))).toJSON());
+  controller.setIn(
+    path,
+    flags.filter((flag) => flag !== '--config-reloader-cpu-request=10m'),
+  );
+  changed[owner] = documents.map((document) => document.toString()).join('---\n');
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+});
+
+test('full source preserves projection watches refusal for a missing controller role', () => {
+  const owner = 'observability/prometheus-controller';
+  const changed = { ...rendered };
+  const documents = parseAllDocuments(changed[owner]);
+  const controller = documents.find((document) => document.get('kind') === 'Deployment');
+  if (!controller) throw new Error('fixture controller absent');
+  controller.deleteIn(['spec', 'template', 'spec', 'containers', 0]);
+  changed[owner] = documents.map((document) => document.toString()).join('---\n');
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(
+    /Projection controller watches differ/,
+  );
+});
+
+test('selected target mutation leaves the next valid fixture and pinned source unchanged', () => {
+  const owner = 'observability-dev/kibana';
+  const before = structuredClone(indexed[owner]);
+  const bytes = rendered[owner];
+  const path = ['spec', 'podTemplate', 'spec', 'initContainers', 0, 'resources'];
+  const changed = alterSelected(owner, 'Kibana', undefined, (document) => document.deleteIn(path));
+  expect(() => {
+    assertObservabilitySelectedResources(source, changed);
+  }).toThrow(/selected resource/);
+  const fresh = alterSelected(owner, 'Kibana', undefined, (document) => {
+    expect(document.hasIn(path)).toBe(true);
+  });
+  expect(() => {
+    assertObservabilitySelectedResources(source, fresh);
+  }).not.toThrow();
+  expect(indexed[owner]).toEqual(before);
+  expect(rendered[owner]).toBe(bytes);
 });

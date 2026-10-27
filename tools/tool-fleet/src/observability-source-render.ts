@@ -141,6 +141,7 @@ export function assertRenderedObservabilitySource(
   for (const [owner, identities] of Object.entries(chartInventory))
     requireEqual(Object.keys(indexed[owner]).sort(), identities.sort(), 'resource closure');
   requireObservabilityProjectionReferences(source.assembly.projection, indexed);
+  // Proof: removing only this invocation let the missing-reloader-flag full source negative return a valid receipt.
   assertObservabilitySelectedResources(source, indexed);
   for (const instance of source.instances) {
     const namespace = instance.namespace;
