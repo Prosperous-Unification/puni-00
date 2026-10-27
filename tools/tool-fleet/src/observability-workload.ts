@@ -330,6 +330,16 @@ export function assertInventoryWorkload(
   const refuseMalformed = readers.refuseMalformed ?? readers.refuse;
   for (const volume of spec.volumes ?? []) {
     requireVolumeStructure(volume, refuseMalformed);
+    // Proof: Task25c3a fix1 mode-guard bypass and five default/item omissions each failed the new production-entry invalid-mode negatives.
+    const modes = [
+      volume.projected?.defaultMode,
+      volume.configMap?.defaultMode,
+      volume.secret?.defaultMode,
+      ...(volume.configMap?.items ?? []).map((entry) => entry.mode),
+      ...(volume.secret?.items ?? []).map((entry) => entry.mode),
+    ];
+    if (modes.some((mode) => mode !== undefined && !FileMode.allows(mode)))
+      refuseMalformed('workload-volume-unsupported');
     // Proof: Task25c3a volume-quantity bypass admitted negative supplied size behind unsupported management.
     if (volume.emptyDir?.sizeLimit !== undefined) readers.memory(volume.emptyDir.sizeLimit);
     // Proof: Task25c3a metadata-shape/metadata-complete bypasses hid malformed standalone bodies, both selectors and unsafe paths behind unsupported policy.

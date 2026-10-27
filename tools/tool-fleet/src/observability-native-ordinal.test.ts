@@ -696,3 +696,97 @@ for (const [label, projection] of [
       ),
     ).rejects.toThrow();
   });
+
+const modeVolumes = [
+  [
+    'projected default',
+    (mode: number) => ({
+      name: 'projected-mode',
+      projected: {
+        defaultMode: mode,
+        sources: [
+          {
+            downwardAPI: {
+              items: [{ path: 'labels', fieldRef: { fieldPath: 'metadata.labels' } }],
+            },
+          },
+        ],
+      },
+    }),
+  ],
+  [
+    'configMap default',
+    (mode: number) => ({
+      name: 'config-default',
+      configMap: { name: 'configuration', defaultMode: mode },
+    }),
+  ],
+  [
+    'secret default',
+    (mode: number) => ({
+      name: 'secret-default',
+      secret: { secretName: 'credentials', defaultMode: mode },
+    }),
+  ],
+  [
+    'configMap item',
+    (mode: number) => ({
+      name: 'config-mode',
+      configMap: {
+        name: 'configuration',
+        items: [{ key: 'configuration', path: 'configuration', mode }],
+      },
+    }),
+  ],
+  [
+    'secret item',
+    (mode: number) => ({
+      name: 'secret-mode',
+      secret: {
+        secretName: 'credentials',
+        items: [{ key: 'credential', path: 'credential', mode }],
+      },
+    }),
+  ],
+] as const;
+
+for (const [surface, volume] of modeVolumes) {
+  for (const mode of [-1, 0.5, 512]) {
+    for (const shortcut of ['unsupported policy', 'absent bounds'])
+      test(`fix1 ${surface} mode ${String(mode)} refuses before ${shortcut}`, () => {
+        expect(
+          derive(
+            change((document) => {
+              if (shortcut === 'unsupported policy')
+                document.setIn(['spec', 'podManagementPolicy'], 'Parallel');
+              else document.deleteIn(['spec', 'template', 'spec', 'containers', 0, 'resources']);
+              document.setIn(['spec', 'template', 'spec', 'volumes'], [volume(mode)]);
+            }),
+          ),
+        ).rejects.toThrow('Native ordinal source malformed');
+      });
+  }
+  test(`fix1 ${surface} invalid mode refuses a supported lifecycle`, () => {
+    expect(
+      derive(
+        change((document) => {
+          document.setIn(['spec', 'template', 'spec', 'volumes'], [volume(512)]);
+        }),
+      ),
+    ).rejects.toThrow('Native ordinal source malformed');
+  });
+}
+for (const mode of [0, 511])
+  test(`fix1 valid boundary mode ${String(mode)} keeps source ordinal charges`, async () => {
+    const ledger = await derive(
+      change((document) => {
+        document.setIn(
+          ['spec', 'template', 'spec', 'volumes'],
+          modeVolumes.map(([, volume]) => volume(mode)),
+        );
+      }),
+    );
+    expect(ledger.knownContributions).toEqual({ memoryMiB: 400, cpuMilli: 400, diskMiB: 256 });
+    expect(ledger.lifecycles).toHaveLength(2);
+    expect(ledger.creationAuthority).toBe(false);
+  });
