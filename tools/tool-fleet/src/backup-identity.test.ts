@@ -6,6 +6,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, it } from 'bun:test';
 
 import { createBackupIdentity, provisionBackupIdentity } from './backup-identity';
+import { cliEnvironment } from './cli.fixture';
 
 it('creates a disposable CA and matching S3 service identity', async () => {
   const directory = await scratchAsync('backup-identity-');
@@ -88,7 +89,9 @@ it('provisions only the exact disposable backup Secret inputs and propagates cre
 });
 
 it('the identity CLI requires its owned disposable directory', () => {
-  const execution = Bun.spawnSync(['bun', join(import.meta.dir, 'backup-identity.ts')]);
+  const execution = Bun.spawnSync(['bun', join(import.meta.dir, 'backup-identity.ts')], {
+    env: cliEnvironment(),
+  });
   expect(execution.exitCode).not.toBe(0);
   expect(
     execution.stderr
@@ -101,11 +104,10 @@ it('the identity CLI requires its owned disposable directory', () => {
 it('the identity CLI refuses extra arguments and non-owned state roots', async () => {
   const directory = await scratchAsync('backup-identity-arguments-');
   for (const arguments_ of [[directory, 'extra'], ['/']]) {
-    const execution = Bun.spawnSync([
-      'bun',
-      join(import.meta.dir, 'backup-identity.ts'),
-      ...arguments_,
-    ]);
+    const execution = Bun.spawnSync(
+      ['bun', join(import.meta.dir, 'backup-identity.ts'), ...arguments_],
+      { env: cliEnvironment() },
+    );
     expect(execution.exitCode).not.toBe(0);
     expect(
       execution.stderr
@@ -119,7 +121,9 @@ it('the identity CLI refuses a linked state root and an existing identity', asyn
   const directory = await scratchAsync('backup-identity-state-');
   const link = join(directory, 'linked');
   await symlink(directory, link);
-  const linked = Bun.spawnSync(['bun', join(import.meta.dir, 'backup-identity.ts'), link]);
+  const linked = Bun.spawnSync(['bun', join(import.meta.dir, 'backup-identity.ts'), link], {
+    env: cliEnvironment(),
+  });
   expect(linked.exitCode).not.toBe(0);
   expect(
     linked.stderr
@@ -130,7 +134,9 @@ it('the identity CLI refuses a linked state root and an existing identity', asyn
   const identity = join(directory, 'backup-tls');
   await mkdir(identity);
   await writeFile(join(identity, 'tls.key'), 'must-preserve');
-  const existing = Bun.spawnSync(['bun', join(import.meta.dir, 'backup-identity.ts'), directory]);
+  const existing = Bun.spawnSync(['bun', join(import.meta.dir, 'backup-identity.ts'), directory], {
+    env: cliEnvironment(),
+  });
   expect(existing.exitCode).not.toBe(0);
   expect(existing.stderr.toString()).toContain('EEXIST');
   expect(await readFile(join(identity, 'tls.key'), 'utf8')).toBe('must-preserve');

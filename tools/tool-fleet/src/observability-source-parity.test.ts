@@ -9,6 +9,9 @@ import {
   reviewObservabilitySourceDifferences,
 } from './observability-source-parity';
 import { renderObservabilitySource } from './observability-source-render';
+import { provisionObservabilityTools } from './observability-tools.fixture';
+
+const tools = await provisionObservabilityTools();
 const root = join(import.meta.dir, '../../..');
 let local: ObservabilitySource,
   production: ObservabilitySource,
@@ -33,8 +36,8 @@ beforeAll(async () => {
   });
   local = await createObservabilitySource(root, request('local'));
   production = await createObservabilitySource(root, request('production'));
-  left = await renderObservabilitySource(root, '/tmp/puni-parity-tools', local);
-  right = await renderObservabilitySource(root, '/tmp/puni-parity-tools', production);
+  left = await renderObservabilitySource(root, tools, local);
+  right = await renderObservabilitySource(root, tools, production);
 });
 test('full actual pinned source parity expands configuration payloads and checks every sibling', () => {
   const differences = reviewObservabilitySourceDifferences(local, production);
@@ -100,7 +103,7 @@ test('explicit disposable production-role policy changes only eight reviewed loc
   const { renderObservabilityReleases } = await import('./observability-render');
   const changed = await renderObservabilityReleases(
     root,
-    '/tmp/puni-parity-tools',
+    tools,
     disposable.releases.filter((release) => release.owner === 'observability/elasticsearch'),
   );
   expect(

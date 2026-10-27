@@ -951,3 +951,132 @@ passed23tests/178assertions/0fail in39.79s, including success controls for the m
 fixture and all strengthened refusal cases. `bunx tsc --build --force tools/tool-fleet/tsconfig.json`
 and `bunx eslint tools/tool-fleet/src/k3d-resource-caller.test.ts tools/tool-fleet/src/k3d-resource-runtime.ts tools/tool-fleet/src/k3d-creation.ts`
 passed. Production changes are adjacent comments only; behavioral guards remain intact.
+
+## Task 20 — portable observability test tools and deterministic CLI fixtures
+
+Base `346e7314d1a4a8ded83f090ae0cd2138ab3aa3c9`; source wrapper only. The actual
+PR760 infra run `40415555161`, job `121896859657`, failed 122 tests before its
+check provisioning phase (`/tmp/puni-pr760-fleet-check.log`). The cold runner lacked
+`/tmp/puni-parity-tools/{kubectl,helm}`; inherited Nx `FORCE_COLOR=1` also changed
+Bun diagnostics at strict refusal assertions. This restores the existing verification
+contract without changing production validators, task selection or workflow policy.
+
+`observability-tools.fixture.ts` calls `contracts.readToolchain`,
+`check-provision.toolCacheDirectory/installLockedTool/assertToolVersion` and
+`check-cli.runChecked` for kubectl (raw binary) and Helm (`linux-amd64/helm`). It
+copies optional canonical archive seeds into process scratch, then lets the unchanged
+installer verify the lock checksum, download absent/changed bytes, extract and probe
+real tools. A per-cache Promise shares that installation across test files. Shared
+archives/extracted trees are never mutated. Missing optional seeds install; unreadable
+seeds fail explicitly. There is no `PUNI_PARITY_TOOLS` test override; deliberately
+invalid production paths remain direct validator inputs, with no fallback. The
+controller ruled against adding publication/locking machinery: fully cold processes
+download two locked tools once, and later independent check provisioning can download
+again when the canonical cache is empty. This measured cost remains explicit.
+
+Seven consumers now use this fixture: full renderer, source renderer/parity/CLI,
+packet, Flux and native retained-reader tests. The substituted kubectl shell fixture
+also uses the provisioned executable. Production version/hash/chart/owner guards and
+explicit invalid-tool negatives remain intact. Existing projection-render wrong-version
+and chart-digest negatives were not changed or rerun in this slice.
+
+`cli.fixture.ts` supplies `FORCE_COLOR=0`, `NO_COLOR=1` only to preflight, source CLI,
+backup identity/trust, Flux CLI and packet factory child-process fixtures, preserving other environment
+fields. Outputs are not transformed. Exact reason/status/stdout/private-marker assertions
+are unchanged; the new payload test retains arbitrary ANSI/private-marker bytes exactly.
+The actual CI cold-restore test passed and was left unchanged.
+
+### TDD and fault lineage
+
+- Before implementation, `bun /tmp/puni-task20-red.ts` called the actual full Helm
+  renderer with a fresh absent tools directory: exit 1 in 0.68s, `ENOENT` at the Helm
+  spawn. `/tmp/puni-task20-cold-red.log` and the reproducer are retained.
+- Restored cold positive:
+  `PUNI_TOOL_CACHE=/tmp/puni-task20-cold-cache FORCE_COLOR=1 bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-render.test.ts`
+  passed 4 tests / 6 assertions in 21.05s, with real downloads and nine-owner rendering;
+  `/tmp/puni-task20-cold-green.log`. This cache started absent; the fixture does not
+  publish into it. Warm archive-seeded installation/cache-reuse regression initially
+  passed in 559.46ms and verifies unchanged executable inode and another process's
+  shared-extraction sentinel. The default fixture setup was shared in the covering run.
+- Parent's unchanged preflight assertion already reproduced color RED under
+  `FORCE_COLOR=1` (0.582s) and control GREEN under `FORCE_COLOR=0 NO_COLOR=1` (0.394s);
+  `/tmp/puni-ci-color-{red,control}.log`. Those unchanged diagnostics were not repeated.
+- New cache-error boundary proof: temporarily ignore copy errors, run
+  `FORCE_COLOR=1 bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-tools.test.ts --test-name-pattern unreadable`.
+  The mode-000 seed incorrectly caused a successful real installation; the EACCES
+  expectation failed (1 failure, 12.90s). Source was restored in `finally`;
+  `/tmp/puni-task20-cache-removal.log`. Adjacent `Proof:` names the injected fault.
+- New CLI boundary proof: temporarily remove the environment overrides, run the same
+  prefix with `tools/tool-fleet/src/cli.fixture.test.ts --test-name-pattern 'exact safe refusal'`.
+  The real source CLI's raw ANSI output failed exact equality (1 failure, 550ms),
+  restored in `finally`; `/tmp/puni-task20-color-removal.log` and adjacent `Proof:`.
+- The unchanged installer's existing download-digest proof in `check.test.ts` remains
+  the proof of that guard. This slice additionally checks that changed cached kubectl
+  bytes are replaced by actual locked bytes before execution, then probes the real tool.
+  Existing absent/failed explicit tools and same-version wrapper refusals are retained.
+- Initial fixture run had 4 pass / 1 fail because directory-copy unreadability was
+  incorrectly expected as `EISDIR`; Bun reported `ENOTSUP`. Replaced that diagnostic
+  assumption with an actual mode-000/EACCES case; focused GREEN exited 0 in 0.79s.
+  `/tmp/puni-task20-fixtures.log` retains the failed harness. Initial ESLint rejected
+  awaiting Bun's void-typed matcher; the test now explicitly awaits the operation's
+  rejection value, and the removal proof was refreshed against that final assertion.
+
+### Scoped verification
+
+The one covering pass ran:
+
+```sh
+FORCE_COLOR=1 bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/cli.fixture.test.ts tools/tool-fleet/src/observability-tools.test.ts tools/tool-fleet/src/backup-identity.test.ts tools/tool-fleet/src/backup-s3-trust.test.ts tools/tool-fleet/src/observability-flux.test.ts tools/tool-fleet/src/observability-parity-rehearsal.test.ts tools/tool-fleet/src/observability-preflight.test.ts tools/tool-fleet/src/observability-reader-native.test.ts tools/tool-fleet/src/observability-render.test.ts tools/tool-fleet/src/observability-source-cli.test.ts tools/tool-fleet/src/observability-source-parity.test.ts tools/tool-fleet/src/observability-source-render.test.ts
+```
+
+Observed **411 pass / 6 fail, 417 tests across 12 files, 1017 assertions, 309.70s**;
+`/tmp/puni-task20-covering.log`. All real-tool/cache/render/reader/integrity and preflight
+checks passed. Restoring the tool setup exposed six additional ANSI failures formerly
+masked by the absent-tool beforeAll: Flux malformed/FIFO/private-packet CLI refusal
+cases and three packet injected-factory exact refusal cases. The same environment helper
+was applied at those boundaries, including the adjacent Flux positive CLI fixture;
+no assertions or production behavior changed. This extends the helper's callers to Flux
+and the packet factory-injection subprocess fixture.
+
+Only these changed cases were rerun:
+
+```sh
+FORCE_COLOR=1 bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-flux.test.ts tools/tool-fleet/src/observability-parity-rehearsal.test.ts --test-name-pattern 'CLI refuses malformed private|actual FIFO input|CLI hides private paths|CLI binds a validated packet|controller barrier rejects'
+```
+
+Observed **7 pass / 0 fail, 119 filtered, 19 assertions, 23.52s**;
+`/tmp/puni-task20-covering-fix1.log`. All six previous failures and the changed positive
+are green. The other 411 passing tests were not broadly repeated; this is deliberately
+not reported as a fresh all-green 417-test run. Warm fixture installation in the covering
+run took 1120.37ms; changed-cache repair took 10279.09ms with an actual verified download.
+
+Static validation:
+
+- `NX_DAEMON=false bunx nx run tool-fleet:lint`: exit 0, 27.6s;
+  `/tmp/puni-task20-lint.log`. Nx's Node process emitted its existing
+  FORCE_COLOR/NO_COLOR precedence warning; no lint failures.
+- `NX_DAEMON=false bunx nx run tool-fleet:typecheck`: exit 0, 3.2s;
+  `/tmp/puni-task20-types.log`.
+- After the two new CLI fixture callers were amended,
+  `bunx eslint tools/tool-fleet/src/observability-flux.test.ts tools/tool-fleet/src/observability-parity-rehearsal.test.ts`
+  exited 0, no diagnostics; `/tmp/puni-task20-lint-fix1.log`.
+  The same Fleet typecheck target exited 0 in 1.9s;
+  `/tmp/puni-task20-types-fix1.log`.
+- `bunx openspec validate --all --json`: exit 0, 294/294 artifacts;
+  `/tmp/puni-task20-openspec-all.json` (wall timing not captured).
+- `bunx openspec validate observability-environment-parity --strict --json`:
+  exit 0, 1/1, no issues; artifact validation 21ms;
+  `/tmp/puni-task20-openspec-scoped.json`.
+- Optional, unrequired `bunx openspec validate --all --strict --json`: exit 1,
+  152 pass / 142 warning-or-info-only failures in unchanged artifacts, primarily long
+  requirements. The observability change was valid with no issues. Those unrelated
+  warnings were not edited or rerun; `/tmp/puni-task20-openspec.json`.
+- All 14 changed/new TypeScript files were formatted with Prettier. Final format,
+  whitespace and normal-hook commit evidence are recorded in the Task20 handoff report.
+
+No full host gate, full Fleet check/controller build, previous complete render/fault/runtime
+batch, application/browser suite or CI rerun was performed. There were no live Docker,
+cluster, remote, credential, route, volume, push or merge operations. Canonical completion
+remains 4/11, full 3.1 runtime/platform accounting and live migration remain open. This
+slice restores source verification portability; it does not certify runtime or CI success.
+Fresh scoped source review remains required after the normal-hook commit.

@@ -10,6 +10,9 @@ import {
   indexObservabilitySource,
   renderObservabilitySource,
 } from './observability-source-render';
+import { provisionObservabilityTools } from './observability-tools.fixture';
+
+const tools = await provisionObservabilityTools();
 const root = join(import.meta.dir, '../../..');
 const network = {
   api: ['10.1.0.4/32'],
@@ -30,7 +33,7 @@ beforeAll(async () => {
     ],
     network,
   });
-  rendered = await renderObservabilitySource(root, '/tmp/puni-parity-tools', source);
+  rendered = await renderObservabilitySource(root, tools, source);
 });
 test('actual full pinned source rendering closes every owner and keeps source and runtime receipts distinct', () => {
   expect(assertRenderedObservabilitySource(source, rendered)).toMatchObject({

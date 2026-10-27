@@ -5,7 +5,9 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import { retainedReaderProjections } from './observability-reader-observation';
+import { provisionObservabilityTools } from './observability-tools.fixture';
 
+const tools = await provisionObservabilityTools();
 test('pinned kubectl retained-reader projections retain actual chart volume and configuration fields', async () => {
   const directory = await scratchAsync('reader-native-');
   const kubeconfig = join(directory, 'config');
@@ -110,7 +112,7 @@ test('pinned kubectl retained-reader projections retain actual chart volume and 
       await writeFile(path, JSON.stringify(manifests[name]));
       const child = Bun.spawn(
         [
-          '/tmp/puni-parity-tools/kubectl',
+          join(tools, 'kubectl'),
           `--server=http://127.0.0.1:${String(server.port)}`,
           '--kubeconfig',
           kubeconfig,

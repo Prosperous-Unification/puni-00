@@ -8,6 +8,9 @@ import {
   selectObservabilityComposition,
 } from './observability-composition';
 import { renderObservabilityReleases } from './observability-render';
+import { provisionObservabilityTools } from './observability-tools.fixture';
+
+const tools = await provisionObservabilityTools();
 const root = join(import.meta.dir, '../../..');
 const request = {
   placement: 'local',
@@ -19,7 +22,7 @@ const request = {
 test('full pinned renderer preserves nine owner identities and namespace-distinct app releases', async () => {
   const assembly = await createObservabilityComposition(root, request);
   const releases = selectObservabilityComposition(assembly, ['dev', 'prod', 'platform']).releases;
-  const rendered = await renderObservabilityReleases(root, '/tmp/puni-parity-tools', releases);
+  const rendered = await renderObservabilityReleases(root, tools, releases);
   expect(Object.keys(rendered).length).toBe(9);
   expect(rendered['observability-dev/elasticsearch']).toContain('kind: Elasticsearch');
   expect(rendered['observability/elasticsearch']).toContain('kind: Elasticsearch');
@@ -27,9 +30,7 @@ test('full pinned renderer preserves nine owner identities and namespace-distinc
 test('full pinned renderer refuses duplicate owners before overwrite', async () => {
   const assembly = await createObservabilityComposition(root, request);
   const release = assembly.instances[0].releases[0];
-  expect(
-    renderObservabilityReleases(root, '/tmp/puni-parity-tools', [release, release]),
-  ).rejects.toThrow(/owner/);
+  expect(renderObservabilityReleases(root, tools, [release, release])).rejects.toThrow(/owner/);
 });
 test.each(['releaseName', 'targetNamespace'])(
   'full pinned renderer refuses unsupported explicit %s instead of misrendering identity',
@@ -39,8 +40,6 @@ test.each(['releaseName', 'targetNamespace'])(
     const manifest = parseDocument(release.manifest);
     manifest.setIn(['spec', field], 'foreign');
     release.manifest = manifest.toString();
-    expect(renderObservabilityReleases(root, '/tmp/puni-parity-tools', [release])).rejects.toThrow(
-      /identity/,
-    );
+    expect(renderObservabilityReleases(root, tools, [release])).rejects.toThrow(/identity/);
   },
 );

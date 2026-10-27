@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { expect, it } from 'bun:test';
 import { parseAllDocuments } from 'yaml';
 
+import { cliEnvironment } from './cli.fixture';
 import type { DiscoveryCommand, DiscoveryResponse } from './discover';
 import type { WorkloadSpec } from './observability-workload';
 
@@ -589,7 +590,7 @@ async function fixture() {
         {
           cwd: root,
           env: {
-            ...process.env,
+            ...cliEnvironment(),
             PATH: `${bin}:${executablePath}`,
             PREFLIGHT_SNAPSHOT: join(directory, 'snapshot.json'),
             SSH_AUTH_SOCK: join(directory, 'agent.sock'),
@@ -1809,7 +1810,7 @@ it('CLI rejects unreviewed argument shapes before reading any target', async () 
       join(root, 'tools/tool-fleet/src/observability-preflight-cli.ts'),
       '--unexpected',
     ],
-    { stdout: 'pipe', stderr: 'pipe' },
+    { env: cliEnvironment(), stdout: 'pipe', stderr: 'pipe' },
   );
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,

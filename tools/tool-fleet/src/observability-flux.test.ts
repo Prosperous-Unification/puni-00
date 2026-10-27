@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 
+import { cliEnvironment } from './cli.fixture';
 import {
   bindObservabilitySource,
   executeFluxRead,
@@ -13,9 +14,10 @@ import {
 import { fluxProjections, observeFluxReconciliation } from './observability-flux-observation';
 import { prepareObservabilityRehearsal } from './observability-parity-rehearsal';
 import type { ObservabilityResourceProjection } from './observability-preflight';
+import { provisionObservabilityTools } from './observability-tools.fixture';
 
+const tools = await provisionObservabilityTools();
 const root = join(import.meta.dir, '../../..');
-const tools = '/tmp/puni-parity-tools';
 let directory: string;
 let packetRequest: unknown;
 let packet: Awaited<ReturnType<typeof validateFluxPacket>>;
@@ -613,7 +615,7 @@ test('CLI refuses malformed private input without leaking plaintext, paths or ne
     ],
     {
       cwd: root,
-      env: { ...process.env, PUNI_PARITY_TOOLS: tools },
+      env: { ...cliEnvironment(), PUNI_PARITY_TOOLS: tools },
       stdout: 'pipe',
       stderr: 'pipe',
     },
@@ -1068,7 +1070,7 @@ test('CLI binds a validated packet through the actual command path', async () =>
     ],
     {
       cwd: root,
-      env: { ...process.env, PUNI_PARITY_TOOLS: tools },
+      env: { ...cliEnvironment(), PUNI_PARITY_TOOLS: tools },
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 30000,
@@ -1120,7 +1122,7 @@ test('actual FIFO input refuses without waiting for a writer', () => {
     ],
     {
       cwd: root,
-      env: { ...process.env, PUNI_PARITY_TOOLS: tools },
+      env: { ...cliEnvironment(), PUNI_PARITY_TOOLS: tools },
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 1500,
@@ -1162,7 +1164,7 @@ test('CLI hides private paths in required packet read failures', async () => {
     ],
     {
       cwd: root,
-      env: { ...process.env, PUNI_PARITY_TOOLS: tools },
+      env: { ...cliEnvironment(), PUNI_PARITY_TOOLS: tools },
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 30000,

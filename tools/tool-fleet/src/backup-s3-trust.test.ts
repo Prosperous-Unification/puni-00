@@ -6,6 +6,7 @@ import { expect, it } from 'bun:test';
 
 import { createBackupIdentity } from './backup-identity';
 import { requireS3Trust } from './backup-sqlite';
+import { cliEnvironment } from './cli.fixture';
 
 it('requires HTTPS in either explicit trust mode', () => {
   for (const mode of ['system-roots', 'system-roots-plus-ca'])
@@ -66,7 +67,7 @@ it('private trust refuses missing unreadable empty and malformed CA distinctly',
 it('the production backup runner enforces trust before native S3 access', () => {
   const execution = Bun.spawnSync(['bun', join(import.meta.dir, 'backup-sqlite.ts'), 'verify'], {
     env: {
-      ...process.env,
+      ...cliEnvironment(),
       S3_ENDPOINT: 'http://127.0.0.1:1',
       S3_TRUST_MODE: 'system-roots',
       S3_BUCKET: 'fixture',

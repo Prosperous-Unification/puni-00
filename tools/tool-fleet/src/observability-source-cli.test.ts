@@ -3,6 +3,11 @@ import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
+
+import { cliEnvironment } from './cli.fixture';
+import { provisionObservabilityTools } from './observability-tools.fixture';
+
+const tools = await provisionObservabilityTools();
 const root = join(import.meta.dir, '../../..');
 const cli = join(import.meta.dir, 'observability-source-cli.ts');
 const network = {
@@ -21,8 +26,11 @@ const request = (placement: string) => ({
   ],
   network,
 });
-function invoke(path: string, tools = '/tmp/puni-parity-tools', extra: string[] = []) {
-  const process = Bun.spawnSync(['bun', cli, root, tools, path, ...extra], { timeout: 30000 });
+function invoke(path: string, directory = tools, extra: string[] = []) {
+  const process = Bun.spawnSync(['bun', cli, root, directory, path, ...extra], {
+    env: cliEnvironment(),
+    timeout: 30000,
+  });
   return {
     exit: process.exitCode,
     stdout: process.stdout.toString(),
@@ -48,11 +56,7 @@ test.each(['absent', 'unreadable', 'malformed', 'unknown', 'arguments'] as const
         );
       if (fault === 'unreadable') await chmod(path, 0);
       try {
-        const response = invoke(
-          path,
-          '/tmp/puni-parity-tools',
-          fault === 'arguments' ? ['PRIVATE-MARKER'] : [],
-        );
+        const response = invoke(path, tools, fault === 'arguments' ? ['PRIVATE-MARKER'] : []);
         expect(response.exit).toBe(1);
         expect(response.stdout).toBe('');
         expect(response.stderr).toBe(
@@ -110,7 +114,7 @@ test.each(['tool-absent', 'tool-failed', 'source-unreadable'])(
         fault === 'tool-failed' ? directory : join(directory, 'absent-tools'),
         path,
       ],
-      { timeout: 30000 },
+      { env: cliEnvironment(), timeout: 30000 },
     );
     expect(process.exitCode).toBe(1);
     expect(process.stdout.toString()).toBe('');

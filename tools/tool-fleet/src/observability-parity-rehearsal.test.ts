@@ -7,14 +7,16 @@ import { type } from 'arktype';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { parseAllDocuments, parseDocument, stringify } from 'yaml';
 
+import { cliEnvironment } from './cli.fixture';
 import {
   assessObservabilityRehearsalAdmission,
   prepareObservabilityRehearsal,
   validateObservabilityRehearsal,
 } from './observability-parity-rehearsal';
+import { provisionObservabilityTools } from './observability-tools.fixture';
 
+const tools = await provisionObservabilityTools();
 const root = join(import.meta.dir, '../../..');
-const tools = '/tmp/puni-parity-tools';
 const revision = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root })
   .stdout.toString()
   .trim();
@@ -336,7 +338,7 @@ test('same-version substituted kubectl is refused before execution', async () =>
   const foreignTools = join(directory, 'foreign-tools');
   await mkdir(foreignTools);
   const executable = join(foreignTools, 'kubectl');
-  await writeFile(executable, '#!/bin/sh\nexec /tmp/puni-parity-tools/kubectl "$@"\n');
+  await writeFile(executable, `#!/bin/sh\nexec '${join(tools, 'kubectl')}' "$@"\n`);
   await chmod(executable, 0o700);
   expect(validateObservabilityRehearsal(root, foreignTools, request, packet)).rejects.toThrow(
     'kubectl integrity',
@@ -748,7 +750,7 @@ async function injectFactoryFault(name: string, before: string, after: string) {
     runner,
     `const {prepareObservabilityRehearsal} = await import(${JSON.stringify(module)});\ntry { await prepareObservabilityRehearsal(${JSON.stringify(root)}, ${JSON.stringify(tools)}, ${JSON.stringify(request)}, ${JSON.stringify(join(directory, name))}); } catch (failure) { console.error(failure.message); process.exit(1); }`,
   );
-  return Bun.spawnSync(['bun', runner], { cwd: root, timeout: 30000 });
+  return Bun.spawnSync(['bun', runner], { cwd: root, env: cliEnvironment(), timeout: 30000 });
 }
 
 test('controller barrier rejects matching broken-factory bytes with provider back beside consumers', async () => {
