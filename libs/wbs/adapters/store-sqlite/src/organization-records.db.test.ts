@@ -749,6 +749,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
       '20261023170000_add_work_item_budget',
@@ -760,6 +761,7 @@ describe('20260927120000_add_organization_records', () => {
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
+      '20261022121000_add_runtime_commands',
       '20261022120000_scope_trusted_issuer_audience',
       '20261022110100_check_machine_credential_id',
       '20261022110000_widen_organization_audit_machine_credentials',
@@ -821,6 +823,10 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'organization_trusted_issuer' &&
           name !== 'machine_credential' &&
           name !== 'machine_credential_secret' &&
+          name !== 'runtime_ledger' &&
+          name !== 'runtime_authority' &&
+          name !== 'runtime_claim_binding' &&
+          name !== 'runtime_command_receipt' &&
           name !== 'organization_limits' &&
           name !== 'measure' &&
           name !== 'measure_estimate' &&

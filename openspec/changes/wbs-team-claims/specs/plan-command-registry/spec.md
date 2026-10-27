@@ -3,7 +3,8 @@
 ### Requirement: Steps, leaves and subtrees are claimed as one conditional act
 
 The command registry SHALL offer `claimWorkItem`, addressing a work item by id or ref and a
-directory person by id or ref, with optional `steps` (step ids or refs), `runId` (an opaque
+directory person by id or ref or, when neither is named, the acting person
+(`wbs-claim-own-person`), with optional `steps` (step ids or refs), `runId` (an opaque
 string of at most 256 characters) and `parentClaim` (a claim id). On a leaf it SHALL write
 one claim row per step: the named steps, or every step whose progress is not `done` when
 none is named. On a non-leaf it SHALL write one subtree claim with no step. Every row SHALL
@@ -16,6 +17,8 @@ read or write assignments.
 It SHALL refuse with a typed 4xx naming the command's position in the batch when any of
 these holds, checked in this order:
 
+- `person_required`: neither `personId` nor `personRef` is named and the request acts as its
+  account, with no acting person (`wbs-claim-own-person`);
 - `person_not_bound`: the person is not bound to the caller's account and the caller holds
   neither `admin` nor `super_admin` in the project's organization;
 - `credential_not_for_person`: the caller's credential is pinned to a person other than the
@@ -147,8 +150,8 @@ when claims sit on more than one deleted row, or when the parent holds a claim i
 
 ### Requirement: A release gives steps back and cascades through delegated claims
 
-The command registry SHALL offer `releaseWorkItem`, addressing a work item and a person, with
-optional `steps`. On a leaf it SHALL remove that person's claims on the named steps, or on
+The command registry SHALL offer `releaseWorkItem`, addressing a work item and a person (by
+id or ref or, when neither is named, the acting person), with optional `steps`. On a leaf it SHALL remove that person's claims on the named steps, or on
 every step when none is named. On a non-leaf it SHALL remove that person's subtree claim and
 every claim that names it as parent, transitively. Progress SHALL NOT change. It SHALL be
 one undoable journal entry. It SHALL refuse `not_claimed_by` when the person holds no claim

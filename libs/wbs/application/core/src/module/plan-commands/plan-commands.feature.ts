@@ -1,5 +1,14 @@
-import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
+import {
+  actingPersonOf,
+  type ClaimReceipt,
+  type CredentialPin,
+  credentialPinOf,
+  type RuntimeClaimRequest,
+  type RuntimeReply,
+  type RuntimeWriteRequest,
+  type WriteReceipt,
+} from '@wbs/contracts';
 import type {
   BudgetExhausted,
   LeaseStanding,
@@ -10,6 +19,7 @@ import type {
 } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
+import type { UndoStack } from '../../ports/command-journal-values';
 import type {
   Person,
   PersonWithTeams,
@@ -26,7 +36,9 @@ import {
 } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
+import type { Digest } from '../../ports/runtime';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
+import { normalizeCommand } from '../../service/command-normalizers';
 import type { DirectoryUsage, ResourceUsageCounts } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
 import type { ResourceCapacityOutcome } from '../capacity/capacity.resource';
@@ -55,6 +67,12 @@ import type {
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { crossingRefusal, type PlainReason, refuseForeignReferences } from './command-references';
 import type { PlanCommandServices } from './plan-command-graph';
+import type { RuntimeAdmission } from './runtime-authority';
+import { prepareRuntimeClaim } from './runtime-claim';
+import type { PendingRuntimeCommands, RuntimeMutationReceipt } from './runtime-command';
+import { parseRuntimeClaimRequest, parseRuntimeWriteRequest } from './runtime-request';
+import type { RuntimeContext } from './runtime-state';
+import { prepareRuntimeWrite } from './runtime-write';
 
 export type { PlanCommandServices } from './plan-command-graph';
 
@@ -256,7 +274,16 @@ export interface PreludeRefusal<R> {
   prelude: R;
 }
 
+interface RuntimeExecutionReply {
+  runtime: RuntimeReply<RuntimeMutationReceipt>;
+}
+type RuntimeCommandsPrelude = (
+  scope: CommandAdmission,
+) => Promise<RuntimeExecutionReply | PendingRuntimeCommands>;
+
 export interface PlanCommandRunnerOptions {
+  /** Required host hash capability for runtime mutation; ordinary callers may omit it. */
+  digest?: Digest;
   /** Maps each admitted turn to command resources without exposing its source. */
   transaction: CommandTransaction;
   /**
@@ -332,13 +359,19 @@ export class PlanCommandRunner {
    * credential is linked, so none is pinned (`link-credential-cli.ts` refuses).
    */
   run(projectId: string, actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
+    return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null, null).then(
+      legacyOutcome,
+    );
   }
 
   /**
    * {@link run} through the caller's access. Under scoped access the project
    * and the role are checked inside the batch's own unit of work, and every
    * command is held to the organization: see {@link applyAll}.
+   *
+   * `actingPersonId` is the agent person the request acts as on the undo
+   * journal (`actingPersonOf`), null for the account itself: the batch's entry
+   * and its undoable/redoable answer are that {@link UndoStack}'s.
    */
   runWithin(
     projectId: string,
@@ -346,8 +379,113 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(projectId, actorId, commands, access, credential);
+    return this.execute(projectId, actorId, commands, access, credential, actingPersonId);
+  }
+
+  /** Claims one exact target atomically with its immutable binding and acceptance receipt. */
+  async claimRuntime(
+    context: RuntimeContext,
+    candidate: RuntimeClaimRequest,
+  ): Promise<RuntimeReply<ClaimReceipt>> {
+    const request = parseRuntimeClaimRequest(candidate);
+    const personId = context.personId;
+    const command: PlanCommand = {
+      kind: 'claimWorkItem',
+      workItemId: request.action.workItemId,
+      personId,
+      steps: [request.action.stepId],
+      runId: request.action.execution.sessionId,
+      ...(request.action.parentClaimId === null
+        ? {}
+        : { parentClaim: request.action.parentClaimId }),
+    };
+
+    const reply = await this.runRuntimeCommands(context, [command], (admitted, digest) =>
+      prepareRuntimeClaim(admitted, request, digest),
+    );
+    if (!reply.ok) return reply;
+    if (reply.value.acceptance.kind !== 'claim')
+      throw new Error('runtime claim receipt kind mismatch');
+    return { ok: true, value: { ...reply.value, acceptance: reply.value.acceptance } };
+  }
+
+  /** Applies one exact claimed batch atomically with its retained acceptance. */
+  async writeRuntime(
+    context: RuntimeContext,
+    candidate: RuntimeWriteRequest,
+  ): Promise<RuntimeReply<WriteReceipt>> {
+    const request = parseRuntimeWriteRequest(candidate);
+    // Proof (semantic boundary): P5-35/48 bypassed normalization; invalid refs reached typed ordinary unknown_system instead of throwing before admission.
+    const commands = request.action.commands.map((command) =>
+      normalizeCommand(command.kind, { ...command }),
+    );
+    const reply = await this.runRuntimeCommands(context, commands, (admitted, digest) =>
+      prepareRuntimeWrite(admitted, request, digest),
+    );
+    if (!reply.ok) return reply;
+    if (reply.value.acceptance.kind !== 'write')
+      throw new Error('runtime write receipt kind mismatch');
+    return { ok: true, value: { ...reply.value, acceptance: reply.value.acceptance } };
+  }
+
+  /** Shared runtime admission snapshots identity before the existing command transaction queues. */
+  private async runRuntimeCommands(
+    context: RuntimeContext,
+    commands: readonly PlanCommand[],
+    prepare: (
+      admitted: RuntimeAdmission,
+      digest: Digest,
+    ) => Promise<RuntimeReply<RuntimeMutationReceipt> | PendingRuntimeCommands>,
+  ): Promise<RuntimeReply<RuntimeMutationReceipt>> {
+    const digest = this.opts.digest;
+    // Proof (diagnostic): P4-12/P5-40 omission changed the missing-capability negative to an incidental digest.sha256 TypeError.
+    if (digest === undefined) throw new Error('runtime command digest is missing');
+    // Proof: P4-10/P5-38 omission let the production read-only request accept.
+    if (!context.actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
+    // Proof (diagnostic): P4-11/P5-39 omission changed the legacy typed-refusal test to a scope.organizationId TypeError.
+    if (context.access.kind === 'legacy') return { ok: false, reason: 'runtime_scope_unavailable' };
+    const { projectId, personId } = context;
+    // Proof: P5-37 read the caller's actor again inside admission; the queued request lost its original authorized identity.
+    const actorId = context.actor.id;
+    const organizationId = context.access.scope.organizationId;
+    // Proof: dropping this verified pin made six machine/consent public claim, write and replay cases
+    // in runtime-credential-pin.db.test.ts accept another bound agent (200 instead of 403), 2026-10-22.
+    // Proof: RCAP-03 retained the caller alias; all eight queued machine/consent claim,
+    // write and claim/write replay cases in runtime-principal-cap.db.test.ts succeeded instead of forbidden.
+    const authentication =
+      context.actor.authentication === undefined ? undefined : { ...context.actor.authentication };
+    const credential = credentialPinOf(authentication);
+
+    const outcome = await this.execute(
+      projectId,
+      actorId,
+      commands,
+      context.access,
+      credential,
+      // Proof: with `null` here, `journals a machine credential's runtime write on its agent
+      // person's stack` (runtime-write.db.test.ts) read `[null, null]`; watched 2026-10-26.
+      actingPersonOf(authentication),
+      undefined,
+      async (scope) => {
+        const admitted = await scope.authorizeRuntime({
+          organizationId,
+          projectId,
+          personId,
+          actorId,
+          authentication,
+          credential,
+        });
+        if ('ok' in admitted) return { runtime: admitted };
+        const prepared = await prepare(admitted, digest);
+        return 'ok' in prepared ? { runtime: prepared } : prepared;
+      },
+    );
+    if ('runtime' in outcome) return outcome.runtime;
+    if (outcome.ok) throw new Error('runtime command completed without acceptance');
+    if ('refusal' in outcome) return { ok: false, reason: outcome.refusal };
+    return outcome;
   }
 
   /**
@@ -361,8 +499,9 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
-    return this.execute(projectId, actorId, commands, access, credential, prelude);
+    return this.execute(projectId, actorId, commands, access, credential, actingPersonId, prelude);
   }
 
   /**
@@ -377,7 +516,7 @@ export class PlanCommandRunner {
     access: ResourceAccess,
   ): Promise<ScopedBatchOutcome> {
     // A directory batch claims nothing, so it reads no credential pin.
-    return this.execute(null, actorId, commands, access, null);
+    return this.execute(null, actorId, commands, access, null, null);
   }
 
   /**
@@ -388,7 +527,7 @@ export class PlanCommandRunner {
    * `project_required` at its index.
    */
   runDirectory(actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(null, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
+    return this.execute(null, actorId, commands, LEGACY_ACCESS, null, null).then(legacyOutcome);
   }
 
   /**
@@ -424,6 +563,7 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
     projectId: string | null,
@@ -431,42 +571,75 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
+  private execute(
+    projectId: string | null,
+    actorId: string,
+    commands: readonly PlanCommand[],
+    access: ResourceAccess,
+    credential: CredentialPin | null,
+    actingPersonId: string | null,
+    prelude: undefined,
+    runtime: RuntimeCommandsPrelude,
+  ): Promise<ScopedBatchOutcome | RuntimeExecutionReply>;
   private async execute<R>(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
     prelude?: BatchPrelude<R>,
-  ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
+    runtime?: RuntimeCommandsPrelude,
+  ): Promise<ScopedBatchOutcome | PreludeRefusal<R> | RuntimeExecutionReply> {
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
     // Proof: reusing a constructor-owned collector made compose.test.ts receive
     // the same AnnouncementCollector for two batches at its identity assertion.
     const collector = new AnnouncementCollector(this.opts.announcements);
-    type Applied = ScopedBatchOutcome | PreludeRefusal<R> | Collected<AppliedCommand[]>;
+    interface RuntimeApplied {
+      runtimeApplied: RuntimeMutationReceipt;
+      collected: Collected<AppliedCommand[]>;
+    }
+    type Applied =
+      | ScopedBatchOutcome
+      | PreludeRefusal<R>
+      | RuntimeExecutionReply
+      | RuntimeApplied
+      | Collected<AppliedCommand[]>;
     // Scoped writes are admitted only through this act's own grant; a
     // directory batch names no project and is granted none.
     let grant: GrantedAdmission | null = null;
     const done = await this.opts.transaction
       .run<Applied>(
         async (scope): Promise<CommandDecision<Applied>> => {
-          if (access.kind === 'scoped') {
+          const prepared = runtime === undefined ? null : await runtime(scope);
+          // Proof: P4-24/P5-47 ran ordinary admission before this replay return and hit forbidden capture; P5-36 omission only hit the later branch TypeError.
+          if (prepared !== null && 'runtime' in prepared) return { commit: false, value: prepared };
+          // Proof: P4-09/P5-44 substituted incoming access; fresh-admin unbound-person claim/release refused person_not_bound.
+          const commandAccess = prepared === null ? access : prepared.admitted.access;
+          const commandCredential = prepared === null ? credential : prepared.admitted.credential;
+          if (commandAccess.kind === 'scoped') {
             // Proof: skipping this admission made `answers 404 alike for a foreign
             // and an absent project` in `command-organization.controller.db.test.ts`
             // answer 200 instead of 404; watched 2026-09-27.
-            const refusal = await scope.refuseOutsideScope(projectId, actorId, access.scope, {
-              commands: commands.map(({ kind }) => kind),
-            });
+            const refusal = await scope.refuseOutsideScope(
+              projectId,
+              actorId,
+              commandAccess.scope,
+              {
+                commands: commands.map(({ kind }) => kind),
+              },
+            );
             if (refusal !== null) return { commit: false, value: { ok: false, refusal } };
             if (projectId !== null) grant = grantAdmission(projectId, actorId);
           }
           const workingPlan = scope.openCommandGraph(
             projectId,
             collector,
-            admissionOf(access, grant),
+            admissionOf(commandAccess, grant),
           );
           // Proof: building from publicServices let the refused write survive:
           // expected [], received ["rolled back"] (2026-09-09).
@@ -504,7 +677,16 @@ export class PlanCommandRunner {
             }
             let applied: Applied;
             const collected = await graph.workItems.collect(() =>
-              this.applyAll(graph, scope, projectId, actorId, commands, access, credential),
+              this.applyAll(
+                graph,
+                scope,
+                projectId,
+                actorId,
+                commands,
+                commandAccess,
+                commandCredential,
+                actingPersonId,
+              ),
             );
             if (projectId !== null) {
               // A claim that also assigns changes assignments as setAssignee
@@ -531,7 +713,15 @@ export class PlanCommandRunner {
                   reason: 'calendar_range',
                 };
               } else {
-                await graph.workItems.recordCollected(projectId, actorId, collected.recordings);
+                // Onto the stack of the person the credential acts as, so an
+                // agent's batch never lands on its human's own undo.
+                // Proof: with `null` for the person, every case of
+                // `undo-acting-person.controller.db.test.ts` failed (0 pass,
+                // 5 fail); watched 2026-10-26.
+                await graph.workItems.recordCollected(
+                  { projectId, userId: actorId, personId: actingPersonId },
+                  collected.recordings,
+                );
                 applied = collected;
               }
             } else {
@@ -563,8 +753,12 @@ export class PlanCommandRunner {
               // projects before its write, `announces nothing when the batch
               // rolls back` recorded one. Publishing through the outer
               // broadcaster in place of the collector left every case green:
-              // nothing in a batch can fail after its renewal, so the
-              // collector's after-commit send has no negative here of its own.
+              // the ordinary-only runner then had no receipt hook after renewal.
+              // That historical run did not prove the collector's after-commit send.
+              // Proof: F2 published renewal through this.opts.announcements; `rolls back renewed
+              // leases and announcements after a late runtime receipt failure` (runtime-write.db.test.ts)
+              // reached the intended receipt INSERT cause and SQL rollback equality, then saw
+              // one escaped a2 claims_changed (0 pass, 1 fail); watched 2026-10-25.
               for (const renewedProjectId of renewal.renewedProjectIds)
                 if (renewedProjectId !== projectId || !applied.dirty)
                   await collector.publish(renewedProjectId, { type: 'claims_changed' });
@@ -572,9 +766,13 @@ export class PlanCommandRunner {
             // A refusal rolls the unit of work back, so whatever this batch collected
             // describes writes that will not be there. Dropped rather than sent —
             // which is one `if`, because the collector is this batch's alone.
-            return 'ok' in applied
-              ? { commit: false, value: applied }
-              : { commit: true, value: applied };
+            if ('ok' in applied) return { commit: false, value: applied };
+            if (prepared !== null) {
+              const accepted = await prepared.finishCommands(applied.result);
+              if ('ok' in accepted) return { commit: false, value: { runtime: accepted } };
+              return { commit: true, value: { runtimeApplied: accepted, collected: applied } };
+            }
+            return { commit: true, value: applied };
           } catch (cause) {
             if (cause instanceof CommandRefused) {
               return {
@@ -593,19 +791,28 @@ export class PlanCommandRunner {
         () => grant?.expire(),
       )
       .finally(() => grant?.expire());
-    if ('ok' in done) return done;
+    if ('ok' in done || 'runtime' in done) return done;
+    const collected = 'runtimeApplied' in done ? done.collected : done;
     // After the commit and after the turn is let go, which is what the whole
     // collector is for.
     await collector.send();
     if (projectId === null)
-      return { ok: true, results: done.result, undoable: false, redoable: false };
+      return { ok: true, results: collected.result, undoable: false, redoable: false };
     // Through the public graph, because this runs after the collector has been
     // drained and the unit of work has settled. A staged graph may now name
     // discarded stores; its collector will never be drained again.
     const afterCommit = this.opts.publicServices;
-    if (done.dirty) await afterCommit.workItems.announceTreeNow(projectId);
-    const state = await afterCommit.workItems.undoState(projectId, actorId);
-    return { ok: true, results: done.result, ...state };
+    if (collected.dirty) await afterCommit.workItems.announceTreeNow(projectId);
+    if ('runtimeApplied' in done) return { runtime: { ok: true, value: done.runtimeApplied } };
+    // Proof: with `null` for the person, `agent B's edit keeps agent A's redo,
+    // and the human's` (undo-acting-person.controller.db.test.ts) read the
+    // account's redoable stack (4 pass, 1 fail); watched 2026-10-26.
+    const state = await afterCommit.workItems.undoState({
+      projectId,
+      userId: actorId,
+      personId: actingPersonId,
+    });
+    return { ok: true, results: collected.result, ...state };
   }
 
   /**
@@ -674,21 +881,21 @@ export class PlanCommandRunner {
   }
 
   /**
-   * {@link undo} through the caller's access. Under scoped access the project
+   * {@link undo} of `stack` through the caller's access. Under scoped access the project
    * and role are checked in the unit of work, the entry may not write a row of
    * another project, and a replay that leaves the project referencing
    * anything outside the organization is rolled back as `not_found`.
    */
-  undoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
-    return this.walk(projectId, actorId, access, 'undo', (graph) =>
-      graph.workItems.undoWithin(projectId, actorId, access),
+  undoWithin(stack: UndoStack, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walk(stack.projectId, stack.userId, access, 'undo', (graph) =>
+      graph.workItems.undoWithin(stack, access),
     );
   }
 
-  /** {@link redo} through the caller's access; see {@link undoWithin}. */
-  redoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
-    return this.walk(projectId, actorId, access, 'redo', (graph) =>
-      graph.workItems.redoWithin(projectId, actorId, access),
+  /** {@link redo} of `stack` through the caller's access; see {@link undoWithin}. */
+  redoWithin(stack: UndoStack, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walk(stack.projectId, stack.userId, access, 'redo', (graph) =>
+      graph.workItems.redoWithin(stack, access),
     );
   }
 
@@ -801,6 +1008,7 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);
@@ -814,6 +1022,10 @@ export class PlanCommandRunner {
         refs,
         access,
         credential,
+        // Proof: with null here, `claims and releases as an API key's own agent
+        // person` (claim-own-person.controller.db.test.ts) answered 400
+        // person_required; watched 2026-10-26.
+        actingPersonId,
       );
       // Proof: removing this check made the mounted cross-project estimate test fail:
       // Expected: 404 / Received: 200 (2026-09-27).

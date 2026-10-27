@@ -6,17 +6,21 @@
       stream parts seen. Fallback named in design A7.
 - [x] 0.2 (verify.md, 2026-10-21: runs under Bun and Node, host tools called from QuickJS) `@ai-sdk/code-mode` under Bun with two fake tools routed through
       `experimental_toolCallers` — record whether QuickJS loads and the exact `ai` pin it forces.
-- [x] 0.3 (verify.md, 2026-10-21: installs clean, typechecks; the devsync pin test is slice 2 work) Pin set: `ai`, `@ai-sdk/harness`, `harness-claude-code`, `harness-codex`,
+- [ ] 0.3 (verify.md, 2026-10-21: installs clean, typechecks; the devsync pin test is slice 2 work) Pin set: `ai`, `@ai-sdk/harness`, `harness-claude-code`, `harness-codex`,
       `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@openrouter/ai-sdk-provider`,
       `@agentclientprotocol/sdk` 2.x — one install, `bun run typecheck` green, versions in
       verify.md. Test: `tools/tool-devsync` pin test extended for the new exact pins.
 
 ## 1. Workflow binding (Burokrat)
 
-- [ ] 1.1 Red: `workflow-binding.test.ts` — accepts the sample binding; refuses unknown
+Tasks 1.1–1.2 are expanded in [binding tasks](binding-tasks.md), implementing the
+[binding design](binding-design.md). Their checkboxes remain the parent acceptance gate;
+repository defaults and I1 approval/budget declarations are separate work.
+
+- [x] 1.1 Red: `workflow-binding.test.ts` — accepts the complete illustrative binding; refuses unknown
       version, unknown executor kind, bare model id, absent prompt file, step code outside the
       given list. Each refusal is a named code.
-- [ ] 1.2 Green: ArkType schema and `twib validate workflow-binding <file> --steps <codes>`
+- [x] 1.2 Green: ArkType schema and `twib validate workflow-binding <file> --steps <codes>`
       printing the digest. Negative: remove the step-code check and the `qa` case passes;
       watched; `Proof:` comment.
 - [ ] 1.3 `.twilight/workflows.yaml` and `.twilight/prompts/*.md` for puni-00 with the five
@@ -25,13 +29,20 @@
 
 ## 2. The port and the api-model adapter (Dash)
 
-- [ ] 2.1 Red: `activity-executor.test.ts` — the port contract against a fake adapter: session
-      id becomes agent run, parts arrive in order, usage measured or unknown with reason.
-- [ ] 2.2 Red: `api-model-adapter.test.ts` with the AI SDK mock language model — measured
-      usage, `stopWhen` honoured, bare model id refused before any request. Negative: remove
-      the prefix check and the request reaches the mock; watched.
-- [ ] 2.3 Green: provider registry (`anthropic`, `openai`, `openrouter`), `Agent` loop,
-      limits from the class. The website's `ProviderFetch` seam pattern reused for tests.
+The three [executor tasks](executor-tasks.md) implement [executor design](executor-design.md).
+These parent gates stay open until that packet is accepted. They do not complete other
+adapters, durable coordinator dispatch, S0.08 recovery or S7a.
+
+- [ ] 2.1 Red/green: shared executor identities, immutable request/locator snapshots and
+      real accepted Burokrat selection against actual installed SDK registry capabilities.
+      Session-to-WBS-agent-run persistence remains later host integration.
+- [ ] 2.2 Red/green: real SDK turns preserve per-step measured/unknown usage, distinct
+      output/step limits, zero automatic retries and correlated uncertain/throwing outcomes.
+      Bare model IDs fail at accepted-binding/registry boundaries; newly owned guards need
+      isolated production fault proofs rather than masked duplicate prefix checks.
+- [ ] 2.3 Green: concrete API-model adapter with injected model registry/tools, owned local
+      sessions, payload-bound retries, cancellation/listener lifecycle and honest unsupported
+      durable recovery. No production provider factory or live command is enabled.
 
 ## 3. The cli-harness adapter
 
@@ -61,28 +72,62 @@
       credentials; negative: drop the `person_not_bound` mapping and the write is retried
       forever — watched, bounded, `Proof:`.
 
+- [ ] 5.3 Publish the exact portable request codec and one unchanged batch bound through
+      [runtime request tasks](runtime-request-tasks.md); packet acceptance does not complete
+      the sender/outbox, receipt authentication or durable coordinator.
+
+- [ ] 5.4 Publish complete shared receipt correspondence through
+      [receipt tasks](runtime-receipt-tasks.md); matching content does not establish
+      transport authenticity, current authority or durable sender acceptance.
+
+- [ ] 5.5 Reconcile current main organization limits through
+      [limits integration tasks](limits-integration-tasks.md), preserving separately owned
+      policy/defaults and proving actual conditional claim refusal/replay consumption.
+
+- [ ] 5.6 Retain exact authority intent, immutable acceptance and local-epoch mapping through
+      [runtime authority tasks](runtime-authority-tasks.md). This internal persistence slice
+      does not enable dispatch or complete durable sender/coordinator acceptance.
+
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
-- [ ] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
+G2 is decided: [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) selects durable execution records and reconciliation while rebuilding scheduling from WBS. The earlier WBS-only G2 direction restored by PR 749 is superseded. Direction approval closes no implementation checkbox; the owner's subsequent commit/push/merge authorization remains subject to required evidence, review and release gates.
+
+Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the
+[storage design](storage-design.md). Their checkboxes remain the parent acceptance gate.
+
+- [x] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
       capacity, revision and owner conflicts, immutable manifests, outcome/outbox atomicity,
       inbox deduplication and receipt reconciliation. No SQL or engine-specific schema in ports.
-- [ ] 6a.2 Green: semantic ports and memory fixture, then the currently selected durable
+- [x] 6a.2 Green: semantic ports and memory fixture, then the currently selected durable
       adapter (SQLite). Keep physical schema/migrations in that adapter and select it by configuration.
 - [ ] 6a.3 Red/green: binding manifest retention and integrity, pinned prompt/tool-policy
       versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.
+      Retained recovery is expanded in [binding recovery tasks](binding-recovery-tasks.md);
+      that internal slice does not close revocation or provenance-aware re-pinning.
 - [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
       DEFER_READY, generation-checked settlement and callback-free summary. Require complete
       discovery/validation and filter durable waits/running/retry state before admission.
+      Rebuild the frontier from WBS business facts and accepted execution facts after restart;
+      a running attempt is never admitted twice.
+      The [execution-history tasks](execution-history-tasks.md) implement the bounded persistence
+      foundation for6a.5. External dispatch ordering and exact outcome/write/release remain later
+      phases and the parent checkbox stays open.
+
 - [ ] 6a.5 Red/green: persist admission/launch intent, exact claim receipts and operation-key
       locators; commit outcomes and outbox atomically, reconcile WBS acceptance before successors.
+      The next production connection is [preparation dispatch](preparation-dispatch-tasks.md):
+      verified intent precedes session creation and committed locator precedes live-session
+      publication. This slice leaves claim transport, turn dispatch and exact outcome delivery open.
 - [ ] 6a.6 Red: coordinator-only crash with worker surviving, effect-before-result-save,
-      progress-before-ack, duplicate signals, stale owner and unresolved worker/effect state.
-      Fault injection must catch bypassed fencing, duplicate replacement and premature capacity release.
+      progress-before-ack/outcome-before-reply, duplicate signals, stale local owner, stale WBS
+      claim and unresolved worker/effect state. Fault injection must catch bypassed local
+      fencing or receiver claim checks, duplicate replacement and premature capacity release.
 - [ ] 6a.7 Green: ownership acquisition/fencing, worker lookup/reattach or verified quiescence,
       receipt/effect reconciliation and explicit unresolved operator path. Never mass-mark running
-      attempts interrupted merely because the coordinator restarted.
+      attempts interrupted or cancelled merely because the coordinator restarted.
 - [ ] 6a.8 Provide run-coordinator, inspect-runs, resume-attempt, cancel-attempt and
-      reconcile-attempt operations over adapter configuration. Demonstrate safe compatibility
+      reconcile-attempt operations over adapter configuration and the guarded WBS bridge.
+      Demonstrate safe compatibility
       execution with fake adapters before I5.02 deployment or I5.04 real dogfood.
 
 ## 6b. Type-specific workflows and provider proof (S7b)
@@ -93,6 +138,7 @@
       retained artifacts and stale-result refusal across restart.
 - [ ] 6b.3 Run identical storage contracts against a second durable adapter chosen for deployment;
       any conformant store is eligible. Prove versioned transfer with paused writers before claiming portability.
+      A second WBS deployment or WBS export alone does not prove execution-store portability.
 - [ ] 6b.4 Finish W0–W12 product acceptance: distinct type DAGs in one project, migrated facts,
       schedules, editor/boards, imports/exports and full recovery. Compatibility dogfood is not this gate.
 
@@ -121,3 +167,9 @@
 
 - [ ] 8.5 Record separate compatibility and type-DAG milestones in the operator runbook.
       New-work cutover has an explicit fallback to manual; full type-DAG completion requires S7b/W12.
+
+## Receiver implementation packet
+
+Follow [receiver-tasks.md](receiver-tasks.md) for the six S0.05–S0.07 slices.
+Completing receiver HTTP/client behavior alone does not complete parent 5 or 6a.5–7:
+Dash durable pin/grant mapping, executor ordering and coordinator integration remain required.

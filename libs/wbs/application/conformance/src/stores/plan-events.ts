@@ -24,6 +24,7 @@ function historyRecord(
       id: journalId,
       projectId,
       userId,
+      personId: null,
       kind,
       payload: { label: `History ${eventId}`, forward: { type: kind, workItemId } },
       inverse: { type: `undo_${kind}`, workItemId },
@@ -248,6 +249,7 @@ function expectedJournals(seed: SeededPlan): readonly [JournalEntry[], JournalEn
     id: `journal-a-${id}`,
     projectId: seed.projectIds[0],
     userId: seed.ownerIds[0],
+    personId: null,
     seq,
     kind,
     payload: { label: `History history-a-${id}`, forward: { type: kind, workItemId } },
@@ -266,6 +268,7 @@ function expectedJournals(seed: SeededPlan): readonly [JournalEntry[], JournalEn
     id: `journal-b-${id}`,
     projectId: seed.projectIds[1],
     userId: seed.ownerIds[1],
+    personId: null,
     seq,
     kind,
     payload: { label: `History history-b-${id}`, forward: { type: kind, workItemId } },
@@ -304,8 +307,16 @@ async function readJournals(
 ): Promise<readonly [JournalEntry[], JournalEntry[]]> {
   const { readers, seed } = fixture;
   return await Promise.all([
-    readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0]),
-    readers.journal.entriesFor(seed.projectIds[1], seed.ownerIds[1]),
+    readers.journal.entriesFor({
+      projectId: seed.projectIds[0],
+      userId: seed.ownerIds[0],
+      personId: null,
+    }),
+    readers.journal.entriesFor({
+      projectId: seed.projectIds[1],
+      userId: seed.ownerIds[1],
+      personId: null,
+    }),
   ]);
 }
 
@@ -322,6 +333,7 @@ function batchRecord(
       id: `journal-${id}`,
       projectId: seed.projectIds[0],
       userId: seed.ownerIds[0],
+      personId: null,
       kind,
       payload: { label: id, forward: after },
       inverse: { do: 'noop' },

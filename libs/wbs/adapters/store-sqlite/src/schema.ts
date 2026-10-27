@@ -2444,14 +2444,17 @@ export type TypedDependencyRow = typeof typedDependency.$inferSelect;
  * One command somebody ran, and everything needed to reverse it — the undo
  * stack, held on the server so it survives a reload.
  *
- * **One stack per (project, account).** Undo is personal: reversing somebody
- * else's last edit because it happened to be the newest is how a shared plan
- * loses work nobody meant to lose. Two browser tabs of one account share one
- * stack, which is accepted and stated in
- * `openspec/changes/conditional-undo/design.md`.
+ * **One stack per (project, account, acting person).** Undo is personal:
+ * reversing somebody else's last edit because it happened to be the newest is
+ * how a shared plan loses work nobody meant to lose. Two browser tabs of one
+ * account share one stack, which is accepted and stated in
+ * `openspec/changes/conditional-undo/design.md`. `person_id` is the agent
+ * person a machine or consent credential acts as, null for the account acting
+ * as itself, because those credentials act as their human's account (`UndoStack`).
+ * Compared with `IS`, so a null matches only a null.
  *
- * `seq` orders that stack and is assigned by SQLite from the pair's current
- * maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
+ * `seq` orders the account's stacks together and is assigned by SQLite from
+ * the pair's current maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
  * and for the same reason. Two processes sharing the file mid-swap would
  * otherwise both read the same maximum and both write it, and the unique index
  * on `(project_id, user_id, seq)` would then refuse the second insert, failing
@@ -2485,6 +2488,12 @@ export const commandJournal = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * Added by `20261026120000_add_command_journal_person`. Cascades: a deleted
+     * agent's stack can never be pressed again, and `SET NULL` would hand its
+     * edits to its human's stack, which is the bug this column fixes.
+     */
+    personId: text('person_id').references(() => person.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     kind: text('kind').notNull(),
     payload: text('payload').notNull(),
@@ -2493,7 +2502,11 @@ export const commandJournal = sqliteTable(
     undone: integer('undone', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at').notNull(),
   },
-  (t) => [uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq)],
+  (t) => [
+    uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq),
+    index('command_journal_person_stack').on(t.projectId, t.userId, t.personId, t.seq),
+    index('command_journal_person').on(t.personId),
+  ],
 );
 
 export type CommandJournalRow = typeof commandJournal.$inferSelect;
@@ -2503,9 +2516,9 @@ export type CommandJournalRow = typeof commandJournal.$inferSelect;
  *
  * **This is the third log in this file and it is not either of the other two.**
  * `event_log` is the websocket resume buffer, keyed by subscription and pruned
- * by count. `command_journal` is an undo stack: one per (project, **account**),
- * fifty deep, and its `append` deletes that account's redo branch every time it
- * writes. Neither can answer "how did this estimate move" — the first never
+ * by count. `command_journal` is an undo stack: one per (project, **account**,
+ * acting person), fifty deep, and its `append` deletes that stack's redo branch
+ * every time it writes. Neither can answer "how did this estimate move" — the first never
  * held it, and the second is per-person, evicted after an afternoon's editing,
  * and loses anything undone. Dany, 2026-08-13: *"so that later I can examine
  * the history of estimates changes"*. `notes/wbs-brief-2026-08-14-r5-r6-history.md`
@@ -4059,6 +4072,118 @@ export const stepParallel = sqliteTable(
   ],
 );
 
+/** Permanent receiver installation witness; only its explicit migration creates the singleton. */
+export const runtimeLedger = sqliteTable(
+  'runtime_ledger',
+  {
+    id: integer('id').primaryKey().notNull(),
+    schemaVersion: integer('schema_version').notNull(),
+    ledgerId: text('ledger_id').notNull(),
+    authorityCount: integer('authority_count').notNull(),
+    bindingCount: integer('binding_count').notNull(),
+    receiptCount: integer('receipt_count').notNull(),
+  },
+  (table) => [
+    check('runtime_ledger_singleton', sql`${table.id} = 1`),
+    check('runtime_ledger_version', sql`${table.schemaVersion} = 1`),
+    check('runtime_ledger_identity', sql`length(${table.ledgerId}) > 0`),
+    check(
+      'runtime_authority_count',
+      sql`typeof(${table.authorityCount}) = 'integer' AND ${table.authorityCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+    check(
+      'runtime_binding_count',
+      sql`typeof(${table.bindingCount}) = 'integer' AND ${table.bindingCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+    check(
+      'runtime_receipt_count',
+      sql`typeof(${table.receiptCount}) = 'integer' AND ${table.receiptCount} BETWEEN 0 AND 9007199254740991`,
+    ),
+  ],
+);
+
+/** Retains scope strings without foreign keys so ordinary deletion cannot erase receiver history. */
+function runtimeScopeColumns() {
+  return {
+    organizationId: text('organization_id').notNull(),
+    projectId: text('project_id').notNull(),
+    personId: text('person_id').notNull(),
+  };
+}
+
+/** One monotonic owner grant for each retained organization/project/person scope. */
+export const runtimeAuthority = sqliteTable(
+  'runtime_authority',
+  {
+    ...runtimeScopeColumns(),
+    ownerId: text('owner_id').notNull(),
+    generation: integer('generation').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.projectId, table.personId] }),
+    check(
+      'runtime_authority_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check('runtime_authority_owner', sql`length(${table.ownerId}) > 0`),
+    check(
+      'runtime_authority_generation',
+      sql`typeof(${table.generation}) = 'integer' AND ${table.generation} BETWEEN 1 AND 9007199254740991`,
+    ),
+  ],
+);
+
+/** Exact immutable execution identity, independent of live claims and business attempt numbers. */
+export const runtimeClaimBinding = sqliteTable(
+  'runtime_claim_binding',
+  {
+    ...runtimeScopeColumns(),
+    claimId: text('claim_id').notNull(),
+    storeId: text('store_id').notNull(),
+    attemptId: text('attempt_id').notNull(),
+    binding: text('binding').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.projectId, table.personId, table.claimId] }),
+    unique('runtime_scope_attempt').on(
+      table.organizationId,
+      table.projectId,
+      table.personId,
+      table.storeId,
+      table.attemptId,
+    ),
+    check(
+      'runtime_binding_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check(
+      'runtime_binding_identity',
+      sql`length(${table.claimId}) > 0 AND length(${table.storeId}) > 0 AND length(${table.attemptId}) > 0`,
+    ),
+    check('runtime_binding_json', sql`json_valid(${table.binding})`),
+  ],
+);
+
+/** Accepted envelopes and exact successful replies share one permanent scoped command namespace. */
+export const runtimeCommandReceipt = sqliteTable(
+  'runtime_command_receipt',
+  {
+    ...runtimeScopeColumns(),
+    commandId: text('command_id').notNull(),
+    accepted: text('accepted').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.organizationId, table.projectId, table.personId, table.commandId],
+    }),
+    check(
+      'runtime_receipt_scope',
+      sql`length(${table.organizationId}) > 0 AND length(${table.projectId}) > 0 AND length(${table.personId}) > 0`,
+    ),
+    check('runtime_receipt_identity', sql`length(${table.commandId}) > 0`),
+    check('runtime_receipt_json', sql`json_valid(${table.accepted})`),
+  ],
+);
 /**
  * One **Provider instance** (`compute-providers` P2): what one organization
  * registered as fulfilling its resources' units, with a display-only locator

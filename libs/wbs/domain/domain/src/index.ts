@@ -168,6 +168,7 @@ export * from './claim-lease';
 export * from './occupancy';
 // Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
 export * from './resource';
+export * from './runtime-basis';
 // Measure definitions, one scheduling measure per organization (wbs-measure-budgets D1, D2).
 export * from './budget';
 export * from './budget-admission';

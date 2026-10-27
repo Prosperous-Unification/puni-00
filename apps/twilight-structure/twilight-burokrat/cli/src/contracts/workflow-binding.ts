@@ -404,3 +404,72 @@ export type SelectedActivity = Omit<ClassSelection, 'settings'> & {
         readonly prompt: Pick<PromptSnapshot, 'path' | 'sha256' | 'text'>;
       }
   );
+
+// Proof: F05 removed descriptor strictness and accepted an extra field in `refuses acceptance extra descriptor field`.
+const AcceptanceDescriptor = type({
+  // Proof: F07/F08 removed path/drive validation; their descriptor-path tests changed invalid_binding
+  // to invalid_prompt_sources. These prove classification only; exact path coverage still refused.
+  path: RelativePath.narrow(
+    (path, context) => !/^[A-Za-z]:/.test(path) || context.mustBe('a repository-relative path'),
+  ),
+  // Proof: F06 widened SHA shape and accepted uppercase hex in `refuses acceptance uppercase SHA`.
+  sha256: type(/^[0-9a-f]{64}$/),
+}).onUndeclaredKey('reject');
+// Proof: F04 removed envelope strictness and accepted an extra field in `refuses acceptance extra envelope field`.
+const AcceptanceEnvelope = type({
+  // Proof: F09 removed the required version and accepted its absence in `refuses acceptance absent version`.
+  schemaVersion: '1',
+  binding: 'unknown',
+  // Proof: F10 widened the array and accepted a number in `refuses acceptance nonstring project step`.
+  projectSteps: 'string[]',
+  prompts: AcceptanceDescriptor.array(),
+}).onUndeclaredKey('reject');
+
+/**
+ * Decodes retained descriptor content, including every unused class path, without accepting bytes.
+ * Returns a detached deeply frozen snapshot; project coverage remains {@link checkWorkflowBinding}'s responsibility.
+ * @throws {WorkflowBindingError} for non-JSON input, unsupported versions or invalid descriptor shape/order/coverage.
+ */
+export function decodeWorkflowAcceptance(input: unknown): AcceptanceSnapshot {
+  // Proof: F01 bypassed this consumed JSON boundary and accepted the accessor in `refuses acceptance accessor`.
+  checkJson(input, 'acceptance');
+  // Proof: F02 substituted caller aliases and froze a caller descriptor in `detaches and deeply freezes acceptance`.
+  const detached: unknown = structuredClone(input);
+  if (
+    isRecord(detached) &&
+    Object.hasOwn(detached, 'schemaVersion') &&
+    // Proof: F03 removed version classification; `refuses acceptance unsupported version` received
+    // invalid_binding instead of unsupported_version. The strict envelope still refused it.
+    detached['schemaVersion'] !== 1
+  ) {
+    throw new WorkflowBindingError(
+      'unsupported_version',
+      'schemaVersion',
+      'expected schemaVersion 1',
+    );
+  }
+  const envelope = parseAt(AcceptanceEnvelope, detached, 'acceptance');
+  // Proof: F11 bypassed nested decoding and accepted an unknown unused executor in `refuses acceptance nested invalid executor`.
+  const binding = decodeWorkflowBinding(envelope.binding);
+  // Proof: F12 broke the path-owner reply; `decodes complete tool and human descriptors including nested unused paths` refused valid input.
+  const paths = listBindingPromptPaths(binding);
+  if (
+    // Proof: F13 removed length checking and accepted a missing trailing path; F14 removed ordering
+    // and accepted reversed descriptors in their named acceptance refusal tests.
+    envelope.prompts.length !== paths.length ||
+    envelope.prompts.some((prompt, index) => prompt.path !== paths[index])
+  ) {
+    throw new WorkflowBindingError(
+      'invalid_prompt_sources',
+      'prompts',
+      'expected sorted unique descriptors for every declared prompt path',
+    );
+  }
+  // Proof: F15 bypassed the consumed freeze; `detaches and deeply freezes acceptance` could mutate the return.
+  return freezeValue({
+    schemaVersion: 1,
+    binding,
+    projectSteps: envelope.projectSteps,
+    prompts: envelope.prompts,
+  });
+}

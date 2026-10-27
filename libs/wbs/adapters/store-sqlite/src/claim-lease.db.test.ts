@@ -102,7 +102,14 @@ async function seeded(cap = 40) {
   });
   /** One batch by Dany's account, under an agent's credential or a session (null). */
   const run = (commands: PlanCommand[], credential: CredentialPin | null) =>
-    runner.runWithin(projectId, 'dany', commands, admin, credential);
+    runner.runWithin(
+      projectId,
+      'dany',
+      commands,
+      admin,
+      credential,
+      credential !== null && 'personId' in credential ? credential.personId : null,
+    );
   const plan = await run(
     [
       { kind: 'createWorkItem', ref: 'parent', name: 'Parent', parentId: null, afterId: null },
@@ -369,18 +376,24 @@ describe('release by the coordinator', () => {
   it('refuses the holder’s undo after a reap, and redoes a claim with a fresh lease', async () => {
     const { run, claim, items, runner, projectId, claims, leases } = await seeded();
     await run([claim(items.one, 'codex')], pinned('codex'));
-    // Undo and redo by the claim's writing account put it back with a lease
+    // Undo and redo by the agent that wrote the claim put it back with a lease
     // from the redo's instant (L11).
     now = T + MINUTE;
-    expect(await runner.undoWithin(projectId, 'dany', admin)).toMatchObject({ ok: true });
+    expect(
+      await runner.undoWithin({ projectId, userId: 'dany', personId: 'codex' }, admin),
+    ).toMatchObject({ ok: true });
     now = T + 5 * MINUTE;
-    expect(await runner.redoWithin(projectId, 'dany', admin)).toMatchObject({ ok: true });
+    expect(
+      await runner.redoWithin({ projectId, userId: 'dany', personId: 'codex' }, admin),
+    ).toMatchObject({ ok: true });
     expect(leases()).toEqual([
       { person_id: 'codex', work_item_id: items.one, lease: T + 5 * MINUTE + CLAIM_LEASE_MS },
     ]);
     now = T + 5 * MINUTE + CLAIM_LEASE_MS;
     expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
-    expect(await runner.undoWithin(projectId, 'dany', admin)).toMatchObject({ ok: false });
+    expect(
+      await runner.undoWithin({ projectId, userId: 'dany', personId: 'codex' }, admin),
+    ).toMatchObject({ ok: false });
     expect(claims()).toBe(0);
   });
 });

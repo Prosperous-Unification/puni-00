@@ -11,11 +11,14 @@ LangGraph, infrastructure and a Backlog.md migration before a working execution 
 - **Bindings:** Burokrat validates type/activity bindings; Dash retains immutable manifests
   and referenced prompt/tool-policy versions for each run.
 - **WBS bridge:** guarded claims, progress, measures and exact-authority release under a machine
-  credential (pinned to the coordinator's agent person), with typed refusals.
+  credential pinned to the coordinator's agent person, with typed refusals. Shared canonical request identity lets a durable sender
+  retain the exact payload identified by a receiver receipt. Shared correspondence checks bind
+  the complete returned receipt to that retained request.
 - **S7a coordinator:** unified CTT hints, deferral and summary over a linear compatibility
-  workflow; abstract RunStore/ArtifactStore ports; intent/outbox reconciliation and safe
-  recovery of surviving workers or uncertain effects. SQLite is the current adapter choice;
-  any conformant provider can replace it.
+  workflow; semantic RunStore/ArtifactStore ports retain execution facts, intents and
+  receipts for safe recovery of surviving workers or uncertain effects (ADR 0061). WBS owns
+  scheduling and business facts; the frontier is rebuilt from WBS and accepted execution
+  facts. SQLite is the current adapter choice; any conformant provider can replace it.
 - **S7b integration:** reuse the runtime for pinned type-specific DAGs, joins and repair.
   W0–W12 in the WBS planning project remain required product scope.
 - **Staged cutover:** S7a safety proofs precede deployment and real dogfood. A linear run does
@@ -45,11 +48,17 @@ semantic ports. Unknown worker/effect state blocks automatic retry. The laptop c
 
 None.
 
+## Domain Terms
+
+Canonical runtime request.
+
 ## Decisions Recorded
 
+[ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordinator-restart.md) selects durable
+execution facts and receipt reconciliation, superseding the earlier WBS-only G2 direction.
 [ADR 0057](../../../docs/adr/0057-activities-run-on-the-ai-sdk-and-an-interpreter-coordinates.md)
-and design.md record accepted API/storage/recovery refinements; other product assumptions
-remain proposed.
+remains proposed as a whole; design.md records the accepted integration refinements and
+separate implementation gates.
 
 ## Impact
 
