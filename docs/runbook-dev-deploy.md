@@ -51,21 +51,29 @@ unchanged to the nanosecond.
 
 be-01's `/health` answers two commits, and only one of them is the running code:
 
-- `commit` is **the checkout on disk**, read on every request. The poller's proof uses it to
-  answer "did the reset land".
-- `bootCommit` is **the code running**, read once when be-01 booted.
+- `commit` is **the checkout on disk**, read on every request.
+- `bootCommit` is **the code running**, read once when be-01 booted. The poller records a
+  commit as proven only when `bootCommit` equals it; an absent or `null` one is unproven.
 
 They differ whenever a watcher misses a reset. On 2026-10-26, after #758 merged as
 `3cd6e2751`, `commit` named it while be-01 still served the old `/api/openapi.json`:
 `bun --watch` had not reloaded after the poller's reset, and only
 `docker restart wbs-dev-src` fixed it.
 
-`tool-devsync` therefore waits up to 30 seconds after every reset for `bootCommit` to equal
-the new HEAD, restarts the container once if it does not, waits up to two more minutes, and
+`tool-devsync` therefore waits after every reset for `bootCommit` to equal the new HEAD:
+30 s for a code-only reset, 120 s when the deploy itself restarted for a `RESTART_PATHS`
+change. If it does not converge, it restarts the container once, waits up to 120 s more, and
 then fails the deploy naming what be-01 reported (`convergeBootCommits` in
-`tools/tool-devsync/src/boot-convergence.ts`). A commit no watched module imports, such as
-docs only, reloads nothing, so it costs one container restart. gw-01 and mcp-01 report no
-boot commit; the restart covers them, but their staleness is not observed.
+`tools/tool-devsync/src/boot-convergence.ts`). A reset that changes nothing under `apps/`,
+`libs/` or `tools/` (docs only, say) reloads no watcher, so it restarts at once instead of
+waiting. gw-01 and mcp-01 report no boot commit; the restart covers them, but their staleness
+is not observed.
+
+`sync.ts` holds the deploy lock for the whole convergence, up to about 4.5 minutes, so a
+manual `bin/dev-deploy.sh` queues behind it on the poll lock. A deploy that fails this way
+exits 76: the poller records the commit as synced but unproven, and later ticks retry only the
+`bootCommit` proof — no reset back, no second restart. Repair by reading the tier log and
+restarting by hand.
 
 After a merge, verify the running code, not the disk:
 
@@ -73,6 +81,14 @@ After a merge, verify the running code, not the disk:
 ssh h2puni 'docker exec wbs-dev-src curl -s http://127.0.0.1:3100/health'
 # {"status":"ok","commit":"<sha>","bootCommit":"<sha>"} — bootCommit must be the merge
 ```
+
+**The `bootCommit` proof and the exit-76 handling live in `bin/dev-poll.sh`, which does not
+update itself.** Each tick streams `bin/dev-poll-sync.sh` and `sync.ts` from the target commit,
+but `/home/puni1/wbs-dev/bin/poll.sh` is the copy installed by
+[Durable poller recovery](#durable-poller-recovery). Until that block is rerun with this
+commit's `bin/dev-poll.sh`, the installed poller still proves on `commit` and treats exit 76 as
+an incomplete sync: it resets back and re-syncs every tick, restarting the container each time.
+Reinstall the poller pair right after this change merges.
 
 **Not every change can reach a running process that way.** This is the constraint the
 design trades for its speed — know which row your change is in:
@@ -275,7 +291,7 @@ a tick; `sync.ts`'s deploy lock still serializes host work and checkout mutation
 throws before reset, the checkout stays put; a later fixed target supplies and executes its own
 repaired deployer on the next tick, against the contract it was written with rather than the
 checkout's. The target tool still performs every solver, restart, recreate, and post-reset HEAD
-check, while the outer poll lock and `/health` commit proof remain intact. Do not recover with a raw
+check, while the outer poll lock and `/health` `bootCommit` proof remain intact. Do not recover with a raw
 `git reset`; that bypasses the checks whose refusal is the reason the checkout did not move.
 
 **The candidate initially has no `node_modules`, and a tick that refuses with `the deployer's import graph does

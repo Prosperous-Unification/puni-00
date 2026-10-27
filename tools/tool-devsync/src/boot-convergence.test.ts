@@ -23,8 +23,11 @@ interface Harness {
  * whose answer is a function of how many restarts have happened and how long
  * since the last one.
  */
+const CLOCK_CAP_MS = 60 * 60_000;
+
 function harness(
   tiers: Record<string, (restarts: number, sinceMs: number) => BootObservation>,
+  reloadsNothing: (from: string, to: string) => boolean = () => false,
 ): Harness {
   const events: string[] = [];
   let clock = 0;
@@ -47,10 +50,17 @@ function harness(
         events.push(`restart @${String(clock)}`);
         return Promise.resolve();
       },
+      reloadsNothing: (from, to) => {
+        events.push(`diff ${from.slice(0, 1)}..${to.slice(0, 1)}`);
+        return Promise.resolve(reloadsNothing(from, to));
+      },
       now: () => clock,
-      sleep: (ms) => {
+      // Yields, and refuses past an hour, so a convergence that lost its
+      // deadline fails by name instead of spinning the suite forever.
+      sleep: async (ms) => {
         clock += ms;
-        return Promise.resolve();
+        if (clock > CLOCK_CAP_MS) throw new Error(`fake clock ran past ${String(CLOCK_CAP_MS)}ms`);
+        await Bun.sleep(0);
       },
       log: (line) => events.push(line),
     },
@@ -121,6 +131,52 @@ describe('convergeBootCommits', () => {
 
     expect(events.filter((event) => event.startsWith('restart'))).toEqual([]);
     expect(events.at(-1)).toBe('observe be-01 @15000');
+  });
+
+  it('restarts at once when the reset reloads nothing', async () => {
+    const { dependencies, events } = harness(
+      { 'be-01': (restarts) => (restarts === 1 ? booted(HEAD) : booted(OLD)) },
+      () => true,
+    );
+
+    await convergeBootCommits(HEAD, dependencies, { budget: BUDGET });
+
+    expect(events.filter((event) => !event.startsWith('[dev-sync]')).slice(0, 3)).toEqual([
+      'observe be-01 @0',
+      'diff a..b',
+      'restart @0',
+    ]);
+  });
+
+  it('still waits the window when the reset changes watched code', async () => {
+    const { dependencies, events } = harness({
+      'be-01': (restarts) => (restarts === 1 ? booted(HEAD) : booted(OLD)),
+    });
+
+    await convergeBootCommits(HEAD, dependencies, { budget: BUDGET });
+
+    expect(events.filter((event) => event.startsWith('restart'))).toEqual(['restart @10000']);
+  });
+
+  it('never takes the shortcut after the deploy restarted, or for an unreported tier', async () => {
+    const restartedRun = harness(
+      { 'be-01': (_restarts, since) => (since >= 15_000 ? booted(HEAD) : booted(OLD)) },
+      () => true,
+    );
+    await convergeBootCommits(HEAD, restartedRun.dependencies, { budget: BUDGET, restarted: true });
+    expect(restartedRun.events.filter((event) => !event.startsWith('observe'))).toEqual([]);
+
+    const unreported = harness(
+      {
+        'be-01': (restarts) =>
+          restarts === 1 ? booted(HEAD) : { kind: 'unreported', reason: 'health unreadable' },
+      },
+      () => true,
+    );
+    await convergeBootCommits(HEAD, unreported.dependencies, { budget: BUDGET });
+    expect(unreported.events.filter((event) => event.startsWith('restart'))).toEqual([
+      'restart @10000',
+    ]);
   });
 
   it('treats an unreadable tier as not yet booted, and names why when it never answers', async () => {

@@ -24,6 +24,11 @@ export interface BootConvergenceDependencies {
   tiers: readonly BootCommitTier[];
   /** Restarts every tier process; the only repair this tool has for a stale one. */
   restart(): Promise<void>;
+  /**
+   * Whether moving from `from` to `to` changes nothing a watcher reloads, so
+   * waiting for one is pointless. Answering false only costs the full window.
+   */
+  reloadsNothing(from: string, to: string): Promise<boolean>;
   now(): number;
   sleep(ms: number): Promise<void>;
   log(line: string): void;
@@ -40,8 +45,8 @@ export interface BootConvergenceBudget {
 
 /**
  * Thirty seconds covers a `bun --watch` reload of be-01 measured in seconds; a
- * docs-only commit reloads nothing, so it spends the whole window and then
- * restarts. Two minutes after a restart matches a cold `bun run dev` with
+ * commit that reloads nothing restarts at once instead (see
+ * {@link BootConvergenceDependencies.reloadsNothing}). Two minutes after a restart matches a cold `bun run dev` with
  * migrations on boot.
  */
 export const BOOT_CONVERGENCE_BUDGET: BootConvergenceBudget = {
@@ -54,6 +59,18 @@ export interface BootConvergenceOptions {
   budget?: BootConvergenceBudget;
   /** The deploy has just restarted the container itself. */
   restarted?: boolean;
+}
+
+/**
+ * The exit `sync.ts` reports for a reset that landed while the processes did
+ * not boot it. `bin/dev-poll.sh` maps it to "synced, unproven": later ticks
+ * retry only the `/health` proof, never the reset or the restart.
+ */
+export const STALE_BOOT_EXIT_CODE = 76;
+
+/** The checkout moved and the restart was spent, but a tier still runs another commit. */
+export class StaleBootError extends Error {
+  override readonly name = 'StaleBootError';
 }
 
 /** Reads `bootCommit` from a `/health` body, whatever its status. */
@@ -91,6 +108,8 @@ async function observeStale(
   dependencies: BootConvergenceDependencies,
   windowMs: number,
   pollMs: number,
+  isHopeless: (stale: ReadonlyMap<string, BootObservation>) => Promise<boolean> = () =>
+    Promise.resolve(false),
 ): Promise<Map<string, BootObservation>> {
   const deadline = dependencies.now() + windowMs;
   for (;;) {
@@ -105,7 +124,12 @@ async function observeStale(
         stale.set(tier.name, observed);
       }
     }
-    if (stale.size === 0 || dependencies.now() >= deadline) return stale;
+    // Proof: with `|| dependencies.now() >= deadline` removed, `restarts a tier
+    // whose boot commit never moves, then reports it` failed on the harness's
+    // `fake clock ran past` refusal instead of hanging (watched 2026-10-27).
+    if (stale.size === 0 || dependencies.now() >= deadline || (await isHopeless(stale))) {
+      return stale;
+    }
     await dependencies.sleep(pollMs);
   }
 }
@@ -119,7 +143,7 @@ async function observeStale(
  * missed the poller's reset; `docker restart` fixed it). `bootCommit` is read
  * once at boot, so only it can say which code answers.
  *
- * @throws when a tier still has not booted `head` after the restart window,
+ * @throws {StaleBootError} when a tier still has not booted `head` after the restart window,
  *   naming each such tier, what it reported, and the manual repair.
  */
 export async function convergeBootCommits(
@@ -133,23 +157,47 @@ export async function convergeBootCommits(
   // on a cold boot, not a watcher reload, so it gets the cold-boot window.
   // Proof: with `budget.watchMs` used unconditionally, `gives a deploy that
   // already restarted the cold-boot window` restarted at 10000.
-  const firstWindowMs = options.restarted === true ? budget.restartMs : budget.watchMs;
-  const watched = await observeStale(head, dependencies, firstWindowMs, budget.pollMs);
+  const restarted = options.restarted === true;
+  const firstWindowMs = restarted ? budget.restartMs : budget.watchMs;
+  // Only before a restart: a watcher has nothing to reload when every stale
+  // tier booted a commit whose difference from `head` no watcher sees, so
+  // waiting cannot help. After a restart an old boot commit means "not booted
+  // yet", and the window must run. This can only restart sooner, never skip.
+  // Proof: with this predicate answering false, `restarts at once when the
+  // reset reloads nothing` failed on its event order (watched 2026-10-27).
+  const shortcut = { taken: false };
+  const reloadsNothing = async (stale: ReadonlyMap<string, BootObservation>) => {
+    if (restarted) return false;
+    for (const observed of stale.values()) {
+      if (observed.kind !== 'booted') return false;
+      if (!(await dependencies.reloadsNothing(observed.commit, head))) return false;
+    }
+    shortcut.taken = true;
+    return true;
+  };
+  const watched = await observeStale(
+    head,
+    dependencies,
+    firstWindowMs,
+    budget.pollMs,
+    reloadsNothing,
+  );
   if (watched.size === 0) return;
+  const waited = shortcut.taken ? 'a reset no watcher reloads' : `${String(firstWindowMs)}ms`;
   dependencies.log(
-    `[dev-sync] not running ${head} after ${String(firstWindowMs)}ms (${describeStale(watched)}); restarting`,
+    `[dev-sync] not running ${head} after ${waited} (${describeStale(watched)}); restarting`,
   );
   // Proof: with this call removed, `restarts a tier the watcher never
   // reloaded, then accepts its new boot` failed on its restart events, and
   // the restart-fixes sync() rehearsal failed on its docker calls.
   await dependencies.restart();
-  const restarted = await observeStale(head, dependencies, budget.restartMs, budget.pollMs);
-  if (restarted.size === 0) {
+  const afterRestart = await observeStale(head, dependencies, budget.restartMs, budget.pollMs);
+  if (afterRestart.size === 0) {
     dependencies.log(`[dev-sync] every tier booted ${head} after the restart`);
     return;
   }
-  throw new Error(
-    `dev is not running ${head} after a restart and ${String(budget.restartMs)}ms: ${describeStale(restarted)}.\n` +
+  throw new StaleBootError(
+    `dev is not running ${head} after a restart and ${String(budget.restartMs)}ms: ${describeStale(afterRestart)}.\n` +
       '  The checkout is at the new commit; the processes are not. Read the tier log:\n' +
       '  ssh h2puni "docker logs --tail 100 wbs-dev-src"',
   );
@@ -163,7 +211,13 @@ export async function convergeBootCommits(
  * `bun run dev` supervisor, so the restart this triggers covers them as well,
  * but their own staleness is not observed.
  */
-export function containerBootDependencies(containerName: string): BootConvergenceDependencies {
+/** Paths a dev watcher can import from; a change anywhere else reloads nothing. */
+const WATCHED_ROOTS = ['apps', 'libs', 'tools'] as const;
+
+export function containerBootDependencies(
+  containerName: string,
+  sourcePath: string,
+): BootConvergenceDependencies {
   return {
     tiers: [
       {
@@ -187,6 +241,16 @@ export function containerBootDependencies(containerName: string): BootConvergenc
       // Proof: replacing this with a no-op failed both sync.test.ts rehearsals
       // on the docker calls they observed (no `restart`).
       await $`docker restart ${containerName}`;
+    },
+    reloadsNothing: async (from, to) => {
+      const diff = await $`git -C ${sourcePath} diff --quiet ${from} ${to} -- ${WATCHED_ROOTS}`
+        .quiet()
+        .nothrow();
+      // Exit 1 is "differs"; anything else (an unknown boot commit, say) is
+      // not knowing, which answers false and keeps the full window.
+      // Proof: answering `diff.exitCode !== 1` (true on a git error) failed
+      // `waits the window when the boot commit is unknown to git` in sync.test.ts.
+      return diff.exitCode === 0;
     },
     now: () => Date.now(),
     sleep: (ms) => Bun.sleep(ms),

@@ -34,8 +34,25 @@ and the file was restored byte for byte.
 | `sync()` converges before reporting success               | the `convergeBootCommits` call removed from `sync()`  | `refuses a deploy whose be-01 still runs the previous commit` received `(resolved without throwing)`                                                       |
 | A deploy that already restarted gets the cold-boot window | first window always `budget.watchMs`                  | `gives a deploy that already restarted the cold-boot window` failed on a restart at 10000                                                                  |
 
-Not separately proved: that `sync()` passes `restarted` from `needsRestart`; the rehearsal fixture
-changes no `RESTART_PATHS` entry, so that branch is exercised only by the unit case above.
+### Review fixes (2026-10-27, after the Fable review of PR #762)
+
+| Check                                                   | Injected fault                                                      | Observed                                                                                                                                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1: a stale boot is synced but unproven                 | poller's `sync_rc -eq "$STALE_BOOT_EXIT"` branch disabled           | `retries only the proof after a stale boot, never the reset or the restart` failed: observations gained `reset`, `sync`, `restart` on each of ticks two and three                                               |
+| S1: the deployer exits 76 for a stale boot              | `instanceof StaleBootError` branch in `lockedSyncExitCode` disabled | `exits 76 for a reset be-01 never booted` failed (the StaleBootError was rethrown)                                                                                                                              |
+| S4: the poller proves `bootCommit`                      | `read_served_commit` reads `"commit"` again (grep and sed)          | served-commit fixtures `stale process`, `no bootCommit`, `null bootCommit`, `short SHA` and the stale-boot tick test failed (5 fail)                                                                            |
+| S2: `restarted` reaches convergence from `needsRestart` | `restarted: false` passed from `sync()`                             | `gives a deploy that restarted for a RESTART_PATHS change the cold-boot window` (bun.lock rehearsal): expected 1 restart, received 2                                                                            |
+| S3: an unreadable `/health` is named                    | `read.exitCode !== 0` branch disabled                               | `names an unreadable health as the reason, with one restart` received `be-01: health body is not JSON`                                                                                                          |
+| N1: windows are bounded                                 | `\|\| dependencies.now() >= deadline` removed                       | `restarts a tier whose boot commit never moves, then reports it` failed fast on `fake clock ran past 3600000ms` instead of hanging                                                                              |
+| Fast path: restart at once when nothing reloads         | predicate answers false                                             | `restarts at once when the reset reloads nothing` failed on its event order; sync.test.ts `refuses a deploy whose be-01 still runs the previous commit` hit the 5000 ms test timeout waiting out its 5 s window |
+| Fast path: unknown boot commit keeps the window         | `diff.exitCode !== 1` (true on a git error)                         | `waits the window when the boot commit is unknown to git`: expected restart index > 1, received 1                                                                                                               |
+
+The fast path is safe because it can only shorten the wait: it is skipped after the deploy's own
+restart, for any unreported tier, and whenever git cannot answer.
+
+Not proved: the S1 mapping in `bin/dev-deploy.sh`. A manual deploy that exits 76 leaves
+`last-synced` unwritten, so the next poller tick does one bounded reset-back and re-sync, which
+then exits 76 and is recorded. The manual script is unchanged.
 
 ## Commands
 
@@ -55,6 +72,13 @@ and anchors`, refusing this file while it was still untracked; staged, it passes
   no performance-level code. CI is the clean run.
 - `env -u CLAUDECODE bun test src/boot-convergence.test.ts src/sync.test.ts` (tool-devsync) — `16 pass`
   and `57 pass`, `0 fail`.
+- After the review fixes: `env -u CLAUDECODE bun test src/boot-convergence.test.ts src/sync.test.ts
+src/poller.test.ts` — `113 pass, 0 fail` across 3 files; `bunx nx run-many -t typecheck lint -p
+tool-devsync --skip-nx-cache` — exit 0 (the same two pre-existing warnings).
+- After the review fixes: `env -u CLAUDECODE bunx nx run tool-devsync:test --skip-nx-cache` — exit 0;
+  `972 pass, 0 fail` across 50 files (713 s), performance-level included.
+- Host gate: the coordinator reported `bin/h2puni-gate.sh 000f2d1a7` passing on h2puni; this
+  agent did not observe it, and the review-fix commit has not been gated on the host.
 - `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` — exit 0.
 - `bunx prettier --check` on every changed file — exit 0.
 

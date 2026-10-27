@@ -37,3 +37,48 @@ After a reset, `tools/tool-devsync` SHALL observe be-01's `bootCommit` until it 
 
 - **WHEN** be-01's `/health` cannot be read in either window
 - **THEN** the deploy fails naming why the read failed
+
+#### Scenario: a deploy that restarted for a restart path
+
+- **WHEN** the reset changes a `RESTART_PATHS` entry, so the deploy restarts the container itself, and be-01 boots the new HEAD after the watch window but within the restart window
+- **THEN** the container is restarted exactly once
+
+#### Scenario: a reset no watcher reloads
+
+- **WHEN** be-01 booted a commit whose difference from the new HEAD touches nothing under `apps/`, `libs/` or `tools/`
+- **THEN** the container is restarted after the first observation instead of after the watch window
+
+### Requirement: A stale boot is synced but unproven
+
+When the deploy fails because be-01 never booted the new HEAD, `tools/tool-devsync` SHALL exit 76, and the poller SHALL then record that commit as synced but not proven, so later ticks retry only the `/health` proof and never reset the checkout back or restart the container again.
+
+#### Scenario: be-01 never boots across several ticks
+
+- **WHEN** the deployer exits 76 with the checkout at the target, and later ticks find `bootCommit` still at the previous commit
+- **THEN** across those ticks the deployer and its restart run once, no backward reset happens, `last-synced` names the target and `last-proven` is not written
+
+## MODIFIED Requirements
+
+### Requirement: A dev deploy is done only when its checkout commit is proven
+
+The poller SHALL treat a deploy as proven only when be-01's `/health` answers HTTP 200 with `status:"ok"` and a `bootCommit` equal to the fetched 40-hex SHA; an absent, `null` or abbreviated `bootCommit` SHALL NOT prove it, whatever `commit` says. It SHALL persist the last proven SHA, and on every tick where that value differs from `HEAD` it SHALL re-attempt the proof even when `HEAD` already equals `origin/main`.
+
+#### Scenario: proof unreadable, then recovered
+
+- **WHEN** one tick resets to a new commit but `/health` is unreadable, and a later tick reads the matching boot commit
+- **THEN** the first tick exits non-zero without advancing `last-proven`, and the later tick proves it and records it
+
+#### Scenario: health degraded
+
+- **WHEN** `/health` answers 503 with a body containing the fetched commit
+- **THEN** the proof fails
+
+#### Scenario: a stale process
+
+- **WHEN** `/health` answers 200 with `commit` equal to the fetched SHA and `bootCommit` equal to the previous one
+- **THEN** the proof fails
+
+#### Scenario: nothing new and already proven
+
+- **WHEN** `HEAD`, `origin/main` and `last-proven` are equal
+- **THEN** the tick exits zero without calling `/health`

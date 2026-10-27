@@ -44,6 +44,8 @@ import {
   type BootConvergenceBudget,
   containerBootDependencies,
   convergeBootCommits,
+  STALE_BOOT_EXIT_CODE,
+  StaleBootError,
 } from './boot-convergence';
 import { prepareTargetSolverBinding } from './solver-binding-host';
 import { createTargetSolverBindingRuntime } from './solver-binding-runtime';
@@ -417,10 +419,34 @@ export function solverTargetDependencies(
   };
 }
 
+export { STALE_BOOT_EXIT_CODE };
+
 export function devSyncFailureMessage(exitCode: number): string {
-  return exitCode === LOCK_BUSY_EXIT_CODE
-    ? '[dev-sync] skipped: another deploy holds the lock'
-    : `[dev-sync] failed (exit ${String(exitCode)}); see the error above`;
+  if (exitCode === LOCK_BUSY_EXIT_CODE) return '[dev-sync] skipped: another deploy holds the lock';
+  if (exitCode === STALE_BOOT_EXIT_CODE) {
+    return '[dev-sync] checkout moved but be-01 never booted it; see the error above';
+  }
+  return `[dev-sync] failed (exit ${String(exitCode)}); see the error above`;
+}
+
+/**
+ * The locked child's exit: 0, {@link STALE_BOOT_EXIT_CODE} for a landed reset
+ * the processes never booted, and any other failure rethrown so it exits 1
+ * with its stack as before.
+ */
+export async function lockedSyncExitCode(run: () => Promise<void>): Promise<number> {
+  try {
+    await run();
+    return 0;
+  } catch (error) {
+    // Proof: with this branch removed, `exits 76 for a reset be-01 never
+    // booted` in sync.test.ts received a rethrown StaleBootError instead of 76.
+    if (error instanceof StaleBootError) {
+      console.error(error.message);
+      return STALE_BOOT_EXIT_CODE;
+    }
+    throw error;
+  }
 }
 
 export interface DevSyncLockOptions {
@@ -843,12 +869,18 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
   // Proof: with this call removed, `refuses a deploy whose be-01 still runs the
   // previous commit` in sync.test.ts received `(resolved without throwing)`
   // (watched 2026-10-27).
-  await convergeBootCommits(head, containerBootDependencies(paths.containerName), {
-    ...(options.bootConvergenceBudget === undefined
-      ? {}
-      : { budget: options.bootConvergenceBudget }),
-    restarted,
-  });
+  await convergeBootCommits(
+    head,
+    containerBootDependencies(paths.containerName, paths.sourcePath),
+    {
+      ...(options.bootConvergenceBudget === undefined
+        ? {}
+        : { budget: options.bootConvergenceBudget }),
+      // Proof: passing `restarted: false` made the RESTART_PATHS rehearsal in
+      // sync.test.ts observe two restarts instead of one (watched 2026-10-27).
+      restarted,
+    },
+  );
 
   if (!paths.rehearsal) {
     await runMcpDeploymentProbe({
@@ -927,7 +959,7 @@ if (import.meta.main) {
 
   if (invocation.locked) {
     // Already inside flock: this is the real run.
-    await sync(invocation.sha, invocation.paths);
+    process.exitCode = await lockedSyncExitCode(() => sync(invocation.sha, invocation.paths));
   } else {
     // Two overlapping runs can interleave their fetch, reset, install and
     // restart, leaving dev on one SHA with another SHA's dependencies. flock
