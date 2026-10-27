@@ -408,3 +408,37 @@ For already boundary-validated runtime values, contracts SHALL compare a receipt
 - **WHEN** all retained fields match an earlier accepted request
 - **THEN** correspondence does not refresh a current grant or authorize another effect
 - **AND** authenticated transport and existing current permission checks remain separate requirements
+
+### Requirement: A retained RuntimeState can be read without a target projection
+
+`readRuntimeStateArtifact` SHALL detach an already validated ArtifactRef before IO and return the full existing RuntimeState. It SHALL preserve the current media, integrity, fatal UTF-8, JSON and public-schema checks in their original order, propagate dependency failures unchanged, and claim no freshness, authenticity or execution permission.
+
+#### Scenario: Retained state has authority and claim inventory
+
+- WHEN the reader consumes valid retained state
+- THEN the full public value, including authority/claims/facts/basis/scope/ledger, is returned rather than the smaller TargetObservation projection.
+
+#### Scenario: Caller mutates its reference while IO is held
+
+- GIVEN a valid already decoded reference and held artifact read
+- WHEN the caller mutates its own reference after invocation
+- THEN the read verifies and returns the original referenced state using its detached snapshot.
+
+#### Scenario: Trusted retained bytes cannot be consumed
+
+- WHEN evidence is missing, unreadable, wrong-media, wrong-digest/length, malformed UTF8/JSON or invalid public schema
+- THEN the reader throws with the inherited cause/error behavior; it never defaults state.
+
+### Requirement: Existing target observation behavior is preserved
+
+readTargetObservation SHALL retain its original reference parse/snapshot then target snapshot synchronously before first await, delegate only the retained full-state decoding stage, and keep all existing scope/work/step/code comparisons and error order unchanged. It SHALL continue to return the same TargetObservation record. No caller migration to a different target contract is required.
+
+#### Scenario: Target or reference aliases change during the read
+
+- WHEN a caller mutates its original target/reference during retained-state IO
+- THEN the original target/reference controls the projection and the same existing valid/invalid target outcomes hold.
+
+#### Scenario: Extraction is invoked by real preparation
+
+- WHEN recordPreparation receives invalid state or target through the existing provider path
+- THEN it throws before recordExecution and retained history remains unchanged, as before extraction.
