@@ -536,15 +536,18 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 - _Failures and successes are counted apart._ Failed authentications at the token endpoint
   are counted per `(client_id, IP)` and per IP. Successful issuances are limited per
   credential, separately, so a stranger who knows a public id cannot lock it out.
-- _Reserved before be-01, settled after._ A token request takes one failure token per IP, one
-  per `(client_id, IP)` when it names a credential, and one issuance per IP before be-01 is
-  asked, all or none, so concurrent requests cannot all pass one check. A success gives the
-  failure tokens back and takes one issuance of the credential be-01 verified; a failure gives
-  the issuance token back; any other outcome gives everything back. The per-credential issuance
-  is counted only after be-01 verified the credential, so a claimed public id answers `429` only
-  to its holder. A grant be-01 issued that this limit then refuses is dropped unsigned: be-01
-  has written or found the day's audit row and touched `last_used_at`, and no token exists for
-  it (section 4 note 4).
+- _Read, reserved and settled._ Before be-01 is asked a token request reads the failure buckets
+  (per IP, and per `(client_id, IP)` when it names a credential), then takes one of its IP's
+  100 pending slots and one issuance per IP. Its outcome ends the slot: a failure spends the
+  failure buckets and gives the issuance back; a success takes one issuance of the credential
+  be-01 verified; anything else gives the issuance back. The failure buckets are read, not
+  reserved, so a source's legitimate concurrency is its 100 pending slots, not its failure
+  burst; the cost is that concurrent failures can overshoot the failure fence by at most the
+  pending cap once per burst (at most 30 + 100 failed requests reach be-01 per IP before it
+  closes). The per-credential issuance is counted only after be-01 verified the credential, so
+  a claimed public id answers `429` only to its holder. A grant be-01 issued that this limit
+  then refuses is dropped unsigned: be-01 has written or found the day's audit row and touched
+  `last_used_at`, and no token exists for it (section 4 note 4).
 
 | Limit                                 | Default per replica  | Sized for                                                                                                                     |
 | ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |

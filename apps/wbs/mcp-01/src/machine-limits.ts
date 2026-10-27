@@ -1,5 +1,5 @@
 import { InFlightCounter } from './in-flight-counter';
-import { type RetryAfter, takeEach, type TokenBucketRate, TokenBuckets } from './token-bucket';
+import { longestOf, type RetryAfter, type TokenBucketRate, TokenBuckets } from './token-bucket';
 
 /** One machine token request as the limits see it, before be-01 is asked. */
 export interface IssuanceAttempt {
@@ -22,18 +22,19 @@ export type CallAdmission =
     };
 
 /**
- * The tokens one admitted token request holds while be-01 is asked, settled once by its
- * outcome; the first settlement wins and later ones change nothing.
+ * What one admitted token request holds while be-01 is asked (a pending slot of its source and
+ * one issuance token of its source), settled once by its outcome; every settlement ends the
+ * pending slot, the first wins and later ones change nothing.
  */
 export interface IssuanceReservation {
   /**
-   * be-01 granted `credentialId`: the failure tokens are given back, and one issuance of that
-   * credential is taken, or a wait is returned and the grant is dropped unsigned.
+   * be-01 granted `credentialId`: one issuance of that credential is taken, or a wait is
+   * returned and the grant is dropped unsigned.
    */
   issued(credentialId: string): RetryAfter | null;
-  /** A failed authentication: the failure tokens stay spent, the issuance token is given back. */
+  /** A failed authentication: the failure buckets are spent, the issuance token given back. */
   failed(): void;
-  /** Neither (another refusal, be-01 unavailable, a defect): every token is given back. */
+  /** Neither (another refusal, be-01 unavailable, a defect): the issuance token is given back. */
   release(): void;
 }
 
@@ -49,9 +50,10 @@ export type IssuanceAdmission =
  */
 export interface MachineLimits {
   /**
-   * Pessimistic: takes one failure token per source, one per `(client_id, source)` when the
-   * request names a credential, and one issuance per source, all or none, before be-01 is
-   * asked; a wait when any is empty. Concurrent requests therefore cannot all pass one check.
+   * Before be-01 is asked: reads the failure buckets (per source, and per `(client_id,
+   * source)` when the request names a credential), then takes a pending slot of the source and
+   * one issuance per source; a wait when any refuses. The pending cap bounds how many
+   * concurrent requests can pass the read together.
    */
   reserveIssuance(attempt: IssuanceAttempt): IssuanceAdmission;
   /** Counts one `tools/call` message, and holds an in-flight slot until it is released. */
@@ -69,6 +71,7 @@ export const M10_LIMITS = {
   issuancesPerSource: { burst: 100, perSecond: 300 / 60 },
   callsPerCredential: { burst: 20, perSecond: 10 },
   callsInFlightPerOrganization: 128,
+  pendingIssuancesPerSource: 100,
 } as const satisfies MachineLimitRates;
 
 export interface MachineLimitRates {
@@ -78,6 +81,12 @@ export interface MachineLimitRates {
   readonly issuancesPerSource: TokenBucketRate;
   readonly callsPerCredential: TokenBucketRate;
   readonly callsInFlightPerOrganization: number;
+  /**
+   * Token requests of one source waiting on be-01 at once: the per-source issuance burst, so a
+   * 100-pod rollout behind one egress address issues at once, and the failure fence, which is
+   * read rather than reserved, is overshot by at most this many per burst.
+   */
+  readonly pendingIssuancesPerSource: number;
 }
 
 /**
@@ -85,6 +94,9 @@ export interface MachineLimitRates {
  * wait a client is asked for.
  */
 const IN_FLIGHT_RETRY_AFTER_SECONDS = 1;
+
+/** As for in-flight calls: pending token requests end at no rate a bucket knows. */
+const PENDING_RETRY_AFTER_SECONDS = 1;
 
 /**
  * M10's six limits for one replica. Failures and successes are counted in separate buckets,
@@ -101,6 +113,7 @@ export class MachineTrafficLimits implements MachineLimits {
   readonly #issuancesPerSource: TokenBuckets;
   readonly #callsPerCredential: TokenBuckets;
   readonly #callsInFlight: InFlightCounter;
+  readonly #pendingPerSource: InFlightCounter;
 
   constructor(now: () => number, rates: MachineLimitRates = M10_LIMITS) {
     this.#failuresPerClientAndSource = new TokenBuckets(rates.failuresPerClientAndSource, now);
@@ -109,6 +122,7 @@ export class MachineTrafficLimits implements MachineLimits {
     this.#issuancesPerSource = new TokenBuckets(rates.issuancesPerSource, now);
     this.#callsPerCredential = new TokenBuckets(rates.callsPerCredential, now);
     this.#callsInFlight = new InFlightCounter(rates.callsInFlightPerOrganization);
+    this.#pendingPerSource = new InFlightCounter(rates.pendingIssuancesPerSource);
   }
 
   reserveIssuance(attempt: IssuanceAttempt): IssuanceAdmission {
@@ -120,18 +134,33 @@ export class MachineTrafficLimits implements MachineLimits {
         this.#failuresPerClientAndSource,
         pairKeyOf(attempt.clientId, attempt.source),
       ]);
+    // Read, not taken: reserving failure tokens capped a source's legitimate concurrency at the
+    // failure burst (review of PR #765, B1). The overshoot a read allows is bounded by the
+    // pending cap below, once per burst.
+    // Proof: taking the failure tokens here (the fa37fa65a order) failed `admits 100 concurrent
+    // issuances of one credential from one source` and `admits 100 concurrent issuances of
+    // distinct credentials from one source` (machine-limits.test.ts): 5 and 30 asked; watched
+    // 2026-10-27.
+    const failing = longestOf(failures.map(([bucket, key]) => bucket.retryAfter(key)));
+    if (failing !== null) return { kind: 'limited', retryAfterSeconds: failing.retryAfterSeconds };
+    // The per-source issuance reservation alone bounds a burst, not concurrency: it refills
+    // while be-01 is slow, and the failure buckets read above fill only as answers arrive.
+    // Proof: with this cap removed, `holds a source to the pending cap while be-01 is slow, even
+    // once its issuances refill` (machine-limits.test.ts) saw 200 asked; watched 2026-10-27.
+    const endPending = this.#pendingPerSource.acquire(attempt.source);
+    if (endPending === null)
+      return { kind: 'limited', retryAfterSeconds: PENDING_RETRY_AFTER_SECONDS };
     const issuance = [this.#issuancesPerSource, attempt.source] as const;
-    // Taken, not read: a check that only reads lets every concurrent request through it.
-    // Proof: reading the buckets here and spending the failures after be-01 answered (the order
-    // before the review of PR #765) failed `lets at most 30 of 100 concurrent wrong keys from one
-    // source reach be-01` and `lets at most the burst of 300 concurrent issuances…`
-    // (machine-limits.test.ts): all 100 and all 300 reached be-01; watched 2026-10-27.
-    const waiting = takeEach([...failures, issuance]);
-    if (waiting !== null) return { kind: 'limited', retryAfterSeconds: waiting.retryAfterSeconds };
+    const issuing = issuance[0].take(issuance[1]);
+    if (issuing !== null) {
+      endPending();
+      return { kind: 'limited', retryAfterSeconds: issuing.retryAfterSeconds };
+    }
     let settled = false;
     const settle = (): boolean => {
       if (settled) return false;
       settled = true;
+      endPending();
       return true;
     };
     return {
@@ -139,12 +168,6 @@ export class MachineTrafficLimits implements MachineLimits {
       reservation: {
         issued: (credentialId) => {
           if (!settle()) return null;
-          // Successes never cost failure tokens, so a stranger cannot lock a credential out and
-          // its own issuances never fill its address's failure buckets.
-          // Proof: keeping the failure tokens spent on success failed `one address issues 100
-          // tokens for a pool of 100 within a minute` (machine-limits.test.ts); watched
-          // 2026-10-27.
-          for (const [bucket, key] of failures) bucket.give(key);
           // Counted per credential only once be-01 verified it, so a claimed public id answers
           // 429 only to its holder (no 429-or-401 oracle; review of PR #765, N1).
           // Proof: with this take removed, `refuses the 101st issuance of one credential at once,
@@ -153,6 +176,9 @@ export class MachineTrafficLimits implements MachineLimits {
         },
         failed: () => {
           if (!settle()) return;
+          // Proof: with this spend removed, `counts a rotating spoofed first entry…` and three more
+          // (machine-limits.test.ts) never answered 429; watched 2026-10-27.
+          for (const [bucket, key] of failures) bucket.spend(key);
           // Proof: keeping the issuance token on a failure (one bucket for successes and failures)
           // failed `a failure gives the address's issuance token back` (machine-limits.test.ts);
           // watched 2026-10-27.
@@ -160,7 +186,7 @@ export class MachineTrafficLimits implements MachineLimits {
         },
         release: () => {
           if (!settle()) return;
-          for (const [bucket, key] of [...failures, issuance]) bucket.give(key);
+          issuance[0].give(issuance[1]);
         },
       },
     };

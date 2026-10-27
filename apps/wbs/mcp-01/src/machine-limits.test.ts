@@ -319,26 +319,76 @@ describe('failed authentications at the token endpoint', () => {
 });
 
 describe('concurrent token requests', () => {
-  it('lets at most 30 of 100 concurrent wrong keys from one source reach be-01', async () => {
+  const PENDING_CAP = M10_LIMITS.pendingIssuancesPerSource;
+
+  it('lets at least 30 and at most 30 plus the pending cap of 100 concurrent wrong keys from one source reach be-01, then closes', async () => {
     const world_ = world([], M10_LIMITS, { grantDelayMs: 5 });
     const answers = await Promise.all(
       Array.from({ length: 100 }, () =>
         issue(world_.oauth, wrongKeyFor(randomUUID()), ORCHESTRATOR),
       ),
     );
-    expect(world_.asked()).toBeLessThanOrEqual(30);
+    expect(world_.asked()).toBeGreaterThanOrEqual(30);
+    expect(world_.asked()).toBeLessThanOrEqual(30 + PENDING_CAP);
     expect(answers.filter((answer) => answer.status === 401)).toHaveLength(world_.asked());
-    expect(answers.filter((answer) => answer.status === 429)).toHaveLength(100 - world_.asked());
+    await expectRateLimited(await issue(world_.oauth, wrongKeyFor(randomUUID()), ORCHESTRATOR));
   });
 
-  it('lets at most the burst of 300 concurrent issuances for one credential from one source reach be-01', async () => {
+  it('lets at most 30 plus the pending cap of 500 concurrent wrong keys from one source reach be-01', async () => {
+    const world_ = world([], M10_LIMITS, { grantDelayMs: 5 });
+    await Promise.all(
+      Array.from({ length: 500 }, () =>
+        issue(world_.oauth, wrongKeyFor(randomUUID()), ORCHESTRATOR),
+      ),
+    );
+    expect(world_.asked()).toBeGreaterThanOrEqual(30);
+    expect(world_.asked()).toBeLessThanOrEqual(30 + PENDING_CAP);
+  });
+
+  it('holds a source to the pending cap while be-01 is slow, even once its issuances refill', async () => {
+    const world_ = world([], M10_LIMITS, { grantDelayMs: 100 });
+    const wave = () =>
+      Array.from({ length: PENDING_CAP }, () =>
+        issue(world_.oauth, wrongKeyFor(randomUUID()), ORCHESTRATOR),
+      );
+    const first = wave();
+    await Bun.sleep(10);
+    // A minute later the issuance bucket is full again, and no failure has been counted yet.
+    world_.clock.now += 60_000;
+    const second = await Promise.all(wave());
+    await Promise.all(first);
+    expect(world_.asked()).toBe(PENDING_CAP);
+    expect(second.map((answer) => answer.status)).toEqual(second.map(() => 429));
+    expect(second[0]?.headers.get('retry-after')).toBe('1');
+  });
+
+  it('admits 100 concurrent issuances of distinct credentials from one source', async () => {
+    const pool = Array.from({ length: 100 }, () => credential());
+    const world_ = world(pool, M10_LIMITS, { grantDelayMs: 5 });
+    const answers = await Promise.all(
+      pool.map((held) => issue(world_.oauth, held.key, ORCHESTRATOR)),
+    );
+    expect(answers.map((answer) => answer.status)).toEqual(pool.map(() => 200));
+  });
+
+  it('admits 100 concurrent issuances of one credential from one source', async () => {
+    const held = credential();
+    const world_ = world([held], M10_LIMITS, { grantDelayMs: 5 });
+    const answers = await Promise.all(
+      Array.from({ length: 100 }, () => issue(world_.oauth, held.key, ORCHESTRATOR)),
+    );
+    expect(answers.map((answer) => answer.status)).toEqual(answers.map(() => 200));
+  });
+
+  it('lets exactly the burst of 300 concurrent issuances for one credential from one source reach be-01', async () => {
     const held = credential();
     const world_ = world([held], M10_LIMITS, { grantDelayMs: 5 });
     const answers = await Promise.all(
       Array.from({ length: 300 }, () => issue(world_.oauth, held.key, ORCHESTRATOR)),
     );
-    expect(world_.asked()).toBeLessThanOrEqual(100);
-    expect(answers.filter((answer) => answer.status === 200)).toHaveLength(world_.asked());
+    expect(world_.asked()).toBe(100);
+    expect(answers.filter((answer) => answer.status === 200)).toHaveLength(100);
+    expect(answers.filter((answer) => answer.status === 429)).toHaveLength(200);
   });
 });
 

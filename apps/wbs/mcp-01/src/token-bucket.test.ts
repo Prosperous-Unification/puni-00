@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
-import { levelAt, takeEach, type TokenBucketRate, TokenBuckets } from './token-bucket';
+import { levelAt, type TokenBucketRate, TokenBuckets } from './token-bucket';
 
 /** A step of a fake clock and what a client does then. */
 type Step =
@@ -30,22 +30,26 @@ const stepArbitrary: fc.Arbitrary<Step> = fc.oneof(
 );
 
 describe('a token bucket on a fake clock', () => {
-  it('never admits more than the burst plus the rate times the elapsed time, per key', () => {
+  it('never admits more than the burst plus the rate times the elapsed time plus what was given back, per key', () => {
     fc.assert(
       fc.property(rateArbitrary, fc.array(stepArbitrary, { maxLength: 200 }), (rate, steps) => {
         const clock = { now: 1_000_000 };
         const buckets = new TokenBuckets(rate, () => clock.now);
         const admitted = { a: 0, b: 0 };
+        const given = { a: 0, b: 0 };
         for (const step of steps) {
           if (step.kind === 'advance') clock.now += step.ms;
           else if (step.kind === 'take' && buckets.take(step.key) === null) admitted[step.key] += 1;
-          else if (step.kind === 'give') buckets.give(step.key);
+          else if (step.kind === 'give') {
+            buckets.give(step.key);
+            given[step.key] += 1;
+          }
         }
         const elapsedSeconds = (clock.now - 1_000_000) / 1_000;
         // A small epsilon absorbs floating-point refills.
         for (const key of ['a', 'b'] as const)
           expect(admitted[key]).toBeLessThanOrEqual(
-            rate.burst + rate.perSecond * elapsedSeconds + 1e-6,
+            rate.burst + rate.perSecond * elapsedSeconds + given[key] + 1e-6,
           );
       }),
     );
@@ -156,6 +160,36 @@ describe('a token bucket on a fake clock', () => {
     );
   });
 
+  it('counts a spend without refusing it, down to zero and no further', () => {
+    fc.assert(
+      fc.property(rateArbitrary, fc.integer({ min: 0, max: 80 }), (rate, spends) => {
+        const clock = { now: 0 };
+        const buckets = new TokenBuckets(rate, () => clock.now);
+        for (let spent = 0; spent < spends; spent += 1) buckets.spend('a');
+        expect(buckets.retryAfter('a') === null).toBe(spends < rate.burst);
+        // Floored at zero: one token's refill makes one token, however many were spent.
+        clock.now += Math.ceil(1_000 / rate.perSecond) + 1;
+        expect(buckets.take('a')).toBeNull();
+      }),
+    );
+  });
+
+  it('counts a spend on a part-filled bucket, so the part is spent too', () => {
+    fc.assert(
+      fc.property(rateArbitrary, fc.double({ min: 0.05, max: 0.95, noNaN: true }), (rate, part) => {
+        const clock = { now: 0 };
+        const buckets = new TokenBuckets(rate, () => clock.now);
+        for (let spent = 0; spent < rate.burst; spent += 1) buckets.spend('a');
+        clock.now += (part / rate.perSecond) * 1_000;
+        buckets.spend('a');
+        // Empty again: what refilled before the spend is gone, so after less than one token's
+        // refill there is no token; had the part been kept, there would be.
+        clock.now += ((1 - part / 2) / rate.perSecond) * 1_000;
+        expect(buckets.retryAfter('a')).not.toBeNull();
+      }),
+    );
+  });
+
   it('gains nothing from a clock that steps back', () => {
     fc.assert(
       fc.property(rateArbitrary, fc.integer({ min: 1, max: 60_000 }), (rate, back) => {
@@ -181,33 +215,6 @@ describe('a token bucket on a fake clock', () => {
           const recent = touchedAt.filter((at) => clock.now - at < 2 * fullRefillMs).length;
           expect(buckets.size).toBeLessThanOrEqual(recent);
         });
-      }),
-    );
-  });
-
-  it('takes from every bucket named or from none', () => {
-    fc.assert(
-      fc.property(fc.integer({ min: 0, max: 5 }), fc.integer({ min: 0, max: 5 }), (a, b) => {
-        const clock = { now: 0 };
-        const first = new TokenBuckets({ burst: 5, perSecond: 1 }, () => clock.now);
-        const second = new TokenBuckets({ burst: 5, perSecond: 1 }, () => clock.now);
-        for (let taken = 0; taken < a; taken += 1) first.take('k');
-        for (let taken = 0; taken < b; taken += 1) second.take('k');
-        const answer = takeEach([
-          [first, 'k'],
-          [second, 'k'],
-        ]);
-        const bothHad = a < 5 && b < 5;
-        expect(answer === null).toBe(bothHad);
-        // Refused, neither lost a token; admitted, each lost one.
-        const left = (bucket: TokenBuckets) => {
-          let count = 0;
-          while (bucket.take('k') === null) count += 1;
-          return count;
-        };
-        expect([left(first), left(second)]).toEqual(
-          bothHad ? [4 - a, 4 - b] : [5 - a, 5 - b].map((n) => Math.max(0, n)),
-        );
       }),
     );
   });

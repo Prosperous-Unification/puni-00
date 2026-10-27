@@ -84,6 +84,19 @@ export class TokenBuckets {
     return waiting;
   }
 
+  /**
+   * Counts one event that has already happened, such as a failed authentication: one token,
+   * or what is left down to zero. Concurrent events that all passed {@link retryAfter} are
+   * counted, never refused.
+   */
+  spend(key: string): void {
+    const now = this.now();
+    const level = levelAt(this.#levels.get(key), this.rate, now);
+    // Proof: storing only when a whole token was left failed `counts a spend on a part-filled
+    // bucket, so the part is spent too` (token-bucket.test.ts); watched 2026-10-27.
+    this.#store(key, { tokens: Math.max(0, level.tokens - 1), at: level.at }, now);
+  }
+
   /** Gives one token back to `key`'s bucket, never beyond `burst`: a reservation not used. */
   give(key: string): void {
     const now = this.now();
@@ -106,20 +119,6 @@ export class TokenBuckets {
     for (const [held, stored] of this.#levels)
       if (levelAt(stored, this.rate, now).tokens >= this.rate.burst) this.#levels.delete(held);
   }
-}
-
-/**
- * Takes one token from every bucket named, or none: the longest wait when any is empty. Used
- * where one event counts against several keys, such as an issuance per credential and per
- * address. Synchronous, so no other request runs between the check and the takes.
- */
-export function takeEach(buckets: readonly (readonly [TokenBuckets, string])[]): RetryAfter | null {
-  const longest = longestOf(buckets.map(([bucket, key]) => bucket.retryAfter(key)));
-  // Proof: taking from every bucket before this check failed `takes from every bucket named or
-  // from none` (token-bucket.test.ts); watched 2026-10-27.
-  if (longest !== null) return longest;
-  for (const [bucket, key] of buckets) bucket.take(key);
-  return null;
 }
 
 /** The longest of several waits, or null when there is none. */

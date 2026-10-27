@@ -268,6 +268,9 @@
   - one bucket for successes and failures;
   - counting HTTP requests.
 - [ ] 4.3 Load evidence on h2puni under the heavy lock, recorded in verify.md.
+- [ ] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
+      holds a pending slot while it waits; review of PR #765). Negative: a never-answering be-01
+      frees the slot.
 
 ## 5. Human-only tools by policy
 
