@@ -446,3 +446,117 @@ it('refuses a disconnected stream even when it previously delivered the exact ne
     await witness.stop();
   }
 });
+
+import { selectedHelpers } from './k3d-helper-images.fixture.test';
+function effectiveClosure() {
+  const historical = closure();
+  const plan = {
+    ...historical.plan,
+    schemaVersion: 2,
+    helpers: selectedHelpers,
+    expected: historical.plan.expected.map((expected) => ({
+      ...expected,
+      configId: 'sha256:' + 'e'.repeat(64),
+    })),
+  };
+  return { ...historical, schemaVersion: 2, plan, transients: [] as typeof historical.snapshots };
+}
+it('Task37 closes effective evidence through forward acceptance', () => {
+  expect(closeCreation(effectiveClosure(), 'forward').containers).toHaveLength(1);
+});
+it('Task37 historical closure supports teardown but refuses forward acceptance', () => {
+  expect(closeCreation(closure(), 'teardown').containers).toHaveLength(1);
+  expect(() => closeCreation(closure(), 'forward')).toThrow();
+});
+for (const fault of [
+  'effective-id',
+  'missing-version',
+  'unknown-version',
+  'missing-config',
+  'extra-transient',
+]) {
+  it(`Task37 forward closure rejects ${fault}`, () => {
+    const input = effectiveClosure();
+    if (fault === 'effective-id') input.snapshots[0].image = 'sha256:' + '9'.repeat(64);
+    if (fault === 'missing-version') Reflect.deleteProperty(input, 'schemaVersion');
+    if (fault === 'unknown-version') input.schemaVersion = 3;
+    if (fault === 'missing-config') Reflect.deleteProperty(input.plan.expected[0], 'configId');
+    if (fault === 'extra-transient') input.transients.push(input.snapshots[0]);
+    expect(() => closeCreation(input, 'forward')).toThrow();
+  });
+}
+
+function transientClosure() {
+  const input = effectiveClosure();
+  const image =
+    'ghcr.io/k3d-io/k3d-tools@sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd';
+  input.plan.expected.push({
+    name: 'tools',
+    image,
+    configId: selectedHelpers.tools.configDigest,
+    role: 'tools',
+    temporary: true,
+  });
+  for (const [index, id] of ['1'.repeat(64), '2'.repeat(64)].entries()) {
+    input.creators.push({ name: 'tools', id });
+    input.transients.push({
+      ...input.snapshots[0],
+      id,
+      name: 'tools',
+      configuredImage: image,
+      image: selectedHelpers.tools.configDigest,
+      mounts: [{ ...input.snapshots[0].mounts[0], destination: '/k3d/images' }],
+    });
+    for (const [offset, action, kind] of [
+      [0, 'create', 'container'],
+      [1, 'mount', 'volume'],
+      [2, 'destroy', 'container'],
+    ] as const)
+      input.events.push({
+        kind,
+        action,
+        id: kind === 'container' ? id : 'd'.repeat(64),
+        time: String(10 + index * 10 + offset),
+        name: 'tools',
+        container: kind === 'volume' ? id : '',
+        destination: kind === 'volume' ? '/k3d/images' : '',
+        driver: kind === 'volume' ? 'local' : '',
+        image,
+      });
+  }
+  return input;
+}
+it('Task37 complete serial transient observations close independently of permanent consumers', () => {
+  expect(closeCreation(transientClosure(), 'forward').containers).toHaveLength(1);
+});
+for (const fault of [
+  'missing',
+  'duplicate',
+  'image',
+  'reference',
+  'selection',
+  'network',
+  'mount',
+  'mount-set',
+  'overlap',
+]) {
+  it(`Task37 transient closure rejects ${fault}`, () => {
+    const input = transientClosure();
+    if (fault === 'missing') input.transients.pop();
+    if (fault === 'duplicate') input.transients.push(input.transients[0]);
+    if (fault === 'image') input.transients[0].image = 'sha256:' + '9'.repeat(64);
+    if (fault === 'reference') input.transients[0].configuredImage = 'foreign:tools';
+    if (fault === 'selection') {
+      input.plan.expected[1].configId = 'sha256:' + '9'.repeat(64);
+      for (const observed of input.transients) observed.image = 'sha256:' + '9'.repeat(64);
+    }
+    if (fault === 'network') input.transients[0].networkIds = ['9'.repeat(64)];
+    if (fault === 'mount') input.transients[0].mounts[0].source = '/foreign';
+    if (fault === 'mount-set') input.transients[0].mounts = [];
+    if (fault === 'overlap')
+      input.events.find(
+        (event) => event.action === 'destroy' && event.id === '1'.repeat(64),
+      )!.time = '21';
+    expect(() => closeCreation(input, 'forward')).toThrow();
+  });
+}

@@ -4,6 +4,7 @@ import { beforeAll, expect, test } from 'bun:test';
 
 import { readToolchain, type Toolchain } from './contracts';
 import { nameLabHelpers } from './k3d-creation';
+import { selectedHelpers } from './k3d-helper-images.fixture.test';
 import {
   linkRehearsalImage,
   readRehearsalObligations,
@@ -56,8 +57,9 @@ test('helper obligations preserve declared pins and every unresolved lifecycle w
     new Set(['unobserved']),
   );
   expect(obligations.find((obligation) => obligation.role === 'tools')).toMatchObject({
-    image: 'ghcr.io/k3d-io/k3d-tools:5.9.0',
-    digest: null,
+    image:
+      'ghcr.io/k3d-io/k3d-tools@sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd',
+    digest: 'sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd',
     temporary: true,
   });
   expect(
@@ -92,17 +94,19 @@ test('helper obligation known role missing from chart lock refuses', () => {
 });
 test('shared helper descriptors preserve independent platform and worker expected names', () => {
   for (const cluster of ['platform', 'workers']) {
-    const expected = nameLabHelpers(`puni-fixture-${cluster}`);
+    const expected = nameLabHelpers(`puni-fixture-${cluster}`, selectedHelpers);
     expect(expected).toEqual([
       {
         name: `k3d-puni-fixture-${cluster}-serverlb`,
-        image: 'ghcr.io/k3d-io/k3d-proxy:5.9.0',
+        image:
+          'ghcr.io/k3d-io/k3d-proxy@sha256:9181bb55f3c04c86510af3526dda86baa9abc389ef988a3c4bb4879b32d8c21c',
         role: 'serverlb',
         temporary: false,
       },
       {
         name: `k3d-puni-fixture-${cluster}-tools`,
-        image: 'ghcr.io/k3d-io/k3d-tools:5.9.0',
+        image:
+          'ghcr.io/k3d-io/k3d-tools@sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd',
         role: 'tools',
         temporary: true,
       },
@@ -137,4 +141,21 @@ test('all four observed tag-omitted image occurrences have exact chart coordinat
       ),
     ).toBe(true);
   }
+});
+
+test('Task37 helper image linkage requires exact selected repository and child digest', () => {
+  const image =
+    'ghcr.io/k3d-io/k3d-tools@sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd';
+  expect(linkRehearsalImage(image, lock)).toMatchObject([
+    { coordinate: '/k3dHelpers/tools', role: 'tools' },
+  ]);
+  expect(linkRehearsalImage(image.replace('k3d-tools', 'foreign'), lock)).toEqual([]);
+  expect(linkRehearsalImage(image.replace('f18c1', '018c1'), lock)).toEqual([]);
+});
+test('Task37 historical helper obligations remain explicitly unresolved without inventing pins', () => {
+  const historical = structuredClone(lock);
+  if ('k3dHelpers' in historical) delete (historical as { k3dHelpers?: unknown }).k3dHelpers;
+  expect(
+    readRehearsalObligations(historical, origin).find((entry) => entry.role === 'tools'),
+  ).toMatchObject({ image: null, digest: null, realization: 'unobserved' });
 });

@@ -20,7 +20,8 @@ import { readToolchain } from './contracts';
 import { executeCreationAttempt } from './creation-journal';
 import { executeDirectCreation } from './creation-receipts';
 import { appendResource, hashResource } from './creation-resources';
-import { type CreationPlan, nameLabHelpers } from './k3d-creation';
+import { type CreationPlan, type EffectiveCreationPlan, nameLabHelpers } from './k3d-creation';
+import { helperEnvironment, type ImageObservation, requireHelperImage } from './k3d-helper-images';
 import { labNamesOf } from './k3d-lab-names';
 import {
   bindDockerEnvironment,
@@ -878,7 +879,7 @@ async function upLab(
               role: 'server' as const,
               temporary: false,
             },
-            ...nameLabHelpers(cluster.name),
+            ...nameLabHelpers(cluster.name, toolchain.k3dHelpers),
             ...(cluster.role === 'workers'
               ? [0, 1].map((index) => ({
                   name: `k3d-${cluster.name}-agent-${String(index)}`,
@@ -899,7 +900,9 @@ async function upLab(
         ],
       }
     : undefined;
-  const images: { name: string; id: string; volumes: string[] }[] = [];
+  const images: ImageObservation[] = [];
+  let effectivePlan: EffectiveCreationPlan | undefined;
+  let source: { sourceRevision: string; toolchainSha256: string } | undefined;
   if (strict) {
     if (Object.keys(process.env).some((name) => name.startsWith('K3D_')))
       throw new Error('Strict creation refuses k3d environment overrides');
@@ -929,9 +932,13 @@ async function upLab(
       // Proof: Removing collision refusal failed the reused-tools and reused-cache caller negatives.
       throw new Error('Strict creation refuses existing namespace resources');
     for (const expected of plan?.expected ?? []) {
+      if (images.some((image) => image.name === expected.image)) continue;
       const image = type({
         id: /^sha256:[a-f0-9]{64}$/,
         volumes: 'Record<string,unknown>|null',
+        os: 'string>0',
+        arch: 'string>0',
+        repoDigests: 'string[]',
       }).assert(
         JSON.parse(
           await run('docker', [
@@ -939,19 +946,48 @@ async function upLab(
             'inspect',
             expected.image,
             '--format',
-            '{"id":{{json .Id}},"volumes":{{json (index .Config "Volumes")}}}',
+            '{"id":{{json .Id}},"os":{{json .Os}},"arch":{{json .Architecture}},"repoDigests":{{json .RepoDigests}},"volumes":{{json (index .Config "Volumes")}}}',
           ]),
         ),
       );
-      images.push({
+      const observation = {
+        ...image,
         name: expected.image,
         id: image.id,
         volumes: image.volumes === null ? [] : Object.keys(image.volumes),
-      });
+      };
+      if (expected.role === 'tools' || expected.role === 'serverlb')
+        requireHelperImage(toolchain.k3dHelpers, observation);
+      images.push(observation);
       if (expected.temporary && image.volumes !== null && Object.keys(image.volumes).length > 0)
         // Proof: Removing this refusal accepted an anonymous tools store that pinned startup removes; temporary-anonymous failed.
         throw new Error('Temporary tools image declares anonymous volumes that k3d would remove');
     }
+    if (plan === undefined) throw new Error('Strict creation plan missing');
+    effectivePlan = {
+      ...plan,
+      schemaVersion: 2,
+      helpers: toolchain.k3dHelpers,
+      expected: plan.expected.map((expected) => {
+        const observed = images.find((image) => image.name === expected.image);
+        if (observed === undefined) throw new Error('Expected precreation image missing');
+        return { ...expected, configId: observed.id };
+      }),
+    };
+    const sourceRevision = type(/^[a-f0-9]{40}$/).assert(
+      (await run('git', ['-C', root, 'rev-parse', 'HEAD'])).trim(),
+    );
+    const committed = await run('git', [
+      '-C',
+      root,
+      'show',
+      `${sourceRevision}:infra/versions/toolchain.json`,
+    ]);
+    const current = await readFile(join(root, 'infra/versions/toolchain.json'), 'utf8');
+    if (current !== committed || JSON.stringify(JSON.parse(current)) !== JSON.stringify(toolchain))
+      // Proof: Task37 source-lock bypass reached ready with changed lock bytes; real-up source negative failed.
+      throw new Error('Strict creation requires unchanged committed helper source lock');
+    source = { sourceRevision, toolchainSha256: hashResource(current) };
     for (const cluster of planned) {
       const config = type({ options: { k3d: 'Record<string,unknown>' } }).assert(
         Bun.YAML.parse(await readFile(cluster.configPath, 'utf8')),
@@ -975,9 +1011,9 @@ async function upLab(
           ? undefined
           : await captureLabObjectStore(root, state, request.objectStoreArchive);
       const witness =
-        plan === undefined
+        effectivePlan === undefined
           ? undefined
-          : await createResourceWitness(attempts, state, identity, plan, (arguments_) =>
+          : await createResourceWitness(attempts, state, identity, effectivePlan, (arguments_) =>
               run('docker', arguments_),
             );
       try {
@@ -985,8 +1021,11 @@ async function upLab(
           await requireCapturedDaemon(plan?.daemonId ?? identity.daemonId, (arguments_) =>
             run('docker', arguments_),
           );
+          if (source === undefined) throw new Error('Strict creation source missing');
           await appendResource(witness.path, 'inputs', {
-            schemaVersion: 1,
+            schemaVersion: 2,
+            helpers: toolchain.k3dHelpers,
+            ...source,
             ...(objectStore === undefined ? {} : { objectStore }),
             images,
             configs: await Promise.all(
@@ -1064,7 +1103,11 @@ async function upLab(
             configPath,
             ...replaced,
           ];
-          const creationEnvironment = { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') };
+          // Proof: Task37 owned-environment omission failed ordinary and witnessed caller propagation controls.
+          const creationEnvironment = {
+            KUBECONFIG: join(state, 'k3d-scratch.kubeconfig'),
+            ...helperEnvironment(toolchain.k3dHelpers),
+          };
           if (witness === undefined)
             await run(tools.k3d, arguments_, { environment: creationEnvironment });
           else

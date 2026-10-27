@@ -2,6 +2,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { realpath } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 
+import { requireCreationCohort } from './creation-resources';
+import { EffectiveCreationPlan } from './k3d-creation';
+import { helperEnvironment } from './k3d-helper-images';
+
 export const dockerEnvironment = new AsyncLocalStorage<NodeJS.ProcessEnv>();
 
 /** Freeze a local Docker transport for every k3d/Docker subprocess; remote capacity is unsupported. */
@@ -71,7 +75,6 @@ import {
   closeCreation,
   ContainerObservation,
   CreationClosure,
-  CreationPlan,
   startCreationWitness,
   VolumeObservation,
 } from './k3d-creation';
@@ -190,17 +193,18 @@ const eventProjection = `{"kind":{{json .Type}},"action":{{json .Action}},"id":{
 /**
  * Attach evidence to the existing up lifecycle. No creator or cleanup lives here: the caller
  * supplies direct returned IDs and invokes its existing pinned k3d command through capture.
- * All partial records survive errors. Temporary tools have creator/event evidence only.
+ * All partial records survive errors. Temporary inspections may lose the deletion race and then refuse.
  */
 export async function createResourceWitness(
   directory: string,
   state: string,
   identity: CreationIdentity,
-  input: CreationPlan,
+  input: unknown,
   docker: Docker,
   eventCommand?: readonly string[],
 ) {
-  const plan = CreationPlan.assert(input);
+  // Proof: Task37 forward-plan bypass let the actual witness accept an authentic historical plan.
+  const plan = EffectiveCreationPlan.assert(input);
   if (plan.daemonId !== identity.daemonId) throw new Error('Creation plan daemon identity changed');
   const path = await reserveResources(directory, identity);
   await appendResource(path, 'plan', plan);
@@ -211,6 +215,7 @@ export async function createResourceWitness(
     profile: plan.profile,
   });
   const creators: { name: string; id: string }[] = [];
+  const transients: ContainerObservation[] = [];
   let networkId: string | undefined;
   let eventIndex = 0;
   const environment = dockerEnvironment.getStore() ?? process.env;
@@ -236,6 +241,22 @@ export async function createResourceWitness(
       throw new Error('Duplicate creator ID');
     await appendResource(path, `creator-${String(creators.length).padStart(4, '0')}`, creator);
     creators.push(creator);
+    const expected = plan.expected.find((candidate) => candidate.name === creator.name);
+    if (expected === undefined) throw new Error('Unexpected creator');
+    if (expected.temporary) {
+      // Proof: Task37 callback-daemon omission accepted a daemon change at transient inspection.
+      await requireCapturedDaemon(identity.daemonId, docker);
+      const observation = await inspectCreatedContainer(creator.id, docker);
+      if (
+        observation.name !== expected.name ||
+        observation.configuredImage !== expected.image ||
+        observation.image !== expected.configId
+      )
+        // Proof: Task37 callback-image bypass let capture resolve with wrong config/reference/name; three direct callback negatives failed.
+        throw new Error('Effective transient image identity differs');
+      await appendResource(path, `observation-${creator.id}`, observation);
+      transients.push(observation);
+    }
   };
   return {
     path,
@@ -260,6 +281,13 @@ export async function createResourceWitness(
       if (networkId === undefined) throw new Error('Network handshake is unresolved');
       await witness.requireNetwork(networkId);
       await requireCapturedDaemon(identity.daemonId, docker);
+      const owned = helperEnvironment(plan.helpers);
+      if (
+        extraEnvironment['K3D_IMAGE_LOADBALANCER'] !== owned.K3D_IMAGE_LOADBALANCER ||
+        extraEnvironment['K3D_IMAGE_TOOLS'] !== owned.K3D_IMAGE_TOOLS
+      )
+        // Proof: Task37 callback-environment bypass accepted foreign process helper selection; callback negative failed.
+        throw new Error('Creation helper environment differs');
       await captureCreator(
         command,
         bindDockerEnvironment(plan.endpoint, { ...environment, ...extraEnvironment }),
@@ -290,6 +318,8 @@ export async function createResourceWitness(
       if (
         observation.name !== expected.name ||
         observation.configuredImage !== expected.image ||
+        // Proof: Task37 import-config bypass accepted a changed effective node ID before import.
+        observation.image !== expected.configId ||
         observation.networkIds.length !== 1 ||
         observation.networkIds[0] !== networkId
       )
@@ -342,8 +372,18 @@ export async function createResourceWitness(
       witness.check();
       await witness.stop();
       witness.check();
-      const closure = { plan, creators, snapshots, events: witness.events, volumes, network };
-      closeCreation(closure);
+      const closure = {
+        schemaVersion: 2 as const,
+        plan,
+        creators,
+        snapshots,
+        transients,
+        events: witness.events,
+        volumes,
+        network,
+      };
+      closeCreation(closure, 'forward');
+      await requireCreationCohort(path, closure);
       await appendResource(path, 'closure', closure);
       const sha256 = await sealResources(path);
       await appendResource(state, 'creation-complete', { schemaVersion: 1, sha256 });
@@ -382,7 +422,8 @@ export async function readLabCreationResources(
     closure.plan.profile !== profile
   )
     throw new Error('Resource closure binding differs');
-  const closed = closeCreation(closure);
+  await requireCreationCohort(join(directory, `${identity.attemptId}.resources`), closure);
+  const closed = closeCreation(closure, 'teardown');
   const network = await readCreationOperation(directory, identity, 'network');
   const registry = await readCreationOperation(directory, identity, 'registry');
   if (

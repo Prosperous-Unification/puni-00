@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { mkdir, open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { type } from 'arktype';
 
@@ -11,7 +12,8 @@ import {
   requireDirectory,
   syncDirectory,
 } from './creation-journal';
-import { CreationClosure, CreationEvent, CreationPlan } from './k3d-creation';
+import { ContainerObservation, CreationClosure, CreationEvent, CreationPlan } from './k3d-creation';
+import { ImageObservation, K3dHelpers, requireHelperImage } from './k3d-helper-images';
 import { ObjectStoreArchiveSchema } from './object-store-archive';
 
 const digest = /^[a-f0-9]{64}$/;
@@ -21,30 +23,39 @@ const Seal = type({
   files: type({ name: filename, sha256: digest, '+': 'reject' }).array().atLeastLength(1),
   '+': 'reject',
 });
+export const HistoricalCreationInputs = type({
+  schemaVersion: '1',
+  'objectStore?': {
+    sourceRevision: /^[a-f0-9]{40}$/,
+    toolchainSha256: digest,
+    buildLockSha256: digest,
+    // Proof: Widening this field to unknown persisted a malformed private archive receipt; Task21 evidence negative failed.
+    archive: ObjectStoreArchiveSchema,
+    '+': 'reject',
+  },
+  configs: type({ name: 'string', sha256: digest, '+': 'reject' }).array(),
+  tools: { k3d: digest, kubectl: digest, '+': 'reject' },
+  images: type({
+    name: 'string',
+    id: /^sha256:[a-f0-9]{64}$/,
+    volumes: 'string[]',
+    '+': 'reject',
+  }).array(),
+  '+': 'reject',
+});
+export const EffectiveCreationInputs = HistoricalCreationInputs.merge({
+  '+': 'reject',
+  schemaVersion: '2',
+  helpers: K3dHelpers,
+  sourceRevision: /^[a-f0-9]{40}$/,
+  toolchainSha256: digest,
+  images: ImageObservation.array().atLeastLength(1),
+});
 const recordSchemas: Readonly<Record<string, (input: unknown) => unknown>> = {
   plan: CreationPlan,
   closure: CreationClosure,
   network: type({ id: digest, '+': 'reject' }),
-  inputs: type({
-    schemaVersion: '1',
-    'objectStore?': {
-      sourceRevision: /^[a-f0-9]{40}$/,
-      toolchainSha256: digest,
-      buildLockSha256: digest,
-      // Proof: Widening this field to unknown persisted a malformed private archive receipt; Task21 evidence negative failed.
-      archive: ObjectStoreArchiveSchema,
-      '+': 'reject',
-    },
-    configs: type({ name: 'string', sha256: digest, '+': 'reject' }).array(),
-    tools: { k3d: digest, kubectl: digest, '+': 'reject' },
-    images: type({
-      name: 'string',
-      id: /^sha256:[a-f0-9]{64}$/,
-      volumes: 'string[]',
-      '+': 'reject',
-    }).array(),
-    '+': 'reject',
-  }),
+  inputs: HistoricalCreationInputs.or(EffectiveCreationInputs),
   'creation-binding': type({
     schemaVersion: '1',
     labId: 'string',
@@ -71,21 +82,23 @@ const recordSchemas: Readonly<Record<string, (input: unknown) => unknown>> = {
   complete: Seal,
 };
 function requireRecord(name: string, entry: unknown): void {
-  const schema = /^stopped-[a-f0-9]{64}$/.test(name)
-    ? type({
-        schemaVersion: '1',
-        id: digest,
-        forced: 'boolean',
-        exitCode: 'number.integer',
-        '+': 'reject',
-      })
-    : /^event-[0-9]{6}$/.test(name)
-      ? CreationEvent
-      : /^creator-[0-9]{4}$/.test(name)
-        ? type({ name: 'string>0', id: digest, '+': 'reject' })
-        : Object.hasOwn(recordSchemas, name)
-          ? recordSchemas[name]
-          : undefined;
+  const schema = /^observation-[a-f0-9]{64}$/.test(name)
+    ? ContainerObservation
+    : /^stopped-[a-f0-9]{64}$/.test(name)
+      ? type({
+          schemaVersion: '1',
+          id: digest,
+          forced: 'boolean',
+          exitCode: 'number.integer',
+          '+': 'reject',
+        })
+      : /^event-[0-9]{6}$/.test(name)
+        ? CreationEvent
+        : /^creator-[0-9]{4}$/.test(name)
+          ? type({ name: 'string>0', id: digest, '+': 'reject' })
+          : Object.hasOwn(recordSchemas, name)
+            ? recordSchemas[name]
+            : undefined;
   // The key is checked against this module's closed map; no untrusted callable enters the boundary.
   if (schema === undefined || schema(entry) instanceof type.errors)
     throw new Error('Malformed or unknown resource evidence record');
@@ -153,6 +166,7 @@ export async function appendResource(
   try {
     await descriptor.writeFile(bytes);
     // Proof: injected resource-file fsync failure stopped the existing runner before direct creation (task6d durability fault).
+    // Proof: Task37 observation-fsync fault failed the successful transient callback before capture completed.
     await descriptor.sync();
   } finally {
     await descriptor.close();
@@ -210,4 +224,61 @@ export async function readResources(
     entries.push(entry);
   }
   return entries;
+}
+
+/** Join versioned retained records without upgrading historical evidence or trusting a closure copy alone. */
+export async function requireCreationCohort(
+  directory: string,
+  closure: CreationClosure,
+): Promise<void> {
+  // Proof: Task37 retained-cohort bypass made seven sealed-reader mismatches reach teardown; all negatives failed.
+  const read = async (name: string): Promise<unknown> =>
+    JSON.parse(await readResourceFile(join(directory, `${name}.json`)));
+  const plan = CreationPlan.assert(await read('plan'));
+  if (!isDeepStrictEqual(plan, closure.plan)) throw new Error('Creation plan cohort differs');
+  const input = await read('inputs');
+  if (!('schemaVersion' in closure)) {
+    HistoricalCreationInputs.assert(input);
+    return;
+  }
+  const inputs = EffectiveCreationInputs.assert(input);
+  if (!isDeepStrictEqual(inputs.helpers, closure.plan.helpers))
+    throw new Error('Creation selection cohort differs');
+  const names = new Set(closure.plan.expected.map((expected) => expected.image));
+  if (
+    inputs.images.length !== names.size ||
+    new Set(inputs.images.map((image) => image.name)).size !== names.size ||
+    inputs.images.some((image) => !names.has(image.name))
+  )
+    throw new Error('Creation image input set differs');
+  for (const expected of closure.plan.expected) {
+    const image = inputs.images.find((image) => image.name === expected.image);
+    if (image?.id !== expected.configId) throw new Error('Creation config input differs');
+    if (expected.role === 'tools' || expected.role === 'serverlb')
+      requireHelperImage(inputs.helpers, image);
+  }
+  const files = await readdir(directory);
+  const observationNames = files.filter((name) => name.startsWith('observation-')).sort();
+  const expectedNames = closure.transients
+    .map((observation) => `observation-${observation.id}.json`)
+    .sort();
+  if (!isDeepStrictEqual(observationNames, expectedNames))
+    throw new Error('Retained transient observation set differs');
+  for (const observation of closure.transients)
+    if (
+      !isDeepStrictEqual(
+        ContainerObservation.assert(await read(`observation-${observation.id}`)),
+        observation,
+      )
+    )
+      throw new Error('Retained transient observation differs');
+  for (const [prefix, expected] of [
+    ['creator-', closure.creators],
+    ['event-', closure.events],
+  ] as const) {
+    const records = [];
+    for (const name of files.filter((name) => name.startsWith(prefix)).sort())
+      records.push(await read(name.slice(0, -5)));
+    if (!isDeepStrictEqual(records, expected)) throw new Error('Retained creation lineage differs');
+  }
 }

@@ -1,0 +1,18 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+(pass) Task37 real up persists selection, process environment and every serial effective observation [1804.59ms]
+(pass) Task37 real up refuses preimage-config without ready evidence or cleanup [762.67ms]
+(pass) Task37 real up refuses preimage-arch without ready evidence or cleanup [752.49ms]
+(pass) Task37 real up refuses preimage-reference without ready evidence or cleanup [742.80ms]
+(pass) Task37 real up refuses effective-permanent without ready evidence or cleanup [1691.95ms]
+(pass) Task37 real up refuses effective-transient without ready evidence or cleanup [1162.51ms]
+(pass) Task37 real up refuses reference-transient without ready evidence or cleanup [1181.01ms]
+(pass) Task37 real up refuses inspection-race without ready evidence or cleanup [1053.72ms]
+(pass) Task37 real up refuses inherited-override without ready evidence or cleanup [586.90ms]
+
+ 9 pass
+ 60 filtered out
+ 0 fail
+ 93 expect() calls
+Ran 9 tests across 1 file. [9.94s]

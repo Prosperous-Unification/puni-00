@@ -1,0 +1,38 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-creation.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+106 |   binds: type({ source: 'string>0', destination: 'string>0', '+': 'reject' }).array(),
+107 |   '+': 'reject',
+108 | });
+109 | export const EffectiveCreationPlan = HistoricalCreationPlan.merge({
+110 |   schemaVersion: '2', helpers: K3dHelpers,
+111 |   expected: HistoricalCreationPlan.get('expected').element.merge({ configId: /^sha256:[a-f0-9]{64}$/ }).array().atLeastLength(1),
+                                                         ^
+TypeError: undefined is not an object (evaluating 'HistoricalCreationPlan.get("expected").element.merge')
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:111:52
+-------------------------------
+
+
+tools/tool-fleet/src/k3d-helper-images.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+139 |  * never deletion authority. Exclusive mutation of this attempt's namespace is a cooperative precondition.
+140 |  */
+141 | function closeHistoricalCreation(input: unknown): {
+142 |   containers: ContainerObservation[];
+143 |   volumes: (typeof VolumeObservation.infer)[];
+144 | } {
+        ^
+TypeError: undefined is not an object (evaluating 'HistoricalCreationPlan.get("expected").element.merge')
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:144:3
+-------------------------------
+
+
+ 0 pass
+ 2 fail
+ 2 errors
+Ran 2 tests across 2 files. [186.00ms]

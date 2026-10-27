@@ -1,14 +1,20 @@
 import { type } from 'arktype';
 
-/** Existing k3d creation roles; tags are declarations, not verified runtime digests. */
+import { K3dHelpers, referenceHelper } from './k3d-helper-images';
+
+/** Existing k3d creation roles; image authority belongs to the selected toolchain. */
 export const labHelperRoles = [
-  { image: 'ghcr.io/k3d-io/k3d-proxy:5.9.0', role: 'serverlb', temporary: false },
-  { image: 'ghcr.io/k3d-io/k3d-tools:5.9.0', role: 'tools', temporary: true },
+  { role: 'serverlb', temporary: false },
+  { role: 'tools', temporary: true },
 ] as const;
 /** Preserve the existing k3d helper names and order in each cluster's creation plan. */
-export function nameLabHelpers(cluster: string) {
+export function nameLabHelpers(cluster: string, selection: K3dHelpers) {
   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.
-  return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, ...helper }));
+  return labHelperRoles.map((helper) => ({
+    name: `k3d-${cluster}-${helper.role}`,
+    image: referenceHelper(selection[helper.role]),
+    ...helper,
+  }));
 }
 
 const fullId = /^[a-f0-9]{64}$/;
@@ -88,27 +94,36 @@ export const VolumeObservation = type({
   consumers: type(fullId).array(),
   '+': 'reject',
 });
-export const CreationPlan = type({
+const ExpectedCreator = type({
+  name: 'string>0',
+  image: 'string>0',
+  role: "'registry'|'server'|'agent'|'serverlb'|'tools'",
+  temporary: 'boolean',
+  '+': 'reject',
+});
+export const HistoricalCreationPlan = type({
   endpoint: /^unix:\/\/\/[^\s]+$/,
   daemonId: 'string>0',
   profile: "'app'|'platform'|'fleet'",
   network: 'string>0',
-  expected: type({
-    name: 'string>0',
-    image: 'string>0',
-    role: "'registry'|'server'|'agent'|'serverlb'|'tools'",
-    temporary: 'boolean',
-    '+': 'reject',
-  })
-    .array()
-    .atLeastLength(1),
+  expected: ExpectedCreator.array().atLeastLength(1),
   binds: type({ source: 'string>0', destination: 'string>0', '+': 'reject' }).array(),
   '+': 'reject',
 });
+export const EffectiveCreationPlan = HistoricalCreationPlan.merge({
+  '+': 'reject',
+  schemaVersion: '2',
+  helpers: K3dHelpers,
+  expected: ExpectedCreator.merge({ '+': 'reject', configId: /^sha256:[a-f0-9]{64}$/ })
+    .array()
+    .atLeastLength(1),
+});
+export type EffectiveCreationPlan = typeof EffectiveCreationPlan.infer;
+export const CreationPlan = HistoricalCreationPlan.or(EffectiveCreationPlan);
 export type CreationPlan = typeof CreationPlan.infer;
 const Creator = type({ name: 'string>0', id: fullId, '+': 'reject' });
-export const CreationClosure = type({
-  plan: CreationPlan,
+export const HistoricalCreationClosure = type({
+  plan: HistoricalCreationPlan,
   creators: Creator.array(),
   snapshots: ContainerObservation.array(),
   events: CreationEvent.array(),
@@ -116,6 +131,13 @@ export const CreationClosure = type({
   network: { id: fullId, name: 'string>0', peers: type(fullId).array(), '+': 'reject' },
   '+': 'reject',
 });
+export const EffectiveCreationClosure = HistoricalCreationClosure.merge({
+  '+': 'reject',
+  schemaVersion: '2',
+  plan: EffectiveCreationPlan,
+  transients: ContainerObservation.array(),
+});
+export const CreationClosure = HistoricalCreationClosure.or(EffectiveCreationClosure);
 export type CreationClosure = typeof CreationClosure.infer;
 
 const sameSet = (left: readonly string[], right: readonly string[]): boolean =>
@@ -128,11 +150,11 @@ const sameSet = (left: readonly string[], right: readonly string[]): boolean =>
  * Events corroborate transitions, never the initiating client. Volume locators are retained associations,
  * never deletion authority. Exclusive mutation of this attempt's namespace is a cooperative precondition.
  */
-export function closeCreation(input: unknown): {
+function closeHistoricalCreation(input: unknown): {
   containers: ContainerObservation[];
   volumes: (typeof VolumeObservation.infer)[];
 } {
-  const closure = CreationClosure(input);
+  const closure = HistoricalCreationClosure(input);
   if (closure instanceof type.errors) throw new Error('Malformed creation closure');
   const { plan, creators, snapshots, events, volumes, network } = closure;
   if (
@@ -290,6 +312,127 @@ export function closeCreation(input: unknown): {
       throw new Error('Associated volume disappeared');
   }
   return { containers: active, volumes };
+}
+
+/** Forward acceptance requires effective v2; historical validation is reserved for receipt teardown. */
+export function closeCreation(input: unknown, purpose: 'forward' | 'teardown' = 'teardown') {
+  const closure = CreationClosure.assert(input);
+  if (!('schemaVersion' in closure)) {
+    if (purpose === 'forward')
+      // Proof: Task37 historical-forward bypass let old closure certify forward acceptance; compatibility negative failed.
+      throw new Error('Forward creation requires effective version 2 evidence');
+    return closeHistoricalCreation(closure);
+  }
+  const { plan, transients, snapshots, creators, network } = closure;
+  const temporary = creators.filter((creator) =>
+    plan.expected.some((expected) => expected.temporary && expected.name === creator.name),
+  );
+  if (
+    !sameSet(
+      transients.map((observed) => observed.id),
+      temporary.map((creator) => creator.id),
+    )
+  )
+    // Proof: Task37 transient-set bypass accepted missing/duplicate serial observations; both closure negatives failed.
+    throw new Error('Missing or conflicting transient observations');
+  for (const observed of [...snapshots, ...transients]) {
+    const creator = creators.find((candidate) => candidate.id === observed.id);
+    const expected = plan.expected.find((candidate) => candidate.name === creator?.name);
+    if (
+      observed.name !== expected?.name ||
+      observed.configuredImage !== expected.image ||
+      observed.image !== expected.configId
+    )
+      // Proof: Task37 effective-config bypass accepted permanent/transient config substitution; both closure negatives failed.
+      throw new Error('Effective creator image identity differs');
+    if (expected.role === 'serverlb' || expected.role === 'tools') {
+      const selected = plan.helpers[expected.role];
+      if (
+        expected.image !== referenceHelper(selected) ||
+        expected.configId !== selected.configDigest
+      )
+        // Proof: Task37 helper-plan bypass accepted consistently forged plan/observation config identities; selection negative failed.
+        throw new Error('Creation plan helper selection differs');
+    }
+  }
+  for (const observed of transients) {
+    if (!sameSet(observed.networkIds, [network.id]))
+      // Proof: Task37 transient-network bypass accepted a foreign network; closure negative failed.
+      throw new Error('Transient network differs');
+    for (const mount of observed.mounts) {
+      if (
+        mount.kind === 'bind' &&
+        plan.binds.some(
+          (bind) => bind.source === mount.source && bind.destination === mount.destination,
+        )
+      )
+        continue;
+      const volume = closure.volumes.find((candidate) => candidate.name === mount.name);
+      if (
+        mount.kind !== 'volume' ||
+        mount.destination !== '/k3d/images' ||
+        volume?.driver !== mount.driver ||
+        volume.mountpoint !== mount.source ||
+        !closure.events.some(
+          (event) =>
+            event.kind === 'volume' &&
+            event.action === 'mount' &&
+            event.container === observed.id &&
+            event.id === mount.name &&
+            event.destination === mount.destination,
+        )
+      )
+        // Proof: Task37 transient-mount bypass accepted a foreign volume source; closure negative failed.
+        throw new Error('Transient mount identity differs');
+    }
+    const mounted = closure.events.filter(
+      (event) =>
+        event.kind === 'volume' && event.action === 'mount' && event.container === observed.id,
+    );
+    if (
+      !sameSet(
+        mounted.map((event) => event.id),
+        observed.mounts.filter((mount) => mount.kind === 'volume').map((mount) => mount.name),
+      )
+    )
+      // Proof: Task37 transient-mount-set bypass accepted an omitted observed mount; closure negative failed.
+      throw new Error('Transient mount inventory differs');
+  }
+  const { schemaVersion: _version, helpers: _helpers, expected, ...historicalPlan } = plan;
+  const closed = closeHistoricalCreation({
+    plan: { ...historicalPlan, expected: expected.map(({ configId: _config, ...entry }) => entry) },
+    creators,
+    snapshots,
+    events: closure.events,
+    volumes: closure.volumes,
+    network,
+  });
+  for (const expected of plan.expected.filter((expected) => expected.temporary)) {
+    const lives = creators
+      .filter((creator) => creator.name === expected.name)
+      .map((creator) => {
+        const birth = closure.events.find(
+          (event) =>
+            event.kind === 'container' && event.action === 'create' && event.id === creator.id,
+        );
+        const death = closure.events.find(
+          (event) =>
+            event.kind === 'container' && event.action === 'destroy' && event.id === creator.id,
+        );
+        if (birth === undefined || death === undefined)
+          throw new Error('Transient lifecycle missing');
+        return { birth: BigInt(birth.time), death: BigInt(death.time) };
+      })
+      .sort((left, right) => (left.birth < right.birth ? -1 : left.birth > right.birth ? 1 : 0));
+    for (let index = 1; index < lives.length; index++) {
+      const previous = lives.at(index - 1);
+      const current = lives.at(index);
+      if (previous === undefined || current === undefined || current.birth < previous.death)
+        // Proof: Task37 serial-overlap bypass accepted overlapping tools generations; closure negative failed.
+        throw new Error('Transient creator lifecycles overlap');
+    }
+  }
+  return closed;
 }
 
 async function consumeLines(

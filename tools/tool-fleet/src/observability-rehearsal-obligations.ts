@@ -1,5 +1,6 @@
 import type { Toolchain } from './contracts';
 import { labHelperRoles } from './k3d-creation';
+import { referenceHelper } from './k3d-helper-images';
 
 interface ImageLink {
   path: 'infra/versions/toolchain.json';
@@ -17,6 +18,7 @@ export function linkRehearsalImage(image: string, lock: Toolchain): ImageLink[] 
     coordinate: string,
     allowUntagged: boolean,
   ) => {
+    // Proof: Task37 helper-linkage weakening linked foreign repository/digest pairs; selected helper negative failed.
     const exact = image === `${pin.name}@${pin.digest}`;
     const repository = pin.name.replace(/:[^/:]+$/, '');
     // Proof: Task25c2b image-repository/image-digest weakenings linked foreign repositories or changed digests.
@@ -38,6 +40,15 @@ export function linkRehearsalImage(image: string, lock: Toolchain): ImageLink[] 
     pin.images.forEach((image, index) => {
       add(image, `/charts/${chart}/images/${String(index)}`, true);
     });
+  if ('k3dHelpers' in lock)
+    for (const helper of labHelperRoles) {
+      const selected = lock.k3dHelpers[helper.role];
+      add(
+        { role: helper.role, name: selected.name, digest: selected.manifestDigest },
+        `/k3dHelpers/${helper.role}`,
+        false,
+      );
+    }
   return links;
 }
 interface Provenance {
@@ -121,15 +132,20 @@ export function readRehearsalObligations(
     ...labHelperRoles.map((helper) =>
       role(
         helper.role,
-        [implementation('k3d-creation', `labHelperRoles/${helper.role}`), runner('upLab')],
         [
+          implementation('k3d-creation', `labHelperRoles/${helper.role}`),
+          runner('upLab'),
+          ...('k3dHelpers' in lock ? [pinOrigin(`/k3dHelpers/${helper.role}`)] : []),
+        ],
+        [
+          ...('k3dHelpers' in lock ? [] : ['historical source has no reviewed helper selection']),
           'exact pulled digest and realized role count',
           helper.temporary
             ? 'every serial tools create/mount/destroy lifecycle and writer demand'
             : 'load-balancer realization and writer demand',
         ],
-        helper.image,
-        null,
+        'k3dHelpers' in lock ? referenceHelper(lock.k3dHelpers[helper.role]) : null,
+        'k3dHelpers' in lock ? lock.k3dHelpers[helper.role].manifestDigest : null,
         helper.temporary,
       ),
     ),

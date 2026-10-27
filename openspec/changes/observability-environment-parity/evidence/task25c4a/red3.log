@@ -1,0 +1,44 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/observability-rehearsal-obligations.test.ts:
+140 |   }
+141 | });
+142 |
+143 | test('Task37 helper image linkage requires exact selected repository and child digest', () => {
+144 |   const image = 'ghcr.io/k3d-io/k3d-tools@sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd';
+145 |   expect(linkRehearsalImage(image, lock)).toMatchObject([{ coordinate: '/k3dHelpers/tools', role: 'tools' }]);
+                                                ^
+error: expect(received).toMatchObject(expected)
+
+- [
+-   {
+-     "coordinate": "/k3dHelpers/tools",
+-     "role": "tools",
+-   },
+- ]
++ []
+
+- Expected  - 6
++ Received  + 1
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/observability-rehearsal-obligations.test.ts:145:43)
+(fail) Task37 helper image linkage requires exact selected repository and child digest [0.37ms]
+(pass) Task37 historical helper obligations remain explicitly unresolved without inventing pins [0.42ms]
+
+tools/tool-fleet/src/k3d-helper-images.test.ts:
+44 |   const bytes = JSON.stringify(lock);
+45 |   const directory = await scratchAsync('historical-lock-');
+46 |   const path = join(directory, 'toolchain.json');
+47 |   await writeFile(path, bytes);
+48 |   const hash = createHash('sha256').update(bytes).digest('hex');
+49 |   expect(await contracts.readRetainedToolchain(path, hash)).not.toHaveProperty('k3dHelpers');
+                              ^
+TypeError: contracts.readRetainedToolchain is not a function. (In 'contracts.readRetainedToolchain(path, hash)', 'contracts.readRetainedToolchain' is undefined)
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-helper-images.test.ts:49:26)
+(fail) Task37 retained historical toolchain requires exact independent content hash [0.89ms]
+
+ 1 pass
+ 17 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 3 tests across 2 files. [253.00ms]

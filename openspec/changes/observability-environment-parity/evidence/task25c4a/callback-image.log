@@ -1,0 +1,68 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-runtime.test.ts:
+288 |         expect(await Bun.file(path).json()).toMatchObject({
+289 |           id,
+290 |           configuredImage: image,
+291 |           image: selectedHelpers.tools.configDigest,
+292 |         });
+293 |       } else await rejects(capture);
+                         ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.test.ts:293:20
+(fail) Task37 callback refuses config before capture resolves [53.82ms]
+288 |         expect(await Bun.file(path).json()).toMatchObject({
+289 |           id,
+290 |           configuredImage: image,
+291 |           image: selectedHelpers.tools.configDigest,
+292 |         });
+293 |       } else await rejects(capture);
+                         ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.test.ts:293:20
+(fail) Task37 callback refuses reference before capture resolves [24.58ms]
+288 |         expect(await Bun.file(path).json()).toMatchObject({
+289 |           id,
+290 |           configuredImage: image,
+291 |           image: selectedHelpers.tools.configDigest,
+292 |         });
+293 |       } else await rejects(capture);
+                         ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.test.ts:293:20
+(fail) Task37 callback refuses name before capture resolves [23.82ms]
+
+ 0 pass
+ 18 filtered out
+ 3 fail
+Ran 3 tests across 1 file. [307.00ms]

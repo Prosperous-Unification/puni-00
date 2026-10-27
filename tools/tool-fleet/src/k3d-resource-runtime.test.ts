@@ -1,7 +1,10 @@
 import { rejects } from 'node:assert/strict';
 
+import { type } from 'arktype';
 import { expect, it } from 'bun:test';
 
+import { helperEnvironment } from './k3d-helper-images';
+import { selectedHelpers } from './k3d-helper-images.fixture.test';
 import { bindDockerEnvironment, requireCapturedDaemon } from './k3d-resource-runtime';
 
 it('pins Docker and k3d to a captured Unix endpoint instead of mutable context', () => {
@@ -44,12 +47,20 @@ it('retains a network receipt but refuses later lifecycle when the actual handsh
   };
   await createCreationAttempt(directory, identity);
   const plan = {
+    schemaVersion: 2 as const,
+    helpers: selectedHelpers,
     endpoint: 'unix:///run/docker.sock',
     daemonId: 'daemon-1',
     profile: 'app' as const,
     network: 'network',
     expected: [
-      { name: 'registry', image: 'registry:2', role: 'registry' as const, temporary: false },
+      {
+        name: 'registry',
+        image: 'registry:2',
+        configId: 'sha256:' + 'e'.repeat(64),
+        role: 'registry' as const,
+        temporary: false,
+      },
     ],
     binds: [],
   };
@@ -87,7 +98,15 @@ it('records an explicit forced stop only after its bounded graceful stop fails t
   expect(running).toBe(false);
 });
 
-for (const fault of ['missing', 'name', 'image', 'network', 'extra-network', 'none']) {
+for (const fault of [
+  'missing',
+  'name',
+  'image',
+  'effective-id',
+  'network',
+  'extra-network',
+  'none',
+]) {
   it(`Task21 import lookup ${fault === 'none' ? 'returns the exact captured node ID' : `refuses ${fault} creator evidence`}`, async () => {
     const directory = await scratchAsync('object-store-node-');
     const identity = {
@@ -97,13 +116,21 @@ for (const fault of ['missing', 'name', 'image', 'network', 'extra-network', 'no
     };
     await createCreationAttempt(directory, identity);
     const plan = {
+      schemaVersion: 2 as const,
+      helpers: selectedHelpers,
       endpoint: 'unix:///run/docker.sock',
       daemonId: 'daemon-1',
       profile: 'platform' as const,
       network: 'network',
       binds: [],
       expected: [
-        { name: 'server', image: 'locked:node', role: 'server' as const, temporary: false },
+        {
+          name: 'server',
+          image: 'locked:node',
+          configId: 'sha256:' + 'e'.repeat(64),
+          role: 'server' as const,
+          temporary: false,
+        },
       ],
     };
     const docker = (arguments_: readonly string[]) =>
@@ -113,7 +140,7 @@ for (const fault of ['missing', 'name', 'image', 'network', 'extra-network', 'no
           : JSON.stringify({
               id: 'b'.repeat(64),
               name: fault === 'name' ? '/foreign' : '/server',
-              image: `sha256:${'e'.repeat(64)}`,
+              image: `sha256:${(fault === 'effective-id' ? '9' : 'e').repeat(64)}`,
               configuredImage: fault === 'image' ? 'foreign:node' : 'locked:node',
               networks: {
                 lab: { NetworkID: fault === 'network' ? '9'.repeat(64) : 'a'.repeat(64) },
@@ -148,7 +175,7 @@ for (const fault of ['missing', 'name', 'image', 'network', 'extra-network', 'no
             `console.log('time="2026-10-27T00:00:00Z" level=debug msg="Created container server (ID: ${'b'.repeat(64)})"')`,
           ],
           ['server'],
-          {},
+          helperEnvironment(selectedHelpers),
         );
       if (fault === 'none') expect(await witness.requireNode('server')).toBe('b'.repeat(64));
       else
@@ -156,6 +183,141 @@ for (const fault of ['missing', 'name', 'image', 'network', 'extra-network', 'no
           witness.requireNode('server'),
           fault === 'missing' ? /in-progress creator/ : /creator observation/,
         );
+    } finally {
+      await witness.stop();
+    }
+  });
+}
+
+it('Task37 actual forward witness refuses historical plan before retaining any resource record', async () => {
+  const directory = await scratchAsync('historical-forward-');
+  const identity = {
+    labId: 'c123456789abcdef',
+    attemptId: '11111111-1111-4111-8111-111111111111',
+    daemonId: 'daemon-1',
+  };
+  await createCreationAttempt(directory, identity);
+  const captured = type({ files: 'Record<string,string>' }).assert(
+    await Bun.file(join(import.meta.dir, 'fixtures/k3d-creation-v1.json')).json(),
+  );
+  const plan: unknown = JSON.parse(
+    Object.entries(captured.files).find(([name]) => name.endsWith('/plan.json'))![1],
+  );
+  await rejects(
+    createResourceWitness(
+      directory,
+      directory,
+      identity,
+      plan,
+      () => Promise.reject(new Error('Must not inspect')),
+      [process.execPath, '-e', 'setInterval(()=>{},1000)'],
+    ).then(async (witness) => {
+      await witness.stop();
+    }),
+  );
+  expect(await Bun.file(join(directory, 'creation-binding.json')).exists()).toBe(false);
+});
+
+for (const fault of [
+  'none',
+  'config',
+  'reference',
+  'name',
+  'identity',
+  'daemon',
+  'inspection',
+  'occupied',
+  'environment',
+]) {
+  it(`Task37 callback ${fault === 'none' ? 'retains an exact transient before closure' : `refuses ${fault} before capture resolves`}`, async () => {
+    const directory = await scratchAsync('transient-callback-');
+    const identity = {
+      labId: 'c123456789abcdef',
+      attemptId: '11111111-1111-4111-8111-111111111111',
+      daemonId: 'daemon-1',
+    };
+    await createCreationAttempt(directory, identity);
+    const id = 'd'.repeat(64);
+    const image =
+      'ghcr.io/k3d-io/k3d-tools@sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd';
+    const plan = {
+      schemaVersion: 2 as const,
+      helpers: selectedHelpers,
+      endpoint: 'unix:///run/docker.sock',
+      daemonId: 'daemon-1',
+      profile: 'app' as const,
+      network: 'network',
+      binds: [],
+      expected: [
+        {
+          name: 'tools',
+          image,
+          configId: selectedHelpers.tools.configDigest,
+          role: 'tools' as const,
+          temporary: true,
+        },
+      ],
+    };
+    let daemonCalls = 0;
+    const docker = (arguments_: readonly string[]): Promise<string> => {
+      if (arguments_[0] === 'info')
+        return Promise.resolve(fault === 'daemon' && ++daemonCalls > 1 ? 'foreign' : 'daemon-1');
+      if (fault === 'inspection') return Promise.reject(new Error('Container disappeared'));
+      return Promise.resolve(
+        JSON.stringify({
+          id: fault === 'identity' ? '9'.repeat(64) : id,
+          name: fault === 'name' ? '/foreign' : '/tools',
+          image:
+            fault === 'config' ? 'sha256:' + '9'.repeat(64) : selectedHelpers.tools.configDigest,
+          configuredImage: fault === 'reference' ? 'foreign:tools' : image,
+          networks: { lab: { NetworkID: 'a'.repeat(64) } },
+          mounts: [],
+        }),
+      );
+    };
+    const event = {
+      kind: 'network',
+      action: 'create',
+      id: 'a'.repeat(64),
+      time: '1',
+      name: 'network',
+      container: '',
+      destination: '',
+      driver: '',
+      image: '',
+    };
+    const witness = await createResourceWitness(directory, directory, identity, plan, docker, [
+      process.execPath,
+      '-e',
+      `console.log(${JSON.stringify(JSON.stringify(event))});setInterval(()=>{},1000)`,
+    ]);
+    try {
+      await witness.acceptNetwork('a'.repeat(64));
+      const path = join(witness.path, `observation-${id}.json`);
+      if (fault === 'occupied') await Bun.write(path, 'occupied');
+      const capture = witness.capture(
+        [
+          process.execPath,
+          '-e',
+          `console.log('time="2026-10-27T00:00:00Z" level=debug msg="Created container tools (ID: ${id})"')`,
+        ],
+        ['tools'],
+        {
+          ...helperEnvironment(selectedHelpers),
+          ...(fault === 'environment' ? { K3D_IMAGE_TOOLS: 'foreign:tools' } : {}),
+        },
+      );
+      if (fault === 'none') {
+        await capture;
+        expect(await Bun.file(path).json()).toMatchObject({
+          id,
+          configuredImage: image,
+          image: selectedHelpers.tools.configDigest,
+        });
+      } else await rejects(capture);
+      expect(await Bun.file(join(witness.path, 'creator-0000.json')).exists()).toBe(
+        fault !== 'environment',
+      );
     } finally {
       await witness.stop();
     }

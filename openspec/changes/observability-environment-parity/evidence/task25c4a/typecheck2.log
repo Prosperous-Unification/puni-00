@@ -1,0 +1,1 @@
+tools/tool-fleet/src/k3d-helper-images.test.ts(46,72): error TS2339: Property 'tools' does not exist on type 'boolean'.

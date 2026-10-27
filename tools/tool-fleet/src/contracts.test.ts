@@ -5,6 +5,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
 import { readToolchain } from './contracts';
+import { selectedHelpers } from './k3d-helper-images.fixture.test';
 
 const sha256 = 'a'.repeat(64);
 const image = (role: string) => ({ role, name: `${role}:1.0.0`, digest: `sha256:${sha256}` });
@@ -18,6 +19,7 @@ const chart = (roles: readonly string[]) => ({
 
 const validToolchain = {
   schemaVersion: 1,
+  k3dHelpers: selectedHelpers,
   supportedHosts: [{ distribution: 'ubuntu', version: '24.04', arch: 'amd64' }],
   binaries: {
     terragrunt: {
@@ -42,7 +44,7 @@ const validToolchain = {
       os: 'linux',
       arch: 'amd64',
     },
-    k3d: { version: 'v1.0.0', url: 'https://example.test/k3d', sha256, os: 'linux', arch: 'amd64' },
+    k3d: { version: 'v5.9.0', url: 'https://example.test/k3d', sha256, os: 'linux', arch: 'amd64' },
     flux: {
       version: 'v1.0.0',
       url: 'https://example.test/flux',
