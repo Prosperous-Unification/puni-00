@@ -533,6 +533,15 @@ fault injected, then restored; the `Proof:` comment sits beside it.
 | N8     | the Proof comment's stray parenthesis fixed                                                                                                                                                                                                                                                                              | —                                                                                                                                                  | —                                                                                                                                                                                                                                                      |
 | design | M3 (TTL + 60 s, `no_lifetime`, the 502, defects for a longer grant or another run, narrowing), M4 (TTL + 60 s), M5 (`token_use`, the reserved issuer)                                                                                                                                                                    | —                                                                                                                                                  | `openspec validate --strict`                                                                                                                                                                                                                           |
 
+Results at 3ed536cc3, 2026-10-27, `env -u CLAUDECODE`, `--skip-nx-cache`: typecheck and lint
+for wbs-mcp-01 and wbs-be-01 exit 0; `wbs-mcp-01:test` 620 pass, 0 fail; `wbs-contracts:test`
+607 pass, 0 fail; `wbs-be-01:test` 3754 pass, 3 skipped, 0 fail (3757 tests, 256 files);
+`tool-devsync:test` 940 pass, 0 fail; `openspec validate --all --json` 297/297; Burokrat
+`check-indexes` exit 0; Prettier clean. Two earlier tool-devsync runs failed 43 and then 14
+tests, all in `performance-level.test.ts`, with `listen EADDRINUSE :::9100`: another
+session's performance run held that port. Run alone with the port free, the file passed 67/0,
+and the full suite then passed. Not run: the h2puni gate, fe-01 and its e2e, gw-01.
+
 Two existing `oauth.test.ts` expectations changed with N2: a revoked consent token at `verify`
 is now refused by its local failure (`MCP OAuth session is missing, expired, or revoked`), no
 longer by the upstream verifier's `not an upstream token`.
