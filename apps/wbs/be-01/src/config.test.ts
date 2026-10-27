@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { BeConfig, loadConfig } from './config';
+import { BeConfig, loadConfig, loadMcpServiceSettings, missingMcpServiceSettings } from './config';
 
 const VALID = {
   PORT: '3100',
@@ -215,5 +215,83 @@ describe('trusted browser origin at startup', () => {
     expect(() =>
       loadConfig({ ...VALID, AUTH_MODE: 'oidc', AUTH_REDIRECT_URI: 'https://app.example/other' }),
     ).toThrow('AUTH_REDIRECT_URI');
+  });
+});
+
+describe('mcp-01 service settings (`wbs-mcp-agent-surface` M3, M14)', () => {
+  const COMPLETE = {
+    MCP_BE_INTERNAL_SECRET: 'm'.repeat(32),
+    WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT: 'g'.repeat(32),
+    WBS_MCP_AUTHORIZATION_SERVER: 'https://wbs.example/mcp/oauth',
+  };
+
+  it('reads all three, and none when none is set', () => {
+    expect(loadMcpServiceSettings(COMPLETE)).toEqual({
+      internalSecret: 'm'.repeat(32),
+      grantSigningKeys: { current: 'g'.repeat(32), previous: null },
+      authorizationServer: 'https://wbs.example/mcp/oauth',
+    });
+    expect(loadConfig({ ...VALID, ...COMPLETE }).mcpService).toEqual(
+      loadMcpServiceSettings(COMPLETE),
+    );
+    const none = loadMcpServiceSettings({});
+    expect(none).toEqual({
+      internalSecret: null,
+      grantSigningKeys: null,
+      authorizationServer: null,
+    });
+    expect(missingMcpServiceSettings(none)).toEqual([
+      'MCP_BE_INTERNAL_SECRET',
+      'WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT',
+      'WBS_MCP_AUTHORIZATION_SERVER',
+    ]);
+    expect(missingMcpServiceSettings(loadMcpServiceSettings(COMPLETE))).toEqual([]);
+  });
+
+  it('refuses a short or empty secret or key, never defaulting it', () => {
+    for (const name of [
+      'MCP_BE_INTERNAL_SECRET',
+      'WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT',
+      'WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS',
+    ])
+      for (const value of ['', 'x'.repeat(31)])
+        expect(() => loadMcpServiceSettings({ ...COMPLETE, [name]: value })).toThrow(name);
+  });
+
+  it('refuses any two equal secrets among the internal secrets and grant keys', () => {
+    const values = {
+      INTERNAL_AUTH_SECRET: 'internal-0123456789abcdefghijklmnopq',
+      MCP_BE_INTERNAL_SECRET: 'mcp-0123456789abcdefghijklmnopqrstu',
+      WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT: 'current-0123456789abcdefghijklmnop',
+      WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS: 'previous-0123456789abcdefghijklmno',
+    };
+    expect(() => loadMcpServiceSettings({ ...COMPLETE, ...values })).not.toThrow();
+    const names = Object.keys(values) as (keyof typeof values)[];
+    for (const [at, name] of names.entries())
+      for (const other of names.slice(at + 1))
+        expect(() =>
+          loadMcpServiceSettings({ ...COMPLETE, ...values, [other]: values[name] }),
+        ).toThrow(`${name} and ${other} must differ`);
+  });
+
+  it('refuses a previous grant key without a current one', () => {
+    expect(() =>
+      loadMcpServiceSettings({ WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS: 'p'.repeat(32) }),
+    ).toThrow('WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT');
+  });
+
+  it('refuses an authorization server that is not the canonical <MCP_PUBLIC_URL>/oauth', () => {
+    for (const value of [
+      'https://wbs.example/mcp/oauth/',
+      'https://wbs.example/mcp',
+      'https://WBS.example/mcp/oauth',
+      'https://wbs.example/mcp/oauth?x=1',
+      'https://user:pass@wbs.example/mcp/oauth',
+      'ftp://wbs.example/mcp/oauth',
+      'wbs.example/mcp/oauth',
+    ])
+      expect(() =>
+        loadMcpServiceSettings({ ...COMPLETE, WBS_MCP_AUTHORIZATION_SERVER: value }),
+      ).toThrow('WBS_MCP_AUTHORIZATION_SERVER');
   });
 });

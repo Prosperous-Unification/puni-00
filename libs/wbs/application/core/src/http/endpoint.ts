@@ -15,6 +15,7 @@ import type {
   RefusalStatus,
   RequestPolicy,
   SchemaShape,
+  ServiceIdentityRequirement,
   TextResponse,
 } from '@wbs/contracts';
 
@@ -45,7 +46,15 @@ export type IdentityResolution =
   | {
       ok: false;
       status: 401;
-      body: { error: 'unauthenticated' | 'unauthorized' | 'unknown_identity' | 'invalid_token' };
+      body: {
+        error:
+          | 'unauthenticated'
+          | 'unauthorized'
+          | 'unknown_identity'
+          | 'invalid_token'
+          | 'internal_unauthorized'
+          | 'unknown_grant_key';
+      };
     }
   | { ok: false; status: 403; body: { error: 'insufficient_scope' } };
 
@@ -61,7 +70,7 @@ type IdentityPolicy<S extends EndpointShape> = Extract<S['policies'][number], { 
  * Proof: replacing distributive selection with the former whole-policy condition
  * makes the variable-requirement bind report TS2578 for un-narrowed principal.id.
  */
-type PrincipalFor<Requirement> = Requirement extends 'internal'
+type PrincipalFor<Requirement> = Requirement extends ServiceIdentityRequirement
   ? InternalIdentity
   : AuthenticatedUser;
 

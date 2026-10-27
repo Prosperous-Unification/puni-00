@@ -23,6 +23,7 @@ import { expect, test } from 'bun:test';
 import { buildApp } from './app';
 import { bootBe01, type RunningBe } from './boot';
 import { TEST_JWT_KEY } from './testing/auth-fixture';
+import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { OrganizationHarness } from './testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
@@ -153,6 +154,9 @@ async function runIntegration(
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled',
         organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+        // Proof: without these settings, the real boot and Dash worker test refused this
+        // activated store at readiness, naming all three MCP settings (2026-10-27).
+        mcpService: TEST_MCP_SERVICE_SETTINGS,
       },
       {
         openSource(options) {

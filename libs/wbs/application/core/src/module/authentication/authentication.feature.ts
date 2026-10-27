@@ -7,13 +7,19 @@ import {
   type OidcIdentity,
   type WbsScope,
 } from '@wbs/contracts';
-import { admitMachineCredential, type MachineActor, type OrganizationRole } from '@wbs/domain';
+import {
+  admitMachineCredential,
+  type GrantableMachineSource,
+  type MachineActor,
+  type OrganizationRole,
+} from '@wbs/domain';
 
 import type { User } from '../../ports/account-values';
 import type { MachineCredentials } from '../../ports/machine-credentials';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
 import type { TrustedIssuerTokens } from '../../ports/trusted-issuers';
+import { machineGrantScopesOf } from '../../service/machine-grant';
 import { digestMachineSecret, type MachineKey, parseMachineKey } from '../../service/machine-key';
 import type { AccountResource } from './account.resource';
 
@@ -103,6 +109,43 @@ export interface TrustedIssuerVerification {
 
 /** What {@link AuthService.authenticateOrRefuse} answers besides a principal. */
 export type AuthenticationRefusal = 'unknown_identity' | 'invalid_token';
+
+/**
+ * A machine credential's proof as mcp-01's token endpoint received it
+ * (`wbs-mcp-agent-surface` M2): a whole `wbs_mk_` key, or a workload
+ * assertion of a trusted issuer.
+ */
+export type PresentedMachineCredential =
+  | { readonly kind: 'api_key'; readonly key: string }
+  | { readonly kind: 'oidc'; readonly assertion: string };
+
+/** A proof {@link AuthService.admitMachineProof} admitted, its last use recorded. */
+export interface AdmittedMachineProof {
+  readonly actor: MachineActor;
+  readonly source: GrantableMachineSource;
+  /** The verified assertion's `exp` in seconds; null for an API key. */
+  readonly assertionExpiresAt: number | null;
+  /** The matched API-key secret's expiry in milliseconds; null when it has none. */
+  readonly secretExpiresAt: number | null;
+}
+
+/**
+ * Whether a machine admission refuses a non-member account before recording
+ * the use (`members_only`, grant issuance), or leaves membership to
+ * organization access (`any_member_state`, `/api`).
+ */
+type MembershipRule = 'members_only' | 'any_member_state';
+
+/**
+ * What a machine grant names, as its verifier read it (M3): the run is the
+ * token's opted-in `wbs_run` (M15), null when it carried none.
+ */
+export interface PresentedMachineGrant {
+  readonly credentialId: string;
+  readonly personId: string;
+  readonly organizationId: string;
+  readonly runId: string | null;
+}
 
 export type { AuthenticatedUser } from '@wbs/contracts';
 
@@ -370,6 +413,32 @@ export class AuthService {
   private async authenticateMachineKey(
     key: MachineKey,
   ): Promise<AuthenticatedUser | 'unknown_identity'> {
+    const admitted = await this.admitMachineKey(key, 'any_member_state');
+    if (admitted === 'unknown_identity') return admitted;
+    return machinePrincipalOf(admitted.actor, admitted.username, null);
+  }
+
+  /**
+   * {@link authenticateMachineKey}'s admission: the actor, its account's
+   * username and the matched secret's expiry, the use recorded. With
+   * `members_only` (a grant request) a non-member account is refused
+   * `unknown_identity` before the use is recorded: issuance refuses it, so
+   * nothing was used. `/api` keeps answering it `403 not_a_member` from
+   * organization access, after the use.
+   *
+   * @throws as {@link authenticateMachineKey} does.
+   */
+  private async admitMachineKey(
+    key: MachineKey,
+    membership: MembershipRule,
+  ): Promise<
+    | {
+        readonly actor: MachineActor;
+        readonly username: string;
+        readonly secretExpiresAt: number | null;
+      }
+    | 'unknown_identity'
+  > {
     const machines = this.opts.machineKeys;
     // Proof: answering unknown_identity here made `throws on a well-formed key
     // when machine credentials are not wired` (machine-key.test.ts) resolve;
@@ -392,6 +461,12 @@ export class AuthService {
       throw new Error(
         `machine credential ${admission.actor.credentialId} acts as a missing account`,
       );
+    // Proof: with this refusal removed, `refuses an unknown, revoked, wrong or
+    // non-member key alike, recording no use` (be-01
+    // machine-grant.controller.db.test.ts) saw the non-member's last use
+    // recorded; watched 2026-10-26.
+    if (membership === 'members_only' && admission.actor.accountRole === null)
+      return 'unknown_identity';
     // Proof: with this rejection caught and dropped, `fails as a server error
     // when its last use cannot be recorded` in
     // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22.
@@ -401,7 +476,111 @@ export class AuthService {
     // recorded` (machine-key.test.ts) admitted; watched 2026-10-23.
     if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
-    return machinePrincipalOf(admission.actor, account.username);
+    return {
+      actor: admission.actor,
+      username: account.username,
+      secretExpiresAt: admission.proofExpiresAt,
+    };
+  }
+
+  /**
+   * The machine credential a token request presents (`wbs-mcp-agent-surface`
+   * M2, M3), admitted through the same verifiers and the same
+   * {@link admitMachineCredential} decision as on `/api`, its last use
+   * recorded:
+   *
+   * - an API key must be a whole `wbs_mk_` key; anything else, malformed or
+   *   not, is `unknown_identity` with no read;
+   * - an assertion must be a trusted issuer's ({@link authenticateTrustedIssuerToken});
+   *   a token of the configured sign-in issuer, or no JWT at all, is
+   *   `unknown_identity` with no credential read, never the browser path.
+   *
+   * @throws when machine credentials or trusted issuers are not wired, when
+   * the admitted credential's account does not exist, and on every store
+   * failure.
+   */
+  async admitMachineProof(
+    presented: PresentedMachineCredential,
+  ): Promise<AdmittedMachineProof | AuthenticationRefusal> {
+    // No assertion `jti` is consumed (M3): one projected Kubernetes token
+    // serves every process of its pod until it rotates.
+    // Proof: with a single-use consume of the assertion's `(iss, jti)` put in
+    // front of this admission, `admits one Kubernetes token, one jti, from
+    // three processes` (be-01 machine-grant.controller.db.test.ts) answered
+    // the second and third 401 unknown_identity; watched 2026-10-26.
+    if (presented.kind === 'api_key') {
+      const key = parseMachineKey(presented.key);
+      if (key === null || key === 'malformed') return 'unknown_identity';
+      const admitted = await this.admitMachineKey(key, 'members_only');
+      if (admitted === 'unknown_identity') return admitted;
+      return {
+        actor: admitted.actor,
+        source: 'api_key',
+        assertionExpiresAt: null,
+        secretExpiresAt: admitted.secretExpiresAt,
+      };
+    }
+    const trusted = this.opts.trustedIssuers;
+    if (trusted === undefined)
+      throw new Error('a workload assertion was presented but trusted issuers are not wired');
+    const admitted = await this.admitTrustedIssuerToken(
+      presented.assertion,
+      trusted,
+      'members_only',
+    );
+    if (admitted === 'configured_path') return 'unknown_identity';
+    if (typeof admitted === 'string') return admitted;
+    return {
+      actor: admitted.actor,
+      source: 'oidc',
+      assertionExpiresAt: admitted.assertionExpiresAt,
+      secretExpiresAt: null,
+    };
+  }
+
+  /**
+   * The principal a verified machine grant acts as at one use
+   * (`wbs-mcp-agent-surface` M3): its credential reread by id and judged by
+   * {@link admitMachineCredential}'s `grant` variant (revocation, binding,
+   * membership and pool expiry), the account read for its username, the use
+   * recorded coarsely. The principal is {@link machinePrincipalOf}'s, with the
+   * grant's run when it has one (M6, M15), and scopes derived from the reread
+   * role alone ({@link machineGrantScopesOf}). Nothing about the grant is
+   * consumed: it is reusable until its `exp`.
+   *
+   * @throws when machine credentials are not wired, when the admitted
+   * credential's account does not exist, and on every store failure.
+   */
+  async admitMachineGrant(
+    grant: PresentedMachineGrant,
+  ): Promise<AuthenticatedUser | 'unknown_identity'> {
+    const machines = this.opts.machineKeys;
+    if (machines === undefined)
+      throw new Error('a machine grant was presented but machine credentials are not wired');
+    const now = machines.now();
+    // Proof: with this reread replaced by a per-credential cache filled at
+    // first use, `is refused unknown_identity at the next call after its
+    // credential is revoked` (be-01 machine-grant.controller.db.test.ts)
+    // answered 200 after the revocation; watched 2026-10-26.
+    const admission = admitMachineCredential(
+      { kind: 'grant', ...grant },
+      await machines.credentials.findById(grant.credentialId),
+      now,
+    );
+    if (admission.kind === 'refused') return admission.refusal;
+    const { actor } = admission;
+    // A grant admission refuses a non-member account, so the role is read.
+    if (actor.accountRole === null)
+      throw new Error(`machine credential ${actor.credentialId} was admitted without a role`);
+    const account = await this.opts.account.readAccount(actor.accountId);
+    if (account === null)
+      throw new Error(`machine credential ${actor.credentialId} acts as a missing account`);
+    if ((await machines.credentials.touchLastUsed(actor.credentialId, now)) === 'absent')
+      return 'unknown_identity';
+    return {
+      ...machinePrincipalOf(actor, account.username, grant.runId),
+      scopes: [...machineGrantScopesOf(actor.accountRole)],
+    };
   }
 
   /**
@@ -433,6 +612,30 @@ export class AuthService {
     token: string,
     trusted: TrustedIssuerVerification,
   ): Promise<AuthenticatedUser | AuthenticationRefusal | 'configured_path'> {
+    const admitted = await this.admitTrustedIssuerToken(token, trusted, 'any_member_state');
+    if (typeof admitted === 'string') return admitted;
+    return machinePrincipalOf(admitted.actor, admitted.username, null);
+  }
+
+  /**
+   * {@link authenticateTrustedIssuerToken}'s admission: the actor, its
+   * account's username and the verified token's `exp`, the use recorded.
+   *
+   * @throws as {@link authenticateTrustedIssuerToken} does.
+   */
+  private async admitTrustedIssuerToken(
+    token: string,
+    trusted: TrustedIssuerVerification,
+    membership: MembershipRule,
+  ): Promise<
+    | {
+        readonly actor: MachineActor;
+        readonly username: string;
+        readonly assertionExpiresAt: number;
+      }
+    | AuthenticationRefusal
+    | 'configured_path'
+  > {
     const claims = trusted.tokens.peek(token);
     if (claims === null) return 'configured_path';
     // Proof: with this comparison removed, `never consults trusted issuers
@@ -490,10 +693,19 @@ export class AuthService {
       throw new Error(
         `machine credential ${admission.actor.credentialId} acts as a missing account`,
       );
+    // Proof: with this refusal removed, `refuses a non-member's assertion
+    // unknown_identity, recording no use` (be-01 machine-grant.controller.db.test.ts)
+    // saw the last use recorded; watched 2026-10-26.
+    if (membership === 'members_only' && admission.actor.accountRole === null)
+      return 'unknown_identity';
     // As on the API-key path: a removal committed since admission.
     if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
-    return machinePrincipalOf(admission.actor, account.username);
+    return {
+      actor: admission.actor,
+      username: account.username,
+      assertionExpiresAt: verdict.expiresAt,
+    };
   }
 
   private async issue(user: User): Promise<SignedIn> {
@@ -517,12 +729,21 @@ export class AuthService {
  * it holds at most `member` ({@link organizationRoleOf}, A23), so it never
  * gains the bound account's administration.
  *
+ * `runId` is a machine grant's opted-in run (`wbs-mcp-agent-surface` M15),
+ * null for a raw API key, a trusted-issuer token on `/api` or a grant without
+ * one: those principals carry no run, so their renewal and claims are the
+ * person's (M6 parity).
+ *
  * The one place the acting account is decided, with
  * {@link organizationRoleOf} beside it: A12 is the assumption most likely to
  * be overruled (a machine account per credential is the recorded
  * alternative), and that change belongs here alone.
  */
-export function machinePrincipalOf(actor: MachineActor, username: string): AuthenticatedUser {
+export function machinePrincipalOf(
+  actor: MachineActor,
+  username: string,
+  runId: string | null,
+): AuthenticatedUser {
   return {
     id: actor.accountId,
     username,
@@ -531,7 +752,12 @@ export function machinePrincipalOf(actor: MachineActor, username: string): Authe
     // projects only` in `machine-credential.controller.db.test.ts` answered
     // 403 no_active_organization; watched 2026-10-22.
     delegation: { organizationId: actor.organizationId, audience: 'wbs-be-01/direct' },
-    authentication: { kind: 'machine', credentialId: actor.credentialId, personId: actor.personId },
+    authentication: {
+      kind: 'machine',
+      credentialId: actor.credentialId,
+      personId: actor.personId,
+      ...(runId === null ? {} : { runId }),
+    },
   };
 }
 

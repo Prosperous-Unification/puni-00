@@ -119,7 +119,7 @@ const DockerContext = /^[A-Za-z0-9][A-Za-z0-9_.+-]{1,63}$/;
 // An image reference (`registry/repository:tag@digest`), bounded, never starting with `-`.
 const ImageReference = /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$/;
 // The key shape `libs/wbs/application/core/src/service/machine-key.ts` mints.
-const MachineKey =
+export const MachineKey =
   /^wbs_mk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/;
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
@@ -155,7 +155,7 @@ const Configuration = type({
  * credential.
  * @throws ConfigurationRefusal `config_absent`, `config_unreadable`, `credential_not_owner_only`.
  */
-function readOwnerOnly(path: string): string {
+export function readOwnerOnly(path: string): string {
   let descriptor: number;
   try {
     descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);

@@ -32,6 +32,8 @@ configMapGenerator:
     literals:
       - MCP_AUTH_MODE=gateway
       - MCP_TRUSTED_GATEWAY=true
+      # No Ingress in this overlay reaches mcp-01, so no proxy is proven: the socket address.
+      - MCP_TRUSTED_PROXY_HOPS=0
       - WBS_API_URL=http://wbs-backend.wbs-solver.svc.cluster.local:3100
       - MCP_PUBLIC_URL=http://localhost:8080/mcp
 secretGenerator:
@@ -40,6 +42,11 @@ secretGenerator:
     literals:
       - INTERNAL_AUTH_SECRET=lab-only-internal-auth-secret-0000000000
       - JWT_SIGNING_KEY_CURRENT=lab-only-jwt-signing-key-00000000000000
+      # Machine grants (wbs-mcp-agent-surface M3, M14): an activated store refuses to boot
+      # without these three. Lab-only placeholders, each distinct.
+      - MCP_BE_INTERNAL_SECRET=lab-only-mcp-be-internal-secret-0123456789
+      - WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT=lab-only-machine-grant-key-0123456789abc
+      - WBS_MCP_AUTHORIZATION_SERVER=http://localhost:8080/mcp/oauth
   - name: wbs-gateway-secrets
     namespace: wbs
     literals:

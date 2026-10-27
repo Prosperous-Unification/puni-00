@@ -3,7 +3,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { type LocalIssuer, LocalOidcIssuers } from '../testing/local-oidc-issuer';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { TEST_MCP_AUTHORIZATION_SERVER } from '../testing/machine-grant-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+
+/** The tests' authorization server: every new audience sits under it (`wbs-mcp-agent-surface` M2). */
+const ROOT = TEST_MCP_AUTHORIZATION_SERVER;
 
 const PATH = '/api/organization/trusted-issuers';
 const CONFIGURED = 'https://idp.test';
@@ -63,9 +67,9 @@ function openHarness(): OrganizationHarness {
   });
 }
 
-/** Registers as `username`, with the audience `aud-<username>` unless `body` names one. */
+/** Registers as `username`, with the audience `<ROOT>/aud-<username>` unless `body` names one. */
 function register(username: string, body: Record<string, unknown>): Promise<Answer> {
-  return h.call(username, 'POST', PATH, { audience: `aud-${username}`, ...body });
+  return h.call(username, 'POST', PATH, { audience: `${ROOT}/aud-${username}`, ...body });
 }
 
 function issuerRows(): unknown[] {
@@ -120,14 +124,41 @@ async function createOidc(trustedIssuerId: string, subject: string, name: string
 }
 
 describe('registering a trusted issuer', () => {
+  it('lists the audience root every new audience must sit under', async () => {
+    expect(await h.call('dany', 'GET', PATH)).toEqual({
+      status: 200,
+      body: { trustedIssuers: [], audienceRoot: ROOT },
+    });
+  });
+
+  it('refuses a look-alike or wbs:org audience audience_not_wbs, fetching and storing nothing', async () => {
+    for (const audience of [`${ROOT}.evil.example`, 'wbs:org:org-a', 'https://wbs.example/mcp'])
+      expect(await register('dany', { issuer: ci.url, audience })).toEqual({
+        status: 400,
+        body: { error: 'audience_not_wbs' },
+      });
+    expect(ci.discoveryFetches).toBe(0);
+    expect(auditRows()).toEqual([]);
+    expect((await h.call('dany', 'GET', PATH)).body).toMatchObject({ trustedIssuers: [] });
+    // The audience root itself, and any path under it, is WBS's.
+    expect((await register('dany', { issuer: ci.url, audience: ROOT })).status).toBe(201);
+  });
+
+  it('answers a member forbidden before judging the audience', async () => {
+    expect(await register('mem', { issuer: ci.url, audience: 'wbs:org:org-a' })).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden' },
+    });
+  });
+
   it('discovers once, lists the jwks_uri and audits the registration', async () => {
-    const registered = await register('dany', { issuer: ci.url, audience: 'wbs:org:org-a' });
+    const registered = await register('dany', { issuer: ci.url, audience: `${ROOT}/org/org-a` });
     expect(registered).toMatchObject({
       status: 201,
       body: {
         issuer: ci.url,
         jwksUri: ci.jwksUri,
-        audience: 'wbs:org:org-a',
+        audience: `${ROOT}/org/org-a`,
         ssoConnectionId: null,
         createdBy: h.userId('dany'),
         machineCredentials: 0,
@@ -150,7 +181,7 @@ describe('registering a trusted issuer', () => {
     const detail = JSON.parse(audit[0]?.detail ?? '{}') as Record<string, unknown>;
     expect(detail).toMatchObject({ issuer: ci.url, jwksUri: ci.jwksUri });
     expect(detail).not.toHaveProperty('audience');
-    expect(audit[0]?.detail).not.toContain('wbs:org:org-a');
+    expect(audit[0]?.detail).not.toContain(`${ROOT}/org/org-a`);
   });
 
   // Proof: with `trustedIssuerDiscovery`'s catch rethrowing, the unroutable
@@ -260,12 +291,16 @@ describe('registering a trusted issuer', () => {
   // `registrationRefusal`, this answered 500 on the unique index instead of
   // 409; watched 2026-10-22.
   it('refuses a second organization the same issuer and audience', async () => {
-    expect((await register('dany', { issuer: ci.url, audience: 'shared' })).status).toBe(201);
-    expect(await register('bob', { issuer: ci.url, audience: 'shared' })).toEqual({
+    expect((await register('dany', { issuer: ci.url, audience: `${ROOT}/shared` })).status).toBe(
+      201,
+    );
+    expect(await register('bob', { issuer: ci.url, audience: `${ROOT}/shared` })).toEqual({
       status: 409,
       body: { error: 'audience_taken' },
     });
-    expect((await register('bob', { issuer: ci.url, audience: 'wbs:org:org-b' })).status).toBe(201);
+    expect((await register('bob', { issuer: ci.url, audience: `${ROOT}/org/org-b` })).status).toBe(
+      201,
+    );
     expect(issuerRows()).toHaveLength(2);
   });
 

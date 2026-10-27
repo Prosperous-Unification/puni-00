@@ -665,6 +665,7 @@ const MCP_REQUIRED_ENV = [
   'MCP_STORE_KEY_CURRENT',
   'MCP_STORE_PATH',
   'MCP_ACCESS_TOKEN_TTL',
+  'MCP_TRUSTED_PROXY_HOPS',
 ] as const;
 
 /** Enforces the same private, complete MCP deployment environment as the manual preflight. */

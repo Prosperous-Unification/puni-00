@@ -21,6 +21,7 @@ import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
+import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 /**
@@ -103,6 +104,7 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
       organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+      mcpService: TEST_MCP_SERVICE_SETTINGS,
       localIdentity: { id: 'ada', username: 'ada', scopes: ['read', 'write'] },
     },
     {
@@ -318,6 +320,8 @@ function bootOptions(dbPath: string, port: number) {
     internalAuthSecret: 's'.repeat(32),
     browserSessionAuthority: 'disabled' as const,
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+    // Activated stores refuse to boot without them (machine-grant.boot.db.test.ts).
+    mcpService: TEST_MCP_SERVICE_SETTINGS,
   };
 }
 

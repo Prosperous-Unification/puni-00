@@ -210,6 +210,7 @@ export class CommandContext {
       case 'resources_on_subtree':
       case 'person_not_bound':
       case 'credential_not_for_person':
+      case 'run_mismatch':
       case 'parent_claim_unknown':
       case 'parent_claim_foreign':
       case 'parent_claim_not_ancestor':

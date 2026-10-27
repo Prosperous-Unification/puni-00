@@ -1,4 +1,9 @@
-import { listTrustedIssuers, registerTrustedIssuer, removeTrustedIssuer } from '@wbs/contracts';
+import {
+  isUnderMcpAuthorizationServer,
+  listTrustedIssuers,
+  registerTrustedIssuer,
+  removeTrustedIssuer,
+} from '@wbs/contracts';
 
 import type { Clock } from '../ports/clock';
 import type { OrganizationAccess } from '../ports/organization-access';
@@ -10,7 +15,7 @@ import {
   type TrustedIssuerRegistrationRefusal,
 } from '../ports/trusted-issuers';
 import { bind, EMPTY, type HttpReply } from './endpoint';
-import { sessionOrganizationOf } from './machine-credential.routes';
+import { activeAudienceRoot, sessionOrganizationOf } from './machine-credential.routes';
 import { organizationRefusal } from './organization-refusal';
 
 const forbidden = { ok: false, status: 403, body: { error: 'forbidden' } } as const;
@@ -23,18 +28,25 @@ const forbidden = { ok: false, status: 403, body: { error: 'forbidden' } } as co
  * Registration runs in this order, so nothing is fetched for a caller who
  * could not register and nothing is stored for a URL that did not discover:
  * the configured sign-in issuer is `issuer_reserved` with no read; the
- * store's read-only check (role, connection gate, `issuer_taken`); one
- * discovery fetch; then the store's write, which checks everything again
- * with its audit row.
+ * store's read-only check (role, connection gate, `issuer_taken`); the
+ * audience rule (`audience_not_wbs`); one discovery fetch; then the store's
+ * write, which checks everything again with its audit row.
  *
  * `configuredIssuer` is the deployment's human sign-in Issuer Identifier, or
- * null when it configures none.
+ * null when it configures none. `audienceRoot` is be-01's
+ * `WBS_MCP_AUTHORIZATION_SERVER` (`wbs-mcp-agent-surface` M2): a new
+ * registration's audience must equal it or sit under it after a `/`. It is
+ * null only before activation, when every route answers
+ * `no_active_organization` first; boot refuses an activated store without it.
+ * Stored registrations are not judged here: they keep verifying until slice 7
+ * refuses a non-conforming one at use.
  */
 export function trustedIssuerRoutes(
   organizations: OrganizationAccess,
   issuers: TrustedIssuerAdministration,
   discovery: TrustedIssuerDiscovery,
   configuredIssuer: () => Promise<string | null>,
+  audienceRoot: string | null,
   clock: Pick<Clock, 'now'>,
 ) {
   const act = (actorId: string): AuditedAct => ({
@@ -51,7 +63,11 @@ export function trustedIssuerRoutes(
         const listed = await issuers.list(organizationId, principal.id);
         if (listed === 'inactive') return organizationRefusal('no_active_organization');
         if (listed === 'forbidden') return forbidden;
-        return { ok: true, status: 200, body: { trustedIssuers: [...listed] } };
+        return {
+          ok: true,
+          status: 200,
+          body: { trustedIssuers: [...listed], audienceRoot: activeAudienceRoot(audienceRoot) },
+        };
       },
     ),
     bind(
@@ -87,6 +103,14 @@ export function trustedIssuerRoutes(
           ssoConnectionId,
         });
         if (ready !== 'ready') return registrationRefusal(ready);
+        // Judged after the role, so a member learns nothing, and before the
+        // fetch, so a foreign audience costs no discovery.
+        // Proof: with this refusal removed, `refuses a look-alike or
+        // wbs:org audience audience_not_wbs, fetching and storing nothing`
+        // (trusted-issuer.controller.db.test.ts) got past it to discovery
+        // (no 400); watched 2026-10-27.
+        if (!isUnderMcpAuthorizationServer(body.audience, activeAudienceRoot(audienceRoot)))
+          return { ok: false, status: 400, body: { error: 'audience_not_wbs' } };
         const discovered = await discovery.discover(body.issuer);
         if (discovered.kind === 'unreachable')
           return { ok: false, status: 409, body: { error: 'issuer_unreachable' } };

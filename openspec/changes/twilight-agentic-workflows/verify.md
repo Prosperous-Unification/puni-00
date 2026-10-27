@@ -3246,3 +3246,56 @@ Fresh graph-backed uncached Dash typecheck4.8s/lint29.1s, exact policy-owner ESL
 Independent source review approved spec and quality with no Critical/Important/Minor finding. Root freshly verified46 command receipts/92 raw stream identities, six source hashes/modes and all12346 unowned base blobs/Git modes againstc429, plus actual final test counts and three restored fault streams. Evidence is retained under .superpowers/sdd/runtime-state-reader-tasks and /tmp/puni-runtime-reader-impl-20261027. The root audit is root-source-audit.json; the full review is task-1-review.md.
 
 Source is ready for a normal checkpoint. Root metadata formatting/all-OpenSpec checks, commit/push, integration, new exact-candidate canonical gate, applicable PRCI, protected normal main merge and actual-merge CI remain required. Parentc429 CI40544974544 failed two separate BE fixture windows and cannot certify this reader; its exact h4 gate still runs with the workspace phase passed. The separate complete outcome-delivery proposal has closed plan findings, but its persisted/API/format4/failure-mapping/permanent-pending decisions remain unaccepted and F01–F24 unrun. Full S0/S7a remains open. No production deployment.
+
+## Combined runtime publication and incoming MCP compatibility — 2026-10-27
+
+Normal reader integration produced reviewed b4f4a6fa024a67136fe7101839305a64c1bfef71,
+tree ab36a3e4ab1d561634d70dd523784a797613de56. Its exact canonical h4 gate
+passed with SSH exit0, the printed b4 pin, OpenSpec300/0, all five Nx phases and
+three real solver process cases. PRCI40563170503 attempt1 succeeded: root checked
+ten complete job logs and eight actual synthetic checkout identities. Its retained
+workspace artifact directly shows all14 final-source boot cases passing and BE
+3717pass/3skip/0fail; browser608pass/40skip. Optional Tool Wiki activation remains
+inactive/uncertified. Original supplemental ZIP collection used two Python commands
+outside the requested tooling; the separate procedural amendment and unchanged
+receipts disclose that deviation. Root independently verified the existing archive,
+upload/API identity and all case lines using Bun/Node APIs and standard unzip,
+without another download or execution. Earlier failed CI and proof gaps remain.
+
+The ordinary merge preflight stopped before mutation when main advanced from
+e3a973aabd2d912981a7fcfe2008dd39f9129391 to
+75c2a2ecfa8ba9cf71987ad4e62412ed4ba0f4c3 through PR751. Root and independent
+review verified its prospective6e378d43cef204f88af0181078ed43615595e7f0 tree
+as the exact12416-entry union:102 feature paths,229 incoming paths,zero overlap.
+Independent compatibility review nevertheless found one Important caller issue:
+the runtime integration explicitly activates its store before boot, while incoming
+boot requires the three MCP service settings for activated storage.
+
+The existing normal real-boot/worker case failed at actual readiness naming
+MCP_BE_INTERNAL_SECRET, WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT and
+WBS_MCP_AUTHORIZATION_SERVER. Supplying the existing TEST_MCP_SERVICE_SETTINGS
+only to that activated runIntegration boot made the same case pass1/0,13filtered,
+7.47s. The simple held receiver remains a genuine pre-activation boot. No production
+check, timeout, assertion, identity mapping, SQL or history changed. Two initial
+incorrect test selectors matched zero cases; their failed receipts are preserved
+and earn no RED credit. No old fault campaign was replayed or newly certified.
+
+On final fixture SHA2569f3c286154f8e2ebf2c1004224866f750af31278d37db04be6bb6b62f6ce1a01
+the complete existing real-boot suite passed14/0 in124.89s. Incoming machine-grant
+boot, run-scoping and Dash MCP entrypoint regressions passed26/0,294expectations,
+three files,37.91s, including the retained absent-settings refusal and pre-activation
+success. Uncached BE/Dash lint/typecheck passed both projects and one module
+dependency in62s; inherited NO_COLOR/FORCE_COLOR warnings remain. The focused
+normal case overlaps the complete suite and is not added to its count. Root tree
+and source audits and raw commands/streams are retained under
+/tmp/puni-runtime-main-integration-impact-20261027a and
+/tmp/puni-runtime-main75-validation-20261027a; initial review is
+/tmp/puni-runtime-main-integration-review-20261027.md.
+
+These are combined-source compatibility checks. Exact new-candidate canonical
+gate and applicable CI, ordinary protected main merge and actual-merge CI remain
+required; b4 acceptance does not transfer. Full outcome API/format4/failure mapping,
+permanent-pending choices and inspect-runs design remain unaccepted. Full S0/S7a,
+heartbeat, recovery, business-attempt/budget mapping, outcomes/releases, remaining
+adapters/conformance, second provider/transfer and CTT consumption remain open.
+No production deployment or producer-owned credential implementation is included.
