@@ -191,7 +191,35 @@ export const ObservedWorkloadSpec = type({
   '+': 'reject',
 });
 
-type Spec = typeof NativeWorkloadSpec.infer;
+const SourceVolume = Volume.merge({ 'downwardAPI?': 'unknown' });
+/** Source-policy input keeps the full standalone body until normalization validates it; cutover decoders remain unchanged. */
+export const SourceWorkloadSpec = NativeWorkloadSpec.merge({ 'volumes?': SourceVolume.array() });
+const StandaloneDownwardAPI = type({
+  items: type({
+    path: 'string>0',
+    // Proof: metadata-mode-entry widened this dependency to number; invalid item mode's malformed-first assertion failed.
+    'mode?': FileMode,
+    'fieldRef?': { fieldPath: 'string>0', 'apiVersion?': 'string', '+': 'reject' },
+    'resourceFieldRef?': 'unknown',
+    '+': 'reject',
+  }).array(),
+  // Proof: metadata-mode-default widened this dependency to number; invalid default/noninteger mode negatives failed.
+  'defaultMode?': FileMode,
+  // Proof: metadata-closed-body removed this boundary; unknown source field's malformed-first assertion failed.
+  '+': 'reject',
+});
+const VolumePolicy = type({
+  'standaloneDownwardAPI?': 'string[]',
+  'podMemoryVolume?': 'string>0',
+  '+': 'reject',
+});
+/** Internal source authorization names volumes, never numeric caps or runtime enforcement. */
+export interface SourceVolumePolicy {
+  readonly standaloneDownwardAPI?: readonly string[];
+  readonly podMemoryVolume?: string;
+}
+
+type Spec = typeof SourceWorkloadSpec.infer;
 interface WorkloadReaders {
   readonly memory: (quantity: string) => number;
   readonly cpu: (quantity: string) => number;
@@ -200,8 +228,17 @@ interface WorkloadReaders {
   readonly refuseMalformed?: (reason: string) => never;
 }
 
-/** Normalize the same named resource/mount model for source and observed replicas; never infer rollout identity from images alone. */
-export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
+/**
+ * Normalize named resources/mounts without inferring rollout identity from images.
+ * Optional source authorization validates standalone metadata and derives one Memory volume's
+ * conservative Pod bound; enforcement and generated-input overhead remain unobserved.
+ * Throws through reader policy for malformed or unsupported inputs. Default calls retain cutover identity.
+ */
+export function normalizeWorkload(
+  spec: Spec,
+  readers: WorkloadReaders,
+  policy?: SourceVolumePolicy,
+) {
   const { memory, cpu } = readers;
   function refuse(reason: string): never {
     return readers.refuse(reason);
@@ -212,6 +249,42 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
     return refuse(reason);
   }
   const sourceVolumes = spec.volumes ?? [];
+  // Proof: policy-shape bypass admitted numeric cap override; that production normalization negative failed.
+  if (policy !== undefined && !VolumePolicy.allows(policy))
+    refuseMalformed('source-volume-policy-malformed');
+  const metadataNames = policy?.standaloneDownwardAPI ?? [];
+  const memoryName = policy?.podMemoryVolume;
+  const authorizedNames = [...metadataNames, ...(memoryName === undefined ? [] : [memoryName])];
+  if (
+    // Proof: policy-name-syntax removal changed wildcard metadata authorization's malformed refusal; its assertion failed.
+    authorizedNames.some((name) => !/^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/.test(name)) ||
+    // Proof: policy-name-uniqueness removal admitted duplicate metadata authorization; its negative failed.
+    new Set(authorizedNames).size !== authorizedNames.length
+  )
+    refuseMalformed('source-volume-policy-malformed');
+  const metadata = new Map<string, typeof StandaloneDownwardAPI.infer>();
+  function readMetadata(volume: NonNullable<Spec['volumes']>[number]) {
+    // Proof: metadata-decoder substituted empty items for the actual body; malformed items lost its early refusal and its assertion failed.
+    const projection = StandaloneDownwardAPI(volume.downwardAPI);
+    if (projection instanceof type.errors) return refuseMalformed('workload-volume-unsupported');
+    // Proof: metadata-selectors skipped this shared dependency; missing/both selector malformed-first negatives failed.
+    requireProjectionStructure({ downwardAPI: projection });
+    if (
+      // Proof: metadata-path-safety removal hid unsafe/absolute/empty/dot/reserved/NUL paths behind unsupported recovery; all six negatives failed.
+      projection.items.some(
+        (entry) =>
+          entry.path.includes('\0') ||
+          entry.path
+            .split('/')
+            .some((segment) => segment === '' || segment === '.' || segment.startsWith('..')),
+      ) ||
+      // Proof: metadata-path-uniqueness removal hid duplicate path behind unsupported recovery; its negative failed.
+      new Set(projection.items.map((entry) => entry.path)).size !== projection.items.length
+    )
+      refuseMalformed('workload-volume-unsupported');
+    metadata.set(volume.name, projection);
+    return projection;
+  }
   function requireProjectionStructure(source: typeof Projection.infer): void {
     const count = [
       source.secret,
@@ -259,7 +332,11 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
   // Proof: fix1-ordering-native-prepass bypass hid a later contradiction; enabling it for legacy changed the first quantity refusal.
   const checksStructureFirst = readers.refuseMalformed !== undefined;
   if (checksStructureFirst) {
-    for (const volume of sourceVolumes) requireVolumeStructure(volume);
+    for (const volume of sourceVolumes) {
+      requireVolumeStructure(volume);
+      // Proof: metadata-malformed-prepass removal hid selector/mode/path faults behind unrelated unsupported; all three assertions failed.
+      if (policy !== undefined && volume.downwardAPI !== undefined) readMetadata(volume);
+    }
     requireUniqueVolumes(sourceVolumes);
   }
   if (
@@ -272,6 +349,28 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
     spec.ephemeralContainers !== undefined
   )
     refuse('workload-shape-unsupported');
+  for (const name of metadataNames) {
+    const matches = sourceVolumes.filter((volume) => volume.name === name);
+    // Proof: metadata-policy-identity removal lost the named missing/wrong-kind policy refusals; both assertions failed.
+    if (matches.length !== 1 || matches[0].downwardAPI === undefined)
+      refuse('source-volume-policy-unsupported');
+  }
+  if (memoryName !== undefined) {
+    const matches = sourceVolumes.filter((volume) => volume.name === memoryName);
+    if (
+      // Proof: memory-policy-identity removal replaced missing Memory name's modeled refusal with a property-access error; its assertion failed.
+      matches.length !== 1 ||
+      // Proof: memory-policy-medium removal admitted empty/Disk/absent media as Memory; all three negatives failed.
+      matches[0].emptyDir?.medium !== 'Memory' ||
+      // Proof: memory-policy-literal removal admitted zero/empty/invalid/positive explicit caps; all four absence negatives failed.
+      Object.hasOwn(matches[0].emptyDir, 'sizeLimit') ||
+      // Proof: memory-policy-single-volume removal admitted extra bounded Memory outside the derived contract; its negative failed.
+      sourceVolumes.some(
+        (volume) => volume.name !== memoryName && volume.emptyDir?.medium === 'Memory',
+      )
+    )
+      refuse('source-volume-policy-unsupported');
+  }
   // Proof: `generic-ephemeral` removal/broken dependency failed `fix1 generic ephemeral storage is refused rather than silently costed at zero` with an assertion.
   // Proof: `csi-volume` removal/broken dependency failed `fix1 source CSI is explicitly refused` with an assertion.
   // Proof: `missing-volume-variant` removal/broken dependency failed `fix1 source missing volume variant is explicitly refused` with an assertion.
@@ -285,9 +384,47 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
       volume.ephemeral !== undefined ||
       volume.csi !== undefined ||
       volume.hostPath !== undefined ||
-      volume.downwardAPI !== undefined
+      // Proof: metadata-authorization removal admitted an unselected standalone name and changed default refusal; both negatives failed.
+      (volume.downwardAPI !== undefined && !metadataNames.includes(volume.name))
     )
       refuse('workload-volume-unsupported');
+    if (volume.downwardAPI !== undefined) {
+      const projection = metadata.get(volume.name) ?? readMetadata(volume);
+      if (
+        projection.items.some(
+          (entry) =>
+            // Proof: metadata-field-selector removal admitted metadata.name; its modeled-unsupported negative failed.
+            (entry.fieldRef?.fieldPath !== 'metadata.labels' &&
+              entry.fieldRef?.fieldPath !== 'metadata.annotations') ||
+            // Proof: metadata-api-version removal admitted v2; its modeled-unsupported negative failed.
+            (entry.fieldRef.apiVersion !== undefined && entry.fieldRef.apiVersion !== 'v1'),
+        ) ||
+        [...spec.containers, ...(spec.initContainers ?? [])].some((container) =>
+          container.volumeMounts?.some(
+            // Proof: metadata-read-only removal admitted false/absent readOnly mounts; both production negatives failed.
+            (mount) => mount.name === volume.name && mount.readOnly !== true,
+          ),
+        )
+      )
+        refuse('workload-volume-unsupported');
+      return {
+        name: volume.name,
+        kind: 'downwardAPI',
+        reference: '',
+        readOnly: true,
+        medium: '',
+        sizeMiB: 0,
+        projection: JSON.stringify({
+          defaultMode: projection.defaultMode ?? 420,
+          items: projection.items.map((entry) => ({
+            path: entry.path,
+            fieldPath: entry.fieldRef?.fieldPath,
+            // Proof: metadata-effective-mode replaced nullish selection with ||; explicit zero became 420 and its identity assertion failed.
+            mode: entry.mode ?? projection.defaultMode ?? 420,
+          })),
+        }),
+      };
+    }
     if (volume.persistentVolumeClaim !== undefined)
       return {
         name: volume.name,
@@ -299,6 +436,17 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
         projection: '',
       };
     if (volume.emptyDir !== undefined) {
+      // Proof: memory-volume-authorization authorized every emptyDir; disk demand vanished and default refusal changed, failing both controls.
+      if (volume.name === memoryName)
+        return {
+          name: volume.name,
+          kind: 'emptyDir',
+          reference: '',
+          readOnly: false,
+          medium: 'Memory',
+          sizeMiB: 0,
+          projection: '',
+        };
       const quantity = volume.emptyDir.sizeLimit;
       if (
         quantity === undefined ||
@@ -535,6 +683,12 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
       0,
       // Proof: `memory-overhead` removal/broken dependency failed `fix1 explicit source overhead cannot vanish from declared resource cost` with an assertion.
     ) + overheadMemoryMiB;
+  if (memoryName !== undefined) {
+    for (const volume of retainedVolumes) {
+      // Proof: memory-deferred-bound added overhead again here; derives P once observed 220 instead of 210 and failed.
+      if (volume.name === memoryName) volume.sizeMiB = memoryMiB;
+    }
+  }
   const cpuMilli =
     Math.max(
       containers.reduce((sum, container) => sum + container.cpuRequestMilli, 0),
@@ -549,6 +703,19 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
     0,
   );
   return {
+    // Proof: source-evidence-absence added an undefined evidence key for default calls; strict default-output identity failed.
+    ...(memoryName === undefined
+      ? {}
+      : {
+          sourceMemoryVolume: {
+            name: memoryName,
+            basis: 'pod-memory-limit' as const,
+            upperBoundMiB: memoryMiB,
+            literalSizeLimit: 'absent' as const,
+            // Proof: source-evidence-state relabeled enforcement observed; derives P once's source-evidence assertion failed.
+            enforcement: 'unobserved' as const,
+          },
+        }),
     // Proof: `sa-identity` removal/broken dependency failed `fix1 service-account identity cannot be normalized into the source account` with an assertion.
     serviceAccountName: spec.serviceAccountName ?? 'default',
     automountServiceAccountToken: spec.automountServiceAccountToken ?? true,
