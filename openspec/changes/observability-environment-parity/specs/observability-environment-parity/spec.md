@@ -297,3 +297,49 @@ The rehearsal inventory SHALL consume the existing validated packet's actual sta
 - **WHEN** stage and chart inventory succeeds
 - **THEN** bootstrap/helper/provider closure, lifecycle accounting, host observations and runtime acceptance remain separately required
 - **AND** inventory grants no creation authority and records transport as not evaluated in its own scope without relabeling the existing authenticated binding implementation
+
+### Requirement: Bootstrap contributors retain exact source and lifecycle origins
+
+The source inventory SHALL retain the selected Git input's Flux install, local platform topology and policy bootstrap inputs with exact source/artifact hashes. It MUST distinguish bootstrap application origins from Flux stage ownership and from observed runtime behavior. It MUST reuse the existing structural inventory and runner/bootstrap contracts without creating a second graph runner or capacity calculator.
+
+#### Scenario: A complete packet retains bootstrap inputs
+
+- **WHEN** the full selected packet is prepared and inventoried
+- **THEN** the committed Flux install and local platform topology are retained through the existing source collector before artifact hashes are computed
+- **AND** the Flux install bytes match the same packet's manifest lock
+- **AND** source inputs remain bound to the selected Git revision rather than mutable original-checkout bytes
+- **AND** native bootstrap images and templates retain explicit bootstrap origins using the shared structural decoder
+
+#### Scenario: A required bootstrap input drifts
+
+- **WHEN** a required Flux/topology/policy input is omitted, unreadable, malformed or contradicts its bound manifest hash
+- **THEN** the production inventory refuses instead of accepting an incomplete bootstrap view as source closure
+
+#### Scenario: Bootstrap and a stage apply the same object
+
+- **WHEN** independently decoded bootstrap and stage declarations have the same group, kind, namespace and name and equal definitions
+- **THEN** inventory records one physical object with both lifecycle origins
+- **AND** stage-only generated objects remain explicit
+- **AND** unequal shared definitions refuse instead of silently merging them
+- **AND** unrelated cross-stage duplicate-owner checks remain strict
+
+#### Scenario: A rendered digest reference omits its locked tag
+
+- **WHEN** the exact rendered repository and digest match a supported structured chart lock record whose name also contains a tag
+- **THEN** inventory retains the rendered string and exact lock coordinates as separate linked facts
+- **AND** a digest from another repository or a changed digest cannot establish that link
+- **AND** existing strict platform/source guard contracts and pinned values remain unchanged
+
+#### Scenario: External runtime demand remains unresolved
+
+- **WHEN** node/system, registry, load-balancer, serial tool, import, provisioning, solver or transfer roles are declared by the existing topology and bootstrap flow
+- **THEN** inventory retains their known source/pin origins and concrete unresolved realization facts
+- **AND** an unknown helper cannot disappear behind a complete or zero-demand classification
+- **AND** arbitrary ConfigMap strings are not treated as already active Pods
+- **AND** no image sizes, process allowances, capacity totals, runtime identities or creation authority are invented
+
+#### Scenario: Bootstrap inventory remains source evidence
+
+- **WHEN** bootstrap contributor inventory succeeds
+- **THEN** actual runner-input equality, lifecycle and writer accounting, admitted measurements, host facts and full runtime/live acceptance remain required
+- **AND** runtime and creation authority remain false, with transport not evaluated in this receipt
