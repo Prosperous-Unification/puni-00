@@ -1032,8 +1032,8 @@ test.each([
     const inventory = readInnerMapFixture(resources);
     const store = inventory.entries.find((entry) => entry.kind === 'StatefulSet');
     expect(store?.images[0]).toMatchObject({ resourceSource: 'map', requestSource, limitSource });
-    expect(store?.sourceRequests).toEqual(requests);
-    expect(store?.sourceLimits).toEqual(limits);
+    expect(store?.sourceRequests).toEqual([...requests]);
+    expect(store?.sourceLimits).toEqual([...limits]);
     for (const [field, state] of [
       ['requests', requestSource],
       ['limits', limitSource],
