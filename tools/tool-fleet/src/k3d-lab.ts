@@ -20,7 +20,7 @@ import { readToolchain } from './contracts';
 import { executeCreationAttempt } from './creation-journal';
 import { executeDirectCreation } from './creation-receipts';
 import { appendResource, hashResource } from './creation-resources';
-import type { CreationPlan } from './k3d-creation';
+import { type CreationPlan, nameLabHelpers } from './k3d-creation';
 import { labNamesOf } from './k3d-lab-names';
 import {
   bindDockerEnvironment,
@@ -878,18 +878,7 @@ async function upLab(
               role: 'server' as const,
               temporary: false,
             },
-            {
-              name: `k3d-${cluster.name}-serverlb`,
-              image: 'ghcr.io/k3d-io/k3d-proxy:5.9.0',
-              role: 'serverlb' as const,
-              temporary: false,
-            },
-            {
-              name: `k3d-${cluster.name}-tools`,
-              image: 'ghcr.io/k3d-io/k3d-tools:5.9.0',
-              role: 'tools' as const,
-              temporary: true,
-            },
+            ...nameLabHelpers(cluster.name),
             ...(cluster.role === 'workers'
               ? [0, 1].map((index) => ({
                   name: `k3d-${cluster.name}-agent-${String(index)}`,

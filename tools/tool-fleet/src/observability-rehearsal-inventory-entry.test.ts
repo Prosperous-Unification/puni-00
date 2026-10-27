@@ -29,7 +29,7 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
     },
   };
   const packet = join(directory, 'packet');
-  await rehearsal.prepareObservabilityRehearsal(root, tools, request, packet);
+  const prepared = await rehearsal.prepareObservabilityRehearsal(root, tools, request, packet);
   const lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   const archive = join(
     tools,
@@ -92,6 +92,44 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
   expect(
     basename(receipt.entries.find((entry) => entry.release !== null)?.release?.archivePath ?? ''),
   ).not.toBe('');
+  expect(receipt.bootstrapSources.map((source) => source.sourcePath)).toContain(
+    'infra/versions/object-store.json',
+  );
+  for (const path of [
+    'infra/platform/flux/install.yaml',
+    'infra/local/platform.k3d.yaml',
+    'infra/versions/object-store.json',
+    'infra/rehearsal/bootstrap/policy/namespaces.yaml',
+  ])
+    expect(prepared.files.some((file) => file.path === path)).toBe(true);
+  expect(receipt.frames.filter((frame) => frame.owner.startsWith('bootstrap/'))).toHaveLength(2);
+  expect(
+    receipt.entries.filter(
+      (entry) => entry.owner === 'bootstrap/flux' && entry.category === 'native-template',
+    ),
+  ).toHaveLength(4);
+  expect(
+    receipt.entries
+      .find((entry) => entry.kind === 'Namespace' && entry.name === 'flux-system')
+      ?.lifecycleOrigins.map((origin) => origin.owner),
+  ).toEqual(['bootstrap/flux']);
+  expect(
+    receipt.entries
+      .find((entry) => entry.kind === 'Namespace' && entry.name === 'observability')
+      ?.lifecycleOrigins.map((origin) => origin.owner),
+  ).toEqual(['stage/policy', 'bootstrap/policy']);
+  expect(
+    receipt.entries.find(
+      (entry) => entry.kind === 'Namespace' && entry.name === 'observability-dev',
+    )?.lifecycleOrigins,
+  ).toHaveLength(1);
+  expect(receipt.obligations.some((obligation) => obligation.role === 'tools')).toBe(true);
+  expect(receipt.runnerInputEquality).toBe('unobserved');
+  expect(
+    receipt.entries
+      .flatMap((entry) => entry.images)
+      .filter((image) => image.locks.some((link) => link.match === 'repository-digest')),
+  ).toHaveLength(4);
   const output = process.env['PUNI_REHEARSAL_INVENTORY_EXPORT'];
   if (output !== undefined) await writeFile(output, JSON.stringify(receipt, null, 2));
 }, 30_000);

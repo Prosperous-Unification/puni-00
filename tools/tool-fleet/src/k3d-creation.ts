@@ -1,5 +1,16 @@
 import { type } from 'arktype';
 
+/** Existing k3d creation roles; tags are declarations, not verified runtime digests. */
+export const labHelperRoles = [
+  { image: 'ghcr.io/k3d-io/k3d-proxy:5.9.0', role: 'serverlb', temporary: false },
+  { image: 'ghcr.io/k3d-io/k3d-tools:5.9.0', role: 'tools', temporary: true },
+] as const;
+/** Preserve the existing k3d helper names and order in each cluster's creation plan. */
+export function nameLabHelpers(cluster: string) {
+  // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.
+  return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, ...helper }));
+}
+
 const fullId = /^[a-f0-9]{64}$/;
 export const CreationEvent = type({
   kind: "'container'|'network'|'volume'",

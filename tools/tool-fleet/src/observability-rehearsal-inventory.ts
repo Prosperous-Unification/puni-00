@@ -17,6 +17,15 @@ import {
   validateObservabilityRehearsalBuilds,
 } from './observability-parity-rehearsal';
 import {
+  linkRehearsalImage,
+  readRehearsalObligations,
+} from './observability-rehearsal-obligations';
+import {
+  buildRehearsalBootstrap,
+  type RehearsalBootstrapBuild,
+  type RehearsalSource,
+} from './observability-rehearsal-sources';
+import {
   observabilityRenderCapabilities,
   renderObservabilityReleases,
 } from './observability-render';
@@ -86,13 +95,15 @@ const namespacedAPIs: Partial<Record<string, readonly string[]>> = {
   'kustomize.toolkit.fluxcd.io/v1': ['Kustomization'],
   'source.toolkit.fluxcd.io/v1': ['GitRepository', 'HelmRepository', 'HelmChart'],
 };
-interface SourceFrame {
+type SourceFrame = {
   owner: string;
   bytes: string;
-  stage: RehearsalStageBuild;
   releaseOwner: string | null;
   namespace: string | null;
-}
+} & (
+  | { stage: RehearsalStageBuild; bootstrap: null }
+  | { stage: null; bootstrap: RehearsalBootstrapBuild }
+);
 interface FrameContract {
   owner: string;
   sha256: string;
@@ -108,10 +119,12 @@ export interface RehearsalFrameContract {
     sha256: string;
   }[];
   frames: FrameContract[];
+  bootstrap: Omit<RehearsalBootstrapBuild, 'bytes'>[];
 }
 function collectSourceFrames(
   stages: readonly RehearsalStageBuild[],
   expansions: Readonly<Record<string, string>>,
+  bootstrap: readonly RehearsalBootstrapBuild[],
 ): SourceFrame[] {
   const frames: SourceFrame[] = [];
   // Proof: Task25c2a expansion-owner removal failed the omitted expansion negative.
@@ -129,6 +142,7 @@ function collectSourceFrames(
       owner: `stage/${stage.stage}`,
       bytes: stage.bytes,
       stage,
+      bootstrap: null,
       releaseOwner: null,
       namespace: null,
     });
@@ -143,11 +157,22 @@ function collectSourceFrames(
         owner: `release/${release.owner}`,
         bytes: expansions[release.owner],
         stage,
+        bootstrap: null,
         releaseOwner: release.owner,
         namespace: identity.metadata.namespace,
       });
     }
   }
+  // Proof: Task25c2b bootstrap-native omission lost the native Flux Deployment and both policy origins.
+  for (const build of bootstrap)
+    frames.push({
+      owner: `bootstrap/${build.bootstrap}`,
+      bytes: build.bytes,
+      stage: null,
+      bootstrap: build,
+      releaseOwner: null,
+      namespace: null,
+    });
   return frames;
 }
 function readResourceKeys(bytes: string): string[] {
@@ -160,6 +185,7 @@ function readResourceKeys(bytes: string): string[] {
 export function captureRehearsalFrames(
   stages: readonly RehearsalStageBuild[],
   expansions: Readonly<Record<string, string>>,
+  bootstrap: readonly RehearsalBootstrapBuild[] = [],
 ): RehearsalFrameContract {
   return {
     stages: stages.map(({ stage, path, declarationPath, sourceSHA256, sha256 }) => ({
@@ -169,7 +195,9 @@ export function captureRehearsalFrames(
       sourceSHA256,
       sha256,
     })),
-    frames: collectSourceFrames(stages, expansions).map(({ owner, bytes }) => ({
+    // Proof: Task25c2b immutable-origins removal let input mutation rewrite its independent contract.
+    bootstrap: structuredClone(bootstrap.map(({ bytes: _bytes, ...origin }) => origin)),
+    frames: collectSourceFrames(stages, expansions, bootstrap).map(({ owner, bytes }) => ({
       owner,
       sha256: hash(bytes),
       resources: readResourceKeys(bytes),
@@ -193,6 +221,7 @@ interface ImageReference {
   image: string;
   role: string;
   pin: 'locked' | 'unresolved';
+  locks: ReturnType<typeof linkRehearsalImage>;
   resourceSource: 'absent' | 'null' | 'map';
   requestSource: 'absent' | 'null' | 'map';
   limitSource: 'absent' | 'null' | 'map';
@@ -208,6 +237,52 @@ type Namespace =
   | { scope: 'Cluster'; namespace: null; namespaceOrigin: 'api' | 'crd' }
   | { scope: 'Namespaced'; namespace: string; namespaceOrigin: 'metadata' | 'release' }
   | { scope: 'unresolved'; namespace: null; namespaceOrigin: 'unresolved' };
+/** Origin facts describe source/application intent, without observed workload or lifecycle authority. */
+type FrameOrigin =
+  | {
+      kind: 'stage';
+      stage: string;
+      path: string;
+      declarationPath: string;
+      sourceSHA256: string;
+      buildSHA256: string;
+      frameSHA256: string;
+      manifestSHA256: string;
+    }
+  | {
+      kind: 'bootstrap';
+      bootstrap: 'flux' | 'policy';
+      sourcePath: string;
+      path: string;
+      sources: readonly RehearsalSource[];
+      buildSHA256: string;
+      frameSHA256: string;
+      manifestSHA256: string;
+    };
+function readFrameOrigin(frame: SourceFrame, manifest: Record<string, unknown>): FrameOrigin {
+  const hashes = {
+    buildSHA256: frame.stage === null ? frame.bootstrap.sha256 : frame.stage.sha256,
+    frameSHA256: hash(frame.bytes),
+    manifestSHA256: hash(JSON.stringify(manifest)),
+  };
+  if (frame.stage !== null)
+    return {
+      kind: 'stage',
+      stage: frame.stage.stage,
+      path: frame.stage.path,
+      declarationPath: frame.stage.declarationPath,
+      sourceSHA256: frame.stage.sourceSHA256,
+      ...hashes,
+    };
+  return {
+    kind: 'bootstrap',
+    bootstrap: frame.bootstrap.bootstrap,
+    sourcePath: frame.bootstrap.sourcePath,
+    path: frame.bootstrap.path,
+    sources: frame.bootstrap.sources,
+    ...hashes,
+  };
+}
 type Entry = Namespace & {
   owner: string;
   pointer: string;
@@ -217,15 +292,13 @@ type Entry = Namespace & {
   name: string;
   declaredNamespace: string | null;
   category: 'native-template' | 'claim' | 'declaration' | 'provider-input' | 'unclassified';
-  source: {
-    stage: string;
-    path: string;
-    declarationPath: string;
-    sourceSHA256: string;
-    buildSHA256: string;
-    frameSHA256: string;
-    manifestSHA256: string;
-  };
+  source: FrameOrigin;
+  lifecycleOrigins: {
+    owner: string;
+    pointer: string;
+    source: FrameOrigin;
+    releaseOwner: string | null;
+  }[];
   releaseOwner: string | null;
   expansionOwner: string | null;
   release: {
@@ -292,8 +365,18 @@ export function readRehearsalInventory(
   expansions: Readonly<Record<string, string>>,
   contract: RehearsalFrameContract,
   lock: Toolchain,
+  bootstrap: readonly RehearsalBootstrapBuild[] = [],
 ) {
-  const frames = collectSourceFrames(stages, expansions);
+  const frames = collectSourceFrames(stages, expansions, bootstrap);
+  // Proof: Task25c2b bootstrap-contract and duplicate-origin removals lost coordinate/duplicate frame refusals.
+  if (
+    !isDeepStrictEqual(
+      bootstrap.map(({ bytes: _bytes, ...origin }) => origin),
+      contract.bootstrap,
+    ) ||
+    new Set(bootstrap.map((build) => build.bootstrap)).size !== bootstrap.length
+  )
+    throw new Error('Rehearsal bootstrap frame closure differs');
   // Proof: Task25c2a stage-contract removal admitted an altered immutable stage source identity.
   if (
     stages.length === 0 ||
@@ -324,10 +407,12 @@ export function readRehearsalInventory(
     // removing hash and resource closure together admitted independently captured namespace drift.
     if (
       hash(frame.bytes) !== expected?.sha256 ||
-      (frame.releaseOwner === null && hash(frame.bytes) !== frame.stage.sha256)
+      (frame.releaseOwner === null &&
+        hash(frame.bytes) !== (frame.stage === null ? frame.bootstrap.sha256 : frame.stage.sha256))
     )
       throw new Error('Rehearsal frame hash differs');
     // Proof: Task25c2a resource-closure removal admitted an omitted hook after frame hash recomputation.
+    // Proof: Task25c2b bootstrap-resource bypass admitted an omitted native workload after hash recomputation.
     if (!isDeepStrictEqual(readResourceKeys(frame.bytes), expected.resources))
       throw new Error('Rehearsal frame resource closure differs');
   }
@@ -381,11 +466,13 @@ export function readRehearsalInventory(
     }
   }
   const entries: Entry[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, { entry: Entry; manifest: Record<string, unknown> }>();
   const approved = lockedImageReferences(lock);
   // Proof: Task25c2a helper-hidden removal lost the required explicit helper obligation.
   const unresolved = new Set<string>([
-    'bootstrap Flux/topology/policy source and lifecycle origins remain unresolved (25c2b)',
+    bootstrap.length === 0
+      ? 'bootstrap Flux/topology/policy source and lifecycle origins remain unresolved (25c2b)'
+      : 'bootstrap source declarations are retained; actual runner-input equality and application remain unobserved',
     'k3d/system/registry/LB and serial tool processes remain unresolved',
     'cert-manager solver/startup, Velero restore/transfer and local-path helper roles remain unresolved',
     'provider effective Pods, concurrency and runtime capability equality remain unresolved',
@@ -402,8 +489,33 @@ export function readRehearsalInventory(
       identity.metadata.name,
     ]);
     // Proof: Task25c2a duplicate-object removal admitted duplicate actual expansion objects.
-    if (seen.has(key)) throw new Error('Rehearsal duplicate object owner');
-    seen.add(key);
+    const previous = seen.get(key);
+    const source = readFrameOrigin(frame, manifest);
+    const lifecycleOrigin = {
+      owner: frame.owner,
+      pointer,
+      source,
+      releaseOwner: frame.releaseOwner,
+    };
+    if (previous !== undefined) {
+      // Proof: Task25c2b policy-coordinate weakening admitted an unrelated source as policy overlap.
+      const policyOverlap =
+        frame.bootstrap?.bootstrap === 'policy' &&
+        frame.bootstrap.sourcePath === 'infra/platform/policy' &&
+        frame.bootstrap.path === 'infra/rehearsal/bootstrap/policy' &&
+        previous.entry.source.kind === 'stage' &&
+        previous.entry.source.stage === 'policy' &&
+        previous.entry.source.path.replace(/^\.\//, '') === 'infra/platform/policy' &&
+        previous.entry.lifecycleOrigins.length === 1;
+      // Proof: Task25c2b strict-other-origins removal admitted unrelated stage duplicates.
+      if (!policyOverlap) throw new Error('Rehearsal duplicate object owner');
+      // Proof: Task25c2b policy-equality removal admitted incompatible independently decoded definitions.
+      if (!isDeepStrictEqual(previous.manifest, manifest))
+        throw new Error('Rehearsal bootstrap policy definition conflict');
+      // Proof: Task25c2b both-origins omission lost the second application origin on the shared object.
+      previous.entry.lifecycleOrigins.push(lifecycleOrigin);
+      continue;
+    }
     // Proof: Task25c2a claim-api removal admitted a PVC under a foreign API.
     if (identity.kind === 'PersistentVolumeClaim' && identity.apiVersion !== 'v1')
       throw new Error('Rehearsal claim API differs');
@@ -442,15 +554,8 @@ export function readRehearsalInventory(
       ...namespace,
       declaredNamespace: identity.metadata.namespace ?? null,
       category,
-      source: {
-        stage: frame.stage.stage,
-        path: frame.stage.path,
-        declarationPath: frame.stage.declarationPath,
-        sourceSHA256: frame.stage.sourceSHA256,
-        buildSHA256: frame.stage.sha256,
-        frameSHA256: hash(frame.bytes),
-        manifestSHA256: hash(JSON.stringify(manifest)),
-      },
+      source,
+      lifecycleOrigins: [lifecycleOrigin],
       releaseOwner: frame.releaseOwner,
       expansionOwner: null,
       release: null,
@@ -478,7 +583,8 @@ export function readRehearsalInventory(
       unresolved.add(
         `${frame.owner}${pointer} ${identity.apiVersion}/${identity.kind}/${identity.metadata.name}: scope/provider realization unresolved`,
       );
-    const origin = frame.stage.releases.find(
+    const releases = frame.stage === null ? [] : frame.stage.releases;
+    const origin = releases.find(
       (release) =>
         release.owner ===
         (frame.releaseOwner ?? `${identity.metadata.namespace ?? '_'}/${identity.metadata.name}`),
@@ -505,7 +611,7 @@ export function readRehearsalInventory(
         .map((phase) => Text.assert(phase.trim()));
     if (identity.kind === 'HelmRelease' && identity.apiVersion === 'helm.toolkit.fluxcd.io/v2') {
       const owner = `${identity.metadata.namespace ?? '_'}/${identity.metadata.name}`;
-      const release = frame.stage.releases.find((release) => release.owner === owner);
+      const release = releases.find((release) => release.owner === owner);
       // Proof: Task25c2a declaration-equality removal admitted release values differing from the built declaration.
       if (
         frame.releaseOwner !== null ||
@@ -561,13 +667,15 @@ export function readRehearsalInventory(
               : container.resources === null
                 ? 'null'
                 : 'map';
-          const pin = approved.has(container.image) ? 'locked' : 'unresolved';
+          const locks = linkRehearsalImage(container.image, lock);
+          const pin = approved.has(container.image) || locks.length > 0 ? 'locked' : 'unresolved';
           entry.images.push({
             pointer: `${at}/image`,
             role,
             name: container.name,
             image: container.image,
             pin,
+            locks,
             resourceSource,
             // Proof: fix1 request-null-state collapsing null to absent lost the individual declared state.
             requestSource:
@@ -655,6 +763,7 @@ export function readRehearsalInventory(
         storage: readClaimStorage(manifest['spec']),
       });
     entries.push(entry);
+    seen.set(key, { entry, manifest });
   }
   // Proof: Task25c2a empty-expansion removal admitted a required release with no objects.
   for (const frame of frames.filter((frame) => frame.releaseOwner !== null))
@@ -664,8 +773,10 @@ export function readRehearsalInventory(
     scope: 'rehearsal-source-contributor-inventory' as const,
     entries,
     stages: contract.stages,
+    bootstrap: contract.bootstrap,
     frames: contract.frames,
     unresolved: [...unresolved].sort(),
+    // Proof: Task25c2b runtime-authority forgery failed source-only completeness/authority assertions.
     runnableClosure: 'incomplete' as const,
     creationAuthority: false as const,
     runtimeRehearsal: false as const,
@@ -721,7 +832,7 @@ export async function inventoryObservabilityRehearsal(
   directory: string,
   helmArchive?: string,
 ) {
-  const { receipt, stages } = await validateObservabilityRehearsalBuilds(
+  const { receipt, stages, bootstrap } = await validateObservabilityRehearsalBuilds(
     root,
     tools,
     input,
@@ -730,9 +841,11 @@ export async function inventoryObservabilityRehearsal(
   const helm = await authenticateRehearsalHelm(directory, tools, helmArchive);
   const releases = stages.flatMap((stage) => stage.releases);
   const expansions = await renderObservabilityReleases(directory, tools, releases);
-  const contract = captureRehearsalFrames(stages, expansions);
+  const bootstrapFrames = buildRehearsalBootstrap(bootstrap, bootstrap.policyBytes);
+  const contract = captureRehearsalFrames(stages, expansions, bootstrapFrames);
   const lock = await readToolchain(join(directory, 'infra/versions/toolchain.json'));
-  const inventory = readRehearsalInventory(stages, expansions, contract, lock);
+  const inventory = readRehearsalInventory(stages, expansions, contract, lock, bootstrapFrames);
+  const obligations = readRehearsalObligations(lock, receipt);
   const provenance = {
     sourceRevision: receipt.sourceRevision,
     generator: receipt.generator,
@@ -743,7 +856,20 @@ export async function inventoryObservabilityRehearsal(
   };
   return {
     ...inventory,
+    obligations,
+    bootstrapSources: bootstrap.sources,
+    topologyDeclaration: bootstrap.topology,
+    runnerInputEquality: 'unobserved' as const,
     provenance,
-    inventorySHA256: hash(JSON.stringify({ ...inventory, provenance })),
+    inventorySHA256: hash(
+      JSON.stringify({
+        ...inventory,
+        obligations,
+        bootstrapSources: bootstrap.sources,
+        topologyDeclaration: bootstrap.topology,
+        runnerInputEquality: 'unobserved',
+        provenance,
+      }),
+    ),
   };
 }

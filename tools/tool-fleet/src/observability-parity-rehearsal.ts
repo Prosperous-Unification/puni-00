@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -9,7 +9,13 @@ import { isNode, parseAllDocuments, parseDocument, stringify } from 'yaml';
 
 import { readToolchain, type Toolchain } from './contracts';
 import { type HostCapacity, requireProfileResources } from './k3d-lab';
-import { inspectRehearsalSecrets } from './observability-rehearsal-secrets';
+import { inspectRehearsalSecrets, type RehearsalSecret } from './observability-rehearsal-secrets';
+import {
+  collectRehearsalBootstrap,
+  createRehearsalCollector,
+  readRehearsalBootstrap,
+  rehearsalBootstrapPaths,
+} from './observability-rehearsal-sources';
 import type { ObservabilityRenderRelease } from './observability-render';
 import { createObservabilitySource } from './observability-source';
 
@@ -266,44 +272,8 @@ async function buildPacket(root: string, input: unknown) {
       `${namespaces}\n---\n${stringify({ apiVersion: 'v1', kind: 'Namespace', metadata: { name: 'observability-dev', labels: { 'pod-security.kubernetes.io/enforce': 'restricted', 'pod-security.kubernetes.io/enforce-version': 'latest' } } })}`,
     );
 
-    const visited = new Set<string>();
-    async function collect(path: string): Promise<void> {
-      path = relative(exported, resolve(exported, path));
-      if (!path.startsWith('infra/')) throw new Error('Rehearsal source path escapes infra');
-      if (visited.has(path)) return;
-      visited.add(path);
-      const generatedDirectory = files.has(`${path}/kustomization.yaml`);
-      const status =
-        files.has(path) || generatedDirectory ? undefined : await lstat(join(exported, path));
-      if (status?.isSymbolicLink()) throw new Error('Rehearsal source symbolic file refused');
-      if (generatedDirectory || status?.isDirectory()) {
-        await collect(`${path}/kustomization.yaml`);
-        return;
-      }
-      const bytes = files.get(path) ?? (await readFile(join(exported, path)));
-      files.set(path, bytes);
-      if (!path.endsWith('.yaml')) return;
-      for (const document of documents(bytes.toString())) {
-        if (document.get('kind') === 'HelmRelease') {
-          const chart = type('string').assert(document.getIn(['spec', 'chart', 'spec', 'chart']));
-          await collect(chart);
-        }
-        if (
-          document.get('kind') !== 'Kustomization' ||
-          document.get('apiVersion') !== 'kustomize.config.k8s.io/v1beta1'
-        )
-          continue;
-        const kustomization = type({
-          resources: 'string[]',
-          'configMapGenerator?': type({ files: 'string[]' }).array(),
-        }).assert(document.toJSON());
-        for (const resource of kustomization.resources)
-          await collect(join(dirname(path), resource));
-        for (const generator of kustomization.configMapGenerator ?? [])
-          for (const filename of generator.files)
-            await collect(join(dirname(path), filename.split('=').at(-1) ?? filename));
-      }
-    }
+    const collector = createRehearsalCollector(exported, files);
+    const { collect } = collector;
     await collect(graph);
     for (const stage of Object.keys(dependencies)) {
       const document = parseDocument(
@@ -320,12 +290,22 @@ async function buildPacket(root: string, input: unknown) {
       instance.requiredSecrets.map((secret) => ({ namespace: instance.namespace, ...secret })),
     );
     const secretInventory = inspectRehearsalSecrets(files, instanceSecrets);
+    const declaredCapacity = describeCapacity(files);
+    const graphPaths = [...files.keys()];
+    await collectRehearsalBootstrap(collector);
+    const bootstrapSources = [...collector.sources.values()].filter(
+      (source) => !graphPaths.includes(source.artifactPath),
+    );
+    // All retained Kubernetes manifests still enter the existing secret/material boundary.
+    inspectRehearsalKubernetesSources(files, instanceSecrets);
     const hashes = [...files]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([path, bytes]) => ({ path, sha256: hash(bytes) }));
     return {
       files,
       instanceSecrets,
+      graphPaths,
+      bootstrapSources,
       receipt: {
         schemaVersion: 1 as const,
         scope: 'disposable-observability-source' as const,
@@ -336,7 +316,7 @@ async function buildPacket(root: string, input: unknown) {
         files: hashes,
         artifactSHA256: hash(encode(hashes)),
         stages: Object.keys(dependencies),
-        declaredCapacity: describeCapacity(files),
+        declaredCapacity,
         helmOwners: source.releases.map((release) => release.owner),
         ...secretInventory,
         remainingPrerequisites: [
@@ -456,6 +436,20 @@ function constrainsSelector(input: unknown): boolean {
     throw new Error('Rehearsal broad ingress refused');
   return selector.matchLabels !== undefined && Object.keys(selector.matchLabels).length > 0;
 }
+/** Apply the existing material and reference guards to all retained Kubernetes sources, including bootstrap inputs. */
+export function inspectRehearsalKubernetesSources(
+  files: ReadonlyMap<string, Buffer>,
+  instanceSecrets: readonly RehearsalSecret[],
+) {
+  const kubernetes = new Map(
+    [...files].filter(([path]) => path !== rehearsalBootstrapPaths.topology),
+  );
+  // Proof: Task25c2b bootstrap-security dependency omission admitted correctly hashed retained Secret material.
+  for (const [path, bytes] of kubernetes)
+    if (path.endsWith('.yaml')) requireProtectedResources(bytes.toString(), path);
+  return inspectRehearsalSecrets(kubernetes, instanceSecrets);
+}
+
 function requireProtectedResources(source: string, path?: string): void {
   for (const document of documents(source)) {
     if (document.get('kind') === 'Kustomization') continue;
@@ -726,7 +720,9 @@ export async function validateObservabilityRehearsalBuilds(
     throw new Error('Rehearsal provenance differs');
   // Inspect symlinks before kubectl reads any local reference.
   const paths = await collectFiles(directory);
-  for (const path of paths.filter((path) => path.endsWith('.yaml')))
+  for (const path of paths.filter(
+    (path) => path.endsWith('.yaml') && path !== rehearsalBootstrapPaths.topology,
+  ))
     requireProtectedResources(await readFile(join(directory, path), 'utf8'), path);
   for (const stage of Object.keys(dependencies))
     requireGraph(await readFile(join(directory, graph, `${stage}.yaml`), 'utf8'), stage);
@@ -734,7 +730,7 @@ export async function validateObservabilityRehearsalBuilds(
   for (const path of paths)
     if (path !== receiptName) actualFiles.set(path, await readFile(join(directory, path)));
   // Proof: removing this actual-packet inspection failed seven reference/declaration/producer negatives before hashes.
-  inspectRehearsalSecrets(actualFiles, expected.instanceSecrets);
+  inspectRehearsalKubernetesSources(actualFiles, expected.instanceSecrets);
   requireControllerOrder(actualFiles);
   // Proof: removing closure accepted extra.txt; extra-file negative failed.
   if (!isDeepStrictEqual(paths, [...expected.files.keys(), receiptName].sort()))
@@ -744,7 +740,13 @@ export async function validateObservabilityRehearsalBuilds(
     if (hash(await readFile(join(directory, path))) !== hash(bytes))
       throw new Error('Rehearsal file hash differs');
   const stages = await validateBuilds(root, tools, directory, expected);
-  return { receipt: expected.receipt, stages };
+  const lock = await readToolchain(join(directory, 'infra/versions/toolchain.json'));
+  const bootstrap = await readRehearsalBootstrap(directory, expected.bootstrapSources, lock);
+  const policyBytes = execute(
+    [join(tools, 'kubectl'), 'kustomize', join(directory, rehearsalBootstrapPaths.retainedPolicy)],
+    root,
+  ).toString();
+  return { receipt: expected.receipt, stages, bootstrap: { ...bootstrap, policyBytes } };
 }
 
 /** Preserve the legacy receipt while sharing the complete validation/build pass with source inventory. */
