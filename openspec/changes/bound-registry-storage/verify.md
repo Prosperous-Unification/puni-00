@@ -1617,3 +1617,61 @@ neither actual Distribution restore serving, independent mounted storage, instal
 activation nor ordinary CLI/permit continuation. Newer-obligation cases, final
 scoped lint/types/format and the native recovery packet remain pending. The earlier
 closed HOST54 failure proof is preserved independently.
+
+## Modeled newer obligations during recovery projection
+
+The expanded local regression passed four tests/73 assertions. Two added cases
+model a trusted current authority view newer than the captured snapshot, then call
+production recovery projection and census under the real held canonical flock.
+A new protection over an existing backed-up closure is preserved and accepted;
+a required root absent from the snapshot is preserved and refused. The actual
+canonical journal is not rewritten to manufacture these modeled current views.
+These cases verify projection/census behavior, not concurrent protection mutation
+through a serialized live maintenance operation or the entire recovery verifier.
+
+The test's spec typecheck returned0 with empty output. Final scoped ESLint returned0
+with zero errors/warnings and formatting returned0 unchanged. Initial type and lint
+failures remain recorded. The inventory source differs from the exact guard-removal
+normal snapshot only by the accurate adjacent proof comment; its runtime behavior
+is unchanged. The native recovery fixture remains in preparation, with actual
+independent mounts, restic restore, server verification and activation continuation
+still requiring their own evidence.
+
+## Native recovery caller preparation and HOST55 review
+
+The fixed recovery selector now reuses the actual partial-deletion seed, runs a
+strict census under the original held retirement session, and invokes existing
+`stageRegistryRecovery` with its server verifier. The controller requires exact
+pre-API refusal, matching backup and offline journal, current obligation arrays,
+canonical lock identity, restored revision, preserved original damage and a fenced
+handoff. It leaves desired-state activation and ordinary publication unverified.
+
+Local caller tests first failed for the missing behavior and then passed. A review
+found that checking the entire action log would reject a legitimate bootstrap
+backup restart. The real prefix reproduced that failure; corrected checks verify
+append-only history and inspect only each relevant suffix, still rejecting later
+service restoration. Matching-message non-Error and aggregate inputs cannot forge
+the census marker, and cleanup/reporting failures retain the original cause.
+
+The affected suite passed125 tests/557 assertions across seven files. Library and
+spec typechecks returned0 with empty outputs; the three new tests and partial
+census helper are lint-clean. Legacy runtime lint still fails38+26+5 findings, and
+older test lint debt remains unresolved. Full Task8 validation is incomplete.
+
+Independent review reconstructed22 original and five follow-up exact local
+counterfactuals. One original TypeError is explicitly limited evidence and replaced
+by a precise assertion follow-up. The remaining assertion/refusal/dependency cases
+are valid only for extracted actual fixture bodies with modeled ports; they do not
+prove native privilege, process lifetime or physical recovery. The current source
+transfer preserves those checks through formatting, import order and typed boundary
+cleanup. All258 covering pins,100 registry source pins and nine regular archive
+payloads match. An independent262-module build is byte-identical to the packet.
+
+HOST55 is authorized once after fresh canonical lock availability, pins and output
+absence checks, using final manifest9f482eb3980f4c858e39cad768ee4c776aef9da585a4006f5ede1417552a3c04.
+A stale selector/clock metadata label was corrected before execution; source and
+payload bytes did not change. The896MiB aggregate envelope,21/20GiB host reserves,
+private namespaces, read-only cgroup view and all existing deadlines are unchanged.
+This is preparation and review only. Source stays frozen until actual execution
+and both independent cleanup audits finish; no production activation is authorized
+by this rehearsal result alone.
