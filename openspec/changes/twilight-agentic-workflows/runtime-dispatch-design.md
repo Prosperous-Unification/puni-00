@@ -197,6 +197,12 @@ auth issuer/policy. The child imports only Dash and public contracts, receives p
 configuration through a controlled pipe/file, and calls real loopback HTTP through injected
 transport. Bound ready/go/reply/exit, await cleanup, never log credential headers. Parent
 checks actual receiver receipts/journal/claim; child checks durable local history/barriers.
+The complete fixture runs inside an owned process group. A deadline cannot discard an
+uncancellable boot or disposal promise: retain and await actual cleanup inside that group,
+then terminate and join the owned group before removing its database directory if a phase
+cannot finish. Real delayed readiness and disposal regressions exercise this same supervisor.
+The supervisor creates and removes its marker storage with the fixture, independently of
+saved proof archives.
 Declare an explicit target/CI dependency because process argv is not an Nx import edge.
 The be-01 test target declares scoped Dash runs/bridge/agents inputs actually consumed by
 the child, preserving default inputs without introducing a production app dependency.

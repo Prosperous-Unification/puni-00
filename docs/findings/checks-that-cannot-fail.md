@@ -1,3 +1,22 @@
+## Fault classification can match source context instead of the failure
+
+A nonzero test exit does not identify which assertion failed. During the 2026-10-27
+boot-cleanup campaign on Bun 1.4.4, the first C8 driver searched the entire output for
+`integration removed DB before actual acquisition/disposal`. Bun printed that text in
+source context near the failing line, but the emitted failure was
+`AssertionError: Missing expected rejection.` The driver initially credited the fault for
+the wrong reason. Audit revoked that credit and preserved the original matrix and logs.
+
+The focused replacement adds a post-hold child-liveness assertion on the actual contained
+integration path and classifies emitted assertion messages, rather than arbitrary source
+text. It observed `AssertionError: integration exited before actual acquisition/disposal completed`
+with exit 1, then restored exact bytes and mode. This proves the named inner-disposal
+consumption check; the outer process supervisor remains an independent containment backstop.
+Evidence is retained in `turn-dispatch-tasks/task-2-fix-1-20261027/proofs{,-v2}` under the
+ignored SDD workspace; the [verification record](../../openspec/changes/twilight-agentic-workflows/verify.md)
+records the bounded acceptance. Never credit an expected phrase merely because it appears
+in source context, a test title or another diagnostic.
+
 # R5 incident catalogue
 
 ## Bun throw assertions can accept a returned Error

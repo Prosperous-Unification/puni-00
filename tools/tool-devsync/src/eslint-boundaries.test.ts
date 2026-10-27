@@ -57,6 +57,58 @@ function boundaryOf(config: unknown): readonly unknown[] {
 }
 
 describe('the effective production and test boundaries', () => {
+  // Proof: P1 removes the allowance and P2–P5 widen it; this policy test rejects each fault.
+  it('Dash runtime-dispatch worker reaches only its exact public factories', async () => {
+    const path =
+      'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-dispatch-worker.ts';
+    for (const alias of ['@wbs/contracts', '@twilight-burokrat/contracts']) {
+      const [admission] = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+        filePath: path,
+      });
+      expect(admission.fatalErrorCount).toBe(0);
+      expect(admission.messages.map((message) => message.ruleId)).not.toContain(
+        '@nx/enforce-module-boundaries',
+      );
+      const source = await readFile(join(workspace, path), 'utf8');
+      expect(importsAlias(source, alias)).toBe(true);
+      for (const peer of [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/memory-stores.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/dispatch-turn.ts',
+      ]) {
+        await readFile(join(workspace, peer), 'utf8');
+        const [denial] = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+          filePath: peer,
+        });
+        expect(denial.fatalErrorCount).toBe(0);
+        expect(denial.messages.map((message) => message.ruleId)).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+    }
+    for (const alias of [
+      '@wbs/store-memory',
+      '@twilight-burokrat/judge',
+      '@wbs/contracts/solver/supervisor-protocol',
+      relative(dirname(path), 'libs/wbs/domain/contracts/src/index.ts'),
+    ]) {
+      const [denial] = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+        filePath: path,
+      });
+      expect(denial.fatalErrorCount).toBe(0);
+      expect(denial.messages.map((message) => message.ruleId)).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+    }
+    const source = await readFile(join(workspace, path), 'utf8');
+    const [actual] = await lint.lintText(source, { filePath: path });
+    expect(actual.fatalErrorCount).toBe(0);
+    expect(
+      actual.messages.filter((message) => message.ruleId === '@nx/enforce-module-boundaries'),
+    ).toEqual([]);
+    const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+    if (!isRecord(options)) throw new Error('worker policy missing');
+    expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']);
+  }, 30000);
   it('Dash runtime client admits only its two exact public consumers', async () => {
     const peer = 'apps/twilight-structure/twilight-dash/cli/src/runs/prepare-activity.ts';
     await readFile(join(workspace, peer), 'utf8');

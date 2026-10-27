@@ -236,5 +236,11 @@ export default ({
       ],
       rules: boundary(['^@wbs/contracts$']),
     },
+    {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-dispatch-worker.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
+    },
   ];
 };

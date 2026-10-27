@@ -3036,3 +3036,68 @@ addressed with no new breakage; normal checkpoint follows this entry. Real recei
 required, as do heartbeat/lifecycle, numeric business-attempt mapping, outcomes/releases,
 supported recovery, other adapters/providers and CTT coordinator acceptance. Separate
 inventory/lease reads provide no atomic fence, continued lease or physical-stop proof.
+
+## S0 specification status reconciliation — 2026-10-27
+
+Fresh main67773 source/specification reads confirm the20-operation RunStore, immutable
+ArtifactStore, portable/physical version distinction, atomic admission/outcome/outbox and
+owner/epoch contracts, plus ActivityExecutor lookup/resume/effect/quiescence capabilities
+and explicit uncertainty. WBS030.01/030.03 now close specification only (readback done,
+revisions5/4). WBS030.04 is in_progress (readback revision3): memory and first durable
+SQLite implementations are accepted separately, while second-provider conformance and
+paused-writer versioned transfer remain absent. No runtime recovery, adapter, historical
+proof-gap, physical fencing or complete S0 acceptance is inferred. Original notes remain
+preserved. Exact commands/readbacks: /tmp/puni-agentic-wbs-specification-reconciliation-20261027.json.
+
+## Real receiver boot and fixture ownership — 2026-10-27
+
+The be-01-owned integration and separate Dash worker now compose the actual injected
+receiver/claim clients, authority/preparation/claim hosts and one controlled turn over
+loopback HTTP and SQLite. The original conditional POST remains viable while a duplicate
+receives actual receipt404 without a second POST. After response loss, explicit
+reconciliation retains original evidence and the paired acknowledgement across reopen.
+Independent local readers observe the required commit ordering. Receiver business tables
+are compared after claim bookkeeping and after turn: this turn adds no business outcome,
+release or successor, and local capacity remains held.
+
+The initial boot/policy/committed-selection suite passed188cases1007assertions. The five
+non-BE source identities remain exact after the cleanup fixes; those accepted policy and
+selection checks were not replayed merely for fixture changes. The final seven-case boot
+suite passes in42.58s in an archive-free source export, with fresh graph-backed uncached
+BE module/typecheck/lint passing. The original four-owner nine-task static run remains
+accepted for unchanged sources. No aggregate194-case current-suite run is inferred.
+
+Review found late startup/disposal could outlive a timeout and lose cleanup ownership.
+The complete fixture now runs inside an owned process group: retain actual boot/stop
+promises, join or terminate the owned group before storage removal, and preserve original
+and cleanup errors. A second review found traces depended on ignored session archives;
+owned0700 runtime/marker siblings now remove that dependency. The clean export is d2469c2
+plus six source overlays and a dependency link; unrelated tracked historical .superpowers
+content was removed only in the scratch copy. All seven cases run with that tree absent.
+This is not a canonical checkout or newer-main gate.
+
+The original19 finite fault trials remain preserved. Cleanup adds eight distinct fault
+cases, with a strict C8 replacement and refined C6 reproof. The first C8 matched displayed
+source context rather than its emitted failure and receives no credit. Current marker
+placement has two additional affected-case reproofs: actual held receivers report their
+database deleted before disposal, with emitted named assertions and no ENOENT. Every
+accepted mutation restored exact bytes/mode; adjacent-comment-only deltas are audited.
+Initial deliberate-removal REDs and clean-export missing-directory failures remain
+diagnostics, not unchanged-source or lifecycle proof claims. Evidence and all three task
+reviews are retained under .superpowers/sdd/turn-dispatch-tasks.
+
+Independent scoped reviews mark I1, I2 and the wording correction addressed; final spec
+and quality are Approved without new Critical/Important findings. Root verifies current
+six-path identities, raw affected assertion messages, graph and logs. Final BE SHA256 is
+0c86faafe9ceb703228faf439e4f785c08bf563b34eb4d3ad224fbd4a1e140f9, mode0664.
+Touched formatting/diff and scoped OpenSpec pass;13 inherited requirement warnings and
+previously disclosed lint warnings remain. Successful Nx output is elided, so no warning-
+free lint claim follows. An empty-output sandbox metadata attempt received no credit;
+the file-backed retry produced actual formatter output and parsed1pass/0fail validation.
+
+Normal checkpoint/publication follows this entry. New main0ed1063 adds bootCommit health
+reporting; its changed boot dependency was inspected, but combined-tree checks, broad
+packet review, canonical exact-SHA gate and CI remain required. Product heartbeat/local
+renewal, physical-stop fencing, lease survival, numeric WBS business-attempt mapping, exact
+outcomes/releases, supported recovery, other adapters/providers and full S0/S7a remain
+open. No production deployment.
