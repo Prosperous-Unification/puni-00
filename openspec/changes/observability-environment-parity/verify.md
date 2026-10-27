@@ -2613,3 +2613,132 @@ Raw focused logs, `publication-omission.json` and `default-controls.json` live i
 The unrelated existing changed-kubectl repair test, historical selected-archive/tool mutation matrices, old passing captures, full canonical 11-stage rendering, Job tests, full Fleet/Nx gates, host gates, CI reruns and runtime/cluster/deploy actions were deliberately not run. Existing explicit archive absent/unreadable/changed tests are preserved without edits. This is source-only CI repair evidence awaiting root review/publication; full admission, runtime acceptance and canonical 4/11 status remain unchanged.
 
 Independent scoped review approved the fixture repair for spec compliance and code quality with no findings. Parent identity checks matched both source files, eight protected paths, the unchanged prior canonical prefix at evidence commit `dc0ecbff53c03a8d522f77cc35368198322d7057`, the locked prepared archive, and the retained omission/restoration and fresh-cache controls. No suites or fault proofs were replayed for review. Repaired published CI, full admission and runtime acceptance remain unverified.
+
+## Task25c3f — common container source storage bounds
+
+Source `0c645d265314f3eb38a3f91e36bd8ef4e2106802` implements the accepted Task34/common-container intent on clean `12354e87e86bb41220df33b28ada2e96a0bc1ec1`. Normal hooks passed; Tool Wiki remained inactive and uncertified. This is a source contract, not runtime acceptance or permission to apply it. Task 3.1 and canonical progress 4/11 remain open.
+
+The owning handwritten YAML and existing `observability.ts` builders now emit the exact unmeasured ephemeral request/limit policy in [the common-container design](design.md#bound-the-remaining-straightforward-container-storage-inputs): clients/exporters/proxies 16Mi/64Mi, registry/MinIO 32Mi/256Mi, collector/gateway 64Mi/256Mi; the existing bucket `tmp` emptyDir is 16Mi. Existing CPU/memory values, versions/images/chart archives, replicas, security, commands, endpoints, selectors, trust and PVC identities remain unchanged. No CPU quantity needed quoting. The existing renderer regenerated only signals.yaml, metrics.yaml and settings.yaml; every other generated artifact, including coexistence.json, stays byte-identical.
+
+Current `validatePlatform` requires every registered native owning path/role and complete explicit CPU/memory/ephemeral maps. The pure `assertCandidatePodResources` reuses `assertPodResources` and its shared quantity readers: nonnegative requests, positive limits and requests no greater than limits; no numeric defaults or second calculator. Current KPS exporters use the same guard. Only those two historical image-reader resource properties become optional `StructuralResources`: valid absent/null outer/inner maps remain incomplete, while supplied malformed/negative/contradictory or foreign known state refuses. Existing `createObservabilityProjection → validatePlatform` supplies the canonical owning boundary. Native generated-byte and source/output equality guards remain; the full rendered-source validator additionally binds the exact two named KPS app maps to source values and rejects unregistered app/init/ephemeral roles.
+
+The approved bucket cap necessarily changed the existing full transport fingerprint input. Independent comparison of command/env/mounts/volumes/readiness against BASE proved exactly one transport change, `/spec/template/spec/volumes/0/emptyDir/sizeLimit:16Mi`. Only the Job fingerprint changed from `6136853647dcbf02d197b82ffc28e7ac2bf30b29c2b505a1919edac801e2680b` to `9af531f665fab0e20cfe667d5757b62f7c1dabe2b2308c8b755437f1979cc21d`; the Deployment fingerprint and full transport coverage remain. Plaintext URL and CA mode mutations refuse through `validatePlatform`; bypassing the fingerprint loses both refusals. No real S3/TLS run was repeated.
+
+### Commands and observed outcomes
+
+All commands below ran in `/home/df/.codex/worktrees/aa39/puni-00`, using Bun 1.4.4. Exact argument arrays, restored per-fault SHA256 values and durations are retained in `/tmp/puni-task25c3f/source-checks.json`, `proofs.json`, `canonical.json`; logs and controls remain beside them.
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform-common-resources.test.ts tools/tool-fleet/src/observability-common-resources.test.ts tools/tool-fleet/src/observability-common-propagation.test.ts
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-parity.test.ts tools/tool-fleet/src/observability-composition.test.ts tools/tool-fleet/src/observability-workload.test.ts tools/tool-fleet/src/object-store-buckets.test.ts tools/tool-fleet/src/snapshot-check.test.ts
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts -t 'accepts the locked ordered platform|Task25c3c historical|Task25c3d zero CPU and memory|Task25c3d plugin bad cpu refuses|Task25c3d server above disk limit refuses'
+bun test --preload ./tools/test/scratch/preload.ts /tmp/puni-task25c3f/caller.test.ts
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 /tmp/puni-task25c3f/source-control.test.ts
+bun test --preload ./tools/test/scratch/preload.ts /tmp/puni-task25c3f/captured-negatives.test.ts
+```
+
+| Control                                                                              | Observed outcome                               |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| New current/historical/builder/propagation family                                    | 59 pass,0 fail,136 assertions,8.59s            |
+| Focused composition/parity/workload/bucket/snapshot compatibility                    | 208 pass,0 fail,566 assertions,29.04s          |
+| Selected platform compatibility                                                      | 6 pass,272 filtered,0 fail,10 assertions,2.00s |
+| Actual full source-validator caller, labeled historical wiring fixture; no rendering | 2 pass,0 fail,2 assertions,2.04s               |
+| Retained canonical-byte source control                                               | 1 pass,0 fail,1098 assertions,8.99s            |
+| Distinct copied-output/candidate-ledger negatives; no rendering                      | 6 pass,0 fail,41 assertions,1.61s              |
+
+Final scoped static commands (all exit0; exact timings below):
+
+```sh
+bunx prettier --check infra/platform/backup/elastic/snapshots.yaml infra/platform/backup/local/object-store.yaml infra/platform/observability/base/metrics.yaml infra/platform/observability/base/signals.yaml infra/platform/observability/elastic/settings/settings.yaml infra/platform/observability/kibana/objects/job.yaml infra/platform/observability/prometheus/blackbox-exporter.yaml infra/platform/observability/prometheus/kube-prometheus-stack.yaml infra/platform/registry/base/registry.yaml tools/tool-fleet/src/observability-pod-resources.ts tools/tool-fleet/src/observability-rehearsal-inventory-entry.test.ts tools/tool-fleet/src/observability-source-render.test.ts tools/tool-fleet/src/observability-source-render.ts tools/tool-fleet/src/observability-source-resources.ts tools/tool-fleet/src/observability.ts tools/tool-fleet/src/platform-backup-tls.ts tools/tool-fleet/src/platform-releases.ts tools/tool-fleet/src/platform.ts tools/tool-fleet/src/observability-common-capture.test.ts tools/tool-fleet/src/observability-common-propagation.test.ts tools/tool-fleet/src/observability-common-resources.test.ts tools/tool-fleet/src/platform-common-resources.test.ts tools/tool-fleet/src/platform-common-resources.ts
+bunx eslint tools/tool-fleet/src/observability-pod-resources.ts tools/tool-fleet/src/observability-rehearsal-inventory-entry.test.ts tools/tool-fleet/src/observability-source-render.test.ts tools/tool-fleet/src/observability-source-render.ts tools/tool-fleet/src/observability-source-resources.ts tools/tool-fleet/src/observability.ts tools/tool-fleet/src/platform-backup-tls.ts tools/tool-fleet/src/platform-releases.ts tools/tool-fleet/src/platform.ts tools/tool-fleet/src/observability-common-capture.test.ts tools/tool-fleet/src/observability-common-propagation.test.ts tools/tool-fleet/src/observability-common-resources.test.ts tools/tool-fleet/src/platform-common-resources.test.ts tools/tool-fleet/src/platform-common-resources.ts
+bunx tsc --project tools/tool-fleet/tsconfig.spec.json --noEmit --incremental false
+bunx tsc --project tools/tool-fleet/tsconfig.lib.json --noEmit --incremental false
+bunx openspec validate observability-environment-parity --strict --json
+git diff --check
+```
+
+format 0.651s; lint 4.758s; types-spec 1.264s; types-lib 1.160s; spec 0.684s; diff 0.011s. Strict OpenSpec: 1 valid, 0 issues, 16ms. Both Fleet no-emit configurations passed. The source commit used normal hooks; no bypass flags.
+
+### REDs, setup failures and R5 proofs
+
+Initial guard tests:5 pass/35 fail/37 assertions in6.62s, with missing current refusals and historical supplied-quantity validation absent. Owning output tests:0 pass/3 fail/5 assertions in0.452s, missing declared ephemeral values. The first implementation run retained38 pass/5 fail, then41 pass/2 fail: a missed multiline signal-builder argument was fixed; budget-changing mutation fixtures refreshed the existing derived coexistence artifact; malformed bucket input already refused at an earlier Secret-closure boundary; remaining positive failures exposed the required bucket transport fingerprint maintenance described above. After that repair45 tests/113 assertions passed.
+
+Exporter propagation initially had one collection setup error because its new export did not exist; this is not a behavioral RED. The implemented narrow production helper then passed9 tests. Current-output expectations were also run against immutable0e39 capture:0 pass/1 fail/4 assertions,32Mi expected versus absent registry ephemeral request. No capture was relabeled.
+
+Initial scoped statics exposed34 lint errors and3 spec-type errors, all corrected without weakening production contracts. The first new init-closure fault stayed green because its missing map already refused at schema; a bounded unregistered-init case then made the isolated role bypass fail. A later ephemeral case initially lacked its fixture assignment; the uninjected fault log is explicitly excluded (`fault-exporter-ephemeral-uninjected.log`). The assignment was fixed,10 baseline propagation tests passed, and the fault was rerun and restored correctly. The final59-test baseline passed afterward. An evidence-edit Python lookup failure made no source changes and is retained in the session; subsequent commands use fail-fast shell handling.
+
+Retained-source comparison had three setup failures before its single passing control: ArkType's identity assertion retains unknown fields, so comparing its whole returned object prematurely compared changed resource maps; the identity projection was corrected to API/kind/namespace/name. The comparison then exposed an omitted DaemonSet masking branch; the reviewed node-exporter branch was added. The default5s test timeout expired at1086 assertions; the unchanged control passed with30s at1098 assertions. All three logs remain (`source-control-identity-red.log`, `source-control-daemonset-red.log`, `source-control-timeout.log`). These corrections touched only temporary evidence scripts, never production, generator inputs or captured bytes; there was no repeated producer/render/capture.
+
+The 23 new-family production dependency faults below each exited1 with failed test assertions, then restored the exact source bytes for that stage. Adjacent `Proof:` comments name the observed fault/test. No historical 47/40/etc fault matrix was replayed. Commands follow `bun test --preload ./tools/test/scratch/preload.ts <owning-test-file> -t <pattern>`; exact full arrays and restoration hashes are in `proofs.json`.
+
+| Fault                     | Changed production file             | Production-path negative pattern                        | Exit / duration |
+| ------------------------- | ----------------------------------- | ------------------------------------------------------- | --------------- |
+| `native-call`             | `platform.ts`                       | `current native refuses resources absent`               | 1 / 0.721s      |
+| `helm-call`               | `platform.ts`                       | `current Helm requires`                                 | 1 / 0.982s      |
+| `required-map`            | `observability-pod-resources.ts`    | `current native refuses ephemeral request absent`       | 1 / 0.745s      |
+| `shared-quantities`       | `observability-pod-resources.ts`    | `current native refuses request above limit`            | 1 / 0.729s      |
+| `positive-limits`         | `observability-pod-resources.ts`    | `current native refuses zero`                           | 1 / 1.268s      |
+| `native-required-role`    | `platform-common-resources.ts`      | `duplicated registered`                                 | 1 / 0.780s      |
+| `native-role-closure`     | `platform-common-resources.ts`      | `current native refuses role renamed`                   | 1 / 0.762s      |
+| `native-init-closure`     | `platform-common-resources.ts`      | `current native refuses bounded unregistered init`      | 1 / 0.737s      |
+| `scratch-positive`        | `platform-common-resources.ts`      | `bucket scratch refuses zero`                           | 1 / 0.502s      |
+| `scratch-unique`          | `platform-common-resources.ts`      | `bucket scratch refuses duplicate`                      | 1 / 0.504s      |
+| `scratch-call`            | `platform-common-resources.ts`      | `bucket scratch refuses absent`                         | 1 / 0.492s      |
+| `historical-boundary`     | `platform-releases.ts`              | `historical Helm retains`                               | 1 / 0.368s      |
+| `tls-fingerprint`         | `platform-backup-tls.ts`            | `bounded bucket transport refuses`                      | 1 / 0.991s      |
+| `exporter-correspondence` | `observability-source-resources.ts` | `different valid quantity`                              | 1 / 0.170s      |
+| `exporter-role`           | `observability-source-resources.ts` | `missing role`                                          | 1 / 0.187s      |
+| `exporter-init`           | `observability-source-resources.ts` | `extra init`                                            | 1 / 0.187s      |
+| `exporter-caller`         | `observability-source-render.ts`    | `public source caller refuses`                          | 1 / 1.660s      |
+| `builder-signal`          | `observability.ts`                  | `common builders`                                       | 1 / 0.439s      |
+| `builder-metrics`         | `observability.ts`                  | `common builders`                                       | 1 / 0.466s      |
+| `builder-settings`        | `observability.ts`                  | `common builders`                                       | 1 / 0.460s      |
+| `native-ephemeral`        | `platform-common-resources.ts`      | `current native refuses bounded unregistered ephemeral` | 1 / 0.743s      |
+| `scratch-mount`           | `platform-common-resources.ts`      | `bucket scratch refuses mount absent`                   | 1 / 0.506s      |
+| `exporter-ephemeral`      | `observability-source-resources.ts` | `extra ephemeral`                                       | 1 / 0.172s      |
+
+The `native-call` and `helm-call` controls remove the actual `validatePlatform` invocations. `exporter-caller` removes the actual full rendered-source invocation; its labeled historical wiring fixture changes only the two exporter resource maps and uses actual retained chart bytes, without a render. The permanent public source-render suite also gained wrong-value/extra-role negatives; that full chart suite was not separately rerun. Scratch negatives additionally call the same pure production checker, so the stronger existing transport fingerprint cannot hide a broken new bound guard.
+
+Six separate retained-byte controls caught missing registry request, missing bucket cap, a valid wrong 128Mi KPS limit, erased global writer prerequisite, erased Job generation-history requirements and forged creation authority. These exercise assertions over actual captured bytes/derived output; they are separate from the23 production-source faults and did not modify immutable raw files.
+
+### One actual canonical capture and retained comparison
+
+At clean committed source/generator `0c645d265314f3eb38a3f91e36bd8ef4e2106802`, exactly one canonical producer/capture ran:
+
+```sh
+PUNI_REHEARSAL_FRAMES_EXPORT=/tmp/puni-task25c3f/current-frames.json PUNI_REHEARSAL_INVENTORY_EXPORT=/tmp/puni-task25c3f/current-receipt.json bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-rehearsal-inventory-entry.test.ts
+```
+
+Exit0,1 pass,225 assertions; Bun 13.17s, outer duration 13.239s. Raw expansion/stage/receipt bytes were retained before assertions and then made 0400. The actual two-instance graph covers all 18 changed native/exporter workloads, including shared node/kube-state exporters and local bucket/MinIO branches; no additional changed production branch required a separate render. Eleven stages,25 frames,396 inventory entries remain. Helm version v4.3.0/archive `86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb` and executable `57ce7fc4ea77b28ee6fa91ae071abcade74d3f524e80c9decff5877a5ac8eda4` were authenticated by existing production boundaries; kubectl v1.36.4 digest `8b8f088da2dab964f853b38464033b1be15ede2839eca751482357c45abdd05a` and original chart archives were verified. No executable/cache bypass was introduced.
+
+| Raw file under `/tmp/puni-task25c3f` | SHA256                                                             | Bytes   | Mode |
+| ------------------------------------ | ------------------------------------------------------------------ | ------- | ---- |
+| `current-frames.json`                | `83222e74ee24dc8740e0d71820e5aa8142cccff3b28b978ae6a3e9bdfb450e10` | 7563717 | 0400 |
+| `current-frames.json.stages.json`    | `0fd7f3a109ff622f2b17c80578ecbd5ba660f99a254efa01e7ac8ae7253e471c` | 729533  | 0400 |
+| `current-receipt.json`               | `099bd03e5093feecaac9eed0deda607cfbea44dba841f9669f9ad8c0fd5292cc` | 1121215 | 0400 |
+
+`generator-equivalence.json` verifies all 118 captured generator-input hashes against both source commit 0c645d2 and current bytes. Source/generator identities remain 0c645d2 after the evidence-only commit; they are not relabeled with that later HEAD. The native adapter remains byte-identical to approved 4adb (`observability-native-ordinal.ts` SHA256 `729300df11a560eacf52278e3187643f72d1b239587aa743cf98773d01bd83a1`).
+
+Independent owning-source comparison verified exactly 27 additions over 9 YAML files: 26 ephemeral coordinates plus the bucket cap. The canonical raw comparison verified exactly 49 intended additions over 21 rendered/native/release definitions, including disabled shared Helm values; every addition was asserted for the exact new value before deleting only that reviewed field for full semantic comparison. All unrelated manifests/config/scripts/images/trust/selectors/claims are equal. Bootstrap bytes/identities remain equal. Five frame hashes and 14 existing native template hashes change, with 2 newly normalizable template identities; each charge/lifecycle binds its actual new frame/template hash, not the old cost-compatible identity. `frame-identities.json` and `template-identities.json` retain the exact before/after pairs.
+
+Historical `/tmp/puni-task25c3d/current-{frames,receipt}.json` plus stages remain 0400 with the original three hashes recorded in Task25c3e's parent hash receipt. Their source/generator stays 0e39. The current reader reproduces their inventory facts, and the unchanged native adapter reproduces the approved 4adb retained ledger exactly: 103 entries/120 blockers/20480Mi memory/3790m CPU/13120Mi known disk. The older 29-entry slice is not used as the current baseline.
+
+### Actual current native contributions and remaining obligations
+
+The existing production normalizer/ledger now yields 116 conditional charges,107 blockers, 5 ordinal/11 Deployment/9 serial Job lifecycle declarations:
+
+| Conditional source contribution                               | Memory MiB | CPU request milli | Known disk MiB |
+| ------------------------------------------------------------- | ---------- | ----------------- | -------------- |
+| Approved4adb adapter over historical 0e39 source, 103 charges | 20480      | 3790              | 13120          |
+| Existing 103 charges: declared ephemeral increments only      | 0          | 0                 | 5568           |
+| MinIO initial and first replacement, 2 charges                | 1024       | 100               | 512            |
+| Bucket B10 serial lifecycle, 11 full retained slots           | 1408       | 110               | 704            |
+| Current 116-charge source ledger                              | 22912      | 4000              | 19904          |
+
+All existing CPU/memory charges and claim identities/amounts remain; only the reviewed disk increments and actual new frame/template coordinates change. New-owner demand is fully charged without cleanup credit. The existing ledger was reused unchanged; derived `/tmp/puni-task25c3f/current-ledger.json` SHA256 `e68e409590df40537a1400744a8e9d5216af1d122d0ec585dba88fdb8798de13` is evidence, not immutable admission authority.
+
+Exactly 14 compound `ephemeral-storage-limit-absent:<role>; writable-logs-and-runtime-state-unobserved` facts disappear because their source limits are now explicit. This is source-limit knowledge only: it establishes no log rotation, runtime writer growth, eviction, recovery or physical enforcement. The MinIO `candidate-ephemeral-unbounded` and bucket `candidate-emptydir-unbounded` facts also disappear. Three explicit facts become available: MinIO's namespace-specific claim-owner/retention and Deployment runtime-wave binding, plus bucket serial runtime binding. Every other blocker is preserved exactly. Global `writable-logs-and-runtime-state`, actual version/controller/UID/template/node/termination/enforcement prerequisites, all old lifecycle conditions, full failed/terminating retention and Job Helm/Flux generations/history requirements remain unchanged. Both authorities stay false, state stays incomplete; all system/runtime, helper, images/transients, hostPath growth and retained-host exclusions remain.
+
+The receiver append log, Flux artifact/tmp and Velero/Kopia node-agent scratch still require separate reviewed input/retention/customization contracts. No arbitrary cap was added. Declared finite budgets require actual startup/load/HTTP-response/log/eviction/recovery/headroom acceptance before live application; they are neither measured consumption nor h3 host sizing or physical storage quotas.
+
+Full Fleet/Nx/build/host gates, unchanged historical proof batches, unrelated app/browser suites and runtime/cluster/Docker/S3/TLS/live checks were not run, per bounded scope. Required runtime/whole-attempt/live work remains open. No push, merge, deploy, CI action/rerun, cluster/store/Secret/host mutation or new production runner occurred. The existing tool fixture prepared authenticated private executables and published its verified archive through its existing owned path. Source-only success does not complete task 3.1, runtime admission or the overall goal.
