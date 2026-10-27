@@ -7,9 +7,10 @@ import { isDeepStrictEqual } from 'node:util';
 import { type } from 'arktype';
 import { isNode, parseAllDocuments, parseDocument, stringify } from 'yaml';
 
-import { readToolchain } from './contracts';
+import { readToolchain, type Toolchain } from './contracts';
 import { type HostCapacity, requireProfileResources } from './k3d-lab';
 import { inspectRehearsalSecrets } from './observability-rehearsal-secrets';
+import type { ObservabilityRenderRelease } from './observability-render';
 import { createObservabilitySource } from './observability-source';
 
 const SHA = /^[a-f0-9]{40}$/;
@@ -583,6 +584,20 @@ function requireControllerOrder(files: Map<string, Buffer>): void {
     throw new Error('Rehearsal controller ordering differs');
 }
 
+/** Actual validated stage bytes and their exact pinned release declarations. */
+export interface RehearsalStageBuild {
+  readonly stage: string;
+  readonly path: string;
+  readonly declarationPath: string;
+  readonly sourceSHA256: string;
+  readonly bytes: string;
+  readonly sha256: string;
+  readonly releases: readonly ObservabilityRenderRelease[];
+}
+
+function isChartKey(key: string, lock: Toolchain): key is keyof Toolchain['charts'] {
+  return Object.hasOwn(lock.charts, key);
+}
 async function validateBuilds(
   root: string,
   tools: string,
@@ -614,6 +629,7 @@ async function validateBuilds(
   )
     throw new Error('Rehearsal graph stage closure differs');
   const owners: string[] = [];
+  const stages: RehearsalStageBuild[] = [];
   const seen = new Set<string>();
   for (const stage of Object.keys(dependencies)) {
     const path = join(directory, graph, `${stage}.yaml`);
@@ -623,6 +639,7 @@ async function validateBuilds(
     const rendered = execute([kubectl, 'kustomize', join(directory, destination)], root).toString();
     requireProtectedResources(rendered);
     const built = documents(rendered);
+    const releases: ObservabilityRenderRelease[] = [];
     // Proof: bypassing this check changed empty pinned-stage output to a Helm owner-closure refusal.
     if (
       stage === 'observability-controllers' &&
@@ -660,29 +677,48 @@ async function validateBuilds(
         })
       )
         throw new Error('Rehearsal graph chart source differs');
-      const pin = Object.values(lock.charts).find(
-        (pin) =>
+      const matched = Object.entries(lock.charts).find(
+        ([, pin]) =>
           chart.chart ===
             `./infra/platform/charts/${pin.url.slice(pin.url.lastIndexOf('/') + 1)}` &&
           pin.version === chart.version,
       );
-      if (hash(await readFile(join(directory, chart.chart))) !== pin?.sha256)
+      if (
+        matched === undefined ||
+        !isChartKey(matched[0], lock) ||
+        hash(await readFile(join(directory, chart.chart))) !== matched[1].sha256
+      )
         throw new Error('Rehearsal graph chart pin differs');
+      releases.push({
+        owner: `${manifest.metadata.namespace ?? '_'}/${manifest.metadata.name}`,
+        chart: matched[0],
+        manifest: document.toString(),
+      });
       if (stage === 'observability' || stage === 'observability-controllers')
         owners.push(`${manifest.metadata.namespace ?? '_'}/${manifest.metadata.name}`);
     }
+    stages.push({
+      stage,
+      path: destination,
+      declarationPath: relative(directory, path),
+      sourceSHA256: hash(source),
+      bytes: rendered,
+      sha256: hash(rendered),
+      releases,
+    });
   }
   if (!isDeepStrictEqual(owners.sort(), [...expected.receipt.helmOwners].sort()))
     throw new Error('Rehearsal graph Helm owner closure differs');
+  return stages;
 }
 
 /** Validate actual Kustomize stage builds and byte-for-byte source/generator provenance; success is a source receipt only. */
-export async function validateObservabilityRehearsal(
+export async function validateObservabilityRehearsalBuilds(
   root: string,
   tools: string,
   input: unknown,
   directory: string,
-): Promise<ObservabilityRehearsalReceipt> {
+) {
   const expected = await buildPacket(root, input);
   const recorded: unknown = JSON.parse(await readFile(join(directory, receiptName), 'utf8'));
   // Proof: removing equality accepted the altered receipt sourceRevision; the provenance-mismatch negative failed.
@@ -707,8 +743,18 @@ export async function validateObservabilityRehearsal(
   for (const [path, bytes] of expected.files)
     if (hash(await readFile(join(directory, path))) !== hash(bytes))
       throw new Error('Rehearsal file hash differs');
-  await validateBuilds(root, tools, directory, expected);
-  return expected.receipt;
+  const stages = await validateBuilds(root, tools, directory, expected);
+  return { receipt: expected.receipt, stages };
+}
+
+/** Preserve the legacy receipt while sharing the complete validation/build pass with source inventory. */
+export async function validateObservabilityRehearsal(
+  root: string,
+  tools: string,
+  input: unknown,
+  directory: string,
+): Promise<ObservabilityRehearsalReceipt> {
+  return (await validateObservabilityRehearsalBuilds(root, tools, input, directory)).receipt;
 }
 
 /** The platform floor is necessary, not sufficient: unknown operator, current-node, backup/transient and overlap bounds cannot authorize a lab mutation. */

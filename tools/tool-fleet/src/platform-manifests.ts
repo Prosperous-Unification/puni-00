@@ -65,7 +65,8 @@ const Workload = type({
   spec: 'object',
 });
 
-function podSpecOf(workload: typeof Workload.infer): unknown {
+/** Select the native PodSpec shape shared by platform pin validation and rehearsal inventory. */
+export function podSpecOf(workload: { kind: string; spec: object }): unknown {
   const spec: Record<string, unknown> = { ...workload.spec };
   if (workload.kind === 'Pod') return spec;
   if (workload.kind === 'CronJob') {

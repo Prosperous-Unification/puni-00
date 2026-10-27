@@ -14,6 +14,11 @@ export interface ObservabilityRenderRelease {
   chart: keyof Toolchain['charts'];
   manifest: string;
 }
+/** Fixed Helm source-fixture capabilities; this never describes an observed API server. */
+export const observabilityRenderCapabilities = {
+  kubernetesVersion: '1.35.0',
+  observed: false,
+} as const;
 const Release = type({
   metadata: { name: 'string>0', namespace: 'string>0' },
   spec: { chart: { spec: { chart: 'string>0', version: 'string>0' } }, values: 'object' },
@@ -82,7 +87,7 @@ export async function renderObservabilityReleases(
         manifest.metadata.namespace,
         '--include-crds',
         '--kube-version',
-        '1.35.0',
+        observabilityRenderCapabilities.kubernetesVersion,
         '--values',
         values,
       ]);

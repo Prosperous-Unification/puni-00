@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 
 import { type } from 'arktype';
-import { isNode, parseAllDocuments, parseDocument, stringify } from 'yaml';
+import { isNode, parseDocument, stringify } from 'yaml';
 
 import { assertObservabilityAssemblyResources } from './observability-composition';
 import {
@@ -20,6 +20,7 @@ import {
 } from './observability-source-network';
 import { assertObservabilitySelectedResources } from './observability-source-resources';
 import { assertObservabilitySelfScrapes } from './observability-source-scrapes';
+import { decodeRenderedResources } from './rendered-resources';
 
 // Proof: removing the API union made all five independent kind/API negatives accept foreign/v1 in observability-source-render.test.ts.
 const API = ObservabilityResourceAPI.or({
@@ -33,13 +34,8 @@ const API = ObservabilityResourceAPI.or({
   // Proof: Task25a widening the PVC API to string admitted an apps/v1 native PVC.
   .or({ apiVersion: "'v1'", kind: "'PersistentVolumeClaim'" });
 const Resource = type({ metadata: { name: 'string>0', 'namespace?': 'string>0' } }).and(API);
-const List = type({ apiVersion: "'v1'", kind: "'List'", items: 'unknown[]', '+': 'reject' });
 const Map = type('Record<string,unknown>');
 export type ObservabilitySourceIndex = Record<string, Record<string, Record<string, unknown>>>;
-function flatten(input: unknown): unknown[] {
-  const identity = type({ kind: 'string' }).assert(input);
-  return identity.kind === 'List' ? List.assert(input).items.flatMap(flatten) : [input];
-}
 /** Independently reviewed API identities and namespace-qualified resources; unknown APIs never borrow an allowed basename. */
 export function indexObservabilitySource(
   rendered: Record<string, string>,
@@ -48,13 +44,7 @@ export function indexObservabilitySource(
   const global = new Set<string>();
   for (const [owner, source] of Object.entries(rendered)) {
     const resources: Record<string, Record<string, unknown>> = {};
-    const documents = parseAllDocuments(source).flatMap((document) => {
-      // Proof: removing YAML-error refusal admitted duplicate kind keys in the full index negative.
-      if (document.errors.length) throw new Error('Observability source malformed rendered YAML');
-      const manifest: unknown = document.toJSON();
-      return manifest === null ? [] : flatten(manifest);
-    });
-    for (const manifest of documents) {
+    for (const { manifest } of decodeRenderedResources(source)) {
       const identity = Resource.assert(manifest);
       const namespace =
         identity.metadata.namespace ??
