@@ -1497,3 +1497,61 @@ schema-refused when the raw-size guard is removed. All these observations use
 modeled read ports and preserved source copies; they establish no actual kernel,
 root caller, installed IPC or provider behavior. Repository integration of the new
 input/race cases and production proof comments remains pending.
+
+## Pinned Distribution tag permissions under the ordinary umask
+
+A separate local probe ran the exact pinned Distribution binary against two tiny
+owned repositories. Each real loopback listener was bound to its owned process
+through the kernel socket inode before requests were sent. Blob and manifest PUTs
+returned201 and produced the same71-byte digest links. With umask022, tag and
+revision links were0644; with077, both were0600. The original fixture's0644-only
+metadata condition rejects that second legitimate case. The production startup
+script already sets umask077; this probe did not execute that whole script.
+
+The probe used ordinary local directories and UID/GID1000, not the privileged
+maintenance topology. Both controlled server groups were terminal and absent, the
+exact fixture was independently absent, and allocation stayed below1MiB with the
+required root reserve. The initial sandbox socket denial happened before a server
+started; the same script then passed normal tool review and ran successfully.
+
+This supplies a concrete fixture counterexample, while HOST53's unobserved original
+exception remains unknown. The next candidate must accept only known safe original
+modes0600/0644, require the same mode at ready, restore that exact mode only after
+server/group termination and independently verify the physical restored mode.
+Local mode/drift/restoration negatives and packet review precede any new native run.
+Production permissions, writer fences and protected-content rules are unchanged.
+
+## Partial tag fixture mode correction and HOST54 review
+
+The private fault fixture now admits only original0600/0644, requires the same
+mode at ready and restores that exact original after confirmed server termination
+and group absence. Descriptor fstat verifies restoration; the controller separately
+checks its strict receipt and actual path lstat. Production startup and writer
+predicates are unchanged. HOST53's hidden original cause remains unknown.
+
+Affected tests passed73 tests/398 assertions, with library/spec typechecks and
+six-file formatting passing. Eight exact guard-removal or dependency faults each
+produced behavioral failures, including unsafe0666, ready-mode drift, no-op or
+widening restore, removed observation, receipt enum/equality and physical mode.
+Restored source differs from tested snapshots only by five adjacent proof comments.
+Full affected lint still fails92 errors; no asynchronous lifetime checks were
+removed to appease static flow analysis. Full Task8 validation remains required.
+
+Independent controller review verified71 current mode-evidence pins and146 prior
+diagnostic pins, using the preserved diagnostic snapshots for superseded mutable
+source paths. It reconstructed all mutation hashes and checked actual assertion
+failures, including the two corrected receiver tests whose initial harness masked
+acceptance. An independent261-module build is byte-identical to the frozen normal
+bundle db0162e8cb4995cb99a68eae186366f4db3154a7e58ca0f0f63a59c1646f9c99.
+All100 source pins, nine regular archive payloads, actual embedded helper and outer
+script matched. Exactly three private runtime source files changed from HOST53.
+
+The reviewed manifest415174bd0a649882d8f75af9dd07548e367e174c3220326e7215643fc8a09723
+is authorized for one isolated HOST54 rehearsal after fresh lock availability,
+pins and output-absence checks. The same896MiB aggregate storage envelope,21GiB
+preflight/20GiB remaining reserve, private namespaces and bounded lifetimes apply.
+This records preparation and review only: actual DELETE500 after revision unlink,
+unchanged tag bytes, pending deletion, failed fence, matching verified backup and
+protected-content verification still require native evidence. Source remains frozen
+through terminal execution and both independent cleanup audits. No production
+safeguard activation or full Task8 completion is established here.
