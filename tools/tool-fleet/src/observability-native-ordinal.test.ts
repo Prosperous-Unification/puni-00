@@ -550,7 +550,11 @@ test('claim concurrency metadata identifies each retained ordinal and template p
   expect(
     ledger.entries
       .filter((entry) => entry.kind === 'claim')
-      .map((entry) => [entry.concurrency.ordinal, entry.concurrency.phase, entry.source.pointer]),
+      .map((entry) => [
+        'ordinal' in entry.concurrency ? entry.concurrency.ordinal : undefined,
+        entry.concurrency.phase,
+        entry.source.pointer,
+      ]),
   ).toEqual([
     [0, 'immutable-source-ordinal', '/0/spec/volumeClaimTemplates/0'],
     [1, 'immutable-source-ordinal', '/0/spec/volumeClaimTemplates/0'],

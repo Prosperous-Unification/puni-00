@@ -215,7 +215,7 @@ function readClaimStorage(input: unknown): string {
   if (amount <= 0) throw new Error('Rehearsal claim storage differs');
   return storage;
 }
-interface ImageReference {
+export interface ImageReference {
   pointer: string;
   name: string;
   image: string;
@@ -226,7 +226,7 @@ interface ImageReference {
   requestSource: 'absent' | 'null' | 'map';
   limitSource: 'absent' | 'null' | 'map';
 }
-interface ClaimReference {
+export interface ClaimReference {
   pointer: string;
   kind: 'reference' | 'template' | 'claim';
   name: string;
