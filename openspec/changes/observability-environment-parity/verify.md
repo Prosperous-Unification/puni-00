@@ -1963,3 +1963,29 @@ The six native roles lacking resource maps remain concrete unresolved request/li
 The receipt remains `runnableClosure:incomplete`, `creationAuthority:false`, `runtimeRehearsal:false`, `transportObserved:not-evaluated`. This does not relabel the existing authenticated source-binding implementation or change legacy receipt fields. No Pod/UID/Ready/Bound/cgroup or host observation was fabricated.
 
 Full Fleet/Nx gates, old broad render/fault matrices, old archive probes, backend/browser/runtime/transport/host gates and CI replay were intentionally not run. No Docker/build/import/OCI extraction, target mutation, publication, store or secret action occurred; only the explicitly required verified Helm member was privately extracted. Parent owns CI/publication and the separate preflight test-hermeticity finding. Full-goal floors, stores, actual signals/views/history and dev cutover remain open.
+
+### Task25c2a fix1 — preserve individual null quantity maps
+
+I1 is fixed in source `f135ae2c0e1ac9d9f2225779f70757313e234d04` with the test-only readonly-expectation correction `ad987d36173b846b1064570520a034bac012b901`, from FIXBASE `46a4e6a65e8a88ed29f372f0ac03711600515347`. Each request/limit map now retains `absent | null | map` independently. The inventory adapter validates its outer map, sends only supplied non-null maps to the unchanged strict `assertPodResources`, emits only actual quantity maps, and names null/missing declarations as unresolved. No legacy schema, default map/cap, quantity decoder, value, pin or CI policy changed. The shared validator is byte-identical to FIXBASE.
+
+Source-first RED: 5 null-state cases failed,11 controls passed,629ms. Final focused selection: **33 pass/0 fail,62 assertions,671ms** (0.69s process), covering18 new I1 cases plus15 related native/shared-boundary controls. The first scoped typecheck found two test-only readonly-array overload errors; copying the literal expected arrays corrected them. Restored typecheck exited0 in1.81s; scoped ESLint exited0 in4.36s; formatting exited0 in0.40s. Normal source commit processes passed in3.84s and3.21s.
+
+```bash
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-rehearsal-inventory.test.ts --test-name-pattern 'fix1 |native resource .* refuses|nullable native resources|actual native request and limit|existing shared resource boundary'
+python3 /tmp/puni-task25c2a-fix1/proofs.py
+bunx tsc --build --force tools/tool-fleet/tsconfig.json
+bunx eslint tools/tool-fleet/src/observability-rehearsal-inventory.ts tools/tool-fleet/src/observability-rehearsal-inventory.test.ts
+bunx prettier --check tools/tool-fleet/src/observability-rehearsal-inventory.ts tools/tool-fleet/src/observability-rehearsal-inventory.test.ts
+bun /tmp/puni-task25c2a-evidence/final-source-core-control.ts
+```
+
+R5: **8/8 new narrow faults caught and restored,6.108s**: request-null-selection, limit-null-selection, request-null-state, limit-null-state, null-map-obligation, outer-map-kind, supplied-map-validation and no-fabricated-request-map. Each produced the intended focused test assertion failure; adjacent `Proof:` comments identify the observed dependency. [Exact fault commands/results/timings](/tmp/puni-task25c2a-fix1/proofs.json), [RED](/tmp/puni-task25c2a-fix1/red.log), [restored focused output](/tmp/puni-task25c2a-fix1/focused-restored.log).
+
+The committed **ad987** adapter's retained-input control matched every frozen **d93** public-entry fact:364 objects/84 unresolved,2.17214s fold/2.74s process. This is a changed-core equality control, not a new public entry. The d93 actual public-entry receipt remains the only claimed full-entry positive. [Control output](/tmp/puni-task25c2a-fix1/captured-control.log), [source identities](/tmp/puni-task25c2a-fix1/source-hashes.json).
+
+| Changed source/test file                                         | SHA256 at ad987                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `tools/tool-fleet/src/observability-rehearsal-inventory.ts`      | `d485bb71eeb6c33303c3239e1ad67bb3145e1c210aca4c96560e4ce3b4047d6f` |
+| `tools/tool-fleet/src/observability-rehearsal-inventory.test.ts` | `6385720f4b946f624f38be7fe4b830fd1fb16812bd5383d7add2fde7b4e4278b` |
+
+The original73-case suite/48-fault batch, chart renders, public entry and broader runtime/host/CI gates were not replayed. No large captures were copied. Scope stayed I1 plus its fixture type correction; all prior unresolved/runtime/admission limits and canonical4/11 remain unchanged. Root owns scoped fix review.
