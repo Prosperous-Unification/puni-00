@@ -1555,3 +1555,38 @@ unchanged tag bytes, pending deletion, failed fence, matching verified backup an
 protected-content verification still require native evidence. Source remains frozen
 through terminal execution and both independent cleanup audits. No production
 safeguard activation or full Task8 completion is established here.
+
+## Native partial tag-deletion failure and cleanup verified
+
+HOST54 returned0 without timeout in94.896seconds. Its complete HTTP observation
+contains the actual manifest DELETE500. The expired revision link was absent,
+while the original dangling tag bytes remained. The root fixture observed an actual
+UID59001 server, its exited137/SIGKILL settlement and exact group absence before
+restoring the original0600 mode. Descriptor and independent path checks both
+confirmed0600. The controller required a pending deletion, no completed retirement,
+no GC, a durable failed fence and matching verified backup. A fresh read-only
+server returned200 with the expected hashes for every protected index manifest
+and blob. The classifier's generic stage label is not used as phase evidence.
+
+This run used actual managed publications and explicit index protection with
+modeled Kubernetes/readers/provider admission and retirement-only clock advancement
+of eight days. It proves neither deployed environment history, real elapsed grace,
+uncached Docker pulls, strict partial-state census nor successful recovery. HOST53's
+unobserved original exception remains unknown.
+
+Normal teardown unmounted private cgroup before proc and the root mount last,
+detached all four exact loops, removed the owned fixture and released the canonical
+lock. All178 periodic host root/cgroup comparisons and final host/UTS comparisons
+matched. Both independent read-only cleanup audits returned0 with empty stderr.
+The worker scanned all process mount views and its queue label; the controller
+independently checked namespace/path descriptors, backing references, its mount
+view and the three outside PID/start identities. Both found the exact fixture,
+three private namespaces and owned lock record absent with115064688640 bytes of
+host reserve. The full100-source/nine-payload packet still matched at closure.
+
+The controller independently read the full raw result and both audit outputs and
+verified all worker receipt pins and its embedded remote audit. The source freeze
+is released for the next local strict partial-census/recovery slice. This closes
+only the scoped failure witness; successful recovery, GC/restore process kills,
+physical registry ENOSPC with healthy journal, installed continuation, complete
+R5 bindings, lint and all remaining Task8/9–11 validation/activation remain required.
