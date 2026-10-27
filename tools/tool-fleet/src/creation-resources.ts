@@ -12,6 +12,7 @@ import {
   syncDirectory,
 } from './creation-journal';
 import { CreationClosure, CreationEvent, CreationPlan } from './k3d-creation';
+import { ObjectStoreArchiveSchema } from './object-store-archive';
 
 const digest = /^[a-f0-9]{64}$/;
 const filename = /^[a-z][a-z0-9-]{0,127}\.json$/;
@@ -26,6 +27,14 @@ const recordSchemas: Readonly<Record<string, (input: unknown) => unknown>> = {
   network: type({ id: digest, '+': 'reject' }),
   inputs: type({
     schemaVersion: '1',
+    'objectStore?': {
+      sourceRevision: /^[a-f0-9]{40}$/,
+      toolchainSha256: digest,
+      buildLockSha256: digest,
+      // Proof: Widening this field to unknown persisted a malformed private archive receipt; Task21 evidence negative failed.
+      archive: ObjectStoreArchiveSchema,
+      '+': 'reject',
+    },
     configs: type({ name: 'string', sha256: digest, '+': 'reject' }).array(),
     tools: { k3d: digest, kubectl: digest, '+': 'reject' },
     images: type({

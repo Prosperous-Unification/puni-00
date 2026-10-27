@@ -6,14 +6,24 @@ import { scratchAsync } from '@tools/test-scratch';
 import { type } from 'arktype';
 import { expect, it } from 'bun:test';
 
+import { archiveFixture } from './object-store-archive.fixture.test';
+
 const root = join(import.meta.dir, '../../..');
 
-async function fixture(fault = '') {
+async function fixture(fault = '', platform = false) {
   const directory = await scratchAsync('k3d-resource-caller-');
   await mkdir(join(directory, 'bin'));
-  for (const path of ['infra/versions', 'infra/local'])
+  for (const path of [
+    'infra/versions',
+    'infra/local',
+    ...(platform ? ['infra/platform/flux'] : []),
+  ])
     await mkdir(join(directory, path), { recursive: true });
-  for (const path of ['infra/versions/toolchain.json', 'infra/local/platform.k3d.yaml'])
+  for (const path of [
+    'infra/versions/toolchain.json',
+    'infra/local/platform.k3d.yaml',
+    ...(platform ? ['infra/versions/object-store.json', 'infra/platform/flux/install.yaml'] : []),
+  ])
     await copyFile(join(root, path), join(directory, path));
   expect(Bun.spawnSync(['git', 'init', '-q', directory]).exitCode).toBe(0);
   await writeFile(join(directory, '.gitignore'), '.puni/\n');
@@ -69,7 +79,7 @@ if (tool === 'k3d') {
  throw Error('unexpected k3d command');
 }
 if (process.env.DOCKER_CONTEXT || !['unix:///run/docker.sock','unix://'+directory+'/alternate.sock'].includes(process.env.DOCKER_HOST)) throw Error('unbound Docker endpoint');
-if(argv[0]==='info') {console.log('daemon-1');process.exit(0);}
+if(argv[0]==='info') {console.log(fault==='import-daemon'&&state.containers.length>1?'foreign-daemon':'daemon-1');process.exit(0);}
 if(argv[0]==='events') {
  let offset=0;
  const poll=()=>{if(fault==='stream-disconnect'&&existsSync(directory+'/creator-started'))process.exit(0);const bytes=readFileSync(directory+'/events','utf8');process.stdout.write(bytes.slice(offset));offset=bytes.length;};poll();setInterval(poll,2);
@@ -89,16 +99,35 @@ if(argv[0]==='events') {
  if(fault==='reused-cache') {const parent=directory+'/.puni/fleet-labs/k3d';const lab=readdirSync(parent).find(name=>/^c[0-9a-f]{15}$/.test(name));console.log('k3d-puni-'+lab+'-platform-images');}
  console.log(state.volumes.join('\\n'));
 } else if(argv[0]==='network'&&argv[1]==='create') {
+ if(fault==='archive-original-changed')writeFileSync(directory+'/source.oci','replaced original after capture');
+ if(fault==='archive-retained-changed') {
+  const parent=directory+'/.puni/fleet-labs/k3d';const lab=readdirSync(parent).find(name=>/^c[0-9a-f]{15}$/.test(name));
+  const path=parent+'/'+lab+'/object-store/image.oci';require('node:fs').chmodSync(path,0o600);writeFileSync(path,Buffer.alloc(readFileSync(path).length));
+ }
+ if(fault==='import-retained-lock') {
+  const path=directory+'/infra/versions/toolchain.json';const chain=JSON.parse(readFileSync(path,'utf8'));chain.runtimeImages.objectStore.digest='sha256:'+id('9');writeFileSync(path,JSON.stringify(chain));
+ }
  state.network=argv.at(-1);save();if(fault!=='missing-handshake')event('network','create',id('a'),{name:state.network});console.log(id('a'));
 } else if(argv[0]==='run') {
  const volume=id('f');addVolume(volume);addContainer(argv[argv.indexOf('--name')+1],id('1'),argv.at(-1),[mount(volume,'/var/lib/registry')]);console.log(id('1'));
 } else if(argv[0]==='image'&&argv[1]==='inspect') {project({'.Id':'sha256:'+id('e'),'(index .Config "Volumes")':fault==='temporary-anonymous'?{'/private-store':{}}:null});
 } else if(argv[0]==='port') {console.log('5000/tcp -> 127.0.0.1:40000');
-} else if(argv[0]==='container'&&argv[1]==='inspect') {const found=state.containers.find(entry=>entry.id===argv[2]);project({'.Id':found.id,'.Name':found.name,'.Image':found.image,'.Config.Image':found.configuredImage,'.NetworkSettings.Networks':found.networks,'.Mounts':found.mounts,'.State.Running':false,'.State.ExitCode':0});
+} else if(argv[0]==='container'&&argv[1]==='inspect') {const found=state.containers.find(entry=>entry.id===argv[2]);project({'.Id':found.id,'.Name':fault==='import-name'?'/foreign':found.name,'.Image':found.image,'.Config.Image':fault==='import-image'?'foreign:release':found.configuredImage,'.NetworkSettings.Networks':fault==='import-network'?{foreign:{NetworkID:id('9')}}:found.networks,'.Mounts':found.mounts,'.State.Running':false,'.State.ExitCode':0});
 } else if(argv[0]==='network'&&argv[1]==='inspect') {
  project({'.Id':id('a'),'.Name':state.network,'.Containers':Object.fromEntries(state.containers.map(entry=>[entry.id,{}]))});
 } else if(argv[0]==='volume'&&argv[1]==='inspect') {
  project({'.Name':argv[2],'.Driver':'local','.Mountpoint':(existsSync(directory+'/volume-locator')?'/replaced/':'/volumes/')+argv[2],'.CreatedAt':'2026-10-27T00:00:00Z'});
+} else if(argv[0]==='exec') {
+ const expected=JSON.parse(readFileSync(directory+'/infra/versions/toolchain.json','utf8')).runtimeImages.objectStore;
+ if(argv.includes('import')) {
+  if(argv[2]!==id('b'))throw Error('IMPORT_NOT_CREATOR_ID');
+  const bytes=readFileSync(0);writeFileSync(directory+'/imported.oci',bytes);
+  if(fault==='import-exit')process.exit(42);
+ } else if(argv.includes('ls')) {
+  const reference=argv.at(-1).replace('name==','');
+  console.log('REF TYPE DIGEST SIZE');
+  if(fault!=='import-missing-source')console.log(reference+' manifest '+(fault==='import-source'||(fault==='import-alias'&&reference.includes('@'))?'sha256:'+id('9'):expected.digest)+' 1MiB');
+ }
 } else if(argv[0]==='stop') {
 } else if(argv[0]==='rm') {
  if(argv.some(arg=>arg==='--volumes'||arg==='-v'))throw Error('FORBIDDEN_VOLUME_REMOVAL');
@@ -116,14 +145,47 @@ if(argv[0]==='events') {
   const sha256 = createHash('sha256').update(program).digest('hex');
   lock.binaries.k3d.sha256 = sha256;
   lock.binaries.kubectl.sha256 = sha256;
+  if (platform) {
+    const archive = archiveFixture(fault.replace(/^archive-/, ''));
+    const chain = type({
+      runtimeImages: { objectStore: { name: 'string', digest: 'string' } },
+    }).assert(lock);
+    chain.runtimeImages.objectStore.name = archive.lock.image;
+    chain.runtimeImages.objectStore.digest = archive.lock.digest;
+    await writeFile(join(directory, 'source.oci'), archive.bytes);
+    if (fault === 'archive-absent') await rm(join(directory, 'source.oci'));
+    if (fault === 'archive-unreadable') await chmod(join(directory, 'source.oci'), 0);
+  }
   await writeFile(join(directory, 'infra/versions/toolchain.json'), JSON.stringify(lock));
+  if (platform) {
+    expect(Bun.spawnSync(['git', '-C', directory, 'add', 'infra/versions']).exitCode).toBe(0);
+    expect(
+      Bun.spawnSync([
+        'git',
+        '-C',
+        directory,
+        '-c',
+        'user.name=Fixture',
+        '-c',
+        'user.email=fixture@example.invalid',
+        'commit',
+        '-qm',
+        'fixture',
+      ]).exitCode,
+    ).toBe(0);
+  }
+  if (platform && fault === 'changed-lock')
+    await writeFile(
+      join(directory, 'infra/versions/object-store.json'),
+      (await readFile(join(directory, 'infra/versions/object-store.json'), 'utf8')) + '\n',
+    );
   if (fault === 'wrong-tool') await writeFile(join(directory, 'bin', 'k3d'), `${program}\n`);
   const invoke = async (arguments_: string[], endpoint = 'unix:///run/docker.sock') => {
     const child = Bun.spawn(
       [
         process.execPath,
         '--eval',
-        `import { runLab } from ${JSON.stringify(join(root, 'tools/tool-fleet/src/k3d-lab.ts'))};await runLab(${JSON.stringify(arguments_)},${JSON.stringify(directory)},async()=>({availableMemoryMiB:4096,freeDiskMiB:12288}));`,
+        `import { runLab } from ${JSON.stringify(join(root, 'tools/tool-fleet/src/k3d-lab.ts'))};await runLab(${JSON.stringify(arguments_)},${JSON.stringify(directory)},async()=>({availableMemoryMiB:${platform ? '16384' : '4096'},freeDiskMiB:${platform ? '40960' : '12288'}}));`,
       ],
       {
         env: {
@@ -150,7 +212,8 @@ if(argv[0]==='events') {
     invoke([
       'up',
       '--profile',
-      'app',
+      platform ? 'platform' : 'app',
+      ...(platform ? ['--object-store-archive', join(directory, 'source.oci')] : []),
       '--worktree-root',
       directory,
       '--resource-evidence',
@@ -360,3 +423,91 @@ for (const fault of [
     for (const mutation of ['kill', 'stop', 'rm', 'delete'])
       expect(calls).not.toContain(JSON.stringify(mutation));
   });
+
+it('Task21 strict platform caller freezes and imports without Buildx through creator IDs', async () => {
+  const lab = await fixture('', true);
+  const execution = await lab.up();
+  expect(execution).toMatchObject({ exit: 0, stderr: '' });
+  expect(execution.stderr).toBe('');
+  const labId = await lab.labId();
+  const frozen = await readFile(
+    join(lab.directory, '.puni/fleet-labs/k3d', labId, 'object-store/image.oci'),
+  );
+  expect((await readFile(join(lab.directory, 'imported.oci'))).equals(frozen)).toBe(true);
+  const commands = await readFile(join(lab.directory, 'calls'), 'utf8');
+  expect(commands).not.toContain('buildx');
+  expect(commands).not.toContain('image","import');
+  expect(commands).toContain('exec","-i","' + 'b'.repeat(64));
+});
+
+for (const fault of [
+  'archive-absent',
+  'archive-unreadable',
+  'changed-lock',
+  'archive-manifest',
+  'archive-config',
+  'archive-layer',
+  'archive-duplicate',
+  'archive-unsafe',
+  'archive-platform',
+  'archive-size',
+  'archive-reference',
+  'archive-docker-reference',
+  'archive-symlink',
+  'archive-json',
+]) {
+  it(`Task21 strict platform refuses ${fault} before first Docker creation`, async () => {
+    const lab = await fixture(fault, true);
+    const execution = await lab.up();
+    expect(execution.exit).not.toBe(0);
+    const commands = await readFile(join(lab.directory, 'calls'), 'utf8');
+    expect(commands).not.toContain('network","create');
+    expect(commands).not.toContain('cluster","create');
+    expect(commands).not.toContain('"run"');
+    expect(commands).not.toContain('"exec"');
+    expect(commands).not.toContain('buildx');
+  });
+}
+for (const fault of [
+  'archive-retained-changed',
+  'import-retained-lock',
+  'import-name',
+  'import-image',
+  'import-network',
+  'import-daemon',
+  'import-exit',
+  'import-source',
+  'import-alias',
+  'import-missing-source',
+]) {
+  it(`Task21 strict platform refuses ${fault} before Flux`, async () => {
+    const lab = await fixture(fault, true);
+    const execution = await lab.up();
+    expect(execution.exit).not.toBe(0);
+    const commands = await readFile(join(lab.directory, 'calls'), 'utf8');
+    expect(commands).not.toContain('infra/platform/flux/install.yaml');
+    expect(commands).not.toContain('buildx');
+    if (
+      [
+        'archive-retained-changed',
+        'import-retained-lock',
+        'import-name',
+        'import-image',
+        'import-network',
+        'import-daemon',
+      ].includes(fault)
+    )
+      expect(commands).not.toContain('"exec"');
+  });
+}
+
+it('Task21 original-path mutation after capture cannot substitute imported bytes', async () => {
+  const lab = await fixture('archive-original-changed', true);
+  const execution = await lab.up();
+  expect(execution).toMatchObject({ exit: 0, stderr: '' });
+  const imported = await readFile(join(lab.directory, 'imported.oci'));
+  expect(imported.equals(archiveFixture().bytes)).toBe(true);
+  expect(await readFile(join(lab.directory, 'source.oci'), 'utf8')).toBe(
+    'replaced original after capture',
+  );
+});

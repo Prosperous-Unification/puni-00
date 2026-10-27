@@ -85,3 +85,24 @@ it('refuses a sealed inventory until its creating journal becomes ready', async 
   const digest = await sealResources(path);
   await rejects(readResources(directory, identity, digest), /partial/);
 });
+
+it('Task21 rejects malformed or private archive input evidence before persistence', async () => {
+  const { directory, path } = await fixture();
+  await reserveResources(directory, identity);
+  await rejects(
+    appendResource(path, 'inputs', {
+      schemaVersion: 1,
+      configs: [],
+      tools: { k3d: 'a'.repeat(64), kubectl: 'a'.repeat(64) },
+      images: [],
+      objectStore: {
+        sourceRevision: 'b'.repeat(40),
+        toolchainSha256: 'a'.repeat(64),
+        buildLockSha256: 'a'.repeat(64),
+        archive: { path: '/owned/image.oci', privateToken: 'PRIVATE_TOKEN_SENTINEL' },
+      },
+    }),
+    /Malformed/,
+  );
+  await rejects(readFile(join(path, 'inputs.json')), /ENOENT/);
+});

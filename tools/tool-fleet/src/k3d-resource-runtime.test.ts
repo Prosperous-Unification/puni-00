@@ -86,3 +86,78 @@ it('records an explicit forced stop only after its bounded graceful stop fails t
   });
   expect(running).toBe(false);
 });
+
+for (const fault of ['missing', 'name', 'image', 'network', 'extra-network', 'none']) {
+  it(`Task21 import lookup ${fault === 'none' ? 'returns the exact captured node ID' : `refuses ${fault} creator evidence`}`, async () => {
+    const directory = await scratchAsync('object-store-node-');
+    const identity = {
+      labId: 'c123456789abcdef',
+      attemptId: '11111111-1111-4111-8111-111111111111',
+      daemonId: 'daemon-1',
+    };
+    await createCreationAttempt(directory, identity);
+    const plan = {
+      endpoint: 'unix:///run/docker.sock',
+      daemonId: 'daemon-1',
+      profile: 'platform' as const,
+      network: 'network',
+      binds: [],
+      expected: [
+        { name: 'server', image: 'locked:node', role: 'server' as const, temporary: false },
+      ],
+    };
+    const docker = (arguments_: readonly string[]) =>
+      Promise.resolve(
+        arguments_[0] === 'info'
+          ? 'daemon-1'
+          : JSON.stringify({
+              id: 'b'.repeat(64),
+              name: fault === 'name' ? '/foreign' : '/server',
+              image: `sha256:${'e'.repeat(64)}`,
+              configuredImage: fault === 'image' ? 'foreign:node' : 'locked:node',
+              networks: {
+                lab: { NetworkID: fault === 'network' ? '9'.repeat(64) : 'a'.repeat(64) },
+                ...(fault === 'extra-network' ? { extra: { NetworkID: 'a'.repeat(64) } } : {}),
+              },
+              mounts: [],
+            }),
+      );
+    const event = {
+      kind: 'network',
+      action: 'create',
+      id: 'a'.repeat(64),
+      time: '1',
+      name: 'network',
+      container: '',
+      destination: '',
+      driver: '',
+      image: '',
+    };
+    const witness = await createResourceWitness(directory, directory, identity, plan, docker, [
+      process.execPath,
+      '-e',
+      `console.log(${JSON.stringify(JSON.stringify(event))});setInterval(()=>{},1000)`,
+    ]);
+    try {
+      await witness.acceptNetwork('a'.repeat(64), 1000);
+      if (fault !== 'missing')
+        await witness.capture(
+          [
+            process.execPath,
+            '-e',
+            `console.log('time="2026-10-27T00:00:00Z" level=debug msg="Created container server (ID: ${'b'.repeat(64)})"')`,
+          ],
+          ['server'],
+          {},
+        );
+      if (fault === 'none') expect(await witness.requireNode('server')).toBe('b'.repeat(64));
+      else
+        await rejects(
+          witness.requireNode('server'),
+          fault === 'missing' ? /in-progress creator/ : /creator observation/,
+        );
+    } finally {
+      await witness.stop();
+    }
+  });
+}

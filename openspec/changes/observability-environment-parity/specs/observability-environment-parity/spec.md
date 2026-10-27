@@ -142,3 +142,23 @@ The strict rehearsal path SHALL retain actual creator-returned container/network
 - **WHEN** a recorded attempt is torn down within its cooperative ownership boundary
 - **THEN** the existing runner verifies daemon, exact container/network identities and attachments, removes only those recorded targets and retains volumes and private evidence
 - **AND** missing/edited evidence, replacement or foreign attachments refuses the strict path without falling back to legacy teardown
+
+### Requirement: Strict bootstrap consumes a verified retained artifact
+
+The strict full-rehearsal path SHALL require an explicit prebuilt object-store archive and validate its bounded complete import identity against the committed lock before creating Docker resources. It MUST retain and import the same verified bytes on exact owned nodes of the captured daemon without an implicit image build. Ordinary legacy build behavior remains explicit; the app profile requires no object-store archive. Artifact availability MUST NOT replace full capacity or runtime acceptance.
+
+#### Scenario: A locked archive is reused
+
+- **WHEN** a strict non-app attempt receives a complete valid archive for the locked object-store image
+- **THEN** its retained bytes, manifest, config, ordered layers, sizes, platform and import references agree before creation and bootstrap imports those retained bytes without Buildx activity
+- **AND** imported source and digest-alias targets still match the lock on exact owned nodes
+
+#### Scenario: An unsafe archive refuses before creation
+
+- **WHEN** the required archive is missing, unreadable, malformed, unsafe, duplicated or conflicts with a locked identity, size, platform or import reference
+- **THEN** the production lab path refuses before Docker resource creation without rebuilding or silently selecting another artifact
+
+#### Scenario: The original path changes after capture
+
+- **WHEN** original archive bytes change after successful private capture
+- **THEN** bootstrap consumes only the retained verified bytes and their receipt, preserving the original source distinction and all existing ownership checks

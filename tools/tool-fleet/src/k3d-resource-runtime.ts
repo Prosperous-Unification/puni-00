@@ -271,6 +271,33 @@ export async function createResourceWitness(
       );
       witness.check();
     },
+    /** Resolve only in-progress creator evidence, rechecking daemon and safe node projection before import. */
+    async requireNode(name: string): Promise<string> {
+      witness.check();
+      // Proof: Omitting this import-boundary recheck reached Flux on another daemon; import-daemon caller failed.
+      await requireCapturedDaemon(identity.daemonId, docker);
+      const expected = plan.expected.find(
+        (candidate) =>
+          candidate.name === name &&
+          !candidate.temporary &&
+          (candidate.role === 'server' || candidate.role === 'agent'),
+      );
+      const creator = creators.find((candidate) => candidate.name === name);
+      if (expected === undefined || creator === undefined || networkId === undefined)
+        // Proof: Removing creator refusal lost the explicit missing-ownership outcome; missing-creator lookup negative failed.
+        throw new Error('Object store node has no in-progress creator ownership');
+      const observation = await inspectCreatedContainer(creator.id, docker);
+      if (
+        observation.name !== expected.name ||
+        observation.configuredImage !== expected.image ||
+        observation.networkIds.length !== 1 ||
+        observation.networkIds[0] !== networkId
+      )
+        // Proof: Removing observation comparison accepted another name; creator-name lookup negative failed.
+        throw new Error('Object store node creator observation changed');
+      witness.check();
+      return creator.id;
+    },
     check: witness.check,
     stop: () => witness.stop(),
     async close() {

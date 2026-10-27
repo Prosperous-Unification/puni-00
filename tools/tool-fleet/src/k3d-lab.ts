@@ -11,7 +11,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { createServer } from 'node:net';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { type } from 'arktype';
 
@@ -32,7 +32,13 @@ import {
   requireCapturedDaemon,
   stopRecordedContainer,
 } from './k3d-resource-runtime';
-import { buildObjectStore, importObjectStore, readObjectStoreLock } from './object-store-image';
+import { captureObjectStoreArchive, type ObjectStoreArchive } from './object-store-archive';
+import {
+  buildObjectStore,
+  importObjectStore,
+  type ObjectStoreCommand,
+  readObjectStoreLock,
+} from './object-store-image';
 
 export { type K3dLabNames, labNamesOf } from './k3d-lab-names';
 
@@ -47,6 +53,7 @@ export interface K3dLabRequest {
   readonly worktreeRoot?: string;
   readonly solverRuntime?: string;
   readonly resourceEvidence?: 'creation-v1';
+  readonly objectStoreArchive?: string;
 }
 
 /**
@@ -195,9 +202,14 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
     const flag = arguments_.at(position);
     if (
       flag === undefined ||
-      !['--id', '--profile', '--worktree-root', '--solver-runtime', '--resource-evidence'].includes(
-        flag,
-      )
+      ![
+        '--id',
+        '--profile',
+        '--worktree-root',
+        '--solver-runtime',
+        '--resource-evidence',
+        '--object-store-archive',
+      ].includes(flag)
     ) {
       throw new Error(`Unexpected k3d lab argument: ${flag ?? 'missing'}`);
     }
@@ -237,6 +249,14 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
   if (action !== 'up' && (worktreeRoot !== undefined || solverRuntime !== undefined)) {
     throw new Error(`k3d lab ${action} does not accept mount flags`);
   }
+  const objectStoreArchive = flags.get('--object-store-archive');
+  const needsArchive = action === 'up' && profile !== 'app' && resourceEvidence === 'creation-v1';
+  if (needsArchive && objectStoreArchive === undefined)
+    // Proof: Removing the required-input guard accepted strict non-app up without an archive; request negative failed.
+    throw new Error('Strict non-app up requires --object-store-archive');
+  if (objectStoreArchive !== undefined && (!needsArchive || !isAbsolute(objectStoreArchive)))
+    // Proof: Removing scope/path validation accepted a relative archive; request negative failed.
+    throw new Error('--object-store-archive requires strict non-app up and an absolute path');
   return {
     action,
     labId,
@@ -244,6 +264,7 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
     ...(worktreeRoot === undefined ? {} : { worktreeRoot: resolve(worktreeRoot) }),
     ...(solverRuntime === undefined ? {} : { solverRuntime: resolve(solverRuntime) }),
     ...(resourceEvidence === undefined ? {} : { resourceEvidence }),
+    ...(objectStoreArchive === undefined ? {} : { objectStoreArchive }),
   };
 }
 
@@ -640,10 +661,15 @@ async function bootstrapCluster(
   }
 }
 
+interface ObjectStorePreparation {
+  readonly archive: ObjectStoreArchive;
+  readonly requireNode: (name: string) => Promise<string>;
+}
+
 /**
  * Prepare authenticated local object storage before any Flux controller can schedule consumers.
- * Both platform and fleet profiles pass their clusters here; the app profile needs no
- * object store. Preparation refusal propagates before bootstrap and ordinary up teardown runs.
+ * Strict non-app up supplies a retained archive and in-progress creator lookup. Ordinary callers
+ * build explicitly; the app profile needs no object store. Existing injection slots stay stable.
  * @throws When the source lock, build or per-node digest distribution fails.
  */
 export async function bootstrapLab(
@@ -654,9 +680,10 @@ export async function bootstrapLab(
   flux: boolean,
   prepare: typeof preparePlatformObjectStore = preparePlatformObjectStore,
   bootstrap: typeof bootstrapCluster = bootstrapCluster,
+  prebuilt?: ObjectStorePreparation,
 ): Promise<void> {
   // Proof: absent/wrong-digest and failed-import caller negatives bootstrapped Flux when this prerequisite was removed.
-  if (flux) await prepare(root, tools, clusters);
+  if (flux) await prepare(root, tools, clusters, prebuilt);
   for (const cluster of clusters) await bootstrap(root, tools, labId, cluster, flux);
 }
 
@@ -664,6 +691,7 @@ async function preparePlatformObjectStore(
   root: string,
   tools: LabTools,
   clusters: K3dLabRecord['clusters'],
+  prebuilt?: ObjectStorePreparation,
 ): Promise<void> {
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   const lock = await readObjectStoreLock(
@@ -671,18 +699,21 @@ async function preparePlatformObjectStore(
     toolchain.runtimeImages.objectStore,
   );
   const bound = dockerEnvironment.getStore();
-  const execute =
-    bound === undefined
-      ? undefined
-      : (command: readonly string[]) => {
-          if (command[0] === 'docker' && command[1] === 'buildx' && command[2] === 'create')
-            throw new Error('Strict lab requires an existing locked image builder');
-          return Bun.spawnSync([...command], { env: bound });
-        };
-  const archive = await buildObjectStore(root, lock, execute);
+  const execute: ObjectStoreCommand = (command, input) =>
+    Bun.spawnSync([...command], { env: bound, stdin: input });
+  if (bound !== undefined && prebuilt === undefined)
+    // Proof: Removing this guard attempted the fake builder instead of refusing missing handoff; direct-bootstrap negative failed.
+    throw new Error('Strict object store preparation requires its retained archive');
+  // Proof: Forcing buildObjectStore on the archive path failed the existing strict platform caller positive.
+  const archive =
+    prebuilt === undefined ? await buildObjectStore(root, lock, execute) : prebuilt.archive.path;
   for (const cluster of clusters) {
     for (const node of objectStoreNodes(cluster)) {
-      importObjectStore(archive, lock, cluster.name, node, tools.k3d, execute);
+      const owned =
+        prebuilt === undefined
+          ? undefined
+          : { archive: prebuilt.archive, nodeId: await prebuilt.requireNode(node) };
+      importObjectStore(archive, lock, cluster.name, node, tools.k3d, execute, owned);
     }
     if (cluster.role === 'platform') {
       const identity = await createBackupIdentity(join(dirname(cluster.kubeconfig), 'backup-tls'));
@@ -741,6 +772,28 @@ async function waitForBundledIngress(
     '--namespace=kube-system',
     `--timeout=${String(Math.max(1, Math.ceil((deadline - Date.now()) / 1000)))}s`,
   ]);
+}
+
+/** Bind the archive to the actual committed image/build locks; Git and OCI identities stay distinct. */
+async function captureLabObjectStore(root: string, state: string, source: string) {
+  const sourceRevision = (await run('git', ['-C', root, 'rev-parse', 'HEAD'])).trim();
+  const requireCommittedLock = async (path: string): Promise<string> => {
+    const committed = await run('git', ['-C', root, 'show', `${sourceRevision}:${path}`]);
+    const current = await readFile(join(root, path), 'utf8');
+    if (current !== committed)
+      // Proof: Removing lock comparison allowed the edited build lock through creation; changed-lock caller failed.
+      throw new Error('Object store archive requires unchanged committed source locks');
+    return hashResource(Buffer.from(current));
+  };
+  const toolchainSha256 = await requireCommittedLock('infra/versions/toolchain.json');
+  const buildLockSha256 = await requireCommittedLock('infra/versions/object-store.json');
+  const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+  const lock = await readObjectStoreLock(
+    join(root, 'infra/versions/object-store.json'),
+    toolchain.runtimeImages.objectStore,
+  );
+  const archive = await captureObjectStoreArchive(source, state, lock);
+  return { sourceRevision, toolchainSha256, buildLockSha256, archive };
 }
 
 async function upLab(
@@ -928,6 +981,10 @@ async function upLab(
   try {
     const announcement = await executeCreationAttempt(attempts, identity, async () => {
       const started = Date.now();
+      const objectStore =
+        request.objectStoreArchive === undefined
+          ? undefined
+          : await captureLabObjectStore(root, state, request.objectStoreArchive);
       const witness =
         plan === undefined
           ? undefined
@@ -941,6 +998,7 @@ async function upLab(
           );
           await appendResource(witness.path, 'inputs', {
             schemaVersion: 1,
+            ...(objectStore === undefined ? {} : { objectStore }),
             images,
             configs: await Promise.all(
               planned.map(async (cluster) => ({
@@ -1045,7 +1103,18 @@ async function upLab(
             apiPort,
           });
         }
-        await bootstrapLab(root, tools, request.labId, clusters, profile.flux);
+        await bootstrapLab(
+          root,
+          tools,
+          request.labId,
+          clusters,
+          profile.flux,
+          undefined,
+          undefined,
+          objectStore === undefined || witness === undefined
+            ? undefined
+            : { archive: objectStore.archive, requireNode: (name) => witness.requireNode(name) },
+        );
         const record: K3dLabRecord = {
           schemaVersion: 1,
           labId: request.labId,
