@@ -201,3 +201,36 @@ test('bootstrap original policy collector refuses escaped relocation references'
   const collector = createRehearsalCollector(selected.exported, new Map());
   await rejects(collectRehearsalBootstrap(collector), /escapes source/);
 });
+
+test('native topology companion retains bootstrap bytes and original coordinates independently of caller mutation', async () => {
+  const selected = await fixture();
+  const bootstrap = await readRehearsalBootstrap(selected.packet, selected.sources, selected.lock);
+  const retainedBytes = selected.files.get(topology);
+  if (retainedBytes === undefined) throw new Error('Fixture topology bytes missing');
+  expect(bootstrap.topologyEvidence).toEqual({
+    bytes: retainedBytes.toString(),
+    source: {
+      sourcePath: topology,
+      artifactPath: topology,
+      sha256: hash(retainedBytes),
+    },
+  });
+  const coordinate = selected.sources.find((source) => source.artifactPath === topology);
+  if (coordinate === undefined) throw new Error('Fixture topology source missing');
+  Object.assign(coordinate, { sha256: '0'.repeat(64) });
+  expect(bootstrap.topologyEvidence.source.sha256).not.toBe(coordinate.sha256);
+  const { readDaemonTopology } = await import('./observability-native-daemon');
+  const selection = { sourceRevision: 'a'.repeat(40), artifactSHA256: 'b'.repeat(64) };
+  const contract = {
+    stages: [],
+    frames: [],
+    bootstrap: [],
+    bootstrapSources: [structuredClone(bootstrap.topologyEvidence.source)],
+    provenance: selection,
+  };
+  expect(readDaemonTopology(contract, { ...bootstrap.topologyEvidence, selection })).toMatchObject({
+    servers: 1,
+    agents: 0,
+    candidateNodes: 1,
+  });
+});

@@ -861,7 +861,16 @@ export async function prepareRehearsalInventory(
       }),
     ),
   };
-  return { inventory: receiptInventory, native, lock };
+  return {
+    inventory: receiptInventory,
+    native,
+    lock,
+    // Proof: Task25c3g omitted-return-field fault produced only TS2339 at the native caller after a clean no-emit baseline; this proves typed handoff, not rendering.
+    topologyEvidence: {
+      ...bootstrap.topologyEvidence,
+      selection: { sourceRevision: receipt.sourceRevision, artifactSHA256: receipt.artifactSHA256 },
+    },
+  };
 }
 
 /** Produce the existing source-only receipt through the shared canonical producer. */

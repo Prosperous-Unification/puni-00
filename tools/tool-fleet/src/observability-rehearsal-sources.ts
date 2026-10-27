@@ -120,6 +120,28 @@ const Topology = type({
     runtime: 'Record<string,unknown>',
   },
 });
+/** Decode the retained topology once for bootstrap and native accounting; preserve the bootstrap schema and refusal policy. */
+export function readRehearsalTopology(bytes: string) {
+  const declaration = parseDocument(type('string>0').assert(bytes));
+  // Proof: Task25c2b topology-yaml omission admitted duplicate keys in a structurally valid declaration.
+  if (declaration.errors.length) throw new Error('Rehearsal malformed topology');
+  // Proof: Task25c2b topology-schema bypass admitted a nonnumeric server declaration.
+  const topology = Topology.assert(declaration.toJSON());
+  // Proof: Task25c2b memory-option removal admitted the forbidden serversMemory option.
+  if (Object.keys(topology.options.k3d).some((name) => /memory|disableImageVolume/i.test(name)))
+    throw new Error('Rehearsal unsupported k3d resource configuration');
+  return topology;
+}
+/** Require the collector's original-to-retained mapping, including the existing policy relocation. */
+export function assertRehearsalSource(source: RehearsalSource) {
+  const paths = rehearsalBootstrapPaths;
+  const expectedSource = source.artifactPath.startsWith(`${paths.retainedPolicy}/`)
+    ? paths.policy + source.artifactPath.slice(paths.retainedPolicy.length)
+    : source.artifactPath;
+  // Proof: Task25c2b source-coordinate removal admitted a forged original input coordinate.
+  if (source.sourcePath !== expectedSource)
+    throw new Error('Rehearsal bootstrap source coordinates differ');
+}
 /** Read only retained packet inputs. Hash/lock closure precedes decoding; no runner-root fallback exists. */
 export async function readRehearsalBootstrap(
   directory: string,
@@ -127,25 +149,20 @@ export async function readRehearsalBootstrap(
   lock: Toolchain,
 ) {
   const paths = rehearsalBootstrapPaths;
+  const topologySource = sources.find((source) => source.artifactPath === paths.topology);
   // Proof: Task25c2b source-closure removal lost the omitted-coordinate refusal.
+  // Proof: Task25c3g topology-selection removal lost the omitted topology coordinate closure diagnostic.
   if (
+    topologySource === undefined ||
     new Set(sources.map((source) => source.artifactPath)).size !== sources.length ||
-    ![
-      paths.flux,
-      paths.topology,
-      paths.objectStore,
-      `${paths.retainedPolicy}/kustomization.yaml`,
-    ].every((path) => sources.some((source) => source.artifactPath === path))
+    ![paths.flux, paths.objectStore, `${paths.retainedPolicy}/kustomization.yaml`].every((path) =>
+      sources.some((source) => source.artifactPath === path),
+    )
   )
     throw new Error('Rehearsal bootstrap source closure differs');
   const files = new Map<string, string>();
   for (const source of sources) {
-    const expectedSource = source.artifactPath.startsWith(`${paths.retainedPolicy}/`)
-      ? paths.policy + source.artifactPath.slice(paths.retainedPolicy.length)
-      : source.artifactPath;
-    // Proof: Task25c2b source-coordinate removal admitted a forged original input coordinate.
-    if (source.sourcePath !== expectedSource)
-      throw new Error('Rehearsal bootstrap source coordinates differ');
+    assertRehearsalSource(source);
     // Proof: Task25c2b source-read substitution lost ENOENT/EACCES distinctions for all four required input classes.
     const bytes = await readFile(join(directory, source.artifactPath));
     // Proof: Task25c2b source-hash removal lost the independent retained-byte drift refusal.
@@ -158,20 +175,21 @@ export async function readRehearsalBootstrap(
     throw new Error('Rehearsal Flux manifest lock differs');
   // Proof: Task25c2b flux-decoder omission admitted coherently hashed malformed Flux YAML.
   decodeRenderedResources(flux);
-  const declaration = parseDocument(type('string>0').assert(files.get(paths.topology)));
-  // Proof: Task25c2b topology-yaml omission admitted duplicate keys in a structurally valid declaration.
-  if (declaration.errors.length) throw new Error('Rehearsal malformed topology');
-  // Proof: Task25c2b topology-schema bypass admitted a nonnumeric server declaration.
-  const topology = Topology.assert(declaration.toJSON());
-  // Proof: Task25c2b memory-option removal admitted the forbidden serversMemory option.
-  if (Object.keys(topology.options.k3d).some((name) => /memory|disableImageVolume/i.test(name)))
-    throw new Error('Rehearsal unsupported k3d resource configuration');
+  const topologyBytes = type('string>0').assert(files.get(paths.topology));
+  const topology = readRehearsalTopology(topologyBytes);
   // Proof: Task25c2b object-lock-reader bypass admitted an empty coherently hashed object-store lock.
   const objectStore = await readObjectStoreLock(
     join(directory, paths.objectStore),
     lock.runtimeImages.objectStore,
   );
-  return { sources, flux, topology, objectStore };
+  return {
+    sources,
+    flux,
+    topology,
+    // Proof: Task25c3g retention-byte/snapshot faults failed the real bootstrap-to-native companion control.
+    topologyEvidence: { bytes: topologyBytes, source: structuredClone(topologySource) },
+    objectStore,
+  };
 }
 
 /** A bootstrap application has source coordinates and its own build, never an invented Flux stage. */

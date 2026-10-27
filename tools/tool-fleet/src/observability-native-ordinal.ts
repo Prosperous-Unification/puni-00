@@ -10,6 +10,18 @@ import {
   normalizeNativeOwner,
   UnsupportedNativeWorkload,
 } from './observability-cold-start';
+import { expandNativeCohorts } from './observability-native-cohorts';
+import {
+  deriveDaemonLifecycle,
+  expandDaemon,
+  type NativeSourceContract,
+  readDaemonObligations,
+  readDaemonSet,
+  readDaemonTopology,
+  type RehearsalTopologyEvidence,
+  selectDaemonWorkload,
+  supportsDaemonPolicy,
+} from './observability-native-daemon';
 import {
   prepareRehearsalInventory,
   readRehearsalSource,
@@ -410,7 +422,11 @@ function readNativeInput(view: ReturnType<typeof readRehearsalSource>['native'][
   if (entry.kind === 'Deployment') readDeployment(manifest);
   // Proof: Task25c3e prepass removal let an earlier ordinal claim collision mask a malformed later Job.
   if (entry.kind === 'Job') readJob(manifest);
-  const pod = InventoryWorkloadSpec(podSpecOf({ kind: entry.kind, spec }));
+  // Proof: Task25c3g prepass removal let an earlier ordinal claim collision conceal malformed daemon placement.
+  const daemon = entry.kind === 'DaemonSet' ? readDaemonSet(manifest) : undefined;
+  const pod = InventoryWorkloadSpec(
+    daemon === undefined ? podSpecOf({ kind: entry.kind, spec }) : selectDaemonWorkload(daemon),
+  );
   if (pod instanceof type.errors) refuse();
   const templates = type({ 'volumeClaimTemplates?': Claim.array() })(spec);
   if (templates instanceof type.errors) refuse();
@@ -531,30 +547,13 @@ function expandDeployment(
   input: Omit<Parameters<typeof expandNativeOwner>[0], 'templates' | 'claimPointer' | 'pods'>,
   replicas: number,
 ) {
-  // Proof: Task25c3b cohort-count removal lost full first-replacement charges; initial-charge/replacement-charge zeroing failed the per-slot ledger.
-  return expandNativeOwner({
-    ...input,
-    pods: 2 * replicas,
-    templates: [],
-    claimPointer: () => {
-      throw new Error('Deployment claim template impossible');
+  return expandNativeCohorts(input, replicas).map((charge) => ({
+    ...charge,
+    concurrency: {
+      phase: 'immutable-source-deployment-replacement-wave' as const,
+      ...charge.concurrency,
     },
-  }).map((charge, index) => {
-    // Proof: Task25c3b slot-identity/cohort-identity substitutions triggered duplicate charge refusal in first-wave controls.
-    const cohort = index < replicas ? ('initial' as const) : ('replacement' as const);
-    const slot = index % replicas;
-    return {
-      ...charge,
-      kind: 'pod' as const,
-      identity: `${input.identity}/${cohort}/${String(slot)}`,
-      concurrency: {
-        phase: 'immutable-source-deployment-replacement-wave' as const,
-        pods: 2 * replicas,
-        cohort,
-        slot,
-      },
-    };
-  });
+  }));
 }
 /** Keep default provenance and the conditional one-UID envelope separate from runtime admission.
  * At most 256 accounting slots are materialized by this adapter (backoff 0..255), a computational
@@ -674,10 +673,16 @@ function expandJob(
   }));
 }
 
-function deriveNativeCosts(source: ReturnType<typeof readRehearsalSource>, lock: Toolchain) {
+function deriveNativeCosts(
+  source: ReturnType<typeof readRehearsalSource>,
+  lock: Toolchain,
+  topology?: ReturnType<typeof readDaemonTopology>,
+) {
   const entries: ReturnType<typeof expandNativeOwner> = [];
   const deploymentEntries: ReturnType<typeof expandDeployment> = [];
   const deploymentLifecycles: ReturnType<typeof deriveDeploymentLifecycle>[] = [];
+  const daemonEntries: ReturnType<typeof expandDaemon> = [];
+  const daemonLifecycles: ReturnType<typeof deriveDaemonLifecycle>[] = [];
   const jobEntries: ReturnType<typeof expandJob> = [];
   const jobLifecycles: ReturnType<typeof deriveJobLifecycle>[] = [];
   const blockers: { owner: string; missingFact: string }[] = [];
@@ -880,11 +885,87 @@ function deriveNativeCosts(source: ReturnType<typeof readRehearsalSource>, lock:
     missing(identity, 'job-serial-runtime-binding');
     jobLifecycles.push(deriveJobLifecycle(controller, entry, identity));
   }
+  function deriveDaemon(
+    view: ReturnType<typeof readRehearsalSource>['native'][number],
+    broadPod: NonNullable<ReturnType<typeof readNativeInput>>,
+  ) {
+    const { entry, manifest } = view;
+    const identity = `${entry.kind}:${entry.namespace ?? '_'}:${entry.name}`;
+    const controller = readDaemonSet(manifest);
+    // Proof: Task25c3g runtime/history/independent-obligation omissions lost required facts even without topology or usable volumes.
+    missing(identity, 'daemon-replacement-wave-runtime-binding');
+    missing(identity, 'daemon-whole-attempt-generations-and-retained-history');
+    for (const fact of readDaemonObligations(view, broadPod, claims)) missing(identity, fact);
+    // Proof: Task25c3g daemon source-identity/provider bypasses admitted unsupported source identities and provider mismatches.
+    let supported = true;
+    if (hasRuntimeIdentity(manifest)) {
+      missing(identity, 'source-controller-identity-and-generation');
+      supported = false;
+    }
+    if (entry.namespace === null) {
+      missing(identity, 'source-namespace');
+      supported = false;
+    }
+    if (!providerMatches || !supportsDaemonPolicy(controller)) {
+      missing(identity, 'daemon-replacement-wave-policy');
+      supported = false;
+    }
+    // Proof: Task25c3g missing-topology omission hid its named fact; range removal charged N0/N129. Hostile MaxInt32 was never expanded under fault.
+    if (topology === undefined) {
+      missing(identity, 'daemon-candidate-topology');
+      supported = false;
+    } else if (topology.candidateNodes < 1 || topology.candidateNodes > 128) {
+      missing(identity, 'daemon-candidate-expansion-range');
+      supported = false;
+    }
+    const pod = NativeWorkloadSpec(selectDaemonWorkload(controller));
+    // Proof: Task25c3g bounds-obligation omission hid absent/null resource maps.
+    if (pod instanceof type.errors) {
+      missing(identity, 'workload-bounds-or-resource-policy');
+      return;
+    }
+    let model: ReturnType<typeof normalizeNativeOwner>;
+    try {
+      model = normalizeNativeOwner(pod, [], entry.kind, entry.owner, identity, (reason) => {
+        throw new UnboundedSource(reason);
+      });
+    } catch (failure) {
+      if (!(failure instanceof UnsupportedNativeWorkload) && !(failure instanceof UnboundedSource))
+        throw failure;
+      // Proof: Task25c3g normalizer-blocker omission hid the unsupported-volume fact alongside independent source obligations.
+      missing(identity, failure.message);
+      return;
+    }
+    if (!supported || entry.namespace === null || topology === undefined) return;
+    // Proof: Task25c3g source-frame/pointer substitutions failed exact charge provenance.
+    daemonEntries.push(
+      ...expandDaemon(
+        {
+          identity,
+          namespace: entry.namespace,
+          name: entry.name,
+          model,
+          source: {
+            owner: entry.owner,
+            sha256: entry.source.frameSHA256,
+            pointer: `${entry.pointer}/spec/template/spec`,
+          },
+        },
+        topology.candidateNodes,
+      ),
+    );
+    daemonLifecycles.push(deriveDaemonLifecycle(controller, entry, identity, topology));
+  }
   const validated = source.native.map((view) => ({ ...view, pod: readNativeInput(view) }));
-  for (const { entry, manifest } of validated) {
+  for (const { entry, manifest, pod: broadPod } of validated) {
     const identity = `${entry.kind}:${entry.namespace ?? '_'}:${entry.name}`;
     if (entry.category === 'claim') {
       missing(identity, 'claim-owner-and-retention-unaccounted');
+      continue;
+    }
+    if (entry.kind === 'DaemonSet') {
+      if (broadPod === null) throw new Error('DaemonSet pod missing after validation');
+      deriveDaemon({ entry, manifest }, broadPod);
       continue;
     }
     if (entry.kind === 'Deployment') {
@@ -1024,6 +1105,8 @@ function deriveNativeCosts(source: ReturnType<typeof readRehearsalSource>, lock:
     state: 'incomplete' as const,
     creationAuthority: false as const,
     runtimeAuthority: false as const,
+    daemonScope: 'immutable-source-daemon-replacement-wave' as const,
+    daemonLifecycles,
     deploymentScope: 'immutable-source-deployment-replacement-wave' as const,
     deploymentLifecycles,
     jobScope: 'immutable-source-serial-job-attempts' as const,
@@ -1035,10 +1118,17 @@ function deriveNativeCosts(source: ReturnType<typeof readRehearsalSource>, lock:
       })),
       ...deploymentEntries,
       ...jobEntries,
+      ...daemonEntries,
     ],
     // Proof: Task25c3b combined-total omission lost both Deployment cohorts from shared sums.
     // Proof: Task25c3e Job-total omission failed shared init/overhead/emptyDir normalization control.
-    knownContributions: sumCapacity([...entries, ...deploymentEntries, ...jobEntries]),
+    // Proof: Task25c3g combined-total omission lost both full daemon cohorts from the shared sum.
+    knownContributions: sumCapacity([
+      ...entries,
+      ...deploymentEntries,
+      ...jobEntries,
+      ...daemonEntries,
+    ]),
     blockers,
     lifecycles,
     sourceInventorySHA256: hash(JSON.stringify(source.inventory)),
@@ -1087,9 +1177,23 @@ function deriveNativeCosts(source: ReturnType<typeof readRehearsalSource>, lock:
  * Serial Job slots retain every full failed/terminating attempt conditionally; Helm/Flux generations and retained histories remain unobserved.
  * Supplied malformed fields throw before missing-bound/unsupported classifications. Other families and all runtime authority remain unresolved.
  */
-export function readRehearsalNativeCosts(...input: Parameters<typeof readRehearsalSource>) {
-  const source = readRehearsalSource(...input);
-  return deriveNativeCosts(source, input[3]);
+export function readRehearsalNativeCosts(
+  ...input: Parameters<typeof readRehearsalSource>
+): ReturnType<typeof deriveNativeCosts>;
+export function readRehearsalNativeCosts(
+  stages: Parameters<typeof readRehearsalSource>[0],
+  expansions: Parameters<typeof readRehearsalSource>[1],
+  contract: NativeSourceContract,
+  lock: Toolchain,
+  bootstrap: Parameters<typeof readRehearsalSource>[4],
+  topology: RehearsalTopologyEvidence,
+): ReturnType<typeof deriveNativeCosts>;
+export function readRehearsalNativeCosts(
+  ...input: [...Parameters<typeof readRehearsalSource>, topology?: RehearsalTopologyEvidence]
+) {
+  const [stages, expansions, contract, lock, bootstrap, evidence] = input;
+  const source = readRehearsalSource(stages, expansions, contract, lock, bootstrap);
+  return deriveNativeCosts(source, lock, readDaemonTopology(contract, evidence));
 }
 
 /** Share the canonical eleven-stage producer with inventory; this companion does not rerender or serialize raw native bodies. */
@@ -1098,7 +1202,12 @@ export async function deriveObservabilityRehearsalNativeCosts(
 ) {
   const source = await prepareRehearsalInventory(...input);
   return {
-    ...deriveNativeCosts(source, source.lock),
+    ...deriveNativeCosts(
+      source,
+      source.lock,
+      // Proof: Task25c3g wrapper-forwarding omission failed the retained-input component spy control; this does not prove rendering/runtime.
+      readDaemonTopology(source.inventory, source.topologyEvidence),
+    ),
     sourceInventorySHA256: source.inventory.inventorySHA256,
     provenance: source.inventory.provenance,
     obligations: source.inventory.obligations,
