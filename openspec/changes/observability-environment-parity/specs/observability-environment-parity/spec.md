@@ -562,3 +562,47 @@ The native capacity companion SHALL derive supported DaemonSet initial and first
 - **AND** rollout, repeated replacement/eviction, force/loss, node/placement changes, controller recreation and foreign mutation remain outside the bound
 - **AND** grace, history, surge and cleanup policies provide no physical reclamation credit
 - **AND** other native families and all system/helper/writer/transient/host obligations remain intact, with source-only inventory, incomplete state and false creation/runtime authority
+
+### Requirement: Immutable helper selection and versioned effective image evidence
+
+The rehearsal SHALL select its load-balancer and temporary helper images from a closed committed provider/version/platform lock, retaining index, selected manifest and config identities. The same selection MUST derive creation-plan references and the owned provider environment for ordinary and witnessed execution. Source metadata, effective image observations and runtime authority MUST remain distinct.
+
+#### Scenario: Supported helper selection reaches creation
+
+- **WHEN** the selected k3d version and linux/amd64 platform match the reviewed helper lock
+- **THEN** both helper references use the selected immutable manifests and reach the owned load-balancer/tools environment overrides
+- **AND** helper names, order and permanent/temporary roles remain unchanged
+- **AND** inherited provider overrides remain refused by strict creation before mutation
+
+#### Scenario: Supplied helper selection cannot be validated
+
+- **WHEN** required lock state is absent, unreadable, malformed, unknown, or mismatched by provider/version/platform or repository identity
+- **THEN** creation throws before resource mutation without a mutable-tag fallback
+- **AND** syntactically valid digests alone do not establish registry provenance or physical image costs
+
+#### Scenario: Effective helper identity is retained
+
+- **WHEN** a new strict creation uses the selected helper lock
+- **THEN** precreation helper image observations match its selected reference, manifest association, config identity and platform
+- **AND** every permanent and temporary creator has the exact configured reference and expected effective config image ID
+- **AND** each serial temporary creator has a unique retained exact-ID observation joined to its creator and lifecycle evidence
+- **AND** missing, duplicate, substituted or mismatched evidence cannot seal a successful attempt
+
+#### Scenario: Temporary helper disappears before observation
+
+- **WHEN** a required exact-ID inspection loses the race with provider deletion, or retention fails
+- **THEN** the attempt throws, retains partial evidence and cannot report ready or complete
+- **AND** it does not retry by name, infer an effective ID from events, fabricate observations or claim to synchronize provider deletion
+
+#### Scenario: Historical receipts retain their supported meaning
+
+- **WHEN** an authentic old sealed receipt satisfies the complete closed historical format and existing identity checks
+- **THEN** its existing receipt-based teardown remains available with current exact-ID/attachment checks and retained volumes/history
+- **AND** historical evidence cannot satisfy the new effective-image forward-acceptance boundary or be rewritten into new evidence
+- **AND** new creation writes only the explicit new format; unknown, mixed, truncated or inconsistent versions refuse
+
+#### Scenario: Source helper closure does not supply admission
+
+- **WHEN** helper source selection and component evidence pass
+- **THEN** complete system/helper/transient/physical costs, actual daemon/cache/platform observations, host admission and live acceptance remain separately required
+- **AND** k3d memory flags remain disabled and no historical hidden-helper cleanup claim is inferred

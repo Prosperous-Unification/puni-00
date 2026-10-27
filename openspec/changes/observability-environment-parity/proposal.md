@@ -1,6 +1,6 @@
 ## Why
 
-The dev observability stack uses Compose while the planned production stack uses Kubernetes/Flux. Their signal pipelines, authentication, retention setup, generated workload bounds and recovery behavior differ, so success on dev does not prove that the production candidate will behave the same. Puni needs to exercise the deployment it intends to operate, with each environment difference justified explicitly.
+The dev observability stack uses Compose while the planned production stack uses Kubernetes/Flux. Their signal pipelines, authentication, retention setup, workload bounds and recovery differ, so dev success does not prove production behavior. Puni needs to exercise the deployment it intends to operate, with each environment difference justified explicitly.
 
 ## What Changes
 
@@ -10,7 +10,7 @@ The dev observability stack uses Compose while the planned production stack uses
 - Prepare and rehearse a retained-history migration from the dev Compose stack. Continue using it until its replacement passes the common checks; record it as transitional rather than claiming parity.
 - Report source parity, rehearsal evidence and live convergence separately.
 - Inventory stage, chart and bootstrap contributors; bound container resources, scratch and conditional controller lifecycles through shared accounting and validated patches, retaining provider and enforcement provenance.
-- Retain verified locked object-store archives, derive bounded layer facts, and import without implicit builds.
+- Retain verified locked object-store archives and helper identities; derive bounded layer facts and import without implicit builds.
 
 ## Non-Goals
 
