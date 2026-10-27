@@ -251,7 +251,12 @@ test.each(['duplicate', 'namespace', 'identity', 'empty'] as const)(
       );
     if (fault === 'empty') rendered['target/store'] = '';
     expect(() =>
-      readRehearsalInventory(selected, rendered, captureRehearsalFrames(selected, rendered), lock),
+      readRehearsalInventory(
+        selected,
+        rendered,
+        fault === 'namespace' ? contract : captureRehearsalFrames(selected, rendered),
+        lock,
+      ),
     ).toThrow(fault === 'identity' ? /release identity/ : undefined);
   },
 );
@@ -627,4 +632,28 @@ test('legacy observability indexing retains its API allowlist and owner-derived 
   expect(() =>
     indexObservabilitySource({ 'legacy/native': encode({ ...native, apiVersion: 'foreign/v1' }) }),
   ).toThrow();
+});
+
+test('known API scope honors explicit chart metadata in a different namespace', () => {
+  const rendered = {
+    'target/store':
+      expansions['target/store'] +
+      '\n---\n' +
+      encode({
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: { name: 'coredns', namespace: 'kube-system' },
+      }),
+  };
+  const inventory = readRehearsalInventory(
+    stages,
+    rendered,
+    captureRehearsalFrames(stages, rendered),
+    lock,
+  );
+  expect(inventory.entries.find((entry) => entry.name === 'coredns')).toMatchObject({
+    namespace: 'kube-system',
+    namespaceOrigin: 'metadata',
+    releaseOwner: 'target/store',
+  });
 });

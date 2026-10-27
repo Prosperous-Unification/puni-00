@@ -252,13 +252,7 @@ function resolveNamespace(
     return { scope, namespace: null, namespaceOrigin: fromAPI === undefined ? 'crd' : 'api' };
   }
   if (scope === 'Namespaced') {
-    // Proof: Task25c2a release-namespace removal admitted the foreign chart namespace negative.
-    if (
-      frame.namespace !== null &&
-      metadata.namespace !== undefined &&
-      metadata.namespace !== frame.namespace
-    )
-      throw new Error('Rehearsal release namespace differs');
+    // Proof: Task25c2a metadata-precedence reversal lost the explicit cross-namespace chart fact.
     const namespace = metadata.namespace ?? frame.namespace;
     if (namespace === null)
       return { scope: 'unresolved', namespace: null, namespaceOrigin: 'unresolved' };
@@ -306,7 +300,8 @@ export function readRehearsalInventory(
     throw new Error('Rehearsal frame owner closure differs');
   for (const frame of frames) {
     const expected = contract.frames.find((candidate) => candidate.owner === frame.owner);
-    // Proof: Task25c2a frame-hash removal admitted changed raw stage bytes.
+    // Proof: Task25c2a frame-hash removal admitted changed raw stage bytes;
+    // removing hash and resource closure together admitted independently captured namespace drift.
     if (
       hash(frame.bytes) !== expected?.sha256 ||
       (frame.releaseOwner === null && hash(frame.bytes) !== frame.stage.sha256)

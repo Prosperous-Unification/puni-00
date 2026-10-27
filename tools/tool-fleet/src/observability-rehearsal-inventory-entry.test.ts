@@ -2,11 +2,12 @@ import { writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 
 import { readToolchain } from './contracts';
-import { prepareObservabilityRehearsal } from './observability-parity-rehearsal';
+import * as rehearsal from './observability-parity-rehearsal';
 import { inventoryObservabilityRehearsal } from './observability-rehearsal-inventory';
+import * as rendering from './observability-render';
 import { provisionObservabilityTools } from './observability-tools.fixture';
 
 const root = join(import.meta.dir, '../../..');
@@ -28,7 +29,7 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
     },
   };
   const packet = join(directory, 'packet');
-  await prepareObservabilityRehearsal(root, tools, request, packet);
+  await rehearsal.prepareObservabilityRehearsal(root, tools, request, packet);
   const lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   const archive = join(
     tools,
@@ -36,7 +37,37 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
     `helm-${lock.binaries.helm.version}`,
     basename(new URL(lock.binaries.helm.url).pathname),
   );
-  const receipt = await inventoryObservabilityRehearsal(root, tools, request, packet, archive);
+  const capture = process.env['PUNI_REHEARSAL_FRAMES_EXPORT'];
+  const render = rendering.renderObservabilityReleases;
+  const observer =
+    capture === undefined
+      ? null
+      : spyOn(rendering, 'renderObservabilityReleases').mockImplementation(
+          async (...arguments_) => {
+            const frames = await render(...arguments_);
+            await writeFile(capture, JSON.stringify(frames));
+            return frames;
+          },
+        );
+  const validate = rehearsal.validateObservabilityRehearsalBuilds;
+  const buildObserver =
+    capture === undefined
+      ? null
+      : spyOn(rehearsal, 'validateObservabilityRehearsalBuilds').mockImplementation(
+          async (...arguments_) => {
+            const validated = await validate(...arguments_);
+            await writeFile(`${capture}.stages.json`, JSON.stringify(validated));
+            return validated;
+          },
+        );
+  let receipt: Awaited<ReturnType<typeof inventoryObservabilityRehearsal>>;
+  try {
+    receipt = await inventoryObservabilityRehearsal(root, tools, request, packet, archive);
+  } finally {
+    observer?.mockRestore();
+    buildObserver?.mockRestore();
+  }
+
   expect(receipt.frames.filter((frame) => frame.owner.startsWith('stage/'))).toHaveLength(11);
   const declarations = receipt.entries.filter((entry) => entry.kind === 'HelmRelease');
   expect(declarations.length).toBeGreaterThan(9);
